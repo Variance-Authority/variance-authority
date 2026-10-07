@@ -79,6 +79,16 @@ describe('a composed suite index', () => {
     expect(kept(composed)).toContain(`--t${String(LEXICON_CAP + 49)}`);
   });
 
+  it('takes where a component is declared from the same shard, in whatever order the parts arrive', () => {
+    const [one, two] = parts(SUITE, 2, (i) => (i < 2 ? 1 : 2));
+    // Both shards rendered Button, and their engines placed it in different files.
+    const a = { ...one!, declaredIn: { Button: ['src/one/Button.tsx'] } };
+    const b = { ...two!, declaredIn: { Button: ['src/two/Button.tsx'] } };
+    const forward = composeSuiteIndex([a, b], COMMIT);
+    expect(composeSuiteIndex([b, a], COMMIT)).toEqual(forward);
+    expect((forward as { lexicon?: { declaredIn?: unknown } }).lexicon?.declaredIn).toEqual({ Button: ['src/one/Button.tsx'] });
+  });
+
   it('refuses a build with a shard missing, one cut two ways, or one subject twice', () => {
     const [one, two] = parts(SUITE, 2, (i) => (i === 0 ? 1 : 2));
     const cutThree = parts(SUITE, 3, (i) => i + 1)[2]!;

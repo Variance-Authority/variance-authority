@@ -62,7 +62,7 @@ import { suitePartOf } from './suite-part.js';
  * re-exported below, so `commands/run.js` is still the one import path.
  */
 
-export { matchesGlob, collectorPath, loadCollector, planList, planStorybook } from './collector.js';
+export { matchesGlob, collectorPath, loadCollector, planFor, planList, planStorybook } from './collector.js';
 export type {
   Collected,
   Collector,

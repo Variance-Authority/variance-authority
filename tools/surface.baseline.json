@@ -543,6 +543,7 @@
         "subtractRegions": "function",
         "summarizeCoverage": "function",
         "summarizeInstability": "function",
+        "withDeclaredIn": "function",
         "withExamples": "function",
         "writerLocationOf": "function"
       },
@@ -2206,7 +2207,9 @@
         "writeSuiteIndex": "function"
       },
       "./suite-index": {
+        "SubjectCoverage": "interface",
         "SuiteIndex": "interface",
+        "SuiteProvenance": "interface",
         "decodeSuiteIndex": "function",
         "encodeSuiteIndex": "function",
         "suiteIndexOf": "function"

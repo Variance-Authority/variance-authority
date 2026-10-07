@@ -204,7 +204,6 @@ export function lexiconValuesOf(subject: SubjectComposition, options: LexiconOpt
       add('components', instance.component);
       add('createdBy', instance.createdBy);
       for (const token of instance.tokens) add('tokens', token);
-      for (const file of options.declaredIn?.get(instance.component) ?? []) add('files', file);
     }
     for (const component of options.examples?.get(subject.subject) ?? []) add('example', component);
     for (const region of options.regions?.get(subject.subject) ?? []) add('regions', region);
@@ -238,8 +237,34 @@ export function lexiconValuesOf(subject: SubjectComposition, options: LexiconOpt
       const values = fields.get(field);
       if (values !== undefined && values.size > 0) read[field] = [...values].sort(codeUnit);
     }
-    return { subject: subject.subject, fields: read, landmarks, boundaries: held.length };
+    const row = { subject: subject.subject, fields: read, landmarks, boundaries: held.length };
+    return options.declaredIn === undefined ? row : withDeclaredIn(row, subject.instances, options.declaredIn);
   }
+}
+
+/**
+ * A reading with the files declaring its components added to `files`.
+ *
+ * Where a component is declared is known only once the collection is over: the
+ * engine's answers grow subject by subject, and they are laid over the scan at
+ * the end. A collector that keeps no snapshot reads each subject as it arrives
+ * and adds the declared files here, from the instances it kept.
+ */
+export function withDeclaredIn(
+  row: LexiconValues,
+  instances: readonly ComponentInstance[],
+  declaredIn: ReadonlyMap<string, readonly string[]>,
+): LexiconValues {
+  const files = new Set(row.fields.files ?? []);
+  for (const instance of instances) {
+    if (!attributed(instance)) continue;
+    for (const file of declaredIn.get(instance.component) ?? []) {
+      const trimmed = file.trim();
+      if (trimmed !== '' && !isDigest(trimmed)) files.add(trimmed);
+    }
+  }
+  if (files.size === 0) return row;
+  return { ...row, fields: { ...row.fields, files: [...files].sort(codeUnit) } };
 }
 
 /**

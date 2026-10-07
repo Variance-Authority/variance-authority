@@ -46,7 +46,7 @@ export interface SuitePart {
   readonly declaredIn?: Readonly<Record<string, readonly string[]>>;
 }
 
-interface PartSubject {
+export interface PartSubject {
   readonly position: number;
   readonly subject: string;
   readonly instances: readonly ComponentInstance[];
@@ -156,13 +156,15 @@ function missingShards(parts: readonly SuitePart[]): string | undefined {
  *
  * Every shard scanned the same source, and each laid over it what its own
  * engine located for the components it rendered. So a component's answer is
- * taken from a shard that rendered it, and from the first shard otherwise.
+ * taken from the lowest-numbered shard that rendered it, and from the
+ * lowest-numbered shard otherwise — never from the order the parts were named
+ * in, which is a shell glob's.
  */
 function declaredOf(parts: readonly SuitePart[]): { readonly declaredIn?: Record<string, readonly string[]> } {
   if (parts.every((part) => part.declaredIn === undefined)) return {};
   const declaredIn: Record<string, readonly string[]> = {};
   const settled = new Set<string>();
-  for (const part of parts) {
+  for (const part of [...parts].sort((left, right) => firstOf(left) - firstOf(right))) {
     const rendered = new Set(part.subjects.flatMap((row) => row.instances.map((instance) => instance.component)));
     for (const [component, files] of Object.entries(part.declaredIn ?? {})) {
       if (settled.has(component)) continue;
@@ -173,6 +175,11 @@ function declaredOf(parts: readonly SuitePart[]): { readonly declaredIn?: Record
   // In the order the first shard wrote them, which is the scan's, as a run
   // holding every subject would have.
   return { declaredIn };
+}
+
+/** Where a part sorts among its build's: its shard, or the first position it holds. */
+function firstOf(part: SuitePart): number {
+  return part.shard?.index ?? part.subjects[0]?.position ?? Number.MAX_SAFE_INTEGER;
 }
 
 /**

@@ -6,8 +6,7 @@ import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW, OperatorError, exitFor, type Ex
 import {
   collectorPath,
   loadCollector,
-  planList,
-  planStorybook,
+  planFor,
   affectedProjects,
   historyFor,
   identityOf,
@@ -20,7 +19,6 @@ import {
   storeFor,
   writeArtifactToDisk,
   writeCliRunReport,
-  type Plan,
 } from './commands/run.js';
 import { renderCacheLine, sweepRenders } from './commands/renders.js';
 import { pruneWhenDueLines } from './commands/prune-cache.js';
@@ -49,6 +47,7 @@ import { doctor, machineProbes } from './commands/doctor.js';
 import { mainlinesOf, publishedLine } from './commands/share.js';
 import { shareOutput, writeSuitePart } from './commands/suite-part.js';
 import { runCarry } from './commands/carry.js';
+import { runCollect, runCollectMerge } from './commands/collect-command.js';
 import { runSuiteShare } from './commands/suite-share.js';
 import type { Configless } from './commands/configless.js';
 import { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
@@ -73,6 +72,8 @@ export async function dispatch(
   if (parsed.command === 'journeys' && parsed.operation !== undefined)
     return runJourneyArtifactCommand(parsed, streams);
   if (parsed.command === 'carry') return runCarry(parsed, streams, mainlinesOf);
+  // The parts say how they were collected; a merge reads no project.
+  if (parsed.command === 'collect' && parsed.operation === 'merge') return runCollectMerge(parsed, streams);
   // A suite's record alone: the root config declares the suite and its share,
   // and no project config is read.
   if (parsed.command === 'share' && parsed.suite !== undefined) return runSuiteShare({ ...parsed, suite: parsed.suite }, streams);
@@ -80,6 +81,9 @@ export async function dispatch(
 
   const config = await loadConfig(parsed.config);
   switch (parsed.command) {
+    case 'collect':
+      return runCollect(parsed, config, streams);
+
     case 'run': {
       const effective: Config =
         parsed.profile === undefined ? config : { ...config, profile: parsed.profile };
@@ -450,19 +454,4 @@ function sideJob(
   if (!suppress || code !== EXIT_REVIEW) return code;
   streams.err('changes need review; --exit-zero-on-changes exits 0, not 1.\n');
   return EXIT_CLEAN;
-}
-
-/** The generic half of planning, when the config named a source that has one. */
-async function planFor(config: Config): Promise<Plan | undefined> {
-  if (config.subjects.kind === 'storybook') {
-    return planStorybook(config.subjects.index, config.viewport, config.subjects.excludeTags);
-  }
-
-  // `collector` returns nothing on purpose: the collector's own `plan()` is the
-  // answer, and handing it an empty one to return would make an *absent* plan
-  // and a *discovered empty* plan indistinguishable — the second is a suite that
-  // watches nothing and has to be able to say so.
-  if (config.subjects.kind === 'collector') return undefined;
-
-  return planList(config.subjects.ids);
 }

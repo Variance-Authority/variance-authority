@@ -1,4 +1,5 @@
-import type { LexiconField, RunReport, SubjectLexicon } from '@variance-authority/report';
+import type { ComponentRecord, LexiconField, LexiconReport, RunReport, SubjectLexicon } from '@variance-authority/report';
+import type { SuiteIndex } from '@variance-authority/report/suite-index';
 
 /**
  * The lexicon as an inverted index: every token the run's names split into,
@@ -64,24 +65,56 @@ export interface LocateIndex {
   readonly postings: ReadonlyMap<string, readonly number[]>;
 }
 
-const built = new WeakMap<RunReport, LocateIndex>();
+/**
+ * What the lookup reads of a suite, whichever artifact holds it: a run report,
+ * or a suite index a collection or a run published. The two answer the same
+ * three questions — which subjects there are, what names each was read under,
+ * which components each is the example of — and the index answers them with no
+ * observation, so a lookup never needs a visual run to have happened.
+ */
+export interface SuiteView {
+  readonly lexicon?: LexiconReport;
+  /** Every subject the suite names, in its order: those without a lexicon are indexed by id alone. */
+  readonly subjects: readonly string[];
+  readonly components: readonly ComponentRecord[];
+}
+
+const built = new WeakMap<object, LocateIndex>();
 
 /** The index of a report, built on the first question and kept with the report. */
 export function indexOf(report: RunReport): LocateIndex {
-  let index = built.get(report);
-  if (index === undefined) built.set(report, (index = build(report)));
+  return cached(report, () => ({
+    ...(report.lexicon === undefined ? {} : { lexicon: report.lexicon }),
+    subjects: [...report.observations, ...(report.notObserved ?? [])].map((entry) => entry.subject),
+    components: report.composition?.components ?? [],
+  }));
+}
+
+/**
+ * The index of a suite index. Its subjects are every one its coverage names —
+ * a subject that failed is still looked up by its id — or, from an index that
+ * carries no coverage, the ones that held a snapshot.
+ */
+export function indexOfSuite(index: SuiteIndex): LocateIndex {
+  return cached(index, () => ({
+    ...(index.lexicon === undefined ? {} : { lexicon: index.lexicon }),
+    subjects: index.coverage?.map((entry) => entry.subject) ?? index.subjects,
+    components: index.components,
+  }));
+}
+
+function cached(source: object, view: () => SuiteView): LocateIndex {
+  let index = built.get(source);
+  if (index === undefined) built.set(source, (index = build(view())));
   return index;
 }
 
-function build(report: RunReport): LocateIndex {
-  const lexicon = report.lexicon;
+function build(view: SuiteView): LocateIndex {
+  const lexicon = view.lexicon;
   const subjects = new Map<string, SubjectLexicon>();
   for (const entry of lexicon?.subjects ?? []) subjects.set(entry.subject, entry);
   let idOnly = 0;
-  for (const subject of [
-    ...report.observations.map((entry) => entry.subject),
-    ...(report.notObserved ?? []).map((entry) => entry.subject),
-  ]) {
+  for (const subject of view.subjects) {
     if (subjects.has(subject)) continue;
     subjects.set(subject, { subject, boundaries: 0, terms: {} });
     idOnly += 1;
@@ -91,7 +124,7 @@ function build(report: RunReport): LocateIndex {
   const unread = ALL_FIELDS.filter((field) => !read.includes(field));
 
   const examples = new Map<string, string[]>();
-  for (const entry of report.composition?.components ?? []) {
+  for (const entry of view.components) {
     for (const subject of entry.examples) {
       let list = examples.get(subject);
       if (list === undefined) examples.set(subject, (list = []));

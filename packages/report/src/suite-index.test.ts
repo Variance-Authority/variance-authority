@@ -6,6 +6,7 @@ import type { ComponentRecord } from './composition.js';
 import type { RunReport } from './format.js';
 import type { LexiconReport } from './lexicon.js';
 import { readSuiteIndex, writeSuiteIndex } from './file.js';
+import { V1_BYTES, V1_INDEX } from './suite-index-v1.fixture.js';
 import {
   decodeSuiteIndex,
   encodeSuiteIndex,
@@ -115,10 +116,67 @@ describe('a suite index as bytes', () => {
     const header = new TextDecoder().decode(encoded.subarray(4, 4 + length)).replace(/\0+$/, '');
     const foreign = JSON.parse(header) as { format: string; version: number };
     expect(foreign.format).toBe('variance-authority-suite-index');
-    expect(foreign.version).toBe(1);
+    expect(foreign.version).toBe(2);
     const bytes = Uint8Array.from(encoded);
     bytes.set(new TextEncoder().encode('variance-authority-source'), 4 + header.indexOf(foreign.format));
     expect(() => decodeSuiteIndex(bytes)).toThrow(/not a variance-authority suite index/);
+  });
+});
+
+describe('what a collection adds to a suite index', () => {
+  const COLLECTED: SuiteIndex = {
+    ...INDEX,
+    lexicon: {
+      ...LEXICON,
+      fields: [...LEXICON.fields, 'files'],
+      declaredIn: { Price: ['src/Price.tsx'], Summary: ['src/Summary.tsx', 'src/summary/index.ts'] },
+      subjects: [
+        {
+          ...LEXICON.subjects[0]!,
+          landmarks: [
+            { role: 'region', name: 'Order summary', component: 'Summary', box: [-4, 0, 320, 180] },
+            { text: 'Total', within: 0, file: 'src/Summary.tsx', line: 12, createdBy: 'Summary', handle: 'total' },
+            {},
+          ],
+          elidedLandmarks: 3,
+        },
+        { ...LEXICON.subjects[1]!, landmarks: [] },
+      ],
+    },
+    coverage: [
+      { subject: 'checkout/summary', outcome: 'collected' },
+      { subject: 'checkout/empty', outcome: 'collected' },
+      { subject: 'checkout/error', outcome: 'failed', because: 'the story threw: no theme' },
+      { subject: 'checkout/draft', outcome: 'excluded', because: 'tagged !test' },
+    ],
+    provenance: { plan: 'p1', recipe: 'r1', assignment: 'checksum', storybook: 's1', scope: 'checkout/*' },
+  };
+
+  it('round-trips landmarks, where components are declared, coverage and provenance', () => {
+    expect(decodeSuiteIndex(encodeSuiteIndex(COLLECTED))).toEqual(COLLECTED);
+  });
+
+  it('keeps a subject with no landmarks read apart from one whose landmarks were read and empty', () => {
+    const read = decodeSuiteIndex(encodeSuiteIndex(COLLECTED));
+    expect(read.lexicon?.subjects[1]?.landmarks).toEqual([]);
+    expect(decodeSuiteIndex(encodeSuiteIndex(INDEX)).lexicon?.subjects[1]).not.toHaveProperty('landmarks');
+  });
+
+  it('keeps an index with no coverage apart from one whose coverage is empty', () => {
+    expect(decodeSuiteIndex(encodeSuiteIndex({ subjects: [], components: [], coverage: [] }))).toEqual({
+      subjects: [],
+      components: [],
+      coverage: [],
+    });
+    expect(decodeSuiteIndex(encodeSuiteIndex(INDEX))).not.toHaveProperty('coverage');
+  });
+
+  it('reads a version 1 index as what it says, with nothing it never wrote', () => {
+    const read = decodeSuiteIndex(V1_BYTES);
+    expect(read).toEqual(V1_INDEX);
+    for (const absent of ['coverage', 'provenance']) expect(read).not.toHaveProperty(absent);
+    expect(read.lexicon).not.toHaveProperty('declaredIn');
+    expect(read.lexicon?.subjects[0]).not.toHaveProperty('landmarks');
   });
 });
 

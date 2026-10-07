@@ -166,6 +166,7 @@ variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>]
 variance prune
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>]]
+variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
 variance carry   restore | save [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker
 ```
@@ -1796,6 +1797,39 @@ the default list, so running both shows what the reading left out.
 No `variance.config.json` is read, and there is no default for `--since`: without
 a ref there is no diff, and the honest answer would be every file in the
 checkout.
+
+### `collect`: the suite index without a visual run
+
+The suite index says which subject renders which component, at which landmark,
+declared in which file. A `run` writes it as a side effect of comparing pixels;
+`collect` writes it with no baseline, no comparison and no image, so a suite
+that never takes screenshots still gets an index an agent can look subjects up
+in.
+
+Each CI job collects its shard into a part, and one more job merges the parts:
+
+```bash
+variance collect --shard 1/4 --workers 2 --out evidence-1.json   # and 2/4, 3/4, 4/4
+variance collect merge evidence-*.json --out suite.index
+```
+
+`--workers` counts browsers per job, not per suite: four shards with two
+workers each open eight browsers at once. A shard splits the plan the way
+`run --shard` does, so a shard that owns no subjects still writes a part, and
+the merge can tell it from a missing one.
+
+Every part records the plan it split, the build it read (the Storybook build's
+digest, the commit, and the files under `source.dirs` including uncommitted
+edits), the config that shaped the reading, and an outcome for every subject it
+owns. The merge refuses parts that disagree on any of those, a missing or
+repeated shard, sharded and unsharded parts together, and a subject no part
+accounts for. It names the shard to collect again. The index it writes is the
+same whatever the shard count or the order you name the parts in.
+
+A subject that failed to render keeps the index at `--out` as it was: the merge
+writes what the parts hold to `<out>.incomplete`, names each failed subject
+with the `variance collect --shard k/n` that owns it, and exits `2`. The parts
+stay where they are, so you collect only that shard again and merge.
 
 ### Sharding: `report` takes more than one file
 

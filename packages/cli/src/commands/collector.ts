@@ -282,7 +282,7 @@ export interface CollectorContext {
    * The generic half of planning, already done — for **both** subject kinds.
    *
    * `storybook` supplies a story index parsed into subjects; `list` supplies the
-   * configured ids. The binary produces one either way (`planFor` in `bin.ts`),
+   * configured ids. The binary produces one either way ({@link planFor}),
    * so a collector the CLI loaded can return `context.plan` from `plan()` and
    * write no planning of its own.
    *
@@ -390,6 +390,21 @@ export function planList(ids: readonly string[]): Plan {
     notObserved: [],
     warnings: [],
   };
+}
+
+/** The generic half of planning, when the config named a source that has one. */
+export async function planFor(config: Config): Promise<Plan | undefined> {
+  if (config.subjects.kind === 'storybook') {
+    return planStorybook(config.subjects.index, config.viewport, config.subjects.excludeTags);
+  }
+
+  // `collector` returns nothing on purpose: the collector's own `plan()` is the
+  // answer, and handing it an empty one to return would make an *absent* plan
+  // and a *discovered empty* plan indistinguishable — the second is a suite that
+  // watches nothing and has to be able to say so.
+  if (config.subjects.kind === 'collector') return undefined;
+
+  return planList(config.subjects.ids);
 }
 
 /** The collector module named by the configured subject source. */
