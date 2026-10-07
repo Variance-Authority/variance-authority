@@ -413,9 +413,7 @@ describe('a leg read from a real record and a real graph', () => {
     expect(end.left).toContain(LOADED);
   });
 
-  // 8633dd2a took files whose every case skipped out of `0-2` to save their
-  // browser start-up. Placed by hops, one within two of the change is back in
-  // it, and the record cannot tell it from a test a partial run demoted.
+  // 8633dd2a took these out of `0-2` for their browser start-up; placed by hops, they are back.
   it.todo(
     'pays no browser start-up in `0-2` for a file whose every case skipped, while a test a partial run demoted keeps its hops — needs the record to tell a file whose every case skipped from a test a partial run demoted, and `verify:near` timings to say whether the start-up is paid again',
   );
