@@ -62,8 +62,9 @@ differently cut shard, or an unsharded part beside another part, is refused.
 `collect merge` then refuses parts that read a different build, recipe, plan,
 scope or environment; a part that names the wrong subject at a position, claims
 one another shard owns, or leaves out one it owns; and a row holding a field its
-part did not read. Each refusal names the part file or the shard to collect
-again. A failed subject keeps the
+part did not read. A refusal about one part or
+one shard names it; one about the set, such as two unsharded parts or shards
+cut different ways, says what the set holds. A failed subject keeps the
 published index as it was and writes the composed one beside it as incomplete.
 
 ## Implementation coordinates

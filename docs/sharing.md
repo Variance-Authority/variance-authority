@@ -404,7 +404,7 @@ wrote suite-index-v1, subject-costs-v1 to mainline main in refs/variance on orig
 ```
 
 Keep each part beside its run report when you move the reports between jobs.
-The command publishes nothing, and names the file or shard, when a run report
+The command publishes nothing, and says why, when a run report
 has no part beside it, when a shard is missing or named twice, when you name one
 shard's run report alone, and when the reports mix an unsharded run with shards
 or name two unsharded runs. A build that does

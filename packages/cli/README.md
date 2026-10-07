@@ -1824,8 +1824,8 @@ digest, the commit, and every source file under `source.dirs` as it is on
 disk, uncommitted and git-ignored ones included), the config that shaped the reading, and an outcome for every subject it
 owns. The merge refuses parts that disagree on the plan, the build or the
 config, a missing or repeated shard, sharded and unsharded parts together, and
-a subject no part accounts for, and names the part or the shard to collect
-again. The index it writes is the
+a subject no part accounts for, and says why: by the part or the shard when
+one is to blame. The index it writes is the
 same whatever the shard count or the order you name the parts in.
 
 A subject that failed to render keeps the index at `--out` as it was: the merge
