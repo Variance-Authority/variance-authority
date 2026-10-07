@@ -144,11 +144,15 @@ function composed(parts: readonly Named[]): Merged {
         ? { subject: outcome.subject, outcome: 'collected' }
         : { subject: outcome.subject, outcome: outcome.outcome, because: outcome.because },
     ),
-    ...first.plan.excluded.map((entry): SubjectCoverage => ({ subject: entry.subject, outcome: 'excluded', because: entry.because })),
+    ...first.plan.notObserved.map(({ subject, kind, because }): SubjectCoverage => ({ subject, outcome: kind, because })),
   ];
-  const failed = outcomes.flatMap(({ outcome, shard }): FailedSubject[] =>
-    outcome.outcome === 'failed' ? [{ subject: outcome.subject, because: outcome.because, ...(shard === undefined ? {} : { shard }) }] : [],
-  );
+  // A subject the plan could not hand over failed in every job, so no one shard is named to collect it again.
+  const failed = [
+    ...outcomes.flatMap(({ outcome, shard }): FailedSubject[] =>
+      outcome.outcome === 'failed' ? [{ subject: outcome.subject, because: outcome.because, ...(shard === undefined ? {} : { shard }) }] : [],
+    ),
+    ...first.plan.notObserved.flatMap(({ subject, kind, because }): FailedSubject[] => (kind === 'failed' ? [{ subject, because }] : [])),
+  ];
 
   const index: SuiteIndex = {
     ...(first.commit === undefined ? {} : { commit: first.commit }),

@@ -66,7 +66,7 @@ export async function collectEvidence(input: CollectInput): Promise<EvidencePart
       ...(input.scope === undefined ? {} : { scope: input.scope }),
       elapsed,
       passed: (position, { subject, kind, because }) => {
-        outcomes[position] = { position, subject, outcome: kind === 'failed' ? 'failed' : 'excluded', because };
+        outcomes[position] = { position, subject, outcome: kind, because };
       },
       read: async (position, planned, collected, _lane, begun) => {
         const subject = planned.subject.id;

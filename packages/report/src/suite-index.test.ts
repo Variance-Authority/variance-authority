@@ -148,6 +148,7 @@ describe('what a collection adds to a suite index', () => {
       { subject: 'checkout/empty', outcome: 'collected' },
       { subject: 'checkout/error', outcome: 'failed', because: 'the story threw: no theme' },
       { subject: 'checkout/draft', outcome: 'excluded', because: 'tagged !test' },
+      { subject: 'checkout/legacy', outcome: 'unreached', because: 'no change reaches it' },
     ],
     provenance: { plan: 'p1', recipe: 'r1', assignment: 'checksum', storybook: 's1', scope: 'checkout/*' },
   };

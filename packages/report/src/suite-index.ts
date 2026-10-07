@@ -14,7 +14,7 @@ import {
   type OpenSegment,
 } from '@variance-authority/core/segment';
 import type { ComponentRecord } from './composition.js';
-import type { RunReport } from './format.js';
+import type { NotObservedKind, RunReport } from './format.js';
 import type { LexiconField, LexiconReport, SubjectLexicon } from './lexicon.js';
 import { decodeFacts, encodeFacts, factVocabulary } from './suite-index-facts.js';
 
@@ -86,13 +86,13 @@ export interface SuiteIndex {
 }
 
 /**
- * What became of one planned subject: read, failed with a reason, or excluded
- * by the plan with a reason. A failed subject stays in the index, so a lookup
- * that misses it says it failed rather than that it is not there.
+ * What became of one planned subject: read, or not observed in one of the ways
+ * a run's report names, with a reason. A failed subject stays in the index, so
+ * a lookup that misses it says it failed rather than that it is not there.
  */
 export interface SubjectCoverage {
   readonly subject: string;
-  readonly outcome: 'collected' | 'failed' | 'excluded';
+  readonly outcome: 'collected' | NotObservedKind;
   /** Why it was not collected. Absent for a collected subject. */
   readonly because?: string;
 }

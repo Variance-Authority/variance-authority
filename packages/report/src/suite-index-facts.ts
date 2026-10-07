@@ -21,7 +21,7 @@ import type { SubjectCoverage, SuiteIndex, SuiteProvenance } from './suite-index
  * index read here holds none of them, and says so by leaving them out.
  */
 
-const OUTCOMES = ['collected', 'failed', 'excluded'] as const;
+const OUTCOMES = ['collected', 'failed', 'excluded', 'unreached'] as const;
 const PROVENANCE = ['plan', 'recipe', 'assignment', 'storybook', 'source', 'scope'] as const;
 const LANDMARK_TEXT = ['role', 'name', 'text', 'file', 'component', 'createdBy', 'handle'] as const;
 

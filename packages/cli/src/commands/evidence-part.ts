@@ -2,6 +2,7 @@
 import { digestValue, type CanonicalValue, type EnvironmentInputs, type Viewport } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Plan } from './collector.js';
+import type { NotObserved, NotObservedKind } from './run-report.js';
 import { openSuitePart, type SuitePart } from './suite-part.js';
 
 /**
@@ -31,14 +32,14 @@ export interface EvidencePlan {
   /** The digest of the entries and exclusions, in plan order. */
   readonly digest: string;
   readonly subjects: readonly PlanEntry[];
-  /** Subjects the plan left out before any shard was cut, with the reason. */
-  readonly excluded: readonly { readonly subject: string; readonly because: string }[];
+  /** Subjects the plan did not hand over before any shard was cut, as it said of them. */
+  readonly notObserved: readonly NotObserved[];
 }
 
 /** What became of one owned subject. */
 export type SubjectOutcome =
   | { readonly position: number; readonly subject: string; readonly outcome: 'collected'; readonly snapshot: boolean }
-  | { readonly position: number; readonly subject: string; readonly outcome: 'failed' | 'excluded'; readonly because: string };
+  | { readonly position: number; readonly subject: string; readonly outcome: NotObservedKind; readonly because: string };
 
 export interface EvidenceDiagnostic {
   /** Absent for what the plan or a worker said rather than one subject. */
@@ -98,8 +99,8 @@ export function evidencePlanOf(plan: Plan): EvidencePlan {
     ...(planned.viewport === undefined ? {} : { viewport: planned.viewport }),
     ...(planned.declaredIn === undefined ? {} : { declaredIn: planned.declaredIn }),
   }));
-  const excluded = plan.notObserved.map((entry) => ({ subject: entry.subject, because: entry.because }));
-  return { digest: digestValue({ subjects, excluded } as unknown as CanonicalValue), subjects, excluded };
+  const notObserved = plan.notObserved.map(({ subject, kind, because }): NotObserved => ({ subject, kind, because }));
+  return { digest: digestValue({ subjects, notObserved } as unknown as CanonicalValue), subjects, notObserved };
 }
 
 /** The environment `inputs` says a subject was read in, as a part carries it. */

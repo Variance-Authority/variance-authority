@@ -127,6 +127,23 @@ describe('mergeEvidence: the index of the whole suite, from every shard of one c
     expect(index.coverage?.filter((entry) => entry.outcome === 'excluded')).toHaveLength(5);
   });
 
+  it('keeps what the plan said of a subject it did not hand over, and holds the index open on a failure', async () => {
+    const plan: Plan = {
+      ...PLAN,
+      notObserved: [
+        { subject: 'legacy--old', kind: 'excluded', because: 'tagged !test' },
+        { subject: 'broken--index', kind: 'failed', because: 'the story file did not load' },
+      ],
+    };
+    const result = merged(await partsOf(2, { plan }));
+
+    expect(result.index.coverage?.slice(-2)).toEqual([
+      { subject: 'legacy--old', outcome: 'excluded', because: 'tagged !test' },
+      { subject: 'broken--index', outcome: 'failed', because: 'the story file did not load' },
+    ]);
+    expect(result.failed).toEqual([{ subject: 'broken--index', because: 'the story file did not load' }]);
+  });
+
   it('names a subject that failed and the shard to collect again', async () => {
     const failing = (id: string): Collected => (id === 'card--default' ? { ok: false, because: 'no theme' } : answer(id));
     const parts = await partsOf(4, { answer: failing });
