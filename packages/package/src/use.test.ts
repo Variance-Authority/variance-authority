@@ -104,4 +104,12 @@ describe('an import into a package the reading opens nothing of', () => {
     expect(usageFrom(new Set(), importing('kit/src/tax'), targets).byPath.map((held) => held.specifier)).toEqual(['kit/src/tax']);
     expect(usageFrom(new Set(), importing('react/jsx-runtime'), targets)).toMatchObject({ deep: [], byPath: [], unfollowed: [] });
   });
+
+  it('names a file whose imports it could not all read, and keeps the ones the file does write', () => {
+    const targets = { published: new Set<string>(), unentered: new Set(['kit']), declared: new Set<string>() };
+    const usage = usageFrom(new Set(), importing('kit/src/tax').map((file) => ({ ...file, unknown: 'a specifier built at run time' })), targets);
+
+    expect(usage.unreadable).toEqual(['apps/app/src/a.ts']);
+    expect(usage.byPath.map((held) => held.specifier)).toEqual(['kit/src/tax']);
+  });
 });
