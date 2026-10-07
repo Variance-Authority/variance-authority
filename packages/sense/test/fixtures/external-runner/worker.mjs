@@ -2,16 +2,18 @@
 // It times each case the way a runner does and prints what it measured as its
 // last line, for the parent to report.
 import { performance } from 'node:perf_hooks';
+import { fileURLToPath } from 'node:url';
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { observeTestFile, registerRecording } from '@variance-authority/sense/runner';
 
 const [file, flag] = process.argv.slice(2);
 // Two ways a process can miss the recording, for the tests that check the run
-// says so: `--no-hooks` never instruments, and `--records-elsewhere` instruments
-// but writes what its probes mean where the run does not read.
-if (flag === '--records-elsewhere') {
+// says so: `--no-hooks` never instruments, and `--names-another-root` instruments
+// with its probes naming files under a root the run does not read.
+if (flag === '--names-another-root') {
   const recording = JSON.parse(process.env['VARIANCE_AUTHORITY_RECORDING']);
-  process.env['VARIANCE_AUTHORITY_RECORDING'] = JSON.stringify({ ...recording, store: `${recording.store}-elsewhere` });
+  const root = fileURLToPath(new URL('src', import.meta.url));
+  process.env['VARIANCE_AUTHORITY_RECORDING'] = JSON.stringify({ ...recording, root });
 }
 if (flag !== '--no-hooks') registerRecording();
 

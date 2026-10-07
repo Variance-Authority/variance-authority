@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { build, createServer } from 'vite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { readRecord, recordStore } from './instrumented-modules.js';
+import { deriveModules } from './captured-modules.js';
 import { testSelectionProbes } from './probes.js';
 
 /**
@@ -44,47 +44,49 @@ async function workspace(): Promise<string> {
   return root;
 }
 
-/** The record `testSelectionProbes` wrote for `ui/src/Button.ts`, cut to what a reading decides. */
-async function recorded(root: string, cacheRoot: string) {
-  const record = await readRecord(recordStore(root, 'build', cacheRoot), 'ui/src/Button.ts');
-  return record && {
-    file: record.file,
-    instrumented: record.instrumented,
-    blocks: record.blocks.map((block) => [block.path, block.startLine, block.endLine]),
+/** The module the probes in `code` name, cut again from the checkout to what a reading decides. */
+async function derived(root: string, code: string | undefined) {
+  const id = /\.r\("(ui\/dist\/Button\.js@[0-9a-f]{32})"/.exec(code ?? '')?.[1];
+  expect(id).toBeDefined();
+  const module = (await deriveModules(root, [id!], undefined)).get(id!);
+  return module && {
+    file: module.file,
+    instrumented: module.instrumented,
+    blocks: module.blocks.map((block) => [block.path, block.startLine, block.endLine]),
   };
 }
 
 describe('a library an application loads from its tsc build', () => {
   it('is recorded under its source, on the source\'s lines, by a Vite dev server and by `vite build` alike', async () => {
     const root = await workspace();
-    const devCache = resolve(root, 'dev-cache');
     const server = await createServer({
       root,
       configFile: false,
       logLevel: 'silent',
-      plugins: [testSelectionProbes({ root, cacheRoot: devCache })],
+      plugins: [testSelectionProbes({ root })],
       server: { middlewareMode: true, hmr: false, ws: false },
     });
+    let served;
     try {
-      const done = await server.transformRequest('/ui/dist/Button.js');
-      expect(done?.code).toContain('.r("ui/src/Button.ts",');
+      // The probes name the file the build handed them, by the text they were placed on.
+      served = await derived(root, (await server.transformRequest('/ui/dist/Button.js'))?.code);
     } finally {
       await server.close();
     }
 
-    const buildCache = resolve(root, 'build-cache');
-    await build({
+    const output = await build({
       root,
       configFile: false,
       logLevel: 'silent',
-      plugins: [testSelectionProbes({ root, cacheRoot: buildCache })],
+      plugins: [testSelectionProbes({ root })],
       build: { write: false, rollupOptions: { input: resolve(root, 'app/main.js') } },
     });
+    const [bundle] = Array.isArray(output) ? output : [output];
+    const chunk = 'output' in bundle! ? bundle.output.find((file) => file.type === 'chunk') : undefined;
 
-    const served = await recorded(root, devCache);
     expect(served).toMatchObject({ file: 'ui/src/Button.ts', instrumented: true });
     // `return 'off'` is line 5 of `Button.ts`, as it is of the build.
     expect(served?.blocks).toContainEqual(['if#0/after', 5, 5]);
-    expect(await recorded(root, buildCache)).toEqual(served);
+    expect(await derived(root, chunk?.code)).toEqual(served);
   });
 });

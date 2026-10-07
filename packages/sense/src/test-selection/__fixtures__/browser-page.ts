@@ -117,7 +117,7 @@ export function twoCases(root: string, source = SOURCE): {
   readonly write: () => Promise<void>;
 } {
   const module = resolve(root, 'price.js');
-  const plugin = testSelectionProbes({ root, cacheRoot: resolve(root, 'cache') });
+  const plugin = testSelectionProbes({ root });
   let premium!: ExecutionJournal;
   let plain!: ExecutionJournal;
   return {

@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { relative, resolve } from 'node:path';
 import type { Page, TestInfo } from '@playwright/test';
-import { testSelectionProbes, type PreconditionStanding } from '@variance-authority/sense/journal';
+import { moduleId, type PreconditionStanding } from '@variance-authority/sense/journal';
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { decodeExecutionIndex, repositoryRoot } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
@@ -86,7 +86,6 @@ describe('snapshotCaseOf', () => {
       const cacheRoot = resolve(root, 'cache');
       const source = 'export const price = (amount) => amount * 2;\n';
       await writeFile(resolve(root, 'price.js'), source, 'utf8');
-      testSelectionProbes({ root, cacheRoot }).transform(source, resolve(root, 'price.js'));
       const pays = testInfoIn(root, 'one', 'pays');
       const refunds = testInfoIn(root, 'two', 'refunds');
       const owner = 'tests/checkout.spec.ts';
@@ -116,7 +115,7 @@ describe('snapshotCaseOf', () => {
 
       // Reading what a case holds leaves it in place for the row.
       const drained = {
-        evaluate: async () => ({ instrumentation: 'sense:instrument/presence-v5', modules: [{ id: 'price.js', hits: [0], shared: [] }] }),
+        evaluate: async () => ({ instrumentation: 'sense:instrument/presence-v5', modules: [{ id: moduleId('price.js', source), hits: [0], shared: [] }] }),
       } as unknown as Page;
       await recorder.note(drained, owner, { name: 'mocked > pays', id: 'one' });
       recorder.mark(owner, true, { name: 'mocked > pays', id: 'one' });

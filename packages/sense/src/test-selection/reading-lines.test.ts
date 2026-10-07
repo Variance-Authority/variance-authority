@@ -3,8 +3,7 @@ import { readingLines } from './index.js';
 
 /**
  * The lines every selector prints about how it read each changed file. The
- * wording is asserted here once; the CLI and `yarn test:since` assert only that
- * they print it.
+ * wording is asserted here once; the CLI asserts only that it prints it.
  */
 describe('what a selector prints about each changed file', () => {
   const readings = [

@@ -105,8 +105,9 @@ Look around:
 
 - Whether the checkout is reconciled: install and build current, new files
   tracked.
-- What the change reached: the `read` lines of `yarn test:since --dry-run`. A
-  slice it runs whole is the whole suite, not a wave; leave it to CI.
+- What the change reached: the `read` lines of `yarn variance select --suite
+  <slice>`. A slice it skips nothing of is the whole suite, not a wave; leave it
+  to CI.
 - Whether the machine is quiet before you believe a failure: a load average in
   `uptime` above the core count means re-run later.
 

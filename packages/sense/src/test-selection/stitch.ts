@@ -97,11 +97,8 @@ export interface StitchJourneysOptions {
 /** What the reports in a run directory add up to. */
 export interface StitchedJourneys {
   /**
-   * Each head that reported, and what it saw, keyed by the label its build
-   * instrumented under. The labels name the inventories one `recordExecution`
-   * reads, because an ordinal means something only against the inventory that
-   * minted it, and the rows join the page's rather than being written after
-   * them.
+   * Each head that reported, and what it saw, keyed by the name it reports
+   * under. The rows join the page's rather than being written after them.
    */
   readonly heads: ReadonlyMap<string, readonly ObservedSubject[]>;
   /** Declared heads that reported nothing all run. */

@@ -139,13 +139,21 @@ export type {
 /**
  * The record a checkout measures a change from — its own, else its mainline's
  * as CI published it or as last fetched here, else the primary checkout's — for
- * a runner outside this CLI that selects from it, as `yarn test:since` does in
- * this repository.
+ * a runner outside this CLI that reads it.
  */
 export { layMainline, suiteBase } from './commands/suite-base.js';
 export type { SuiteBase, SuiteBaseOptions } from './commands/suite-base.js';
 export { mainlineMissed, mainlineRead, primaryRead, readMissedMainline, writeMissedMainline } from './commands/mainline-base.js';
 export type { MainlineMissed, MainlineRecord, MissedMainline } from './commands/mainline-base.js';
+
+/**
+ * The selection `variance select` prints, as the sets a runner's seam drops
+ * from: `withTestSelection` in `@variance-authority/sense` reads it when
+ * `VARIANCE_AUTHORITY_SINCE` is set.
+ */
+export { selectSuite } from './commands/select-command.js';
+export type { SuiteReading, SuiteRequest } from './commands/select-suite.js';
+export type { Leg } from './commands/select-leg.js';
 
 /**
  * The renderer the config asks for, from the package the config belongs to.

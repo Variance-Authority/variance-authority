@@ -1,12 +1,11 @@
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
 import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
-import { instrument, type InstrumentMode } from '../instrument/index.js';
+import type { InstrumentMode } from '../instrument/index.js';
+import { captureModule, pathOf } from './captured-modules.js';
 import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
-import { coverageBlocks } from './coverage-rows.js';
-import { rawFrame } from './source-lines.js';
 import {
   carriedJournal,
   readFinished,
@@ -32,6 +31,9 @@ import { removeSeamModules, reopenRun, runFor, runStamp, writeSeamModule, type S
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
+import type { SuiteSelection } from './suite-selection.js';
+import { selectionFrom } from './selection-environment.js';
+import { selectingSequencer, type SequencerClass } from './vitest-sequencer.js';
 
 export interface TestSelectionOptions {
   /**
@@ -88,6 +90,14 @@ export interface TestSelectionOptions {
    * concurrent. Leave it off the rest of the time.
    */
   readonly continuations?: boolean;
+  /**
+   * The selection this run is handed, read once when Vitest first sorts its
+   * files. A wrapping `sequence.sequencer` drops what it may skip and hands
+   * the rest to the project's own, and stderr says `selected N of M`. Absent,
+   * `VARIANCE_AUTHORITY_SINCE` asks for the one `variance select` reads, and
+   * with that unset every file runs.
+   */
+  readonly selection?: () => Promise<SuiteSelection>;
 }
 
 interface ConfigPlugin {
@@ -172,7 +182,7 @@ export function withTestSelection(
         name: 'variance-authority:test-selection-config',
         configResolved: declareConfig(run, declared, [setupId, runnerId]),
       } satisfies ConfigPlugin],
-      test: { ...config.test, reporters: [...reporters, reporter] },
+      test: { ...config.test, ...selecting(config, root, configRoot, options), reporters: [...reporters, reporter] },
     };
   }
 
@@ -186,6 +196,7 @@ export function withTestSelection(
     plugins: [...array(config.plugins), plugin],
     test: {
       ...config.test,
+      ...selecting(config, root, configRoot, options),
       // First, so what a setup file of the project's loads is logged into the
       // file's own bucket: before the shim opens it, a probe in a realm that
       // already ran a file writes into the idle one, and under a runner of the
@@ -223,6 +234,23 @@ export function withTestSelection(
         : {}),
     },
   };
+}
+
+/** The sequencer that drops what the selection skips; nothing when none is asked for. */
+function selecting(
+  config: UserConfig,
+  root: string,
+  configRoot: string,
+  options: TestSelectionOptions,
+): Pick<NonNullable<UserConfig['test']>, 'sequence'> {
+  const suite = options.suite === undefined ? {} : { suite: options.suite };
+  const selection = options.selection ?? selectionFrom(process.env, { root, from: configRoot, ...suite });
+  if (selection === undefined) return {};
+  const sequence = config.test?.sequence;
+  const own = sequence?.sequencer as unknown as SequencerClass | undefined;
+  const sequencer = selectingSequencer(own, { root, configRoot, selection, shuffle: sequence?.shuffle });
+  type Sequence = NonNullable<NonNullable<UserConfig['test']>['sequence']>;
+  return { sequence: { ...sequence, sequencer: sequencer as unknown as NonNullable<Sequence['sequencer']> } };
 }
 
 /**
@@ -321,7 +349,7 @@ function selectionPlugin(
     watchChange(id) {
       const changed = projectPath(root, cleanId(id));
       for (const [moduleId, module] of modules) {
-        if (moduleId === changed || module.file === changed) modules.delete(moduleId);
+        if (pathOf(moduleId) === changed || module.file === changed) modules.delete(moduleId);
       }
     },
     transform(code, id) {
@@ -335,31 +363,14 @@ function selectionPlugin(
       // A `globalSetup` file is refused by the file it is as well as by the name
       // `include` is asked about, which a build's map may have changed.
       if (file === setupId || file === runnerId || globalSetup.has(file)) return null;
-      const frame = rawFrame(code, file, include, (at) => readFileSync(at, 'utf8'));
-      if (frame === undefined) return null;
-      const { extentOf, sourceDigest, file: wrote, text } = frame;
-
-      // Named after the file its map leads to, the same name every other seam
-      // instruments under, so a journal reads the same whoever produced it. Its
-      // probes report under the file the transform was handed: a source and its
-      // build both answer to the name, each with its own regions, and the fold
-      // joins them (see `joinReadings`). Vitest re-transforms every run in this
-      // process, so the records stay in this map rather than going to the store
-      // a build needs — writing two hundred thousand files to read them back a
-      // second later is ceremony, not durability.
-      const name = projectPath(root, wrote);
-      const moduleId = projectPath(root, file);
-      const done = instrument(code, name, moduleId, { mode });
-      modules.set(moduleId, done === undefined
-        ? { file: name, id: moduleId, sourceDigest, instrumented: false, blocks: [] }
-        : {
-            file: name,
-            id: moduleId,
-            sourceDigest,
-            instrumented: true,
-            blocks: coverageBlocks(done.blocks, { extentOf, text }),
-          });
-      return done === undefined ? null : { code: done.code, map: null };
+      // Its probes report under the file the transform was handed: a source and
+      // its build both answer to the name, each with its own regions, and the
+      // fold joins them (see `joinReadings`). Vitest re-transforms every run in
+      // this process, so the modules stay in this map.
+      const captured = captureModule(root, file, code, include, mode);
+      if (captured === undefined) return null;
+      modules.set(captured.module.id, captured.module);
+      return captured.code === undefined ? null : { code: captured.code, map: null };
     },
   };
 }

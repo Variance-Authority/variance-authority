@@ -10,7 +10,7 @@ import {
   writeTestCoverage,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
-import { selectOutput } from './select-command.js';
+import { selectOutput, selectSuite } from './select-command.js';
 import { indexOutput } from './index-command.js';
 
 /**
@@ -87,6 +87,29 @@ describe('reading this checkout', () => {
     // The frame check ran and agreed: the module was read at its line ranges
     // rather than charged whole for being unrecognisable.
     expect(said.err).not.toContain('was recorded from a text');
+  });
+
+  it('hands a runner the same reading as sets: the suite recorded whole, and the files it may skip', async () => {
+    const { root, head } = checkout();
+    await writeTestCoverage(testCoverageFile(root), snapshot(head));
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const selected = await selectSuite({ root });
+
+    expect([...selected.skip]).toEqual(['test/alpha.test.ts', 'test/gamma.test.ts']);
+    expect([...selected.whole]).toEqual(['test/alpha.test.ts', 'test/beta.test.ts', 'test/gamma.test.ts']);
+    expect(selected.declined).toBeUndefined();
+  });
+
+  it('hands a runner nothing to skip, and which reading declined, where nothing was recorded', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'va-select-bare-'));
+
+    const selected = await selectSuite({ root });
+
+    expect(selected.skip.size).toBe(0);
+    expect(selected.declined).toBe(`no execution journal at ${testCoverageFile(root)}`);
   });
 
   it('reads a snapshot named by path, as a recorder in another runtime writes one', async () => {
@@ -348,18 +371,33 @@ describe('reading this checkout', () => {
   });
 
   it('hands vitest paths from the top of the checkout when run from a directory inside it', async () => {
-    // The journal names files from the top, so an exclude resolved against `src/`
-    // names `src/test/alpha.test.ts`, which is no file, and the run skips nothing.
-    // The tests lie outside `src/`, so only the place on disk is written.
+    // An exclude resolved against `src/` names no file; the tests lie outside it, so only the place on disk is written.
     const { root, head } = checkout();
     await writeTestCoverage(testCoverageFile(root), snapshot(head));
     writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
     process.chdir(root);
-
     await indexOutput({ cwd: root });
     const said = await selectOutput({ cwd: join(root, 'src'), format: 'vitest' });
 
     expect(said.out).toBe(['alpha', 'gamma'].map((name) => `--exclude=${join(root, `test/${name}.test.ts`)}\n`).join(''));
+  });
+
+  it('says a runner format is deprecated, and names the variable that replaces it', async () => {
+    const { root, head } = checkout();
+    await writeTestCoverage(testCoverageFile(root), snapshot(head));
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    const vitest = await selectOutput({ cwd: root, format: 'vitest' });
+    const jest = await selectOutput({ cwd: root, format: 'jest' });
+    const plain = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(vitest.err.split('\n')[0]).toBe(
+      '`--format vitest` is deprecated: set VARIANCE_AUTHORITY_SINCE, and a config wrapped by `withTestSelection` ' +
+        'drops the skipped files inside the runner, with no path on its command line',
+    );
+    expect(jest.err.split('\n')[0]).toContain('`--format jest` is deprecated: set VARIANCE_AUTHORITY_SINCE');
+    expect(plain.err).not.toContain('deprecated');
   });
 });
 

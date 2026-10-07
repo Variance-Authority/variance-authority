@@ -41,7 +41,6 @@ export const STAGE_VARIABLE = 'VARIANCE_AUTHORITY_EXECUTION_STAGE';
 /** What one process contributed, before any of it has been merged. */
 export interface StagedExecution {
   readonly subjects: readonly ObservedSubject[];
-  readonly heads?: readonly string[];
   readonly cases?: readonly ObservedCase[];
 }
 
@@ -111,7 +110,6 @@ export async function foldStage(directory: string): Promise<StagedExecution> {
   const cases = foldCases(inWrittenOrder(staged.flatMap((one) => one.cases ?? []), caseOwner));
   return {
     subjects: joinObservations([inWrittenOrder(staged.flatMap((one) => one.subjects), (subject) => subject.owner)]),
-    heads: [...new Set(staged.flatMap((one) => one.heads ?? []))].sort(codeUnitOrder),
     cases,
   };
 }

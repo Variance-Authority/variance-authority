@@ -18,8 +18,8 @@ A behaviour nothing covers is pinned as it is before it is changed: one test per
 edge case, green on the old code, so the change shows up as the tests it turns
 red, and the test the change is for is still written to fail first. `covering`
 answers from the last recording, so for a file it has never seen, put the edit
-in the tree and read `yarn test:since --dry-run`: it selects from the diff, and
-says nothing about a file that has not changed.
+in the tree and read `yarn variance select --suite <slice>`: it selects from the
+diff, and says nothing about a file that has not changed.
 
 **Is it this task?** A task is the sentence of done from [refine](refine.md),
 and its code is its branch's diff, `git diff origin/main`. A defect in that diff

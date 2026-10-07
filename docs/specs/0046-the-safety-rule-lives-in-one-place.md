@@ -22,7 +22,7 @@ little. This one is about the moment the record is believed.
 `entered`, and `unread` names the changed paths the record says nothing about,
 which select nothing and are reported. The library computes all four correctly and
 then leaves the subtraction to its callers, who have each written it
-themselves: `variance select`, `variance run --since`, `tools/test-since.mjs`,
+themselves: `variance select`, `variance run --since`, tools/test-since.mjs,
 and the README (`packages/sense/README.md:717`). A fourth exported surface
 hands out `entered` alone. **The sentence the entire feature rests on is not a
 line of shipped code anywhere.**
@@ -35,9 +35,9 @@ That would be a tidiness complaint if the four agreed. They do not:
   the same diff against the same snapshot yields two different skip lists
   depending on which command asked. Without the walk a changed stylesheet is
   `unread` rather than answered by its measured importers, and selects nothing.
-- `knownAs` is supplied only by `tools/test-since.mjs`. The CLI's reader passes
+- `knownAs` is supplied only by tools/test-since.mjs. The CLI's reader passes
   `sourceAt` and `relations` and nothing else.
-- Only `tools/test-since.mjs` intersects `whole` with the suite that was
+- Only tools/test-since.mjs intersects `whole` with the suite that was
   actually collected. `variance select` subtracts from `whole` directly — so
   deleted tests, renamed tests, and tests belonging to another project or
   another config are all in the answer.
@@ -47,7 +47,7 @@ misleads an operator. `textAtRecording` returns `undefined` when the snapshot
 names no commit, with a docblock at `recorded-text.ts:111-113` saying this
 avoids "reporting every module stale". `frameOf` at
 `test-selection/reading.ts:107` reads `undefined` under every name as
-disagreement and answers `stale`. `tools/test-since.mjs` withholds `sourceAt`
+disagreement and answers `stale`. tools/test-since.mjs withholds `sourceAt`
 from a commitless snapshot; the CLI does not. **Through `variance select` and
 `variance run --since`, a commitless snapshot therefore reports exactly every
 changed module stale** — the widening is safe,
@@ -85,7 +85,7 @@ as a corrupt snapshot with destructive advice.
 **4. One translation between names and paths.** The frame check is one unit,
 `frameOf`, asked under every name `knownAs` gives a file, and a built twin's
 rows are in frame when the source's are. What is still written twice is the
-translation: `tools/test-since.mjs` rewrites a diff with `inSnapshotCoordinates`
+translation: tools/test-since.mjs rewrites a diff with `inSnapshotCoordinates`
 before the library sees it, and the CLI's reader supplies no `knownAs` at all.
 The name a row carries and the path a diff carries are two coordinate systems,
 and the translation between them belongs beside the check, once.

@@ -9,7 +9,7 @@ use crate::journey_format::{self, EncodedModule, Gaps, SetPool};
 use crate::{case_owner, journey_columns};
 use crate::journey_journal::{self, CaseRun, ModuleId, Visitor};
 use crate::journey_output;
-use crate::journey_record::{self, Module};
+use crate::journey_record::Module;
 use crate::journey_stitch;
 use crate::order;
 
@@ -22,8 +22,6 @@ pub struct JourneyFold {
     pub modules: u32,
     pub crossings: f64,
     pub passes: u32,
-    /// Files two builds numbered differently, read at the regions both hold.
-    pub renumbered: Vec<String>,
     /// Modules a case ran that no record holds: a change there selects nothing.
     pub unrecorded: Vec<String>,
     /// Part files that ran code under no journey a case handed out.
@@ -39,8 +37,6 @@ pub struct JourneyFoldResult {
     pub modules: u32,
     pub crossings: f64,
     pub passes: u32,
-    /// Files two builds numbered differently, read at the regions both hold.
-    pub renumbered: Vec<String>,
     /// Modules a case ran that no record holds: a change there selects nothing.
     pub unrecorded: Vec<String>,
     /// Part files that ran code under no journey a case handed out.
@@ -50,25 +46,25 @@ pub struct JourneyFoldResult {
     pub silent: Option<Vec<String>>,
 }
 
+/// Every module id the run's cases and parts name, for the caller to cut again.
+#[napi(catch_unwind)]
+pub fn journey_module_ids(case_directory: String, root: String, parts: Option<Vec<String>>) -> napi::Result<Vec<String>> {
+    let run = journey_journal::inspect(Path::new(&case_directory), Path::new(&root), parts.as_deref().unwrap_or_default())
+        .map_err(napi::Error::from_reason)?;
+    let mut ids: Vec<String> = run.wanted.into_iter().chain(run.part_wanted).collect::<HashSet<_>>().into_iter().collect();
+    ids.sort_unstable_by(|left, right| order::code_unit(left, right));
+    Ok(ids)
+}
+
 /// Read, fold, and encode one run's case journals without crossing per-row objects into V8.
 #[napi(catch_unwind)]
 pub fn fold_journey(
     case_directory: String,
     root: String,
-    stores: Vec<String>,
-    instrumentation: String,
+    modules: Vec<Module>,
     budget_megabytes: Option<u32>,
 ) -> napi::Result<JourneyFold> {
-    let answered = answer(
-        &case_directory,
-        &root,
-        &stores,
-        &instrumentation,
-        budget_megabytes,
-        &[],
-        &[],
-        None,
-    )
+    let answered = answer(&case_directory, &root, modules, budget_megabytes, &[], None)
     .map_err(napi::Error::from_reason)?;
     Ok(JourneyFold {
         bytes: answered.folded.bytes.into(),
@@ -76,7 +72,6 @@ pub fn fold_journey(
         modules: answered.folded.modules,
         crossings: answered.folded.crossings as f64,
         passes: answered.folded.passes,
-        renumbered: answered.folded.renumbered,
         unrecorded: answered.gaps.unrecorded,
         unclaimed: answered.gaps.unclaimed,
         silent: answered.gaps.silent,
@@ -92,18 +87,16 @@ struct FoldAnswer {
 fn answer(
     case_directory: &str,
     root: &str,
-    stores: &[String],
-    instrumentation: &str,
+    modules: Vec<Module>,
     budget_megabytes: Option<u32>,
     parts: &[String],
-    part_stores: &[String],
     previous: Option<&str>,
 ) -> Result<FoldAnswer, String> {
     let run = journey_journal::inspect(Path::new(case_directory), Path::new(root), parts)?;
-    let mut found = journey_record::read_records(stores, &run.wanted, instrumentation)?;
-    if !run.part_wanted.is_empty() {
-        for (id, module) in journey_record::read_part_records(part_stores, &run.part_wanted)? {
-            found.entry(id).or_insert(module);
+    let mut found = HashMap::with_capacity(modules.len());
+    for module in modules {
+        if run.wanted.contains(&module.id) || run.part_wanted.contains(&module.id) {
+            found.insert(module.id.clone(), module);
         }
     }
     let silent = previous.and_then(previous_heads).map(|before| {
@@ -162,26 +155,23 @@ fn unrecorded(run: &CaseRun, found: &HashMap<ModuleId, Module>) -> Result<Vec<St
 /// Fold one run and write its compressed artifact without transferring it through V8.
 ///
 /// `parts` are directories of frames written beyond a fence, joined to the
-/// cases by journey id; `part_stores` hold the inventories those frames name.
+/// cases by journey id; `modules` are every module the cases and parts name,
+/// as [`journey_module_ids`] listed them, cut again by the caller.
 #[napi(catch_unwind)]
 pub fn fold_journey_to(
     case_directory: String,
     root: String,
-    stores: Vec<String>,
-    instrumentation: String,
+    modules: Vec<Module>,
     output: String,
     budget_megabytes: Option<u32>,
     parts: Option<Vec<String>>,
-    part_stores: Option<Vec<String>>,
 ) -> napi::Result<JourneyFoldResult> {
     let answered = answer(
         &case_directory,
         &root,
-        &stores,
-        &instrumentation,
+        modules,
         budget_megabytes,
         parts.as_deref().unwrap_or_default(),
-        part_stores.as_deref().unwrap_or_default(),
         Some(&output),
     )
     .map_err(napi::Error::from_reason)?;
@@ -191,7 +181,6 @@ pub fn fold_journey_to(
         modules: answered.folded.modules,
         crossings: answered.folded.crossings as f64,
         passes: answered.folded.passes,
-        renumbered: answered.folded.renumbered,
         unrecorded: answered.gaps.unrecorded,
         unclaimed: answered.gaps.unclaimed,
         silent: answered.gaps.silent,
@@ -203,7 +192,6 @@ struct Folded {
     modules: u32,
     crossings: u64,
     passes: u32,
-    renumbered: Vec<String>,
 }
 
 fn fold(
@@ -221,12 +209,6 @@ fn fold(
         .enumerate()
         .map(|(row, module)| (module.id.clone(), row))
         .collect();
-    let mut renumbered: Vec<String> = modules
-        .iter()
-        .filter(|module| !module.lands.is_empty())
-        .map(|module| module.file.clone())
-        .collect();
-    renumbered.dedup();
     let mut module_blocks = Vec::with_capacity(modules.len() + 1);
     module_blocks.push(0);
     for module in &modules {
@@ -245,7 +227,6 @@ fn fold(
             modules: 0,
             crossings: 0,
             passes: 0,
-            renumbered,
         });
     }
 
@@ -316,7 +297,6 @@ fn fold(
         modules: module_count,
         crossings,
         passes,
-        renumbered,
     })
 }
 
@@ -473,33 +453,21 @@ impl Visitor for FoldVisitor<'_> {
         for ordinal in hits {
             let ordinal_value = *ordinal;
             let ordinal = ordinal_value as usize;
-            let own = [ordinal_value];
-            let targets: &[u32] = if module.lands.is_empty() {
-                if ordinal >= module.blocks.len() {
-                    continue;
-                }
-                &own
-            } else {
-                let Some(targets) = module.lands.get(ordinal) else {
-                    continue;
-                };
-                targets
-            };
+            if ordinal >= module.blocks.len() {
+                continue;
+            }
+            let block = base + ordinal;
             while shared_at < shared.len() && shared[shared_at] < ordinal_value {
                 shared_at += 1;
             }
             if shared.get(shared_at).copied() == Some(ordinal_value) {
-                for block in targets {
-                    self.loaded[base + *block as usize] = true;
-                }
+                self.loaded[block] = true;
                 continue;
             }
-            for block in targets {
-                let at = (base + *block as usize) * self.words;
-                mark_range(self.called, at, self.charge.test_first as usize, self.charge.test_last as usize);
-                for test in self.charge.targets {
-                    self.called[at + (*test as usize >> 5)] |= 1 << (test & 31);
-                }
+            let at = block * self.words;
+            mark_range(self.called, at, self.charge.test_first as usize, self.charge.test_last as usize);
+            for test in self.charge.targets {
+                self.called[at + (*test as usize >> 5)] |= 1 << (test & 31);
             }
         }
     }

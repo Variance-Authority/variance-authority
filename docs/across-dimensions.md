@@ -215,14 +215,13 @@ that directory:
 withJourneyCoverage(config, {
   journeyFile: '.variance-authority/journeys.bin',
   parts: ['/tmp/va-parts'],
-  heads: ['gateway'],
 });
 ```
 
 A Node service calls `collectJourneys({ head: 'gateway', parts: '/tmp/va-parts' })`,
-or sets `VARIANCE_AUTHORITY_PARTS`. `heads` lists the `label`s the Node services'
-builds gave `testSelectionProbes()`, so the fold can find the inventories their
-frames name. [Follow a Jest case into a service it
+or sets `VARIANCE_AUTHORITY_PARTS`. Each module in a frame names its
+repository-relative file and a digest of the text its probes were placed on, and
+the fold cuts that file again from your checkout. [Follow a Jest case into a service it
 calls](../packages/sense/README.md#follow-a-jest-case-into-a-service-it-calls)
 has the details.
 
@@ -247,7 +246,7 @@ writes parts. A head that reports to a driver refuses one.
 A JVM service wraps each request in `Journey.enter(cookie, baggage)` and runs
 with the agent and `-Dva.parts=<dir>` (or `VARIANCE_AUTHORITY_PARTS`). At exit
 it writes a frames file and the regions those frames name into the same
-directory, so a JVM head needs no entry in `heads`. [Record a service a Jest
+directory. [Record a service a Jest
 case calls](jvm.md#record-a-service-a-jest-case-calls) has the build
 and flags.
 
@@ -325,8 +324,7 @@ cannot place probes. Run the Vite build and serve its output instead:
 wrangler dev -c dist/gateway/wrangler.json -c dist/notes/wrangler.json -c dist/books/wrangler.json
 ```
 
-Jest's `withJourneyCoverage` names the receiver's directory in `parts` and
-`workers` in `heads`. Each journey's frame is sent before the promise its scope
+Jest's `withJourneyCoverage` names the receiver's directory in `parts`. Each journey's frame is sent before the promise its scope
 returned settles, so a Worker that ends a request's work with its response still
 delivers it, and nothing depends on `waitUntil`. A receiver that is gone loses
 that part, never the request.
