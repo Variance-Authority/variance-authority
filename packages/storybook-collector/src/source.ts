@@ -20,6 +20,15 @@ import { operatorError } from './operator.js';
  * **Directories, not globs.** A glob syntax is a small language with its own
  * bugs, and the question here is only *which files hold components* — which a
  * directory and a set of extensions answers. Nothing is installed to ask it.
+ *
+ * **The same forty lines are in `@variance-authority/route-collector`, and
+ * that is deliberate.** The *rule* — how a file becomes an index — is
+ * `indexDeclarations` in `sense` and has exactly one owner, so one
+ * `source: { dirs }` gives both collectors one index. What is duplicated is a
+ * directory walk, and the alternative was a surface package importing another
+ * surface package so an adopter's dependency tree could carry a collector they
+ * did not ask for. ADR-0024 makes the adopter's import list the thing to protect;
+ * this is the price, and it is a walk.
  */
 
 export interface SourceScan {

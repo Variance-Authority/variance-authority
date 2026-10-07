@@ -5288,6 +5288,7 @@ __metadata:
     "@variance-authority/dom": "workspace:^"
     "@variance-authority/playwright": "workspace:^"
     "@variance-authority/react": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
     playwright: "npm:^1.49.0"
     react-18: "npm:react@^18.3.1"
     react-dom-18: "npm:react-dom@^18.3.1"

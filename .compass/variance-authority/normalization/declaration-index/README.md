@@ -56,10 +56,9 @@ parse: the functions, classes and `const` or `let` bindings of its own top-level
 statements whose name starts with a capital, each at its statement's line. A
 declaration a comment, a string or a template spells is not one there, a name
 bound inside a function is that function's, and a file the parser cannot read
-declares nothing. The CLI and the Storybook collector index that way.
-`indexSource` here reads lines of text with no parser, for a caller without
-`sense` — the route collector, or an index built by hand — and it matches all
-three: a commented-out declaration, an indented one inside a function, and a
+declares nothing. The CLI and the Storybook and route collectors index that
+way. `indexSource` here reads lines of text with no parser, for a caller
+without `sense`, such as an index built by hand, and it matches all three: a commented-out declaration, an indented one inside a function, and a
 line in a file no parser accepts.
 
 It ranks nothing, opens nothing, and never decides which of several

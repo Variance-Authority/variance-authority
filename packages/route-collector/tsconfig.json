@@ -13,6 +13,7 @@
     { "path": "../core" },
     { "path": "../dom" },
     { "path": "../playwright" },
-    { "path": "../react" }
+    { "path": "../react" },
+    { "path": "../sense" }
   ]
 }
