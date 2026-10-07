@@ -98,7 +98,7 @@ describe('subject costs', () => {
     const config = configOf({ root });
 
     const done = await publishRun(config, await reportAt(head), { env: PUSH, cwd: dir });
-    expect(done).toMatchObject({ published: { written: ['suite-index-v1', 'subject-costs-v1'] } });
+    expect(done).toMatchObject({ published: { written: ['suite-index-v2', 'subject-costs-v1'] } });
     expect(await readdir(root)).not.toEqual([]);
 
     const found = await mainlineCosts(config, { env: LOCAL, cwd: dir });

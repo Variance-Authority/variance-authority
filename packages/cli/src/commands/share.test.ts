@@ -70,7 +70,7 @@ describe('publishing a run', () => {
     const config = configOf({ root: join(home, 'share'), mainlines: ['main'] });
 
     const done = await publishRun(config, await reportAt(repository.commits[2]!), { env: PUSH, cwd: repository.dir });
-    expect(done).toMatchObject({ line: { kind: 'mainline', name: 'main' }, published: { written: ['suite-index-v1'] } });
+    expect(done).toMatchObject({ line: { kind: 'mainline', name: 'main' }, published: { written: ['suite-index-v2'] } });
 
     await emptyLocalCache();
     const found = await mainlineIndex(config, { env: LOCAL, cwd: repository.dir });
@@ -88,7 +88,7 @@ describe('publishing a run', () => {
 
     const late = await publishRun(config, await reportAt(repository.commits[1]!), { env: PUSH, cwd: repository.dir });
     expect(late).toMatchObject({
-      published: { written: [], kept: [{ name: 'suite-index-v1', commit: repository.commits[2], because: 'newer-commit' }] },
+      published: { written: [], kept: [{ name: 'suite-index-v2', commit: repository.commits[2], because: 'newer-commit' }] },
     });
   });
 
@@ -97,7 +97,7 @@ describe('publishing a run', () => {
     const config = { ...configOf({ root: join(home, 'share'), mainlines: ['main'] }), reportCarry: 'share' } as Config;
 
     const done = await publishRun(config, await reportAt(repository.commits[0]!), { env: PUSH, cwd: repository.dir });
-    expect(done).toMatchObject({ published: { written: ['suite-index-v1', 'report-v1'] } });
+    expect(done).toMatchObject({ published: { written: ['suite-index-v2', 'report-v1'] } });
   });
 
   it('carries a suite\'s record to a mainline only from `share --suite` given what the runner collects, and a reader reads it back', async () => {
@@ -112,13 +112,13 @@ describe('publishing a run', () => {
     await writeFile(commitRunsFile(record), JSON.stringify({ commit: repository.commits[1]!, first: '', latest: '', runs: 1, files: [], standing: [] }));
     await writeFile(join(home, 'collected.txt'), '');
 
-    expect(await publishRun(config, await reportAt(repository.commits[1]!), { env: PUSH, cwd: repository.dir })).toMatchObject({ published: { written: ['suite-index-v1'] }, unpublished: [expect.stringContaining('pass `--collected`')] });
+    expect(await publishRun(config, await reportAt(repository.commits[1]!), { env: PUSH, cwd: repository.dir })).toMatchObject({ published: { written: ['suite-index-v2'] }, unpublished: [expect.stringContaining('pass `--collected`')] });
     expect(await publishSuite(repository.dir, 'unit', { env: PUSH }, { collected: join(home, 'collected.txt') })).toMatchObject({ published: { written: ['suite-v1/unit'] } });
     const found = await mainlineSuite(config, 'unit', { env: LOCAL, cwd: repository.dir });
     expect(found).toMatchObject({ mainline: 'main', commit: repository.commits[1]!, distance: 0 });
     expect('coverage' in found && caseSectionsOf(found.coverage)).toEqual({ index: new Uint8Array(cases.index) });
     expect('coverage' in found && JSON.parse(new TextDecoder().decode(found.runs))).toMatchObject({ standing: [] });
-    expect(await mainlineSuite(config, 'e2e', { env: LOCAL, cwd: repository.dir })).toEqual({ mainline: 'main', miss: { kind: 'absent' }, holds: ['suite-index-v1', 'suite-v1/unit'] });
+    expect(await mainlineSuite(config, 'e2e', { env: LOCAL, cwd: repository.dir })).toEqual({ mainline: 'main', miss: { kind: 'absent' }, holds: ['suite-index-v2', 'suite-v1/unit'] });
   });
 
   it('leaves a suite\'s record out when it was recorded at another commit, and says so', async () => {
@@ -132,10 +132,10 @@ describe('publishing a run', () => {
     const done = await publishRun(config, await reportAt(repository.commits[0]!), { env: PUSH, cwd: repository.dir });
 
     const why = `its record at ${record} was recorded at ${repository.commits[1]!}, not at ${repository.commits[0]!}`;
-    expect(done).toMatchObject({ published: { written: ['suite-index-v1'] }, unpublished: [`suite-v1/unit: ${why}`] });
+    expect(done).toMatchObject({ published: { written: ['suite-index-v2'] }, unpublished: [`suite-v1/unit: ${why}`] });
     const again = { ...config, share: configOf({ root: join(home, 'again'), mainlines: ['main'] }).share } as Config;
     expect(await shareLines(again, { publish: true, report: await reportAt(repository.commits[0]!) }, { env: PUSH, cwd: repository.dir })).toEqual([
-      `wrote suite-index-v1 to mainline main in the directory ${join(home, 'again')}.`,
+      `wrote suite-index-v2 to mainline main in the directory ${join(home, 'again')}.`,
       `left out suite-v1/unit: ${why}.`,
     ]);
   });
@@ -149,7 +149,7 @@ describe('publishing a run', () => {
     const env = { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: 'pull_request', GITHUB_HEAD_REF: 'feat/x', GITHUB_EVENT_PATH: event };
 
     const done = await publishRun(config, await reportAt(repository.commits[0]!), { env, cwd: repository.dir });
-    expect(done).toMatchObject({ line: { kind: 'branch', name: 'feat/x' }, published: { written: ['suite-index-v1'] } });
+    expect(done).toMatchObject({ line: { kind: 'branch', name: 'feat/x' }, published: { written: ['suite-index-v2'] } });
     expect(await readdir(join(home, 'share', 'branch'))).not.toEqual([]);
   });
 
@@ -193,7 +193,7 @@ describe('what a run and `variance share` say', () => {
     const report = await reportAt(repository.commits[0]!);
 
     expect(await shareLines(config, { publish: true, report }, { env: PUSH, cwd: repository.dir }))
-      .toEqual([`wrote suite-index-v1 to mainline main in the directory ${root}.`]);
+      .toEqual([`wrote suite-index-v2 to mainline main in the directory ${root}.`]);
 
     const read = await shareLines(config, { publish: false }, { env: LOCAL, cwd: repository.dir });
     expect(read[0]).toBe(
@@ -220,7 +220,7 @@ describe('what a run and `variance share` say', () => {
     const report = await reportAt(repository.commits[0]!);
 
     expect(await shareLines(configOf({ root }), { publish: true, report }, { env: PUSH, cwd: repository.dir })).toEqual([
-      `wrote suite-index-v1 to branch main in the directory ${root}.`,
+      `wrote suite-index-v2 to branch main in the directory ${root}.`,
       "no mainline: nothing answered from config, remote-head, event, so this run's line is branch main.",
     ]);
   });
@@ -235,7 +235,7 @@ describe('what a run and `variance share` say', () => {
     const env = { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: 'pull_request', GITHUB_HEAD_REF: 'feat/x', GITHUB_EVENT_PATH: event };
 
     expect(await shareLines(configOf({ root }), { publish: true, report: await reportAt(repository.commits[0]!) }, { env, cwd: repository.dir }))
-      .toEqual([`wrote suite-index-v1 to branch feat/x in the directory ${root}.`]);
+      .toEqual([`wrote suite-index-v2 to branch feat/x in the directory ${root}.`]);
   });
 
   it('says how many images the carried report names and this machine could not read, and names the first', async () => {
@@ -250,7 +250,7 @@ describe('what a run and `variance share` say', () => {
     const config = carrying(configOf({ root, mainlines: ['main'] }));
 
     expect(await shareLines(config, { publish: true, report: join(written, 'run.json') }, { env: PUSH, cwd: repository.dir })).toEqual([
-      `wrote suite-index-v1, report-v1 to mainline main in the directory ${root}.`,
+      `wrote suite-index-v2, report-v1 to mainline main in the directory ${root}.`,
       `left out 2 image(s) the report names and this machine could not read, the first at ${join(written, 'images', 'before.png')}.`,
     ]);
   });

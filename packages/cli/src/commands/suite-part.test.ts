@@ -181,7 +181,7 @@ describe('share --publish over every shard', () => {
 
     const lines = await shareOutput(configOf(root), { publish: true, reports }, await pushed());
     expect(lines[0]).toMatch(/composed from 2 shard\(s\)/);
-    expect(lines[1]).toMatch(/^wrote suite-index-v1 to mainline main /);
+    expect(lines[1]).toMatch(/^wrote suite-index-v2 to mainline main /);
     expect(await readSuiteIndex(suiteIndexPath(configOf(), COMMIT))).toEqual(
       decodeSuiteIndex(encodeSuiteIndex(whole(SUITE.slice(0, 2)))),
     );
