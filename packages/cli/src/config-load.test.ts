@@ -171,6 +171,20 @@ describe('loadConfig and the suites', () => {
       expect((refused as Error).message).toMatch(/variance\.config\.json: `suites\.unit\.carry` is "share", and the file has no `share` section/);
       expect((refused as Error).message).not.toContain('packages/app');
     });
+
+    it('refuses a config below the root that has a `share` of its own, when the root has none for its suites to carry to', async () => {
+      // The member's section carries the member's own report; the root's suites
+      // are published through the root's section, so holding one here is no
+      // answer for them.
+      const at = await repository();
+      await writeFile(resolve(at, 'variance.config.json'), JSON.stringify({ suites: CARRIED }));
+      const file = await member(at);
+      await writeFile(file, JSON.stringify({ ...VALID, share: SHARE }));
+
+      await expect(loadConfig(file)).rejects.toThrow(
+        '`suites.unit.carry` is "share", and the file has no `share` section to carry it; add one',
+      );
+    });
   });
 
   it('refuses a kind outside the closed list, naming the field', async () => {
