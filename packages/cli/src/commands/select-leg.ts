@@ -15,13 +15,13 @@
  * the files it left in `left`, and stderr gives their count and the flag that
  * runs them.
  *
- * ## A test the record never saw whole runs with the leg that reaches the end
+ * ## A test the record never saw whole runs with the open leg
  *
- * A test the record never saw whole — new since the recording, or recorded
- * incomplete — belongs with the other unplaced tests in the leg that reaches
- * the end. A skip list can say that only for a test the record names: one it
- * holds incomplete, such as a file whose every case skipped, is on the skip
- * list of every leg with an end.
+ * A test the record never saw whole and the change did not enter — new since
+ * the recording, or recorded incomplete — has no hops to place it by, and
+ * belongs in the open leg, the one with no upper bound. A skip list can say
+ * that only for a test the record names: one it holds incomplete, such as a
+ * file whose every case skipped, is on the skip list of every closed leg.
  * A test new since the recording is named nowhere, so it is in no skip list and
  * runs in every leg. That is the safe side of a skip list: it costs a file run
  * twice, never a file run zero times. A test the change entered is placed by
@@ -32,11 +32,13 @@
  * A leg is chosen by hop counts, so the counts it was chosen from are given
  * beside it: stderr counts the entered tests at each distance, and `json` gives
  * each one's distance as sense measured it, its bearing and, for one it could
- * not place, the reason. A test the change entered by no import it executed is
- * the one a reader expects in the near leg and finds in the furthest.
+ * not place, the reason. A test the change entered by no import it executed has
+ * no hop count, and runs in the one leg that holds the furthest hop measured, or
+ * in the open leg when none was: it is the one a reader expects in the near leg
+ * and finds further out.
  */
 
-import { groupByDistance, remaining, type TestDistance } from '@variance-authority/sense/test-selection';
+import { atDistance, groupByDistance, remaining, type TestDistance } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { many } from './reach.js';
 import type { SelectInput, TestSelection } from './select.js';
@@ -80,13 +82,16 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
     .map((test): TestDistance => placed.get(test) ?? { test, bearing: 'unexplained' })
     .sort((one, other) => codeUnitOrder(one.test, other.test));
   const cut = remaining(reading, leg.from, leg.to);
-  // Unplaced, and named only by the record: the leg that reaches the end runs them.
+  // Not entered, and named only by the record as incomplete: the open leg runs them.
   const entering = new Set(entered);
   const unseen =
     leg.to === Number.MAX_SAFE_INTEGER ? [] : (input.ground.narrowing.incomplete ?? []).filter((test) => !entering.has(test));
   const left = [...cut, ...unseen].sort(codeUnitOrder);
   const skip = [...new Set([...selection.skip, ...left])].sort(codeUnitOrder);
-  const nearer = cut.filter((test) => (placed.get(test)?.hops ?? Number.MAX_SAFE_INTEGER) < leg.from);
+  // A test the leg left is nearer when the leg before it runs it: a placed one
+  // by its hops, an unplaced one when that leg holds the furthest hop.
+  const before = new Set(leg.from === 0 ? [] : atDistance(reading, 0, leg.from - 1));
+  const nearer = cut.filter((test) => before.has(test));
   const further = cut.length - nearer.length;
   const whole = selection.recorded?.whole ?? 0;
 
@@ -115,9 +120,13 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
 /** How many entered tests sit at each distance, nearest first, the unplaced last. */
 function byDistance(reading: readonly TestDistance[]): readonly string[] {
   if (reading.length === 0) return [];
-  const counts = groupByDistance(reading).map((group) =>
+  const groups = groupByDistance(reading);
+  // Nearest first, so the last placed group holds the furthest hop measured.
+  const furthest = groups.filter((group) => !group.unplaced).at(-1)?.hops;
+  const runs = furthest === undefined ? 'in the open leg' : `in the leg that holds ${many(furthest, 'hop')}, the furthest measured`;
+  const counts = groups.map((group) =>
     group.unplaced
-      ? `${group.tests.length} at no measured distance, which ${group.tests.length === 1 ? 'runs' : 'run'} with the furthest leg`
+      ? `${group.tests.length} at no measured distance, which ${group.tests.length === 1 ? 'runs' : 'run'} ${runs}`
       : `${group.tests.length} at ${many(group.hops ?? 0, 'hop')}`,
   );
   const listed = counts.length === 1 ? counts[0] : `${counts.slice(0, -1).join(', ')}, and ${counts.at(-1)}`;
@@ -138,7 +147,7 @@ function unseenNote(count: number, range: string): readonly string[] {
   if (count === 0) return [];
   return [
     `${many(count, 'test file')} the record never saw whole and the change did not enter ` +
-      `${count === 1 ? 'is' : 'are'} left for the leg that reaches the end: ` +
+      `${count === 1 ? 'is' : 'are'} left for the open leg: ` +
       `the same command with \`--at-distance ${range}\` runs ${count === 1 ? 'it' : 'them'}`,
   ];
 }

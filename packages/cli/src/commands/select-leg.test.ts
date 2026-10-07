@@ -74,7 +74,7 @@ describe('one leg of the selection', () => {
     const input = read();
     const selection = inLeg(skippableTests(input), input, { from: 0, to: 2 });
 
-    // The ghost has no measured distance, and rides with the leg that reaches the end.
+    // The ghost has no measured distance, and rides with the leg that holds the furthest hop.
     expect(selection.skip).toEqual([FAR, GHOST, IDLE]);
     expect(selection.left).toEqual([FAR, GHOST]);
     expect(selection.leg).toEqual({ from: 0, to: 2 });
@@ -101,7 +101,64 @@ describe('one leg of the selection', () => {
     expect(runs(0, 2)).toEqual([...atDistance(DISTANCES, 0, 2)].sort());
   });
 
-  it('runs an entered test with no distance in the end leg, as an unplaced one', () => {
+  it('runs an entered test with no hop count in `0-2` and not in `3-` when nothing is placed past two hops', () => {
+    const input = read([
+      { test: NEAR, bearing: 'direct', hops: 0 },
+      { test: MID, bearing: 'transitive', hops: 1 },
+      { test: FAR, bearing: 'transitive', hops: 2 },
+      { test: GHOST, bearing: 'unexplained' },
+    ]);
+    const near = inLeg(skippableTests(input), input, { from: 0, to: 2 });
+    const end = inLeg(skippableTests(input), input, { from: 3, to: Number.MAX_SAFE_INTEGER });
+
+    expect(near.skip).toEqual([IDLE]);
+    expect(end.skip).toEqual(WHOLE);
+    expect(end.left).toEqual([FAR, GHOST, MID, NEAR]);
+  });
+
+  it('runs each selected file once in any loop of legs that covers every hop', () => {
+    const OPEN = Number.MAX_SAFE_INTEGER;
+    const loops = [
+      [[0, 2], [3, OPEN]],
+      [[0, 1], [2, OPEN]],
+      [[0, 0], [1, OPEN]],
+    ] as const;
+    const readings: readonly (readonly TestDistance[])[] = [
+      [],
+      [{ test: NEAR, bearing: 'direct', hops: 0 }],
+      [{ test: NEAR, bearing: 'direct', hops: 0 }, { test: MID, bearing: 'transitive', hops: 1 }],
+      [{ test: NEAR, bearing: 'direct', hops: 1 }, { test: MID, bearing: 'transitive', hops: 2 }],
+      DISTANCES,
+    ];
+
+    for (const distances of readings) {
+      const input = read(distances);
+      for (const loop of loops) {
+        const ran = loop.flatMap(([from, to]) => {
+          const { skip } = inLeg(skippableTests(input), input, { from, to });
+          return WHOLE.filter((test) => !skip.includes(test));
+        });
+        expect(ran.sort(), `${JSON.stringify(distances)} over ${JSON.stringify(loop)}`).toEqual([FAR, GHOST, MID, NEAR]);
+      }
+    }
+  });
+
+  it('sends the unplaced an open leg left to the earlier leg that holds the furthest hop', () => {
+    const input = read([
+      { test: NEAR, bearing: 'direct', hops: 0 },
+      { test: MID, bearing: 'transitive', hops: 1 },
+      { test: FAR, bearing: 'transitive', hops: 2 },
+      { test: GHOST, bearing: 'unexplained' },
+    ]);
+    const err = selectionNotes(inLeg(skippableTests(input), input, { from: 3, to: Number.MAX_SAFE_INTEGER }));
+
+    expect(err).toContain(
+      '4 selected test files are left for an earlier leg, nearer than 3 hops: the same command with `--at-distance 0-2` runs them',
+    );
+    expect(err).not.toContain('for a later leg');
+  });
+
+  it('runs an entered test with no distance in the open leg when no hop was measured', () => {
     const input = read([]);
     const near = inLeg(skippableTests(input), input, { from: 0, to: 2 });
     const end = inLeg(skippableTests(input), input, { from: 3, to: Number.MAX_SAFE_INTEGER });
@@ -126,7 +183,7 @@ describe('one leg of the selection', () => {
     expect(selectionNotes(end)).toContain('skipping 4 test files: 1 of 5 recorded whole covered no changed line, and 3 are outside');
   });
 
-  it('runs a test the record holds incomplete, and the change did not enter, only in the end leg', () => {
+  it('runs a test the record holds incomplete, and the change did not enter, only in the open leg', () => {
     const SKIPPED = 'test/skipped.test.ts';
     const input = read(DISTANCES, [GHOST, SKIPPED]);
     const near = inLeg(skippableTests(input), input, { from: 0, to: 2 });
@@ -136,7 +193,7 @@ describe('one leg of the selection', () => {
     expect(near.left).toEqual([FAR, GHOST, SKIPPED]);
     expect(end.skip).toEqual([IDLE, MID, NEAR]);
     expect(selectionNotes(near)).toContain(
-      '1 test file the record never saw whole and the change did not enter is left for the leg that reaches the end',
+      '1 test file the record never saw whole and the change did not enter is left for the open leg',
     );
   });
 
@@ -199,8 +256,15 @@ describe('one leg of the selection', () => {
 
     expect(err).toContain(
       'the change entered 4 test files: 1 at 1 hop, 1 at 2 hops, 1 at 3 hops, ' +
-        'and 1 at no measured distance, which runs with the furthest leg',
+        'and 1 at no measured distance, which runs in the leg that holds 3 hops, the furthest measured',
     );
+  });
+
+  it('counts the unplaced as running in the open leg when no hop was measured', () => {
+    const input = read([]);
+    const err = selectionNotes(inLeg(skippableTests(input), input, { from: 0, to: 2 }));
+
+    expect(err).toContain('the change entered 4 test files: 4 at no measured distance, which run in the open leg');
   });
 
   it('counts no distances when the change entered no test', () => {

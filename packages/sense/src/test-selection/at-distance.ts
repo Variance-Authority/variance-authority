@@ -42,10 +42,14 @@
  * A test with no measured distance is {@link DistanceGroup.unplaced}: no executed
  * path from the change reached it, or there was no graph to walk. It is not
  * distance zero, which is *the change is this test's own source* and is the
- * nearest thing there is. It rides with the leg that reaches the end — the one
- * whose `to` is open, or is at least the furthest distance measured — so
- * `0-2` then `3-` runs every selected file exactly once, and no leg short of the
- * end is made expensive by everything nobody could place.
+ * nearest thing there is. It rides with the one leg that holds the furthest
+ * hop the reading measured, or with the open leg — the one with no upper bound
+ * — when nothing was measured. Each leg is cut on its own, so that rule is the
+ * whole partition: whatever legs a loop spells, if they cover every hop
+ * without overlapping, exactly one holds the furthest hop and exactly one is
+ * open. So `0-2` then `3-` runs every selected file exactly once, and no leg
+ * nearer than the furthest test is made expensive by everything nobody could
+ * place.
  */
 
 import type { TestDistance } from './distance.js';
@@ -86,8 +90,9 @@ export function groupByDistance(distances: readonly TestDistance[]): readonly Di
 /**
  * The test files `from` through `to` hops from the change, inclusive.
  *
- * The unplaced ride with the leg that reaches the end, and with no other, so a
- * caller running `0-2` and then `3-` runs every file exactly once.
+ * The unplaced ride with the leg that holds the furthest hop the reading
+ * measured, or with the open leg when nothing was measured, and with no other,
+ * so a caller running `0-2` and then `3-` runs every file exactly once.
  */
 export function atDistance(
   distances: readonly TestDistance[],
@@ -97,9 +102,9 @@ export function atDistance(
   const placed = distances.filter(
     (distance) => distance.hops !== undefined && distance.hops >= from && distance.hops <= to,
   );
-  const carried = reachesTheEnd(distances, to)
-    ? distances.filter((distance) => distance.hops === undefined)
-    : [];
+  const unplacedAt = furthestOrOpen(distances);
+  const carried =
+    unplacedAt >= from && unplacedAt <= to ? distances.filter((distance) => distance.hops === undefined) : [];
   return [...new Set([...placed, ...carried].map(({ test }) => test))].sort(codeUnitOrder);
 }
 
@@ -139,18 +144,20 @@ export function distanceRange(
 }
 
 /**
- * Whether a range's far edge is past everything the reading placed.
+ * The hop the unplaced ride at: the furthest the reading measured, or the open
+ * end when it measured none.
  *
- * An open `3-` always is. A closed `1-4` is when nothing was measured beyond
- * four hops. A reading that placed nothing at all is the case worth being
- * careful about: every test in it is unplaced, and only an open range carries
- * them, so a loop of closed legs leaves them to {@link remaining} rather than
- * running them twice.
+ * A leg carries them when it holds this hop, not when its top is at or past
+ * it: every open leg's top is past it, so `0-2` and `3-` would both carry them
+ * when nothing was measured beyond two hops. A reading that placed nothing is
+ * the case worth being careful about: every test in it is unplaced, and only an
+ * open range reaches `Number.MAX_SAFE_INTEGER`, so a loop of closed legs leaves
+ * them to {@link remaining} rather than running them twice.
  */
-function reachesTheEnd(distances: readonly TestDistance[], to: number): boolean {
+function furthestOrOpen(distances: readonly TestDistance[]): number {
   let furthest = -1;
   for (const { hops } of distances) if (hops !== undefined && hops > furthest) furthest = hops;
-  return furthest === -1 ? to >= Number.MAX_SAFE_INTEGER : to >= furthest;
+  return furthest === -1 ? Number.MAX_SAFE_INTEGER : furthest;
 }
 
 function codeUnitOrder(left: string, right: string): number {

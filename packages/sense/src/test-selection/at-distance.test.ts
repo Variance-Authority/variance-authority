@@ -70,7 +70,7 @@ describe('atDistance', () => {
     expect(atDistance(far, 3, Number.MAX_SAFE_INTEGER)).toEqual(['a.test.ts', 'b.test.ts']);
   });
 
-  it('leaves the unplaced to the leg that reaches the end', () => {
+  it('leaves the unplaced to the leg that holds the furthest hop', () => {
     // A leg that picks up where the last one stopped must not re-run what it
     // already ran, or a banded loop costs more than the whole suite — and the
     // near end must not be made expensive by everything nobody could place.
@@ -95,6 +95,56 @@ describe('atDistance', () => {
 
     expect(atDistance(blind, 0, 2)).toEqual([]);
     expect(atDistance(blind, 3, Number.MAX_SAFE_INTEGER)).toEqual(['a.test.ts', 'b.test.ts']);
+  });
+
+  it('runs the unplaced in `0-2` and not in `3-` when nothing was placed past two hops', () => {
+    // `0-2` holds the furthest hop measured, so it runs them. `3-` is open, and
+    // running them there too would run them twice in one loop.
+    const near = [
+      { test: 'a.test.ts', bearing: 'direct', hops: 1 },
+      { test: 'b.test.ts', bearing: 'transitive', hops: 2 },
+      { test: 'c.test.ts', bearing: 'unexplained' },
+    ] as const;
+
+    expect(atDistance(near, 0, 2)).toEqual(['a.test.ts', 'b.test.ts', 'c.test.ts']);
+    expect(atDistance(near, 3, Number.MAX_SAFE_INTEGER)).toEqual([]);
+  });
+
+  it('runs the unplaced in exactly one leg of any loop that covers every hop', () => {
+    // Each leg is cut on its own, from the same reading, so the rule has to
+    // partition by itself: the leg holding the furthest measured hop, and the
+    // open leg when nothing was measured.
+    const OPEN = Number.MAX_SAFE_INTEGER;
+    const loops = [
+      [[0, 2], [3, OPEN]],
+      [[0, 1], [2, OPEN]],
+      [[0, 0], [1, OPEN]],
+      [[0, 0], [1, 2], [3, OPEN]],
+    ] as const;
+    const unplaced = { test: 'z.test.ts', bearing: 'unexplained' } as const;
+    const readings = [
+      [unplaced],
+      ...[0, 1, 2, 3, 4].map((hops) => [{ test: 'a.test.ts', bearing: 'direct', hops } as const, unplaced]),
+    ];
+
+    for (const reading of readings) {
+      for (const loop of loops) {
+        const runs = loop.filter(([from, to]) => atDistance(reading, from, to).includes(unplaced.test));
+        expect(runs, `${JSON.stringify(reading)} over ${JSON.stringify(loop)}`).toHaveLength(1);
+      }
+    }
+  });
+
+  it('never runs the unplaced in a leg that does not hold the furthest hop', () => {
+    const near = [
+      { test: 'a.test.ts', bearing: 'direct', hops: 2 },
+      { test: 'b.test.ts', bearing: 'unexplained' },
+    ] as const;
+
+    expect(atDistance(near, 3, 4)).toEqual([]);
+    expect(atDistance(near, 5, Number.MAX_SAFE_INTEGER)).toEqual([]);
+    expect(atDistance(near, 0, 1)).toEqual([]);
+    expect(atDistance(near, 2, 2)).toEqual(['a.test.ts', 'b.test.ts']);
   });
 
   it('takes a test whose own source changed at no distance at all', () => {
