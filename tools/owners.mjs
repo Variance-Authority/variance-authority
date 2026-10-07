@@ -72,7 +72,7 @@ export function sources() {
 }
 
 const isTest = (file) =>
-  /\.(test|spec|check)\.[cm]?tsx?$/.test(file) || /(^|\/)(__tests__|__fixtures__|fixtures|test)\//.test(file);
+  /\.(test|spec|check|measure)\.[cm]?tsx?$/.test(file) || /(^|\/)(__tests__|__fixtures__|fixtures|test)\//.test(file);
 
 /** Every site of every idiom in one file's text, outside the files that own it. */
 export function sitesIn(file, text) {
@@ -113,18 +113,33 @@ export function counted(found) {
   return [...rows.values()];
 }
 
-// `createHash(…)`, `crypto.createHash(…)`, `crypto.subtle.digest(…)`.
+// `createHash('sha256')`, `crypto.createHash('sha256')`,
+// `crypto.subtle.digest('SHA-256', …)`. The owner computes SHA-256 only, so a
+// SHA-1 Jest cache key or an MD5 S3 ETag is a different answer, not a copy.
 function isHashCall(call) {
   const callee = call.callee;
-  if (callee.type === 'Identifier') return callee.name === 'createHash';
+  const algorithm = algorithmOf(call.arguments[0]);
+  if (callee.type === 'Identifier') return callee.name === 'createHash' && algorithm === 'sha256';
   if (callee.type !== 'MemberExpression' || callee.computed) return false;
-  if (callee.property.name === 'createHash') return true;
+  if (callee.property.name === 'createHash') return algorithm === 'sha256';
   return (
     callee.property.name === 'digest' &&
     callee.object.type === 'MemberExpression' &&
     !callee.object.computed &&
-    callee.object.property.name === 'subtle'
+    callee.object.property.name === 'subtle' &&
+    algorithm === 'sha256'
   );
+}
+
+// `'sha256'`, `'SHA-256'` or `{ name: 'SHA-256' }`, folded to one spelling.
+function algorithmOf(node) {
+  if (node === undefined) return undefined;
+  if (node.type === 'ObjectExpression') {
+    const name = node.properties.find((property) => property.key?.name === 'name');
+    return name === undefined ? undefined : algorithmOf(name.value);
+  }
+  if (node.type !== 'Literal' || typeof node.value !== 'string') return undefined;
+  return node.value.toLowerCase().replace('-', '');
 }
 
 // `a < b ? -1 : a > b ? 1 : 0`, in either nesting and with either sign first.

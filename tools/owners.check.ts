@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BASELINE, IDIOMS, counted, sites, sitesIn } from './owners.mjs';
+import { BASELINE, IDIOMS, counted, sites, sitesIn, sources } from './owners.mjs';
 
 /**
  * Owned answers, computed again outside their owner (ADR-0069).
@@ -36,7 +36,7 @@ const idioms = (file: string, text: string): readonly string[] =>
   (sitesIn(file, text) as readonly Site[]).map((site) => `${site.idiom} ${site.name ?? ''}`.trim());
 
 describe('the owners reader', () => {
-  it('finds a digest taken from the platform', () => {
+  it('finds a SHA-256 digest taken from the platform', () => {
     expect(
       idioms(
         'packages/cli/src/a.ts',
@@ -44,11 +44,26 @@ describe('the owners reader', () => {
           "import { createHash } from 'node:crypto';",
           "const one = (text: string) => createHash('sha256').update(text).digest('hex');",
           "import * as crypto from 'node:crypto';",
-          "export const two = (text: string) => crypto.createHash('sha1').update(text).digest('hex');",
+          "export const two = (text: string) => crypto.createHash('sha256').update(text).digest('hex');",
           "export const three = (bytes: Uint8Array) => crypto.subtle.digest('SHA-256', bytes);",
+          "export const four = (bytes: Uint8Array) => crypto.subtle.digest({ name: 'SHA-256' }, bytes);",
         ].join('\n'),
       ),
-    ).toEqual(['digest one', 'digest two', 'digest three']);
+    ).toEqual(['digest one', 'digest two', 'digest three', 'digest four']);
+  });
+
+  it('leaves a digest the owner does not compute, such as a Jest cache key or an S3 ETag', () => {
+    expect(
+      idioms(
+        'packages/cli/src/a.ts',
+        [
+          "import { createHash } from 'node:crypto';",
+          "const key = (text: string) => createHash('sha1').update(text).digest('hex');",
+          "const etag = (bytes: Uint8Array) => createHash('md5').update(bytes).digest('hex');",
+          "const short = (bytes: Uint8Array) => crypto.subtle.digest('SHA-1', bytes);",
+        ].join('\n'),
+      ),
+    ).toEqual([]);
   });
 
   it('finds a code-unit comparator in either nesting, parenthesised or not', () => {
@@ -101,6 +116,10 @@ describe('the owners reader', () => {
 
     expect(idioms('packages/sense/src/digest.ts', digest)).toEqual([]);
     expect(idioms('packages/core/src/segment/index.ts', order)).toEqual([]);
+  });
+
+  it('reads production sources, not the files a runner collects', () => {
+    expect((sources() as readonly string[]).filter((file) => /\.(test|spec|check|measure)\.[cm]?tsx?$/.test(file))).toEqual([]);
   });
 
   it('refuses a file it cannot parse rather than finding nothing in it', () => {

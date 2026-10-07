@@ -53,29 +53,30 @@ const FORMATS = { '.ts': 'typescript', '.mts': 'typescript', '.cts': 'typescript
 const formatOf = (file) => FORMATS[file.slice(file.lastIndexOf('.'))];
 
 /**
- * jscpd's store interface over a `Map`.
+ * jscpd's store interface over one `Map`.
  *
  * Its `MemoryStore` answers a miss by rejecting with a new `Error`, and nearly
  * every window is a miss: capturing a stack for each was 1.7 seconds of a scan.
  * A miss rejects with one error made once, since nothing reads its stack.
+ *
+ * jscpd keeps one namespace per format, so a block pasted from a `.ts` file
+ * into a `.tsx` file or a tool's `.mjs` would never be compared. Every format
+ * read here is JavaScript with or without types, so all of them share one map
+ * and `namespace` is not kept.
  */
 function windows() {
   const missing = Promise.reject(new Error('not found'));
   missing.catch(() => {});
-  let values = new Map();
   let space = new Map();
   return {
-    namespace(name) {
-      if (!values.has(name)) values.set(name, new Map());
-      space = values.get(name);
-    },
+    namespace() {},
     get: (key) => (space.has(key) ? Promise.resolve(space.get(key)) : missing),
     set(key, value) {
       space.set(key, value);
       return Promise.resolve(value);
     },
     close() {
-      values = new Map();
+      space = new Map();
     },
   };
 }

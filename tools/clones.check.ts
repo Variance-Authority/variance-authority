@@ -57,6 +57,20 @@ describe('the clones reader', () => {
     ]);
   });
 
+  it('finds a block pasted from TypeScript into TSX and JavaScript, each against the first copy', async () => {
+    const files: Record<string, string> = {
+      'packages/a/src/one.ts': `${BLOCK.replace(/: [^,)=]+(?=[,)])/g, '')}\n`,
+      'packages/b/src/two.tsx': `${BLOCK.replace(/: [^,)=]+(?=[,)])/g, '')}\n`,
+      'tools/three.mjs': `${BLOCK.replace(/: [^,)=]+(?=[,)])/g, '')}\n`,
+    };
+    const found = (await clonesIn(Object.keys(files), (file: string) => files[file])) as readonly Clone[];
+
+    expect(paired(found).map((pair) => (pair as Pair).files)).toEqual([
+      ['packages/a/src/one.ts', 'packages/b/src/two.tsx'],
+      ['packages/a/src/one.ts', 'tools/three.mjs'],
+    ]);
+  });
+
   it('counts each pasted block between one pair once, whichever file came first', () => {
     const clone = (a: string, b: string): Clone => ({ a: { at: a, lines: [1, 9] }, b: { at: b, lines: [1, 9] } });
 

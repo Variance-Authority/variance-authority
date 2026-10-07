@@ -230,11 +230,6 @@
     "count": 1
   },
   {
-    "idiom": "digest",
-    "at": "packages/help/src/dependency-scale.measure.ts",
-    "count": 1
-  },
-  {
     "idiom": "code-unit-order",
     "at": "packages/help/src/read.ts",
     "count": 1
@@ -520,11 +515,6 @@
     "count": 1
   },
   {
-    "idiom": "digest",
-    "at": "packages/sense/src/test-selection/jest-transform.ts",
-    "count": 2
-  },
-  {
     "idiom": "code-unit-order",
     "at": "packages/sense/src/test-selection/journey-native.ts",
     "count": 1
@@ -547,11 +537,6 @@
   {
     "idiom": "atomic-write",
     "at": "packages/sense/src/test-selection/record-location.ts",
-    "count": 1
-  },
-  {
-    "idiom": "digest",
-    "at": "packages/sense/src/test-selection/recorded-text.ts",
     "count": 1
   },
   {
@@ -606,22 +591,12 @@
   },
   {
     "idiom": "digest",
-    "at": "packages/tribunal/src/node/bucket.ts",
-    "count": 1
-  },
-  {
-    "idiom": "digest",
     "at": "packages/tribunal/src/objects.ts",
     "count": 1
   },
   {
     "idiom": "code-unit-order",
     "at": "packages/tribunal/src/review-read.ts",
-    "count": 1
-  },
-  {
-    "idiom": "digest",
-    "at": "packages/tribunal/src/testing.ts",
     "count": 1
   },
   {
