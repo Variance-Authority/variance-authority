@@ -91,6 +91,9 @@ sentence naming it and the edge is left to the recorded run.
 - `packages/sense/src/read.ts` — `readModule` and `readStyle`, source text to specifiers
 - `packages/sense/native/src/declarations.rs` — `declarations`, the components a
   module declares, read off the tree its requests come from
+- `packages/sense/native/src/top_level.rs` — `top_level`, the one walk of a
+  module's top-level statements; the declared components, the symbols and the
+  declared roles are filters over it
 - `packages/sense/src/resolve.ts` — specifier to file, export conditions,
   `tsconfig` paths, and the case-folding checks that are invisible on a
   case-sensitive machine
