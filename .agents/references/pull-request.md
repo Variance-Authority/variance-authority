@@ -84,8 +84,9 @@ worktree and `origin/main`, never from local `main`:
    change.
 3. **Fidelity** — the body, the diff and `origin/main`. Is every block row
    true of the diff, and does every hunk fall in a block a row names? A hunk no
-   row covers is a finding. Does each row's *pinned by* test assert the change
-   and fail on `origin/main`? For a top-layer page, does each fact the brief puts off the
+   row covers is a finding. Does each row's *pinned by* test assert the change,
+   and fail on `origin/main` when the row changes behaviour? In a `test` or
+   `refactor` PR it passes on both sides instead. For a top-layer page, does each fact the brief puts off the
    spine sit in the file it names, and does that file say it? Does each fact
    marked *nowhere* carry the reason it was left out?
 
