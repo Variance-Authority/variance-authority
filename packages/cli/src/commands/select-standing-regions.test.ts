@@ -3,8 +3,8 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { INSTRUMENTATION_ID, instrument } from '@variance-authority/sense/instrument';
-import { landRun, testCoverageFile, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
+import { landRun, sourceCut, testCoverageFile, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { indexOutput } from './index-command.js';
 import { selectOutput } from './select-command.js';
 
@@ -131,12 +131,9 @@ function checkout(root = mkdtempSync(join(tmpdir(), 'va-select-regions-'))) {
   };
 }
 
-/** The line `offset` falls on in `text`, counted from 1. */
-const lineAt = (text: string, offset: number): number => text.slice(0, offset).split('\n').length;
-
 /**
  * What a run records: the tests it ran, and the regions of each module they
- * loaded as the instrument cuts them from the text on disk. Every test that
+ * loaded as a seam cuts them from the text on disk (`sourceCut`). Every test that
  * loaded a module enters its root, and a test enters a function named for it:
  * `far` enters `forFar`. `loads` names the module a test loads instead of
  * `src/shared.ts`.
@@ -150,24 +147,16 @@ function run(root: string, commit: string, names: readonly string[], loads: Read
     tests: names.map((name) => ({ file: `test/${name}.test.ts`, complete: true, preconditions: [] })),
     modules: files.map((file) => {
       const text = readFileSync(join(root, file), 'utf8');
-      const cut = instrument(text, file, file, { mode: 'presence' })!;
+      const cut = sourceCut(text, file, 'presence')!;
       const loaders = names.filter((name) => (loads[name] ?? 'src/shared.ts') === file);
       return {
         file,
         sourceDigest: cut.sourceDigest,
         instrumented: true,
-        blocks: cut.blocks.map((block) => ({
-          ordinal: block.ordinal,
-          kind: block.kind,
-          ...(block.owner === undefined ? {} : { owner: block.owner }),
-          digest: block.digest,
-          name: block.name,
-          path: block.path,
-          startLine: lineAt(text, block.start),
-          endLine: lineAt(text, block.end > block.start ? block.end - 1 : block.end),
-          source: block.end > block.start,
+        blocks: cut.rows.map((row) => ({
+          ...row,
           testFiles: loaders
-            .filter((name) => block.kind === 'module' || block.name === `for${name[0]!.toUpperCase()}${name.slice(1)}`)
+            .filter((name) => row.kind === 'module' || row.name === `for${name[0]!.toUpperCase()}${name.slice(1)}`)
             .map((name) => `test/${name}.test.ts`),
         })),
       };
