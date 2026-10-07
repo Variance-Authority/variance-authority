@@ -1,6 +1,6 @@
 // compass: variance-authority.report.shard-merge
 import { resolve } from 'node:path';
-import { type Flags } from './args.js';
+import { countOf, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
 import { parseShard, type Shard } from './shard-args.js';
 
@@ -48,17 +48,14 @@ export function parseCollectArgs(flags: Flags, config: string): ParsedCollect {
   const shardText = flags.values.get('--shard');
   const shard = shardText === undefined ? undefined : parseShard(shardText);
   if (typeof shard === 'string') throw new OperatorError(shard);
-  const workersText = flags.values.get('--workers');
-  if (workersText !== undefined && !/^[1-9][0-9]*$/.test(workersText)) {
-    throw new OperatorError(`--workers is how many browsers this job opens and must be a positive whole number, not \`${workersText}\``);
-  }
+  const workers = countOf(flags.values.get('--workers'), 'browsers this job opens', '--workers');
   const subjects = flags.values.get('--subjects');
 
   return {
     command: 'collect',
     config,
     ...(shard === undefined ? {} : { shard }),
-    ...(workersText === undefined ? {} : { workers: Number(workersText) }),
+    ...(workers === undefined ? {} : { workers }),
     ...(subjects === undefined ? {} : { subjects }),
     out: resolve(out),
   };
