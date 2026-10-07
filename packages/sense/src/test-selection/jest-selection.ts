@@ -60,7 +60,8 @@ export function selectingFilter(
 ): { filter?: string } {
   const { argv = process.argv, say = (line: string) => process.stderr.write(`${line}\n`) } = options;
   if (config.filter === SELECTION_FILTER) return {};
-  const flag = (name: string) => argv.some((arg) => arg === name || arg.startsWith(`${name}=`));
+  // `--watch=false` is the flag written off, as Jest reads it.
+  const flag = (name: string) => argv.some((arg) => arg === name || (arg.startsWith(`${name}=`) && arg !== `${name}=false`));
   if (config.watch === true || config.watchAll === true || flag('--watch') || flag('--watchAll')) {
     say('variance-authority: watch mode does not select');
     return {};

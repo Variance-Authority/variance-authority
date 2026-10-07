@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -65,6 +65,18 @@ describe('a change to a source the record holds under its built name', () => {
 
     expect([...skip]).toEqual([OTHER]);
     expect(printed.skip).toEqual([OTHER]);
+  });
+
+  it('selects it when the source is deleted', async () => {
+    const { root, head } = checkout();
+    await writeTestCoverage(testCoverageFile(root), snapshot(head, false));
+    rmSync(join(root, 'packages/lib/src/kinds.ts'));
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    const { skip } = await selectSuite({ root });
+
+    expect([...skip]).toEqual([OTHER]);
   });
 });
 

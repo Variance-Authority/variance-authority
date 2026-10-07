@@ -138,6 +138,16 @@ module.exports.setup = async () => { ready = true; };
     expect(lines).toEqual(['variance-authority: watch mode does not select', 'variance-authority: watch mode does not select']);
   });
 
+  it('selects when a flag on the command line is set to false', () => {
+    const lines: string[] = [];
+    const options = { root, rootDir, selection: async () => selection(['a.test.ts']), say: (line: string) => lines.push(line) };
+
+    for (const flag of ['--watch=false', '--watchAll=false', '--skipFilter=false']) {
+      expect(selectingFilter({}, { ...options, argv: ['node', 'jest', flag] })).toEqual({ filter: SELECTION_FILTER });
+    }
+    expect(lines).toEqual([]);
+  });
+
   it('says that a filter named on the command line turns the selection off', () => {
     const lines: string[] = [];
     const options = { root, rootDir, selection: async () => selection(['a.test.ts']), say: (line: string) => lines.push(line) };

@@ -208,8 +208,11 @@ function readDiff(
   Pick<ExecutionNarrowing, 'declined'> {
   // A checkout to read layouts in lets the record say which of its names are
   // built from which source, and the graph's walk asks under the same names.
+  const changed = changedLines(diff);
   const options: ExecutionNarrowingOptions =
-    asked.knownAs !== undefined || asked.root === undefined ? asked : { ...asked, knownAs: builtNamesOf(coverage, asked.root) };
+    asked.knownAs !== undefined || asked.root === undefined
+      ? asked
+      : { ...asked, knownAs: builtNamesOf(coverage, asked.root, changed.keys()) };
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   const selected = new Map<number, SelectionReason[]>();
   const select = (test: number, reason: SelectionReason): void => {
@@ -217,7 +220,6 @@ function readDiff(
     reasons.push(reason);
     selected.set(test, reasons);
   };
-  const changed = changedLines(diff);
   const governing = new Set<string>();
   const rowed = new Set<string>();
   const stale = new Set<string>();
