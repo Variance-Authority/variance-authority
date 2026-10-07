@@ -11,5 +11,5 @@ that function and no longer counts. An `export async function Page()` is now
 declared, as every other function is. Both ways sense builds a record give the
 same answer.
 
-The source index format moves to version 17, so an index written before this
+The source index format moves to version 18, so an index written before this
 release is rebuilt once instead of keeping the names it read from comments.
