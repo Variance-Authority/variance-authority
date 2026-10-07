@@ -2,6 +2,7 @@
 import { canonicalize, type CanonicalValue } from '@variance-authority/core/format';
 import type { SubjectCoverage, SuiteIndex } from '@variance-authority/report/suite-index';
 import type { EvidenceDiagnostic, EvidencePart } from './evidence-part.js';
+import { differing } from './merge.js';
 import { assign } from './shard.js';
 import { composeSuiteIndex, missingShards } from './suite-part.js';
 
@@ -61,11 +62,9 @@ const SAME: readonly (readonly [string, (part: EvidencePart) => unknown])[] = [
 
 /** The same build, recipe, plan, cut and scope in every part. */
 function sameRefusal(parts: readonly Named[]): string | undefined {
-  const [first, ...rest] = parts;
   for (const [says, pick] of SAME) {
-    const held = canonicalize(pick(first!.part) as CanonicalValue);
-    const other = rest.find((named) => canonicalize(pick(named.part) as CanonicalValue) !== held);
-    if (other !== undefined) return `${first!.path} and ${other.path} ${says}; they are not one collection`;
+    const other = differing(parts, (named) => canonicalize(pick(named.part) as CanonicalValue));
+    if (other !== undefined) return `${parts[0]!.path} and ${other.path} ${says}; they are not one collection`;
   }
   return undefined;
 }
