@@ -48,9 +48,10 @@ export const packages: Tool<Help> = {
       );
     }
     if (counts.deep.length > 0) {
+      const reaching = counts.deep.reduce((sum, [, imports]) => sum + imports, 0);
       section(
         lines,
-        `${plural(help.deep.length, 'import reaches', 'imports reach')} past a published entrypoint. ${REACHING}:`,
+        `${plural(reaching, 'import reaches', 'imports reach')} past a published entrypoint. ${REACHING}:`,
         ...counts.deep.map(([owner, imports]) => `  ${owner} — ${plural(imports, 'import')}`),
       );
     }

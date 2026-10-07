@@ -220,7 +220,7 @@ export function counted(surface: { readonly names: number; readonly files: numbe
  * imports: what is taken from each package that declares no entry, how many
  * imports reach past the entry of each package that declares one, and how many
  * name an entry this reading could not follow. Most taken first, then in
- * code-unit order. A package's own imports of an entry it declares are left out.
+ * code-unit order. A package's own imports of itself are left out of every count.
  *
  * One walk, because the counts are per package and the imports are not. In a
  * repository whose packages declare no entry there are a hundred thousand
@@ -234,7 +234,7 @@ export function countsByPath(help: Help): {
   const deep = new Map<string, number>();
   for (const held of help.deep) {
     const owner = ownerOf(held.specifier);
-    deep.set(owner, (deep.get(owner) ?? 0) + 1);
+    if (held.by !== owner) deep.set(owner, (deep.get(owner) ?? 0) + 1);
   }
   const unfollowed = new Map<string, number>();
   for (const held of help.unfollowed) {
@@ -258,12 +258,12 @@ export const REACHING =
   'Either the manifest has stopped describing what the package is used for, or something is reaching into its internals';
 
 /**
- * The imports past the entry of `owner`, in specifier, file and line order.
- * With `specifier`, only the imports written as that specifier.
+ * The imports past the entry of `owner` from other packages, in specifier,
+ * file and line order. With `specifier`, only the imports written as that specifier.
  */
 export function reachingPast(help: Help, owner: string, specifier?: string): readonly Deep[] {
   return importsByPath(help, specifier ?? owner)
-    .filter(([, kind]) => kind === 'deep')
+    .filter(([held, kind]) => kind === 'deep' && held.by !== owner)
     .map(([held]) => held)
     .sort((left, right) => codeUnitOrder(left.specifier, right.specifier) || codeUnitOrder(left.at, right.at) || left.line - right.line);
 }

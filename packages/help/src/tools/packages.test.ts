@@ -120,6 +120,14 @@ describe('docs_packages', () => {
     expect(text).not.toMatch(/^ {2}variance ask entrypoint --package @acme\/quiet$/m);
   });
 
+  it("leaves a package's own imports past its entry out of the count, as `docs_entrypoint` does", () => {
+    const own: Help = { ...BY_PATH, deep: [...BY_PATH.deep, importOf('@acme/lib/src/internal/math', '@acme/lib', 'packages/lib/src/self.ts', ['addTax'])] };
+    const text = packages.run(own, {});
+
+    expect(text).toMatch(/^2 imports reach past a published entrypoint\. .*:\n {2}@acme\/lib — 2 imports$/m);
+    expect(entrypoint.run(own, { package: '@acme/lib' })).toMatch(/^2 imports reach past a published entrypoint of @acme\/lib\./m);
+  });
+
   it('is as long for a hundred imports of each file as for one', () => {
     expect(packages.run(busier(100), {}).split('\n')).toHaveLength(packages.run(BY_PATH, {}).split('\n').length);
   });

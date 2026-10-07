@@ -9,8 +9,9 @@
 row per published specifier, one per package that declares no entry with how
 many of its names and files other packages import by path, under the heading
 "N packages that declare no entry are imported by path", and per package the
-number of imports that reach past a published entrypoint. It ends with the
-`variance ask entrypoint --package <name>` questions behind those counts.
+number of imports from other packages that reach past a published entrypoint.
+It ends with the `variance ask entrypoint --package <name>` questions behind
+those counts.
 
 `variance ask entrypoint --package <name>` (`docs_entrypoint`) asked by a
 package's name now also counts the imports that reach past its entry, or, for a
