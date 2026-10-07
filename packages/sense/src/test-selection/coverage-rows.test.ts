@@ -161,6 +161,20 @@ describe('recordedBlocks', () => {
     expect(rows[twentyTwo]).toMatchObject({ name: 'f/on.arg1', startLine: 3, endLine: 3 });
   });
 
+  it('leaves a build region its map cannot place without lines, though its source names one like it', () => {
+    // The map starts on the build's second line, so nothing places `g`; the
+    // arrow below it keeps the two walks from numbering alike.
+    const source = 'export function g() {\n  return 1;\n}\n';
+    const code = 'export function g() { return 1; }\nvar h = () => 0;\n';
+    const frame = recordedFrame(code, { mappings: ';AAAA', sources: [FILE] }, FILE, () => source);
+
+    const rows = recordedBlocks(instrument(code, FILE)!.blocks, frame, code, 'presence');
+
+    const g = rows.find((row) => row.name === 'g')!;
+    expect(g).not.toHaveProperty('startLine');
+    expect(g).not.toHaveProperty('endLine');
+  });
+
   it('reads a build through its map when the source it maps to does not parse', () => {
     // A source the walk refuses has no cut of its own to record a build at.
     const broken = `${SOURCE}export function (\n`;
