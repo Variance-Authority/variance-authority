@@ -108,6 +108,29 @@ describe('distanceFromView', () => {
     });
   });
 
+  it('places a test the record never saw whole by the path it ran from the change, and only when it ran one', () => {
+    // Recorded incomplete, the card and registry tests ran cases the record did
+    // not see, and the change entered neither in what it did see. The card test
+    // ran a path from the changed file three hops long; the registry test ran
+    // none, and nothing selected it by a reason, so it is not placed at all.
+    const coverage = openTestCoverage(encodeTestCoverage(layerCoverage));
+    const narrowing = narrowByExecutionFromView(coverage, baseDiff);
+    const unseen = new Set(['test/card.test.tsx', 'test/registry.test.ts']);
+    const distances = distanceFromView(
+      coverage,
+      {
+        ...narrowing,
+        entered: narrowing.entered.filter((test) => !unseen.has(test)),
+        because: narrowing.because.filter(({ test }) => !unseen.has(test)),
+        incomplete: [...unseen],
+      },
+      { relations },
+    );
+
+    expect(of(distances, 'test/card.test.tsx')).toMatchObject({ bearing: 'transitive', hops: 3, from: 'src/button/abstract-button.tsx' });
+    expect(distances.map(({ test }) => test)).not.toContain('test/registry.test.ts');
+  });
+
   it('places nothing without a graph, and says so as absence', () => {
     // No graph is not "everything is far away". Every test comes back unplaced,
     // which is what a caller banding on this must see rather than a flat zero.

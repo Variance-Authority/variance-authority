@@ -36,8 +36,9 @@ export interface ExecutionNarrowing {
    * Recorded tests whose observation was not whole: a run that skipped every
    * case, or one whose probes fired where nothing could place them. Absence
    * from `entered` is no evidence for them, but they are named, so a caller
-   * that cuts the selection into legs can place them with the unplaced. Absent
-   * when the reader names no such list, which is not the same as none.
+   * that cuts the selection into legs can place them by the path each ran from
+   * the change (`distanceFromView`), or with the unplaced when it ran none.
+   * Absent when the reader names no such list, which is not the same as none.
    */
   readonly incomplete?: readonly string[];
   /** Recorded tests that entered a region this diff changed. */

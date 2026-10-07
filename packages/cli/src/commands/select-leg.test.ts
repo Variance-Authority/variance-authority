@@ -304,14 +304,43 @@ describe('a leg read from a real record and a real graph', () => {
 
     expect(JSON.parse(out)).toMatchObject({ leg: { from: 0, to: 2 }, skip: [FAR, GHOST, IDLE], left: [FAR, GHOST] });
   });
+
+  // A test the record holds incomplete ran cases the record did not see, and
+  // one of them may call what changed. The change entered nobody here, so the
+  // test is selected by being incomplete, and it is one import from the change.
+  it('runs a test the record never saw whole in the leg its hops from the change put it in', async () => {
+    const { root, head } = checkout({ 'src/spare.ts': SPARE, [PARTIAL]: "import { kept } from '../src/spare';\nkept();\n" });
+    const recorded = snapshot(head);
+    await writeTestCoverage(testCoverageFile(root), {
+      ...recorded,
+      tests: [...recorded.tests, { file: PARTIAL, complete: false, preconditions: [] }],
+      modules: [...recorded.modules, spareModule()],
+    });
+    writeFileSync(join(root, 'src/spare.ts'), SPARE.replace("return 'b';", "return 'y';"));
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    const skipOf = async (atDistance: { from: number; to: number }) =>
+      JSON.parse((await selectOutput({ cwd: root, format: 'json', atDistance })).out);
+    const near = await skipOf({ from: 0, to: 2 });
+    const end = await skipOf({ from: 3, to: Number.MAX_SAFE_INTEGER });
+
+    expect(near.skip).not.toContain(PARTIAL);
+    expect(near.distances).toContainEqual(expect.objectContaining({ test: PARTIAL, hops: 1 }));
+    expect(end.left).toContain(PARTIAL);
+    expect(near.notes).toContain('1 test file the record never saw whole and the change did not enter is cut by the hops it ran from a changed file');
+  });
 });
 
 const WIDGET = ['export function widget(): string {', "  return 'a';", '}', ''].join('\n');
 const CALLER = ["import { widget } from './widget';", 'export const caller = (): string => widget();', ''].join('\n');
+/** Two functions: a test that did not run whole entered the first, and nothing entered the second. */
+const SPARE = ['export function kept(): string {', "  return 'a';", '}', 'export function spare(): string {', "  return 'b';", '}', ''].join('\n');
+const PARTIAL = 'test/partial.test.ts';
 const OUTER = ["import { caller } from './caller';", 'export const outer = (): string => caller();', ''].join('\n');
 
 /** A widget, a caller of it and a caller of that, with one test at each distance and two more. */
-function checkout(): { root: string; head: string } {
+function checkout(extra: Readonly<Record<string, string>> = {}): { root: string; head: string } {
   const root = mkdtempSync(join(tmpdir(), 'va-select-leg-'));
   const git = (args: readonly string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   git(['init', '--quiet', '--initial-branch', 'main']);
@@ -327,6 +356,7 @@ function checkout(): { root: string; head: string } {
     // Loads the widget by a path no import names, so no executed path is measured.
     [GHOST]: "await import(['..', 'src', 'widget'].join('/'));\n",
     [IDLE]: 'export {};\n',
+    ...extra,
   };
   for (const [file, text] of Object.entries(files)) {
     mkdirSync(join(root, file, '..'), { recursive: true });
@@ -363,6 +393,21 @@ function snapshot(commit: string): TestCoverage {
       moduleOf('src/widget.ts', WIDGET, 3, [FAR, GHOST, MID, NEAR], 'widget'),
       moduleOf('src/caller.ts', CALLER, 2, [FAR, MID]),
       moduleOf('src/outer.ts', OUTER, 2, [FAR]),
+    ],
+  };
+}
+
+/** `src/spare.ts`, as a run that skipped some of `PARTIAL`'s cases recorded it. */
+function spareModule(): TestCoverage['modules'][number] {
+  const block = { source: true, testFiles: [PARTIAL] };
+  return {
+    file: 'src/spare.ts',
+    sourceDigest: digestString(SPARE),
+    instrumented: true,
+    blocks: [
+      { ...block, ordinal: 0, kind: 'module', digest: digestString('src/spare.ts'), name: 'src/spare.ts', path: 'module', startLine: 1, endLine: 6 },
+      { ...block, ordinal: 1, kind: 'function', owner: 0, digest: digestString('kept'), name: 'kept', path: 'kept', startLine: 1, endLine: 3 },
+      { ...block, ordinal: 2, kind: 'function', owner: 0, digest: digestString('spare'), name: 'spare', path: 'spare', startLine: 4, endLine: 6, testFiles: [] },
     ],
   };
 }

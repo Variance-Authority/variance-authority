@@ -200,6 +200,15 @@ export interface DistanceOptions {
  * not because they matter least but because a band that runs them is a band that
  * has stopped narrowing, and a caller slicing the front of this list should have
  * to reach past everything measured to get to them.
+ *
+ * A test the record holds `incomplete` and the change did not enter is placed
+ * too, by the shortest path it executed from any file the diff was read in
+ * (`readings`), and left out when it executed none. Its record is missing the
+ * cases it did not run, so *entered nothing* is no evidence it is far, and the
+ * path it did run is the nearest the change can be to it. The landing that
+ * recorded an edit over a kept text is the ordinary way to get one: it demotes
+ * every test carried over the edited region, and the reading of that file is
+ * then `none`.
  */
 export function distanceFromView(
   coverage: TestCoverageView,
@@ -208,7 +217,14 @@ export function distanceFromView(
 ): readonly TestDistance[] {
   const entered = enteredByTest(coverage);
   const placed = narrowing.because.map((cause) => place(coverage, cause, entered, options));
-  return [...placed].sort(nearestFirst);
+  const selected = new Set(narrowing.entered);
+  const read = (narrowing.readings ?? []).map((reading) => reading.file);
+  for (const test of narrowing.incomplete ?? []) {
+    if (selected.has(test) || read.length === 0) continue;
+    const distance = measure(coverage, test, read, new Map(), entered, options);
+    if (distance.hops !== undefined) placed.push(distance);
+  }
+  return placed.sort(nearestFirst);
 }
 
 /** The one comparison every consumer of this reading sorts by. */
@@ -256,11 +272,23 @@ function place(
     }
   }
 
-  const walked = walk(cause.test, seeds, entered.get(findTest(coverage, cause.test) ?? -1) ?? new Set(), options);
+  return measure(coverage, cause.test, seeds, chains, entered, options);
+}
+
+/** The walk from `test` to the nearest seed, with each seed's importer chain spliced back on. */
+function measure(
+  coverage: TestCoverageView,
+  test: string,
+  seeds: readonly string[],
+  chains: ReadonlyMap<string, readonly string[]>,
+  entered: ReadonlyMap<number, ReadonlySet<string>>,
+  options: DistanceOptions,
+): TestDistance {
+  const walked = walk(test, seeds, entered.get(findTest(coverage, test) ?? -1) ?? new Set(), options);
   if ('because' in walked) {
     return walked.because === undefined
-      ? { test: cause.test, bearing: 'unexplained' }
-      : { test: cause.test, bearing: 'unmeasured', because: walked.because };
+      ? { test, bearing: 'unexplained' }
+      : { test, bearing: 'unmeasured', because: walked.because };
   }
 
   // The importer chain, when one answered, is hops the change travelled through
@@ -271,7 +299,7 @@ function place(
   const through = reachThroughs(trail, options.faces);
   const hops = trail.length - 1;
   return {
-    test: cause.test,
+    test,
     bearing: through.length > 0 ? 'reach-through' : hops <= 1 ? 'direct' : 'transitive',
     hops,
     from: trail[0]!,

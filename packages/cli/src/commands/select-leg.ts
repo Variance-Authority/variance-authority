@@ -15,17 +15,17 @@
  * the files it left in `left`, and stderr gives their count and the flag that
  * runs them.
  *
- * ## A test the record never saw whole runs with the leg that reaches the end
+ * ## A test the record never saw whole runs where its executed path puts it
  *
- * A test the record never saw whole — new since the recording, or recorded
- * incomplete — belongs with the other unplaced tests in the leg that reaches
- * the end. A skip list can say that only for a test the record names: one it
- * holds incomplete, such as a file whose every case skipped, is on the skip
- * list of every leg with an end.
+ * A test the record holds incomplete, such as a file a partial run demoted, or
+ * one whose every case skipped, may call the change from a case the record did
+ * not see. When the change entered it, it is placed by its hops like any other.
+ * When it did not, sense places it by the shortest path it executed from a
+ * file the change touched, and it runs in the leg those hops fall in. With no
+ * such path it is unplaced, and is on the skip list of every leg with an end.
  * A test new since the recording is named nowhere, so it is in no skip list and
  * runs in every leg. That is the safe side of a skip list: it costs a file run
- * twice, never a file run zero times. A test the change entered is placed by
- * its hops whether or not the record saw it whole.
+ * twice, never a file run zero times.
  *
  * ## The reading a leg was cut from is said with it
  *
@@ -79,11 +79,16 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
   const reading: readonly TestDistance[] = entered
     .map((test): TestDistance => placed.get(test) ?? { test, bearing: 'unexplained' })
     .sort((one, other) => codeUnitOrder(one.test, other.test));
-  const cut = remaining(reading, leg.from, leg.to);
-  // Unplaced, and named only by the record: the leg that reaches the end runs them.
+  // Named only by the record, which never saw them whole: placed by the path
+  // they executed from the change when sense measured one, and otherwise run
+  // by the leg that reaches the end.
   const entering = new Set(entered);
-  const unseen =
-    leg.to === Number.MAX_SAFE_INTEGER ? [] : (input.ground.narrowing.incomplete ?? []).filter((test) => !entering.has(test));
+  const partial = (input.ground.narrowing.incomplete ?? []).filter((test) => !entering.has(test));
+  const measured = [...reading, ...partial.flatMap((test) => placed.get(test) ?? [])].sort((one, other) =>
+    codeUnitOrder(one.test, other.test),
+  );
+  const cut = remaining(measured, leg.from, leg.to);
+  const unseen = leg.to === Number.MAX_SAFE_INTEGER ? [] : partial.filter((test) => !placed.has(test));
   const left = [...cut, ...unseen].sort(codeUnitOrder);
   const skip = [...new Set([...selection.skip, ...left])].sort(codeUnitOrder);
   const nearer = cut.filter((test) => (placed.get(test)?.hops ?? Number.MAX_SAFE_INTEGER) < leg.from);
@@ -95,7 +100,7 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
     ...asked,
     skip,
     left,
-    distances: reading,
+    distances: measured,
     // `left` can hold an entered test the record never saw whole, so the two
     // counts are named apart rather than as a share of the whole.
     because:
@@ -104,6 +109,7 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
       'every other test file runs',
     notes: [
       ...byDistance(reading),
+      ...placedNote(measured.length - reading.length),
       ...leftNote(further, 'for a later leg', `${leg.to + 1}-`),
       ...unseenNote(unseen.length, `${leg.to + 1}-`),
       ...leftNote(nearer.length, `for an earlier leg, nearer than ${many(leg.from, 'hop')}`, spelled({ from: 0, to: leg.from - 1 })),
@@ -122,6 +128,15 @@ function byDistance(reading: readonly TestDistance[]): readonly string[] {
   );
   const listed = counts.length === 1 ? counts[0] : `${counts.slice(0, -1).join(', ')}, and ${counts.at(-1)}`;
   return [`the change entered ${many(reading.length, 'test file')}: ${listed}`];
+}
+
+/** How many tests the record never saw whole were cut by the path they ran from the change. */
+function placedNote(count: number): readonly string[] {
+  if (count === 0) return [];
+  return [
+    `${many(count, 'test file')} the record never saw whole and the change did not enter ` +
+      `${count === 1 ? 'is' : 'are'} cut by the hops ${count === 1 ? 'it' : 'they'} ran from a changed file`,
+  ];
 }
 
 /** How many selected files this leg left, and the leg that runs them. */
