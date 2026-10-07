@@ -137,6 +137,28 @@ describe('what may become a baseline', () => {
       'the run recorded no image for it',
     );
   });
+
+  it('keeps a painted incomparable whose document moved out of a bulk accept, and promotes it by name', () => {
+    // Painted under a new recipe, against a baseline of another document: no
+    // comparison saw what changed, so only a reviewer naming it may adopt it.
+    const moved: ObservationRecord = {
+      subject: 'story:a',
+      verdict: 'incomparable',
+      because: 'the document changed too',
+      changedPixels: 0,
+      regions: [],
+      images: { after: 'images/story%3Aa.after.png' },
+      signals: { document: 'changed' },
+    };
+    const bulk = promotionOf(moved, { bulk: true });
+    expect(bulk.kind).toBe('refused');
+    expect(bulk.kind === 'refused' && bulk.because).toContain('variance accept story:a');
+    expect(promotionOf(moved)).toEqual({ kind: 'promotable', from: 'images/story%3Aa.after.png' });
+
+    // The same image of the same document is a re-baseline, and bulk adopts it.
+    const same = { ...moved, signals: { document: 'unchanged' as const } };
+    expect(promotionOf(same, { bulk: true }).kind).toBe('promotable');
+  });
 });
 
 describe('which subjects one shape can settle', () => {

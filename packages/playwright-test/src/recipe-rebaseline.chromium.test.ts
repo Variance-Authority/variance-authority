@@ -55,7 +55,10 @@ if (!BROWSER_AVAILABLE) {
   );
 }
 
-function info(updateSnapshots: 'all' | 'none'): TestInfo {
+/** Playwright's `--update-snapshots` modes this file runs under. */
+type Update = 'all' | 'changed' | 'none';
+
+function info(updateSnapshots: Update): TestInfo {
   return {
     titlePath: ['recipe re-baseline', 'cart'],
     config: { updateSnapshots },
@@ -77,13 +80,17 @@ function underRecipe(inner: Renderer, rasterization: string): Renderer {
   };
 }
 
-async function observeCart(rasterization: string, updateSnapshots: 'all' | 'none') {
+async function observeCart(
+  rasterization: string,
+  updateSnapshots: Update,
+  subjectId = 'cart/recipe',
+) {
   const session = await createVariance(page!, info(updateSnapshots), {
     baselines,
     renderer: underRecipe(renderer!, rasterization),
   });
   try {
-    return await session.observe(page!.locator('#cart'), { subjectId: 'cart/recipe' });
+    return await session.observe(page!.locator('#cart'), { subjectId });
   } finally {
     await session.close();
   }
@@ -102,5 +109,28 @@ chromium_('deferred capture after a recipe-only upgrade', () => {
 
     const compared = await observeCart('v1:54323cded938fde38b41cdd3865368fe', 'none');
     expect(compared.verdict).toBe('unchanged');
+  }, 60_000);
+
+  it('leaves a moved document to =all, which a reviewer narrows to the one test', async () => {
+    // Nothing compared the new image against anything: the recipe moved and so
+    // did the cart. `=changed` sweeps the suite, so it passes this one by, the
+    // way `variance accept --all` does; `=all` overwrites every image it takes.
+    const old = 'v1:8040e1a2e35d148b301ebd30e5ed66c6';
+    const recipe = 'v1:54323cded938fde38b41cdd3865368fe';
+    await page!.setContent('<main><section id="cart"><h1>Cart</h1><p>Empty</p></section></main>');
+    await observeCart(old, 'all', 'cart/moved');
+
+    await page!.setContent('<main><section id="cart"><h1>Cart</h1><p>3 items</p></section></main>');
+    const passed = await observeCart(recipe, 'changed', 'cart/moved');
+    expect(passed.verdict).toBe('incomparable');
+    expect(passed.because).toContain('the document changed too');
+    expect(passed.because).not.toContain('accepted under --update-snapshots');
+
+    // Still under the old recipe's baseline: nothing was written.
+    expect((await observeCart(recipe, 'none', 'cart/moved')).verdict).toBe('incomparable');
+
+    const adopted = await observeCart(recipe, 'all', 'cart/moved');
+    expect(adopted.because).toContain('accepted under --update-snapshots');
+    expect((await observeCart(recipe, 'none', 'cart/moved')).verdict).toBe('unchanged');
   }, 60_000);
 });

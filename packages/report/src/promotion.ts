@@ -57,7 +57,10 @@ export type Promotion =
  * got two answers — and answering "already the baseline" there hides the
  * diagnostic that makes this refusable at all.
  */
-export function promotionOf(observation: ObservationRecord): Promotion {
+export function promotionOf(
+  observation: ObservationRecord,
+  options: PromotionOptions = {},
+): Promotion {
   if (observation.unstable !== undefined && observation.unstable.absorbed === undefined) {
     return {
       kind: 'refused',
@@ -92,7 +95,38 @@ export function promotionOf(observation: ObservationRecord): Promotion {
     return { kind: 'refused', because: noImage(observation) };
   }
 
+  // Painted under a new recipe against a baseline of another document: nothing
+  // compared this image with anything, so the change it carries is unread. A
+  // changed subject's diff was in the report a bulk acceptance followed; this
+  // one has none, and only a reviewer naming it can stand in for one.
+  if (
+    options.bulk === true &&
+    observation.verdict === 'incomparable' &&
+    observation.signals?.document === 'changed'
+  ) {
+    return {
+      kind: 'refused',
+      because:
+        'its image was painted under a new recipe from a document the baseline was not ' +
+        'painted from, so no comparison has read the change it carries; a bulk accept ' +
+        `adopts only what was compared or only re-painted. Review the image, then ` +
+        `\`variance accept ${observation.subject}\``,
+    };
+  }
+
   return { kind: 'promotable', from };
+}
+
+/** How a promotion was asked for. */
+export interface PromotionOptions {
+  /**
+   * Whether the subject was swept in by `--all` rather than named.
+   *
+   * A name is a reviewer's decision about one subject; `--all` is a decision
+   * about the report. The one case that differs is an `incomparable` subject
+   * whose document moved, which `--all` passes by and a name adopts.
+   */
+  readonly bulk?: boolean;
 }
 
 /**

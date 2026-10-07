@@ -2153,6 +2153,7 @@
         "PresentationInformationRecord": "interface",
         "PresentationSignalRecord": "type",
         "Promotion": "type",
+        "PromotionOptions": "interface",
         "ReachReport": "interface",
         "ReachedComponent": "interface",
         "RegionRecord": "interface",

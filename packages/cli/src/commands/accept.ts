@@ -217,7 +217,7 @@ export async function accept(options: AcceptOptions): Promise<AcceptResult> {
     // the commit message it would write. This command applies them; it does not
     // own them, and a second copy here is how a preview starts describing an
     // update that never happens.
-    const promotion = promotionOf(observation);
+    const promotion = promotionOf(observation, { bulk: options.all });
 
     if (promotion.kind === 'already-baseline') {
       // Under `--all` this is the overwhelming majority and is not a finding.

@@ -85,7 +85,13 @@ export interface Observation {
   /** Fonts the document declared and the renderer did not have. */
   readonly missingFonts: readonly string[];
 
-  /** The three independently observed boundaries and the retained ARIA diff. */
+  /**
+   * The three independently observed boundaries and the retained ARIA diff.
+   *
+   * A missing member was not measured. An `incomparable` subject carries
+   * `document` alone: no pixels were compared, and whether the document moved
+   * is what decides that a bulk acceptance may adopt its image (`promotionOf`).
+   */
   readonly signals?: {
     readonly document: 'unchanged' | 'changed';
     /**
@@ -95,7 +101,7 @@ export interface Observation {
      * was nothing to measure, and a reader that saw `unchanged` would take the
      * image as evidence it never was.
      */
-    readonly pixels: 'unchanged' | 'changed' | 'unobservable';
+    readonly pixels?: 'unchanged' | 'changed' | 'unobservable';
     readonly accessibility?: {
       readonly verdict: 'unchanged' | 'changed' | 'incomparable';
       readonly before?: AccessibilitySnapshot;
@@ -321,6 +327,7 @@ export async function observeRasters(
       regions: [],
       rendered: false,
       missingFonts: [],
+      signals: { document: documentMoved(before, after) },
     };
   }
 
@@ -411,9 +418,21 @@ export async function observeAgainstBaseline(
       regions: [],
       rendered: fresh.rendered,
       missingFonts: fresh.raster.missingFonts,
+      signals: { document: documentMoved(found.raster, fresh.raster) },
       ...declaredField,
     };
   }
 
   return await decideRasters(document.subject.id, found.raster, fresh.raster, fresh.rendered, options);
+}
+
+/**
+ * Whether two rasters were painted from different documents, as the signal an
+ * incomparable observation carries in place of a pixel comparison.
+ */
+export function documentMoved(
+  before: Pick<Raster, 'documentDigest'>,
+  after: Pick<Raster, 'documentDigest'>,
+): 'unchanged' | 'changed' {
+  return before.documentDigest === after.documentDigest ? 'unchanged' : 'changed';
 }

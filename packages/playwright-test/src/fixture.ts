@@ -24,7 +24,7 @@ import { createPlaywrightRenderer } from '@variance-authority/playwright/rendere
 import { settle, type BaselineKey, type RasterStore, type Renderer } from '@variance-authority/raster';
 import { suspenseRefusal } from '@variance-authority/react';
 import { createDurableStore } from '@variance-authority/store/durable';
-import { accepted } from './accepted.js';
+import { accepted, adopts } from './accepted.js';
 import type { MaterializationOptions, VarianceOptions } from './options.js';
 import { bundlePageAgent } from './bundle.js';
 import { acquireFrom } from './acquire.js';
@@ -423,7 +423,7 @@ async function observeAcquired(
       store,
       ...(options.sensitivity === undefined ? {} : { sensitivity: options.sensitivity }),
     });
-    if (run.accepting === true && observation.verdict !== 'unchanged') {
+    if (adopts(observation, run)) {
       await store.put(key, {
         ...candidate,
         components: hashComponents(heldSnapshot),
@@ -477,7 +477,7 @@ async function observeAcquired(
     ...(options.sensitivity === undefined ? {} : { sensitivity: options.sensitivity }),
   });
 
-  if (run.accepting === true && observation.verdict !== 'unchanged') {
+  if (adopts(observation, run)) {
     await promote(store, renderer, document, key, snapshot, accessibility);
     return accepted(observation);
   }

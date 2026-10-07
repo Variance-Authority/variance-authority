@@ -199,13 +199,13 @@ running. For a missing renderer, read the launch error it prints — usually an
 uninstalled browser binary or a missing system library. For an incomparable
 store, either point `renderer` at a machine running the identity the baselines
 were written under, or switch to `retention: "ephemeral"`, where both images are
-painted in the same run. Doctor compares identity digests, so it reports the
-same finding when only the recipe moved, after an upgrade of variance-authority
-or a changed renderer option. A run tells the two apart: its `incomparable`
-reason names the fields that differ. When only the recipe moved and the
-document is the one the baseline was painted from, the run painted the new
-images, and you adopt them with `accept --all` below. Everything else, missing
-fonts included, exits `0`.
+painted in the same run. Doctor compares identity digests, and the digest covers
+the recipe as well as the machine: the stabilization and rasterization digests,
+which an upgrade of variance-authority or a changed renderer option moves. A
+run's `incomparable` reason names the fields that differ. When only the recipe
+moved and the document is the one the baseline was painted from, the run
+painted the new images, and you adopt them with `accept --all` below. Everything
+else, missing fonts included, exits `0`.
 
 ## Run, review, accept, rerun
 
@@ -259,8 +259,10 @@ The rerun exits `0` once the subject is `unchanged` and nothing else is open.
 
 `accept --all` promotes every candidate in the report with one command —
 subjects that are `new`, subjects that are `changed`, and subjects that are
-`incomparable` only because the recipe moved, identically, whether or not
-anyone opened the page. Name ids explicitly in anything unattended, and keep
+`incomparable` only because the recipe moved on an unchanged document,
+identically, whether or not anyone opened the page. A subject whose recipe and
+document both moved has an image no comparison read, so `--all` passes it by
+and names it; `accept <subject-id>` adopts it once you have looked. Name ids explicitly in anything unattended, and keep
 `--all` for the moment you have just reviewed the whole report yourself.
 `accept --message-file` writes a commit message describing the promotion, which
 `variance changelog` reads back later.

@@ -112,6 +112,13 @@ above, and it refuses by name any subject where something the shape does not
 account for also moved — which is why the checkout route is in `subjects` and
 not in `settles`.
 
+`promotionOf(observation, { bulk })` is the same rule as a function, for a
+caller that has to answer what accepting a subject would do without promoting
+it. Set `bulk` when the subject is swept in rather than named, as
+`--all` sweeps it: an `incomparable` subject painted under a new recipe whose
+`signals.document` is `changed` was compared against nothing, so a bulk accept
+refuses it and naming it adopts it.
+
 ## The shape
 
 A `RunReport` is one JSON value: run metadata plus one `ObservationRecord` per

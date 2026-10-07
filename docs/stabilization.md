@@ -236,8 +236,10 @@ the full one. So:
   prints, on the run it happens, instead of a mass diff you have to work out.
   The `incomparable` reason names the recipe digest that moved, the run still
   paints each subject, and `variance accept --all` adopts the new images once
-  you have looked at them. An upgrade of variance-authority that changes the
-  recipe reads the same way.
+  you have looked at them. A subject whose document moved in the same run is
+  a change no comparison has read, so `--all` passes it by and you accept it
+  by its id. An upgrade of variance-authority that changes the recipe reads
+  the same way.
 - `undefined` means *observed untouched*, and is absent from the key, not
   present-and-empty — because "no recipe ran" and "an empty recipe ran" are the
   same state and neither should look like a confident value.

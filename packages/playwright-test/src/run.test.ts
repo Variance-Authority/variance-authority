@@ -32,6 +32,7 @@ describe('runOf', () => {
       baseURL: 'http://localhost:3000',
       owner: 'test/checkout.spec.ts',
       accepting: false,
+      overwriting: false,
       failed: false,
     });
   });
@@ -45,6 +46,17 @@ describe('runOf', () => {
     // `missing` is the flag's absence, not approval: promoting under it would
     // write a baseline from the same unreviewed run that reported the change.
     expect(accepting).toEqual([false, false, true, true]);
+  });
+
+  it('overwrites only under =all, the mode that takes every image it is handed', () => {
+    const flags = ['missing', 'none', 'all', 'changed'] as const;
+    const overwriting = flags.map(
+      (updateSnapshots) => runOf(testInfo({ config: { updateSnapshots } } as Partial<TestInfo>)).overwriting,
+    );
+
+    // `=changed` sweeps a suite, so it leaves an image no comparison read to a
+    // reviewer; `=all` narrowed to one test is that reviewer.
+    expect(overwriting).toEqual([false, false, true, false]);
   });
 
   it('records no owner when the runner built no spec file', () => {

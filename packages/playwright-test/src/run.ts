@@ -54,6 +54,16 @@ export interface VarianceRun {
    */
   readonly accepting?: boolean;
 
+  /**
+   * Whether this run promotes every image it takes, matched or not.
+   *
+   * `--update-snapshots=all` under Playwright's runner. The one image it adopts
+   * that `=changed` does not is an `incomparable` subject painted under a new
+   * recipe from a moved document, which no comparison read: `=changed` sweeps
+   * the suite, and `=all` narrowed to one test is how a reviewer adopts it.
+   */
+  readonly overwriting?: boolean;
+
   /** Set when the run has already failed, so a recorder can mark it. */
   readonly failed?: boolean;
 }
@@ -75,6 +85,7 @@ export function runOf(testInfo: TestInfo): VarianceRun {
       ? { owner: relative(resolve(process.cwd()), testInfo.file).split(sep).join('/') }
       : {}),
     accepting: flag === 'all' || flag === 'changed',
+    overwriting: flag === 'all',
     failed: testInfo.status !== undefined && testInfo.status !== 'passed',
   };
 }

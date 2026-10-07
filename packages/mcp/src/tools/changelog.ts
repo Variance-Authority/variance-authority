@@ -101,7 +101,7 @@ export const changelog: Tool = {
     let alreadyBaseline = 0;
 
     for (const observation of chosen.targets) {
-      const promotion = promotionOf(observation);
+      const promotion = promotionOf(observation, { bulk: selection === 'all' });
       if (promotion.kind === 'promotable') promotable.push(observation.subject);
       else if (promotion.kind === 'already-baseline') alreadyBaseline += 1;
       else refused.push({ subject: observation.subject, because: promotion.because });

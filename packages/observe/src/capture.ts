@@ -9,6 +9,7 @@ import {
 } from '@variance-authority/raster';
 import { declaredIgnores } from './decide.js';
 import {
+  documentMoved,
   observeAgainstBaseline,
   observeRasters,
   type CompareInputs,
@@ -105,6 +106,7 @@ export async function observeCaptureAgainstBaseline(
       regions: [],
       rendered: false,
       missingFonts: candidate.missingFonts,
+      signals: { document: documentMoved(found.raster, candidate) },
       ...declaredField,
     };
   }

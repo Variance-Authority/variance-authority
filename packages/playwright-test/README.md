@@ -129,6 +129,13 @@ defaults the field to `missing` when no flag is supplied, and treating the
 default as approval would write a baseline from the same failed run that reported
 it unreviewed.
 
+The two differ on one case. After an upgrade of this package moves its render
+recipe, every baseline comes back `incomparable` with the new image painted, and
+both flags adopt it when the document is the one the baseline was painted from.
+When the document moved too, nothing compared the new image against anything:
+`=changed` passes it by, and `=all` adopts it, so run that one test under `=all`
+once you have looked at its image.
+
 Use an explicit `subjectId` for long-lived baselines. When it is omitted, the id
 comes from the test title path; renaming the test then produces `new` instead of
 silently comparing against a baseline that may describe another scenario.
@@ -389,6 +396,7 @@ const variance = await createVariance(page, {
 | `baseURL` | Recording should use the URL the page is served from. | Omitted; a service under test then sees the execution from the first observation rather than the first request. |
 | `owner` | The run records which spec covered which source. | Omitted; the run records no execution against a file. |
 | `accepting` | This run is the one promoting candidates to baselines. | `false`. Under `TestInfo` it is `--update-snapshots=all\|changed` and nothing else — `missing` is the flag's absence. |
+| `overwriting` | An `accepting` run also adopts an image no comparison read: a new render recipe over a document that moved. | `false`. Under `TestInfo` it is `--update-snapshots=all`. |
 
 `runOf(testInfo)` is the same reading, exported for a suite that takes
 Playwright's answer and overrides one field.
