@@ -238,13 +238,15 @@ must resolve the installed package binary.
 ## Read from entrypoint to symbol
 
 Call `docs_packages` when you know the repository's areas, from `docs_orient`,
-but have no specifier. It counts, one row per package
-or specifier, the names each publishes and the names other packages import from
-it by path, and each row is the exact argument the remaining calls take. Pass
-one of those rows as `package` to list the import sites behind its counts.
+but have no specifier. It counts, one row per package or specifier, the names
+each publishes and the names other packages import from it by path, and each
+row is the exact argument the remaining calls take.
 
 Choose one specifier and call `docs_entrypoint` to see the names it opens,
-ranked by how many workspace packages import them. Then call `docs_symbol` for
+ranked by how many workspace packages import them. Asked by a package's name,
+it also lists the import sites behind that package's counts: each import that
+reaches past its entry, or, for a package that declares no entry, each import
+of its files by path. Then call `docs_symbol` for
 the import line, declaration, signature, source documentation, and importing
 packages of the name you are investigating.
 

@@ -48,6 +48,11 @@ export function line(entry: Listed): string {
   return `${entry.name} [${entry.kind}] ${entry.usedBy.length} packages, ${entry.uses} imports — ${said}`;
 }
 
+/** `block` after what `lines` already holds, a blank line between them. */
+export function section(lines: string[], ...block: readonly string[]): void {
+  lines.push(...(lines.length > 0 ? [''] : []), ...block);
+}
+
 /** The line a caller writes to reach this name. */
 export function importing(published: Documented, held: Opening, entry: Entry): string {
   const specifier = specifierOf(published, held);

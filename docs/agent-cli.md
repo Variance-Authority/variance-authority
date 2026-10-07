@@ -173,7 +173,7 @@ variance ask search --query viewport --from packages/app/
 variance ask symbol --name Viewport
 variance ask uses --name collect --from packages/cli/src/index.ts
 variance ask packages
-variance ask packages --package @acme/ui
+variance ask entrypoint --package @acme/ui
 ```
 
 `search` tells you what a thing is called, where it is written, and how to
@@ -190,12 +190,12 @@ contain them, labelled as the looser reading it is. Every question takes a
 question: a word, a name or a specifier. `packages` is the one that takes none.
 It counts, one row per package or specifier, the names each publishes and the
 names other packages import from it by path, and each row is the argument the
-others take; `variance ask packages --package <row>` lists the import sites
-behind one row's counts. `symbol` prints one name's import line, declaration,
-signature, documentation and consumers; `uses` prints every import site, ordered
-by how much path it shares with `--from`; `entrypoint` lists what one import
-specifier opens; `gaps` lists the published names anybody imports that nothing
-documents.
+others take. `entrypoint` lists what one import specifier opens, and asked by a
+package's name it also lists the import sites behind that row's counts.
+`symbol` prints one name's import line, declaration, signature, documentation
+and consumers; `uses` prints every import site, ordered by how much path it
+shares with `--from`; `gaps` lists the published names anybody imports that
+nothing documents.
 
 To read the answer as data, add `--format json`:
 

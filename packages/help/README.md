@@ -145,8 +145,8 @@ stays available without taking space from the first answer.
 
 | verb / tool | takes | answers |
 |---|---|---|
-| `packages` / `docs_packages` | nothing, or a package or specifier | every import specifier the repository publishes, with how heavily used and how well documented each is, and for each package that declares no entry, how many of its names and files other packages import by path. With a package, the import sites behind those counts |
-| `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first |
+| `packages` / `docs_packages` | nothing | every import specifier the repository publishes, with how heavily used and how well documented each is, and for each package that declares no entry, how many of its names and files other packages import by path |
+| `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first. Asked by a package's name, also each import that reaches past its entry, or, for a package that declares no entry, each import of its files by path |
 | `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it |
 | `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first |
 | `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, then the names exported without being published, then the ones only a looser reading finds |
@@ -159,7 +159,7 @@ stays available without taking space from the first answer.
 
 `packages` needs no argument and returns one row per package or specifier, each
 the input another question takes. It counts and lists no import site; the
-narrower question it prints, `packages --package`, lists them for one package.
+narrower question it prints, `entrypoint --package`, lists them for one package.
 
 Every answer ends with the UTC time of the generation it used. A generation is
 manifests and module records, not a compilation, and the module records come

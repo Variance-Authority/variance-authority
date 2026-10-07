@@ -254,6 +254,11 @@ export function formatOrientation(reading: OrientReading): string {
     ...external(reading),
     ...cases(reading),
     ...(reading.journeysUnread === undefined ? formatJourneys(reading.journeys ?? []) : ['', `Journeys: not read: ${reading.journeysUnread.replace(/\.$/u, '')}.`]),
-    ...(asks.length === 0 ? [] : ['', 'Narrower questions:', ...asks.map((command) => `  ${command}`)]),
+    ...narrower(asks),
   ].join('\n');
+}
+
+/** The commands that take an answer further, after a blank line and a heading; nothing when there are none. */
+export function narrower(asks: readonly string[]): readonly string[] {
+  return asks.length === 0 ? [] : ['', 'Narrower questions:', ...asks.map((command) => `  ${command}`)];
 }

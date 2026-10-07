@@ -15,7 +15,8 @@ import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
  * packages` with every import of it, and a name its `main` publishes was refused
  * as unpublished. A package that declares no entry is a folder every consumer
  * imports files of by path, and every import of one was dropped. `ask packages`
- * counts those imports per package; `--package` lists the ones into one.
+ * counts those imports per package; `ask entrypoint --package` lists the ones
+ * into one.
  */
 
 const cwd = process.cwd();
@@ -113,17 +114,17 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(out).not.toContain('apps/app/src/');
   });
 
-  it('lists every deep import into one package when `--package` names it', async () => {
+  it('lists every deep import into one package when `entrypoint --package` names it', async () => {
     checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    const lib = await run(['ask', 'packages', '--package', '@acme/lib']);
+    const lib = await run(['ask', 'entrypoint', '--package', '@acme/lib']);
     expect(lib.code).toBe(EXIT_CLEAN);
     expect(lib.out).toContain('@acme/lib/src/internal/math — @acme/app at apps/app/src/total.ts:1');
     expect(lib.out).toContain('@acme/lib/src/internal/deep/format — @acme/app at apps/app/src/label.ts:1');
     expect(lib.out).not.toContain('clamp');
 
-    const exports = await run(['ask', 'packages', '--package', '@acme/lib-exports']);
+    const exports = await run(['ask', 'entrypoint', '--package', '@acme/lib-exports']);
     expect(exports.code).toBe(EXIT_CLEAN);
     expect(exports.out).toContain('@acme/lib-exports/src/internal/clamp — @acme/app at apps/app/src/bounded.ts:1');
   });
@@ -198,19 +199,7 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(out).toMatch(/^ {2}@acme\/kit-private — 1 name from 1 of its files$/m);
     expect(out).not.toMatch(/unusedRate|orphan|taxOf/);
     expect(out).toMatch(/3 imports reach past a published entrypoint/);
-    expect(out).toMatch(/^ {2}variance ask packages --package @acme\/kit$/m);
-
-    const kit = await run(['ask', 'packages', '--package', '@acme/kit']);
-    expect(kit.code).toBe(EXIT_CLEAN);
-    expect(kit.out).toMatch(/^@acme\/kit declares no entry\. Other packages import 2 names from 2 of its files by path:$/m);
-    expect(kit.out).toContain('  @acme/kit/src/money/tax — taxOf — @acme/app at apps/app/src/checkout.ts:1');
-    expect(kit.out).toContain('  @acme/kit/src/ui/Button — Button — @acme/app at apps/app/src/checkout.ts:2');
-    expect(kit.out).not.toMatch(/unusedRate|orphan|kit-private/);
-
-    const hidden = await run(['ask', 'packages', '--package', '@acme/kit-private']);
-    expect(hidden.code).toBe(EXIT_CLEAN);
-    expect(hidden.out).toMatch(/^@acme\/kit-private declares no entry\. Other packages import 1 name from 1 of its files by path:$/m);
-    expect(hidden.out).toContain('  @acme/kit-private/src/stamp — stamp — @acme/app at apps/app/src/stamped.ts:1');
+    expect(out).toMatch(/^ {2}variance ask entrypoint --package @acme\/kit$/m);
   });
 
   it('answers `entrypoint` for a package that declares no entry with what other packages import from it', async () => {
@@ -219,12 +208,14 @@ describe('variance ask over a private app that reaches into another package', ()
 
     const kit = await run(['ask', 'entrypoint', '--package', '@acme/kit']);
     expect(kit.code).toBe(EXIT_CLEAN);
-    expect(kit.out).toMatch(/^@acme\/kit declares no entry: no `exports`, `main` or `types`\./m);
+    expect(kit.out).toMatch(/^@acme\/kit declares no entry: no `exports`, `main` or `types`\. Other packages import 2 names from 2 of its files by path:$/m);
     expect(kit.out).toContain('@acme/kit/src/money/tax — taxOf — @acme/app at apps/app/src/checkout.ts:1');
     expect(kit.out).toContain('@acme/kit/src/ui/Button — Button — @acme/app at apps/app/src/checkout.ts:2');
+    expect(kit.out).not.toMatch(/unusedRate|orphan|kit-private/);
 
     const hidden = await run(['ask', 'entrypoint', '--package', '@acme/kit-private']);
     expect(hidden.code).toBe(EXIT_CLEAN);
+    expect(hidden.out).toMatch(/^@acme\/kit-private declares no entry: no `exports`, `main` or `types`\. Other packages import 1 name from 1 of its files by path:$/m);
     expect(hidden.out).toContain('@acme/kit-private/src/stamp — stamp — @acme/app at apps/app/src/stamped.ts:1');
   });
 
@@ -257,7 +248,7 @@ describe('variance ask over a private app that reaches into another package', ()
 
     const packages = await run(['ask', 'packages']);
     expect(packages.out).toMatch(/4 imports reach past a published entrypoint/);
-    const hidden = await run(['ask', 'packages', '--package', '@acme/kit-private']);
+    const hidden = await run(['ask', 'entrypoint', '--package', '@acme/kit-private']);
     expect(hidden.out).toContain('  @acme/kit-private/src/stamp — stamp — @acme/app at apps/app/src/again.ts:2');
   });
 });

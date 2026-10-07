@@ -1,3 +1,4 @@
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Deep, Help, Taken } from '@variance-authority/package/help';
 import { requested } from '@variance-authority/package/help';
 
@@ -62,8 +63,11 @@ export interface Surface {
   readonly names: number;
   readonly files: number;
   readonly lines: readonly string[];
-  /** The first name the lines take, other than the whole module, for the narrower question about one name. */
-  readonly first?: string;
+  /**
+   * The first name the lines take, other than the whole module, and the
+   * specifier it is taken from, for the narrower question about one name.
+   */
+  readonly first?: { readonly name: string; readonly specifier: string };
   /** The specifier most lines are under, when they are under more than one, for the narrower question about one specifier. */
   readonly busiest?: string;
 }
@@ -88,8 +92,9 @@ export function surfaceByPath(help: Help, owner: string, specifier?: string): Su
       rows.push([held.specifier, taken.name, taken.at, taken.line, `  ${held.specifier} — ${taken.name} — ${taken.by} at ${taken.at}:${taken.line}`]);
     }
   }
-  rows.sort((a, b) => byCodeUnit(a[0], b[0]) || byCodeUnit(a[1], b[1]) || byCodeUnit(a[2], b[2]) || a[3] - b[3]);
-  const first = rows.find((row) => row[1] !== '' && row[1] !== '*')?.[1];
+  rows.sort((a, b) => codeUnitOrder(a[0], b[0]) || codeUnitOrder(a[1], b[1]) || codeUnitOrder(a[2], b[2]) || a[3] - b[3]);
+  const row = rows.find((candidate) => isName(candidate[1]));
+  const first = row === undefined ? undefined : { name: row[1], specifier: row[0] };
   const under = new Map<string, number>();
   for (const row of rows) under.set(row[0], (under.get(row[0]) ?? 0) + 1);
   const busiest = under.size > 1 ? [...under].reduce((best, next) => (next[1] > best[1] ? next : best))[0] : undefined;
@@ -138,12 +143,24 @@ export function countsByPath(help: Help): {
   }
   const unentered = [...taken].map(([owner, counts]) => [owner, { names: counts.pairs.size, files: counts.files.size }] as const);
   return {
-    unentered: unentered.sort((a, b) => b[1].names - a[1].names || byCodeUnit(a[0], b[0])),
-    deep: [...deep].sort((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0])),
+    unentered: unentered.sort((a, b) => b[1].names - a[1].names || codeUnitOrder(a[0], b[0])),
+    deep: [...deep].sort((a, b) => b[1] - a[1] || codeUnitOrder(a[0], b[0])),
   };
 }
 
-/** Code-unit order, the same on every machine. */
-export function byCodeUnit(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
+/** What a package that declares an entry is told about the imports past it. */
+export const REACHING =
+  'Either the manifest has stopped describing what the package is used for, or something is reaching into its internals';
+
+/**
+ * The imports past the entry of `owner`, in specifier and site order. With
+ * `specifier`, only the imports written as that specifier.
+ */
+export function reachingPast(help: Help, owner: string, specifier?: string): readonly Deep[] {
+  return help.deep
+    .filter((held) => (specifier === undefined ? ownerOf(held.specifier) === owner : held.specifier === specifier))
+    .sort((left, right) => codeUnitOrder(left.specifier, right.specifier) || codeUnitOrder(left.at, right.at) || left.line - right.line);
 }
+
+/** A name a reader could ask `uses` about: not the whole module, not a side effect. */
+export const isName = (name: string): boolean => name !== '' && name !== '*';

@@ -96,17 +96,19 @@ server.
 
 ## The verbs
 
-### `packages [--package <name or specifier>]`
+### `packages`
 
 Ask it when you have no exact specifier. A published specifier is each subpath a
 `package.json` `exports` field opens, or, with no `exports`, the bare name its
-`types` or `main` opens. With no argument it counts, one row per specifier: the
-names it opens, how many anything imports, how many are documented. A package
-that declares no entry gets a row with how many of its names and files other
-packages import by path, and imports past a published entry are counted per
-package. It lists no import site. `--package` takes a row's package or
-specifier and lists the sites behind its counts, each with the importer's file
-and line. Either answer ends with the narrower questions to ask next.
+`types` or `main` opens. It takes no argument and counts, one row per specifier:
+the names it opens, how many anything imports, how many are documented. A
+package that declares no entry gets a row with how many of its names and files
+other packages import by path, and imports past a published entry are counted
+per package. It lists no import site; `entrypoint` lists the sites behind a
+row's counts. The answer ends with an `entrypoint` question for each of the
+most-imported specifier, the package that declares no entry with the most names
+imported by path, and the package with the most imports past its entry, those
+the repository has.
 
 `packages` and `entrypoint` answer for the JavaScript half of a mixed
 repository. The other verbs read the source and answer for every language: ask
@@ -115,9 +117,13 @@ repository. The other verbs read the source and answer for every language: ask
 ### `entrypoint`
 
 `--package` takes the specifier as `packages` prints it, or the package name
-with `--subpath` set to a key of its `exports` map. A package that declares no
-entry opens nothing, and the answer lists the files and names other packages
-import from it by path, each with the importer's file and line.
+with `--subpath` set to a key of its `exports` map. Asked by the package name
+alone, the answer lists the names its main entry opens, then each import that
+reaches past its entry, with the importer's file and line. A package that
+declares no entry opens nothing, and the answer lists the files and names other
+packages import from it by path, each with the importer's file and line. Asked
+by a specifier past the entry, it lists the imports of that specifier. An answer
+that lists sites ends with the narrower questions it has, if any.
 
 ### `symbol --name <name> [--package <name>] [--from <path>]`
 
