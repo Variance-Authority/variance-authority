@@ -1821,9 +1821,9 @@ the merge can tell it from a missing one.
 Every part records the plan it split, the build it read (the Storybook build's
 digest, the commit, and the files under `source.dirs` including uncommitted
 edits), the config that shaped the reading, and an outcome for every subject it
-owns. The merge refuses parts that disagree on any of those, a missing or
-repeated shard, sharded and unsharded parts together, and a subject no part
-accounts for. It names the shard to collect again. The index it writes is the
+owns. The merge refuses parts that disagree on the plan, the build or the
+config, a missing or repeated shard, sharded and unsharded parts together, and
+a subject no part accounts for. It names the shard to collect again. The index it writes is the
 same whatever the shard count or the order you name the parts in.
 
 A subject that failed to render keeps the index at `--out` as it was: the merge
