@@ -143,11 +143,11 @@ const fileRow = (file: FileTaken): string =>
 /**
  * The questions that list the sites behind the first row: its specifier, and
  * its most-taken name through it. The specifier is not asked again when it is
- * the package's name, which is the question that printed the row.
+ * the package's name, which is the question that printed the row. Every caller
+ * counts at least one import, so there is a first row.
  */
 function filesAsks(files: readonly FileTaken[], owner?: string): readonly string[] {
-  const top = files[0];
-  if (top === undefined) return [];
+  const top = files[0]!;
   const specifier = top.specifiers[0]!;
   return [
     ...(specifier === owner ? [] : [`variance ask entrypoint --package ${shell(specifier)}`]),
