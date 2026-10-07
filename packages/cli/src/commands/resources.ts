@@ -208,7 +208,9 @@ export async function recordAgainst(
   const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
   const asked = {
     sourceAt,
-    ...(options.keptTexts === false ? {} : { keptText: selection.keptTexts(checkout) }),
+    ...(options.keptTexts === false
+      ? {}
+      : { keptText: selection.keptTexts(checkout), keptDigests: selection.keptDigests(checkout) }),
     root,
     ...(relations === undefined ? {} : { relations }),
     ...(unmeasured === undefined ? {} : { unmeasured }),

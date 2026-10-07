@@ -57,13 +57,22 @@ describe('selecting after a partial run over an edit', () => {
 
     expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\ntest/delta.test.ts\ntest/gamma.test.ts\n');
   });
+
+  it('runs the tests a partial run recorded over an edit, once the edit is undone', async () => {
+    // `beta` last ran `other` returning 'B'. The tree is back at the commit's
+    // text, which the diff from the commit cannot see, and `beta` has not run it.
+    const said = await afterPartialRun(SOURCE.replace("return 'b';", "return 'B';"), ['module', 'other'], { undo: true });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/delta.test.ts\ntest/gamma.test.ts\n');
+  });
 });
 
 /**
  * Land the full record at the commit, write `edited` over the module, land a
- * run of `beta` alone over it with the named regions' digests moved, and select.
+ * run of `beta` alone over it with the named regions' digests moved, and select,
+ * with `undo` after writing the commit's text back.
  */
-async function afterPartialRun(edited: string, moved: readonly string[]) {
+async function afterPartialRun(edited: string, moved: readonly string[], { undo = false } = {}) {
   const { root, head } = checkout();
   await landRun(testCoverageFile(root), snapshot(head), root);
 
@@ -83,6 +92,7 @@ async function afterPartialRun(edited: string, moved: readonly string[]) {
       })),
     }],
   }, root);
+  if (undo) writeFileSync(join(root, 'src/widget.ts'), SOURCE);
   process.chdir(root);
 
   await indexOutput({ cwd: root });
