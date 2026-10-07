@@ -62,7 +62,8 @@ came with it. See [change](change.md).
 
 The body follows
 [`.github/pull_request_template.md`](../../.github/pull_request_template.md):
-the problem, and how it was solved, a few lines each. It is not a report of the
+the problem, and how it was solved, a few lines each, and one line per scope
+when the change has more than one part. It is not a report of the
 work. The tests, the diff and the checks carry the evidence; the body points at
 them, it does not restate them. `gh pr create --body-file` skips the template,
 so apply it yourself.
