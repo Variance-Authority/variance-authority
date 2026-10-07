@@ -1,0 +1,639 @@
+[
+  {
+    "files": [
+      "packages/cli/src/commands/affected.ts",
+      "packages/cli/src/commands/reach.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/cli/src/commands/ask-source.ts",
+      "packages/cli/src/commands/ask-source.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/cli/src/commands/changes.ts",
+      "packages/sense/src/record.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/cli/src/commands/compose-fixture.ts",
+      "packages/cli/src/commands/compose-fixture.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/cli/src/commands/compose-fixture.ts",
+      "packages/core/src/attribute/composition-fixture.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/cli/src/commands/compose.ts",
+      "packages/cli/src/commands/compose.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/cli/src/commands/covering-reach.ts",
+      "packages/sense/src/test-selection/stopped.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/cli/src/commands/covering.ts",
+      "packages/cli/src/commands/covering.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/cli/src/commands/observe-one.ts",
+      "packages/cli/src/commands/observe-one.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/cli/src/commands/prune-cache.ts",
+      "packages/sense/src/test-selection/prune.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/cli/src/commands/report-html-subjects.ts",
+      "packages/mcp/src/presentation.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/cli/src/commands/review-text.ts",
+      "packages/cli/src/commands/review-text.ts"
+    ],
+    "count": 2
+  },
+  {
+    "files": [
+      "packages/cli/src/commands/run-report.ts",
+      "packages/report/src/file.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/cli/src/config-values.ts",
+      "packages/cli/src/config-values.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/cli/src/config-values.ts",
+      "packages/sense/src/test-selection/name-grammar.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/cli/src/coverage-args.ts",
+      "packages/cli/src/layers-args.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/cli/src/dispatch.ts",
+      "packages/cli/src/dispatch.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/core/src/compare/cascade.ts",
+      "packages/core/src/compare/holding-diff.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/core/src/relate/narrow.ts",
+      "packages/core/src/relate/reach.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/core/src/rules/normalize/alias.ts",
+      "packages/session/src/reads.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/core/src/rules/normalize/cascade.ts",
+      "packages/core/src/rules/normalize/value.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/core/src/rules/normalize/cascade.ts",
+      "packages/dom/src/inherit.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/core/src/rules/normalize/value.ts",
+      "packages/dom/src/specificity.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/core/src/segment/index.ts",
+      "packages/sense/src/test-selection/format-layout.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/distill/src/index.ts",
+      "packages/mcp/src/tools/attention.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/dom/src/selector-parts.ts",
+      "packages/session/src/reads.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/eyes/src/bundle.ts",
+      "packages/playwright-test/src/bundle.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/eyes/src/bundle.ts",
+      "packages/route-collector/src/index.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/eyes/src/playwright-proxy.ts",
+      "packages/eyes/src/playwright-proxy.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/help/src/collect-usage.ts",
+      "packages/package/src/use.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/help/src/indexed-surface.ts",
+      "packages/package/src/reach.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/help/src/read.ts",
+      "packages/package/src/help.ts"
+    ],
+    "count": 2
+  },
+  {
+    "files": [
+      "packages/history/src/answers.ts",
+      "packages/server/src/http-parse.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/mcp/src/tools/composition.ts",
+      "packages/mcp/src/tools/recall.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/package/src/help.ts",
+      "packages/package/src/surface.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/playwright-test/src/acquire.ts",
+      "packages/presentation/src/playwright.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/playwright-test/src/page-agent.ts",
+      "packages/storybook-collector/src/page-agent.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/playwright-test/src/promote.ts",
+      "packages/vitest-browser/src/node.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/playwright/src/blank.ts",
+      "packages/raster/src/difference/serialize.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/presentation/src/alignment.ts",
+      "packages/presentation/src/focus.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/presentation/src/analyze.ts",
+      "packages/presentation/src/analyze.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/presentation/src/focus.ts",
+      "packages/presentation/src/hierarchy.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/presentation/src/hierarchy.ts",
+      "packages/presentation/src/spacing.ts"
+    ],
+    "count": 2
+  },
+  {
+    "files": [
+      "packages/presentation/src/playwright.ts",
+      "packages/presentation/src/playwright.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/raster/src/difference/metric.ts",
+      "packages/raster/src/difference/metric.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/react/src/arrival.ts",
+      "packages/react/src/hydration.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/react/src/arrival.ts",
+      "packages/react/src/quiet.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/remote/src/renderer.ts",
+      "packages/remote/src/serve-store.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/remote/src/renderer.ts",
+      "packages/server/src/http.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/route-collector/src/contract.ts",
+      "packages/storybook-collector/src/contract.ts"
+    ],
+    "count": 2
+  },
+  {
+    "files": [
+      "packages/route-collector/src/index.ts",
+      "packages/storybook-collector/src/index.ts"
+    ],
+    "count": 4
+  },
+  {
+    "files": [
+      "packages/route-collector/src/page-agent-entry.ts",
+      "packages/storybook-collector/src/page-agent-entry.ts"
+    ],
+    "count": 2
+  },
+  {
+    "files": [
+      "packages/route-collector/src/page-agent.ts",
+      "packages/storybook-collector/src/page-agent.ts"
+    ],
+    "count": 4
+  },
+  {
+    "files": [
+      "packages/route-collector/src/read.ts",
+      "packages/storybook-collector/src/read.ts"
+    ],
+    "count": 2
+  },
+  {
+    "files": [
+      "packages/route-collector/src/serve.ts",
+      "packages/storybook-collector/src/serve.ts"
+    ],
+    "count": 2
+  },
+  {
+    "files": [
+      "packages/route-collector/src/source.ts",
+      "packages/storybook-collector/src/source.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/route-collector/src/world.ts",
+      "packages/storybook-collector/src/world.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/conditions.ts",
+      "packages/sense/src/emitted.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/layer-moves.ts",
+      "packages/sense/src/tier-moves.ts"
+    ],
+    "count": 3
+  },
+  {
+    "files": [
+      "packages/sense/src/native.ts",
+      "packages/sense/src/record.ts"
+    ],
+    "count": 2
+  },
+  {
+    "files": [
+      "packages/sense/src/orient.ts",
+      "packages/sense/src/recorded-durations.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/read.ts",
+      "packages/sense/src/test-selection/source-lines.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/record.ts",
+      "packages/sense/src/taint/join.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/source-index-mocks.ts",
+      "packages/sense/src/taint/mocks.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/source-index.ts",
+      "packages/sense/src/source-index.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/taint/calls.ts",
+      "packages/sense/src/taint/mocks.ts"
+    ],
+    "count": 2
+  },
+  {
+    "files": [
+      "packages/sense/src/test-selection/at-source.ts",
+      "packages/sense/src/test-selection/blocks-around.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/test-selection/columns.ts",
+      "packages/sense/src/test-selection/columns.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/test-selection/execution-format.ts",
+      "packages/sense/src/test-selection/execution-set-columns.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/test-selection/execution-format.ts",
+      "packages/sense/src/test-selection/execution-set-format.ts"
+    ],
+    "count": 3
+  },
+  {
+    "files": [
+      "packages/sense/src/test-selection/execution-format.ts",
+      "packages/sense/src/test-selection/format-view.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/test-selection/execution-format.ts",
+      "packages/sense/src/test-selection/format.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/test-selection/execution-set-format.ts",
+      "packages/sense/src/test-selection/held-case-index.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/test-selection/jest-reporter.ts",
+      "packages/sense/src/test-selection/selection-fold.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/test-selection/jest-setup.cts",
+      "packages/sense/src/test-selection/runner.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/test-selection/journey-parts.ts",
+      "packages/sense/src/test-selection/journey.ts"
+    ],
+    "count": 2
+  },
+  {
+    "files": [
+      "packages/sense/src/test-selection/reading.ts",
+      "packages/sense/src/test-selection/reading.ts"
+    ],
+    "count": 3
+  },
+  {
+    "files": [
+      "packages/sense/src/test-selection/rstest.ts",
+      "packages/sense/src/test-selection/vitest.ts"
+    ],
+    "count": 2
+  },
+  {
+    "files": [
+      "packages/server/src/bin.ts",
+      "packages/tribunal/src/node/bin.ts"
+    ],
+    "count": 3
+  },
+  {
+    "files": [
+      "packages/server/src/http-parse.ts",
+      "packages/server/src/http-parse.ts"
+    ],
+    "count": 2
+  },
+  {
+    "files": [
+      "packages/server/src/http-parse.ts",
+      "packages/tribunal/src/worker-http.ts"
+    ],
+    "count": 4
+  },
+  {
+    "files": [
+      "packages/server/src/http-parse.ts",
+      "packages/tribunal/src/worker-input.ts"
+    ],
+    "count": 10
+  },
+  {
+    "files": [
+      "packages/server/src/http-request.ts",
+      "packages/tribunal/src/worker-http.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/server/src/http-request.ts",
+      "packages/tribunal/src/worker-input.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/server/src/sqlite-queries.ts",
+      "packages/tribunal/src/history-queries.ts"
+    ],
+    "count": 3
+  },
+  {
+    "files": [
+      "packages/server/src/sqlite-rows.ts",
+      "packages/tribunal/src/history-rows.ts"
+    ],
+    "count": 12
+  },
+  {
+    "files": [
+      "packages/storybook-collector/src/contract.ts",
+      "packages/unit-test/src/contract.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/storybook/src/show-story.ts",
+      "packages/storybook/src/show-story.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/tribunal/src/history-rows.ts",
+      "packages/tribunal/src/review-rows.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/tribunal/src/worker.ts",
+      "packages/tribunal/src/worker.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/unit-test/src/styles.ts",
+      "packages/unit-test/src/styles.ts"
+    ],
+    "count": 1
+  }
+]

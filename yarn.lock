@@ -2081,6 +2081,25 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@jscpd/core@npm:4.2.5, @jscpd/core@npm:^4.2.5":
+  version: 4.2.5
+  resolution: "@jscpd/core@npm:4.2.5"
+  dependencies:
+    eventemitter3: "npm:^5.0.1"
+  checksum: 10c0/d7a9fc8d3cadf47d428075876d183a19da227ebd48504baf56cdbe623cbd2a7fadcbb52fb5ee3914387f2674bd8423da0913288af81174dfc692ac361db91ac0
+  languageName: node
+  linkType: hard
+
+"@jscpd/tokenizer@npm:^4.2.6":
+  version: 4.2.6
+  resolution: "@jscpd/tokenizer@npm:4.2.6"
+  dependencies:
+    "@jscpd/core": "npm:4.2.5"
+    spark-md5: "npm:^3.0.2"
+  checksum: 10c0/6e82ea75f5f7a002664404dfed98e608e26c98ecf6b9af63121fa946ee8c70c794a98567f2e64ee4e112ad20e02a75f7b5f06ce6da23b55406ca5724b51c14bc
+  languageName: node
+  linkType: hard
+
 "@manypkg/find-root@npm:^3.1.0":
   version: 3.1.0
   resolution: "@manypkg/find-root@npm:3.1.0"
@@ -7025,6 +7044,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"eventemitter3@npm:^5.0.1":
+  version: 5.0.4
+  resolution: "eventemitter3@npm:5.0.4"
+  checksum: 10c0/575b8cac8d709e1473da46f8f15ef311b57ff7609445a7c71af5cd42598583eee6f098fa7a593e30f27e94b8865642baa0689e8fa97c016f742abdb3b1bf6d9a
+  languageName: node
+  linkType: hard
+
 "execa@npm:^5.1.1":
   version: 5.1.1
   resolution: "execa@npm:5.1.1"
@@ -10059,6 +10085,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"spark-md5@npm:^3.0.2":
+  version: 3.0.2
+  resolution: "spark-md5@npm:3.0.2"
+  checksum: 10c0/3fd11735eac5e7d60d6006d99ac0a055f148a89e9baf5f0b51ac103022dec30556b44190b37f6737ca50f81e8e50dc13e724f9edf6290c412ff5ab2101ce7780
+  languageName: node
+  linkType: hard
+
 "sprintf-js@npm:~1.0.2":
   version: 1.0.3
   resolution: "sprintf-js@npm:1.0.3"
@@ -10802,12 +10835,15 @@ __metadata:
   resolution: "variance-authority@workspace:."
   dependencies:
     "@changesets/cli": "npm:^3.0.1"
+    "@jscpd/core": "npm:^4.2.5"
+    "@jscpd/tokenizer": "npm:^4.2.6"
     "@playwright/test": "npm:^1.62.1"
     "@types/node": "npm:^22.10.2"
     "@types/pngjs": "npm:^6.0.5"
     "@types/react": "npm:^19"
     "@types/react-dom": "npm:^19"
     "@variance-authority/cli": "workspace:^"
+    "@variance-authority/core": "workspace:^"
     "@variance-authority/help": "workspace:^"
     "@vitest/coverage-v8": "npm:^2.1.8"
     backlog.md: "npm:1.50.1"
