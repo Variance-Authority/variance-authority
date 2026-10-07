@@ -1048,7 +1048,9 @@ Restricting the walk to covered modules is what makes the number worth reading:
 a shortest path over the graph alone can run through a module the test never
 loaded — a helper behind a branch nobody took. `distanceFromView` is the same
 reading over a snapshot you already opened, and `nearestFirst` is the comparison
-both sort by.
+both sort by. Both can return a test outside `narrowing.entered`: one the record
+holds incomplete and the diff did not enter, placed by the shortest path it ran
+to a changed file it loaded.
 
 Each `TestDistance` has a `bearing`. Four of them include a hop count and two
 do not:

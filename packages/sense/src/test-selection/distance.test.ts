@@ -108,6 +108,85 @@ describe('distanceFromView', () => {
     });
   });
 
+  it('places a test the record never saw whole by the path it ran from the change, and only when it ran one', () => {
+    // Recorded incomplete, the card and registry tests ran cases the record did
+    // not see, and the change entered neither in what it did see. The card test
+    // ran a path from the changed file three hops long; the registry test ran
+    // none, and nothing selected it by a reason, so it is not placed at all.
+    const coverage = openTestCoverage(encodeTestCoverage(layerCoverage));
+    const narrowing = narrowByExecutionFromView(coverage, baseDiff);
+    const unseen = new Set(['test/card.test.tsx', 'test/registry.test.ts']);
+    const distances = distanceFromView(
+      coverage,
+      {
+        ...narrowing,
+        entered: narrowing.entered.filter((test) => !unseen.has(test)),
+        because: narrowing.because.filter(({ test }) => !unseen.has(test)),
+        incomplete: [...unseen],
+      },
+      { relations },
+    );
+
+    expect(of(distances, 'test/card.test.tsx')).toMatchObject({ bearing: 'transitive', hops: 3, from: 'src/button/abstract-button.tsx' });
+    expect(distances.map(({ test }) => test)).not.toContain('test/registry.test.ts');
+  });
+
+  it('places a test the record never saw whole once, by its entry, when the change entered it', () => {
+    // The incomplete list names every test not seen whole, entered or not. One
+    // the change entered already has its distance from what it entered; a
+    // second placement by its path would list it twice.
+    const coverage = openTestCoverage(encodeTestCoverage(layerCoverage));
+    const narrowing = narrowByExecutionFromView(coverage, baseDiff);
+    const distances = distanceFromView(coverage, { ...narrowing, incomplete: ['test/card.test.tsx'] }, { relations });
+
+    expect(narrowing.entered).toContain('test/card.test.tsx');
+    expect(distances.filter(({ test }) => test === 'test/card.test.tsx')).toHaveLength(1);
+  });
+
+  it('measures a test the record never saw whole from no file the parser read as changing nothing', () => {
+    // A whitespace or comment edit reads `none`: the change cannot reach a test
+    // through that file, so it seeds no path. A `none` the record's kept text
+    // decided is the partial run's own edit, and it still does.
+    const coverage = openTestCoverage(encodeTestCoverage(layerCoverage));
+    const narrowing = narrowByExecutionFromView(coverage, baseDiff);
+    const unseen = new Set(['test/card.test.tsx']);
+    const partial = {
+      ...narrowing,
+      entered: narrowing.entered.filter((test) => !unseen.has(test)),
+      because: narrowing.because.filter(({ test }) => !unseen.has(test)),
+      incomplete: [...unseen],
+    };
+    const file = 'src/button/abstract-button.tsx';
+
+    const parsed = distanceFromView(coverage, { ...partial, readings: [{ file, verdict: 'none', names: [] }] }, { relations });
+    const kept = distanceFromView(coverage, { ...partial, readings: [{ file, verdict: 'none', names: [], kept: true }] }, { relations });
+
+    expect(parsed.map(({ test }) => test)).not.toContain('test/card.test.tsx');
+    expect(of(kept, 'test/card.test.tsx')).toMatchObject({ hops: 3, from: file });
+  });
+
+  it('measures a test the record never saw whole only from a changed file it loaded', () => {
+    // The card test's record holds the card and the button's face, not the base
+    // the edit is in. The graph has the face's edge to the base, but nothing
+    // says this test ran it, so a path ending on that edge is not one it ran.
+    const coverage = openTestCoverage(encodeTestCoverage({
+      ...layerCoverage,
+      tests: layerCoverage.tests.map((test) => (test.file === 'test/card.test.tsx' ? { ...test, complete: false } : test)),
+      modules: layerCoverage.modules.map((module) => ({
+        ...module,
+        blocks: module.blocks.map((block) => ({
+          ...block,
+          testFiles: block.testFiles.filter((test) => module.file !== 'src/button/abstract-button.tsx' || test !== 'test/card.test.tsx'),
+        })),
+      })),
+    }));
+    const narrowing = narrowByExecutionFromView(coverage, baseDiff);
+    const distances = distanceFromView(coverage, { ...narrowing, incomplete: ['test/card.test.tsx'] }, { relations });
+
+    expect(narrowing.entered).not.toContain('test/card.test.tsx');
+    expect(distances.map(({ test }) => test)).not.toContain('test/card.test.tsx');
+  });
+
   it('places nothing without a graph, and says so as absence', () => {
     // No graph is not "everything is far away". Every test comes back unplaced,
     // which is what a caller banding on this must see rather than a flat zero.

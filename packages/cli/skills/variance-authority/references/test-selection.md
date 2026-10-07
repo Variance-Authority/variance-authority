@@ -94,7 +94,15 @@ variance reach --since origin/main              # files a diff reaches over impo
   it; `0-2` then `3-` runs every selected file in one of the two. stderr counts
   the entered tests at each hop count. `json` gives the leg as `leg`, the files
   it left as `left`, and each entered test's hops, bearing and the reason none
-  was measured as `distances`; a test with no hop count runs in the furthest leg.
+  was measured as `distances`; an entered test with no hop count runs in the
+  end leg, the open one or a closed one reaching the furthest hop measured, and
+  an unplaced incomplete test in the open leg only. An incomplete test the
+  change did not enter is placed by the shortest path it ran to a changed file
+  it loaded, and stderr counts the ones the leg runs. A changed file seeds no
+  such path when the parser read its edit as changing nothing at runtime, when
+  it is stale, when its text was checked and it has no line ranges (a rename,
+  mode or binary change), or when the record has no rows for it. A placed test
+  counts toward the furthest hop, so it decides which closed leg is an end leg.
 - **`reach` needs no recording**, and reads JavaScript, TypeScript, Python,
   Rust, Java, Kotlin and Swift. It prints a run list, so a reading that cannot
   produce one exits `2` with an empty stdout rather than print a short list.

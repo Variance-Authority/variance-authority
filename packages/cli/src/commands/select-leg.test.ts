@@ -74,7 +74,7 @@ describe('one leg of the selection', () => {
     const input = read();
     const selection = inLeg(skippableTests(input), input, { from: 0, to: 2 });
 
-    // The ghost has no measured distance, and rides with the leg that reaches the end.
+    // The ghost has no measured distance, and runs in the end leg: `3-`, since FAR is past 2.
     expect(selection.skip).toEqual([FAR, GHOST, IDLE]);
     expect(selection.left).toEqual([FAR, GHOST]);
     expect(selection.leg).toEqual({ from: 0, to: 2 });
@@ -111,7 +111,6 @@ describe('one leg of the selection', () => {
   });
 
   it('cuts an entered test the record never saw whole, and counts it apart from the whole', () => {
-    const PARTIAL = 'test/partial.test.ts';
     const input: SelectInput = {
       at: '/cache/coverage.bin',
       ground: {
@@ -126,7 +125,7 @@ describe('one leg of the selection', () => {
     expect(selectionNotes(end)).toContain('skipping 4 test files: 1 of 5 recorded whole covered no changed line, and 3 are outside');
   });
 
-  it('runs a test the record holds incomplete, and the change did not enter, only in the end leg', () => {
+  it('runs a test the record holds incomplete, with no path to the change, only in the open leg', () => {
     const SKIPPED = 'test/skipped.test.ts';
     const input = read(DISTANCES, [GHOST, SKIPPED]);
     const near = inLeg(skippableTests(input), input, { from: 0, to: 2 });
@@ -136,8 +135,58 @@ describe('one leg of the selection', () => {
     expect(near.left).toEqual([FAR, GHOST, SKIPPED]);
     expect(end.skip).toEqual([IDLE, MID, NEAR]);
     expect(selectionNotes(near)).toContain(
-      '1 test file the record never saw whole and the change did not enter is left for the leg that reaches the end',
+      '1 test file the record never saw whole and the change did not enter is left for the open leg',
     );
+  });
+
+  // A placed incomplete test is measured like an entered one, so it can be the
+  // furthest test of the reading: a closed leg short of it is no end leg, and an
+  // entered test with no distance waits for the one that is: GHOST runs in
+  // `0-2` while NEAR is the furthest, and moves to `3-` once PARTIAL is placed.
+  it('runs an unplaced entered test only in the leg past a placed incomplete test', () => {
+    const reading = (incomplete: readonly string[]): SelectInput => ({
+      at: '/cache/coverage.bin',
+      ground: {
+        kind: 'read',
+        narrowing: { whole: WHOLE, incomplete, entered: [GHOST, NEAR], unread: [], stale: [], because: [] },
+        distances: [
+          { test: NEAR, bearing: 'direct', hops: 1 },
+          { test: GHOST, bearing: 'unexplained' },
+          { test: PARTIAL, bearing: 'transitive', hops: 3 },
+        ],
+      },
+    });
+    const input = reading([PARTIAL]);
+    const alone = reading([]);
+    const near = inLeg(skippableTests(input), input, { from: 0, to: 2 });
+    const end = inLeg(skippableTests(input), input, { from: 3, to: Number.MAX_SAFE_INTEGER });
+
+    expect(near.skip).toEqual([FAR, GHOST, IDLE, MID, PARTIAL]);
+    expect(end.skip).toEqual([FAR, IDLE, MID, NEAR]);
+    expect(inLeg(skippableTests(alone), alone, { from: 0, to: 2 }).skip).toEqual([FAR, IDLE, MID]);
+  });
+
+  // A caller hands over its own distances, and one may name an incomplete test
+  // it could not place. Placed means a hop count, not a row: a closed end leg
+  // runs an entered test with no hops, never an incomplete one.
+  it('runs an incomplete test with a distance but no hops only in the open leg', () => {
+    const input: SelectInput = {
+      at: '/cache/coverage.bin',
+      ground: {
+        kind: 'read',
+        narrowing: { whole: WHOLE, incomplete: [PARTIAL], entered: [NEAR], unread: [], stale: [], because: [] },
+        distances: [
+          { test: NEAR, bearing: 'direct', hops: 1 },
+          { test: PARTIAL, bearing: 'unexplained' },
+        ],
+      },
+    };
+    const near = inLeg(skippableTests(input), input, { from: 0, to: 2 });
+    const end = inLeg(skippableTests(input), input, { from: 3, to: Number.MAX_SAFE_INTEGER });
+
+    expect(near.skip).toContain(PARTIAL);
+    expect(selectionNotes(near)).not.toContain('placed in this leg');
+    expect(end.skip).not.toContain(PARTIAL);
   });
 
   it('names what the leg left and the leg that runs it, on stderr', () => {
@@ -199,7 +248,7 @@ describe('one leg of the selection', () => {
 
     expect(err).toContain(
       'the change entered 4 test files: 1 at 1 hop, 1 at 2 hops, 1 at 3 hops, ' +
-        'and 1 at no measured distance, which runs with the furthest leg',
+        'and 1 at no measured distance, which runs in the end leg',
     );
   });
 
@@ -304,14 +353,81 @@ describe('a leg read from a real record and a real graph', () => {
 
     expect(JSON.parse(out)).toMatchObject({ leg: { from: 0, to: 2 }, skip: [FAR, GHOST, IDLE], left: [FAR, GHOST] });
   });
+
+  // A test the record holds incomplete ran cases the record did not see, and
+  // one of them may call what changed. The change entered nobody here, so the
+  // test is selected by being incomplete, and it is one import from the change.
+  it('runs a test the record never saw whole in the leg its hops from the change put it in', async () => {
+    const { root, head } = checkout({ 'src/spare.ts': SPARE, [PARTIAL]: "import { untouched } from '../src/spare';\nuntouched();\n" });
+    const recorded = snapshot(head);
+    await writeTestCoverage(testCoverageFile(root), {
+      ...recorded,
+      tests: [...recorded.tests, { file: PARTIAL, complete: false, preconditions: [] }],
+      modules: [...recorded.modules, spareModule()],
+    });
+    writeFileSync(join(root, 'src/spare.ts'), SPARE.replace("return 'b';", "return 'y';"));
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    const skipOf = async (atDistance: { from: number; to: number }) =>
+      JSON.parse((await selectOutput({ cwd: root, format: 'json', atDistance })).out);
+    const near = await skipOf({ from: 0, to: 2 });
+    const end = await skipOf({ from: 3, to: Number.MAX_SAFE_INTEGER });
+
+    expect(near.skip).not.toContain(PARTIAL);
+    expect(near.distances).toContainEqual(expect.objectContaining({ test: PARTIAL, hops: 1 }));
+    expect(end.left).toContain(PARTIAL);
+    // Said by the leg that runs it, and by no other.
+    const placedIn = /never saw whole and the change did not enter (is|are) placed in this leg/;
+    expect(near.notes).toContain('1 test file the record never saw whole and the change did not enter is placed in this leg by the hops it ran to a changed file');
+    expect(end.notes.filter((note: string) => placedIn.test(note))).toEqual([]);
+  });
+
+  // A file whose every case skipped, such as a browser file with no page built,
+  // is recorded incomplete with only the modules it loaded. When an edit lands
+  // in one of those, it runs at its hops.
+  it('runs a file whose every case skipped in the leg of its hops to a changed file it loaded', async () => {
+    const LOADED = 'test/loaded.chromium.test.ts';
+    const { root, head } = checkout({
+      'src/spare.ts': SPARE,
+      [LOADED]: "import { spare } from '../src/spare';\nit.skip('spare', () => spare());\n",
+    });
+    const recorded = snapshot(head);
+    const spare = spareModule();
+    await writeTestCoverage(testCoverageFile(root), {
+      ...recorded,
+      tests: [...recorded.tests, { file: LOADED, complete: false, preconditions: [] }],
+      modules: [...recorded.modules, { ...spare, blocks: spare.blocks.map((block) => ({ ...block, testFiles: [], loadedBy: [LOADED] })) }],
+    });
+    writeFileSync(join(root, 'src/spare.ts'), SPARE.replace("return 'b';", "return 'y';"));
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    const skipOf = async (atDistance: { from: number; to: number }) =>
+      JSON.parse((await selectOutput({ cwd: root, format: 'json', atDistance })).out);
+    const near = await skipOf({ from: 0, to: 2 });
+    const end = await skipOf({ from: 3, to: Number.MAX_SAFE_INTEGER });
+
+    expect(near.distances).toContainEqual(expect.objectContaining({ test: LOADED, hops: 1 }));
+    expect(near.skip).not.toContain(LOADED);
+    expect(end.left).toContain(LOADED);
+  });
+
+  // 8633dd2a took these out of `0-2` for their browser start-up; placed by hops, they are back.
+  it.todo(
+    'pays no browser start-up in `0-2` for a file whose every case skipped, while a test a partial run demoted keeps its hops — needs the record to tell a file whose every case skipped from a test a partial run demoted, and `verify:near` timings to say whether the start-up is paid again',
+  );
 });
 
 const WIDGET = ['export function widget(): string {', "  return 'a';", '}', ''].join('\n');
 const CALLER = ["import { widget } from './widget';", 'export const caller = (): string => widget();', ''].join('\n');
+/** Two functions: a test that did not run whole entered the first, and nothing entered the second. */
+const SPARE = ['export function untouched(): string {', "  return 'a';", '}', 'export function spare(): string {', "  return 'b';", '}', ''].join('\n');
+const PARTIAL = 'test/partial.test.ts';
 const OUTER = ["import { caller } from './caller';", 'export const outer = (): string => caller();', ''].join('\n');
 
 /** A widget, a caller of it and a caller of that, with one test at each distance and two more. */
-function checkout(): { root: string; head: string } {
+function checkout(extra: Readonly<Record<string, string>> = {}): { root: string; head: string } {
   const root = mkdtempSync(join(tmpdir(), 'va-select-leg-'));
   const git = (args: readonly string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   git(['init', '--quiet', '--initial-branch', 'main']);
@@ -327,6 +443,7 @@ function checkout(): { root: string; head: string } {
     // Loads the widget by a path no import names, so no executed path is measured.
     [GHOST]: "await import(['..', 'src', 'widget'].join('/'));\n",
     [IDLE]: 'export {};\n',
+    ...extra,
   };
   for (const [file, text] of Object.entries(files)) {
     mkdirSync(join(root, file, '..'), { recursive: true });
@@ -363,6 +480,21 @@ function snapshot(commit: string): TestCoverage {
       moduleOf('src/widget.ts', WIDGET, 3, [FAR, GHOST, MID, NEAR], 'widget'),
       moduleOf('src/caller.ts', CALLER, 2, [FAR, MID]),
       moduleOf('src/outer.ts', OUTER, 2, [FAR]),
+    ],
+  };
+}
+
+/** `src/spare.ts`, as a run that skipped some of `PARTIAL`'s cases recorded it. */
+function spareModule(): TestCoverage['modules'][number] {
+  const block = { source: true, testFiles: [PARTIAL] };
+  return {
+    file: 'src/spare.ts',
+    sourceDigest: digestString(SPARE),
+    instrumented: true,
+    blocks: [
+      { ...block, ordinal: 0, kind: 'module', digest: digestString('src/spare.ts'), name: 'src/spare.ts', path: 'module', startLine: 1, endLine: 6 },
+      { ...block, ordinal: 1, kind: 'function', owner: 0, digest: digestString('untouched'), name: 'untouched', path: 'untouched', startLine: 1, endLine: 3 },
+      { ...block, ordinal: 2, kind: 'function', owner: 0, digest: digestString('spare'), name: 'spare', path: 'spare', startLine: 4, endLine: 6, testFiles: [] },
     ],
   };
 }
