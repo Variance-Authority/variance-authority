@@ -217,10 +217,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   const against = request.against ?? (mainline !== undefined && point.base === mainline.commit ? mainline.cases : undefined);
 
   const named = (file: string): string => relative(point.repository, resolve(process.cwd(), file));
-  const relations = await relationsFor(root, ['.'], [], [], {
-    why: 'a review reads which tests import each changed file, and which cases ran against a mock of it',
-    fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
-  });
+  const relations = await relationsFor(root, ['.'], [], []);
 
   const changed = changedLines(forward);
   const reading = readJourneyChange(forward, textsAt(await prefetch(point, [...changed.keys()], named)), {

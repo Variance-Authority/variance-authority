@@ -120,10 +120,7 @@ export function hopsToTests(request: CoveringAt): Promise<ReadonlyMap<string, nu
 const MEASURED = new WeakMap<CoveringAt, Promise<ReadonlyMap<string, number | undefined>>>();
 
 async function measureHops(request: CoveringAt): Promise<ReadonlyMap<string, number | undefined>> {
-  const relations = await relationsFor(request.root, ['.'], [], [], {
-    why: 'import hops are counted over the file graph',
-    fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
-  });
+  const relations = await relationsFor(request.root, ['.'], [], []);
 
   const point: SourcePoint = {
     file: request.file,

@@ -232,10 +232,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
     }
   }
 
-  const relations = await relationsFor(here, ['.'], [], [], {
-    why: 'a mocked module is ruled out by the file graph',
-    fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
-  }, request.noGit);
+  const relations = await relationsFor(here, ['.'], [], [], request.noGit);
   // A bump or a moved manifest is the files it changed, changed whole.
   const beyond = new Map([...installs].map(([stand, installed]) => [stand, beyondOf(relations, installed)] as const));
   // What the suite rests on before reach, moved by any group's diff or install, runs the whole suite.

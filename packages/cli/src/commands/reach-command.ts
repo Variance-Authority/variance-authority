@@ -97,10 +97,7 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
     throw new OperatorError(`nothing has changed since \`${request.since}\`; there is nothing to walk from`);
   }
 
-  const relations = await relationsFor(request.cwd, ['.'], [], [], {
-    why: '`reach` answers from the file graph',
-    fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
-  }, request.noGit);
+  const relations = await relationsFor(request.cwd, ['.'], [], [], request.noGit);
   const { READABLE } = await import('@variance-authority/sense');
 
   const point = await diffPoint(request.since);

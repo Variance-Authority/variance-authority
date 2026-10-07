@@ -443,10 +443,7 @@ function within(moved: CaseMotion, file: string): CaseMotion {
 async function graphFor(now: ExecutionIndex, root: string) {
   if (!anyStopped(now)) return {};
   return {
-    relations: await relationsFor(root, ['.'], [], [], {
-      why: 'a region no case walks any more is told lost or hidden by the file graph when a case stopped',
-      fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
-    }),
+    relations: await relationsFor(root, ['.'], [], []),
   };
 }
 

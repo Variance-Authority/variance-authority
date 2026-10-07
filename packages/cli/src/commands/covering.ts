@@ -466,10 +466,7 @@ async function loadersFor(
 }
 
 function fileGraph(root: string): Promise<Relations> {
-  return relationsFor(root, ['.'], [], [], {
-    why: 'a region that ran while its module evaluated is answered, and a mocked module ruled out, by the file graph',
-    fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
-  });
+  return relationsFor(root, ['.'], [], []);
 }
 
 
