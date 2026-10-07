@@ -202,8 +202,10 @@ were written under, or switch to `retention: "ephemeral"`, where both images are
 painted in the same run. Doctor compares identity digests, so it reports the
 same finding when only the recipe moved, after an upgrade of variance-authority
 or a changed renderer option. A run tells the two apart: its `incomparable`
-reason names the fields that differ, and a recipe-only difference is a
-re-baseline, adopted with `accept --all` below. Everything else, missing fonts included, exits `0`.
+reason names the fields that differ. When only the recipe moved and the
+document is the one the baseline was painted from, the run painted the new
+images, and you adopt them with `accept --all` below. Everything else, missing
+fonts included, exits `0`.
 
 ## Run, review, accept, rerun
 
@@ -273,7 +275,7 @@ A run gives every subject one verdict:
 | `changed` | pixels moved. The report names the region, the component and the `file:line`. |
 | `new` | the subject was captured and no approved baseline exists. |
 | `ignored` | pixels moved, and every one of them fell inside a subtree your `ignore` rules excluded. |
-| `incomparable` | the comparison was refused because the two images were not made under the same renderer identity. The reason names only the fields that differ, as the machine (renderer, engine, platform, scale factor, fonts) or the recipe (stabilization, rasterization). A recipe-only difference is a re-baseline and says so. Never read it as zero difference. |
+| `incomparable` | the comparison was refused because the two images were not made under the same renderer identity. The reason names only the fields that differ, as the machine (renderer, engine, platform, scale factor, fonts) or the recipe (stabilization, rasterization). When only the recipe moved, the reason also says whether the document did, so you know if the new image is a re-baseline or a change to review. Never read it as zero difference. |
 
 A subject the run could not observe at all gets no verdict. It is listed
 separately as excluded, failed or unreached, with a sentence saying why.

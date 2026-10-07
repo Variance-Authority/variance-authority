@@ -518,8 +518,8 @@ stabilization, and rasterization recipe. Chromium rendering defaults to
 `--disable-lcd-text` and `--font-render-hinting=none`; changing the ordered
 launch recipe changes identity, so a font rasterization difference comes back as
 a refused comparison rather than as a component regression. The refusal names
-the recipe as what moved, and the run still paints the subject so `accept --all`
-can re-baseline it. Choose between a
+the recipe as what moved and whether the document moved with it, and the run
+still paints the subject, so `accept` has a candidate to adopt. Choose between a
 committed directory, Git LFS and a remote store in
 [where baselines live](placement.md), which also covers what each costs.
 

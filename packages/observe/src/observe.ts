@@ -314,7 +314,7 @@ export async function observeRasters(
     return {
       subject,
       verdict: 'incomparable',
-      because: incomparableBecause(before.identity, after.identity, {
+      because: incomparableBecause(before, after, {
         stored: 'the before image',
         current: 'the after image',
       }),
@@ -404,7 +404,10 @@ export async function observeAgainstBaseline(
     return {
       subject: document.subject.id,
       verdict: 'incomparable',
-      because: incomparableBecause(found.storedUnder, identity),
+      because: incomparableBecause(
+        { identity: found.storedUnder, documentDigest: found.raster.documentDigest },
+        { identity, documentDigest: fresh.raster.documentDigest },
+      ),
       regions: [],
       rendered: fresh.rendered,
       missingFonts: fresh.raster.missingFonts,

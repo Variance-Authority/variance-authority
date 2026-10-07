@@ -9,6 +9,7 @@ import {
   collectorOf,
   configOf,
   documentFor,
+  fakeRenderer,
   rasterFor,
   runWith,
   storeAnswering,
@@ -45,20 +46,39 @@ function storedUnder(identity: RenderIdentity): Found {
   };
 }
 
+// The two rasterization digests of the 0.15.0 upgrade, before and after
+// 3fdec678: one machine, and a key that moved without a pixel.
+const OLD_RECIPE: RenderIdentity = { ...IDENTITY, rasterization: 'v1:8040e1a2e35d148b301ebd30e5ed66c6' };
+const NEW_RECIPE: RenderIdentity = { ...IDENTITY, rasterization: 'v1:54323cded938fde38b41cdd3865368fe' };
+
 describe('a run against a baseline from an older recipe', () => {
   it('paints the subject, so `accept --all` has a candidate to promote', async () => {
-    const { report } = await runWith(
-      configOf(),
-      collector,
-      storeAnswering(storedUnder({ ...IDENTITY, rasterization: 'v1:8040e1a2e35d148b301ebd30e5ed66c6' })),
-    );
+    const { report } = await runWith(configOf(), collector, storeAnswering(storedUnder(OLD_RECIPE)), {
+      renderer: fakeRenderer(NEW_RECIPE),
+    });
+
+    const [observation] = report.observations;
+    expect(observation?.verdict).toBe('incomparable');
+    expect(observation?.because).toContain('rasterization e5ed66c6 → 865368fe');
+    expect(observation?.because).toContain('only the recipe moved');
+    expect(observation?.because).toContain('`variance accept --all`');
+    expect(observation?.images?.after).toBeDefined();
+    expect(promotionOf(observation!).kind).toBe('promotable');
+  });
+
+  it('paints nothing when this run records no recipe, since nothing shows the machine is the same', async () => {
+    // A renderer that predates the field records no rasterization digest.
+    // Absent is "did not say", not a recipe of its own, so the run cannot tell
+    // this from another machine and keeps the refusal.
+    const { report } = await runWith(configOf(), collector, storeAnswering(storedUnder(OLD_RECIPE)), {
+      renderer: fakeRenderer(IDENTITY),
+    });
 
     const [observation] = report.observations;
     expect(observation?.verdict).toBe('incomparable');
     expect(observation?.because).toContain('rasterization e5ed66c6 → not recorded');
-    expect(observation?.because).toContain('`variance accept --all`');
-    expect(observation?.images?.after).toBeDefined();
-    expect(promotionOf(observation!).kind).toBe('promotable');
+    expect(observation?.because).not.toContain('accept');
+    expect(observation?.images).toBeUndefined();
   });
 
   it('still paints nothing against another machine’s baseline', async () => {

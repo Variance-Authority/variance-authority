@@ -162,16 +162,22 @@ export function whyNotWhole(observation: ObservationRecord): string {
  *
  * The two causes are opposite and a single message would serve neither. A
  * settlement means nothing was rendered *because nothing needed to be*; an
- * incomparable baseline means the comparison was refused, and the fix is a
- * decision about machines rather than about this subject.
+ * incomparable baseline without an image means the comparison was refused, and
+ * the fix is a decision about machines rather than about this subject.
+ *
+ * Only a machine refusal arrives here. A baseline this machine painted under an
+ * older recipe of this tool is painted over, so it carries the image that
+ * re-baselines it and is promotable; what reaches this sentence is another
+ * machine's baseline, or one whose recipe was not recorded and so cannot be
+ * shown to be this machine's.
  */
 function noImage(observation: ObservationRecord): string {
   if (observation.verdict === 'incomparable') {
     return (
-      'its baseline belongs to another machine, so the run refused to compare and produced ' +
-      'no image. Delete that baseline and re-run here to record one for this machine, or ' +
-      'run where the baseline was written — accepting across identities is the failure the ' +
-      'partition exists to prevent'
+      "it was compared against another machine's baseline, or one that cannot be shown to be " +
+      "this machine's, so the run refused to compare and produced no image. Run where the " +
+      'baseline was written, or delete that baseline and re-run here to record one for this ' +
+      'machine — accepting across machines is the failure the partition exists to prevent'
     );
   }
   return (

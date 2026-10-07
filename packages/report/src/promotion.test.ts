@@ -131,7 +131,7 @@ describe('what may become a baseline', () => {
     // Opposite causes: one is a decision about machines, the other is a re-run.
     // One sentence would serve neither.
     expect(incomparable.kind === 'refused' && incomparable.because).toContain(
-      'its baseline belongs to another machine',
+      "another machine's baseline",
     );
     expect(unrendered.kind === 'refused' && unrendered.because).toContain(
       'the run recorded no image for it',

@@ -98,7 +98,10 @@ export async function observeCaptureAgainstBaseline(
     return {
       subject: artifact.subject.id,
       verdict: 'incomparable',
-      because: incomparableBecause(found.storedUnder, candidate.identity),
+      because: incomparableBecause(
+        { identity: found.storedUnder, documentDigest: found.raster.documentDigest },
+        candidate,
+      ),
       regions: [],
       rendered: false,
       missingFonts: candidate.missingFonts,

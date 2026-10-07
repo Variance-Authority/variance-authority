@@ -131,21 +131,25 @@ export function settle(
     };
   }
 
-  // Painted, because this run's image is the re-baseline. The machine is the
+  // Painted, because this run's image is the candidate. The machine is the
   // same and only this tool's recipe moved, so there is nothing machine-bound to
   // protect; refusing here left a run with no candidate, nothing `accept` could
-  // promote, and a directory to delete by hand. The verdict stays
-  // `incomparable` — the lookup after the render reaches it with the same
-  // sentence — and the image is what makes it acceptable.
+  // promote, and a directory to delete by hand. Painted whether or not the
+  // document moved too: the sentence says which, and only an unmoved document
+  // is called a re-baseline. The verdict stays `incomparable` — the lookup after
+  // the render reaches it with the same sentence — and the image is what makes
+  // it acceptable.
+  const stored = { identity: found.storedUnder, documentDigest: found.documentDigest };
+  const current = { identity: mine, documentDigest: digest };
   if (!found.comparable && recipeOnly(found.storedUnder, mine)) {
-    return { kind: 'render', because: incomparableBecause(found.storedUnder, mine) };
+    return { kind: 'render', because: incomparableBecause(stored, current) };
   }
 
   if (!found.comparable) {
     return {
       kind: 'settled',
       verdict: 'incomparable',
-      because: `${incomparableBecause(found.storedUnder, mine)} and no image was produced`,
+      because: `${incomparableBecause(stored, current)} and no image was produced`,
     };
   }
 

@@ -418,7 +418,9 @@ that is this join failing: the baseline was written under one identity and this
 run painted under another. The reason names the fields that differ. When they
 are only the recipe — `stabilization` or `rasterization`, moved by an upgrade or
 a changed renderer option on the same machine — the run still painted every
-subject, and `variance accept --all` re-baselines after you review the images.
+subject. Where the reason also says the document is the one the baseline was
+painted from, `variance accept --all` re-baselines after you review the images;
+where it says the document changed too, review each image as a change.
 Otherwise run `variance doctor`. It prints your current
 identity, then every identity your baseline root stores and every identity in
 your render cache, with an arrow on yours. If the arrow points at an identity

@@ -162,6 +162,7 @@ describe('a durable observation above 1x', () => {
     expect(observation.verdict).toBe('incomparable');
     expect(observation.because).toContain('rasterization e5ed66c6 → 865368fe');
     expect(observation.because).toContain('same machine');
+    expect(observation.because).toContain('only the recipe moved');
     expect(observation.because).toContain('`variance accept --all`');
     expect(observation.because).not.toContain('machine-bound');
   });

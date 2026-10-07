@@ -125,8 +125,10 @@ so the two are not comparable
 
 The reason names only the fields that differ. When those are only the recipe —
 the stabilization or rasterization digest, which an upgrade of this package or a
-changed renderer option moves on an unchanged machine — it says the difference
-is a re-baseline rather than a regression.
+changed renderer option moves on an unchanged machine — it says so, and says
+whether the document is the one the other side was painted from. A side that
+recorded no recipe digest is refused as a machine difference, since nothing
+shows the machine is the same.
 
 ## Compare against an approved baseline
 
@@ -231,7 +233,8 @@ this package.
 | `unchanged` | Comparable images, no changed pixels. | Continue without review. |
 | `changed` | A comparable image differs. `regions` gives as much attribution as the snapshot and source you supplied allow. | Present the evidence and require review. |
 | `new` | No baseline exists for this key and this renderer. | Review and explicitly approve or reject. Not green. |
-| `incomparable` | The two sides were painted under incompatible identities — a baseline from another renderer, or two rasters from two declared painters. | Align the renderer inputs or keep a separate baseline. Do not accept the noise as a component change. |
+| `incomparable`, machine | The two sides were painted by different machines — a baseline from another renderer, engine, platform, scale or font set, or two rasters from two declared painters (images handed in with the name of the tool that made them). | Compare where the baseline was painted, or keep a separate baseline for this machine. Do not accept the noise as a component change. |
+| `incomparable`, recipe | One machine, and only variance-authority's recipe digest moved, as an upgrade does. The reason says whether the document is the one the baseline was painted from. | Same document: review the new images and adopt them with `variance accept --all`. Changed document: review each as a change before accepting it by name. |
 | `ignored` | Pixels changed, and every one fell inside a declared exclusion or sensitivity. | Continue, and record that the green result rested on a rule. |
 
 `unchanged` is never available for `incomparable`: a difference that could not
