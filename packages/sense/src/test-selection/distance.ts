@@ -162,8 +162,11 @@ export interface DistanceOptions {
  * (`readings`) and the test loaded; with no such path it is left out. Its
  * record lacks the cases it did not run, so *entered no changed region* is no
  * evidence it is far, and a changed file it never loaded is no seed: the last
- * hop to it would be an edge nothing says the test ran. A partial run over an
- * edit leaves such tests, and reads that file `none`.
+ * hop to it would be an edge nothing says the test ran. A file the parser read
+ * `none` — whitespace, a comment — is no seed either: that verdict says the
+ * change reaches no test through it. A `none` the record's kept text decided
+ * (`kept`) is, because a partial run over an edit reads its own edit that way.
+ * A test the walk could not measure (`unmeasured`) is left out with the rest.
  */
 export function distanceFromView(
   coverage: TestCoverageView,
@@ -173,7 +176,9 @@ export function distanceFromView(
   const entered = enteredByTest(coverage);
   const placed = narrowing.because.map((cause) => place(coverage, cause, entered, options));
   const selected = new Set(narrowing.entered);
-  const read = (narrowing.readings ?? []).map((reading) => reading.file);
+  const read = (narrowing.readings ?? [])
+    .filter((reading) => reading.verdict !== 'none' || reading.kept === true)
+    .map((reading) => reading.file);
   for (const test of narrowing.incomplete ?? []) {
     if (selected.has(test)) continue;
     const ran = entered.get(findTest(coverage, test) ?? -1) ?? new Set<string>();

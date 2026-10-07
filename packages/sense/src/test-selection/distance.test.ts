@@ -131,6 +131,28 @@ describe('distanceFromView', () => {
     expect(distances.map(({ test }) => test)).not.toContain('test/registry.test.ts');
   });
 
+  it('measures a test the record never saw whole from no file the parser read as changing nothing', () => {
+    // A whitespace or comment edit reads `none`: the change cannot reach a test
+    // through that file, so it seeds no path. A `none` the record's kept text
+    // decided is the partial run's own edit, and it still does.
+    const coverage = openTestCoverage(encodeTestCoverage(layerCoverage));
+    const narrowing = narrowByExecutionFromView(coverage, baseDiff);
+    const unseen = new Set(['test/card.test.tsx']);
+    const partial = {
+      ...narrowing,
+      entered: narrowing.entered.filter((test) => !unseen.has(test)),
+      because: narrowing.because.filter(({ test }) => !unseen.has(test)),
+      incomplete: [...unseen],
+    };
+    const file = 'src/button/abstract-button.tsx';
+
+    const parsed = distanceFromView(coverage, { ...partial, readings: [{ file, verdict: 'none', names: [] }] }, { relations });
+    const kept = distanceFromView(coverage, { ...partial, readings: [{ file, verdict: 'none', names: [], kept: true }] }, { relations });
+
+    expect(parsed.map(({ test }) => test)).not.toContain('test/card.test.tsx');
+    expect(of(kept, 'test/card.test.tsx')).toMatchObject({ hops: 3, from: file });
+  });
+
   it('measures a test the record never saw whole only from a changed file it loaded', () => {
     // The card test's record holds the card and the button's face, not the base
     // the edit is in. The graph has the face's edge to the base, but nothing
