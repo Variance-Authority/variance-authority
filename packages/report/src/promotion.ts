@@ -95,15 +95,7 @@ export function promotionOf(
     return { kind: 'refused', because: noImage(observation) };
   }
 
-  // Painted under a new recipe against a baseline of another document: nothing
-  // compared this image with anything, so the change it carries is unread. A
-  // changed subject's diff was in the report a bulk acceptance followed; this
-  // one has none, and only a reviewer naming it can stand in for one.
-  if (
-    options.bulk === true &&
-    observation.verdict === 'incomparable' &&
-    observation.signals?.document === 'changed'
-  ) {
+  if (options.bulk === true && bulkPassesBy(observation)) {
     return {
       kind: 'refused',
       because:
@@ -115,6 +107,25 @@ export function promotionOf(
   }
 
   return { kind: 'promotable', from };
+}
+
+/**
+ * Whether an acceptance that sweeps a whole run passes this subject by.
+ *
+ * True only for an `incomparable` subject painted under a new recipe against a
+ * baseline of another document. Nothing compared that image with anything, so
+ * the change it carries is unread. A changed subject's diff was in the report a
+ * sweep followed; this one has none, and only a reviewer naming it can stand in
+ * for one.
+ *
+ * `variance accept --all` and Playwright's `--update-snapshots=changed` are both
+ * sweeps and both ask this, so the two cannot adopt different images.
+ */
+export function bulkPassesBy(observation: {
+  readonly verdict: ObservationRecord['verdict'];
+  readonly signals?: { readonly document?: 'unchanged' | 'changed' };
+}): boolean {
+  return observation.verdict === 'incomparable' && observation.signals?.document === 'changed';
 }
 
 /** How a promotion was asked for. */

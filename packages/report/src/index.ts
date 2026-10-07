@@ -126,7 +126,7 @@ export {
 } from './changelog-message.js';
 export type { CommitMessageOptions } from './changelog-message.js';
 
-export { promotionOf, selectByShape, whyNotWhole } from './promotion.js';
+export { bulkPassesBy, promotionOf, selectByShape, whyNotWhole } from './promotion.js';
 export type { Promotion, PromotionOptions } from './promotion.js';
 
 export { byReason } from './shared-reasons.js';

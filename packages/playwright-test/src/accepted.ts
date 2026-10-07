@@ -1,4 +1,5 @@
 import type { Observation } from '@variance-authority/observe';
+import { bulkPassesBy } from '@variance-authority/report';
 import type { VarianceRun } from './run.js';
 
 /** Report the state after Playwright's explicit snapshot update promoted it. */
@@ -17,14 +18,12 @@ export function accepted(observation: Observation): Observation {
 /**
  * Whether an accepting run adopts this observation's image.
  *
- * Every verdict that moved, but one: an `incomparable` subject painted under a
- * new recipe from a document the baseline was not painted from. No comparison
- * read that image, so a sweep over the suite passes it by, as `variance accept
- * --all` does (`promotionOf` in @variance-authority/report); a run that
- * overwrites every image it takes adopts it.
+ * Every verdict that moved, except what a sweep passes by. `=changed` sweeps the
+ * suite as `variance accept --all` does, and asks the same rule
+ * (`bulkPassesBy`); `=all` overwrites every image it takes, as naming a subject
+ * does.
  */
 export function adopts(observation: Observation, run: VarianceRun): boolean {
   if (run.accepting !== true || observation.verdict === 'unchanged') return false;
-  const unread = observation.verdict === 'incomparable' && observation.signals?.document === 'changed';
-  return !unread || run.overwriting === true;
+  return run.overwriting === true || !bulkPassesBy(observation);
 }

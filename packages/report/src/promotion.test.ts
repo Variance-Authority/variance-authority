@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ObservationRecord } from './format.js';
-import { promotionOf, selectByShape, whyNotWhole } from './promotion.js';
+import { bulkPassesBy, promotionOf, selectByShape, whyNotWhole } from './promotion.js';
 
 /**
  * These rules used to live inside `accept`, where the only way to ask them was
@@ -158,6 +158,14 @@ describe('what may become a baseline', () => {
     // The same image of the same document is a re-baseline, and bulk adopts it.
     const same = { ...moved, signals: { document: 'unchanged' as const } };
     expect(promotionOf(same, { bulk: true }).kind).toBe('promotable');
+  });
+
+  it('passes by in bulk only an incomparable whose document moved', () => {
+    const base = changed('story:a');
+    expect(bulkPassesBy({ ...base, verdict: 'incomparable', signals: { document: 'changed' } })).toBe(true);
+    expect(bulkPassesBy({ ...base, verdict: 'incomparable', signals: { document: 'unchanged' } })).toBe(false);
+    expect(bulkPassesBy({ ...base, verdict: 'incomparable' })).toBe(false);
+    expect(bulkPassesBy({ ...base, signals: { document: 'changed' } })).toBe(false);
   });
 });
 

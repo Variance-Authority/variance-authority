@@ -37,11 +37,14 @@ re-baseline when it is absent.
 `variance accept --all` passes by an `incomparable` subject whose document moved
 and names the command that adopts it alone; `variance accept <subject>` adopts
 it. In `@variance-authority/report`, `promotionOf` takes a `PromotionOptions`
-with `bulk` for that rule, and its refusal for a subject with no image now says
-the baseline is another machine's or cannot be shown to be this machine's. In
+with `bulk` for that rule, `bulkPassesBy` answers the rule alone, and the
+refusal for a subject with no image now says the baseline is another machine's
+or cannot be shown to be this machine's. In
 `@variance-authority/playwright-test`, `--update-snapshots=changed` passes the
 same subject by and `=all` adopts it; `VarianceRun` carries `overwriting`, set
-under `=all`. Deferred capture paints against an older recipe, so both flags
+under `=all`. `@variance-authority/playwright-test` now depends on
+`@variance-authority/report` and asks `bulkPassesBy`, so the two cannot adopt
+different images. Deferred capture paints against an older recipe, so both flags
 have an image to adopt.
 
 An incomparable observation from `@variance-authority/observe` carries

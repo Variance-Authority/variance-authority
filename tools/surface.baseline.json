@@ -2173,6 +2173,7 @@
         "ageOf": "function",
         "arrivalLine": "function",
         "bandTitle": "function",
+        "bulkPassesBy": "function",
         "byArrival": "function",
         "byBand": "function",
         "byReason": "function",

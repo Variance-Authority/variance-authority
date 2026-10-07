@@ -57,6 +57,7 @@
     "@variance-authority/png": "workspace:*",
     "@variance-authority/raster": "workspace:^",
     "@variance-authority/react": "workspace:^",
+    "@variance-authority/report": "workspace:^",
     "@variance-authority/sense": "workspace:^",
     "@variance-authority/store": "workspace:^",
     "@variance-authority/vantage": "workspace:^",
