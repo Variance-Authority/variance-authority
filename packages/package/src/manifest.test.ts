@@ -442,6 +442,12 @@ describe('a package with no `exports`', () => {
     expect(opened(manifest, { 'src/other.ts': 'export const two = 2;\n' })).toEqual([[['.', 'src/index.ts']]]);
     expect(opened({ name: 'lib', main: 'src/index.ts', exports: {} })).toEqual([[]]);
   });
+
+  it('reads `exports: null` as no `exports`, as Node does: `main` opens `.`, and without one the package declares no entry', () => {
+    expect(opened({ name: 'lib', exports: null, main: 'src/index.ts' })).toEqual([[['.', 'src/index.ts']]]);
+    const bare = readOfferings(workspace({ 'package.json': { name: 'lib', exports: null }, 'src/index.ts': 'export const one = 1;\n' }));
+    expect(bare.map((offering) => offering.entry)).toEqual([false]);
+  });
 });
 
 it.todo(

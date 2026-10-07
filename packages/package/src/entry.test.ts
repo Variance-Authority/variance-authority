@@ -61,3 +61,18 @@ describe('which specifiers a manifest declares, followed or not', () => {
     expect([...declared].filter((key) => key.startsWith('mixed '))).toEqual([]);
   });
 });
+
+describe('a manifest that writes `exports: null`', () => {
+  // Node consults `exports` only when it is neither `null` nor `undefined`, and
+  // otherwise loads `main`, so `null` reads exactly as no `exports` at all.
+  const { declared, unentered } = importTargets([{ name: 'nulled', exports: null, main: 'index.js' }, { name: 'bare', exports: null }]);
+
+  it('declares the bare name `main` names', () => {
+    expect(declared.has(requested('nulled'))).toBe(true);
+    expect(unentered.has('nulled')).toBe(false);
+  });
+
+  it('declares no entry when it writes none of `main`, `types` or `typings`', () => {
+    expect(unentered.has('bare')).toBe(true);
+  });
+});

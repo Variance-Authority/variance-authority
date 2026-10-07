@@ -21,9 +21,9 @@ export function requested(specifier: string): string {
  * written in. Only an object whose keys all start with `.` maps subpaths. Node
  * refuses an object that mixes the two, and so does this, naming the manifest:
  * reading either half alone would publish a specifier the package does not.
+ * An `exports` written as `null` is no `exports`, and is never passed here.
  */
-export function subpathsOf(manifest: string, exports: unknown): readonly (readonly [string, unknown])[] {
-  if (exports === undefined || exports === null) return [];
+export function subpathsOf(manifest: string, exports: NonNullable<unknown>): readonly (readonly [string, unknown])[] {
   if (typeof exports !== 'object' || Array.isArray(exports)) return [['.', exports]];
   const keys = Object.keys(exports);
   const conditions = keys.filter((key) => !key.startsWith('.'));

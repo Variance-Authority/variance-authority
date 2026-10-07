@@ -6,6 +6,17 @@
 import { requested, subpathsOf } from './exports.js';
 
 /**
+ * What a manifest writes for `key`, or `undefined` when it writes nothing. Node
+ * reads a key written as `null` as one not written at all: `"exports": null`
+ * falls back to `main`, as no `exports` does. The one test every reading of the
+ * entry keys goes through.
+ */
+function written(manifest: Record<string, unknown>, key: string): NonNullable<unknown> | undefined {
+  const value = manifest[key];
+  return value === undefined || value === null ? undefined : value;
+}
+
+/**
  * The `"."` a manifest with no `exports` opens: `types`, then `typings`, then
  * `main`, the order TypeScript reads them in.
  *
@@ -15,9 +26,19 @@ import { requested, subpathsOf } from './exports.js';
  * and are not listed, so an import of one is reported as a deep import, past the
  * entry the package declares.
  */
-export function legacyEntry(manifest: Record<string, unknown>): readonly (readonly [string, unknown])[] {
+function legacyEntry(manifest: Record<string, unknown>): readonly (readonly [string, unknown])[] {
   const written = [manifest['types'], manifest['typings'], manifest['main']].find((key) => typeof key === 'string');
   return written === undefined ? [] : [['.', written]];
+}
+
+/**
+ * Each subpath a manifest opens, with the target written for it: what `exports`
+ * maps, by {@link subpathsOf}, or the legacy `"."` when it writes no `exports`.
+ * Throws, naming `label`, on an `exports` Node refuses to load.
+ */
+export function entrySubpaths(label: string, manifest: Record<string, unknown>): readonly (readonly [string, unknown])[] {
+  const exports = written(manifest, 'exports');
+  return exports === undefined ? legacyEntry(manifest) : subpathsOf(label, exports);
 }
 
 /** Whether a manifest is a package's own to publish: named, and not `private: true`. */
@@ -57,18 +78,18 @@ export interface ImportTargets {
 
 /**
  * Whether a manifest declares an entry: writes any of `exports`, `main`,
- * `types` or `typings`. The one answer to the question, for the import targets
- * and the offerings alike.
+ * `types` or `typings`, by {@link written}, so a `null` writes nothing. The one
+ * answer to the question, for the import targets and the offerings alike.
  */
 export function declaresEntry(manifest: Record<string, unknown>): boolean {
-  return ['exports', 'main', 'types', 'typings'].some((key) => manifest[key] !== undefined);
+  return ['exports', 'main', 'types', 'typings'].some((key) => written(manifest, key) !== undefined);
 }
 
 /** The specifiers a published manifest declares, as `requested` keys. */
 function declaredBy(name: string, manifest: Record<string, unknown>): readonly string[] {
   let subpaths: readonly (readonly [string, unknown])[];
   try {
-    subpaths = manifest['exports'] === undefined ? legacyEntry(manifest) : subpathsOf(name, manifest['exports']);
+    subpaths = entrySubpaths(name, manifest);
   } catch {
     return [];
   }

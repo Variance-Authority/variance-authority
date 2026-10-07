@@ -1,8 +1,7 @@
 import { existsSync, globSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { type ImportTargets, declaresEntry, importTargets, isPublished, legacyEntry } from './entry.js';
-import { subpathsOf } from './exports.js';
+import { type ImportTargets, declaresEntry, entrySubpaths, importTargets, isPublished } from './entry.js';
 import { members } from './members.js';
 
 export { requested } from './exports.js';
@@ -432,7 +431,7 @@ export function readOfferings(root: string, options: OfferingOptions = {}): read
     const unreadable: string[] = [];
     let subpaths: readonly (readonly [string, unknown])[] = [];
     try {
-      subpaths = manifest['exports'] === undefined ? legacyEntry(manifest) : subpathsOf(path, manifest['exports']);
+      subpaths = entrySubpaths(path, manifest);
     } catch (error) {
       if (options.tolerant !== true) throw error;
       unreadable.push(`${manifest['name']} — ${error instanceof Error ? error.message : String(error)}`);
