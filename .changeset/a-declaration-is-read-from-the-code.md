@@ -3,7 +3,7 @@
 "@variance-authority/cli": patch
 "@variance-authority/storybook-collector": patch
 "@variance-authority/route-collector": patch
-"@variance-authority/core": patch
+"@variance-authority/core": minor
 ---
 
 The components a module declares are read from its code. A declaration written
@@ -35,7 +35,9 @@ they build from `source.dirs`:
   not load, where the text scan ran anywhere. The route collector depends on
   `sense` for it.
 
-`indexSource` in `core` stays the text scan, for a caller without `sense`.
+`indexSource` is removed from `@variance-authority/core/attribute`. Build a
+`SourceIndex` with `indexDeclarations` from `@variance-authority/sense`, or
+write one as plain data: a map from component name to `{ file, line, via }`.
 
 The source index format moves to version 18, so an index written before this
 release is rebuilt once instead of keeping the names it read from comments.

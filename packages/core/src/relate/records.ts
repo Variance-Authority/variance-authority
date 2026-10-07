@@ -73,7 +73,7 @@ export interface FileRecord {
   /** Resolved outgoing edges. Absent and empty mean the same thing here. */
   readonly edges?: readonly FileEdge[];
 
-  /** Component names this file declares, from `indexSource` or better. */
+  /** Component names this file's own top-level statements declare, read off its parse. */
   readonly declares?: readonly string[];
 
   /**

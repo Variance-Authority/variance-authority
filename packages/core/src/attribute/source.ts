@@ -21,8 +21,10 @@
  * configuring a build, and it answers with where a component is *declared* —
  * coarser than a call site, and enough to open the right file.
  *
- * The index is plain data. `core` performs no I/O (ADR-0006), so building one is
- * a caller's job; resolving against one is here.
+ * The index is plain data. `core` performs no I/O (ADR-0006) and has no parser,
+ * so building one is a caller's job — `indexDeclarations` in
+ * [`@variance-authority/sense`](../../../sense/src/declarations.ts) reads it off
+ * a module's parse — and resolving against one is here.
  */
 
 export interface SourceRef {
@@ -32,8 +34,8 @@ export interface SourceRef {
   /**
    * How the declaration was recognised. Carried so a bad match is debuggable.
    *
-   * The first four are shapes a scan of the source text matched by name.
-   * `engine` is the one that is not a match at all: the browser was asked where
+   * The first four say which kind of statement declared the name.
+   * `engine` is the one that is not read from source at all: the browser was asked where
    * the function it rendered was compiled from, and that position was mapped
    * back to the file. It names the component that ran, whatever it was called.
    */
@@ -80,53 +82,6 @@ export function formatSource(resolution: Resolution): string {
 
   const others = resolution.refs.slice(1).map((ref) => `${ref.file}:${ref.line}`);
   return `${primary} (ambiguous — also ${others.join(', ')})`;
-}
-
-/**
- * Extract component declarations from one file's source.
- *
- * A regex scan, and the limits are worth stating rather than discovering. It
- * finds exported and local declarations in the three shapes React components are
- * written in, and it will miss a component produced by a factory, assigned
- * dynamically, or re-exported under another name. It can also match a function
- * that merely looks like a component — capitalised, declared at top level — and
- * name a non-component in a report. It reads lines, not code, so a declaration
- * spelled inside a block comment or a template literal matches too.
- *
- * Both failures are survivable in a way a wrong file path would not be: a miss
- * degrades the report to the component name, which is what it said before, and a
- * false positive can only appear if attribution already named that identifier.
- *
- * It reads text because `core` has no parser to read anything else with: the
- * package that parses, `@variance-authority/sense`, depends on this one. A
- * caller that holds `sense` indexes with `indexDeclarations`
- * ([`declarations.ts`](../../../sense/src/declarations.ts)) instead, which reads
- * the module's own top-level statements off its parse, so a commented-out
- * declaration, one indented inside a function and a file no parser accepts
- * match here and not there. This scan is for a caller without `sense`.
- */
-export function indexSource(file: string, contents: string): SourceIndex {
-  const found: Record<string, SourceRef[]> = {};
-  const lines = contents.split('\n');
-
-  const patterns: readonly { readonly re: RegExp; readonly via: SourceRef['via'] }[] = [
-    { re: /^\s*(?:export\s+)?(?:default\s+)?function\s+([A-Z][A-Za-z0-9_]*)/, via: 'function' },
-    { re: /^\s*(?:export\s+)?(?:const|let)\s+([A-Z][A-Za-z0-9_]*)\s*[:=]/, via: 'const' },
-    { re: /^\s*(?:export\s+)?(?:default\s+)?class\s+([A-Z][A-Za-z0-9_]*)/, via: 'class' },
-  ];
-
-  for (const [index, line] of lines.entries()) {
-    for (const { re, via } of patterns) {
-      const match = re.exec(line);
-      if (!match) continue;
-
-      const name = match[1]!;
-      (found[name] ??= []).push({ file, line: index + 1, via });
-      break;
-    }
-  }
-
-  return found;
 }
 
 /** Merge per-file indexes. A name declared in several files keeps every ref. */

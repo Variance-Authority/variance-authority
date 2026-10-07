@@ -146,25 +146,22 @@ it with no configuration. It covers only components that rendered. On WebKit and
 Firefox there is no equivalent, the reader notes it once, and nothing is added.
 
 **A `SourceIndex`, for everything else.** A `SourceIndex` is plain data — a map
-from component name to the files that declare it — and building one is the
-caller's job, because `@variance-authority/core` performs no I/O. Read your
-component files and index them:
+from component name to the files and lines that declare it — and you hand it
+over:
 
 ```ts
-import { readFileSync } from 'node:fs';
-import {
-  indexSource,
-  mergeSourceIndexes,
-  type SourceIndex,
-} from '@variance-authority/core/attribute';
+import type { SourceIndex } from '@variance-authority/core/attribute';
 
 // Repository-relative paths, so the report is portable between machines and CI.
-const files = ['src/ds/components.tsx', 'src/checkout/Stack.tsx'];
-
-export const source: SourceIndex = mergeSourceIndexes(
-  files.map((file) => indexSource(file, readFileSync(file, 'utf8'))),
-);
+// `line` is the first line of the statement that declares the component.
+export const source: SourceIndex = {
+  Toggle: [{ file: 'src/ds/components.tsx', line: 107, via: 'function' }],
+  Stack: [{ file: 'src/checkout/Stack.tsx', line: 12, via: 'const' }],
+};
 ```
+
+Write it by hand, or have a build step write it. `via` says which kind of
+statement declared the name: `function`, `class` or `const`.
 
 `@variance-authority/core` ships as a dependency of this package; install it
 directly to import from it:

@@ -516,7 +516,6 @@
         "excludedBoxes": "function",
         "formatSource": "function",
         "hashComponents": "function",
-        "indexSource": "function",
         "inlineSourceMapOf": "function",
         "isVendorPath": "function",
         "isolateRegions": "function",
