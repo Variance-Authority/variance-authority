@@ -26,7 +26,7 @@ export interface SelectInstall {
   readonly lockfile?: string;
   /** The bumped packages that reached a file, the one that reached the most first. */
   readonly packages: readonly string[];
-  /** The manifests whose `exports`, `main` or `type` moved what their importers load. */
+  /** The manifests whose `name`, `exports`, `main` or `type` moved what their importers load. */
   readonly moved: readonly string[];
   /** How many repository files the install changed whole. */
   readonly reached: number;

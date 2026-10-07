@@ -1692,9 +1692,9 @@ commit too, and stderr names each such commit. A suite that ran with its
 lockfile deleted has no install to compare, and stderr says it ran without one.
 Every package the lockfile resolves differently is walked back through the
 packages that depend on it to the files that import them, and those files are
-read as changed whole. stderr names the lockfile, the
-packages, the package most of each one's files imported it through and the
-files, and `json` gives the lockfile, the packages and the count of files under
+read as changed whole. stderr names the lockfile, the packages, the package
+most of each one's files imported it through and the files, and `json` gives
+the lockfile, the packages, the moved manifests and the count of files under
 `install`:
 
 ```

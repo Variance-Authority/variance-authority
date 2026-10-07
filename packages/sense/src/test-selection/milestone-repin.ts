@@ -34,6 +34,7 @@ import { openTestCoverage, wholeCoverage } from './format-view.js';
 import { withIndexLock } from './index-lock.js';
 import type { TestCoverage } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
+import { installKey, type KeptInstall } from './kept-install.js';
 import type { LastFetched } from './mainline-layer.js';
 import { readOwnLayer, writeOwnLayer, type OwnLayer, type OwnState } from './own-layer.js';
 import { writeCoverageBytes } from './record-location.js';
@@ -225,8 +226,9 @@ function repinnedEyes(
 /**
  * The runs record once the record stands on `record`: the runs at its commit
  * as they were, its change now starting at the new milestone, each kept test
- * standing where it last ran, and every other test at the milestone, where
- * the publishing run ran the whole suite.
+ * standing where it last ran, on the install the record said it ran on there,
+ * and every other test at the milestone, where the publishing run ran the
+ * whole suite.
  */
 function repinnedRuns(
   held: CommitRuns | undefined,
@@ -240,14 +242,32 @@ function repinnedRuns(
   const files = held.files.filter((file) => kept.has(file));
   const here = new Set(files);
   const milestone = recorded.filter((file) => !kept.has(file));
+  // The install each test ran on where it stands, as the runs record said it.
+  // A test the ledger places at a commit no entry names it at keeps none, and
+  // is compared from that commit.
+  const ranOn = new Map<string, KeptInstall>();
+  for (const entry of held.standing ?? []) {
+    if (entry.assumed || entry.installed === undefined) continue;
+    for (const file of entry.files) ranOn.set(`${entry.commit} ${file}`, entry.installed);
+  }
+  const keyOf = (installed: KeptInstall | undefined) => (installed === undefined ? '' : installKey(installed));
   const standing: StandingEntry[] = [];
   if (milestone.length > 0) standing.push({ commit: record.commit, files: milestone });
   for (const state of states) {
-    const rest = state.files.filter((file) => !here.has(file));
-    if (rest.length === 0) continue;
-    const same = standing.find((entry) => entry.commit === state.commit && entry.assumed === undefined);
-    if (same === undefined) standing.push({ commit: state.commit, files: rest });
-    else standing.splice(standing.indexOf(same), 1, { commit: same.commit, files: [...same.files, ...rest].sort(codeUnitOrder) });
+    const byInstall = new Map<string, { installed: KeptInstall | undefined; files: string[] }>();
+    for (const file of state.files.filter((one) => !here.has(one))) {
+      const installed = ranOn.get(`${state.commit} ${file}`);
+      const group = byInstall.get(keyOf(installed)) ?? { installed, files: [] };
+      group.files.push(file);
+      byInstall.set(keyOf(installed), group);
+    }
+    for (const { installed, files: rest } of byInstall.values()) {
+      const install = installed === undefined ? {} : { installed };
+      const same = standing.find((entry) =>
+        entry.commit === state.commit && entry.assumed === undefined && keyOf(entry.installed) === keyOf(installed));
+      if (same === undefined) standing.push({ commit: state.commit, files: rest, ...install });
+      else standing.splice(standing.indexOf(same), 1, { commit: same.commit, files: [...same.files, ...rest].sort(codeUnitOrder), ...install });
+    }
   }
   // At the snapshot's own commit, which repairs a runs record a crash left
   // naming another. The install the record kept differed from the commit it

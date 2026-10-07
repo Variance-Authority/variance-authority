@@ -177,6 +177,36 @@ describe('the milestone under a checkout', () => {
     expect(repinned).not.toHaveProperty('installed');
   });
 
+  it('keeps the install a standing test ran on when it moves to a newer snapshot', async () => {
+    const { ci, worktree, own } = await laidWorktree();
+    const next = await publishedNext(ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    // Both tests run over a lockfile not yet committed; the bump is then
+    // committed and one test runs again, so the other stands where it ran.
+    const lock = '{ "lockfileVersion": 3, "packages": {} }\n';
+    await writeFile(join(worktree, 'package-lock.json'), lock);
+    const both = ['test/other.test.ts', 'test/total.test.ts'];
+    await landRun(own, {
+      version: 3,
+      instrumentation: 'fixture',
+      commit: next,
+      tests: both.map((file) => ({ file, complete: true, preconditions: [] })),
+      modules: [probedModule(both)],
+    }, worktree);
+    await git(worktree, 'add', 'package-lock.json');
+    await git(worktree, 'commit', '--quiet', '-m', 'bump');
+    const bumped = await git(worktree, 'rev-parse', 'HEAD');
+    await landRun(own, ranAlone(bumped, 'test/total.test.ts'), worktree);
+    const installed = { 'package-lock.json': digestString(lock) };
+    expect(await readCommitRuns(own)).toMatchObject({ standing: [{ commit: next, files: ['test/other.test.ts'], installed }] });
+    await refetch(worktree, next);
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next } });
+
+    expect(await readCommitRuns(own)).toMatchObject({ commit: bumped, standing: [{ commit: next, files: ['test/other.test.ts'], installed }] });
+  });
+
   it('carries the Eyes journals of the cases it keeps: its own for the tests it ran, the newer snapshot\'s for the rest', async () => {
     const OTHER = { id: 'test/other.test.ts > other', file: 'test/other.test.ts', name: 'other' };
     const journal = (by: string) => ({ complete: true, attention: [], by });
