@@ -75,7 +75,7 @@ pub fn dependency_stack(path: String, files: Vec<String>, offset: u32, limit: u3
     };
     let lexicon: Lexicon = serde_json::from_slice(&bytes)
         .map_err(|error| napi::Error::from_reason(format!("the dependency lexicon did not read: {error}")))?;
-    if !matches!(lexicon.version, 4..=7) { return Err(napi::Error::from_reason("the dependency lexicon version is not supported")); }
+    if !matches!(lexicon.version, 4..=8) { return Err(napi::Error::from_reason("the dependency lexicon version is not supported")); }
     let allowed = owners(&lexicon, &files);
     let apis: std::collections::HashMap<&str, &Api> = lexicon.entries.iter().map(|entry| (entry.id.as_str(), &entry.api)).collect();
     let mut rows = BTreeMap::<(String, String), Row>::new();

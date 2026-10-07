@@ -36,7 +36,7 @@ export interface LexiconAvailability {
 }
 export interface LexiconIssue { readonly owner: string; readonly package: string; readonly reason: string }
 export interface DependencyLexicon {
-  readonly version: 4 | 5 | 6 | 7;
+  readonly version: 4 | 5 | 6 | 7 | 8;
   readonly refreshedAt: string;
   readonly entries: readonly LexiconEntry[];
   readonly availability: readonly LexiconAvailability[];
@@ -50,7 +50,7 @@ export function readDependencyLexicon(root: string): { readonly path: string; re
   const path = pathOf(root);
   try {
     const value: unknown = JSON.parse(readFileSync(path, 'utf8'));
-    if (typeof value !== 'object' || value === null || ![4, 5, 6, 7].includes((value as Partial<DependencyLexicon>).version ?? 0)
+    if (typeof value !== 'object' || value === null || ![4, 5, 6, 7, 8].includes((value as Partial<DependencyLexicon>).version ?? 0)
       || !Array.isArray((value as Partial<DependencyLexicon>).entries)
       || !Array.isArray((value as Partial<DependencyLexicon>).availability)) return { path };
     return { path, lexicon: value as DependencyLexicon };
