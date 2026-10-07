@@ -13,10 +13,11 @@ import { mostUsed, narrower, openingRow, plural, section, shell } from './format
  * here takes: a package with four entrypoints is four different imports, and a
  * list of package names would leave three of them to be guessed.
  *
- * It counts, and lists no import. The sites behind a count are what
- * `docs_entrypoint` answers for one package, and that question is printed with
- * its argument: in a repository whose packages declare no entry, every import
- * between packages is by path, and listing them all is the whole import graph.
+ * It counts, and lists no import. `docs_entrypoint` asked by a package counts
+ * the sites behind its count per file, and asked by one of those files'
+ * specifiers lists them; the first is printed with its argument. In a
+ * repository whose packages declare no entry, every import between packages is
+ * by path, and listing them all is the whole import graph.
  */
 export const packages: Tool<Help> = {
   name: 'docs_packages',
@@ -25,8 +26,8 @@ export const packages: Tool<Help> = {
     'has a row per import specifier it opens, with how many names it opens, how many of those anything ' +
     'imports and how many carry documentation. A package that declares no entry has a row with how many ' +
     'of its names and files other packages import by path. Imports that reach past a published ' +
-    'entrypoint are counted per package. Every row names the argument of docs_entrypoint, which lists ' +
-    'the import sites behind the counts. With nothing in hand, docs_orient with no files prints the ' +
+    'entrypoint are counted per package. Every row names the argument of docs_entrypoint, which counts ' +
+    'the import sites behind the counts per file. With nothing in hand, docs_orient with no files prints the ' +
     'package graph folded into areas.',
   inputSchema: NO_ARGS,
 
@@ -42,8 +43,8 @@ export const packages: Tool<Help> = {
     if (counts.unentered.length > 0) {
       section(
         lines,
-        `${plural(counts.unentered.length, 'package declares', 'packages declare')} no entry. Other packages import ` +
-          'their files by path, most names first:',
+        `${plural(counts.unentered.length, 'package that declares no entry is', 'packages that declare no entry are')} ` +
+          'imported by path, most names first:',
         ...counts.unentered.map(([owner, surface]) => `  ${owner} — ${counted(surface)}`),
       );
     }

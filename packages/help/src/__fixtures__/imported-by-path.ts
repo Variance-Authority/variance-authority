@@ -55,7 +55,10 @@ export const BY_PATH: Help = {
 
 /** `BY_PATH` with `more` imports of each file another package imports by path. */
 export function busier(more: number): Help {
-  const again = (held: Deep, index: number): Deep => ({ ...held, at: held.at.replace(/\.ts$/u, `-${index}.ts`) });
+  const again = (held: Deep, index: number): Deep => {
+    const at = held.at.replace(/\.ts$/u, `-${index}.ts`);
+    return { ...held, at, names: held.names.map((taken) => ({ ...taken, at })) };
+  };
   return {
     ...BY_PATH,
     deep: [...BY_PATH.deep, ...Array.from({ length: more }, (_, index) => BY_PATH.deep.map((held) => again(held, index))).flat()],

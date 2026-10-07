@@ -68,8 +68,6 @@ export interface Surface {
    * specifier it is taken from, for the narrower question about one name.
    */
   readonly first?: { readonly name: string; readonly specifier: string };
-  /** The specifier with the most lines, ties in code-unit order, when they are under more than one: the narrower question about one specifier. */
-  readonly busiest?: string;
 }
 
 /**
@@ -101,25 +99,74 @@ export function tally(imports: readonly Deep[]): { readonly names: number; reado
   return { names: pairs.size, files: files.size };
 }
 
-/**
- * The specifier the most of `specifiers` are, ties in code-unit order, when
- * they are more than one specifier: the narrower question about one of them.
- */
-export function busiestOf(specifiers: readonly string[]): string | undefined {
-  const under = new Map<string, number>();
-  for (const specifier of specifiers) under.set(specifier, (under.get(specifier) ?? 0) + 1);
-  if (under.size < 2) return undefined;
-  return [...under].sort((a, b) => b[1] - a[1] || codeUnitOrder(a[0], b[0]))[0]![0];
+/** One file other packages import by path, as a package's name answers for it. */
+export interface FileTaken {
+  /** The specifiers the file is imported as, the one the most files write first, ties in code-unit order. */
+  readonly specifiers: readonly string[];
+  /** Distinct names taken from the file. */
+  readonly names: number;
+  /** Distinct files that import it. */
+  readonly importers: number;
+  /**
+   * The name the most files take through the first specifier, ties in
+   * code-unit order, for the narrower question about one name; none when every
+   * import takes the whole module.
+   */
+  readonly name?: string;
 }
 
 /**
- * What other packages import from a package that declares no entry: one line
- * per name each import takes, in specifier, name, file and line order, and the
- * counts a heading states. With `specifier`, only the imports written as that
- * specifier.
+ * `imports` counted per file they reach, the file the most files import first,
+ * then the one with the most names, then in code-unit order of its first
+ * specifier. One row per file, however many sites import it: the sites are
+ * what asking for one specifier lists.
  */
-export function surfaceByPath(help: Help, owner: string, specifier?: string): Surface {
-  const imports = (takenByPath(help).get(owner) ?? []).filter((held) => specifier === undefined || held.specifier === specifier);
+export function perFile(imports: readonly Deep[]): readonly FileTaken[] {
+  const files = new Map<string, Deep[]>();
+  for (const held of imports) {
+    const file = held.to ?? held.specifier;
+    let group = files.get(file);
+    if (group === undefined) files.set(file, (group = []));
+    group.push(held);
+  }
+  const rows = [...files.values()].map((group): FileTaken => {
+    const specifiers = [...importersBy(group, (held) => [held.specifier])].sort(mostFirst).map(([specifier]) => specifier);
+    const through = group.filter((held) => held.specifier === specifiers[0]);
+    const name = [...importersBy(through, (held) => held.names.map((taken) => taken.name).filter(isName))].sort(mostFirst)[0]?.[0];
+    return {
+      specifiers,
+      names: new Set(group.flatMap((held) => held.names.map((taken) => taken.name))).size,
+      importers: new Set(group.map((held) => held.at)).size,
+      ...(name === undefined ? {} : { name }),
+    };
+  });
+  return rows.sort((a, b) => b.importers - a.importers || b.names - a.names || codeUnitOrder(a.specifiers[0]!, b.specifiers[0]!));
+}
+
+/** For each key `keys` gives an import, the files that import it. */
+function importersBy(imports: readonly Deep[], keys: (held: Deep) => readonly string[]): Map<string, Set<string>> {
+  const under = new Map<string, Set<string>>();
+  for (const held of imports) {
+    for (const key of keys(held)) {
+      let at = under.get(key);
+      if (at === undefined) under.set(key, (at = new Set()));
+      at.add(held.at);
+    }
+  }
+  return under;
+}
+
+/** The most importing files first, ties in code-unit order. */
+const mostFirst = (a: readonly [string, ReadonlySet<string>], b: readonly [string, ReadonlySet<string>]): number =>
+  b[1].size - a[1].size || codeUnitOrder(a[0], b[0]);
+
+/**
+ * What other packages import from a package that declares no entry, written as
+ * one specifier: one line per name each import takes, in name, file and line
+ * order, and the counts a heading states.
+ */
+export function surfaceByPath(help: Help, owner: string, specifier: string): Surface {
+  const imports = (takenByPath(help).get(owner) ?? []).filter((held) => held.specifier === specifier);
   const rows: (readonly [string, string, string, number, string])[] = [];
   for (const held of imports) {
     if (held.names.length === 0) rows.push([held.specifier, '', held.at, held.line, `  ${held.specifier} — ${held.by} at ${held.at}:${held.line}`]);
@@ -130,12 +177,10 @@ export function surfaceByPath(help: Help, owner: string, specifier?: string): Su
   rows.sort((a, b) => codeUnitOrder(a[0], b[0]) || codeUnitOrder(a[1], b[1]) || codeUnitOrder(a[2], b[2]) || a[3] - b[3]);
   const row = rows.find((candidate) => isName(candidate[1]));
   const first = row === undefined ? undefined : { name: row[1], specifier: row[0] };
-  const busiest = busiestOf(rows.map((candidate) => candidate[0]));
   return {
     ...tally(imports),
     lines: rows.map((candidate) => candidate[4]),
     ...(first === undefined ? {} : { first }),
-    ...(busiest === undefined ? {} : { busiest }),
   };
 }
 

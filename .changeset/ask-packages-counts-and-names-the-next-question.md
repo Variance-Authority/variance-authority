@@ -7,16 +7,24 @@
 
 `variance ask packages` (`docs_packages`) counts and lists no import site: one
 row per published specifier, one per package that declares no entry with how
-many of its names and files other packages import by path, and per package the
+many of its names and files other packages import by path, under the heading
+"N packages that declare no entry are imported by path", and per package the
 number of imports that reach past a published entrypoint. It ends with the
-`variance ask entrypoint --package <name>` questions that list the sites behind
-those counts. `variance ask entrypoint --package <name>` (`docs_entrypoint`)
-asked by a package's name now also lists each import that reaches past its
-entry, and asked by such a specifier lists that specifier's imports. Asked by
-the name of a package whose `exports` opens only subpaths, it lists the
-specifiers the package opens where it used to refuse with "does not open `.`".
-`--subpath .` answers exactly as the package name alone, where it left out the
-imports past the entry, or refused for a package that opens only subpaths.
+`variance ask entrypoint --package <name>` questions behind those counts.
+
+`variance ask entrypoint --package <name>` (`docs_entrypoint`) asked by a
+package's name now also counts the imports that reach past its entry, or, for a
+package that declares no entry, the imports of its files by path, one row per
+file: its specifier, how many names are taken from it and how many files import
+it, the most imported first. Asked by one of those specifiers, it lists each
+import of that file with the importer's file and line. Under a package that
+declares no entry, a specifier's count is of distinct names taken in distinct
+files, where every import of a name was counted again: fifty files importing
+one name read "50 names" and now read "1 name". Asked by the name of a package
+whose `exports` opens only subpaths, it lists the specifiers the package opens
+where it used to refuse with "does not open `.`". `--subpath .` answers exactly
+as the package name alone, where it left out the imports past the entry, or
+refused for a package that opens only subpaths.
 
 An import into a published package whose declared entry leads to no source
 file, such as a `main` naming a build output the checkout does not hold, is

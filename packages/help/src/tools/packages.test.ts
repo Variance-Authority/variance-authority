@@ -11,13 +11,14 @@ import { packages } from './packages.js';
  * answer names.
  *
  * It counts: per package, what other packages import from it by path and how
- * many imports reach past its entry. It lists no import, and it names the
- * question that does, `docs_entrypoint` on a package or a specifier.
+ * many imports reach past its entry. It lists no import. It names
+ * `docs_entrypoint` on a package, which counts the imports per file, and that
+ * answer names the specifier whose imports it lists.
  *
  * Kibana's shape is the reason. Its packages declare no entry, and other
  * packages import 141,632 of their files by path. Listing every one of those
  * imports printed 200,330 lines, and walking every import once per package
- * took 30 to 45 seconds on that one repository.
+ * took 29.9 to 45.9 seconds on that one repository.
  */
 
 describe('docs_packages', () => {
@@ -73,7 +74,7 @@ describe('docs_packages', () => {
       const imports = /^(\d+) imports?$/u.exec(count!)?.[1];
       const heading =
         imports === undefined
-          ? `import ${count} by path:`
+          ? `import ${count} by path, most imported first:`
           : `${imports} ${imports === '1' ? 'import reaches' : 'imports reach'} past a published entrypoint of ${owner}.`;
       expect(answer, owner).toContain(heading);
     }
@@ -95,7 +96,7 @@ describe('docs_packages', () => {
   it('opens on its first row when no published package opens an entry', () => {
     const text = packages.run({ ...BY_PATH, packages: [{ name: '@acme/lib', declared: {}, openings: [] }] }, {});
 
-    expect(text.split('\n')[0]).toBe('2 packages declare no entry. Other packages import their files by path, most names first:');
+    expect(text.split('\n')[0]).toBe('2 packages that declare no entry are imported by path, most names first:');
   });
 
   it('counts the packages whose declared entry leads to no source file, and names the one most imported past it', () => {
@@ -193,8 +194,10 @@ describe('the narrower questions', () => {
 
     expect(srv).toBeDefined();
     expect(srv![1]).toMatch(/^ {2}@acme\/srv\/server — 1 name, 1 imported elsewhere, 0 documented$/m);
-    expect(srv![1]).toContain('  @acme/srv/src/routes — @acme/app at apps/app/src/admin.ts:1');
+    expect(srv![1]).toContain('  @acme/srv/src/routes — 1 name, imported by 2 files');
     expect(answered.map(([question]) => question)).toContain('docs_entrypoint {"package":"@acme/srv/server"}');
+    const routes = answered.find(([question]) => question === 'docs_entrypoint {"package":"@acme/srv/src/routes"}');
+    expect(routes?.[1]).toContain('  @acme/srv/src/routes — @acme/app at apps/app/src/admin.ts:1');
   });
 
   it('name an import past an entry so that `uses` finds it, when the entry publishes the same name from another file', () => {

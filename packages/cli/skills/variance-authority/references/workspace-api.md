@@ -103,12 +103,12 @@ Ask it when you have no exact specifier. A published specifier is each subpath a
 `types` or `main` opens. It takes no argument and counts, one row per specifier:
 the names it opens, how many anything imports, how many are documented. A
 package that declares no entry gets an indented row with how many of its names
-and files other packages import by path, and imports past a published entry are
-counted per package. An import by path, a deep import, names a file inside the
-package rather than an entry its manifest publishes. It lists no import site:
-pass a specifier row whole to `entrypoint --package` for the names it opens, and
-an indented row's package name to `entrypoint --package` for the import sites
-behind its count. The answer ends with an `entrypoint` question for each of the
+and files other packages import by path, and imports past a declared entry, deep
+imports, are counted per package. An import by path names a file of a package
+that declares no entry, so there is no entry for it to be past. It lists no
+import site: pass a specifier row whole to `entrypoint --package` for the names
+it opens, and an indented row's package name to `entrypoint --package` for its
+count per file. The answer ends with an `entrypoint` question for each of the
 most-imported specifier, the package that declares no entry with the most names
 imported by path, and the package with the most imports past its entry, those
 the repository has.
@@ -122,13 +122,16 @@ repository. The other verbs read the source and answer for every language: ask
 ### `entrypoint`
 
 `--package` takes the specifier as `packages` prints it, or the package name
-with `--subpath` set to a key of its `exports` map. Asked by the package name
-alone, the answer lists the names its main entry opens, then each import that
-reaches past its entry, with the importer's file and line. A package that
-declares no entry opens nothing, and the answer lists the files and names other
-packages import from it by path, each with the importer's file and line. Asked
-by a specifier past the entry, it lists the imports of that specifier. An answer
-that lists sites ends with the narrower questions it has, if any.
+with `--subpath` set to a key of its `exports` map; `--subpath .` is the package
+name alone. Asked by the package name alone, the answer lists the names its main
+entry opens, then counts the imports that reach past its entry, one row per
+file: its specifier, how many names are taken from it and how many files import
+it, the most imported first. A package that declares no entry opens nothing, and
+the answer counts what other packages import from it by path the same way.
+Asked by one of those specifiers, it lists each import of that file with the
+importer's file and line. The answer ends with the narrower questions it has,
+if any: the first row's specifier, and `uses` on the name the most files take
+through it.
 
 ### `symbol --name <name> [--package <name>] [--from <path>]`
 

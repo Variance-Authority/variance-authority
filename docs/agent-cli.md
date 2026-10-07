@@ -203,7 +203,7 @@ abridged:
 @acme/ui — 12 names, 9 imported elsewhere, 7 documented
 @acme/ui/button — 3 names, 3 imported elsewhere, 1 documented
 
-1 package declares no entry. Other packages import their files by path, most names first:
+1 package that declares no entry is imported by path, most names first:
   @acme/legacy — 14 names from 3 of its files
 
 Narrower questions:
@@ -214,16 +214,21 @@ Narrower questions:
 Each row in the first block is a specifier, what one import line names. Pass it
 whole to list the names it opens, most imported first:
 `variance ask entrypoint --package @acme/ui/button`. Each indented row is a
-package whose files other packages import by path: the import names a file
-inside the package, such as `@acme/legacy/src/format`, rather than an entry its
-manifest publishes. That is a deep import. Pass the package's name to list each
-of those imports with the importer's file and line:
-`variance ask entrypoint --package @acme/legacy`. Both kinds of row go to the
-same `--package` flag. Asked by the name of a package that publishes an entry,
-`entrypoint` lists the names its main entry opens and then each import that
-reaches past it. A package whose `exports` opens only subpaths has no main
-entry, so asked by its name it lists the specifiers it opens instead. The answer
-ends with the narrower questions it has.
+package other packages import files of. Under a package that declares no entry,
+such as `@acme/legacy`, the import names a file, such as
+`@acme/legacy/src/format`, because there is no entry to name, and it is an
+import by path. Under a package that declares an entry, the import reaches past
+that entry, and it is a deep import.
+
+Pass the package's name to count those imports per file, the file the most
+files import first: `variance ask entrypoint --package @acme/legacy`. Each row
+of that answer is a specifier. Pass it to list every import of that file with
+the importer's file and line. A package with ten thousand importers answers in
+one row per file, never one line per import. Asked by the name of a package that
+declares an entry, `entrypoint` lists the names its main entry opens and then
+counts the imports past it the same way. A package whose `exports` opens only
+subpaths has no main entry, so asked by its name it lists the specifiers it
+opens instead. The answer ends with the narrower questions it has.
 
 `symbol` prints one name's import line, declaration, signature, documentation
 and consumers; `uses` prints every import site, ordered by how much path it

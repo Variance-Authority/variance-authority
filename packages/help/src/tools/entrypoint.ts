@@ -2,7 +2,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Deep, Documented, Help } from '@variance-authority/package/help';
-import { REACHING, busiestOf, counted, isName, ownerOf, reachingPast, surfaceByPath } from './by-path.js';
+import { type FileTaken, REACHING, counted, isName, ownerOf, perFile, reachingPast, surfaceByPath, takenByPath, tally } from './by-path.js';
 import { doorOf, specifierOf } from './find.js';
 import { line, mostUsed, narrower, openingRow, plural, shell } from './format.js';
 
@@ -19,10 +19,11 @@ import { line, mostUsed, narrower, openingRow, plural, shell } from './format.js
  * The names an entry opens are not all a package is imported for. Another
  * package can import one of its files by path: past the entry it declares, or
  * from a package that declares none and so has nothing else to import. Asked by
- * the package's name, the answer lists those imports after the names, one line
- * per site; asked by a specifier no entry opens, it lists the imports written as
- * that specifier. `docs_packages` counts them per package and names this
- * question; this is where the sites behind a count are listed. A package whose
+ * the package's name, the answer counts those imports after the names, one row
+ * per file they reach, and lists no site: a package imported from ten thousand
+ * places would otherwise answer with ten thousand lines. Each row names the
+ * specifier to ask for, and asked by a specifier no entry opens, the answer
+ * lists the imports written as that specifier, one line per site. A package whose
  * `exports` opens only subpaths has no names to list under its name, so the
  * specifiers it opens are listed in their place.
  */
@@ -32,10 +33,11 @@ export const entrypoint: Tool<Help> = {
     'Every name one import specifier opens, ordered by how many packages import it, with its ' +
     'kind and the first line of its documentation. Names marked UNDOCUMENTED have nothing ' +
     'written above them — the source is the only thing that says what they do. Asked by a ' +
-    "package's name, it also lists each import that reaches past the package's entry; asked by a " +
-    'specifier past the entry, it lists the imports of that specifier. For a package that opens only ' +
-    'subpaths, asked by its name, it lists the specifiers it opens. For a package that declares ' +
-    'no entry it lists what other packages import from it by path. Use docs_symbol for the full ' +
+    "package's name, it also counts the imports that reach past the package's entry, one row per file " +
+    'they reach; asked by one of those specifiers, it lists the import sites of that specifier. For a ' +
+    'package that opens only subpaths, asked by its name, it lists the specifiers it opens. For a ' +
+    'package that declares no entry it counts what other packages import from it by path, the same way. ' +
+    'Use docs_symbol for the full ' +
     'signature and documentation of one name.',
   inputSchema: {
     type: 'object',
@@ -70,14 +72,14 @@ export const entrypoint: Tool<Help> = {
     const published = help.packages.find((candidate) => candidate.name === owner);
     if (asked !== owner) {
       const reaching = reachingPast(help, owner, asked);
-      if (reaching.length > 0) return sites(help, pastEntry(reaching, owner));
+      if (reaching.length > 0) return sites(help, pastEntry(reaching, owner, 'sites'));
       if (published !== undefined && published.openings.length === 0) {
         throw new Error(`\`${asked}\`: ${owner} opens no entry, and no other package imports this specifier`);
       }
     } else if (published !== undefined && published.openings.length === 0 && subpath === undefined) {
       const reaching = reachingPast(help, owner);
       if (reaching.length === 0) return `${owner} opens no entry, and no other package imports a file of it.`;
-      const past = pastEntry(reaching, owner);
+      const past = pastEntry(reaching, owner, 'files');
       return sites(help, { ...past, lines: [`${owner} opens no entry.`, '', ...past.lines] });
     } else if (published !== undefined && subpath === undefined && !published.openings.some((held) => held.subpath === '.')) {
       return subpathsOnly(help, published);
@@ -90,7 +92,7 @@ export const entrypoint: Tool<Help> = {
     // The package asked by its name alone: the imports past its entry are part of what it is used for.
     const reaching = subpath === undefined && said === door.name ? reachingPast(help, door.name) : [];
     if (reaching.length === 0) return names.join('\n');
-    const past = pastEntry(reaching, door.name);
+    const past = pastEntry(reaching, door.name, 'files');
     return sites(help, { ...past, lines: [...names, '', ...past.lines] });
   },
 };
@@ -102,27 +104,38 @@ interface Sites {
 }
 
 /**
- * The imports past the entry of `owner`, one line per import, and the narrower
- * questions: the specifier with the most imports, ties in code-unit order, when
- * they are under more than one, and the first name taken in specifier then name
- * order.
+ * The imports past the entry of `owner`: asked by the package, one row per file
+ * they reach, and asked by one specifier, one line per import of it. The
+ * narrower questions follow from what is printed.
  */
-function pastEntry(reaching: readonly Deep[], owner: string): Sites {
+function pastEntry(reaching: readonly Deep[], owner: string, grain: 'files' | 'sites'): Sites {
+  const heading = `${plural(reaching.length, 'import reaches', 'imports reach')} past a published entrypoint of ${owner}. ${REACHING}`;
+  if (grain === 'files') {
+    const files = perFile(reaching);
+    return { lines: [`${heading}. By file, most imported first:`, ...files.map(fileRow)], asks: filesAsks(files) };
+  }
   const first = reaching
-    .flatMap((held) => held.names.map((taken) => [taken.name, held.specifier] as const))
-    .filter(([name]) => isName(name))
-    .sort((left, right) => codeUnitOrder(left[1], right[1]) || codeUnitOrder(left[0], right[0]))[0];
-  const busiest = busiestOf(reaching.map((held) => held.specifier));
+    .flatMap((held) => held.names.map((taken) => taken.name))
+    .filter(isName)
+    .sort(codeUnitOrder)[0];
   return {
-    lines: [
-      `${plural(reaching.length, 'import reaches', 'imports reach')} past a published entrypoint of ${owner}. ${REACHING}:`,
-      ...reaching.map((held) => `  ${held.specifier} — ${held.by} at ${held.at}:${held.line}`),
-    ],
-    asks: [
-      ...(busiest === undefined ? [] : [`variance ask entrypoint --package ${shell(busiest)}`]),
-      ...(first === undefined ? [] : [usesOf(...first)]),
-    ],
+    lines: [`${heading}:`, ...reaching.map((held) => `  ${held.specifier} — ${held.by} at ${held.at}:${held.line}`)],
+    asks: first === undefined ? [] : [usesOf(first, reaching[0]!.specifier)],
   };
+}
+
+/** `<specifier> — N names, imported by M files`, the file's other spellings after a comma. */
+const fileRow = (file: FileTaken): string =>
+  `  ${file.specifiers.join(', ')} — ${plural(file.names, 'name')}, imported by ${plural(file.importers, 'file')}`;
+
+/** The questions that list the sites behind the first row: its specifier, and its most-taken name through it. */
+function filesAsks(files: readonly FileTaken[]): readonly string[] {
+  const top = files[0];
+  if (top === undefined) return [];
+  return [
+    `variance ask entrypoint --package ${shell(top.specifiers[0]!)}`,
+    ...(top.name === undefined ? [] : [usesOf(top.name, top.specifiers[0]!)]),
+  ];
 }
 
 /**
@@ -137,26 +150,29 @@ function subpathsOnly(help: Help, published: Documented): string {
   const asks = [`variance ask entrypoint --package ${shell(specifierOf(...door))}`];
   const reaching = reachingPast(help, published.name);
   if (reaching.length === 0) return [...lines, ...narrower(asks)].join('\n');
-  const past = pastEntry(reaching, published.name);
+  const past = pastEntry(reaching, published.name, 'files');
   return sites(help, { lines: [...lines, '', ...past.lines], asks: [...asks, ...past.asks] });
 }
 
 /**
  * A package that declares no entry opens nothing, and what other packages
- * import from it by path is the answer in its place.
+ * import from it by path is the answer in its place: counted per file when it
+ * is asked by its name, and one line per name taken when asked by a specifier.
  */
 function unenteredAnswer(help: Help, asked: string, owner: string): Sites | undefined {
   if (!help.byPath.some((held) => ownerOf(held.specifier) === owner)) return undefined;
-  const surface = surfaceByPath(help, owner, asked === owner ? undefined : asked);
-  const { lines } = surface;
   const heading = `${owner} declares no entry: no \`exports\`, \`main\` or \`types\`.`;
-  if (lines.length === 0) return { lines: [`${heading} No other package imports ${asked === owner ? 'a file of it' : asked}.`], asks: [] };
-  const count = asked === owner ? counted(surface) : `${plural(surface.names, 'name')} from ${asked}`;
-  const asks = [
-    ...(surface.busiest === undefined ? [] : [`variance ask entrypoint --package ${shell(surface.busiest)}`]),
-    ...(surface.first === undefined ? [] : [usesOf(surface.first.name, surface.first.specifier)]),
-  ];
-  return { lines: [`${heading} Other packages import ${count} by path:`, ...lines], asks };
+  if (asked === owner) {
+    const imports = takenByPath(help).get(owner) ?? [];
+    if (imports.length === 0) return { lines: [`${heading} No other package imports a file of it.`], asks: [] };
+    const files = perFile(imports);
+    const lines = [`${heading} Other packages import ${counted(tally(imports))} by path, most imported first:`, ...files.map(fileRow)];
+    return { lines, asks: filesAsks(files) };
+  }
+  const surface = surfaceByPath(help, owner, asked);
+  if (surface.lines.length === 0) return { lines: [`${heading} No other package imports ${asked}.`], asks: [] };
+  const asks = surface.first === undefined ? [] : [usesOf(surface.first.name, surface.first.specifier)];
+  return { lines: [`${heading} Other packages import ${plural(surface.names, 'name')} from ${asked} by path:`, ...surface.lines], asks };
 }
 
 /**
