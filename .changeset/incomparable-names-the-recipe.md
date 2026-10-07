@@ -14,7 +14,10 @@ The reason now names only the identity fields that differ between the baseline
 and this run, and says whether they are the machine (renderer, engine, platform,
 scale, fonts) or only variance-authority's recipe (the stabilization or
 rasterization digest). It used to print both identities in full and blame the
-machine either way. `incomparableBecause` and its `IncomparableSides` wording,
+machine either way. A refusal no longer says pixels are machine-bound and
+the two not comparable: it says the two were not compared because this tool
+compares only within one identity, and that nothing measured whether another
+machine paints the same pixels. `incomparableBecause` and its `IncomparableSides` wording,
 whose `replaceable` says whether the reason may offer a re-baseline, are
 exported from `@variance-authority/raster` for a caller that writes the same
 sentence.

@@ -83,7 +83,8 @@ describe('settle', () => {
     // seven-field identity that is where the field that moved gets missed.
     expect(settlement.because).toContain('platform darwin/arm64 → linux/x64');
     expect(settlement.because).not.toContain('chromium@131');
-    expect(settlement.because).toContain('machine-bound');
+    expect(settlement.because).toContain('these two were not compared');
+    expect(settlement.because).not.toMatch(/machine-bound|not comparable/);
   });
 
   // An upgrade of this tool moved the rasterization key and nothing about the
@@ -148,7 +149,8 @@ describe('settle', () => {
     const settlement = settle(digest, found, IDENTITY);
     expect(settlement).toMatchObject({ kind: 'settled', verdict: 'incomparable' });
     expect(settlement.because).toContain('rasterization e5ed66c6 → not recorded');
-    expect(settlement.because).toContain('not comparable');
+    expect(settlement.because).toContain('these two were not compared');
+    expect(settlement.because).not.toMatch(/machine-bound|not comparable/);
     expect(settlement.because).not.toContain('accept');
   });
 
@@ -168,6 +170,7 @@ describe('settle', () => {
     expect(settlement).toMatchObject({ kind: 'settled', verdict: 'incomparable' });
     expect(settlement.because).toContain('rasterization');
     expect(settlement.because).toContain('no image was produced');
+    expect(settlement.because).not.toMatch(/machine-bound|not comparable/);
     expect(settlement.because).not.toContain('accept');
   });
 

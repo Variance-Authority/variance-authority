@@ -3,7 +3,7 @@ import type {
   Digest,
   RenderIdentity,
 } from '@variance-authority/core/format';
-import { describeIdentity, incomparableBecause, recipeOnly } from './renderer.js';
+import { describeIdentity, incomparableBecause, NOT_COMPARED, recipeOnly } from './renderer.js';
 import type { Described } from './store.js';
 
 /**
@@ -140,15 +140,14 @@ export function settle(
         verdict: 'incomparable',
         because:
           `a baseline exists but was rendered by ${describeIdentity(found.storedUnder)}, and ` +
-          'this run did not say what it paints under; pixels are machine-bound, so the two are ' +
-          'not comparable and no image was produced',
+          `this run did not say what it paints under, so no image was produced; ${NOT_COMPARED}`,
       };
     }
 
     const stored = { identity: found.storedUnder, documentDigest: found.documentDigest };
     const current = { identity: mine, documentDigest: digest };
     // Painted, because this run's image is the candidate. The machine is the
-    // same and only this tool's recipe moved, so there is nothing machine-bound to
+    // same and only this tool's recipe moved, so there is no other machine's image to
     // protect; refusing here left a run with no candidate, nothing `accept` could
     // promote, and a directory to delete by hand. Painted whether or not the
     // document moved too: the sentence says which, and only an unmoved document

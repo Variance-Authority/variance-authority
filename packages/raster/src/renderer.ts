@@ -224,6 +224,15 @@ function moves(fields: readonly (readonly [string, string, string])[]): string[]
 type Painted = Pick<Raster, 'identity' | 'documentDigest'>;
 
 /**
+ * What every refusal says in place of a law about pixels. Two machines can paint
+ * the same image or different ones. Comparing only within one identity is this
+ * tool's rule, not a measurement of the two images, and the sentence says so.
+ */
+export const NOT_COMPARED =
+  'two images are compared only when they were painted under one identity, so these two were not ' +
+  'compared; another machine may paint the same pixels or different ones, and nothing measured which';
+
+/**
  * The reason a stored image and this run's cannot be compared, for every caller
  * that refuses: the settlement, a baseline lookup, and two rasters handed in.
  *
@@ -279,7 +288,7 @@ export function incomparableBecause(
   if (unnamed && recipe.length === 0) {
     return (
       `${sides.stored} was painted by ${describeIdentity(stored.identity)}, and ${sides.current} by ` +
-      `${describeIdentity(current.identity)}; pixels are machine-bound, so the two are not comparable`
+      `${describeIdentity(current.identity)}; ${NOT_COMPARED}`
     );
   }
 
@@ -294,11 +303,11 @@ export function incomparableBecause(
   return (
     `${both} differ ${clauses.join(', and ')}; ` +
     (machine.length > 0
-      ? 'pixels are machine-bound, '
+      ? ''
       : unnamed
-        ? 'that field may be the machine, and pixels are machine-bound, '
-        : 'a recipe nobody recorded cannot show the machine is the same, and pixels are machine-bound, ') +
-    'so the two are not comparable'
+        ? 'that field may be the machine; '
+        : 'a recipe nobody recorded cannot show the machine is the same; ') +
+    NOT_COMPARED
   );
 }
 

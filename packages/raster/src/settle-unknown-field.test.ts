@@ -93,7 +93,8 @@ describe('a field the wording does not name, and nothing else', () => {
     expect(settlement).toMatchObject({ kind: 'settled', verdict: 'incomparable' });
     expect(settlement.because).toContain('was painted by');
     expect(settlement.because).toContain('playwright-chromium');
-    expect(settlement.because).toContain('pixels are machine-bound');
+    expect(settlement.because).toContain('these two were not compared');
+    expect(settlement.because).not.toMatch(/machine-bound|not comparable/);
     expect(settlement.because).not.toContain('only the recipe moved');
   });
 });
