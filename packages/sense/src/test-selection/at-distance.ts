@@ -43,9 +43,9 @@
  * path from the change reached it, or there was no graph to walk. It is not
  * distance zero, which is *the change is this test's own source* and is the
  * nearest thing there is. It rides with the *end leg* — the one whose `to` is
- * open, or is at least the furthest distance measured — so
- * `0-2` then `3-` runs every selected file exactly once, and no leg short of the
- * end is made expensive by everything nobody could place.
+ * open, or is at least the furthest distance measured — so `0-2` then `3-` runs
+ * every selected file exactly once, and no leg short of the end is made
+ * expensive by everything nobody could place.
  */
 
 import type { TestDistance } from './distance.js';
@@ -86,8 +86,8 @@ export function groupByDistance(distances: readonly TestDistance[]): readonly Di
 /**
  * The test files `from` through `to` hops from the change, inclusive.
  *
- * The unplaced ride with the end leg, and with no other, so a
- * caller running `0-2` and then `3-` runs every file exactly once.
+ * The unplaced ride with the end leg, and with no other, so a caller running
+ * `0-2` and then `3-` runs every file exactly once.
  */
 export function atDistance(
   distances: readonly TestDistance[],

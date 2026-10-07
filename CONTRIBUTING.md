@@ -126,10 +126,10 @@ VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn test:since    # the rest of the selection
 edited. `2` is exactly two, and `3-` is three or more. Tests whose distance
 could not be measured run in the end leg, the open one or a closed one reaching
 the furthest hop measured, so those two commands together run every selected
-file. `yarn verify:near` and
-`yarn verify:far` are those two legs. [`docs/distance.md`](docs/distance.md) is
-the reference, and `yarn variance select --suite unit --at-distance 0-2` prints
-what a leg would run.
+file. `yarn verify:near` and `yarn verify:far` are those two legs.
+[`docs/distance.md`](docs/distance.md) is the reference, and
+`yarn variance select --suite unit --at-distance 0-2` prints what a leg would
+run.
 
 ## Which named tests a change reached
 
