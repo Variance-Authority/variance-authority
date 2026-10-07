@@ -38,11 +38,12 @@ one.
 npm install --save-dev @variance-authority/sense
 ```
 
-Node 22.15 or newer. Vitest is the only declared peer dependency
-(`^2.1.9`, optional) — install it yourself if you use the Vitest seam. The Jest
-seam is built and tested against Jest 30 and declares no peer, so your own Jest
-is the one that runs. Storybook and Playwright come from sibling packages
-rather than from here, and are covered below.
+Node 22.15 or newer. Vitest (`^2.1.9 || ^3.0.0 || ^4.0.0`) and Jest
+(`^30.0.0`) are optional peer dependencies: install the runner whose seam you
+use, and your own copy is the one that runs. Under an older Jest, a
+configuration that selects throws while it loads and names the version it
+found. Storybook and Playwright come from sibling packages rather than from
+here, and are covered below.
 
 ## Cut a Vitest run down to a diff
 
@@ -102,6 +103,33 @@ skip list only has to be right about the tests it names, and a test it wrongly
 leaves out of the skip list costs a test run rather than a missed regression. A
 missing snapshot, a snapshot from another machine, and a first run all leave
 `whole` empty, so `skip` is empty, so the suite runs.
+
+### Let the runner skip them
+
+You can also have the runner skip those files itself. Set
+`VARIANCE_AUTHORITY_SINCE`, and the wrapped configuration reads the same
+selection `variance select` prints, from `@variance-authority/cli`, and removes
+the skipped files before Vitest starts any of them:
+
+```bash
+VARIANCE_AUTHORITY_SINCE= npx vitest run
+VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 npx vitest run
+```
+
+Set and empty, the variable reads each test from the commit the snapshot names.
+Set to a ref, it also names the base for a snapshot that names no commit.
+`VARIANCE_AUTHORITY_AT_DISTANCE` takes one range of hop counts, read as in
+[Take one range of hop counts at a time](#take-one-range-of-hop-counts-at-a-time),
+and a value that is not a range fails the run. Before the first file starts,
+stderr shows one line: `selected 12 of 340`, `selected none of 340`, or
+`declined:` and the reason the selection could not be read, in which case
+every file runs. A test file the snapshot has never seen runs.
+
+The files are removed in a `sequence.sequencer` that wraps the one your
+configuration names, before it shards and sorts, so `--shard` divides the
+same list in every shard. Watch mode does not select.
+`@variance-authority/cli` has to be installed in the project; when the checkout cannot resolve it, the run fails and the message
+names the package.
 
 ### What each field means
 
@@ -182,9 +210,11 @@ repository that declares no suites keeps the one `coverage.bin` above.
 
 **Built** as a side effect of a wrapped run: every test file writes a journal,
 the reporter folds them when the run completes, and the result is landed over
-whatever was there before. There is no separate build step and no `test:since`
-command — this package records evidence and answers questions about it; the
-caller owns the inventory of current test files and the dispatch.
+whatever was there before. There is no separate build step. This package
+records evidence and answers questions about it; the caller owns the inventory
+of current test files and the dispatch, and a wrapped runner removes what a
+selection skips only when [`VARIANCE_AUTHORITY_SINCE`](#let-the-runner-skip-them)
+is set.
 
 **Cached in CI** by caching `<cache>` whole and restoring it
 to the same absolute checkout path it was written from. Nothing about the branch
@@ -280,7 +310,7 @@ and each name selects the tests recorded under it.
 ### Options on the Vitest seam
 
 The optional second argument accepts `root`, `suite`, `coverageFile`,
-`include`, `preconditions`, `mode`, and `continuations`.
+`include`, `preconditions`, `mode`, `continuations`, and `selection`.
 
 | option | default | use it when |
 |---|---|---|
@@ -291,6 +321,7 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings or a fixture read with `fs` |
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
+| `selection` | read from `@variance-authority/cli` when `VARIANCE_AUTHORITY_SINCE` is set | you compute the selection yourself: a function returning the `SuiteSelection` whose `skip` the run removes |
 
 The config file Vite loaded, the local modules it imports and the configured
 setup files become preconditions automatically, and the runtime's own setup file
@@ -531,7 +562,7 @@ export default withTestSelection({
 ```
 
 The second argument accepts `root`, `suite`, `coverageFile`, `preconditions`,
-`mode`, and `continuations`, with the meanings above. Jest does not report which
+`mode`, `continuations`, and `selection`, with the meanings above. Jest does not report which
 config file it loaded, so name it in `preconditions`. There is no `include`:
 product source is every JavaScript and TypeScript module the configuration's
 `testMatch` or `testRegex` does not name, less dependencies and built output that
@@ -543,6 +574,15 @@ setup and environment files are read from the project Jest ran it under, so a
 change to one project's setup file does not rerun another project's tests; a
 project named by path rather than spelled inline is refused, because its
 transform cannot be wrapped from here.
+
+With `VARIANCE_AUTHORITY_SINCE` set, a Jest run skips files as
+[a Vitest run does](#let-the-runner-skip-them). The files are removed in
+Jest's `filter`, which runs before `--shard` and `--listTests`, so every shard
+and the listing see the same list. A `filter` your configuration names runs
+first, and the selection removes files from what it kept. `--filter` on the
+command line replaces the configuration's filter, the selection included, with
+yours, and `--skipFilter` turns filters off. Either one turns the selection
+off, and stderr says which.
 
 `withTestSelection` reads the object you pass it, before Jest resolves
 anything, so three things are yours to spell out:

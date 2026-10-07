@@ -72,7 +72,7 @@ other two read, so a pipeline pays for it once.
 
 ```bash
 variance index                                  # write the file graph the others read
-vitest run $(variance select --format vitest)   # skip what the change cannot reach
+VARIANCE_AUTHORITY_SINCE= vitest run           # skip what the change cannot reach
 variance reach --since origin/main              # files a diff reaches over imports alone
 ```
 

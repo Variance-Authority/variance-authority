@@ -11,8 +11,7 @@
  * it, the files that import that one, and the test files that run them.
  *
  * Nothing is walked here that the graph does not already say. The chain is the
- * walk's own trail, the shortest one, which is the one `test:since` prints for
- * the tests it selects; the test files are the case index's answer to the files
+ * walk's own trail, the shortest one; the test files are the case index's answer to the files
  * the bump changed (`beyondReach`), each changed whole, asked through
  * `narrowByJourneys`, which is how a selection over a journey file hears a bump.
  */

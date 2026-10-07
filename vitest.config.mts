@@ -96,7 +96,7 @@ const shared = defineConfig({
     // test takes is its own and no other test's or developer's index waits on
     // it, or it on them. The file says why a turn made the recording depend on
     // scheduling.
-    setupFiles: ['tools/temporary-per-test.ts'],
+    setupFiles: ['tools/temporary-per-test.ts', 'tools/no-selection-in-tests.ts'],
   },
   esbuild: {
     jsx: 'automatic',
@@ -203,8 +203,8 @@ export const selectionOf = (name: SliceName) => ({
   include: instrumentable,
   // What governs every observation rather than any one of them. The seam
   // declares the config file Vite loaded and the local modules it imports, and
-  // `tools/test-since.mjs` reads the manifests and the lockfile as the install
-  // they record. What is left is what no import names: the compiler settings
+  // the selection reads the manifests and the lockfile as the install they
+  // record. What is left is what no import names: the compiler settings
   // the built half is emitted under, and the crate the native addon is built
   // from, which Node loads with `dlopen` and every instrumented module passed
   // through (`tools/native-sources.mjs` says why that is every test). Editing a

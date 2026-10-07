@@ -3,9 +3,8 @@
  * the commit the snapshot names.
  *
  * A snapshot names the commit of the latest run laid into it, not the commit
- * every observation in it was made at. A partial run — one leg of `yarn
- * test:since --at-distance`, or a runner handed `variance select`'s skip list —
- * is a run: the seam lands it and stamps the snapshot at `HEAD`, and every test
+ * every observation in it was made at. A partial run — a runner that dropped
+ * what `selectSuite` skips, one leg of it or the whole selection — is a run: the seam lands it and stamps the snapshot at `HEAD`, and every test
  * it did not run still stands on the text it last ran on. Read from the
  * snapshot's commit alone, the next selection finds nothing changed and skips
  * every one of those tests. `landRun` writes down where each test the runs at

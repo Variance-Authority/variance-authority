@@ -215,10 +215,9 @@ jobs:
     # and handed to every job that reads one. `refs/variance/mainline/main` is
     # a line, and a line is its latest: the `publish` job of the previous push
     # to `main` can move it while this run's suite jobs are starting. Read by
-    # each job on its own, two shards of one slice read two records, place the
-    # slice by two sets of durations, and run some files twice and others not
-    # at all; `record` then refuses to fold them. Read here once, every job
-    # places from the same durations and lays the same base.
+    # each job on its own, two jobs of one run read two records, select from
+    # two bases, and hand on records `record` then refuses to fold. Read here
+    # once, every job lays the same base.
     runs-on: ubuntu-24.04
     # Whether the upload made an artifact. The artifact's id rather than the
     # step's outcome, for the reason written at the same output in `record`:
@@ -287,7 +286,7 @@ jobs:
       # What this pull request's last push ran, as its `record` job left it in
       # the Actions cache. A second push then runs what changed since the first
       # ran, and every file the first left incomplete, a failed one included:
-      # what `yarn test:since` does between two runs on a laptop. Without it,
+      # what a selected run does between two runs on a laptop. Without it,
       # every push is measured from `main`, and a fix reruns the whole change.
       #
       # A pull request's caches are scoped to it: only its own later runs read
@@ -347,14 +346,13 @@ jobs:
     # long ones. Integration stays whole on purpose, and not only because it is
     # short: its record is made the way a laptop's is, the run layered onto the
     # base it found, while the sharded slices' records are made the way a
-    # sharded suite's are, each shard alone and folded in `record` below. Both
-    # paths this repository ships run on every change.
+    # sharded suite's are, each shard alone and folded in `record` below.
     #
-    # Shards are placed by `tools/since-shard.mjs`, with the placement
-    # `variance run --shard` makes: longest first by the durations the record
-    # carries. Every shard of a slice reads the same change and the record
-    # `base` read once, so they agree on the placement without talking to each
-    # other.
+    # A shard is Vitest's own `--shard`. A pull request's selected slice is not
+    # sharded: its first shard job runs the whole selection and the others stop
+    # before the test. A selected run records over the base it read, and the
+    # fold refuses two shard records that both carry the base's rows, so the
+    # selection runs in one job and hands its record on as a whole slice's is.
     #
     # Not `fail-fast`: a red unit shard says nothing about chromium, and a
     # cancelled job reports nothing.
@@ -490,57 +488,55 @@ jobs:
 
       # A pull request runs what its change reached, and nothing else: this
       # repository ships test selection, so its own pull requests are selected
-      # by it. `yarn test:since` reads the mainline's record the step above
-      # laid, diffs each test from the commit it last ran at, which for a
-      # record the mainline made whole is the commit it was published at, and
-      # runs the files whose recorded regions the change entered. It runs the
-      # whole slice itself when the reading cannot be made, and says why.
+      # by it. `VARIANCE_AUTHORITY_SINCE` turns on the selection the slice's
+      # config is wrapped in: it reads the mainline's record the step above
+      # laid, diffs each test from the commit it last ran at, which for a record
+      # the mainline made whole is the commit it was published at, and Vitest
+      # runs the files whose recorded regions the change entered. When the
+      # reading cannot be made, the slice runs whole and the run says why.
       #
-      # The whole slice runs in two waves, the test legs of the two a
-      # developer runs: the tests within two imports of the change, then the
-      # rest. A red near wave ends the step before the far wave spends minutes
-      # saying less. The waves partition the selection, so no file runs twice:
-      # a slice the near wave ran whole stamps its record with this commit, and
-      # the far wave reads nothing changed since. A shard runs its part of the
-      # selection in one leg: it records apart from the record it read, so a
-      # near wave that ran whole would stamp nothing the far wave reads, and
-      # the far wave would run the slice whole a second time.
+      # The selection runs in two waves, the legs `verify:near` and
+      # `verify:far` run on a laptop: the tests within two imports of the
+      # change, then the rest. A red near wave ends the step before the far
+      # wave spends minutes saying less. The near wave records over the base,
+      # so the far wave reads the tests it ran as run at this commit.
       #
-      # A push to `main`, a merge group and a dispatch run every file
-      # (`--whole`). That is the gate a selection is a smaller claim than, and
-      # on a push it is what the record `main` publishes is cut from: every file
-      # observed at `main`'s own commit, so the next pull request selects from
-      # rows no older than its base. A merge group publishes nothing.
-      #
-      # A shard records into `shard-record/`, a cache of its own, so its record
-      # holds its own run alone and `record` below can fold the shards over the
-      # base. `--record-into` takes an absolute path.
+      # A push to `main`, a merge group and a dispatch run every file. That is
+      # the gate a selection is a smaller claim than, and on a push it is what
+      # the record `main` publishes is cut from: every file observed at
+      # `main`'s own commit, so the next pull request selects from rows no older
+      # than its base. A merge group publishes nothing. A shard of it records
+      # into `shard-record/`, a cache of its own named by
+      # `VARIANCE_AUTHORITY_CACHE`, so its record holds its own run alone and
+      # `record` below can fold the shards over the base.
       - name: test
         id: test
+        if: ${{ github.event_name != 'pull_request' || steps.base.outputs.based != 'true' || !matrix.shard || startsWith(matrix.shard, '1/') }}
         shell: bash
         env:
           SELECT: ${{ github.event_name == 'pull_request' && steps.base.outputs.based == 'true' }}
           SUITE: ${{ matrix.suite }}
           SHARD: ${{ matrix.shard }}
         run: |
-          part=()
-          if [ -n "$SHARD" ]; then part=(--shard "$SHARD" --record-into "$PWD/shard-record"); fi
-          if [ "$SELECT" != true ]; then
-            yarn test:since --suite "$SUITE" --whole "${part[@]}"
+          if [ "$SELECT" = true ]; then
+            echo "into=slice" >> "$GITHUB_OUTPUT"
+            yarn variance index
+            VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE"
+            VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn "test:$SUITE"
           elif [ -n "$SHARD" ]; then
-            yarn test:since --suite "$SUITE" "${part[@]}"
+            echo "into=shard" >> "$GITHUB_OUTPUT"
+            VARIANCE_AUTHORITY_CACHE="$PWD/shard-record" yarn "test:$SUITE" --shard "$SHARD"
           else
-            yarn test:since --suite "$SUITE" --at-distance 0-2
-            yarn test:since --suite "$SUITE" --at-distance 3-
+            echo "into=slice" >> "$GITHUB_OUTPUT"
+            yarn "test:$SUITE"
           fi
 
       # What this job recorded, for `record` to fold: a shard's own cache, or
       # the whole slice's record as it stands in this checkout's layer. A red
       # run still recorded what it ran, and the review is where a reviewer
-      # reads why. A shard the change gave nothing to run recorded nothing and
-      # uploads nothing.
+      # reads why. A shard job that stopped before the test uploads nothing.
       - name: hand the shard on
-        if: ${{ !cancelled() && steps.test.outcome != 'skipped' && matrix.shard }}
+        if: ${{ !cancelled() && steps.test.outcome != 'skipped' && steps.test.outputs.into == 'shard' }}
         uses: actions/upload-artifact@v4
         with:
           name: variance-shard-${{ matrix.suite }}-${{ strategy.job-index }}
@@ -550,7 +546,7 @@ jobs:
           retention-days: 1
 
       - name: hand the slice on
-        if: ${{ !cancelled() && steps.test.outcome != 'skipped' && !matrix.shard }}
+        if: ${{ !cancelled() && steps.test.outcome != 'skipped' && steps.test.outputs.into == 'slice' }}
         uses: actions/upload-artifact@v4
         with:
           name: variance-slice-${{ matrix.suite }}
@@ -795,7 +791,7 @@ jobs:
   publish:
     # The record a push to `main` made, published to `refs/variance/mainline/main`
     # on this repository, which is where every pull request and every
-    # `yarn test:since` reads its base from. Its own job because it is the only
+    # selected run reads its base from. Its own job because it is the only
     # one that writes to the repository: `contents: write` is granted here, on
     # a push to `main`, and to no job a pull request runs. The ref is outside
     # `refs/heads` and `refs/tags`, so no branch rule and no tag rule governs it,
@@ -857,7 +853,8 @@ jobs:
       # a test file the suite stopped collecting keeps its rows in the record
       # and last ran before this commit, and only the runner can say it no
       # longer counts against a whole run. Each shared suite is asked under its
-      # own slice's config, which `slicesOf` in `tools/test-since.mjs` names. A
+      # own slice's config, the one its `test:<suite>` script runs: `unit` under
+      # `vitest.config.mts`, every other under `vitest.<suite>.config.mts`. A
       # suite whose files cannot be listed is left without a list and the others
       # are still listed: the publish below refuses that suite alone.
       - name: what the suite collects
@@ -866,12 +863,8 @@ jobs:
           SHARED: ${{ needs.record.outputs.shared }}
         run: |
           for suite in $SHARED; do
-            if ! config=$(SUITE="$suite" node --input-type=module -e "
-              const { slicesOf } = await import('./tools/test-since.mjs');
-              const slice = slicesOf(process.cwd()).find((one) => one.suite === process.env.SUITE);
-              if (slice === undefined) throw new Error('no slice is declared for ' + process.env.SUITE);
-              process.stdout.write(slice.config);
-            ") || ! yarn vitest list --filesOnly --config "$config" > "$RUNNER_TEMP/collected-$suite.txt"; then
+            if [ "$suite" = unit ]; then config=vitest.config.mts; else config="vitest.$suite.config.mts"; fi
+            if [ ! -f "$config" ] || ! yarn vitest list --filesOnly --config "$config" > "$RUNNER_TEMP/collected-$suite.txt"; then
               rm -f "$RUNNER_TEMP/collected-$suite.txt"
               echo "::error::The files the $suite suite collects were not listed, so its record is not published."
             fi
