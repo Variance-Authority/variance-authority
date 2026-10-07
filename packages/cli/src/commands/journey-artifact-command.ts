@@ -38,13 +38,13 @@ export async function runJourneyArtifactCommand(
 /**
  * The files whose regions are coarser than recorded, by name.
  *
- * Two transforms of one file can cut it into different regions, and then a
- * region's number means something different in each. Those crossings are
+ * Two shards can cut one file into different regions, and then a region's
+ * number means something different in each. Those crossings are
  * credited to the regions both transforms share. A reader who sees a function
  * select more tests than it should needs to find out why here.
  */
 function renumbered(result: JourneyArtifactResult): string {
-  const files = result.renumbered;
+  const files = result.renumbered ?? [];
   if (files.length === 0) return '';
   const count = files.length === 1 ? '1 file was' : `${files.length} files were`;
   return (

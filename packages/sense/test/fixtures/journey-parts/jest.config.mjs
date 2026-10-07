@@ -12,9 +12,8 @@ const cacheDirectory = process.env['VARIANCE_AUTHORITY_JEST_CACHE'];
 // The directory the fold reads. The service is told where to write, which is
 // this directory or a receiver that writes into it.
 const parts = process.env['PARTS_DIRECTORY'];
-const head = process.env['VARIANCE_AUTHORITY_HEAD'];
-if (journeyFile === undefined || cacheDirectory === undefined || parts === undefined || head === undefined) {
-  throw new Error('VARIANCE_AUTHORITY_JOURNEYS, _JEST_CACHE, _HEAD and PARTS_DIRECTORY are required');
+if (journeyFile === undefined || cacheDirectory === undefined || parts === undefined) {
+  throw new Error('VARIANCE_AUTHORITY_JOURNEYS, _JEST_CACHE and PARTS_DIRECTORY are required');
 }
 
 export default withJourneyCoverage(
@@ -27,5 +26,5 @@ export default withJourneyCoverage(
       '\\.[jt]sx?$': ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }],
     },
   },
-  { journeyFile, parts: [parts], heads: [head], preconditions: ['jest.config.mjs'] },
+  { journeyFile, parts: [parts], preconditions: ['jest.config.mjs'] },
 );

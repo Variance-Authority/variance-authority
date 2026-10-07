@@ -56,9 +56,7 @@ export interface ExecutionRecording {
    * relative to the checkout it sits in, never to it.
    */
   readonly root?: string;
-  /** Matches the `label` given to `testSelectionProbes()`. Defaults to `build`. */
-  readonly label?: string;
-  /** Where that build wrote its records. Defaults to the repository's cache. */
+  /** Where the coverage layers live. Defaults to the repository's cache. */
   readonly cacheRoot?: string;
   /** The coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
@@ -459,7 +457,6 @@ export function createExecutionRecorder(
     if (staging !== undefined) {
       await stageExecution(staging, {
         subjects: joined,
-        ...(stitched.heads.size === 0 ? {} : { heads: [...stitched.heads.keys()] }),
         ...(cases.size === 0 ? {} : { cases: observedCases() }),
       });
       return;
@@ -481,7 +478,6 @@ export function createExecutionRecorder(
     const record = await recordExecution({
       root,
       subjects: joined,
-      ...(recording.label === undefined ? {} : { label: recording.label }),
       ...(recording.cacheRoot === undefined ? {} : { cacheRoot: recording.cacheRoot }),
       ...(recording.coverageFile === undefined ? {} : { coverageFile: resolve(start, recording.coverageFile) }),
       ...(recording.suite === undefined ? {} : { suite: recording.suite }),
@@ -489,7 +485,6 @@ export function createExecutionRecorder(
       ...(recording.preconditions === undefined
         ? {}
         : { preconditions: recording.preconditions }),
-      ...(stitched.heads.size === 0 ? {} : { heads: [...stitched.heads.keys()] }),
       ...(cases.size === 0 ? {} : { cases: observedCases() }),
     });
     if (!record.recorded) {

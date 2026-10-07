@@ -10,9 +10,10 @@
 
 import { digestString } from '../digest.js';
 import type { Block } from '../instrument/index.js';
+import { spliced, type InstrumentMode } from '../instrument/spliced.js';
 import type { CoverageBlock, CoverageModule } from './index.js';
 import { codeUnitOrder, type CapturedModule } from './instrumented-modules.js';
-import type { ExtentOf, RecordedFrame } from './source-lines.js';
+import { sourceLines, type ExtentOf, type RecordedFrame } from './source-lines.js';
 
 /** The coverage row a captured module makes once its crossings are known. */
 export function coverageModule(
@@ -92,8 +93,133 @@ export function coverageBlocks(
   blocks: readonly Block[],
   frame: Pick<RecordedFrame, 'extentOf' | 'text'>,
 ): CoverageBlock[] {
-  const rows = blocks.map((block) => coverageBlock(frame.text, block, frame.extentOf));
-  const lines = frame.text.split('\n');
+  return digested(blocks.map((block) => coverageBlock(frame.text, block, frame.extentOf)), frame.text);
+}
+
+/**
+ * Every block of one build as coverage records it, at the regions the source
+ * the build was made from has.
+ *
+ * {@link coverageBlocks} reads a build's regions back through its map, and a
+ * map is not the source. `tsc` erases the `import type` lines above the first
+ * import, so a build's module opens at that import; it emits a call written
+ * over several lines on one and maps the closing `)` to the line of the last
+ * argument, so an `await` on that call ends a line short. Both readings are
+ * filed under one text, and a merge keeps only the regions every reading of a
+ * text cut: the module and the `await` fall out, and every case recorded on
+ * them with them.
+ *
+ * So `text` — the source the frame reads, when it is not `built` — is walked
+ * too. Where the build numbered the regions the source numbers, the record is
+ * the source's own cut, which is what any other build of the text records. A
+ * build that cut regions the source has not, such as a helper a bundler wrote,
+ * keeps them where its map puts them, and its module opens and closes where the
+ * source's does. A build with no text is framed as the file already.
+ */
+export function recordedBlocks(
+  blocks: readonly Block[],
+  frame: Pick<RecordedFrame, 'extentOf' | 'text' | 'file'>,
+  built: string,
+  mode: InstrumentMode,
+): CoverageBlock[] {
+  if (frame.text === built || built.trim() === '') return coverageBlocks(blocks, frame);
+  const own = sourceCut(frame.text, frame.file, mode);
+  if (own === undefined) return coverageBlocks(blocks, frame);
+  const cut = own.rows;
+  if (sameRegions(blocks, own.blocks)) return cut;
+  // A region named once in each walk, with the same claim to source text, whose
+  // mapped lines meet the source region's lines, is that region, and takes the
+  // source's lines: an `await` the map closed a line short ends where the
+  // source's does. A name alone is not enough: the walk numbers in order, so a
+  // guard a transform wrote above the source's `if` is the build's `if#0`, and
+  // its map leads nowhere near the source's `if#0`. Every other region keeps the
+  // lines its map gives it. The module is always the source's.
+  // FIXME: a build whose regions are named apart from its source's keeps its
+  // map's lines: the walk names an arrow passed as a JSX attribute `anon#N` in
+  // the source and after the property it became in the build.
+  const counted = (rows: readonly Region[]) => {
+    const count = new Map<string, number>();
+    for (const row of rows) count.set(regionKey(row), (count.get(regionKey(row)) ?? 0) + 1);
+    return count;
+  };
+  const inBuild = counted(blocks.map(ownsText));
+  const inSource = counted(own.blocks.map(ownsText));
+  const sourceRow = new Map(cut.map((row) => [regionKey(row), row]));
+  const [module, ...inside] = blocks.map((block) => coverageBlock(frame.text, block, frame.extentOf));
+  const whole = cut[0]!;
+  return digested([
+    whole.startLine === undefined ? module! : { ...module!, startLine: whole.startLine, endLine: whole.endLine },
+    ...inside.map((row) => {
+      const key = regionKey(row);
+      const shared = inBuild.get(key) === 1 && inSource.get(key) === 1 ? sourceRow.get(key) : undefined;
+      if (shared?.startLine === undefined || shared.endLine === undefined) return row;
+      if (row.startLine === undefined || row.endLine === undefined) return row;
+      if (row.endLine < shared.startLine || shared.endLine < row.startLine) return row;
+      return { ...row, startLine: shared.startLine, endLine: shared.endLine };
+    }),
+  ], frame.text);
+}
+
+/** A region as a walk names it, apart from the ordinal the walk gave it. */
+interface Region {
+  readonly kind: string;
+  readonly name: string;
+  readonly path: string;
+  /** The region spans text of its own, as `CoverageBlock.source` records it. */
+  readonly source: boolean;
+}
+
+/** What names a region in a walk: two that claim text apart are not one region. */
+function regionKey(region: Region): string {
+  return `${region.kind}\0${region.name}\0${region.path}\0${region.source ? 1 : 0}`;
+}
+
+function ownsText(block: Block): Region {
+  return { kind: block.kind, name: block.name, path: block.path, source: block.end > block.start };
+}
+
+/**
+ * `text` cut as a seam reading it records it: the walk's blocks, and the rows
+ * they make at the text's own lines.
+ */
+export function sourceCut(
+  text: string,
+  file: string,
+  mode: InstrumentMode,
+): { readonly blocks: readonly Block[]; readonly rows: CoverageBlock[]; readonly sourceDigest: string } | undefined {
+  const walked = spliced(text, file, mode);
+  if (walked === undefined) return undefined;
+  // One lookup for the whole module: the default counts newlines from the top
+  // of the file on every offset, and a cut asks twice per region.
+  const extentOf = sourceLines(text, undefined, file);
+  return { blocks: walked.blocks, sourceDigest: walked.sourceDigest, rows: coverageBlocks(walked.blocks, { extentOf, text }) };
+}
+
+/**
+ * Two walks that numbered one region at every ordinal.
+ *
+ * A walk can name two regions alike — sibling callbacks to one call, a function
+ * shadowed in its scope — and a build is free to reorder those, so a pair of
+ * walks that repeats a name is not known to agree and is read through the map.
+ */
+function sameRegions(left: readonly Block[], right: readonly Block[]): boolean {
+  const named = new Set(left.map((block) => `${block.kind}\0${block.name}\0${block.path}\0${String(block.owner)}`));
+  return named.size === left.length && left.length === right.length && left.every((block, at) => {
+    const other = right[at]!;
+    return block.kind === other.kind &&
+      block.name === other.name &&
+      block.path === other.path &&
+      block.owner === other.owner &&
+      block.end > block.start === other.end > other.start;
+  });
+}
+
+/**
+ * Rows digested from the lines of `text` they span: a region's own lines, with
+ * the lines inside each region it owns left to that region.
+ */
+function digested(rows: readonly CoverageBlock[], text: string): CoverageBlock[] {
+  const lines = text.split('\n');
   const owned = new Map<number, CoverageBlock[]>();
   for (const row of rows) {
     if (row.owner === undefined || row.startLine === undefined || !row.source) continue;

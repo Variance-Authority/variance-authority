@@ -33,10 +33,10 @@ if (!READY) {
 const live = READY ? describe : describe.skip;
 
 /** The page script, instrumented the way a recording build instruments it. */
-async function pageScript(cacheRoot: string): Promise<string> {
+async function pageScript(): Promise<string> {
   const path = join(fixture, 'cart.js');
   const source = await readFile(path, 'utf8');
-  const { code } = testSelectionProbes({ root: fixture, cacheRoot }).transform(source, path) as { code: string };
+  const { code } = testSelectionProbes({ root: fixture }).transform(source, path) as { code: string };
   // A bundler resolves the collector import; a script tag has none, so the
   // collector goes in front of the module in its own block.
   return `{${executionCollectorSource()}}\n${code.replace(/^import "[^"]+";/, '')}`;
@@ -67,7 +67,7 @@ live('Eyes in a recording Playwright run', () => {
         EYES_CACHE: cacheRoot,
         EYES_RECORD: record,
         EYES_RESULTS: join(scratch, 'results'),
-        EYES_PAGE: await pageScript(cacheRoot),
+        EYES_PAGE: await pageScript(),
       });
       expect(run.code, run.output).toBe(0);
 

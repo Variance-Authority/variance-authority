@@ -12,7 +12,7 @@ import eyesFrames from './eyes-frame.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import preconditions from './case-preconditions.cjs';
 import journalFormat from './journal-format.cjs';
-import { frameRecord, segmentHeader } from './record-format.js';
+import { nativeModule } from './jest-journey-artifact.js';
 
 const temporary: string[] = [];
 
@@ -55,18 +55,15 @@ async function directory(): Promise<string> {
   return cases;
 }
 
-/** A record store beside `cases` holding `src/branch.ts`, three regions. */
-async function branchStore(cases: string): Promise<{ store: string; module: CapturedModule }> {
-  const store = resolve(cases, '..', 'store');
-  await mkdir(store);
+/** `src/branch.ts`, three regions. */
+function branchModule(): CapturedModule {
   const blocks = captured('src/branch.ts', 'src/branch.ts', 3).blocks;
   const module: CapturedModule = {
     ...captured('src/branch.ts', 'src/branch.ts', 3),
     sourceDigest: digestString('source'),
     blocks: blocks.map((block) => ({ ...block, digest: digestString(`block-${block.ordinal}`) })),
   };
-  await writeFile(resolve(store, 'one.rec'), Buffer.concat([segmentHeader('sense:instrument/presence-v5'), frameRecord(module)]));
-  return { store, module };
+  return module;
 }
 
 /**
@@ -100,7 +97,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
     ]));
     const output = resolve(cases, '..', 'journeys.bin');
 
-    native()!.foldJourneyTo!(cases, '/repo', [], 'sense:instrument/presence-v5', output);
+    native()!.foldJourneyTo!(cases, '/repo', [], output);
     const answered = decodeExecutionIndex(await readFile(output));
     const folded = decodeExecutionIndex((await foldCaseRun(await inspectCaseRun(cases, '/repo'), new Map(), 64)).bytes);
 
@@ -134,7 +131,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
     ]));
     const output = resolve(cases, '..', 'journeys.bin');
 
-    native()!.foldJourneyTo!(cases, '/repo', [], 'sense:instrument/presence-v5', output);
+    native()!.foldJourneyTo!(cases, '/repo', [], output);
     const answered = decodeExecutionIndex(await readFile(output));
     const folded = decodeExecutionIndex((await foldCaseRun(await inspectCaseRun(cases, '/repo'), new Map(), 64)).bytes);
 
@@ -147,7 +144,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
 
   it('agrees with the native compressed fold, joining a case written twice as one', async () => {
     const cases = await directory();
-    const { store, module } = await branchStore(cases);
+    const module = branchModule();
     await writeFile(resolve(cases, 'worker.vac'), packFrames([
       journalFormat.encodeJournal(
         preconditions.packSaid(
@@ -181,8 +178,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
     const answered = native()!.foldJourney!(
       cases,
       '/repo',
-      [store],
-      'sense:instrument/presence-v5',
+      [nativeModule(module)],
       1,
     );
 

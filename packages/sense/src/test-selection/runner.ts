@@ -19,9 +19,9 @@
  * scheduling, and nothing is called that the author did not call.
  *
  * The halves meet across processes the way the Jest seam's do, because a
- * runner that forks is the ordinary case: the transform writes each module's
- * record to a store on disk, each observed file writes its journal to the run
- * directory, and the fold reads both. What names the run is one environment
+ * runner that forks is the ordinary case: each observed file writes its
+ * journal to the run directory, and the fold reads them and cuts every module
+ * they name again from the checkout. What names the run is one environment
  * variable, which every child process and worker thread inherits unless the
  * runner builds their environment from nothing — and then `Recording.env` is
  * what it spreads in.
@@ -32,32 +32,20 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { registerHooks, type ModuleHooks } from 'node:module';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { instrument, instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import type { InstrumentMode, ModuleId } from '../instrument/index.js';
+import { captureModule } from './captured-modules.js';
 import collectors from './collectors.cjs';
-import { coverageBlocks } from './coverage-rows.js';
 import journalFormat from './journal-format.cjs';
 import { recordFileFor } from './record-location.js';
-import {
-  defaultInclude,
-  openRecords,
-  projectPath,
-  recordStore,
-  recordStores,
-  writeRecord,
-  type RecordWriter,
-} from './instrumented-modules.js';
+import { defaultInclude } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
 import { reportedDuration } from './finished-files.js';
 import { finishedCase } from './case-durations.js';
 import { foldRun } from './selection-fold.js';
 import { newRun } from './selection-run.js';
-import { recordedFrame, type TransformSourceMap } from './source-lines.js';
 
 /** The environment variable that names the open recording to every process of the run. */
 export const RECORDING_VARIABLE = 'VARIANCE_AUTHORITY_RECORDING';
-
-/** The store label this entry's transforms write under, beside a bundler's `build`. */
-const STORE = 'runner';
 
 export interface RecordingOptions {
   /** Any directory inside the checkout being recorded; the current directory when absent. */
@@ -125,7 +113,6 @@ interface Carried {
   readonly root: string;
   readonly runDirectory: string;
   readonly caseDirectory: string;
-  readonly store: string;
   readonly mode: InstrumentMode;
   readonly continuations: boolean;
 }
@@ -147,7 +134,6 @@ export function startRecording(options: RecordingOptions = {}): Recording {
     root,
     runDirectory: run.runDirectory,
     caseDirectory: run.caseDirectory,
-    store: recordStore(root, STORE),
     mode,
     continuations: options.continuations === true,
   };
@@ -157,9 +143,9 @@ export function startRecording(options: RecordingOptions = {}): Recording {
   const fold = foldRun(run, {
     coverageFile,
     shims: [],
-    stores: [recordStores(root, STORE)],
+    derive: true,
     unreached:
-      'No transform wrote a record for this run: check that registerRecording() or ' +
+      'No module reported to this run: check that registerRecording() or ' +
       'instrumentModule() runs in every process that loads product source, and that those ' +
       `processes inherit ${RECORDING_VARIABLE}.`,
   });
@@ -192,68 +178,28 @@ function carried(): Carried | undefined {
   return value === undefined || value === '' ? undefined : (JSON.parse(value) as Carried);
 }
 
-/** One store segment per process and recording. */
-interface Writer {
-  readonly records: RecordWriter;
-}
-
-const writers = new Map<string, Writer>();
-
-function writerFor(recording: Carried): Writer {
-  const key = `${recording.store}\0${recording.mode}`;
-  let writer = writers.get(key);
-  if (writer === undefined) {
-    writer = {
-      records: openRecords(recording.store, instrumentationId(recording.mode)),
-    };
-    writers.set(key, writer);
-  }
-  return writer;
-}
-
-export interface InstrumentModuleOptions {
-  /**
-   * The source map from the file on disk to `code`, when an earlier transform
-   * made `code`. Block lines are then recorded as lines of the file on disk.
-   */
-  readonly map?: TransformSourceMap | string;
-  /** The text of the file on disk, when the caller has it; read from disk when absent. */
-  readonly source?: string;
-}
-
 /**
- * Put probes on one product module, and record what they mean.
+ * Put probes on one product module.
  *
  * For a runner that already transforms source — a bundler, a compile step, its
- * own loader. Call it last, on the JavaScript the runner is about to evaluate.
- * The probes keep every line where it was, so a source map for `code` still
- * names the right lines. Outside a recording it answers `code` unchanged,
- * because instrumented code needs a recording to run in.
+ * own loader. Call it first, on the file as it is on disk: the probes report
+ * the file and the digest of `code`, and the fold cuts the file again where
+ * the digest still matches. A module handed over after another transform
+ * changed it is recorded as one whose reach is not known, which selects every
+ * test that entered it. The probes keep every line where it was, so a later
+ * transform's source map still names the right lines. Outside a recording it
+ * answers `code` unchanged, because instrumented code needs a recording to run
+ * in.
  *
  * Only for product source: a test file is not a module that other files run,
  * and its own edit already selects it.
  */
-export function instrumentModule(code: string, file: string, options: InstrumentModuleOptions = {}): string {
+export function instrumentModule(code: string, file: string): string {
   const recording = carried();
   if (recording === undefined) return code;
   const path = resolve(file);
-  const map = typeof options.map === 'string' ? (JSON.parse(options.map) as TransformSourceMap) : options.map;
-  const { extentOf, sourceDigest, file: wrote, text } = recordedFrame(code, map, path, (at) =>
-    at === path && options.source !== undefined ? options.source : readFileSync(at, 'utf8'));
-  const { records } = writerFor(recording);
-  const name = projectPath(recording.root, wrote);
-  const id: ModuleId = name;
-  const done = instrument(code, name, id, { mode: recording.mode });
-  writeRecord(records, done === undefined
-    ? { file: name, id, sourceDigest, instrumented: false, blocks: [] }
-    : {
-        file: name,
-        id,
-        sourceDigest,
-        instrumented: true,
-        blocks: coverageBlocks(done.blocks, { extentOf, text }),
-      });
-  return done === undefined ? code : done.code;
+  const original = (at: string) => (at === path ? code : readFileSync(at, 'utf8'));
+  return captureModule(recording.root, path, code, () => true, recording.mode, original)?.code ?? code;
 }
 
 export interface RegisterRecordingOptions {
@@ -293,7 +239,7 @@ export function registerRecording(options: RegisterRecordingOptions = {}): Modul
       // The observed file is the test, and a test is not a module other files run.
       if (file === observing || !include(file)) return loaded;
       const code = typeof loaded.source === 'string' ? loaded.source : new TextDecoder().decode(loaded.source);
-      return { ...loaded, source: instrumentModule(code, file, { source: code }) };
+      return { ...loaded, source: instrumentModule(code, file) };
     },
   });
 }

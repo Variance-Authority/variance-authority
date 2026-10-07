@@ -9,7 +9,6 @@ import { commitRunsFile } from './commit-runs.js';
 import { CrossingSets } from './crossing-sets.js';
 import { encodeSetExecutionIndex } from './execution-set-format.js';
 import { encodeRecordedEyes } from './eyes-record.js';
-import { recordStore, recordStores } from './instrumented-modules.js';
 import {
   mainlineReadRoot,
   readTestCoverage,
@@ -171,7 +170,6 @@ describe('where a checkout keeps its cache', () => {
 
     expect(repositoryLayers(member, cacheRoot)).toEqual(repositoryLayers(at, cacheRoot));
     expect(testCoverageFile(member, { cacheRoot })).toBe(testCoverageFile(at, { cacheRoot }));
-    expect(recordStore(member, 'storybook', cacheRoot)).toBe(recordStore(at, 'storybook', cacheRoot));
     expect(cacheLayers(member, cacheRoot).top).not.toBe(cacheLayers(at, cacheRoot).top);
   });
 
@@ -182,21 +180,6 @@ describe('where a checkout keeps its cache', () => {
 
     expect(layers.top).toBe(layers.base);
     expect(layers.base).not.toBe(elsewhere.base);
-  });
-});
-
-describe('what a checkout inherits', () => {
-  test('a worktree reads the record store beneath its own, nearest last', async () => {
-    const at = await checkout();
-    const cacheRoot = resolve(at, 'cache');
-    const primary = resolve(at, 'primary');
-    const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
-
-    expect(recordStores(primary, 'build', cacheRoot)).toEqual([recordStore(primary, 'build', cacheRoot)]);
-    expect(recordStores(path, 'build', cacheRoot)).toEqual([
-      recordStore(primary, 'build', cacheRoot),
-      recordStore(path, 'build', cacheRoot),
-    ]);
   });
 });
 

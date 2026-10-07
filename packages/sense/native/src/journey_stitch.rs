@@ -157,9 +157,7 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
         modules.push(Module {
             id: file.clone(),
             file,
-            digest: [0; 16],
             blocks,
-            lands: Vec::new(),
         });
         landings.push(lands);
     }

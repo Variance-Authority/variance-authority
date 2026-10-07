@@ -234,14 +234,25 @@ function builtMap(code: string, file: string, original: (path: string) => string
   try {
     const disk = original(file);
     const pointer = SOURCE_MAPPING_URL.exec(disk);
-    if (pointer === null) return undefined;
-    const end = pointer.index + pointer[0].length;
-    if (code !== disk && code !== `${disk.slice(0, pointer.index)}${' '.repeat(pointer[0].length)}${disk.slice(end)}`) return undefined;
+    if (pointer === null || !handedTexts(disk).includes(code)) return undefined;
     const map = JSON.parse(original(resolve(dirname(file), pointer[1]!))) as Partial<TransformSourceMap> | null;
     return typeof map?.mappings === 'string' && Array.isArray(map.sources) ? map as TransformSourceMap : undefined;
   } catch {
     return undefined;
   }
+}
+
+/**
+ * The texts a host hands a transform for a file whose contents are `disk`: the
+ * file as it is, and, when it ends in a `sourceMappingURL` comment, the file
+ * with that comment blanked in place, which is what a Vite dev server hands a
+ * plugin once it has read the map itself.
+ */
+export function handedTexts(disk: string): readonly string[] {
+  const pointer = SOURCE_MAPPING_URL.exec(disk);
+  if (pointer === null) return [disk];
+  const end = pointer.index + pointer[0].length;
+  return [disk, `${disk.slice(0, pointer.index)}${' '.repeat(pointer[0].length)}${disk.slice(end)}`];
 }
 
 /** The frame of a module whose transformed text is empty: the file, every line of it. */

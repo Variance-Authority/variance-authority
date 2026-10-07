@@ -14,33 +14,28 @@ import {
 
 afterEach(forgetThePage);
 
-describe('two builds of one repository, cut from different texts', () => {
-  it('declares a module two builds cut differently, which no row of theirs can speak for', async () => {
-    // Two builds of one repository instrument the same path and disagree about
-    // the text it was cut from, so `readRecords` hands it back with no blocks
-    // and the crossings loop above drops it. What was left was a subject that
-    // entered a file and a snapshot saying nothing about it: the change landed
-    // in `unread`, which clears the skip list for every other subject in the
-    // run. Declared instead, the subject that entered it is selected by name
-    // and the rest of the run still skips — which is what `jest-reporter.ts`
-    // has always done with the same module.
+/** The file as the checkout has it once it has moved on from the text the build instrumented. */
+const MOVED_ON = `// edited after the build\n${SOURCE}`;
+
+describe('a file that moved on since the build', () => {
+  it('declares a module whose text the join can no longer find', async () => {
+    // The probes name a text the checkout no longer holds, so no ordinal in it
+    // can be read. Dropped, the subject that entered the file would leave a
+    // snapshot saying nothing about it: the change lands in `unread`, which
+    // clears the skip list for every other subject in the run. Declared
+    // instead, the subject that entered it is selected by name and the rest of
+    // the run still skips — which is what `jest-reporter.ts` does with a module
+    // its transformer never instrumented.
     await inRoot(async (root) => {
-      const cacheRoot = resolve(root, 'cache');
       const coverageFile = resolve(root, 'coverage.bin');
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const app = testSelectionProbes({ root, cacheRoot, label: 'app' });
-      const transformed = app.transform(SOURCE, module)!;
+      const transformed = testSelectionProbes({ root }).transform(SOURCE, module)!;
 
-      // The same path, instrumented by a second build against a different text
-      // — a generated module, or a worktree the other build is checked out at.
-      // The digest is of the text on disk (`probes.ts`), so the disk is what has
-      // to move between the two.
-      await writeFile(module, `// the other build's copy of this file\n${SOURCE}`, 'utf8');
-      const preview = testSelectionProbes({ root, cacheRoot, label: 'preview' });
-      preview.transform(`// the other build's copy of this file\n${SOURCE}`, module);
-      await writeFile(module, SOURCE, 'utf8');
+      // The checkout moves on after the build: the probes were placed on a
+      // text the join can no longer find.
+      await writeFile(module, MOVED_ON, 'utf8');
 
       // Drained first, so what the module crossed while it was evaluating is
       // nobody's here. That crossing belongs to every subject the page served,
@@ -53,10 +48,7 @@ describe('two builds of one repository, cut from different texts', () => {
 
       const recorded = await recordExecution({
         root,
-        cacheRoot,
         coverageFile,
-        label: 'app',
-        heads: ['preview'],
         subjects: [
           { owner: 'story:price--premium', journal: premium },
           { owner: 'story:price--elsewhere', journal: elsewhere },
@@ -71,7 +63,7 @@ describe('two builds of one repository, cut from different texts', () => {
     });
   });
 
-  it('gives a module two builds cut differently to every subject the page served', async () => {
+  it('gives a module that moved on to every subject the page served', async () => {
     // The same module, and the same silence about its regions — but this time
     // the page evaluated it inside the first subject's window. An evaluating
     // module is entered once and consumed by everyone after, which the loop
@@ -80,18 +72,13 @@ describe('two builds of one repository, cut from different texts', () => {
     // reported the module still ran on top of it, and a change to its text is
     // a change under all of them.
     await inRoot(async (root) => {
-      const cacheRoot = resolve(root, 'cache');
       const coverageFile = resolve(root, 'coverage.bin');
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const app = testSelectionProbes({ root, cacheRoot, label: 'app' });
-      const transformed = app.transform(SOURCE, module)!;
+      const transformed = testSelectionProbes({ root }).transform(SOURCE, module)!;
 
-      await writeFile(module, `// the other build's copy of this file\n${SOURCE}`, 'utf8');
-      const preview = testSelectionProbes({ root, cacheRoot, label: 'preview' });
-      preview.transform(`// the other build's copy of this file\n${SOURCE}`, module);
-      await writeFile(module, SOURCE, 'utf8');
+      await writeFile(module, MOVED_ON, 'utf8');
 
       // Not drained before the call, so the module's own evaluation is in the
       // first subject's journal and nothing at all is in the second's.
@@ -102,10 +89,7 @@ describe('two builds of one repository, cut from different texts', () => {
 
       await recordExecution({
         root,
-        cacheRoot,
         coverageFile,
-        label: 'app',
-        heads: ['preview'],
         subjects: [
           { owner: 'story:price--served', journal: served },
           { owner: 'story:price--after', journal: after },
@@ -118,35 +102,27 @@ describe('two builds of one repository, cut from different texts', () => {
     });
   });
 
-  it('keeps the driver’s own digest for a file it declared and the stores also answered for', async () => {
+  it('keeps the driver’s own digest for a file it declared and the join also declared', async () => {
     // Both halves name the same path and mean different texts: the driver's is
-    // the text it resolved, the store's is the text a build was cut from. A
+    // the text it resolved, the join's is the text on disk. A
     // precondition is read against the working tree, so the driver's is the one
     // that can be true — and two rows for one name is the duplicate the encoder
     // refuses.
     await inRoot(async (root) => {
-      const cacheRoot = resolve(root, 'cache');
       const coverageFile = resolve(root, 'coverage.bin');
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const app = testSelectionProbes({ root, cacheRoot, label: 'app' });
-      const transformed = app.transform(SOURCE, module)!;
+      const transformed = testSelectionProbes({ root }).transform(SOURCE, module)!;
 
-      await writeFile(module, `// the other build's copy of this file\n${SOURCE}`, 'utf8');
-      const preview = testSelectionProbes({ root, cacheRoot, label: 'preview' });
-      preview.transform(`// the other build's copy of this file\n${SOURCE}`, module);
-      await writeFile(module, SOURCE, 'utf8');
+      await writeFile(module, MOVED_ON, 'utf8');
 
       const realm = evaluate(transformed.code);
       realm.price(20);
 
       await recordExecution({
         root,
-        cacheRoot,
         coverageFile,
-        label: 'app',
-        heads: ['preview'],
         subjects: [
           {
             owner: 'story:price--premium',
@@ -167,50 +143,41 @@ describe('two builds of one repository, cut from different texts', () => {
     });
   });
 
-  it('keeps a subject the stores disagreed about once a later run agrees about the module', async () => {
-    // The disagreement costs this run every crossing in the module, and the
-    // run is still whole: the subject ran, and what it ran on is declared. The
-    // cost lands a generation later. A second run whose stores agree records
-    // the module instrumented, with its own subjects' crossings and nobody
+  it('keeps a subject declared over a moved file once a later run reads the module', async () => {
+    // The move costs this run every crossing in the module, and the run is
+    // still whole: the subject ran, and what it ran on is declared. The cost
+    // lands a generation later. A second run over the built text records the
+    // module instrumented, with its own subjects' crossings and nobody
     // else's — so the merged snapshot has a row that answers this diff, which
     // is exactly what stops `unread` from widening, and a subject that entered
     // the changed branch and is nowhere in it. The declaration is the only
     // thing left standing between that subject and a green run over its own
     // change.
     await inRoot(async (root) => {
-      const cacheRoot = resolve(root, 'cache');
       const coverageFile = resolve(root, 'coverage.bin');
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const app = testSelectionProbes({ root, cacheRoot, label: 'app' });
-      const transformed = app.transform(SOURCE, module)!;
+      const transformed = testSelectionProbes({ root }).transform(SOURCE, module)!;
 
-      await writeFile(module, `// the other build's copy of this file\n${SOURCE}`, 'utf8');
-      const preview = testSelectionProbes({ root, cacheRoot, label: 'preview' });
-      preview.transform(`// the other build's copy of this file\n${SOURCE}`, module);
-      await writeFile(module, SOURCE, 'utf8');
+      await writeFile(module, MOVED_ON, 'utf8');
 
       const realm = evaluate(transformed.code);
       realm.collector.drain();
       realm.price(20);
       await recordExecution({
         root,
-        cacheRoot,
         coverageFile,
-        label: 'app',
-        heads: ['preview'],
         subjects: [{ owner: 'story:price--premium', journal: realm.collector.drain() }],
       });
 
-      // The page the second run drove is the one build, so the peer that
-      // disagreed is not among its stores and the module reads whole.
+      // The checkout is back on the text the build instrumented, so the module
+      // reads whole.
+      await writeFile(module, SOURCE, 'utf8');
       realm.price(1);
       await recordExecution({
         root,
-        cacheRoot,
         coverageFile,
-        label: 'app',
         subjects: [{ owner: 'story:price--plain', journal: realm.collector.drain() }],
       });
 

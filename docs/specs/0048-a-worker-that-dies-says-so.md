@@ -68,8 +68,6 @@ The problem is everything around them.
   `report()`, then returns without sending at `:253` when the channel is
   undefined. The observation is destroyed before the code discovers it cannot be
   delivered.
-- `instrumented-modules.ts:165-167` ignores what `writeSync` returns on every
-  inventory append, so a short write is a silently truncated frame.
 
 None of these is marked. `FIXME`, `it.todo` and `test.todo` appear **zero**
 times across `packages/sense/src/test-selection` and
