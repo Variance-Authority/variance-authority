@@ -209,7 +209,7 @@ function subpathsOnly(help: Help, published: Documented): string {
  */
 function unenteredAnswer(help: Help, asked: string, owner: string): Sites | undefined {
   if (!help.byPath.some((held) => ownerOf(held.specifier) === owner)) return undefined;
-  const heading = `${owner} declares no entry: no \`exports\`, \`main\` or \`types\`.`;
+  const heading = `${owner} declares no entry: no \`exports\`, \`main\`, \`types\` or \`typings\`.`;
   if (asked === owner) {
     const imports = takenByPath(help).get(owner) ?? [];
     if (imports.length === 0) return { lines: [`${heading} No other package imports a file of it.`], asks: [] };

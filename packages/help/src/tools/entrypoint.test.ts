@@ -14,7 +14,7 @@ describe('docs_entrypoint on a package other packages import by path', () => {
     const text = entrypoint.run(BY_PATH, { package: '@acme/kit' });
 
     expect(text).toMatch(
-      /^@acme\/kit declares no entry: no `exports`, `main` or `types`\. Other packages import 2 names from 2 of its files by path, most imported first:$/m,
+      /^@acme\/kit declares no entry: no `exports`, `main`, `types` or `typings`\. Other packages import 2 names from 2 of its files by path, most imported first:$/m,
     );
     expect(text).toContain('  @acme/kit/src/money/tax — 1 name, imported by 1 file');
     expect(text).toContain('  @acme/kit/src/ui/Button — 1 name, imported by 1 file');
