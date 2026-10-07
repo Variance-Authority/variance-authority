@@ -249,8 +249,9 @@ how many workspace packages import them. Called with a package's name, it lists
 the names its main entry opens and then counts the imports past that entry, one
 row per file, the file the most files import first; for a package that declares
 no entry it counts the imports of its files by path the same way. Each row is a
-specifier, and called with it, `docs_entrypoint` lists every import of that file
-with the importer's file and line. Then call `docs_symbol` for the import line, declaration, signature,
+specifier, and called with it, `docs_entrypoint` counts the imports written as
+that specifier per name, each with how many files import it; `docs_uses` with
+the name and the specifier lists their files and lines. Then call `docs_symbol` for the import line, declaration, signature,
 source documentation, and importing packages of the name you are investigating.
 
 Call `docs_uses` when the question is how the name is written here rather than

@@ -54,17 +54,17 @@ export const BY_PATH: Help = {
   unreadable: [],
 };
 
-/** `BY_PATH` with `more` imports of each file another package imports by path. */
-export function busier(more: number): Help {
+/** `base`, `BY_PATH` unless given, with `more` imports of each file another package imports by path. */
+export function busier(more: number, base: Help = BY_PATH): Help {
   const again = (held: Deep, index: number): Deep => {
     const at = held.at.replace(/\.ts$/u, `-${index}.ts`);
     return { ...held, at, names: held.names.map((taken) => ({ ...taken, at })) };
   };
-  return {
-    ...BY_PATH,
-    deep: [...BY_PATH.deep, ...Array.from({ length: more }, (_, index) => BY_PATH.deep.map((held) => again(held, index))).flat()],
-    byPath: [...BY_PATH.byPath, ...Array.from({ length: more }, (_, index) => BY_PATH.byPath.map((held) => again(held, index))).flat()],
-  };
+  const repeated = (imports: readonly Deep[]): readonly Deep[] => [
+    ...imports,
+    ...Array.from({ length: more }, (_, index) => imports.map((held) => again(held, index))).flat(),
+  ];
+  return { ...base, deep: repeated(base.deep), byPath: repeated(base.byPath), unfollowed: repeated(base.unfollowed) };
 }
 
 /**

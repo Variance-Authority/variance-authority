@@ -1,17 +1,16 @@
-import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Deep, Documented, Help } from '@variance-authority/package/help';
 import {
+  type ByName,
   type FileTaken,
   REACHING,
   UNFOLLOWED,
   counted,
-  isName,
+  byName,
   ownerOf,
   perFile,
   reachingPast,
-  surfaceByPath,
   takenByPath,
   tally,
   unfollowedEntry,
@@ -37,7 +36,8 @@ import { line, mostUsed, narrower, openingRow, plural, shell } from './format.js
  * per file they reach, and lists no site: a package imported from ten thousand
  * places would otherwise answer with ten thousand lines. Each row names the
  * specifier to ask for, and asked by a specifier no entry opens, the answer
- * lists the imports written as that specifier, one line per site. A package whose
+ * counts the imports written as that specifier per name, and `uses` lists the
+ * sites of one name. A package whose
  * `exports` opens only subpaths has no names to list under its name, so the
  * specifiers it opens are listed in their place.
  */
@@ -48,7 +48,7 @@ export const entrypoint: Tool<Help> = {
     'kind and the first line of its documentation. Names marked UNDOCUMENTED have nothing ' +
     'written above them — the source is the only thing that says what they do. Asked by a ' +
     "package's name, it also counts the imports that reach past the package's entry, one row per file " +
-    'they reach; asked by one of those specifiers, it lists the import sites of that specifier. For a ' +
+    'they reach; asked by one of those specifiers, it counts the files importing each name through it. For a ' +
     'package that opens only subpaths, asked by its name, it lists the specifiers it opens. For a ' +
     'package that declares no entry it counts what other packages import from it by path, the same way. ' +
     'Use docs_symbol for the full ' +
@@ -112,7 +112,7 @@ export const entrypoint: Tool<Help> = {
   },
 };
 
-/** Import sites, and the commands that narrow them. */
+/** An answer's lines, and the commands that narrow it. */
 interface Sites {
   readonly lines: readonly string[];
   readonly asks: readonly string[];
@@ -120,8 +120,8 @@ interface Sites {
 
 /**
  * The imports past the entry of `owner`: asked by the package, one row per file
- * they reach, and asked by one specifier, one line per import of it. The
- * narrower questions follow from what is printed.
+ * they reach, and asked by one specifier, one row per name taken through it.
+ * The narrower questions follow from what is printed.
  */
 function pastEntry(reaching: readonly Deep[], owner: string, grain: 'files' | 'sites'): Sites {
   const heading = `${plural(reaching.length, 'import reaches', 'imports reach')} past a published entrypoint of ${owner}. ${REACHING}`;
@@ -129,14 +129,8 @@ function pastEntry(reaching: readonly Deep[], owner: string, grain: 'files' | 's
     const files = perFile(reaching);
     return { lines: [`${heading}. By file, most imported first:`, ...files.map(fileRow)], asks: filesAsks(files) };
   }
-  const first = reaching
-    .flatMap((held) => held.names.map((taken) => taken.name))
-    .filter(isName)
-    .sort(codeUnitOrder)[0];
-  return {
-    lines: [`${heading}:`, ...reaching.map((held) => `  ${held.specifier} — ${held.by} at ${held.at}:${held.line}`)],
-    asks: first === undefined ? [] : [usesOf(first, reaching[0]!.specifier)],
-  };
+  const names = byName(reaching);
+  return { lines: [`${heading}. By name, most imported first:`, ...names.lines], asks: namesAsks(names, reaching[0]!.specifier) };
 }
 
 /** `<specifier> — N names, imported by M files`, the file's other spellings after a comma. */
@@ -178,16 +172,19 @@ function beyond(help: Help, owner: string): Sites | undefined {
   return { lines: parts.flatMap((part, at) => [...(at === 0 ? [] : ['']), ...part.lines]), asks: parts.flatMap((part) => part.asks) };
 }
 
-/** The imports written as one specifier a manifest declares and this reading could not follow, one line per site. */
+/** The imports written as one specifier a manifest declares and this reading could not follow, one row per name. */
 function unfollowedSites(naming: readonly Deep[], asked: string): Sites {
-  const first = naming.flatMap((held) => held.names.map((taken) => taken.name)).filter(isName).sort(codeUnitOrder)[0];
+  const names = byName(naming);
+  const heading = `${asked} is an entry ${UNFOLLOWED}, so none of its names are listed.`;
   return {
-    lines: [
-      `${asked} is an entry ${UNFOLLOWED}, so none of its names are listed. ${plural(naming.length, 'import names', 'imports name')} it:`,
-      ...naming.map((held) => `  ${held.specifier} — ${held.by} at ${held.at}:${held.line}`),
-    ],
-    asks: first === undefined ? [] : [usesOf(first, asked)],
+    lines: [`${heading} ${plural(naming.length, 'import names', 'imports name')} it. By name, most imported first:`, ...names.lines],
+    asks: namesAsks(names, asked),
   };
+}
+
+/** The question that lists the sites of the first name `names` counts. */
+function namesAsks(names: ByName, specifier: string): readonly string[] {
+  return names.first === undefined ? [] : [usesOf(names.first, specifier)];
 }
 
 /**
@@ -208,7 +205,7 @@ function subpathsOnly(help: Help, published: Documented): string {
 /**
  * A package that declares no entry opens nothing, and what other packages
  * import from it by path is the answer in its place: counted per file when it
- * is asked by its name, and one line per name taken when asked by a specifier.
+ * is asked by its name, and per name when asked by a specifier.
  */
 function unenteredAnswer(help: Help, asked: string, owner: string): Sites | undefined {
   if (!help.byPath.some((held) => ownerOf(held.specifier) === owner)) return undefined;
@@ -220,10 +217,13 @@ function unenteredAnswer(help: Help, asked: string, owner: string): Sites | unde
     const lines = [`${heading} Other packages import ${counted(tally(imports))} by path, most imported first:`, ...files.map(fileRow)];
     return { lines, asks: filesAsks(files) };
   }
-  const surface = surfaceByPath(help, owner, asked);
-  if (surface.lines.length === 0) return { lines: [`${heading} No other package imports ${asked}.`], asks: [] };
-  const asks = surface.first === undefined ? [] : [usesOf(surface.first.name, surface.first.specifier)];
-  return { lines: [`${heading} Other packages import ${plural(surface.names, 'name')} from ${asked} by path:`, ...surface.lines], asks };
+  const imports = (takenByPath(help).get(owner) ?? []).filter((held) => held.specifier === asked);
+  if (imports.length === 0) return { lines: [`${heading} No other package imports ${asked}.`], asks: [] };
+  const names = byName(imports);
+  return {
+    lines: [`${heading} Other packages import ${plural(names.names, 'name')} from ${asked} by path, most imported first:`, ...names.lines],
+    asks: namesAsks(names, asked),
+  };
 }
 
 /**

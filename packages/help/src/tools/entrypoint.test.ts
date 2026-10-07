@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { BY_PATH, QUIET, SUBPATHS_ONLY, busier } from '../__fixtures__/imported-by-path.js';
+import { BY_PATH, QUIET, SUBPATHS_ONLY, busier, importOf } from '../__fixtures__/imported-by-path.js';
 import { entrypoint } from './entrypoint.js';
 
 /**
  * `docs_entrypoint` on a package other packages import by path: the question
- * that counts per file, then lists for one file, the import sites behind what
- * `docs_packages` counts. What one published specifier opens is in
+ * that counts per file, then per name for one specifier, what `docs_packages`
+ * counts. `uses` lists the sites of one name. What one published specifier opens is in
  * `help.test.ts`.
  */
 
@@ -27,7 +27,8 @@ describe('docs_entrypoint on a package other packages import by path', () => {
   it('takes one file of a package that declares no entry, unsplit or split, and answers the same', () => {
     const text = entrypoint.run(BY_PATH, { package: '@acme/kit/src/money/tax' });
 
-    expect(text).toMatch(/^@acme\/kit declares no entry: .* Other packages import 1 name from @acme\/kit\/src\/money\/tax by path:$/m);
+    expect(text).toMatch(/^@acme\/kit declares no entry: .* Other packages import 1 name from @acme\/kit\/src\/money\/tax by path, most imported first:$/m);
+    expect(text).toMatch(/^ {2}taxOf — imported by 1 file$/m);
     expect(entrypoint.run(BY_PATH, { package: '@acme/kit', subpath: './src/money/tax' })).toBe(text);
   });
 
@@ -62,8 +63,8 @@ describe('docs_entrypoint on a package other packages import by path', () => {
   it('takes one specifier past the entry, unsplit or split, and answers for that specifier alone', () => {
     const text = entrypoint.run(BY_PATH, { package: '@acme/lib/src/internal/math' });
 
-    expect(text).toMatch(/^1 import reaches past a published entrypoint of @acme\/lib\./m);
-    expect(text).toContain('  @acme/lib/src/internal/math — @acme/app at apps/app/src/total.ts:1');
+    expect(text).toMatch(/^1 import reaches past a published entrypoint of @acme\/lib\. .* By name, most imported first:$/m);
+    expect(text).toMatch(/^ {2}addTax — imported by 1 file$/m);
     expect(text).not.toContain('format');
     expect(entrypoint.run(BY_PATH, { package: '@acme/lib', subpath: './src/internal/math' })).toBe(text);
   });
@@ -84,18 +85,54 @@ describe('docs_entrypoint on a package other packages import by path', () => {
     }
   });
 
-  it('counts the sites per file asked by a package name, so many sites cost no lines, and its rows reach every site', () => {
+  it('counts the sites per file asked by a package name, so many sites cost no lines', () => {
     const many = busier(100);
     for (const name of ['@acme/kit', '@acme/lib']) {
       const text = entrypoint.run(many, { package: name });
-      const rows = [...text.matchAll(/^ {2}(\S+) — \d+ names?, imported by \d+ files?$/gmu)].map((row) => row[1]!);
-      const listed = rows.flatMap((specifier) => entrypoint.run(many, { package: specifier }).split('\n').filter((row) => / at \S+:\d+$/u.test(row)));
 
       expect(text.split('\n')).toHaveLength(entrypoint.run(BY_PATH, { package: name }).split('\n').length);
       expect(text).not.toMatch(/ at \S+:\d+$/mu);
-      expect(rows).toHaveLength(2);
-      expect(new Set(listed).size).toBe(202);
+      expect([...text.matchAll(/^ {2}\S+ — \d+ names?, imported by 101 files$/gmu)]).toHaveLength(2);
     }
+  });
+
+  it('counts the imports of one specifier per name, so many sites cost no lines, and names `uses` for the sites of the first', () => {
+    // `@acme/quiet/server` is a second entry `@acme/quiet` declares, which this reading could not follow either.
+    const served = { ...QUIET, unfollowed: [...QUIET.unfollowed, importOf('@acme/quiet/server', '@acme/app', 'apps/app/src/served.ts', ['listen'])] };
+    for (const [base, specifier, name] of [
+      [BY_PATH, '@acme/kit/src/money/tax', 'taxOf'],
+      [BY_PATH, '@acme/lib/src/internal/math', 'addTax'],
+      [served, '@acme/quiet/server', 'listen'],
+    ] as const) {
+      const text = entrypoint.run(busier(100, base), { package: specifier });
+      const asks = text.slice(text.indexOf('Narrower questions:')).split('\n').slice(1);
+
+      expect(text.split('\n')).toHaveLength(entrypoint.run(base, { package: specifier }).split('\n').length);
+      expect(text).not.toMatch(/ at \S+:\d+$/mu);
+      expect(text).toMatch(new RegExp(`^ {2}${name} — imported by 101 files$`, 'mu'));
+      expect(asks).toEqual([`  variance ask uses --name ${name} --package ${specifier}`]);
+    }
+  });
+
+  it('orders the names under one specifier by how many files import each, ties in code-unit order, and gives the whole module a row of its own', () => {
+    const help = {
+      ...BY_PATH,
+      deep: [
+        importOf('@acme/lib/src/internal/math', '@acme/app', 'apps/app/src/a.ts', ['roundTax', 'addTax']),
+        importOf('@acme/lib/src/internal/math', '@acme/app', 'apps/app/src/b.ts', ['roundTax']),
+        importOf('@acme/lib/src/internal/math', '@acme/app', 'apps/app/src/c.ts', ['ceilTax']),
+        importOf('@acme/lib/src/internal/math', '@acme/app', 'apps/app/src/d.ts', []),
+      ],
+    };
+    const text = entrypoint.run(help, { package: '@acme/lib/src/internal/math' });
+
+    expect(text.split('\n').filter((row) => / — imported by /u.test(row))).toEqual([
+      '  roundTax — imported by 2 files',
+      '  addTax — imported by 1 file',
+      '  ceilTax — imported by 1 file',
+      '  the whole module, no name read — imported by 1 file',
+    ]);
+    expect(text).toMatch(/^ {2}variance ask uses --name roundTax --package @acme\/lib\/src\/internal\/math$/m);
   });
 
   it('says the counts are floors when a file could not be read', () => {
@@ -114,7 +151,7 @@ describe('docs_entrypoint on a package other packages import by path', () => {
     expect(text).toContain('  @acme/quiet/src/hush — 1 name, imported by 1 file');
     expect(text).toMatch(/^ {2}variance ask uses --name hush --package @acme\/quiet$/m);
     expect(text).not.toMatch(/^ {2}variance ask entrypoint --package @acme\/quiet$/m);
-    expect(entrypoint.run(QUIET, { package: '@acme/quiet/src/hush' })).toContain('  @acme/quiet/src/hush — @acme/app at apps/app/src/hushed.ts:1');
+    expect(entrypoint.run(QUIET, { package: '@acme/quiet/src/hush' })).toMatch(/^ {2}hush — imported by 1 file$/m);
   });
 
   it('refuses a specifier nothing opens and nothing imports, saying which of the two its package lacks', () => {

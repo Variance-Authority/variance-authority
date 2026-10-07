@@ -200,7 +200,9 @@ describe('the narrower questions', () => {
     expect(srv![1]).toContain('  @acme/srv/src/routes — 1 name, imported by 2 files');
     expect(answered.map(([question]) => question)).toContain('docs_entrypoint {"package":"@acme/srv/server"}');
     const routes = answered.find(([question]) => question === 'docs_entrypoint {"package":"@acme/srv/src/routes"}');
-    expect(routes?.[1]).toContain('  @acme/srv/src/routes — @acme/app at apps/app/src/admin.ts:1');
+    expect(routes?.[1]).toContain('  route — imported by 2 files');
+    const uses = answered.find(([question]) => question === 'docs_uses {"name":"route","package":"@acme/srv/src/routes"}');
+    expect(uses?.[1]).toMatch(/^apps\/app\/src\/admin\.ts:1 — @acme\/app, deep import of @acme\/srv\/src\/routes$/m);
   });
 
   it('name an import past an entry so that `uses` finds it, when the entry publishes the same name from another file', () => {

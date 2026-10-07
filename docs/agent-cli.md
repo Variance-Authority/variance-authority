@@ -222,9 +222,12 @@ that entry, and it is a deep import.
 
 Pass the package's name to count those imports per file, the file the most
 files import first: `variance ask entrypoint --package @acme/legacy`. Each row
-of that answer is a specifier. Pass it to list every import of that file with
-the importer's file and line. A package with ten thousand importers answers in
-one row per file, never one line per import. Asked by the name of a package that
+of that answer is a specifier. Pass it to count the imports written as that
+specifier per name, each name with how many files import it, and
+`variance ask uses --name <name> --package <specifier>` lists the importer's
+file and line for one name. A package with ten thousand importers answers in
+one row per file, and a specifier in one row per name, never one line per
+import. Asked by the name of a package that
 declares an entry, `entrypoint` lists the names its main entry opens and then
 counts the imports past it the same way. A package whose `exports` opens only
 subpaths has no main entry, so asked by its name it lists the specifiers it

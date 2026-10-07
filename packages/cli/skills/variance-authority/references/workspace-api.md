@@ -128,10 +128,13 @@ entry opens, then counts the imports that reach past its entry, one row per
 file: its specifier, how many names are taken from it and how many files import
 it, the most imported first. A package that declares no entry opens nothing, and
 the answer counts what other packages import from it by path the same way.
-Asked by one of those specifiers, it lists each import of that file with the
-importer's file and line. The answer ends with the narrower questions it has,
-if any: the first row's specifier, and `uses` on the name the most files take
-through it.
+Asked by one of those specifiers, it counts the imports written as that
+specifier per name, each name with how many files import it, the most imported
+first; an import that takes no name, for its side effect or the module whole,
+is counted on a row of its own. The answer ends with the narrower questions it
+has, if any: asked by a package, the first row's specifier and `uses` on the
+name the most files take through it; asked by a specifier, `uses` on its first
+name, which lists that name's import sites.
 
 ### `symbol --name <name> [--package <name>] [--from <path>]`
 

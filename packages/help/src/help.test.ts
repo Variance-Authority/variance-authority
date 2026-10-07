@@ -43,7 +43,7 @@ describe('the question that takes no argument', () => {
     expect(tool.run(reaching, {})).toMatch(/^ {2}variance ask entrypoint --package alpha$/m);
     const door = HELP_TOOLS.find((candidate) => candidate.name === 'docs_entrypoint')!;
     expect(door.run(reaching, { package: 'alpha' })).toContain('  alpha/values — 0 names, imported by 1 file');
-    expect(door.run(reaching, { package: 'alpha/values' })).toContain('alpha/values — beta at packages/beta/src/index.ts:2');
+    expect(door.run(reaching, { package: 'alpha/values' })).toMatch(/^ {2}the whole module, no name read — imported by 1 file$/m);
   });
 
   it('says when a file could not be read, because a missed import makes a live name look dead', () => {

@@ -86,19 +86,6 @@ export function unfollowedOf(help: Help, owner: string): readonly Deep[] {
     .sort((left, right) => codeUnitOrder(left.specifier, right.specifier) || codeUnitOrder(left.at, right.at) || left.line - right.line);
 }
 
-/** What other packages import by path from one package: the counts a heading states, and a line per name. */
-export interface Surface {
-  /** Distinct names, each counted once per file that exports it. */
-  readonly names: number;
-  readonly files: number;
-  readonly lines: readonly string[];
-  /**
-   * The first name the lines take, other than the whole module, and the
-   * specifier it is taken from, for the narrower question about one name.
-   */
-  readonly first?: { readonly name: string; readonly specifier: string };
-}
-
 /**
  * What other packages import by path from each package that declares no entry,
  * grouped by that package in one walk. A package's own imports of itself are
@@ -189,26 +176,36 @@ function importersBy(imports: readonly Deep[], keys: (held: Deep) => readonly st
 const mostFirst = (a: readonly [string, ReadonlySet<string>], b: readonly [string, ReadonlySet<string>]): number =>
   b[1].size - a[1].size || codeUnitOrder(a[0], b[0]);
 
+/** The imports written as one specifier, counted per name as asking for that specifier answers for them. */
+export interface ByName {
+  /** Distinct names taken, the whole module not among them. */
+  readonly names: number;
+  /** One row per name, and one for the whole module when an import takes no name. */
+  readonly lines: readonly string[];
+  /** The name the most files take, for the narrower question about its sites; none when no import takes a name. */
+  readonly first?: string;
+}
+
 /**
- * What other packages import from a package that declares no entry, written as
- * one specifier: one line per name each import takes, in name, file and line
- * order, and the counts a heading states.
+ * `imports` counted per name: each name with the number of files importing it,
+ * the most first, ties in code-unit order. A side-effect import and a module
+ * held whole take no name, and are counted on a row of their own after the
+ * names it ties with. One row per name, however many sites take it: the sites
+ * of one name are what `uses` lists.
  */
-export function surfaceByPath(help: Help, owner: string, specifier: string): Surface {
-  const imports = (takenByPath(help).get(owner) ?? []).filter((held) => held.specifier === specifier);
-  const rows: (readonly [string, string, string, number, string])[] = [];
-  for (const held of imports) {
-    if (held.names.length === 0) rows.push([held.specifier, '', held.at, held.line, `  ${held.specifier} — ${held.by} at ${held.at}:${held.line}`]);
-    for (const taken of held.names) {
-      rows.push([held.specifier, taken.name, taken.at, taken.line, `  ${held.specifier} — ${taken.name} — ${taken.by} at ${taken.at}:${taken.line}`]);
-    }
-  }
-  rows.sort((a, b) => codeUnitOrder(a[0], b[0]) || codeUnitOrder(a[1], b[1]) || codeUnitOrder(a[2], b[2]) || a[3] - b[3]);
-  const row = rows.find((candidate) => isName(candidate[1]));
-  const first = row === undefined ? undefined : { name: row[1], specifier: row[0] };
+export function byName(imports: readonly Deep[]): ByName {
+  const whole = new Set<string>();
+  const named = importersBy(imports, (held) => {
+    if (!held.names.some((taken) => isName(taken.name))) whole.add(held.at);
+    return held.names.map((taken) => taken.name).filter(isName);
+  });
+  const rows: (readonly [string | undefined, number])[] = [...named].map(([name, files]) => [name, files.size] as const);
+  if (whole.size > 0) rows.push([undefined, whole.size]);
+  rows.sort((a, b) => b[1] - a[1] || (a[0] === undefined ? 1 : b[0] === undefined ? -1 : codeUnitOrder(a[0], b[0])));
+  const first = rows.find((row) => row[0] !== undefined)?.[0];
   return {
-    ...tally(imports),
-    lines: rows.map((candidate) => candidate[4]),
+    names: named.size,
+    lines: rows.map(([name, files]) => `  ${name ?? 'the whole module, no name read'} — imported by ${files} ${files === 1 ? 'file' : 'files'}`),
     ...(first === undefined ? {} : { first }),
   };
 }

@@ -16,8 +16,10 @@ number of imports that reach past a published entrypoint. It ends with the
 package's name now also counts the imports that reach past its entry, or, for a
 package that declares no entry, the imports of its files by path, one row per
 file: its specifier, how many names are taken from it and how many files import
-it, the most imported first. Asked by one of those specifiers, it lists each
-import of that file with the importer's file and line. Under a package that
+it, the most imported first. Asked by one of those specifiers, it counts the
+imports written as it per name, each name with how many files import it, where
+it listed every import with the importer's file and line, and names `uses` on
+the first name for its sites. Under a package that
 declares no entry, a specifier's count is of distinct names taken in distinct
 files, where every import of a name was counted again: fifty files importing
 one name read "50 names" and now read "1 name". Asked by the name of a package
