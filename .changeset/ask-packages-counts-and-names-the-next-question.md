@@ -36,5 +36,7 @@ packages and the ones that declare no entry in one pass, and `landing` says
 where one import between packages lands: opened by an entry, past a declared
 entry, by path into a package that declares none, or not followed.
 
-On a repository whose packages declare no entry, `variance ask packages` went from
-200,330 lines in 30 to 45 seconds to 1,327 lines in under half a second.
+On a repository whose packages declare no entry, `variance ask packages` went
+from 200,330 lines in 29.9 to 45.9 seconds to 1,339 lines in under half a
+second, and `variance ask entrypoint --package @kbn/core` went from 23,463
+lines to 13.
