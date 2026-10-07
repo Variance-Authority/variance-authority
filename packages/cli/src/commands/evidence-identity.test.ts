@@ -93,7 +93,7 @@ describe('evidenceIdentity: the build and recipe every part of one collection mu
     await put('src/Button.tsx', 'export const Button = 1;');
     const { build, diagnostics } = await evidenceIdentity(storybookAt('sb'), root);
 
-    expect(build).toEqual({ storybook: await directoryDigest(join(root, 'sb')), source: expect.stringMatching(/^[0-9a-f]{64}$/) });
+    expect(build).toEqual({ storybook: await directoryDigest(join(root, 'sb')), source: expect.stringMatching(/^v1:[0-9a-f]{32}$/) });
     expect(diagnostics.map((diagnostic) => diagnostic.message)).toEqual([expect.stringMatching(/not a git checkout/)]);
   });
 

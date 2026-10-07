@@ -3,11 +3,12 @@ import { execFile } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import { promisify } from 'node:util';
-import type { CanonicalValue } from '@variance-authority/core/format';
+import { digestBytes, digestValue, type CanonicalValue } from '@variance-authority/core/format';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Config } from '../config.js';
 import { CLI_VERSION } from '../version.js';
 import { sourceFiles } from './source-graph.js';
-import { recipeOf, sha256Hex, type EvidenceBuild, type EvidenceDiagnostic, type EvidenceRecipe } from './evidence-part.js';
+import { recipeOf, type EvidenceBuild, type EvidenceDiagnostic, type EvidenceRecipe } from './evidence-part.js';
 
 /**
  * Which bytes a collection read, and how — the two things every part of one
@@ -84,25 +85,21 @@ async function commitOf(cwd: string): Promise<string | undefined> {
   }
 }
 
-/** sha256 over every file under `root`, path and contents, in code-unit order of path. */
+/** The digest of every file under `root`, by path and contents. */
 export async function directoryDigest(root: string): Promise<string> {
   const entries = await readdir(root, { recursive: true, withFileTypes: true });
-  const files = entries
-    .filter((entry) => entry.isFile())
-    .map((entry) => relative(root, join(entry.parentPath, entry.name)).split(sep).join('/'))
-    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
-  const lines: string[] = [];
-  for (const file of files) lines.push(`${file}\0${sha256Hex((await readFile(join(root, file))).toString('latin1'))}`);
-  return sha256Hex(lines.join('\n'));
+  return filesDigest(root, entries.filter((entry) => entry.isFile()).map((entry) => join(entry.parentPath, entry.name)));
 }
 
 /** The digest of the files the source scan reads, as they are on disk, edits and git-ignored files included. */
 async function sourceDigest(cwd: string, dirs: readonly string[]): Promise<string | undefined> {
-  if (dirs.length === 0) return undefined;
-  const files = [...new Set(sourceFiles(cwd, dirs))]
-    .map((file) => [relative(cwd, file).split(sep).join('/'), file] as const)
-    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
-  const lines: string[] = [];
-  for (const [path, file] of files) lines.push(`${path}\0${sha256Hex((await readFile(file)).toString('latin1'))}`);
-  return sha256Hex(lines.join('\n'));
+  return dirs.length === 0 ? undefined : filesDigest(cwd, sourceFiles(cwd, dirs));
+}
+
+/** Each file's path relative to `root`, in `/` form and code-unit order, beside the digest of its bytes. */
+async function filesDigest(root: string, files: readonly string[]): Promise<string> {
+  const named = [...new Set(files)].map((file) => [relative(root, file).split(sep).join('/'), file] as const);
+  named.sort(([left], [right]) => codeUnitOrder(left, right));
+  const read = await Promise.all(named.map(async ([path, file]) => [path, digestBytes(await readFile(file))]));
+  return digestValue(read);
 }

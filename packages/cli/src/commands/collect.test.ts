@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { collectEvidence, type CollectInput } from './collect.js';
 import { collecting, planOf, rendered, type Opened } from './evidence-fixture.js';
-import { recipeOf, semanticOf } from './evidence-part.js';
+import { recipeOf, type EvidencePart } from './evidence-part.js';
 import { configOf } from './run-fixture.js';
 import { assign } from './shard.js';
 import type { Collected } from './collector.js';
@@ -116,7 +116,7 @@ describe('collectEvidence: one job of a collection, with nothing compared', () =
     const early = await order({ 'button--primary': 30, 'card--default': 1 });
     const late = await order({ 'card--default': 30, 'page--home': 15 });
 
-    expect(semanticOf(late)).toEqual(semanticOf(early));
+    expect(untimed(late)).toEqual(untimed(early));
     expect(early.declaredIn).toEqual({ Button: ['src/a/Button.tsx'] });
   });
 
@@ -144,3 +144,6 @@ function located(id: string): Collected {
   return { ...collected, source: { Button: [{ file, line: 1, via: 'engine' as const }] } };
 }
 
+function untimed({ acquisition: _timed, ...rest }: EvidencePart): Omit<EvidencePart, 'acquisition'> {
+  return rest;
+}

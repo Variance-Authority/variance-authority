@@ -56,7 +56,6 @@ const SAME: readonly (readonly [string, (part: EvidencePart) => unknown])[] = [
   ['were read from different builds', (part) => [part.commit ?? null, part.build]],
   ['were read under different recipes', (part) => part.recipe.digest],
   ['were cut from different plans', (part) => part.plan.digest],
-  ['were cut by different assignments', (part) => part.assignment],
   ['were narrowed by different scopes', (part) => part.scope ?? null],
 ];
 

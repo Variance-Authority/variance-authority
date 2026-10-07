@@ -9,7 +9,7 @@ import { collectEvidence } from './collect.js';
 import { mergeEvidence, type FailedSubject, type Named } from './collect-merge.js';
 import { collectorPath, loadCollector, planFor, type Collector, type CollectorContext } from './collector.js';
 import { evidenceIdentity } from './evidence-identity.js';
-import { readEvidencePart, writeEvidencePart, type EvidenceDiagnostic } from './evidence-part.js';
+import { encodeEvidencePart, readEvidencePart, type EvidenceDiagnostic } from './evidence-part.js';
 import { liveIgnores } from './ignores.js';
 import { scanSourceDirs } from './source-graph.js';
 
@@ -58,7 +58,7 @@ export async function runCollect(parsed: Collecting, config: Config, streams: St
     recipe: identity.recipe,
   });
   const part = { ...collected, diagnostics: [...identity.diagnostics, ...collected.diagnostics] };
-  await writeEvidencePart(parsed.out, part);
+  await settle(parsed.out, encodeEvidencePart(part));
 
   const failed = part.outcomes.filter((outcome) => outcome.outcome === 'failed');
   const done = part.outcomes.length - failed.length;
@@ -116,7 +116,7 @@ function report(diagnostics: readonly EvidenceDiagnostic[], streams: Streams): v
   }
 }
 
-/** Write through a temporary file and a rename, so a reader never opens half an index. */
+/** Write through a temporary file and a rename, so a reader never opens half of one. */
 async function settle(path: string, bytes: Uint8Array): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const temporary = `${path}.${String(process.pid)}.tmp`;

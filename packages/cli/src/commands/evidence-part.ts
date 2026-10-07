@@ -1,8 +1,6 @@
 // compass: variance-authority.report.shard-merge
-import { createHash } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
-import { canonicalize, type CanonicalValue, type Viewport } from '@variance-authority/core/format';
+import { readFile } from 'node:fs/promises';
+import { canonicalize, digestValue, type CanonicalValue, type Viewport } from '@variance-authority/core/format';
 import type { Plan } from './collector.js';
 import type { SuitePart } from './suite-part.js';
 
@@ -30,7 +28,7 @@ export interface PlanEntry {
 }
 
 export interface EvidencePlan {
-  /** sha256 over the entries and exclusions, in plan order. */
+  /** The digest of the entries and exclusions, in plan order. */
   readonly digest: string;
   readonly subjects: readonly PlanEntry[];
   /** Subjects the plan left out before any shard was cut, with the reason. */
@@ -53,9 +51,9 @@ export interface EvidenceDiagnostic {
 /** The bytes the evidence was read from. */
 export interface EvidenceBuild {
   readonly commit?: string;
-  /** sha256 over every file of the built Storybook. Absent for a subject list. */
+  /** The digest of every file of the built Storybook. Absent for a subject list. */
   readonly storybook?: string;
-  /** sha256 over `source.dirs` as they are on disk, edits included. Absent with no dirs. */
+  /** The digest of `source.dirs` as they are on disk, edits included. Absent with no dirs. */
   readonly source?: string;
 }
 
@@ -93,30 +91,17 @@ export function evidencePlanOf(plan: Plan): EvidencePlan {
     ...(planned.declaredIn === undefined ? {} : { declaredIn: planned.declaredIn }),
   }));
   const excluded = plan.notObserved.map((entry) => ({ subject: entry.subject, because: entry.because }));
-  return { digest: sha256Hex(canonicalize({ subjects, excluded } as unknown as CanonicalValue)), subjects, excluded };
+  return { digest: digestValue({ subjects, excluded } as unknown as CanonicalValue), subjects, excluded };
 }
 
 /** The digest a recipe is compared by. */
 export function recipeOf(reads: CanonicalValue): EvidenceRecipe {
-  return { digest: sha256Hex(canonicalize(reads)), reads };
+  return { digest: digestValue(reads), reads };
 }
 
-export function sha256Hex(text: string): string {
-  return createHash('sha256').update(text).digest('hex');
-}
-
-/** A part with its timings dropped: what two collections of one build agree on. */
-export function semanticOf(part: EvidencePart): Omit<EvidencePart, 'acquisition'> {
-  const { acquisition: _timed, ...rest } = part;
-  return rest;
-}
-
-/** Written through a temporary file, so a reader never opens half of one. */
-export async function writeEvidencePart(path: string, part: EvidencePart): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.${String(process.pid)}.tmp`;
-  await writeFile(temporary, `${canonicalize(part as unknown as CanonicalValue)}\n`);
-  await rename(temporary, path);
+/** A part as it is written: canonical, so equal parts are equal bytes. */
+export function encodeEvidencePart(part: EvidencePart): Uint8Array {
+  return new TextEncoder().encode(`${canonicalize(part as unknown as CanonicalValue)}\n`);
 }
 
 /**

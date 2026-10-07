@@ -2,6 +2,7 @@
 import { performance } from 'node:perf_hooks';
 import { componentInstances, lexiconValuesOf, withDeclaredIn, type SourceIndex } from '@variance-authority/core/attribute';
 import { canonicalize, type CanonicalValue } from '@variance-authority/core/format';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Config } from '../config.js';
 import type { Shard } from '../shard-args.js';
 import type { Collector } from './collector.js';
@@ -108,7 +109,7 @@ export async function collectEvidence(input: CollectInput): Promise<EvidencePart
     // The scan, with what the engines located laid over it, and laid into the
     // rows as a run lays its source index into its own.
     const scanned = input.source === undefined ? [] : Object.entries(input.source).map(([component, refs]) => [component, filesOf(refs)] as const);
-    const declared = new Map([...scanned, ...[...located].sort(([l], [r]) => codeUnit(l, r))]);
+    const declared = new Map([...scanned, ...[...located].sort(([l], [r]) => codeUnitOrder(l, r))]);
     const subjects = declared.size === 0 ? rows : rows.map((row) => ({ ...row, lexicon: withDeclaredIn(row.lexicon, row.instances, declared) }));
     const fields = fieldsRead({ snapshot: true, files: declared.size > 0 || subjects.some((row) => row.lexicon.fields.files !== undefined), regions: false });
     const { commit, ...build } = input.build;
@@ -147,11 +148,7 @@ function filesOf(refs: readonly { readonly file: string }[]): readonly string[] 
  */
 function locate(into: Map<string, readonly string[]>, component: string, files: readonly string[]): void {
   const held = into.get(component);
-  if (held === undefined || codeUnit(canonicalize(files as CanonicalValue), canonicalize(held as CanonicalValue)) < 0) {
+  if (held === undefined || codeUnitOrder(canonicalize(files as CanonicalValue), canonicalize(held as CanonicalValue)) < 0) {
     into.set(component, files);
   }
-}
-
-function codeUnit(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }
