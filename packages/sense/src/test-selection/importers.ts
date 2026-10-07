@@ -133,6 +133,13 @@ export interface ExecutionNarrowingOptions {
    */
   readonly keptText?: (digest: string) => string | undefined;
   /**
+   * Every digest `keptText` holds a text for (`keptDigests`). With it, a module
+   * whose rows were cut from a kept text and that the diff does not name is
+   * read too: its edit was undone, and the change is read from the kept text to
+   * the commit's. Without it, an undone edit selects nothing.
+   */
+  readonly keptDigests?: () => readonly string[];
+  /**
    * The checkout every name is relative to, so a package's manifest can say
    * that loading a module does something (`sideEffects`). Without it, no
    * manifest is asked, and loading a module is assumed only to declare what it

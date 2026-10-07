@@ -85,7 +85,7 @@ export { changedLines, type LineRange } from './diff-lines.js';
 // ships because the check is opt-in: a caller that does not know to pass
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.
 export { textAtRecording, textsAt } from './recorded-text.js';
-export { keptTexts } from './kept-texts.js';
+export { keptDigests, keptTexts } from './kept-texts.js';
 // A text cut as a seam records it, so rows written by hand stand where a
 // landing that cuts the text again puts them.
 export { sourceCut } from './coverage-rows.js';

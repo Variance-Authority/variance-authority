@@ -261,7 +261,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
             [selection.withoutFiles(diff, question.whole), ...question.whole.map(selection.wholeEntry)].join('\n'),
             beyond.get(question.at)!.files,
           ),
-          options,
+          handed ? { ...options, undone: false } : options,
         );
   const asked = stands.length === 0 ? await ask({ read: 'tree', at: undefined, whole: [] }) : await recordPerStand(stands, ask);
   const narrowing: ExecutionNarrowing | undefined = asked?.narrowing;

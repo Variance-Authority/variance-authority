@@ -57,13 +57,54 @@ describe('selecting after a partial run over an edit', () => {
 
     expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\ntest/delta.test.ts\ntest/gamma.test.ts\n');
   });
+
+  it('runs the tests a partial run recorded over an edit, once the edit is undone', async () => {
+    // `beta` last ran `other` returning 'B'. The tree is back at the commit's
+    // text, which the diff from the commit cannot see, and `beta` has not run it.
+    const said = await afterPartialRun(SOURCE.replace("return 'b';", "return 'B';"), ['module', 'other'], { undo: true });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/delta.test.ts\ntest/gamma.test.ts\n');
+  });
+
+  it('skips them again once they have run the undone text', async () => {
+    // `beta` ran the commit's text after the undo, so nothing it ran has moved.
+    const said = await afterPartialRun(SOURCE.replace("return 'b';", "return 'B';"), ['module', 'other'], { undo: true, rerun: true });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\ntest/delta.test.ts\ntest/gamma.test.ts\n');
+  });
+
+  it('reads a patch handed in as the whole change, and not the edit a run recorded over', async () => {
+    // The edit is still on disk and `beta` ran it. The patch names another
+    // file, and a patch handed in is the change as given.
+    const said = await afterPartialRun(SOURCE.replace("return 'b';", "return 'B';"), ['module', 'other'], { patch: NOTES });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\ntest/delta.test.ts\ntest/gamma.test.ts\n');
+  });
+
+  it.todo(
+    'runs the tests a partial run recorded over an edit once it is undone, when the landing kept no text for it — needs the undone files named without the kept store, from the ledger\'s dirty-run tree',
+  );
+
+  it.todo(
+    'runs a test file a partial run ran edited, once its edit is undone — needs a text kept, or a tree read, for files with no instrumented row',
+  );
+
+  it.todo(
+    'runs a test that declared a file as a precondition, once an edit a partial run recorded over is undone — needs the owner to decide whether an undone file governs the precondition table',
+  );
 });
 
 /**
  * Land the full record at the commit, write `edited` over the module, land a
- * run of `beta` alone over it with the named regions' digests moved, and select.
+ * run of `beta` alone over it with the named regions' digests moved, and select,
+ * with `undo` after writing the commit's text back, `rerun` after landing `beta`
+ * again over that text, and with `patch` handed in as the diff.
  */
-async function afterPartialRun(edited: string, moved: readonly string[]) {
+async function afterPartialRun(
+  edited: string,
+  moved: readonly string[],
+  { undo = false, rerun = false, patch }: { undo?: boolean; rerun?: boolean; patch?: string } = {},
+) {
   const { root, head } = checkout();
   await landRun(testCoverageFile(root), snapshot(head), root);
 
@@ -83,11 +124,40 @@ async function afterPartialRun(edited: string, moved: readonly string[]) {
       })),
     }],
   }, root);
+  if (undo) writeFileSync(join(root, 'src/widget.ts'), SOURCE);
+  if (rerun) {
+    const again = snapshot(head);
+    await landRun(testCoverageFile(root), {
+      ...again,
+      tests: again.tests.filter((test) => test.file === 'test/beta.test.ts'),
+      modules: again.modules.map((recordedModule) => ({
+        ...recordedModule,
+        blocks: recordedModule.blocks.map((block) => ({
+          ...block,
+          testFiles: block.testFiles.filter((test) => test === 'test/beta.test.ts'),
+        })),
+      })),
+    }, root);
+  }
   process.chdir(root);
 
   await indexOutput({ cwd: root });
-  return selectOutput({ cwd: root, format: 'plain' });
+  if (patch === undefined) return selectOutput({ cwd: root, format: 'plain' });
+  const handed = join(mkdtempSync(join(tmpdir(), 'va-partial-patch-')), 'change.patch');
+  writeFileSync(handed, patch);
+  return selectOutput({ cwd: root, format: 'plain', diff: handed });
 }
+
+/** A patch that adds a file nothing ran. */
+const NOTES = [
+  'diff --git a/notes.txt b/notes.txt',
+  'new file mode 100644',
+  '--- /dev/null',
+  '+++ b/notes.txt',
+  '@@ -0,0 +1 @@',
+  '+a note',
+  '',
+].join('\n');
 
 const SOURCE = [
   'export function widget(): string {',
