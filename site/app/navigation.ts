@@ -95,6 +95,11 @@ export const NAVIGATION = [
         clusterOverview: true,
       },
       {
+        href: "/docs/test-an-edit",
+        label: "Run the tests an edit needs",
+        cluster: "Run less of the suite",
+      },
+      {
         href: "/docs/selecting",
         label: "Select the tests that matter",
         cluster: "Run less of the suite",

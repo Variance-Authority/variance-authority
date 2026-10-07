@@ -509,6 +509,8 @@ says when that happens and when it does not.
 
 ## Start
 
+- [Run the tests an edit needs](test-an-edit.md) for the loop: wrap the
+  runner once, then set one variable on each run.
 - [Record your Vitest, Jest or Rstest suite](../packages/sense/README.md) with
   `@variance-authority/sense`, or [any other runner](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) with
   `@variance-authority/sense/runner`. Under Vitest or Jest 30, set

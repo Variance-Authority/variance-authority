@@ -18,7 +18,8 @@ The first that fails is the whole answer.
    `node -e "import('@variance-authority/sense/test-selection').then(()=>console.log('ok'))"`
    prints `ok`. If it fails, add the package as a devDependency with the
    project's package manager. It has no binary; the commands below come from
-   `@variance-authority/cli`, which reads the same recording.
+   `@variance-authority/cli`, which reads the same recording, and a wrapped
+   runner that selects resolves it from the project, so install both.
 3. **The runner is wrapped.** `withTestSelection` from
    `@variance-authority/sense/vitest`, `@variance-authority/sense/jest`,
    `@variance-authority/sense/rstest` or `@variance-authority/playwright-test`
@@ -57,9 +58,11 @@ one answers.
   file. That is the only refresh.
 - **Per test file, automatically.** Changing a test file's own source, its
   setup, or a declared precondition starts a new generation for that file and
-  retires its inherited crossings. A module whose text on disk no longer matches
-  its rows marks every test that ran it partial, and a partial observation never
-  justifies a skip.
+  retires its inherited crossings. A run over an edited module reads the edit
+  as selection does: a type, a type-only import or a comment marks no test; a
+  body edit marks the tests on the regions it moved; an edit to what the module
+  does as it loads marks every test that loaded it. A marked test is partial,
+  and a partial observation never justifies a skip.
 - **Whole, only by being unreadable.** A missing, corrupt or foreign-layout
   recording is treated as absent, and the suite runs whole, which cannot produce
   a wrong skip.
@@ -107,25 +110,41 @@ covering`, in [covering](covering.md).
 For what the commands do not print, read [selection API](selection-api.md): a
 distance per test, the `because` trail, or a diff that is not a ref.
 
+## Test an edit in a loop
+
+With the runner wrapped and recorded, rerun it after each edit with the
+variable set, nearest tests first:
+
+```bash
+VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 npx vitest run
+VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
+```
+
+- **Read the first stderr line.** `variance-authority: selected N of M` is the
+  run you asked for. `declined:` means the selection could not be read and every
+  file ran; the reason follows it. `selected none of M` means the edit reached
+  no recorded test: a type or comment edit, or a file no test ran.
+- **Each run lands.** The next edit is measured from what each test last ran,
+  so a test the near leg left out still runs in the far leg, and in the next
+  run if you skip that.
+- **Run both legs before you call the edit verified**, and the full suite
+  before you call the change done.
+- **Do not put paths on the command line.** The configuration drops the files
+  itself; `variance select --format vitest|jest` is deprecated.
+
 ## Use the repository's own entry point if it has one
 
-A repository may wire the API into its own script. Read `package.json`'s
-`scripts` and the repository's instructions first, and run the script the way
-they document it, such as `npm run <script> -- <arguments>`. Do not assume a
-command name or runner option.
+Read `package.json`'s `scripts` and the repository's instructions first. A
+repository may wrap the variable in its own script, one per leg; run the
+script the way they document it, such as `npm run <script> -- <arguments>`. Do
+not assume a command name or runner option.
 
-Use a repository-owned command only when that repository defines and documents
-it. Its orchestration must own the current test inventory and dispatch each
-path to the Vitest, Jest, Playwright or other host that can run it. When it
-exposes distance ranges, read them as hop counts and use the syntax it
-documents.
-
-If there is no script, call the API directly ([selection
+A runner with no seam reads the skip list from `variance select`, one path per
+line, and the repository's script subtracts it from that runner's own
+inventory. If there is none, call the API directly ([selection
 API](selection-api.md)). Do not build a selection from `git diff` and a grep
 for imports: the answer depends on what executed, and only the recording has
-that. Reading the recording is not building orchestration. Writing an
-inventory, a skip-list subtraction and a runner dispatch is, and that is where
-the line is.
+that.
 
 ## Bearings, and the two findings
 

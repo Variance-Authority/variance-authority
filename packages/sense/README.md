@@ -10,8 +10,8 @@ Use this package to cut a test run down to the files a diff can actually affect.
 It adds probes to your product source while your tests run, records which test
 file covered which region of which module, and later answers a unified diff with
 the list of test files that provably did not go near it. Wrap your runner
-configuration once; you get back a list of paths to skip and hand the rest to the
-runner yourself.
+configuration once and set `VARIANCE_AUTHORITY_SINCE`, and Vitest or Jest leaves
+those files out itself; any other runner gets the same list of paths to skip.
 
 It answers four questions:
 
@@ -64,7 +64,38 @@ export default withTestSelection(
 
 Run the suite once as you normally would. That run writes a **snapshot**: a
 binary record of which test file covered which probed region of which module.
-Then ask it what a diff can skip:
+From then on, the runner can skip what a diff cannot reach.
+
+### Let the runner skip them
+
+Set `VARIANCE_AUTHORITY_SINCE`, and the wrapped configuration reads the
+selection `variance select` prints, from `@variance-authority/cli`, and removes
+the skipped files before Vitest starts any of them:
+
+```bash
+VARIANCE_AUTHORITY_SINCE= npx vitest run
+VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 npx vitest run
+```
+
+Set and empty, the variable reads each test from the commit the snapshot names.
+Set to a ref, it also names the base for a snapshot that names no commit.
+`VARIANCE_AUTHORITY_AT_DISTANCE` takes one range of hop counts, read as in
+[Take one range of hop counts at a time](#take-one-range-of-hop-counts-at-a-time),
+and a value that is not a range fails the run. Before the first file starts,
+stderr shows one line: `selected 12 of 340`, `selected none of 340`, or
+`declined:` and the reason the selection could not be read, in which case
+every file runs. A test file the snapshot has never seen runs.
+
+The files are removed in a `sequence.sequencer` that wraps the one your
+configuration names, before it shards and sorts, so `--shard` divides the
+same list in every shard. Watch mode does not select.
+`@variance-authority/cli` has to be installed in the project; when the checkout cannot resolve it, the run fails and the message
+names the package.
+
+### Ask for the skip list yourself
+
+A runner with no seam, or a program that decides for itself, reads the same
+answer from the API:
 
 ```ts
 // select.ts, in a package with "type": "module".
@@ -103,33 +134,6 @@ skip list only has to be right about the tests it names, and a test it wrongly
 leaves out of the skip list costs a test run rather than a missed regression. A
 missing snapshot, a snapshot from another machine, and a first run all leave
 `whole` empty, so `skip` is empty, so the suite runs.
-
-### Let the runner skip them
-
-You can also have the runner skip those files itself. Set
-`VARIANCE_AUTHORITY_SINCE`, and the wrapped configuration reads the same
-selection `variance select` prints, from `@variance-authority/cli`, and removes
-the skipped files before Vitest starts any of them:
-
-```bash
-VARIANCE_AUTHORITY_SINCE= npx vitest run
-VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 npx vitest run
-```
-
-Set and empty, the variable reads each test from the commit the snapshot names.
-Set to a ref, it also names the base for a snapshot that names no commit.
-`VARIANCE_AUTHORITY_AT_DISTANCE` takes one range of hop counts, read as in
-[Take one range of hop counts at a time](#take-one-range-of-hop-counts-at-a-time),
-and a value that is not a range fails the run. Before the first file starts,
-stderr shows one line: `selected 12 of 340`, `selected none of 340`, or
-`declined:` and the reason the selection could not be read, in which case
-every file runs. A test file the snapshot has never seen runs.
-
-The files are removed in a `sequence.sequencer` that wraps the one your
-configuration names, before it shards and sorts, so `--shard` divides the
-same list in every shard. Watch mode does not select.
-`@variance-authority/cli` has to be installed in the project; when the checkout cannot resolve it, the run fails and the message
-names the package.
 
 ### What each field means
 
@@ -229,9 +233,13 @@ records the identities of its own source, its configured setup, and any
 additional preconditions. Changing one of those starts a new **generation** for
 that file — its current batch of crossings against one fixed set of
 preconditions — and the inherited crossings are retired. An inherited module
-whose text on disk no longer matches its rows has rows no diff can be placed
-in, so every test that covered it is marked partial and runs at the next
-selection. An observation is complete only when every leaf task in its file
+whose text on disk no longer matches its rows is read the way selection reads a
+diff, from both texts: an edit that runs nothing differently — a type, a
+type-only import, a comment — marks no test; an edit inside function bodies
+marks the tests on the regions it moved, gained, or left with no region; an
+edit to what the module does as it loads marks every test that loaded it. A
+marked test is partial and runs at the next selection, and when either text
+cannot be read, every test on a moved region is marked. An observation is complete only when every leaf task in its file
 passes; a focused, skipped, or failed run is partial, contributes its
 crossings, and can never justify a skip.
 
@@ -631,7 +639,7 @@ until the worker's heap is close to its limit, with or without the recorder, and
 the flag releases it. Then lower `maxWorkers` or set `workerIdleMemoryLimit` so
 Jest restarts a worker once it passes that size.
 
-Selection is the same call as for Vitest. `narrowByExecution` returns paths
+Asking for the skip list yourself is the same call as for Vitest. `narrowByExecution` returns paths
 relative to the checkout, whatever `rootDir` is set to, and each remaining path
 is a pattern Jest accepts on its command line — `jest test/alpha.case.ts
 test/beta.case.ts`. The snapshot is one file, so a repository whose unit tests
@@ -1109,7 +1117,10 @@ shows the nearest tests pass and is no evidence about four hops.
 `groupByDistance` reports the whole reading as one group per hop count.
 
 **Distance places a selection; it does not build a workload.** A runnable
-workload has one more input: the current inventory from every test host. Compute
+workload has one more input: the current inventory from every test host. A
+wrapped run has it: set `VARIANCE_AUTHORITY_AT_DISTANCE` beside
+[`VARIANCE_AUTHORITY_SINCE`](#let-the-runner-skip-them) and the runner's own
+inventory is that input. Calling the API yourself, compute
 the skip list, subtract only that skip list from the current inventory, and keep
 the host identity needed to dispatch every remaining path.
 

@@ -12,13 +12,23 @@ short path through a module the test never loaded. Distance walks only the
 modules that test covered or loaded in a recorded run, so the count it gives you
 describes execution rather than possibility.
 
-Distance is an API in `@variance-authority/sense/test-selection`, not a command.
-It reads an execution snapshot and a diff. It does not discover your current
-suite, decide whether a path belongs to Vitest, Jest, Playwright or another test
-host, or invoke a runner. The Vitest and Jest integrations record execution;
-orchestration stays with the repository that owns those hosts.
+A wrapped Vitest or Jest run takes one range of distances at a time when you
+set `VARIANCE_AUTHORITY_AT_DISTANCE` beside `VARIANCE_AUTHORITY_SINCE`, and
+`variance select --at-distance` prints the same leg's skip list:
 
-To turn distance into a run, you supply four things:
+```bash
+VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 npx vitest run
+VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
+```
+
+The runner's own inventory is the other half of that join, so every selected
+file runs in one of the two legs, and a test the record never saw whole, such
+as a new one, runs in both.
+[Run the tests an edit needs](test-an-edit.md) is the page about that loop. The
+rest of this page is for a repository that composes the legs itself, across
+several test hosts, from the API in `@variance-authority/sense/test-selection`.
+
+To turn distance into a run yourself, you supply four things:
 
 1. the current test-file inventory for every host you own;
 2. a unified diff and the import relations needed to place paths;
@@ -28,9 +38,9 @@ To turn distance into a run, you supply four things:
 The inventory matters because a snapshot is historical. It can justify skipping
 a test it observed completely; it cannot enumerate a new test, detect that a
 recorded test no longer belongs to your suite, or decide which runner should
-execute a file. You can take that inventory from a retained host index,
-incremental discovery, or the runner itself. [Sense](../packages/sense) does not
-choose that mechanism for you.
+execute a file. A wrapped runner takes it from what that runner discovered; for
+any other host, you can take it from a retained host index, incremental
+discovery, or the runner itself.
 
 ## Partition the distances Sense can measure
 
@@ -113,7 +123,7 @@ selected paths, still carrying their host
 each host invokes its own runner
 ```
 
-Sense returns paths and evidence. It does not provide this registry or dispatcher.
+[Sense](../packages/sense) returns paths and evidence. It does not provide this registry or dispatcher.
 Apply each snapshot only to the host inventory whose execution it recorded; one
 runner's absence is not evidence about another runner's suite.
 
@@ -225,8 +235,9 @@ A longer path is not itself a problem.
 
 ## Limits
 
-**Distance is not a test command.** It neither inventories the current suite nor
-dispatches paths to a runner. A repository integration owns both operations.
+**A leg covers one runner's suite.** A wrapped runner joins the leg with the
+files it discovered. Across several hosts, the inventory and the dispatch are
+yours, as above.
 
 **Distance describes recorded execution.** It cannot provide a path for a
 branch that no recorded test took. When a change cannot be read from both of

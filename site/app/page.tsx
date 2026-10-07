@@ -111,9 +111,10 @@ export default function Page() {
               title="Your test suite can remember where it’s been."
             >
               A shared file may be imported by hundreds of tests. Only some
-              enter the branch you edited. Recorded execution and source
-              relationships help select the test files and UI states a change
-              reaches, with a reason for each selection.
+              enter the function you edited. Set one variable and the Vitest or
+              Jest run you already call runs only those, nearest first, with
+              no wrapper script and nothing on the command line. Every run
+              moves the record forward, so the next edit pays only for itself.
             </SectionHead>
             <div className="mt-10 grid gap-px overflow-hidden rounded-sm border border-hairline bg-hairline md:grid-cols-3">
               {[
@@ -142,6 +143,12 @@ export default function Page() {
               The graph and execution record remain separate. Missing or
               unreadable evidence widens the run instead of becoming permission
               to skip. {" "}
+              <a
+                href="/docs/test-an-edit"
+                className="text-orange transition-colors hover:text-ivory"
+              >
+                Run the tests an edit needs →
+              </a>{" "}
               <a
                 href="/docs/selecting"
                 className="text-orange transition-colors hover:text-ivory"
