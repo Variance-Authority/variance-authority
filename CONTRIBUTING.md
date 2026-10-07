@@ -89,8 +89,15 @@ from the commit the snapshot names. Set to a ref, it also names the base for a
 snapshot that names no commit of its own. The runner prints one line
 before it starts: `selected 12 of 676`, `selected none of 676`, or
 `declined: <why>` when the reading could not be made and the slice runs whole.
-Nothing else changes: `--shard`, a file filter and the reporters are Vitest's.
 Watch mode does not select.
+
+`yarn test:since` takes no arguments of its own: anything written after it
+reaches only the last slice, chromium. To hand Vitest `--shard`, a file filter
+or a reporter, run one slice with the variable set, and the flag is Vitest's:
+
+```bash
+VARIANCE_AUTHORITY_SINCE= yarn test:unit --shard=1/4
+```
 
 It selects on what the snapshot measured, and on nothing else. A changed file
 the snapshot has no row for — a stylesheet, a file added since the recording —

@@ -53,9 +53,9 @@ Verification runs in waves, nearest and cheapest first, and each wave starts
 only when the one before it is green:
 
 ```bash
-yarn verify:near    # 1. lint, tsc --build, test:since at distance 0-2
+yarn verify:near    # 1. lint, tsc --build, the selection within two imports
 yarn verify:rules   # 2. yarn check, once near is green
-yarn verify:far     # 3. test:since at distance 3-, once, before the PR
+yarn verify:far     # 3. the rest of the selection, once, before the PR
 ```
 
 The order is the order failures arrive in. Lint and an incremental
@@ -124,6 +124,11 @@ VARIANCE_AUTHORITY_SINCE= yarn test:unit           # one slice
 VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn test:since # only the tests within two imports of the change
 yarn variance select --suite unit                  # decide, explain, run nothing
 ```
+
+`test:since` takes no arguments of its own: it is three `vitest run` calls,
+and anything written after it reaches only the last one, the chromium slice. To
+hand Vitest a flag, run one slice with the variable set:
+`VARIANCE_AUTHORITY_SINCE= yarn test:unit --shard=1/4`.
 
 `test:since` is `yarn test` with `VARIANCE_AUTHORITY_SINCE` set. The seam
 each slice's config is wrapped in reads the selection, the runner drops the

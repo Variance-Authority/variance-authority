@@ -510,8 +510,12 @@ says when that happens and when it does not.
 
 - [Record your Vitest, Jest or Rstest suite](../packages/sense/README.md) with
   `@variance-authority/sense`, or [any other runner](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) with
-  `@variance-authority/sense/runner`. Then set `VARIANCE_AUTHORITY_SINCE` when
-  you run it, and the runner drops what the change cannot reach.
+  `@variance-authority/sense/runner`. Under Vitest or Jest 30, set
+  `VARIANCE_AUTHORITY_SINCE` when you run it, and the runner
+  [drops what the change cannot reach](../packages/sense/README.md#let-the-runner-skip-them).
+  Rstest and a runner recorded through `/runner` have no such seam: read the
+  skip list from `variance select --format json` and leave those files out
+  where your runner lists its test files.
 - [Measure test distance](distance.md) to run the tests nearest to a change
   first.
 - [Run relevant work](run-relevant-work.md) when the tests are visual subjects
