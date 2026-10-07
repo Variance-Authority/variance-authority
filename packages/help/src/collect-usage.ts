@@ -38,6 +38,7 @@ export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTarg
   const names = new Map<string, Map<string, Use[]>>();
   const deep: Deep[] = [];
   const byPath: Deep[] = [];
+  const unfollowed: Deep[] = [];
   const pending = new Map<string, Map<number, Pending>>();
   const exported: Named[] = [];
   const unreadable: string[] = [];
@@ -66,7 +67,7 @@ export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTarg
         if (lands === undefined) continue;
         if (lands !== 'opened') {
           const held: Pending = { specifier: asked.value, by, at, line: asked.line, names: takenBy(asked, index, parsed, by, at, kind) };
-          (lands === 'byPath' ? byPath : deep).push(held);
+          (lands === 'byPath' ? byPath : lands === 'unfollowed' ? unfollowed : deep).push(held);
           const file = pending.get(at) ?? new Map<number, Pending>();
           pending.set(at, file);
           file.set(index, held);
@@ -96,7 +97,7 @@ export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTarg
         if (to !== undefined) held.to = to;
       }
     },
-    read: () => ({ names, deep, byPath, exported, unreadable }),
+    read: () => ({ names, deep, byPath, unfollowed, exported, unreadable }),
   };
 }
 

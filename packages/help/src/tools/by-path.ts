@@ -1,28 +1,36 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { Deep, Help, Taken } from '@variance-authority/package/help';
+import type { Deep, Documented, Help, Taken } from '@variance-authority/package/help';
 import { requested } from '@variance-authority/package/help';
 
 /**
- * Names imported by the path of a file, rather than through an entry a
- * manifest declares.
+ * Names imported by the path of a file, or through an entry no file was read
+ * for, rather than through an entry the reading opened.
  *
- * Two kinds, and they read differently. An import past the entry a package
- * declares is deep: the package says what it opens and the importer names a
- * file behind it. A package that declares no entry has nothing to be past, so
- * every import of it names a file and none of them is deep. Both are the only
- * record of what is used, so both answer `uses` and `symbol`; the words say
- * which kind each site is.
+ * Three kinds, and they read differently. An import past every specifier a
+ * package declares is deep: the package says what it opens and the importer
+ * names a file behind it. A package that declares no entry has nothing to be
+ * past, so every import of it names a file and none of them is deep. An import
+ * of a specifier the manifest declares, which this reading could not follow to
+ * a source file, names the entry exactly and is not deep either: the names it
+ * takes are known, the file that declares them is not. All three are the only
+ * record of what is used, so all three answer `uses` and `symbol`; the words
+ * say which kind each site is.
  */
+
+/** How an import names what it takes, when no entry the reading opened carries it. */
+export type PathKind = 'deep' | 'byPath' | 'unfollowed';
 
 /** One name one import takes by path. */
 export interface PathSite {
   readonly held: Deep;
   readonly taken: Taken;
-  /** Whether the package declares an entry, which makes this a deep import. */
-  readonly deep: boolean;
+  readonly kind: PathKind;
   /** The package the specifier names. */
   readonly owner: string;
 }
+
+/** What a package whose declared entry leads to no source file is told about it. */
+export const UNFOLLOWED = 'this reading could not follow to a source file, such as a build output the checkout does not hold';
 
 /** The package a specifier names. */
 export function ownerOf(specifier: string): string {
@@ -31,10 +39,11 @@ export function ownerOf(specifier: string): string {
 }
 
 /** Every import by path, deep ones first, narrowed to a package or a specifier when one is given. */
-export function importsByPath(help: Help, within?: string): readonly (readonly [Deep, boolean])[] {
+export function importsByPath(help: Help, within?: string): readonly (readonly [Deep, PathKind])[] {
   const all = [
-    ...help.deep.map((held) => [held, true] as const),
-    ...help.byPath.map((held) => [held, false] as const),
+    ...help.deep.map((held) => [held, 'deep'] as const),
+    ...help.byPath.map((held) => [held, 'byPath'] as const),
+    ...help.unfollowed.map((held) => [held, 'unfollowed'] as const),
   ];
   return within === undefined
     ? all
@@ -44,17 +53,37 @@ export function importsByPath(help: Help, within?: string): readonly (readonly [
 /** Every place `name` is taken by path. */
 export function sitesByPath(help: Help, name: string, within?: string): readonly PathSite[] {
   const sites: PathSite[] = [];
-  for (const [held, deep] of importsByPath(help, within)) {
+  for (const [held, kind] of importsByPath(help, within)) {
     for (const taken of held.names) {
-      if (taken.name === name) sites.push({ held, taken, deep, owner: ownerOf(held.specifier) });
+      if (taken.name === name) sites.push({ held, taken, kind, owner: ownerOf(held.specifier) });
     }
   }
   return sites;
 }
 
 /** How a site names what it imports, as a suffix to `<by>`. */
-export function how(site: Pick<PathSite, 'held' | 'deep'>): string {
-  return site.deep ? `, deep import of ${site.held.specifier}` : `, by path from ${site.held.specifier}`;
+export function how(site: Pick<PathSite, 'held' | 'kind'>): string {
+  if (site.kind === 'deep') return `, deep import of ${site.held.specifier}`;
+  if (site.kind === 'byPath') return `, by path from ${site.held.specifier}`;
+  return `, through ${site.held.specifier}, an entry this reading could not follow to a source file`;
+}
+
+/**
+ * Whether a published package declares an entry its reading opened nothing of:
+ * it writes `exports`, `main` or `types`, and no file of it was read.
+ */
+export function unfollowedEntry(published: Documented): boolean {
+  return published.openings.length === 0 && ['exports', 'main', 'types'].some((key) => published.declared[key] !== undefined);
+}
+
+/**
+ * The imports of an entry `owner` declares that this reading could not follow,
+ * in specifier, file and line order. A package's own imports of itself are left out.
+ */
+export function unfollowedOf(help: Help, owner: string): readonly Deep[] {
+  return help.unfollowed
+    .filter((held) => held.by !== owner && ownerOf(held.specifier) === owner)
+    .sort((left, right) => codeUnitOrder(left.specifier, right.specifier) || codeUnitOrder(left.at, right.at) || left.line - right.line);
 }
 
 /** What other packages import by path from one package: the counts a heading states, and a line per name. */
@@ -191,9 +220,10 @@ export function counted(surface: { readonly names: number; readonly files: numbe
 
 /**
  * Every package other packages import by path, counted in one walk of the
- * imports: what is taken from each package that declares no entry, and how
- * many imports reach past the entry of each package that declares one. Most
- * taken first, then in code-unit order.
+ * imports: what is taken from each package that declares no entry, how many
+ * imports reach past the entry of each package that declares one, and how many
+ * name an entry this reading could not follow. Most taken first, then in
+ * code-unit order. A package's own imports of an entry it declares are left out.
  *
  * One walk, because the counts are per package and the imports are not. In a
  * repository whose packages declare no entry there are a hundred thousand
@@ -202,18 +232,29 @@ export function counted(surface: { readonly names: number; readonly files: numbe
 export function countsByPath(help: Help): {
   readonly unentered: readonly (readonly [string, { readonly names: number; readonly files: number }])[];
   readonly deep: readonly (readonly [string, number])[];
+  readonly unfollowed: readonly (readonly [string, number])[];
 } {
   const deep = new Map<string, number>();
   for (const held of help.deep) {
     const owner = ownerOf(held.specifier);
     deep.set(owner, (deep.get(owner) ?? 0) + 1);
   }
+  const unfollowed = new Map<string, number>();
+  for (const held of help.unfollowed) {
+    const owner = ownerOf(held.specifier);
+    if (held.by !== owner) unfollowed.set(owner, (unfollowed.get(owner) ?? 0) + 1);
+  }
   const unentered = [...takenByPath(help)].map(([owner, imports]) => [owner, tally(imports)] as const);
   return {
     unentered: unentered.sort((a, b) => b[1].names - a[1].names || codeUnitOrder(a[0], b[0])),
-    deep: [...deep].sort((a, b) => b[1] - a[1] || codeUnitOrder(a[0], b[0])),
+    deep: mostImports(deep),
+    unfollowed: mostImports(unfollowed),
   };
 }
+
+/** Per-package import counts, most first, ties in code-unit order. */
+const mostImports = (counts: ReadonlyMap<string, number>): readonly (readonly [string, number])[] =>
+  [...counts].sort((a, b) => b[1] - a[1] || codeUnitOrder(a[0], b[0]));
 
 /** What a package that declares an entry is told about the imports past it. */
 export const REACHING =
@@ -225,7 +266,7 @@ export const REACHING =
  */
 export function reachingPast(help: Help, owner: string, specifier?: string): readonly Deep[] {
   return importsByPath(help, specifier ?? owner)
-    .filter(([, deep]) => deep)
+    .filter(([, kind]) => kind === 'deep')
     .map(([held]) => held)
     .sort((left, right) => codeUnitOrder(left.specifier, right.specifier) || codeUnitOrder(left.at, right.at) || left.line - right.line);
 }

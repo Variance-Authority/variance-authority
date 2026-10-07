@@ -2,7 +2,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { NO_ARGS } from '@variance-authority/mcp/tools';
 import type { Documented, Help } from '@variance-authority/package/help';
-import { REACHING, counted, countsByPath } from './by-path.js';
+import { REACHING, UNFOLLOWED, counted, countsByPath, unfollowedEntry } from './by-path.js';
 import { NOTHING_PUBLISHED, specifierOf } from './find.js';
 import { mostUsed, narrower, openingRow, plural, section, shell } from './format.js';
 
@@ -55,14 +55,27 @@ export const packages: Tool<Help> = {
         ...counts.deep.map(([owner, imports]) => `  ${owner} — ${plural(imports, 'import')}`),
       );
     }
-    // An entry that leads to no source file opens nothing, so the package has
-    // no row above, and every import of it is counted as past its entry.
-    const unfollowed = help.packages.filter((published) => published.openings.length === 0 && declaresEntry(published));
-    if (unfollowed.length > 0) {
+    // An entry this reading could not follow opens nothing, so the package has
+    // no row above. An import that names such an entry is counted here, and one
+    // past every entry the package declares is counted with the deep ones.
+    const unfollowed = help.packages.filter(unfollowedEntry);
+    const naming = counts.unfollowed.reduce((sum, [, imports]) => sum + imports, 0);
+    if (unfollowed.length > 0 || naming > 0) {
+      const packaged =
+        unfollowed.length === 0
+          ? []
+          : [
+              `${plural(unfollowed.length, 'package declares', 'packages declare')} an entry ${UNFOLLOWED}, so none of ` +
+                `${unfollowed.length === 1 ? 'its' : 'their'} names are listed.`,
+            ];
+      const imported =
+        naming === 0
+          ? []
+          : [`${plural(naming, 'import names', 'imports name')} ${unfollowed.length === 0 ? `an entry ${UNFOLLOWED}` : 'an entry like that'}, most first:`];
       section(
         lines,
-        `${plural(unfollowed.length, 'package declares', 'packages declare')} an entry that leads to no source file, so none of ` +
-          `${unfollowed.length === 1 ? 'its' : 'their'} names are listed.`,
+        [...packaged, ...imported].join(' '),
+        ...counts.unfollowed.map(([owner, imports]) => `  ${owner} — ${plural(imports, 'import')}`),
       );
     }
 
@@ -85,10 +98,6 @@ export const packages: Tool<Help> = {
     return [...lines, ...narrower(asks)].join('\n');
   },
 };
-
-/** Whether a package writes an entry for its bare name or a subpath: `exports`, `main` or `types`. */
-const declaresEntry = (published: Documented): boolean =>
-  ['exports', 'main', 'types'].some((key) => published.declared[key] !== undefined);
 
 /**
  * Of the packages whose entry leads to no file, the one with the most imports

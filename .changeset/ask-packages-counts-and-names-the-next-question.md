@@ -28,13 +28,18 @@ refused for a package that opens only subpaths.
 
 An import into a published package whose declared entry leads to no source
 file, such as a `main` naming a build output the checkout does not hold, is
-kept as an import past that entry, where every one was dropped and `variance ask
-entrypoint` said no other package imports it. `variance ask packages` counts
-those packages, and `uses` and `symbol` answer for the names taken from them.
-`readUnentered` is replaced by `readImportTargets`, which reads the published
-packages and the ones that declare no entry in one pass, and `landing` says
-where one import between packages lands: opened by an entry, past a declared
-entry, by path into a package that declares none, or not followed.
+kept, where every one was dropped and `variance ask entrypoint` said no other
+package imports it. An import that names a declared entry is counted as an
+import of an entry this reading could not follow to a source file, not as one
+reaching past the entry; only an import past every declared entry reaches past
+it. `variance ask packages` counts those packages and their imports,
+`variance ask entrypoint` lists them, and `uses` and `symbol` answer for the
+names taken from them. `readUnentered` is replaced by `readImportTargets`,
+which reads the published packages, the ones that declare no entry and the
+entries each published package declares in one pass, and `landing` says where
+one import between packages lands: opened by an entry, at a declared entry the
+reading could not follow, past every declared entry, or by path into a package
+that declares none. `Help` and `Usage` carry those imports as `unfollowed`.
 
 On a repository whose packages declare no entry, `variance ask packages` went
 from 200,330 lines in 29.9 to 45.9 seconds to 1,339 lines in under half a

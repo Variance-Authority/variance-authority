@@ -1,8 +1,8 @@
 /**
  * A workspace whose packages are imported by path, in every shape the two
  * questions about packages answer for: past a declared entry, into a package
- * that declares none, into a package that declares an entry and opens nothing,
- * and into a package whose `exports` opens only subpaths.
+ * that declares none, into a package that declares an entry this reading could
+ * not follow, and into a package whose `exports` opens only subpaths.
  */
 
 // compass: variance-authority.report.agent-surface
@@ -49,6 +49,7 @@ export const BY_PATH: Help = {
     importOf('@acme/kit/src/money/tax', '@acme/kit', 'packages/kit/src/self.ts', ['taxOf']),
     importOf('@acme/stamp/src/stamp', '@acme/app', 'apps/app/src/stamped.ts', ['stamp']),
   ],
+  unfollowed: [],
   exported: [],
   unreadable: [],
 };
@@ -66,12 +67,19 @@ export function busier(more: number): Help {
   };
 }
 
-/** A package that declares an entry and opens nothing, and one import past it. */
+/**
+ * A package that declares an entry this reading could not follow, so it opens
+ * nothing: one import of that entry, one past it, and one of its own.
+ */
 export const QUIET: Help = {
   ...BY_PATH,
   packages: [...BY_PATH.packages, { name: '@acme/quiet', declared: { main: 'gone.js' }, openings: [] }],
   deep: [importOf('@acme/quiet/src/hush', '@acme/app', 'apps/app/src/hushed.ts', ['hush'])],
   byPath: [],
+  unfollowed: [
+    { specifier: '@acme/quiet', by: '@acme/app', at: 'apps/app/src/entered.ts', line: 1, names: importOf('@acme/quiet', '@acme/app', 'apps/app/src/entered.ts', ['hush']).names },
+    { specifier: '@acme/quiet', by: '@acme/quiet', at: 'packages/quiet/src/self.ts', line: 1, names: [] },
+  ],
 };
 
 /**

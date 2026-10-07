@@ -63,6 +63,9 @@ pub struct IndexedUsage {
     pub deep: Vec<DeepRequest>,
     /// Imports of a package that declares no entry: every one is by path.
     pub by_path: Vec<DeepRequest>,
+    /// Imports of a specifier a published manifest declares and no entry
+    /// opens, because the reading could not follow it to a source file.
+    pub unfollowed: Vec<DeepRequest>,
     pub unreadable: Vec<String>,
     /// Only the uses through a key in `opened`.
     pub names: Vec<NameUse>,
@@ -91,12 +94,35 @@ struct Part {
     exported: Vec<NamedExport>,
     deep: Vec<DeepRequest>,
     by_path: Vec<DeepRequest>,
+    unfollowed: Vec<DeepRequest>,
     unreadable: Vec<String>,
     reasons: Vec<String>,
     names: Vec<NameUse>,
 }
 
-fn collect(layers: &[Layer], crossing: &Crossing, by: &str, packages: &HashSet<&str>, opened: &HashSet<&str>, unentered: &HashSet<&str>) -> Part {
+/// The packages an import between packages is followed into, by what each
+/// declares: `ImportTargets` in `package/src/entry.ts`, keyed as `requested` keys.
+struct Targets<'a> {
+    /// Every package an import is followed into: published, or declaring no entry.
+    packages: HashSet<&'a str>,
+    opened: HashSet<&'a str>,
+    unentered: HashSet<&'a str>,
+    declared: HashSet<&'a str>,
+}
+
+/// `landing` in `package/src/entry.ts`, for a package already known to be followed into.
+enum Landing { Opened, Unfollowed, Deep, ByPath }
+
+impl Targets<'_> {
+    fn landing(&self, package: &str, key: &str) -> Landing {
+        if self.opened.contains(key) { Landing::Opened }
+        else if self.unentered.contains(package) { Landing::ByPath }
+        else if self.declared.contains(key) { Landing::Unfollowed }
+        else { Landing::Deep }
+    }
+}
+
+fn collect(layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -> Part {
     let mut part = Part::default();
     let (stored, records) = (&layers[crossing.at.0].stored, &layers[crossing.at.0].records);
     let at = crossing.file;
@@ -115,16 +141,16 @@ fn collect(layers: &[Layer], crossing: &Crossing, by: &str, packages: &HashSet<&
     let first = parses.requests.at(row) as usize;
     // The index resolved each request when it wrote the record; a record whose
     // targets do not line up with the parse's requests answers none of them.
-    let targets: Vec<Option<&str>> = if records.targets_present[crossing.at.1] == 1 {
+    let resolved: Vec<Option<&str>> = if records.targets_present[crossing.at.1] == 1 {
         records.targets.range(crossing.at.1).map(|target| stored.optional(records.target_path.at(target))).collect()
     } else {
         Vec::new()
     };
-    let aligned = targets.len() == parses.requests.range(row).len();
+    let aligned = resolved.len() == parses.requests.range(row).len();
     for request in parses.requests.range(row) {
         let value = text.text(parses.request_value.at(request));
         let (package, key) = requested(value);
-        if !packages.contains(package) { continue; }
+        if !targets.packages.contains(package) { continue; }
         let line = parses.request_line.at(request);
         let mut names = Vec::new();
         for binding in parses.request_bindings.range(request) {
@@ -137,18 +163,24 @@ fn collect(layers: &[Layer], crossing: &Crossing, by: &str, packages: &HashSet<&
             if parses.member_request.at(member) as usize != request - first { continue; }
             names.push(NameUse { key: key.clone(), name: text.text(parses.member_name.at(member)).to_owned(), by: by.to_owned(), at: at.to_owned(), line: parses.member_line.at(member), r#type: false, kind: kind.to_owned(), through: Some(through.to_owned()), through_line: line });
         }
-        if opened.contains(key.as_str()) {
-            part.names.extend(names);
-            continue;
-        }
-        let to = if aligned { targets[request - first].map(str::to_owned) } else { None };
-        let held = DeepRequest { specifier: value.to_owned(), by: by.to_owned(), at: at.to_owned(), line, to, names };
-        if unentered.contains(package) { part.by_path.push(held) } else { part.deep.push(held) }
+        let into = match targets.landing(package, &key) {
+            Landing::Opened => {
+                part.names.extend(names);
+                continue;
+            }
+            Landing::Unfollowed => &mut part.unfollowed,
+            Landing::Deep => &mut part.deep,
+            Landing::ByPath => &mut part.by_path,
+        };
+        let to = if aligned { resolved[request - first].map(str::to_owned) } else { None };
+        into.push(DeepRequest { specifier: value.to_owned(), by: by.to_owned(), at: at.to_owned(), line, to, names });
     }
     part
 }
 
-pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: &[String], unentered: &[String]) -> IndexedUsage {
+/// What the files on the chain import from the workspace's packages. `opened`
+/// and `declared` are `requested` keys; `published` and `unentered` are names.
+pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: &[String], unentered: &[String], declared: &[String]) -> IndexedUsage {
     let folded = fold(layers);
     let paths = beside(root, folded.keys().copied());
     let owners = owners(root, &paths);
@@ -158,24 +190,28 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: 
         .collect();
     crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
     join_parses(layers, &mut crossings);
-    let opened: HashSet<&str> = opened.iter().map(String::as_str).collect();
-    let unentered: HashSet<&str> = unentered.iter().map(String::as_str).collect();
-    // A published package whose entry opens nothing is still one its importers reach past.
-    let packages: HashSet<&str> = published.iter().map(String::as_str).chain(unentered.iter().copied()).collect();
+    let targets = Targets {
+        // A published package whose entry opens nothing is still one its importers reach past.
+        packages: published.iter().chain(unentered).map(String::as_str).collect(),
+        opened: opened.iter().map(String::as_str).collect(),
+        unentered: unentered.iter().map(String::as_str).collect(),
+        declared: declared.iter().map(String::as_str).collect(),
+    };
     let parts: Vec<Part> = crossings
         .par_iter()
         .map(|crossing| {
             let by = if crossing.owner == NO_OWNER { "" } else { owners.packages[crossing.owner as usize].name.as_str() };
-            collect(layers, crossing, by, &packages, &opened, &unentered)
+            collect(layers, crossing, by, &targets)
         })
         .collect();
-    let mut out = IndexedUsage { exported: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unreadable: Vec::new(), names: Vec::new() };
+    let mut out = IndexedUsage { exported: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new() };
     let mut reasons = Vec::new();
     for part in parts {
         reasons.extend(part.reasons);
         out.exported.extend(part.exported);
         out.deep.extend(part.deep);
         out.by_path.extend(part.by_path);
+        out.unfollowed.extend(part.unfollowed);
         out.unreadable.extend(part.unreadable);
         out.names.extend(part.names);
     }

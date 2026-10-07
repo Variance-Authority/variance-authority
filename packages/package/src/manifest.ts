@@ -5,7 +5,7 @@ import { type ImportTargets, importTargets, isPublished, legacyEntry } from './e
 import { subpathsOf } from './exports.js';
 import { members } from './members.js';
 
-export { publishes, requested } from './exports.js';
+export { requested } from './exports.js';
 
 /**
  * What a workspace publishes, read from the manifests rather than from a build.

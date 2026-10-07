@@ -1,6 +1,6 @@
 import { relative, resolve } from 'node:path';
 import type { Declaration } from './declare.js';
-import { type Offering, type OfferingOptions, publishes, readOfferings } from './manifest.js';
+import { type Offering, type OfferingOptions, readOfferings } from './manifest.js';
 import { createReader, namesReachedBy, type Names } from './reach.js';
 import { type Mention, type Readmes, readMention, readmes } from './mention.js';
 import { type Deep, type Named, type Usage, type UsageOptions, type Use, readUsage } from './use.js';
@@ -89,8 +89,14 @@ export interface Documented {
 /** A workspace, read three ways and joined. */
 export interface Help {
   readonly packages: readonly Documented[];
-  /** Specifiers naming a file of a package past the entry its manifest declares: deep imports. */
+  /** Specifiers naming a file of a package past every specifier its manifest declares: deep imports. */
   readonly deep: readonly Deep[];
+  /**
+   * Specifiers a published manifest declares that the reading could not follow
+   * to a source file, such as a `main` naming a build output the checkout does
+   * not hold. Each names the entry exactly, so none is deep.
+   */
+  readonly unfollowed: readonly Deep[];
   /**
    * Specifiers naming a file of a package that declares no entry — no
    * `exports`, `main`, `types` or `typings` — private or not.
@@ -242,8 +248,9 @@ export function assembleHelp(
 
   return {
     packages,
-    deep: usage.deep.filter((held) => !publishes(offerings, held.specifier)),
+    deep: usage.deep,
     byPath: usage.byPath,
+    unfollowed: usage.unfollowed,
     exported: usage.exported,
     unreadable: [...offerings.flatMap((offering) => offering.unreadable ?? []), ...usage.unreadable],
   };
@@ -300,7 +307,7 @@ export type {
   Use,
   UseKind,
 } from './use.js';
-export { ownership, publishes, readImportTargets, readOfferings, requested } from './manifest.js';
+export { ownership, readImportTargets, readOfferings, requested } from './manifest.js';
 export { landing, type ImportTargets } from './entry.js';
 export type { Entrypoint, Offering, OfferingOptions } from './manifest.js';
 export { readMention, readmes } from './mention.js';

@@ -36,7 +36,13 @@ const GONE = {
   'packages/gone/package.json': JSON.stringify({ name: '@acme/gone', main: 'target/index.js' }),
   'packages/gone/src/hush.ts': 'export const hush = (text: string): string => text;\n',
   'apps/app/src/hushed.ts': "import { hush } from '@acme/gone/src/hush';\nexport const hushed = hush('quiet');\n",
+  'apps/app/src/entered.ts': "import { hush } from '@acme/gone';\nexport const entered = hush('loud');\n",
 };
+
+/** The paragraph of `text` that opens with `heading`. */
+function paragraph(text: string, heading: RegExp): string {
+  return text.split('\n\n').find((block) => heading.test(block)) ?? '';
+}
 
 function checkout(more: Readonly<Record<string, string>> = {}): string {
   // The cache is keyed by the path the checkout is at, which a temporary directory's name is not on macOS.
@@ -273,19 +279,27 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(hidden.out).toContain('  @acme/kit-private/src/stamp — stamp — @acme/app at apps/app/src/again.ts:2');
   });
 
-  it('keeps the imports into a package whose declared entry leads to no file, as imports past that entry', async () => {
+  it('keeps the imports into a package whose declared entry leads to no file: of that entry, and past it', async () => {
     checkout(GONE);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const packages = await run(['ask', 'packages']);
     expect(packages.code).toBe(EXIT_CLEAN);
-    expect(packages.out).toMatch(/^ {2}@acme\/gone — 1 import$/m);
-    expect(packages.out).toMatch(/^1 package declares an entry that leads to no source file, so none of its names are listed\.$/m);
+    // The import of `@acme/gone` itself names the entry, and only the one of `src/hush` reaches past it.
+    expect(paragraph(packages.out, /past a published entrypoint/)).toMatch(/^4 imports reach past .*(\n.*)*\n {2}@acme\/gone — 1 import(\n|$)/);
+    expect(paragraph(packages.out, /could not follow to a source file/)).toBe(
+      '1 package declares an entry this reading could not follow to a source file, such as a build output the checkout ' +
+        'does not hold, so none of its names are listed. 1 import names an entry like that, most first:\n  @acme/gone — 1 import',
+    );
     expect(packages.out).toMatch(/^ {2}variance ask entrypoint --package @acme\/gone$/m);
 
     const gone = await run(['ask', 'entrypoint', '--package', '@acme/gone']);
     expect(gone.code).toBe(EXIT_CLEAN);
-    expect(gone.out).toMatch(/^@acme\/gone opens no entry\.$/m);
+    expect(gone.out).toMatch(/^@acme\/gone declares an entry this reading could not follow to a source file, .* so none of its names are listed\.$/m);
+    expect(paragraph(gone.out, /that this reading could not follow/)).toBe(
+      '1 import names an entry @acme/gone declares that this reading could not follow, most imported first:\n' +
+        '  @acme/gone — 1 name, imported by 1 file',
+    );
     expect(gone.out).toMatch(/^ {2}@acme\/gone\/src\/hush — 1 name, imported by 1 file$/m);
     const hush = await run(['ask', 'entrypoint', '--package', '@acme/gone/src/hush']);
     expect(hush.out).toContain('@acme/gone/src/hush — @acme/app at apps/app/src/hushed.ts:1');
@@ -297,5 +311,6 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(uses.code).toBe(EXIT_CLEAN);
     expect(uses.out).toMatch(/^apps\/app\/src\/again\.ts:1 — @acme\/app, deep import of @acme\/gone\/src\/hush$/m);
     expect(uses.out).toMatch(/^apps\/app\/src\/hushed\.ts:1 — @acme\/app, deep import of @acme\/gone\/src\/hush$/m);
+    expect(uses.out).toMatch(/^apps\/app\/src\/entered\.ts:1 — @acme\/app, through @acme\/gone, an entry this reading could not follow to a source file$/m);
   });
 });

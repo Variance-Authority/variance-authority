@@ -87,6 +87,7 @@ export async function refreshWorkspaceFromIndex(
     names,
     deep: read.deep.map(byPathOf),
     byPath: read.byPath.map(byPathOf),
+    unfollowed: read.unfollowed.map(byPathOf),
     exported: [],
     unreadable: read.unreadable,
   };
@@ -106,6 +107,7 @@ export async function refreshWorkspaceFromIndex(
       packages: JSON.stringify(help.packages),
       deep: JSON.stringify(help.deep),
       byPath: JSON.stringify(help.byPath),
+      unfollowed: JSON.stringify(help.unfollowed),
       unreadable: JSON.stringify(help.unreadable),
       published: publishedRows(help),
     });

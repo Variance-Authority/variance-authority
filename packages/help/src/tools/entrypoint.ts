@@ -2,7 +2,21 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Deep, Documented, Help } from '@variance-authority/package/help';
-import { type FileTaken, REACHING, counted, isName, ownerOf, perFile, reachingPast, surfaceByPath, takenByPath, tally } from './by-path.js';
+import {
+  type FileTaken,
+  REACHING,
+  UNFOLLOWED,
+  counted,
+  isName,
+  ownerOf,
+  perFile,
+  reachingPast,
+  surfaceByPath,
+  takenByPath,
+  tally,
+  unfollowedEntry,
+  unfollowedOf,
+} from './by-path.js';
 import { doorOf, specifierOf } from './find.js';
 import { line, mostUsed, narrower, openingRow, plural, shell } from './format.js';
 
@@ -71,16 +85,18 @@ export const entrypoint: Tool<Help> = {
 
     const published = help.packages.find((candidate) => candidate.name === owner);
     if (asked !== owner) {
+      const naming = unfollowedOf(help, owner).filter((held) => held.specifier === asked);
+      if (naming.length > 0) return sites(help, unfollowedSites(naming, asked));
       const reaching = reachingPast(help, owner, asked);
       if (reaching.length > 0) return sites(help, pastEntry(reaching, owner, 'sites'));
-      if (published !== undefined && published.openings.length === 0) {
-        throw new Error(`\`${asked}\`: ${owner} opens no entry, and no other package imports this specifier`);
+      if (published !== undefined && unfollowedEntry(published)) {
+        throw new Error(`\`${asked}\`: ${owner} declares an entry ${UNFOLLOWED}, and no other package imports this specifier`);
       }
-    } else if (published !== undefined && published.openings.length === 0 && subpath === undefined) {
-      const reaching = reachingPast(help, owner);
-      if (reaching.length === 0) return `${owner} opens no entry, and no other package imports a file of it.`;
-      const past = pastEntry(reaching, owner, 'files');
-      return sites(help, { ...past, lines: [`${owner} opens no entry.`, '', ...past.lines] });
+    } else if (published !== undefined && unfollowedEntry(published) && subpath === undefined) {
+      const heading = `${owner} declares an entry ${UNFOLLOWED}, so none of its names are listed.`;
+      const past = beyond(help, owner);
+      if (past === undefined) return `${heading} No other package imports it.`;
+      return sites(help, { ...past, lines: [heading, '', ...past.lines] });
     } else if (published !== undefined && subpath === undefined && !published.openings.some((held) => held.subpath === '.')) {
       return subpathsOnly(help, published);
     }
@@ -90,9 +106,8 @@ export const entrypoint: Tool<Help> = {
       ? [`${specifierOf(door, held)} opens no names.`]
       : [`${specifierOf(door, held)} — ${plural(held.entries.length, 'name')}`, '', ...held.entries.map(line)];
     // The package asked by its name alone: the imports past its entry are part of what it is used for.
-    const reaching = subpath === undefined && said === door.name ? reachingPast(help, door.name) : [];
-    if (reaching.length === 0) return names.join('\n');
-    const past = pastEntry(reaching, door.name, 'files');
+    const past = subpath === undefined && said === door.name ? beyond(help, door.name) : undefined;
+    if (past === undefined) return names.join('\n');
     return sites(help, { ...past, lines: [...names, '', ...past.lines] });
   },
 };
@@ -128,14 +143,51 @@ function pastEntry(reaching: readonly Deep[], owner: string, grain: 'files' | 's
 const fileRow = (file: FileTaken): string =>
   `  ${file.specifiers.join(', ')} — ${plural(file.names, 'name')}, imported by ${plural(file.importers, 'file')}`;
 
-/** The questions that list the sites behind the first row: its specifier, and its most-taken name through it. */
-function filesAsks(files: readonly FileTaken[]): readonly string[] {
+/**
+ * The questions that list the sites behind the first row: its specifier, and
+ * its most-taken name through it. The specifier is not asked again when it is
+ * the package's name, which is the question that printed the row.
+ */
+function filesAsks(files: readonly FileTaken[], owner?: string): readonly string[] {
   const top = files[0];
   if (top === undefined) return [];
+  const specifier = top.specifiers[0]!;
   return [
-    `variance ask entrypoint --package ${shell(top.specifiers[0]!)}`,
-    ...(top.name === undefined ? [] : [usesOf(top.name, top.specifiers[0]!)]),
+    ...(specifier === owner ? [] : [`variance ask entrypoint --package ${shell(specifier)}`]),
+    ...(top.name === undefined ? [] : [usesOf(top.name, specifier)]),
   ];
+}
+
+/**
+ * What `owner` is imported for besides the names its entries open, asked by its
+ * name: the imports that name an entry this reading could not follow, and the
+ * ones past every entry it declares, each counted per file. Nothing, when there
+ * are neither.
+ */
+function beyond(help: Help, owner: string): Sites | undefined {
+  const naming = unfollowedOf(help, owner);
+  const reaching = reachingPast(help, owner);
+  const parts: Sites[] = [];
+  if (naming.length > 0) {
+    const files = perFile(naming);
+    const heading = `${plural(naming.length, 'import names', 'imports name')} an entry ${owner} declares that this reading could not follow, most imported first:`;
+    parts.push({ lines: [heading, ...files.map(fileRow)], asks: filesAsks(files, owner) });
+  }
+  if (reaching.length > 0) parts.push(pastEntry(reaching, owner, 'files'));
+  if (parts.length === 0) return undefined;
+  return { lines: parts.flatMap((part, at) => [...(at === 0 ? [] : ['']), ...part.lines]), asks: parts.flatMap((part) => part.asks) };
+}
+
+/** The imports written as one specifier a manifest declares and this reading could not follow, one line per site. */
+function unfollowedSites(naming: readonly Deep[], asked: string): Sites {
+  const first = naming.flatMap((held) => held.names.map((taken) => taken.name)).filter(isName).sort(codeUnitOrder)[0];
+  return {
+    lines: [
+      `${asked} is an entry ${UNFOLLOWED}, so none of its names are listed. ${plural(naming.length, 'import names', 'imports name')} it:`,
+      ...naming.map((held) => `  ${held.specifier} — ${held.by} at ${held.at}:${held.line}`),
+    ],
+    asks: first === undefined ? [] : [usesOf(first, asked)],
+  };
 }
 
 /**
@@ -148,9 +200,8 @@ function subpathsOnly(help: Help, published: Documented): string {
   const door = mostUsed(opened) ?? opened[0]!;
   const lines = [`${published.name} opens no main entry. It opens:`, ...opened.map((pair) => `  ${openingRow(...pair)}`)];
   const asks = [`variance ask entrypoint --package ${shell(specifierOf(...door))}`];
-  const reaching = reachingPast(help, published.name);
-  if (reaching.length === 0) return [...lines, ...narrower(asks)].join('\n');
-  const past = pastEntry(reaching, published.name, 'files');
+  const past = beyond(help, published.name);
+  if (past === undefined) return [...lines, ...narrower(asks)].join('\n');
   return sites(help, { lines: [...lines, '', ...past.lines], asks: [...asks, ...past.asks] });
 }
 

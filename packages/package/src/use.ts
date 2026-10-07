@@ -124,8 +124,15 @@ export interface Deep {
 export interface Usage {
   /** `<package> <subpath>` to imported name to every place that imports it. */
   readonly names: ReadonlyMap<string, ReadonlyMap<string, readonly Use[]>>;
-  /** Specifiers naming a file of a package that declares an entry, past what that entry opens. */
+  /** Specifiers naming a file of a package that declares an entry, past every specifier it declares. */
   readonly deep: readonly Deep[];
+  /**
+   * Specifiers a published manifest declares that the reading could not follow
+   * to a source file: a `main` or an `exports` target naming a build output the
+   * checkout does not hold. None of them is deep, since each names the entry
+   * exactly; the names it takes cannot be listed, because no file was read.
+   */
+  readonly unfollowed: readonly Deep[];
   /**
    * Specifiers naming a file of a package that declares no entry: no `exports`,
    * `main`, `types` or `typings`. Every import of such a package is by path, and
@@ -262,6 +269,7 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
   const names = new Map<string, Map<string, Use[]>>();
   const deep: Deep[] = [];
   const byPath: Deep[] = [];
+  const unfollowed: Deep[] = [];
   const exported: Named[] = [];
   const unreadable: string[] = [];
 
@@ -286,7 +294,8 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
 
       if (lands !== 'opened') {
         const taken = asked.names.map((bound) => ({ name: bound.imported, by, at, line: bound.line, type: bound.type, kind }));
-        (lands === 'byPath' ? byPath : deep).push({ specifier: asked.specifier, by, at, line: asked.line, names: taken });
+        const into = lands === 'byPath' ? byPath : lands === 'unfollowed' ? unfollowed : deep;
+        into.push({ specifier: asked.specifier, by, at, line: asked.line, names: taken });
         continue;
       }
 
@@ -300,7 +309,7 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
     }
   }
 
-  return { names, deep, byPath, exported, unreadable };
+  return { names, deep, byPath, unfollowed, exported, unreadable };
 }
 
 /**

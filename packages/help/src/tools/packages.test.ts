@@ -99,13 +99,16 @@ describe('docs_packages', () => {
     expect(text.split('\n')[0]).toBe('2 packages that declare no entry are imported by path, most names first:');
   });
 
-  it('counts the packages whose declared entry leads to no source file, and names the one most imported past it', () => {
+  it('counts the packages whose declared entry this reading could not follow, the imports of that entry apart from the deep ones', () => {
     const text = packages.run(QUIET, {});
 
-    expect(text).toMatch(/^1 package declares an entry that leads to no source file, so none of its names are listed\.$/m);
-    expect(text).toMatch(/^ {2}@acme\/quiet — 1 import$/m);
+    expect(text).toContain(
+      '1 package declares an entry this reading could not follow to a source file, such as a build output the checkout does not hold, ' +
+        'so none of its names are listed. 1 import names an entry like that, most first:\n  @acme/quiet — 1 import',
+    );
+    expect(text).toMatch(/^1 import reaches past a published entrypoint\. .*:\n {2}@acme\/quiet — 1 import$/m);
     expect(text).toMatch(/^ {2}variance ask entrypoint --package @acme\/quiet$/m);
-    expect(packages.run(BY_PATH, {})).not.toContain('leads to no source file');
+    expect(packages.run(BY_PATH, {})).not.toContain('could not follow');
   });
 
   it('is as long for a hundred imports of each file as for one', () => {

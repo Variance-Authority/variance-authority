@@ -45,7 +45,6 @@ import { taintRecords, type Taint } from '@variance-authority/sense/taint';
 import {
   assembleHelp,
   ownership,
-  publishes,
   readImportTargets,
   readOfferings,
   type Help,
@@ -426,8 +425,9 @@ export function joinUsage(documented: Help, offerings: readonly Offering[], usag
   }));
   return {
     packages,
-    deep: usage.deep.filter((held) => !publishes(offerings, held.specifier)),
+    deep: usage.deep,
     byPath: usage.byPath,
+    unfollowed: usage.unfollowed,
     exported: usage.exported,
     unreadable: [...offerings.flatMap((offering) => offering.unreadable ?? []), ...usage.unreadable],
   };

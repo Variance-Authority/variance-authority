@@ -104,17 +104,23 @@ describe('docs_entrypoint on a package other packages import by path', () => {
     expect(text).toMatch(/^1 file could not be read, so these imports are a floor; `variance ask packages` lists it\.$/m);
   });
 
-  it('counts the imports past the entry of a package that opens none', () => {
+  it('counts the imports of the entry a package declares and this reading could not follow, and the imports past it', () => {
     const text = entrypoint.run(QUIET, { package: '@acme/quiet' });
 
-    expect(text).toMatch(/^@acme\/quiet opens no entry\.$/m);
+    expect(text).toMatch(
+      /^@acme\/quiet declares an entry this reading could not follow to a source file, such as a build output the checkout does not hold, so none of its names are listed\.$/m,
+    );
+    expect(text).toMatch(/^1 import names an entry @acme\/quiet declares that this reading could not follow, most imported first:\n {2}@acme\/quiet — 1 name, imported by 1 file$/m);
     expect(text).toContain('  @acme/quiet/src/hush — 1 name, imported by 1 file');
+    expect(text).toMatch(/^ {2}variance ask uses --name hush --package @acme\/quiet$/m);
+    expect(text).not.toMatch(/^ {2}variance ask entrypoint --package @acme\/quiet$/m);
     expect(entrypoint.run(QUIET, { package: '@acme/quiet/src/hush' })).toContain('  @acme/quiet/src/hush — @acme/app at apps/app/src/hushed.ts:1');
   });
 
   it('refuses a specifier nothing opens and nothing imports, saying which of the two its package lacks', () => {
     expect(() => entrypoint.run(QUIET, { package: '@acme/quiet/src/nowhere' })).toThrow(
-      '`@acme/quiet/src/nowhere`: @acme/quiet opens no entry, and no other package imports this specifier',
+      '`@acme/quiet/src/nowhere`: @acme/quiet declares an entry this reading could not follow to a source file, such as a build ' +
+        'output the checkout does not hold, and no other package imports this specifier',
     );
     expect(() => entrypoint.run(BY_PATH, { package: '@acme/lib/src/nowhere' })).toThrow(/does not open `\.\/src\/nowhere`; it opens: \.$/);
   });
