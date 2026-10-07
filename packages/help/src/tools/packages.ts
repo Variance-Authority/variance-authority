@@ -21,13 +21,13 @@ import { mostUsed, narrower, openingRow, plural, section, shell } from './format
 export const packages: Tool<Help> = {
   name: 'docs_packages',
   description:
-    'What each package in this workspace is imported for, counted. A package that publishes an entry ' +
+    'What each package in this workspace is imported for, counted. Call this first: the specifiers it ' +
+    'returns are the arguments every other tool here takes. A package that publishes an entry ' +
     'has a row per import specifier it opens, with how many names it opens, how many of those anything ' +
     'imports and how many carry documentation. A package that declares no entry has a row with how many ' +
     'of its names and files other packages import by path. Imports that reach past a published ' +
     'entrypoint are counted per package. Every row names the argument of docs_entrypoint, which counts ' +
-    'the import sites behind the counts per file. With nothing in hand, docs_orient with no files prints the ' +
-    'package graph folded into areas.',
+    'the import sites behind the counts per file.',
   inputSchema: NO_ARGS,
 
   run(help) {

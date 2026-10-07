@@ -237,12 +237,11 @@ must resolve the installed package binary.
 
 ## Read from entrypoint to symbol
 
-Call `docs_packages` when you know the repository's areas, from `docs_orient`,
-but have no specifier. It counts and lists no import site. A row in its first
-block is a specifier, what one import line names, with the names it opens. An
-indented row is a package other packages import files of: by path, when the
-package declares no entry, or past the entry it declares, a deep import. Either
-row goes to `docs_entrypoint` as `package`, exactly as printed.
+Call `docs_packages` first. It counts and lists no import site. A row in its
+first block is a specifier, what one import line names, with the names it
+opens. An indented row is a package other packages import files of: by path,
+when the package declares no entry, or past the entry it declares, a deep
+import. Either row goes to `docs_entrypoint` as `package`, exactly as printed.
 
 Called with a specifier, `docs_entrypoint` lists the names it opens, ranked by
 how many workspace packages import them. Called with a package's name, it lists

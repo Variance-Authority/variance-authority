@@ -21,9 +21,7 @@ import { uses } from './tools/uses.js';
  * `docs_search` narrow to a name; `docs_symbol` spends the length. That shape is
  * the whole design: a model that has to guess a package name to ask its first
  * question will guess, and a wrong guess costs a turn and reads exactly like a
- * workspace that does not publish the thing. A caller with nothing in hand at
- * all starts from `docs_orient` with no files, which also needs nothing and
- * prints the package graph folded into areas.
+ * workspace that does not publish the thing.
  *
  * `docs_uses` follows `docs_symbol` because it is the other half of one
  * question. A signature says what a name is *supposed* to be; where the
