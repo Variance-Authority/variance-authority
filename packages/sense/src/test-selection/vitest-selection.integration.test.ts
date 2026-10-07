@@ -28,17 +28,21 @@ async function run(name: string, skip: readonly string[], ...args: string[]) {
   const coverageFile = resolve(directory, `${name}.bin`);
   const { stderr } = await execute(process.execPath, [vitest, 'run', '--config', 'vitest.config.ts', ...args], {
     cwd: fixture,
-    env: {
-      ...process.env,
-      VARIANCE_AUTHORITY_COVERAGE: coverageFile,
-      VARIANCE_AUTHORITY_CACHE: resolve(directory, name),
-      FIXTURE_SKIP: JSON.stringify(skip),
-    },
+    env: environment(name, { FIXTURE_SKIP: JSON.stringify(skip) }),
   });
   const ran = existsSync(coverageFile)
     ? decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file).sort()
     : [];
   return { stderr, ran };
+}
+
+function environment(name: string, fixture: Record<string, string>): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    VARIANCE_AUTHORITY_COVERAGE: resolve(directory, `${name}.bin`),
+    VARIANCE_AUTHORITY_CACHE: resolve(directory, name),
+    ...fixture,
+  };
 }
 
 describe('a Vitest run over two projects, handed a selection', () => {
@@ -61,5 +65,18 @@ describe('a Vitest run over two projects, handed a selection', () => {
 
     expect(ran).toEqual([]);
     expect(stderr).toContain('variance-authority: selected none of 2');
+  }, 30_000);
+
+  it('fails the run, exiting 1, when the selection refuses the record it read', async () => {
+    const refused = execute(process.execPath, [vitest, 'run', '--config', 'vitest.config.ts'], {
+      cwd: fixture,
+      env: environment('refused', { FIXTURE_REFUSE: 'the record at coverage.bin could not be read' }),
+    });
+
+    await expect(refused).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining('the record at coverage.bin could not be read'),
+    });
+    expect(existsSync(resolve(directory, 'refused.bin'))).toBe(false);
   }, 30_000);
 });
