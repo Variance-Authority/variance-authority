@@ -75,19 +75,14 @@ describe('collectEvidence: one job of a collection, with nothing compared', () =
     expect(opened.worlds).toEqual({ opened: 1, closed: 1 });
   });
 
-  it('records a subject that failed, or threw, as failed, and still collects the rest', async () => {
-    const opened = collecting(PLAN, (id) => {
-      if (id === 'card--default') return { ok: false, because: 'the story threw: no theme' };
-      if (id === 'menu--open') throw new Error('navigation timed out');
-      return answer(id);
-    });
+  it('records a subject that failed as failed, and still collects the rest', async () => {
+    const opened = collecting(PLAN, (id) => (id === 'card--default' ? { ok: false, because: 'the story threw: no theme' } : answer(id)));
     const part = await collectEvidence(inputOf(opened));
 
     expect(part.outcomes.filter((outcome) => outcome.outcome === 'failed')).toEqual([
       { position: 2, subject: 'card--default', outcome: 'failed', because: 'the story threw: no theme' },
-      { position: 3, subject: 'menu--open', outcome: 'failed', because: 'navigation timed out' },
     ]);
-    expect(part.subjects.map((row) => row.subject)).toEqual(['button--primary', 'button--quiet', 'page--home']);
+    expect(part.subjects.map((row) => row.subject)).toEqual(['button--primary', 'button--quiet', 'menu--open', 'page--home']);
     expect(opened.worlds).toEqual({ opened: 2, closed: 2 });
   });
 

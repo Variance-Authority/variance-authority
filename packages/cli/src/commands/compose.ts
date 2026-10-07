@@ -488,7 +488,7 @@ export function composeReports(given: ComposeInput): {
 }
 
 /** The scan under what the engine said, as one `source`; the input unchanged when the engine said nothing. */
-function withDeclared({ declared, ...input }: ComposeInput): ComposeInput {
+export function withDeclared({ declared, ...input }: ComposeInput): ComposeInput {
   if (declared === undefined) return input;
   return { ...input, source: overlaySourceIndex(input.source ?? {}, declared) };
 }

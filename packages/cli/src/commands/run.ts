@@ -1,8 +1,3 @@
-import {
-  componentInstances,
-  type SourceIndex,
-  type SubjectComposition,
-} from '@variance-authority/core/attribute';
 import { profileById, type SemanticSnapshot } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { DEFAULT_ALONE_LIMIT } from '../config.js';
@@ -17,9 +12,10 @@ import { variationsOf, variationsWanted } from './variations.js';
 import { ledgerOf } from './ignores.js';
 import { sensitivityLedgerOf } from './sensitivities.js';
 import { decoderFor } from './resources.js';
-import { assign, declinedBy, placedElsewhere } from './shard.js';
+import { assign, placedElsewhere } from './shard.js';
 import { costsOf } from './costs-entry.js';
-import { closeLanes, contextFor, openLanes, steal, timed, workersOf } from './lanes.js';
+import { contextFor, timed } from './lanes.js';
+import { acquire } from './acquire.js';
 import type { ObserveContext, Outcome, RunOptions } from './run-context.js';
 import { selectionFor } from './run-select.js';
 import { unplannedNotes } from './unplanned.js';
@@ -197,15 +193,7 @@ async function observeAll(
   // The check is here rather than inside the recorder so that a run with no
   // history configured never hashes a snapshot it is not going to send.
   const recording = options.identity !== undefined && config.history !== undefined;
-  let declared: SourceIndex | undefined; // the last carried; the engine's answers only grow
   const readings = perSubject<SubjectHistory>();
-
-  // Filled unconditionally, unlike `readings` above, and that is the whole point
-  // of it being a second array. The cross-subject graph costs one walk of a tree
-  // the run already holds and needs no store, no identity and no history — so
-  // gating it on `recording` would make the suite's own composition invisible in
-  // exactly the configuration developers use most.
-  const compositions = perSubject<SubjectComposition>();
 
   // Subjects some other subject declared itself a variation of, plus the
   // variations themselves. Both halves are needed and neither is the whole run:
@@ -249,106 +237,83 @@ async function observeAll(
   );
 
   // Each lane is a standing world with one collection in flight (ADR-0009);
-  // lanes take whole files off one queue, longest first, until it is empty.
-  const { lanes, warnings: laneWarnings } = await openLanes(deps.collector, workersOf(config));
-  await steal(lanes, assignment.queue, config, async (index, lane) => {
-    const planned = plan.subjects[index]!;
-    const id = planned.subject.id;
-    let started: number | undefined;
-
-    const declined = declinedBy(id, selected?.skipped, options.subjects);
-    if (declined !== undefined) {
-      slots[index] = { kind: 'not-observed', entry: declined };
-      return;
-    }
-
+  // lanes take whole files off one queue, longest first, until it is empty. The
+  // suite's own composition is taken there whatever else the run records: it
+  // costs one walk of a tree the run already holds and needs no store.
+  const acquired = await acquire({
+    plan,
+    queue: assignment.queue,
+    collector: deps.collector,
+    config,
+    ...(selected === undefined ? {} : { skipped: selected.skipped }),
+    ...(options.subjects === undefined ? {} : { scope: options.subjects }),
+    ...(deps.elapsed === undefined ? {} : { elapsed: deps.elapsed }),
+    passed: (index, entry) => {
+      slots[index] = { kind: 'not-observed', entry };
+    },
     // Once a store has failed the run is over, so later subjects stop rather
     // than each paying a render to reach the same conclusion.
-    if (storeFailure !== undefined) return;
-
-    const collected = await lane.collecting(async () => {
-      started = deps.elapsed?.();
-      return lane.collector.collect(planned);
-    });
-    if (collected.ok && collected.source !== undefined) declared = collected.source;
-    if (!collected.ok) {
-      slots[index] = {
-        kind: 'not-observed',
-        entry: { subject: id, kind: 'failed', because: collected.because },
-      };
-      return;
-    }
-
-    // Per boundary rather than per component name, which is what makes it
-    // comparable to another subject's: the instance list is the unit the suite's
-    // own graph is folded from. Taken here, in the worker, because the snapshot
-    // is not retained past this scope on the path that keeps no history.
-    if (collected.snapshot !== undefined) {
-      compositions[index] = {
-        subject: id,
-        instances: componentInstances(collected.snapshot),
-        // Carried so a divergence can name the input that moved. FIXME: it and
-        // `readings` hold every tree to the end — 28.8 GB at 502 (spec 0052).
-        snapshot: collected.snapshot,
-      };
-    }
-
-    // Retained here for the same reason the composition is taken here: the
-    // snapshot does not outlive this scope on the path that keeps no history,
-    // and a variation is a comparison between two of them.
-    if (collected.snapshot !== undefined && varying.has(id)) {
-      retained.set(id, collected.snapshot);
-    }
-
-    // Kept per subject, in plan order, and only when there is a record to write
-    // to. A quiet subject is the one the denominator is made of, so this is taken
-    // here — before the verdict — rather than from the observation, which knows
-    // nothing about the reading that settled.
-    if (recording && collected.snapshot !== undefined) {
-      readings[index] = {
-        subject: id,
-        snapshot: collected.snapshot,
-        ...(collected.source !== undefined ? { source: collected.source } : {}),
-        // The design tokens this subject resolved, taken from the document's
-        // inherited floor — which is where they already are, because a subject's
-        // subtree does not contain the `:root` rule that declares them and the
-        // document has to carry the resolved values for the render to be
-        // faithful at all.
-        tokens: customProperties(collected.document.inherited),
-      };
-    }
-
-    try {
-      const outcome = await observeOne(planned, collected, contextFor(context, lane), lane.collecting);
-      slots[index] = timed(outcome, started, deps.elapsed, planned.declaredIn);
-    } catch (error) {
-      if (error instanceof RasterStoreError) {
-        // Spec 0004: a store failure is not a verdict. Reporting an unreachable
-        // endpoint as `new` would make the next `accept` overwrite the only copy
-        // of what the subject looked like before, while reporting success.
-        // Captured rather than thrown, because throwing out of one worker while
-        // the others are mid-render leaves browser pages leased and the error
-        // racing whichever of them rejects next.
-        storeFailure ??= new OperatorError(
-          `the baseline store failed while observing \`${id}\`: ${messageOf(error)}. ` +
-            'No verdict was reached and no baseline was written.',
-          { cause: error },
-        );
-        return;
+    stopped: () => storeFailure !== undefined,
+    read: async (index, planned, collected, lane, started) => {
+      const id = planned.subject.id;
+      // Retained here for the same reason the composition is taken here: the
+      // snapshot does not outlive this scope on the path that keeps no history,
+      // and a variation is a comparison between two of them.
+      if (collected.snapshot !== undefined && varying.has(id)) {
+        retained.set(id, collected.snapshot);
       }
-      // Anything else is about this subject, not about the run. Recorded and the
-      // run continues: one component that throws must not cost the other 299
-      // their observations.
-      slots[index] = {
-        kind: 'not-observed',
-        entry: {
+
+      // Kept per subject, in plan order, and only when there is a record to write
+      // to. A quiet subject is the one the denominator is made of, so this is taken
+      // here — before the verdict — rather than from the observation, which knows
+      // nothing about the reading that settled.
+      if (recording && collected.snapshot !== undefined) {
+        readings[index] = {
           subject: id,
-          kind: 'failed',
-          because: `observing it failed: ${messageOf(error)}`,
-        },
-      };
-    }
-  }).finally(async () => closeLanes(lanes));
+          snapshot: collected.snapshot,
+          ...(collected.source !== undefined ? { source: collected.source } : {}),
+          // The design tokens this subject resolved, taken from the document's
+          // inherited floor — which is where they already are, because a subject's
+          // subtree does not contain the `:root` rule that declares them and the
+          // document has to carry the resolved values for the render to be
+          // faithful at all.
+          tokens: customProperties(collected.document.inherited),
+        };
+      }
+
+      try {
+        const outcome = await observeOne(planned, collected, contextFor(context, lane), lane.collecting);
+        slots[index] = timed(outcome, started, deps.elapsed, planned.declaredIn);
+      } catch (error) {
+        if (error instanceof RasterStoreError) {
+          // Spec 0004: a store failure is not a verdict. Reporting an unreachable
+          // endpoint as `new` would make the next `accept` overwrite the only copy
+          // of what the subject looked like before, while reporting success.
+          // Captured rather than thrown, because throwing out of one worker while
+          // the others are mid-render leaves browser pages leased and the error
+          // racing whichever of them rejects next.
+          storeFailure ??= new OperatorError(
+            `the baseline store failed while observing \`${id}\`: ${messageOf(error)}. ` +
+              'No verdict was reached and no baseline was written.',
+            { cause: error },
+          );
+          return;
+        }
+        // Anything else is about this subject, not about the run. Recorded and the
+        // run continues: one component that throws must not cost the other 299
+        // their observations.
+        slots[index] = {
+          kind: 'not-observed',
+          entry: {
+            subject: id,
+            kind: 'failed',
+            because: `observing it failed: ${messageOf(error)}`,
+          },
+        };
+      }
+    },
+  });
+  const { compositions, declared, warnings: laneWarnings } = acquired;
 
   if (storeFailure !== undefined) throw storeFailure;
 

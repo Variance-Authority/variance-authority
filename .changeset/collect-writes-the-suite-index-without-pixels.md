@@ -26,3 +26,7 @@ The suite index is version 2: it carries landmarks, the file that declares
 each subject, fields the reading did not reach apart from fields it read as
 empty, coverage with the reason each failed or excluded subject has, and the
 build it came from. Version 1 indexes still open, without those facts.
+
+`variance run --workers` keeps where every worker located a component. Before,
+the report's lexicon carried only the last worker's locations, so a component
+another worker located fell back to the source scan's candidates.
