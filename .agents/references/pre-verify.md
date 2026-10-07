@@ -14,6 +14,16 @@ an existing one, a helper that repeats a package's export, a fix to a symptom
 whose owner sits upstream — each is thrown away here, while it costs only the
 time already spent. Green tests do not answer this; a duplicate passes its own.
 
+A new flow next to an existing one is compared step by step, on one screen,
+before it is kept. `collect` was built beside `run`'s acquisition loop, given
+error handling and a merge of its own, and defended through three review
+warnings. The features made the copy look different, and one of them fixed a
+bug in the copy only. When the steps match, the change is two commits: the
+shared path pulled out of the existing caller with no change in behaviour,
+which its own tests check, then the new caller on top. The repository checks
+find pasted blocks and the three re-typed idioms. They do not find a re-typed
+flow.
+
 **Is the checkout reconciled?** An out-of-date checkout reports defects, not
 errors, and that is what makes it expensive. Nothing here imports another
 package by relative path, so a check asking the CLI what a setting means

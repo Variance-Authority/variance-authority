@@ -95,14 +95,20 @@ the site, CLI output and error messages. Read it before writing any of them.
   name that shares a word with one of its own third-party dependencies until
   somebody has written down which of the two it is.
 - **Code-unit sorting.** Never `localeCompare` in anything that reaches a
-  committed artifact: it makes byte-stability a promise about `LANG`.
+  committed artifact: it makes byte-stability a promise about `LANG`. Sort with
+  `codeUnitOrder` from `@variance-authority/core/segment`, not a local
+  comparator.
 - **500 lines per file**, enforced by `tools/shape.check.ts`.
 - **An export a README names is run by something**, enforced by
   `tools/docs-exercised.check.ts`. The rule is deliberately shallow — it asks
   whether a test *names* the export, not whether the test is about it — and it
   has no budget and no exemption list. A documented export nothing names is
   answered with a test or with a deletion.
-- **Every answer has an owner.** See [orient](orient.md).
+- **Every answer has an owner.** See [orient](orient.md). Three idioms keep
+  being typed again: a SHA-256 digest, a code-unit comparator and a
+  write-then-rename. `tools/owners.check.ts` holds their sites per file and
+  names each owner, and `tools/clones.check.ts` holds pasted blocks per pair of
+  files. Neither sees a long flow re-typed with new names.
 - **Performance is earned, and isolation is not how it is earned.** A session
   keeps one browser, one context and one page (ADR-0009), and switches subjects
   **in place** through the harness's own API — Storybook's story switch, never a

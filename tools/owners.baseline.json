@@ -1,0 +1,642 @@
+[
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/changes.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/costs-entry.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/coverage-source.ts",
+    "count": 2
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/coverage-text.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/covering-files.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/covering-refs.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/history-rows.ts",
+    "count": 1
+  },
+  {
+    "idiom": "atomic-write",
+    "at": "packages/cli/src/commands/index-follow-ups.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/layers-command.ts",
+    "count": 2
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/cli/src/commands/push-fixture.ts",
+    "count": 1
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/cli/src/commands/push.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/reach-subjects.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/reach.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/report-html-subjects.ts",
+    "count": 1
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/cli/src/commands/report-source.ts",
+    "count": 1
+  },
+  {
+    "idiom": "atomic-write",
+    "at": "packages/cli/src/commands/report-source.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/resources.ts",
+    "count": 2
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/review-graph.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/review-install.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/review-scope.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/review.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/select-leg.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/commands/shard.ts",
+    "count": 1
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/cli/src/commands/shard.ts",
+    "count": 1
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/cli/src/share-entries.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/cli/src/share-entries.ts",
+    "count": 1
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/cli/src/share-lines.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/core/src/attribute/closure.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/core/src/attribute/component-hash.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/core/src/attribute/composition.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/core/src/attribute/coverage.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/core/src/attribute/divergence.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/core/src/attribute/instability.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/core/src/attribute/lexicon.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/core/src/compare/diff/components.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/core/src/compare/parting.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/core/src/judge/docket.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/core/src/judge/ignore.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/core/src/relate/beyond.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/core/src/relate/graph.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/core/src/relate/merkle.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/core/src/relate/records.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/core/src/share/line.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/distill/src/file.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/distill/src/index.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/distill/src/scope.ts",
+    "count": 1
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/help/src/dependency-scale.measure.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/help/src/read.ts",
+    "count": 1
+  },
+  {
+    "idiom": "atomic-write",
+    "at": "packages/help/src/snapshot.ts",
+    "count": 3
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/help/src/snapshot.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/help/src/tools/by-path.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/help/src/tools/grep.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/help/src/tools/symbol.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/help/src/tools/uses.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/history/src/flakiness.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/mcp/src/presentation.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/mcp/src/tools/costs.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/mcp/src/tools/locate-index.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/mcp/src/tools/source-tests.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/mcp/src/tools/source-tree-format.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/package/src/help.ts",
+    "count": 2
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/package/src/members.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/package/src/use.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/presentation/src/compare.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/presentation/src/math.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/presentation/src/measure.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/react/src/quiet.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/report/src/changelog.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/report/src/cluster.ts",
+    "count": 1
+  },
+  {
+    "idiom": "atomic-write",
+    "at": "packages/scenario/src/archive.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/scenario/src/archive.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/scenario/src/machine.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/emitted.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/layer-moves.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/lock/lockfile.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/native.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/published.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/record.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/recorded-durations.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/restrictions-transitive.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/restrictions.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/scan.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/source-index.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/source-scope.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/story/compare.ts",
+    "count": 1
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/sense/src/story/format.cts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/story/read.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/taint/audit.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/taint/join.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/taint/reach.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/at-distance.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/at-source.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/case-axes.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/case-motion.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/case-preconditions.cts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/deviation.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/distance.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/divergence.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/execution-merge.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/execution-select.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/format.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/importers.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/instrumented-modules.ts",
+    "count": 1
+  },
+  {
+    "idiom": "atomic-write",
+    "at": "packages/sense/src/test-selection/jest-journey-artifact.ts",
+    "count": 1
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/sense/src/test-selection/jest-transform.ts",
+    "count": 2
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/journey-native.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/lookup.ts",
+    "count": 1
+  },
+  {
+    "idiom": "atomic-write",
+    "at": "packages/sense/src/test-selection/mainline-layer.ts",
+    "count": 2
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/reading.ts",
+    "count": 1
+  },
+  {
+    "idiom": "atomic-write",
+    "at": "packages/sense/src/test-selection/record-location.ts",
+    "count": 1
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/sense/src/test-selection/recorded-text.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/reverse.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/test-selection/select.ts",
+    "count": 1
+  },
+  {
+    "idiom": "atomic-write",
+    "at": "packages/sense/src/test-selection/stage.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/tier-moves.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/tree.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/sense/src/world.ts",
+    "count": 1
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/server/src/http.ts",
+    "count": 1
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/store/src/share.ts",
+    "count": 1
+  },
+  {
+    "idiom": "atomic-write",
+    "at": "packages/store/src/share.ts",
+    "count": 1
+  },
+  {
+    "idiom": "atomic-write",
+    "at": "packages/tribunal/src/node/bucket.ts",
+    "count": 1
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/tribunal/src/node/bucket.ts",
+    "count": 1
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/tribunal/src/objects.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/tribunal/src/review-read.ts",
+    "count": 1
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/tribunal/src/testing.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "packages/tribunal/src/ui/variations.tsx",
+    "count": 1
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/tribunal/src/worker-auth.ts",
+    "count": 1
+  },
+  {
+    "idiom": "code-unit-order",
+    "at": "tools/unrun.mjs",
+    "count": 1
+  }
+]
