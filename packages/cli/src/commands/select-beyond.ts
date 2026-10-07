@@ -15,7 +15,7 @@ import { beyondReach, type BeyondReach, type Relations } from '@variance-authori
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { wholeEntry, withoutFiles } from '@variance-authority/sense/test-selection';
 import type { InstallDiff } from './installed.js';
-import { listed, many } from './reach.js';
+import { listed, many } from './prose-counts.js';
 
 /**
  * A lockfile or a manifest that moved since the tests ran, as the files it

@@ -30,7 +30,7 @@ import { readFileSync } from 'node:fs';
 import { access, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
-import { workingTreeChanges } from '../working-tree-changes.js';
+import { workingTreeChanges, type WorkingTreeChanges } from '../working-tree-changes.js';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
 import type { TestCoverageView } from './format-view.js';
 import { findModules } from './lookup.js';
@@ -47,6 +47,32 @@ function keptName(digest: string): string {
   return `${KEPT_TEXTS}/${digest.replace(/^[^:]+:/u, '')}`;
 }
 
+/** The checkout a landing keeps texts for: its top, the layer they go to, and what git says differs from `HEAD`. */
+export interface LandedTree {
+  readonly repository: string;
+  readonly top: string;
+  readonly changes: WorkingTreeChanges;
+}
+
+/**
+ * The checkout `root` is in, asked once per landing for every text it keeps.
+ * `undefined` outside a checkout or when git does not answer, which keeps
+ * nothing. Never throws.
+ */
+export async function landedTree(root: string, cacheRoot?: string): Promise<LandedTree | undefined> {
+  let repository: string;
+  let top: string;
+  try {
+    repository = repositoryRoot(root);
+    ({ top } = repositoryLayers(repository, cacheRoot));
+  } catch {
+    return undefined;
+  }
+  // Asked as the scan asks it, so a checkout's untracked cache answers it.
+  const changes = await workingTreeChanges(repository, '');
+  return changes === undefined ? undefined : { repository, top, changes };
+}
+
 /**
  * Keep the text of every module `record` holds that git says differs from
  * `HEAD`, when the text on disk is the one the record's row was cut from.
@@ -60,23 +86,9 @@ function keptName(digest: string): string {
  * a module charged whole later, which is the answer that was given before any
  * text was kept.
  */
-export async function keepRecordedTexts(
-  root: string,
-  record: TestCoverageView,
-  cacheRoot?: string,
-): Promise<readonly string[]> {
-  if (record.commit === undefined) return [];
-  let repository: string;
-  let top: string;
-  try {
-    repository = repositoryRoot(root);
-    ({ top } = repositoryLayers(repository, cacheRoot));
-  } catch {
-    return [];
-  }
-  // Asked as the scan asks it, so a checkout's untracked cache answers it.
-  const changes = await workingTreeChanges(repository, '');
-  if (changes === undefined) return [];
+export async function keepRecordedTexts(tree: LandedTree | undefined, record: TestCoverageView): Promise<readonly string[]> {
+  if (record.commit === undefined || tree === undefined) return [];
+  const { repository, top, changes } = tree;
   const kept: string[] = [];
   for (const file of changes.changed) {
     const rows = findModules(record, file).filter((module) => record.moduleInstrumented.at(module) === 1);

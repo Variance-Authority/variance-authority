@@ -27,11 +27,8 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { LOCKFILES } from '../lock/read.js';
-import { workingTreeChanges } from '../working-tree-changes.js';
-import { repositoryLayers } from './cache-layers.js';
-import { keepText } from './kept-texts.js';
+import { keepText, type LandedTree } from './kept-texts.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { repositoryRoot } from './repository-root.js';
 
 /**
  * Each install file that differed from the run's commit when it ran, named from
@@ -48,24 +45,16 @@ function readByInstall(path: string): boolean {
 }
 
 /**
- * Keep the text of every lockfile and manifest under `root`'s checkout that
- * git says differs from `HEAD`, and say which.
+ * Keep the text of every lockfile and manifest in `tree` that git says
+ * differs from `HEAD`, and say which.
  *
- * `undefined` when the install cannot be said: outside a checkout, when git
- * does not answer, or when a text could not be read or kept. A reader takes
+ * `undefined` when the install cannot be said: no tree, which is outside a
+ * checkout or git not answering, or a text that could not be read or kept. A reader takes
  * that for no record, which compares from the commit as before. Never throws.
  */
-export async function keepRecordedInstall(root: string, cacheRoot?: string): Promise<KeptInstall | undefined> {
-  let repository: string;
-  let top: string;
-  try {
-    repository = repositoryRoot(root);
-    ({ top } = repositoryLayers(repository, cacheRoot));
-  } catch {
-    return undefined;
-  }
-  const changes = await workingTreeChanges(repository, '');
-  if (changes === undefined) return undefined;
+export async function keepRecordedInstall(tree: LandedTree | undefined): Promise<KeptInstall | undefined> {
+  if (tree === undefined) return undefined;
+  const { repository, top, changes } = tree;
   const kept: Record<string, string | null> = {};
   for (const path of changes.gone.filter(readByInstall)) kept[path] = null;
   for (const path of changes.changed.filter(readByInstall)) {
@@ -104,7 +93,19 @@ export function installAfter(
   return held.files.every((file) => ran.has(file)) ? install : undefined;
 }
 
-function sameInstall(a: KeptInstall, b: KeptInstall): boolean {
+/**
+ * `value` as an install, read off a runs record: an object naming each path
+ * with a digest or `null`. Anything else is `undefined`, which a reader takes
+ * for an install it does not know and compares from the commit.
+ */
+export function keptInstallOf(value: unknown): KeptInstall | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const fine = Object.values(value).every((digest) => digest === null || typeof digest === 'string');
+  return fine ? (value as KeptInstall) : undefined;
+}
+
+/** Whether two installs name the same paths with the same texts. */
+export function sameInstall(a: KeptInstall, b: KeptInstall): boolean {
   const paths = Object.keys(a);
   return paths.length === Object.keys(b).length && paths.every((path) => path in b && a[path] === b[path]);
 }

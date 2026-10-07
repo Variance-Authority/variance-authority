@@ -5,9 +5,9 @@ import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
-import { commitRunsAfter, type RecordedTests } from './commit-runs.js';
+import { commitRunsAfter, commitRunsFile, readCommitRuns, type RecordedTests } from './commit-runs.js';
 import { installAfter, keepRecordedInstall } from './kept-install.js';
-import { keptTexts } from './kept-texts.js';
+import { keptTexts, landedTree } from './kept-texts.js';
 
 /**
  * The install a run ran on is the lockfiles and manifests on disk while it ran.
@@ -41,7 +41,7 @@ async function checkout<T>(run: (root: string, cacheRoot: string) => Promise<T>)
 describe('the install a run ran on', () => {
   it('is the commit\'s exactly over a clean tree', async () => {
     await checkout(async (root, cacheRoot) => {
-      expect(await keepRecordedInstall(root, cacheRoot)).toEqual({});
+      expect(await keepRecordedInstall(await landedTree(root, cacheRoot))).toEqual({});
     });
   });
 
@@ -54,7 +54,7 @@ describe('the install a run ran on', () => {
       await writeFile(resolve(root, 'packages/b/package.json'), '{"name":"b"}\n');
       await writeFile(resolve(root, 'index.ts'), 'export const edited = 1;\n');
 
-      const installed = await keepRecordedInstall(root, cacheRoot);
+      const installed = await keepRecordedInstall(await landedTree(root, cacheRoot));
 
       expect(installed).toEqual({
         'packages/a/package.json': null,
@@ -68,7 +68,7 @@ describe('the install a run ran on', () => {
   it('cannot be said outside a checkout', async () => {
     const scratch = await mkdtemp(resolve(tmpdir(), 'variance-kept-install-'));
     try {
-      expect(await keepRecordedInstall(scratch, resolve(scratch, 'cache'))).toBeUndefined();
+      expect(await keepRecordedInstall(await landedTree(scratch, resolve(scratch, 'cache')))).toBeUndefined();
     } finally {
       await rm(scratch, { recursive: true, force: true });
     }
@@ -107,5 +107,37 @@ describe('the install the runs at one commit ran on', () => {
 
     const shards = commitRunsAfter(at('head', ['a.test.ts']), undefined, at('next', ['a.test.ts']));
     expect(shards).not.toHaveProperty('installed');
+  });
+
+  it('goes with the tests a later run leaves standing, for as long as they stand', () => {
+    const at = (commit: string, files: readonly string[]): RecordedTests => ({
+      instrumentation: 'fixture',
+      commit,
+      tests: files.map((file) => ({ file })),
+    });
+    const ran = commitRunsAfter(at('base', ['a.test.ts', 'b.test.ts']), undefined, at('head', ['a.test.ts', 'b.test.ts']), bumped);
+    const next = commitRunsAfter(at('head', ['a.test.ts', 'b.test.ts']), ran, at('next', ['a.test.ts']), {});
+    expect(next.standing).toEqual([{ commit: 'head', files: ['b.test.ts'], installed: bumped }]);
+
+    const later = commitRunsAfter(at('next', ['a.test.ts', 'b.test.ts']), next, at('later', ['a.test.ts']), {});
+    expect(later.standing).toEqual([{ commit: 'head', files: ['b.test.ts'], installed: bumped }]);
+  });
+
+  it('is read as unknown when the record holds something other than an install', async () => {
+    const scratch = await mkdtemp(resolve(tmpdir(), 'variance-kept-install-read-'));
+    try {
+      const coverage = resolve(scratch, 'coverage.bin');
+      const install = (installed: unknown) => ({ commit: 'head', first: '', latest: '', runs: 1, files: [], installed });
+      for (const installed of [null, 'yarn.lock', ['yarn.lock'], { 'yarn.lock': 7 }]) {
+        await writeFile(commitRunsFile(coverage), JSON.stringify({ ...install(installed), standing: [{ commit: 'base', files: ['b.test.ts'], installed }] }));
+        const read = await readCommitRuns(coverage);
+        expect(read).not.toHaveProperty('installed');
+        expect(read?.standing).toEqual([{ commit: 'base', files: ['b.test.ts'] }]);
+      }
+      await writeFile(commitRunsFile(coverage), JSON.stringify(install({ 'yarn.lock': null })));
+      expect((await readCommitRuns(coverage))?.installed).toEqual({ 'yarn.lock': null });
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
   });
 });

@@ -78,7 +78,7 @@
 
 import { resolve } from 'node:path';
 import { readingLines, type ExecutionNarrowing, type FileReading, type TestDistance } from '@variance-authority/sense/test-selection';
-import { many } from './reach.js';
+import { many } from './prose-counts.js';
 import type { SelectInstall } from './select-beyond.js';
 
 /** How the answer is written for whoever is about to run the tests. */

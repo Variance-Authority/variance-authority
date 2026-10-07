@@ -9,10 +9,12 @@ lockfile at the journal's commit, so the bump the suite had already run on was
 read as a change, and selecting with nothing edited ran every test that loads
 the bumped packages: `skipping 0 of 198`. The comparison now starts from the
 install the recording kept, so the same selection skips the whole recorded
-suite, and a lockfile you change after recording is compared from the recorded
-one. A recording that kept no install is compared from its commit as before; one
-whose kept texts this cache does not hold is compared from its commit too, and a
-note says so.
+suite, and a lockfile or manifest you change after recording, or undo, is
+compared from the recorded one. Tests a later run leaves where they last ran
+are compared from the install they ran on too, so committing the bump and
+running the selection does not put them back in the run. A recording that kept
+no install is compared from its commit as before; one whose kept texts this
+cache does not hold is compared from its commit too, and a note says so.
 
 A package the lockfile resolves differently is walked back to the files that
 import it, and those files are read as changed whole. The selection then said

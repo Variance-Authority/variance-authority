@@ -3,7 +3,7 @@
 import { identityDigest, type RenderIdentity } from '@variance-authority/core/format';
 import type { BaselineKey, RasterStore } from '@variance-authority/raster';
 import { keyFor, type PlannedSubject } from './collector.js';
-import { many } from './reach.js';
+import { many } from './prose-counts.js';
 
 /** How the caller turns a planned subject into the identity it will be rendered at. */
 export type IdentityOf = (planned: PlannedSubject) => RenderIdentity;

@@ -48,7 +48,7 @@ import { isMissing, journeyAgainst, recordAgainst, recordPerStand } from './reso
 import { commitPoint, diffPoint, diffSince, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
 import { mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
-import { many } from './reach.js';
+import { many } from './prose-counts.js';
 import { restingOf } from './select-before.js';
 import { handedDiff, journeyReading } from './select-journey.js';
 import type { Leg } from './select-leg.js';
@@ -213,28 +213,32 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // nothing; a comparison that could not be made — from a commit git could not
   // resolve here — declines before the graph is scanned for an answer
   // nobody will read. The lockfile on disk is parsed once for every group.
-  // Where the runs record kept the install the journal's own tests ran on, the
-  // commit is read through it: a bump they ran on uncommitted is no bump for
-  // them, and one undone since is. A kept text this checkout cannot read is
+  // Where the runs record kept the install a group's tests ran on, its commit
+  // is read through it: a bump they ran on uncommitted is no bump for them,
+  // and one undone since is. A kept text this checkout cannot read is
   // half an install, so the commit's is read whole and a note says so.
   const changed = [...selection.changedLines(diff).keys()];
   const installs = new Map<string | undefined, InstallDiff | undefined>();
   let unkept: string | undefined;
-  let ranOver = false;
+  const ranOver = new Set<string | undefined>();
   if (request.diff !== undefined) installs.set(undefined, await installDiffOfPatch(diff, here));
   else {
     const groups = [undefined, ...stands];
     const asked = await Promise.all(groups.map(async (stand) => {
       const point = commit === undefined ? await diffPoint(base, [], here) : await commitPoint(stand?.commit ?? commit, [], here);
-      const ran = stand !== undefined || point === undefined || reading?.installed === undefined ? point : ranOn(point, reading.installed, selection.keptTexts(request.root));
+      const installed = stand === undefined ? reading?.installed : stand.installed;
+      const ran = point === undefined || installed === undefined ? point : ranOn(point, installed, selection.keptTexts(request.root));
       const missing = ran !== undefined && 'missing' in ran;
       if (missing) {
-        const at = commit!.slice(0, 12);
-        unkept = `the suite ran over a ${ran.missing} ${at} does not hold, and that text is not kept here, so the install is compared from ${at}`;
-      } else if (ran !== point) ranOver = true;
+        const at = (stand?.commit ?? commit)!.slice(0, 12);
+        unkept = `the suite ran over a ${ran.missing} that ${at} does not hold, and that text is not kept here, so the install is compared from ${at}`;
+      } else if (ran !== point) ranOver.add(stand?.commit);
+      // A manifest the run kept is compared whether or not the tree still
+      // differs from the commit there: one undone since moved for these tests.
+      const kept = missing || ran === point ? [] : Object.keys(installed!);
       return {
         point: missing ? point : ran,
-        changed: stand === undefined ? changed : [...new Set([...changed, ...stand.changed])],
+        changed: [...new Set([...changed, ...(stand?.changed ?? []), ...kept])],
       };
     }));
     const answers = await installDiffs(asked, here);
@@ -260,7 +264,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.changed), ...beyondFiles])]);
   // What the install changed whole is named whichever way the answer goes: a test it entered was entered by no line.
   const install = installReached(installs, beyond, (stand) =>
-    handed ? 'before the patch' : `${stand === undefined && ranOver ? 'the install recorded ' : ''}at ${(stand ?? commit)?.slice(0, 12) ?? base}`,
+    handed ? 'before the patch' : `${ranOver.has(stand) ? 'the install recorded ' : ''}at ${(stand ?? commit)?.slice(0, 12) ?? base}`,
   );
   const notes = unkept === undefined ? {} : { standing: [...(recorded.standing ?? []), unkept] };
   const rested = { ...recorded, ...notes, ...rest, ...(install === undefined ? {} : { install }) };

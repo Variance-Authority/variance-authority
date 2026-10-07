@@ -5,7 +5,8 @@ import {
 } from '@variance-authority/core/attribute';
 import type { BeforeReach, Relations } from '@variance-authority/core/relate';
 import type { InstallDiff } from './installed.js';
-import { affectedComponents, listed, many, refused, within, type MovedExports } from './reach.js';
+import { affectedComponents, refused, within, type MovedExports } from './reach.js';
+import { listed, many } from './prose-counts.js';
 
 /**
  * Which subjects an edit could possibly have changed — and, far more carefully,

@@ -129,7 +129,7 @@ describe('a test that did not run at the journal commit', () => {
     rmSync(join(repo.root, 'test/gone.test.ts'));
     const H = repo.commit(sources(2, NAMES), 'H');
     await landRun(repo.file, run(repo.root, H, NAMES), repo.root);
-    expect((await readCommitRuns(repo.file))?.standing).toEqual([{ commit: P, files: ['test/gone.test.ts'] }]);
+    expect((await readCommitRuns(repo.file))?.standing).toEqual([{ commit: P, files: ['test/gone.test.ts'], installed: {} }]);
 
     const said = await repo.select();
 
@@ -212,7 +212,7 @@ describe('a test that did not run at the journal commit', () => {
     repo.git('checkout', '--quiet', 'main');
     const H = repo.commit({ 'notes.txt': 'unrelated\n' }, 'H');
     await landRun(repo.file, run(repo.root, H, ['near']), repo.root);
-    expect((await readCommitRuns(repo.file))?.standing).toEqual([{ commit: S, files: ['test/far.test.ts'] }]);
+    expect((await readCommitRuns(repo.file))?.standing).toEqual([{ commit: S, files: ['test/far.test.ts'], installed: {} }]);
     expect(repo.git('merge-base', S, H)).toBe(P);
 
     const said = await repo.select();

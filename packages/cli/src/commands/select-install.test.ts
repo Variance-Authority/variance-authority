@@ -166,9 +166,10 @@ describe('the install a recording ran on', () => {
     delete process.env['VARIANCE_AUTHORITY_CACHE'];
   });
 
-  /** Commit `left-pad` 1.3.0, put `recorded` on disk, and land a run over it the way a runner's teardown does. */
+  /** Commit `left-pad` 1.3.0 and the tests, put `recorded` on disk, and land a run over it the way a runner's teardown does. */
   async function recordedOver(recorded: string): Promise<{ root: string; head: string }> {
-    const { root, head } = checkout({ 'package-lock.json': npmLock('1.3.0') });
+    const tests = Object.fromEntries(snapshot('').tests.map((test) => [test.file, "import '../src/pad';\n"]));
+    const { root, head } = checkout({ 'package-lock.json': npmLock('1.3.0'), ...tests });
     writeFileSync(join(root, 'package-lock.json'), npmLock(recorded));
     await landRun(testCoverageFile(root), snapshot(head), root);
     process.chdir(root);
@@ -219,6 +220,39 @@ describe('the install a recording ran on', () => {
     expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
   });
 
+  it('runs the tests beside a manifest undone after the recording', async () => {
+    const manifest = (type: string) => JSON.stringify({ name: 'pad', type });
+    const { root, head } = checkout({ 'package-lock.json': npmLock('1.3.0'), 'src/package.json': manifest('commonjs') });
+    writeFileSync(join(root, 'src/package.json'), manifest('module'));
+    await landRun(testCoverageFile(root), snapshot(head), root);
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    writeFileSync(join(root, 'src/package.json'), manifest('commonjs'));
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+    expect(said.err).toContain('src/package.json moves what its importers load');
+  });
+
+  it('compares a stand from the install its tests ran on once the bump is committed and a subset ran', async () => {
+    // Record over an uncommitted bump, commit it, and run one test: the other
+    // two now stand at the first commit, on the bumped install, which the next
+    // commit holds. Nothing moved for anybody.
+    const { root } = await recordedOver('1.4.0');
+    execFileSync('git', ['commit', '--quiet', '-am', 'the bump the suite ran on'], { cwd: root });
+    const bumped = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    const ran = snapshot(bumped);
+    const alone = { ...ran, tests: ran.tests.slice(0, 1), modules: ran.modules.map((module) => ({ ...module, blocks: module.blocks.map((block) => ({ ...block, testFiles: [] })) })) };
+    await landRun(testCoverageFile(root), alone, root);
+    await indexOutput({ cwd: root });
+
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\ntest/gamma.test.ts\n');
+    expect(said.err).not.toContain('resolves');
+  });
+
   it('compares from the commit when some test read there is placed on an assumption', async () => {
     // The runs at this commit observed `alpha` alone over the bump; `beta` is
     // read from the commit because nothing says where it ran, so nothing says
@@ -254,7 +288,7 @@ describe('the install a recording ran on', () => {
 
     expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
     expect(said.err).toContain(
-      `the suite ran over a package-lock.json ${head.slice(0, 12)} does not hold, and that text is not kept here, ` +
+      `the suite ran over a package-lock.json that ${head.slice(0, 12)} does not hold, and that text is not kept here, ` +
         `so the install is compared from ${head.slice(0, 12)}`,
     );
   });
@@ -355,6 +389,7 @@ function checkout(files: Readonly<Record<string, string>> = {}): { root: string;
   git(['config', 'user.email', 'fixture@example.test']);
   git(['config', 'user.name', 'Fixture']);
   mkdirSync(join(root, 'src'), { recursive: true });
+  mkdirSync(join(root, 'test'), { recursive: true });
   writeFileSync(join(root, 'src/pad.ts'), PAD);
   for (const [file, text] of Object.entries(files)) writeFileSync(join(root, file), text);
   git(['add', '-A']);

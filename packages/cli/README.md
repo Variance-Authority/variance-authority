@@ -1684,9 +1684,10 @@ A changed lockfile is compared as an install, from the install the suite ran on
 to the one in your tree. A recording keeps the lockfiles and manifests that
 differed from its commit while it ran, so an install you had not committed yet
 when you recorded is the one compared from, and selecting over it with nothing
-else edited skips the whole recorded suite. A recording that kept no install,
-or one whose texts this cache does not hold, is compared from the journal's
-commit, and stderr says which. Every package the lockfile resolves differently
+else edited skips the whole recorded suite. A test keeps that install after you
+commit and run only the selected tests: it is compared from what it last ran
+on. A recording that kept no install, or one whose texts this cache does not
+hold, is compared from the journal's commit, and stderr says which. Every package the lockfile resolves differently
 is walked back through the packages that depend on it to the files that import
 them, and those files are read as changed whole. stderr names the lockfile, the
 packages, the package most of each one's files imported it through and the
