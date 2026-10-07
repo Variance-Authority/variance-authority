@@ -4,12 +4,13 @@
  * read root `check.yml`'s `base` job uploaded, one directory per suite, and
  * `<uploaded>` is `true` when that job's upload made an artifact.
  *
- * Each suite's directory is copied under this checkout's read root, and what
- * it holds is stamped as read now: the pointer to the record fetched, or the
- * line's answer that it gave none. `suiteBase` then answers with it for
- * `MAINLINE_REUSE_MS` instead of asking the line again. The line is a moving
- * ref: a job that asked it again could read a record another job of the same
- * run did not, and shards that read different records place a slice
+ * Each suite's directory is copied under this checkout's read root. The
+ * pointer to the record fetched names the merge base the line was asked at,
+ * which is this job's too, so `suiteBase` answers with it instead of asking
+ * the line again. The line's answer that it gave none names no commit and
+ * stands for `MISS_STANDS_MS`, so it is stamped as given now. The line is a
+ * moving ref: a job that asked it again could read a record another job of
+ * the same run did not, and shards that read different records place a slice
  * differently. A suite the handed root holds neither for is one the line was
  * never asked about, and is left alone.
  *
@@ -20,12 +21,7 @@
 import { cp, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { readMissedMainline, writeMissedMainline } from '@variance-authority/cli';
-import {
-  cacheRootFor,
-  mainlineReadRoot,
-  readFetchedMainline,
-  writeFetchedMainline,
-} from '@variance-authority/sense/test-selection';
+import { cacheRootFor, mainlineReadRoot, readFetchedMainline } from '@variance-authority/sense/test-selection';
 
 const [handed, uploaded] = process.argv.slice(2);
 if (handed === undefined || (uploaded !== 'true' && uploaded !== 'false')) {
@@ -62,7 +58,6 @@ for (const suite of entries.map((entry) => entry.name).sort()) {
   const readRoot = mainlineReadRoot(cacheRoot, suite);
   await cp(from, readRoot, { recursive: true });
   if (pointer !== undefined) {
-    await writeFetchedMainline(cacheRoot, suite, { ...pointer, fetched: now });
     console.error(`take-base: ${suite} stands on the record ${pointer.mainline} published at ${pointer.commit}, as the base job read it.`);
   }
   if (missed !== undefined) {

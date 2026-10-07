@@ -115,7 +115,7 @@ describe('a worktree at the commit its mainline published', () => {
 });
 
 describe('a fetched record this build does not read', () => {
-  it('is passed over by every reader, for the primary checkout\'s, inside the ten minutes it would be reused', async () => {
+  it('is passed over by every reader, for the primary checkout\'s, where it would otherwise stand', async () => {
     const { head, worktree } = await worktreeAtPublished();
     const kept = join(home, 'laptop-cache', 'share', 'read', 'unit', head, 'coverage.bin');
     await writeFile(kept, new Uint8Array([1, 2, 3, 4]));

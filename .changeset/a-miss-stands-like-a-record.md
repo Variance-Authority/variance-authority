@@ -2,9 +2,8 @@
 '@variance-authority/cli': minor
 ---
 
-A mainline that gave no record is not asked again for 10 minutes, the same
-window a fetched record is reused for. The window used to hold only for a
-remote that did not answer. It now also holds when the line has no record for
+A mainline that gave no record is not asked again for 10 minutes. The window
+used to hold only for a remote that did not answer. It now also holds when the line has no record for
 the suite, or has one this version cannot keep. Within the window, every reader
 gets the same answer as the first. A record published in the meantime is read
 after the window closes, not halfway through a sitting or a CI run.
