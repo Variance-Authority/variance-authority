@@ -55,6 +55,8 @@ describe('selecting from a journey file', () => {
   it('spells a vitest exclusion from the top of the checkout when run from a directory inside it', async () => {
     writeFileSync(join(root, 'change.patch'), patch(6));
     process.chdir(join(root, 'src'));
+    // With no git, the index is kept for the directory a command runs from, so it is written there first.
+    await indexOutput({ cwd: join(root, 'src'), noGit: true });
     const said = await selectOutput({
       cwd: join(root, 'src'),
       format: 'vitest',
