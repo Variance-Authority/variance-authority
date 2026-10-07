@@ -30,11 +30,10 @@ pub fn declarations(file: &str, program: &Program<'_>) -> Vec<String> {
     found
 }
 
-/// A name a component could have: a capital, then letters, digits or `_`.
+/// A name a component could have: one that starts with a capital. The parser
+/// has already decided the rest is an identifier.
 fn push(name: &str, found: &mut Vec<String>) {
-    let mut characters = name.chars();
-    let capital = characters.next().is_some_and(|first| first.is_ascii_uppercase());
-    if capital && characters.all(|rest| rest.is_ascii_alphanumeric() || rest == '_') {
+    if name.chars().next().is_some_and(char::is_uppercase) {
         found.push(name.to_owned());
     }
 }

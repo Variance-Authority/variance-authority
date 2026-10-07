@@ -94,6 +94,14 @@ fn every_shape_a_component_is_written_in_is_declared() {
 }
 
 #[test]
+fn any_name_that_starts_with_a_capital_is_declared_whole() {
+    // The parser decides what an identifier is; a capital first is all a
+    // component's name needs, whatever the alphabet and whatever follows.
+    let source = "export function Styled$Button() { return null; }\nexport const Ölçü = () => null;\nconst Δ = 1;\nconst lower = 2;\n";
+    assert_eq!(declares("Unicode.tsx", source), ["Styled$Button", "Ölçü", "Δ"]);
+}
+
+#[test]
 fn a_name_bound_inside_a_function_is_not_declared_by_the_module() {
     let source = concat!(
         "export function Outer() {\n",
