@@ -3,7 +3,14 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { HistoryStore } from '@variance-authority/history';
 import type { PngDecoder } from '@variance-authority/png';
-import { cacheRootFor, type ExecutionNarrowing, type Stand, type TestDistance, type Unmeasured } from '@variance-authority/sense/test-selection';
+import {
+  cacheRootFor,
+  type ExecutionNarrowing,
+  type Stand,
+  type StandQuestion,
+  type TestDistance,
+  type Unmeasured,
+} from '@variance-authority/sense/test-selection';
 import type { RasterStore } from '@variance-authority/raster';
 import type { Relations } from '@variance-authority/core/relate';
 import type { Config } from '../config.js';
@@ -187,6 +194,12 @@ export async function recordAgainst(
     readonly checkout?: string | undefined;
     readonly unmeasured?: Unmeasured | undefined;
     readonly distances?: boolean;
+    /**
+     * `false` for a diff whose new side is not the text the landing kept a
+     * text against: a module recorded over an edit then reads `stale` and is
+     * charged whole, rather than read from the kept text to that side.
+     */
+    readonly keptTexts?: false;
   },
 ): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances?: readonly TestDistance[] } | undefined> {
   const { relations, at, checkout = root, unmeasured } = options;
@@ -195,7 +208,7 @@ export async function recordAgainst(
   const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
   const asked = {
     sourceAt,
-    keptText: selection.keptTexts(checkout),
+    ...(options.keptTexts === false ? {} : { keptText: selection.keptTexts(checkout) }),
     root,
     ...(relations === undefined ? {} : { relations }),
     ...(unmeasured === undefined ? {} : { unmeasured }),
@@ -224,12 +237,12 @@ export async function recordAgainst(
  */
 export async function recordPerStand(
   stands: readonly Stand[],
-  ask: (whole: readonly string[], stand: string | undefined) => ReturnType<typeof recordAgainst>,
+  ask: (question: StandQuestion) => ReturnType<typeof recordAgainst>,
 ): ReturnType<typeof recordAgainst> {
   const selection = await import('@variance-authority/sense/test-selection');
   let missing = false;
-  const answer = await selection.askPerStand(stands, async (whole, stand) => {
-    const asked = await ask(whole, stand);
+  const answer = await selection.askPerStand(stands, async (question) => {
+    const asked = await ask(question);
     if (asked === undefined) missing = true;
     return asked ?? { narrowing: { whole: [], entered: [], unread: [], stale: [], because: [] } };
   });

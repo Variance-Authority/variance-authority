@@ -488,12 +488,13 @@ selects for every change made since. Record a run of the whole suite at every
 commit and the record is never more than one commit old. A run of some of the
 tests also stamps the record with its commit, and the tests it left out keep
 the rows they recorded on an older text. Each of those is measured from the
-commit it last ran at: a file that changed after that commit is read whole for
-it, and the install is compared from that commit too. A patch you hand in with
-`--diff` is read as the whole change for every test. A test that last ran
-before the record's commit is then not charged with what changed between its
-commit and the record's, so it can be skipped; the output reports when some test
-last ran before the record's commit.
+commit it last ran at: what changed after that commit is read from both texts,
+the way a change in your tree is, so a test runs for an edit to a region it
+entered and not for one elsewhere in the same file. The install is compared from
+that commit too. A patch you hand in with `--diff` is read as the whole change
+for every test. A test that last ran before the record's commit is then not
+charged with what changed between its commit and the record's, so it can be
+skipped; the output reports when some test last ran before the record's commit.
 
 Where the record does not hold the commit a test last ran at, the selection
 assumes one and names it in the output. That assumption can skip a test that
