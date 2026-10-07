@@ -1,5 +1,5 @@
 ---
-'@variance-authority/sense': patch
+'@variance-authority/sense': minor
 ---
 
 `atDistance` returns a test with no measured hop count with the one range that
