@@ -2817,6 +2817,7 @@
         "caseSectionsOf": "function",
         "caseTwins": "function",
         "changedLines": "function",
+        "collectedRecord": "function",
         "commitRunsAfter": "function",
         "commitRunsFile": "function",
         "countCoverage": "function",

@@ -239,6 +239,16 @@ describe('`variance share --suite unit`', () => {
     expect(lines[0]).toMatch(/^wrote suite-v1\/unit to mainline main in /u);
   });
 
+  it('says which test files it retired because the suite no longer collects them', async () => {
+    const { ci } = await mainline({ publish: false });
+    const collected = join(home, 'collected-other.txt');
+    await writeFile(collected, 'test/other.test.ts\n');
+    const lines = await suiteShareLines(ci, { suite: 'unit', publish: true, collected }, { env: PUSH });
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatch(/^wrote suite-v1\/unit to mainline main in /u);
+    expect(lines[1]).toBe('retired 1 test file(s) from suite-v1/unit that the suite no longer collects, test/total.test.ts among them.');
+  });
+
   it('says nothing was published when this checkout holds no record at this commit', async () => {
     const { ci } = await mainline({ publish: false });
     await rm(testCoverageFile(ci, { suite: 'unit' }));

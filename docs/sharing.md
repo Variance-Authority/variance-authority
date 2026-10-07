@@ -1022,8 +1022,16 @@ Every checkout measures from the mainline's record, so a mainline takes only a
 record of the whole suite. The runs record beside the execution record is
 published with it, and it has to show that every test file the runner collects
 ran at `HEAD`. A file the record still lists but the runner no longer collects
-does not count. A push that ran a selection is left out, the line keeps the
-record it had, and the command exits 2:
+does not count, and the publish retires it: its row, what it crossed and its
+cases leave the published record, and the command counts what it retired and
+names one:
+
+```text
+retired 2 test file(s) from suite-v1/unit that the suite no longer collects, test/checkout.browser.test.ts among them.
+```
+
+A push that ran a selection is left out, the line keeps the record it had, and
+the command exits 2:
 
 ```text
 nothing published: suite-v1/unit is left out: its record at <path> is not a whole run: 3 test file(s) the suite collects last ran before 3f1c…, test/cart.test.ts among them.

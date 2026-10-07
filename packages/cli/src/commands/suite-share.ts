@@ -96,7 +96,8 @@ async function publishOnLine(
   if (entry === undefined) return on({ none: `this checkout holds no record of "${suite}"` });
   if ('unpublished' in entry) return on({ none: `${suiteEntry(suite)} is left out: ${entry.unpublished}` });
 
-  const published = await publishLine(cell, run.line, [entry], {
+  const { retired, ...shared } = entry;
+  const published = await publishLine(cell, run.line, [shared], {
     descends: run.line.kind === 'mainline' ? await descendsOf(place, run.line.name, root) : async () => undefined,
     // A suite entry names no image.
     image: async (digest) => {
@@ -105,7 +106,8 @@ async function publishOnLine(
   });
   if ('kind' in published) return on({ line: run.line, miss: published, ...noMainline });
   const eyes = entryCarriesEyes(entry) ? eyesWritten([entry.name], published.written) : {};
-  return on({ line: run.line, published, ...eyes, ...noMainline });
+  const gone = retired === undefined ? {} : { retired: { [entry.name]: retired } };
+  return on({ line: run.line, published, ...eyes, ...gone, ...noMainline });
 }
 
 /**

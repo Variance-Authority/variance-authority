@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { caseSectionsOf, commitRunsFile, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { caseSectionsOf, commitRunsFile, decodeTestCoverage, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { report } from './commands/push-fixture.js';
 import {
   REPORT_ENTRY,
@@ -189,6 +189,26 @@ describe('a mainline\'s `suite-v1/<suite>` entry', () => {
     expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected })).toMatchObject({ name: 'suite-v1/unit', commit });
   });
 
+  it('retires the rows of a test file the suite no longer collects, and names it', async () => {
+    const gone = 'test/moved.chromium.test.ts';
+    const { root, coverage, commit } = await ranAt('retired', (at) => ran(at, [{ commit: 'c'.repeat(40), files: [gone] }]));
+    await writeTestCoverage(coverage, {
+      version: 3,
+      instrumentation: 'fixture',
+      commit,
+      tests: [{ file: gone, complete: false, preconditions: [] }, { file: 'test/kept.test.ts', complete: true, preconditions: [] }],
+      modules: [],
+    });
+
+    const entry = await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected });
+
+    if (entry === undefined || 'unpublished' in entry) throw new Error(`not published: ${JSON.stringify(entry)}`);
+    expect(entry.retired).toEqual([gone]);
+    const read = readSuiteEntry(entry.bytes);
+    if (typeof read === 'string') throw new Error(read);
+    expect(decodeTestCoverage(read.coverage).tests.map((test) => test.file)).toEqual(['test/kept.test.ts']);
+  });
+
   it('is not published for a mainline when a test the commit still has last ran before it, and names one', async () => {
     const { root, coverage, commit } = await ranAt('partial', (at) => ran(at, [{ commit: 'c'.repeat(40), files: ['test/kept.test.ts'] }]));
 
@@ -206,6 +226,17 @@ describe('a mainline\'s `suite-v1/<suite>` entry', () => {
     });
     expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected: new Set(['test/kept.test.ts']) })).toMatchObject({
       name: 'suite-v1/unit',
+    });
+  });
+
+  it('is not published for a mainline when the runner lists none of the record\'s test files, rather than retiring every row', async () => {
+    const { root, coverage, commit } = await ranAt('elsewhere', (at) => ({ ...ran(at, []), files: ['test/kept.test.ts', 'test/other.test.ts'] }));
+    await writeTestCoverage(coverage, {
+      version: 3, instrumentation: 'fixture', commit, tests: [{ file: 'test/kept.test.ts', complete: true, preconditions: [] }], modules: [],
+    });
+
+    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected: new Set(['test/other.test.ts']) })).toEqual({
+      unpublished: `its record at ${coverage} is not cut to what the runner collects: the list names none of the 1 test file(s) the record holds, test/kept.test.ts among them, so every one would be retired`,
     });
   });
 

@@ -340,7 +340,8 @@ function strayed(held: SetExecutionModule, recorded: SetExecutionModule): boolea
     !matched.has(at) && recordedCount.has(address(block)) && heldCount.get(address(block)) !== recordedCount.get(address(block)));
 }
 
-function openPrevious(bytes: Uint8Array | undefined): OpenedSetExecutionIndex | undefined {
+/** The index `bytes` holds, opened at its sets; `undefined` when there is none, or none this build can lay over. */
+export function openPrevious(bytes: Uint8Array | undefined): OpenedSetExecutionIndex | undefined {
   if (bytes === undefined) return undefined;
   try {
     return openSetExecutionIndex(bytes);
