@@ -36,7 +36,7 @@ code.
 | Kind | The body shows | Complete when it carries | Never contains |
 |---|---|---|---|
 | `feat` | A capability that does not exist, or behaviour that works as built and is wanted different, and who asked for it | Tests that fail on the base, with those that pinned the old behaviour amended; the page, README or help text that names it, rewritten where it described the old; a changeset, saying what an upgrader does when behaviour changed | A test still asserting the old behaviour |
-| `fix` | Behaviour that departs from what a doc, spec, test or issue states, quoted | A test that fails on the base; every place the same defect lives, with the search that found them quoted in the body; a changeset when a package ships | Behaviour nobody stated |
+| `fix` | Behaviour that departs from what a doc, spec, test or issue states, quoted | A test that fails on the base; every place the same defect lives; a changeset when a package ships | Behaviour nobody stated |
 | `perf` | A cost, measured | The same measurement before and after (CI's `measure` job on the base and on the PR, or a named benchmark), its command and machine quoted in the body | A changed assertion |
 | `refactor` | A shape that makes a named next change hard | Every existing test unchanged and green on both sides | A changed assertion |
 | `test` | Behaviour on the base that no test pins | Tests that pass on the base | A test for code an open PR adds: it goes in that PR |
@@ -61,18 +61,20 @@ came with it. See [change](change.md).
 ## Reviewing it before it is pushed
 
 The body follows
-[`.github/pull_request_template.md`](../../.github/pull_request_template.md).
-`gh pr create --body-file` skips the template, so apply it yourself.
+[`.github/pull_request_template.md`](../../.github/pull_request_template.md):
+the problem, and how it was solved, a few lines each. It is not a report of the
+work. The tests, the diff and the checks carry the evidence; the body points at
+them, it does not restate them. `gh pr create --body-file` skips the template,
+so apply it yourself.
 
 Before anything is pushed, three subagents review the change, and a fourth when
 the change writes a top-layer page. Each starts with
 no other context, and each gets only what its question needs, read from your
 worktree and `origin/main`, never from local `main`:
 
-1. **Description** — the body alone. Can a reader who has never seen this
-   repository say what the PR is? Is every result it claims observed, with how
-   it was observed, rather than predicted? It quotes each sentence it could not
-   follow.
+1. **Description** — the body alone. Does it say what the problem was and
+   how it was solved, in a few lines a stranger can follow? Anything else in it
+   is noise, and blocking.
 2. **Direction** — the body and the repository. Should this change happen at
    all? Is it proportionate to the problem the body states, does something that
    already exists carry it, and what is missing from it? These are
