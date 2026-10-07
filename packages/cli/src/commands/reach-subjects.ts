@@ -13,7 +13,8 @@ import type { ReachReport, SubjectReach } from '@variance-authority/report';
 import type { BeforeReach, Relations } from '@variance-authority/core/relate';
 
 import { NO_INSTALL_DIFF, type InstallDiff } from './installed.js';
-import { affectedComponents, listed, many, refused, type MovedExports } from './reach.js';
+import { affectedComponents, refused, type MovedExports } from './reach.js';
+import { listed, many } from './prose-counts.js';
 
 export interface ReachInput {
   /** The ref the diff was taken against, in the operator's own words. */

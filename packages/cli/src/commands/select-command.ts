@@ -42,13 +42,13 @@ import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CommitRuns, ExecutionNarrowing, Stand, StandQuestion, StandReading } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import { installDiffs, installDiffOfPatch, withoutManifests, type InstallDiff } from './installed.js';
-import { beyondOf, withWhole } from './select-beyond.js';
+import { installDiffs, installDiffOfPatch, ranOn, withoutManifests, type InstallDiff } from './installed.js';
+import { beyondOf, compared, installReached, withWhole } from './select-beyond.js';
 import { isMissing, journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
 import { commitPoint, diffPoint, diffSince, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
 import { mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
-import { many } from './reach.js';
+import { many } from './prose-counts.js';
 import { restingOf } from './select-before.js';
 import { handedDiff, journeyReading } from './select-journey.js';
 import type { Leg } from './select-leg.js';
@@ -213,15 +213,38 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // nothing; a comparison that could not be made — from a commit git could not
   // resolve here — declines before the graph is scanned for an answer
   // nobody will read. The lockfile on disk is parsed once for every group.
+  // Where the runs record kept the install a group's tests ran on, its commit
+  // is read through it: a bump they ran on uncommitted is no bump for them,
+  // and one undone since is. A kept text this checkout cannot read is
+  // half an install, so the commit's is read whole and a note says so, one
+  // for each commit it happened at.
   const changed = [...selection.changedLines(diff).keys()];
   const installs = new Map<string | undefined, InstallDiff | undefined>();
+  const unkept = new Set<string>();
+  const ranOver = new Set<string | undefined>();
   if (request.diff !== undefined) installs.set(undefined, await installDiffOfPatch(diff, here));
   else {
     const groups = [undefined, ...stands];
-    const asked = await Promise.all(groups.map(async (stand) => ({
-      point: commit === undefined ? await diffPoint(base, [], here) : await commitPoint(stand?.commit ?? commit, [], here),
-      changed: stand === undefined ? changed : [...new Set([...changed, ...stand.changed])],
-    })));
+    const asked = await Promise.all(groups.map(async (stand) => {
+      const point = commit === undefined ? await diffPoint(base, [], here) : await commitPoint(stand?.commit ?? commit, [], here);
+      const installed = stand === undefined ? reading?.installed : stand.installed;
+      const ran = point === undefined || installed === undefined ? point : ranOn(point, installed, selection.keptTexts(request.root));
+      const missing = ran !== undefined && 'missing' in ran;
+      const at = (stand?.commit ?? commit)?.slice(0, 12);
+      const note = missing
+        ? `the suite ran over a ${ran.missing} that ${at} does not hold, and that text is not kept here, so the install is compared from ${at}`
+        : undefined;
+      if (!missing && ran !== point) ranOver.add(stand?.commit);
+      // A manifest the run kept is compared whether or not the tree still
+      // differs from the commit there: one undone since moved for these tests.
+      const kept = missing || ran === point ? [] : Object.keys(installed!);
+      return {
+        point: missing ? point : ran,
+        changed: [...new Set([...changed, ...(stand?.changed ?? []), ...kept])],
+        note,
+      };
+    }));
+    for (const { note } of asked) if (note !== undefined) unkept.add(note);
     const answers = await installDiffs(asked, here);
     groups.forEach((stand, index) => installs.set(stand?.commit, answers[index]));
   }
@@ -243,7 +266,12 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   const suite = declared?.name;
   const beyondFiles = [...beyond.values()].flatMap((one) => one.files);
   const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.changed), ...beyondFiles])]);
-  const rested = { ...recorded, ...rest };
+  // What the install changed whole is named whichever way the answer goes: a test it entered was entered by no line.
+  const install = installReached(installs, beyond, (stand) =>
+    handed ? 'before the patch' : `${ranOver.has(stand) ? 'the install recorded ' : ''}at ${(stand ?? commit)?.slice(0, 12) ?? base}`,
+  );
+  const notes = unkept.size === 0 ? {} : { standing: [...(recorded.standing ?? []), ...unkept] };
+  const rested = { ...recorded, ...notes, ...rest, ...(install === undefined ? {} : { install }) };
   if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole } });
   // Each group is charged the install that moved since it ran, and the files
   // a stand reads whole leave the hunk diff, so none is also read by its hunks.
@@ -282,11 +310,6 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
         };
 
   return said({ ...rested, ground });
-}
-
-/** An install comparison that was made, or `undefined` for one there was nothing to make. */
-function compared(installed: InstallDiff | undefined): Exclude<InstallDiff, { readonly whole: string }> | undefined {
-  return installed === undefined || 'whole' in installed ? undefined : installed;
 }
 
 /**

@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   caseSectionsAt,
+  commitRunsFile,
   declaredSuites,
   encodeAsSetExecutionIndex,
   landRun,
@@ -114,6 +115,51 @@ async function refetch(worktree: string, commit: string): Promise<void> {
   expect(await mainlineBase(worktree, declared, { env: LOCAL, refetch: true })).toMatchObject({ commit });
 }
 
+/**
+ * A checkout at the mainline's next commit whose two tests ran there over one
+ * uncommitted lockfile, in two working states: `total` over the lockfile
+ * alone, then `other` over a new source file beside it, which gives its state
+ * a tree of its own. The bump is then committed and a third test runs, so both
+ * stand where they ran, on the install they ran on.
+ */
+async function standingOverTwoStates(): Promise<{ worktree: string; own: string; next: string; installed: Record<string, string> }> {
+  const { ci, worktree, own } = await laidWorktree();
+  const next = await publishedNext(ci);
+  await git(worktree, 'fetch', '--quiet', 'origin');
+  await git(worktree, 'checkout', '--quiet', '--detach', next);
+  const lock = '{ "lockfileVersion": 3, "packages": {} }\n';
+  await writeFile(join(worktree, 'package-lock.json'), lock);
+  await landRun(own, ranAlone(next, 'test/total.test.ts'), worktree);
+  const edited = 'export const edited = 1;\n';
+  await writeFile(join(worktree, 'src/edited.ts'), edited);
+  await landRun(own, {
+    version: 3,
+    instrumentation: 'fixture',
+    commit: next,
+    tests: [{ file: 'test/other.test.ts', complete: true, preconditions: [] }],
+    modules: [{
+      file: 'src/edited.ts',
+      sourceDigest: digestString(edited),
+      instrumented: true,
+      blocks: [{
+        ordinal: 0, kind: 'module', digest: digestString('module'), name: '', path: 'module',
+        startLine: 1, endLine: 1, source: true, testFiles: ['test/other.test.ts'],
+      }],
+    }],
+  }, worktree);
+  const states = (await readOwnLayer(own))?.ran.filter((state) => state.commit === next);
+  expect(states?.map((state) => state.files)).toEqual([['test/total.test.ts'], ['test/other.test.ts']]);
+  await git(worktree, 'add', 'package-lock.json', 'src/edited.ts');
+  await git(worktree, 'commit', '--quiet', '-m', 'bump');
+  const bumped = await git(worktree, 'rev-parse', 'HEAD');
+  await landRun(own, ranAlone(bumped, 'test/third.test.ts'), worktree);
+  const installed = { 'package-lock.json': digestString(lock) };
+  expect((await readCommitRuns(own))?.standing).toEqual([
+    { commit: next, files: ['test/other.test.ts', 'test/total.test.ts'], installed },
+  ]);
+  return { worktree, own, next, installed };
+}
+
 function crossers(record: TestCoverage): readonly string[] {
   return record.modules.find((module) => module.file === 'src/total.ts')?.blocks.flatMap((block) => block.testFiles) ?? [];
 }
@@ -155,6 +201,89 @@ describe('the milestone under a checkout', () => {
     // `other` reads the new milestone's row; `total` keeps its own, which entered nothing.
     expect(crossers(await readTestCoverage(own))).toEqual(['test/other.test.ts']);
     expect(await readCommitRuns(own)).toMatchObject({ commit: next, over: next, files: ['test/total.test.ts'] });
+  });
+
+  it('drops the install of a runs record it moves to the snapshot\'s commit, which that install was not measured against', async () => {
+    const { ci, first, worktree, own } = await laidWorktree();
+    const next = await publishedNext(ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await landRun(own, ranAlone(next, 'test/total.test.ts'), worktree);
+    // A crash left the record naming the old commit, with an install measured against it.
+    const runs = commitRunsFile(own);
+    const held = JSON.parse(await readFile(runs, 'utf8')) as Record<string, unknown>;
+    await writeFile(runs, JSON.stringify({ ...held, commit: first, installed: { 'package-lock.json': digestString('measured at the old commit') } }));
+    await refetch(worktree, next);
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true } });
+
+    const repinned = await readCommitRuns(own);
+    expect(repinned).toMatchObject({ commit: next });
+    expect(repinned).not.toHaveProperty('installed');
+  });
+
+  it('keeps the install a standing test ran on when it moves to a newer snapshot', async () => {
+    const { ci, worktree, own } = await laidWorktree();
+    const next = await publishedNext(ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    // Both tests run over a lockfile not yet committed; the bump is then
+    // committed and one test runs again, so the other stands where it ran.
+    const lock = '{ "lockfileVersion": 3, "packages": {} }\n';
+    await writeFile(join(worktree, 'package-lock.json'), lock);
+    const both = ['test/other.test.ts', 'test/total.test.ts'];
+    await landRun(own, {
+      version: 3,
+      instrumentation: 'fixture',
+      commit: next,
+      tests: both.map((file) => ({ file, complete: true, preconditions: [] })),
+      modules: [probedModule(both)],
+    }, worktree);
+    await git(worktree, 'add', 'package-lock.json');
+    await git(worktree, 'commit', '--quiet', '-m', 'bump');
+    const bumped = await git(worktree, 'rev-parse', 'HEAD');
+    await landRun(own, ranAlone(bumped, 'test/total.test.ts'), worktree);
+    const installed = { 'package-lock.json': digestString(lock) };
+    expect(await readCommitRuns(own)).toMatchObject({ standing: [{ commit: next, files: ['test/other.test.ts'], installed }] });
+    await refetch(worktree, next);
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next } });
+
+    expect(await readCommitRuns(own)).toMatchObject({ commit: bumped, standing: [{ commit: next, files: ['test/other.test.ts'], installed }] });
+  });
+
+  it('stands the tests that ran at one commit on one install as one entry, over every working state they ran in', async () => {
+    const { worktree, own, next, installed } = await standingOverTwoStates();
+    await refetch(worktree, next);
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next } });
+
+    // The ledger lists `total`'s state first; the entry names both in code-unit order.
+    expect((await readCommitRuns(own))?.standing).toEqual([
+      { commit: next, files: ['test/other.test.ts', 'test/total.test.ts'], installed },
+    ]);
+  });
+
+  it('stands the tests that ran at one commit on two installs as two entries', async () => {
+    const { worktree, own, next, installed } = await standingOverTwoStates();
+    const otherInstall = { 'package-lock.json': digestString('another lockfile') };
+    const runs = commitRunsFile(own);
+    const held = JSON.parse(await readFile(runs, 'utf8')) as Record<string, unknown>;
+    await writeFile(runs, JSON.stringify({
+      ...held,
+      standing: [
+        { commit: next, files: ['test/other.test.ts'], installed },
+        { commit: next, files: ['test/total.test.ts'], installed: otherInstall },
+      ],
+    }));
+    await refetch(worktree, next);
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next } });
+
+    expect((await readCommitRuns(own))?.standing).toEqual([
+      { commit: next, files: ['test/total.test.ts'], installed: otherInstall },
+      { commit: next, files: ['test/other.test.ts'], installed },
+    ]);
   });
 
   it('carries the Eyes journals of the cases it keeps: its own for the tests it ran, the newer snapshot\'s for the rest', async () => {

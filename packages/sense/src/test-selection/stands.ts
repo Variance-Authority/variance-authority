@@ -43,6 +43,7 @@
  */
 
 import type { CommitRuns } from './commit-runs.js';
+import { sameInstall, type KeptInstall } from './kept-install.js';
 import { askCoverageFile } from './coverage-file.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { nearestFirst, type TestDistance } from './distance.js';
@@ -64,6 +65,8 @@ export interface Stand {
    * empty for a stand the runs recorded.
    */
   readonly whole: readonly string[];
+  /** The install `tests` ran on, as the runs record keeps it (`kept-install.ts`); absent when it does not say one for all of them. */
+  readonly installed?: KeptInstall;
 }
 
 /**
@@ -88,6 +91,13 @@ export interface StandReading {
   readonly widened?: string;
   /** Tests the runs place before the snapshot's commit that are not on disk, in no stand; only {@link standsAt} asks. */
   readonly gone?: readonly string[];
+  /**
+   * The install every test read from `base` ran on, as the runs record keeps
+   * it (`kept-install.ts`); only {@link standsAt} asks. Absent when the record
+   * does not say, or when some of those tests are there on an assumption and
+   * may have run on another: the install is then read at `base`.
+   */
+  readonly installed?: KeptInstall;
 }
 
 /**
@@ -160,6 +170,22 @@ function standsOf({ commit, runs, tests }: { readonly commit: string; readonly r
         ? `${runs.over.slice(0, 12)}, where its runs started`
         : `the commits they were assumed at, ${[...from].map((stand) => stand.slice(0, 12)).join(', ')}`;
   return { stands, assumed: `the runs record beside the snapshot does not say where ${unlisted} test(s) last ran, so they are read from ${where}` };
+}
+
+/** The install every test of a stand ran on, when the entries `runs` observed them in at `stand` say one alike. */
+function installOfStand(runs: CommitRuns, stand: string, tests: readonly string[]): KeptInstall | undefined {
+  const installs = new Map<string, KeptInstall>();
+  for (const entry of runs.standing ?? []) {
+    if (entry.commit !== stand || entry.assumed === true || entry.installed === undefined) continue;
+    for (const file of entry.files) installs.set(file, entry.installed);
+  }
+  const first = installs.get(tests[0]!);
+  if (first === undefined) return undefined;
+  const alike = (test: string): boolean => {
+    const one = installs.get(test);
+    return one !== undefined && sameInstall(one, first);
+  };
+  return tests.every(alike) ? first : undefined;
 }
 
 /** The merge base with `ref`, or why there is none to read from. */
@@ -254,7 +280,8 @@ export function readingFrom({
       // FIXME: a submodule's change lists only its gitlink path here, so neither a
       // test under it nor one that entered a file inside it is charged with that change.
       const changed = [...new Set(paths(git('diff', '--name-only', '-z', '--no-renames', stand, commit)))].sort();
-      read.push({ commit: stand, tests: standing, changed, whole: stand === merged ? changed : [] });
+      const installed = runs?.commit === commit ? installOfStand(runs, stand, standing) : undefined;
+      read.push({ commit: stand, tests: standing, changed, whole: stand === merged ? changed : [], ...(installed === undefined ? {} : { installed }) });
     } catch {
       return {
         base: commit,
@@ -316,7 +343,12 @@ export function standsAt(
   const gone = new Set([...stands].filter(([test, stand]) => stand !== commit && !exists(test)).map(([test]) => test));
   const tests = recorded.tests.filter((test) => !gone.has(test));
   const reading = readingFrom({ commit, ref: undefined, runs, tests, git });
-  return gone.size === 0 ? reading : { ...reading, gone: [...gone].sort(codeUnitOrder) };
+  const ran = new Set(runs?.files);
+  const installed =
+    runs?.commit === commit && runs.installed !== undefined && tests.every((test) => stands.get(test) !== commit || ran.has(test))
+      ? { installed: runs.installed }
+      : {};
+  return { ...reading, ...(gone.size === 0 ? {} : { gone: [...gone].sort(codeUnitOrder) }), ...installed };
 }
 
 /** A path as a `diff --git` header spells it, unquoted where git quoted it. */

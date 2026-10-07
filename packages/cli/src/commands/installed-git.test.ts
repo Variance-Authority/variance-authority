@@ -72,7 +72,7 @@ describe('the install at a commit, read through git', () => {
   it('reads each manifest at the commit, so each one whose `type` moved is carried', async () => {
     const { diff, changed } = await compared(20);
 
-    expect(diff).toEqual({ packages: [], manifests: ['yarn.lock', 'package.json'], moved: changed });
+    expect(diff).toEqual({ lockfile: 'yarn.lock', packages: [], manifests: ['yarn.lock', 'package.json'], moved: changed });
   });
 });
 

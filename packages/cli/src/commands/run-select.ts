@@ -43,7 +43,7 @@ import { keyFor, type Plan } from './collector.js';
 import { unenteredSubjects } from './journey.js';
 import { withoutManifests, type InstallDiff } from './installed.js';
 import { beyondOf, withWhole } from './select-beyond.js';
-import { many } from './reach.js';
+import { many } from './prose-counts.js';
 import { reachOf } from './reach-subjects.js';
 import type { ObserveContext, RunDeps, RunOptions } from './run-context.js';
 

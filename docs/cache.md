@@ -80,13 +80,15 @@ over it, so a repository that names its cache keeps one answer for everyone.
     coverage.bin                 which test ran which region of which module, by file and by case,
                                  and the cases the last run replaced, kept for `variance review`
     coverage.bin.lock            held while a run writes the recording
-    coverage.runs.json           the runs at the current commit, and where each other test last ran
+    coverage.runs.json           the runs at the current commit, the install they ran on, and where each
+                                 other test last ran
     coverage.stories/            a test story for each test a run recorded, when you ask for them
     suites/<name>/               the same files for each suite you declare
     source-index.bin             the source index, and its segments beside it
     source-index.bin.map         the code map `variance ask orient` reads
     checkout.json                the checkout this directory belongs to
-    .texts/<hash>                the text a run recorded a module from, when the commit does not hold it
+    .texts/<hash>                the text a run recorded a module from, or a lockfile or manifest it ran
+                                 on, when the commit does not hold it
     .run-<pid>-*/                a run in progress, removed when it ends
     .work/<worktree>/            a git worktree's own layer, the same files again
   renders/                       the images a run took, reused while they match

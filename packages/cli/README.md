@@ -1680,6 +1680,32 @@ When a test does read that fixture, name it in the `preconditions` option of the
 Vitest recorder in `@variance-authority/sense`: from the next recording on, a
 change to it selects every test it governs.
 
+A changed lockfile is compared as an install, from the install the suite ran on
+to the one in your tree. A recording keeps the lockfiles and manifests that
+differed from its commit while it ran, so an install you had not committed yet
+when you recorded is the one compared from, and selecting over it with nothing
+else edited skips the whole recorded suite. A test keeps that install after you
+commit and run only the selected tests: it is compared from what it last ran
+on. Where no install was kept, tests are compared from the commit they last ran
+at. Where the kept texts are not in this cache, they are compared from that
+commit too, and stderr names each such commit. A suite that ran with its
+lockfile deleted has no install to compare, and stderr says it ran without one.
+Every package the lockfile resolves differently is walked back through the
+packages that depend on it to the files that import them, and those files are
+read as changed whole. stderr names the lockfile, the packages, the package
+most of each one's files imported it through and the files, and `json` gives
+the lockfile, the packages, the moved manifests and the count of files under
+`install`:
+
+```
+$ variance select
+skipping 13 of 198 test files recorded whole: none covered a changed line or
+entered a file the install moved; every other test file runs.
+pnpm-lock.yaml resolves 1 package differently than at c921284daa53 (tinyglobby
+through vitest), so 185 files importing it (src/a.test.ts, src/b.test.ts,
+src/c.test.ts and 182 more) were read as changed whole.
+```
+
 Each changed source file also gets a line on stderr saying how the parser read
 it, or why it could not, and `json` lists the same readings under `readings`.
 `variance run --since` adds the same lines to the run's warnings:

@@ -38,7 +38,7 @@
 
 import { groupByDistance, remaining, type TestDistance } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import { many } from './reach.js';
+import { many } from './prose-counts.js';
 import type { SelectInput, TestSelection } from './select.js';
 
 /** The hops `--at-distance` asked for. An open end is `Number.MAX_SAFE_INTEGER`, as `distanceRange` reads it. */
