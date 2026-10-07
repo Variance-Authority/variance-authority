@@ -216,7 +216,7 @@ than re-running the analysis. The producing API is in
 |---|---|---|
 | `.` | nothing | `RunReport`, `ObservationRecord`, `PresentationSignalRecord`, `RegionRecord`, `NotObserved`, `clusterChanges`, `adjudicateRun`, `changelogOf` |
 | `./file` | a filesystem | `readRunReport`, `writeRunReport`, `readSuiteIndex`, `writeSuiteIndex` |
-| `./suite-index` | nothing | `suiteIndexOf`, `encodeSuiteIndex`, `decodeSuiteIndex`, `SuiteIndex` |
+| `./suite-index` | nothing | `suiteIndexOf`, `encodeSuiteIndex`, `decodeSuiteIndex`, `SuiteIndex`, `SubjectCoverage`, `SuiteProvenance` |
 
 Import `./file` only when this process should read or write a local path. An
 object store, a pull request comment or a socket carries the same `RunReport`
@@ -229,6 +229,14 @@ far more often than a run happens. `suiteIndexOf` takes it out of a report as
 bytes, addressed by that commit, small enough for a cache to keep and stable
 enough that two machines composing the same suite write the same file.
 `decodeSuiteIndex` refuses anything else.
+
+The index carries the lexicon whole, landmarks and `declaredIn` included, and
+keeps a field nobody read apart from one read and found empty. An index that
+`variance collect merge` wrote adds `coverage`, what became of every planned
+subject, and `provenance`, the plan, config and build it was composed from; one
+`suiteIndexOf` takes out of a run report leaves both out, because the report
+already holds them. A version 1 index still decodes, with none of them filled
+in.
 
 ## Check a run against what you said you were doing
 

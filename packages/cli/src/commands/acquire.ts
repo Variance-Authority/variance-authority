@@ -1,4 +1,4 @@
-// compass: variance-authority.acquisition.suite-observation
+// compass: variance-authority.acquisition.collector-contract
 import { componentInstances, type SourceIndex, type SourceRef, type SubjectComposition } from '@variance-authority/core/attribute';
 import { canonicalize, type CanonicalValue } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';

@@ -74,7 +74,9 @@ merged report includes every entry under the fields all the shards read. A slice
 run without a journal keeps `regions` out of the whole, and the tool prints
 that. The census is not lost to the build: each shard keeps its part beside its
 report, and [publishing every shard's report](sharing.md#a-sharded-build)
-composes the suite index one unsharded run would have written.
+composes the suite index one unsharded run would have written. [`variance collect
+merge`](../packages/cli/README.md#collect-the-suite-index-without-a-visual-run)
+composes it the same way from parts that took no screenshot.
 
 ## Where a boundary is placed
 
