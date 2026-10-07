@@ -260,10 +260,11 @@ on another engine the reader answers nothing and the scan stands as it did.
 ### The fallback nobody configures
 
 The fallback is a map from component name to where it is declared, with *how*
-it was recognised noted so a bad match is debuggable. `variance affected` and
-the Storybook collector build it from each module's parse with
-`indexDeclarations` in [Sense](../packages/sense): a function, a class or a
-`const` or `let` binding among the module's own top-level statements, named
+it was recognised noted so a bad match is debuggable. `variance run` and
+`variance collect` build it from the directories `source.dirs` names, and the
+Storybook collector from the ones it is given, each from every module's parse
+with `indexDeclarations` in [Sense](../packages/sense): a function, a class or
+a `const` or `let` binding among the module's own top-level statements, named
 with a capital, at the line of its statement. A declaration a comment or a
 string spells is not one, and neither is a name bound inside a function.
 Without Sense, `indexSource` in `@variance-authority/core` builds the same map

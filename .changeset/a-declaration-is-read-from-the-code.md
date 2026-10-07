@@ -15,9 +15,9 @@ abstract class, a generator, and a name that starts with a non-ASCII capital or
 carries a `$` are now declared too. A file the parser cannot read declares
 nothing, and its record says why.
 
-`variance affected` and the Storybook collector resolve a component to its
-`file:line` from the same reading, through `indexDeclarations`, which `sense`
-now exports. `indexSource` in `core` stays the text scan for a caller without
+`variance run`, `variance collect` and the Storybook collector resolve a
+component to its `file:line` from the same reading, through
+`indexDeclarations`, which `sense` now exports. `indexSource` in `core` stays the text scan for a caller without
 `sense`.
 
 The source index format moves to version 18, so an index written before this
