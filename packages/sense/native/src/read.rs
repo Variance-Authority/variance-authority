@@ -1,15 +1,14 @@
 //! One module's cacheable facts, extracted without letting its AST cross N-API.
 
 use std::collections::HashMap;
-use std::sync::OnceLock;
 
 use oxc_allocator::Allocator;
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 use oxc_syntax::module_record::{ExportExportName, ExportImportName, ImportImportName};
-use regex::Regex;
 use serde::Serialize;
 
+use crate::declarations::declarations;
 use crate::declared_role::DeclaredRoles;
 use crate::harvest::{Harvest, SourceSymbol, TextSpan};
 use crate::members::{members_in, Member};
@@ -324,7 +323,7 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         exports,
         symbols: harvest.symbols,
         harvested: symbols,
-        declares: declarations(file, source),
+        declares: declarations(file, &parsed.program),
         mocks: mocks_in(source, &parsed.program),
         members,
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
@@ -423,36 +422,6 @@ fn read_requires(source: &str, lines: &Lines) -> Read {
 
 fn is_word(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_'
-}
-
-fn declarations(file: &str, source: &str) -> Vec<String> {
-    if [".test.", ".spec.", ".stories.", ".d.ts"]
-        .iter()
-        .any(|skip| file.contains(skip))
-    {
-        return Vec::new();
-    }
-    static PATTERNS: OnceLock<[Regex; 3]> = OnceLock::new();
-    let patterns = PATTERNS.get_or_init(|| {
-        [
-            Regex::new(r"^\s*(?:export\s+)?(?:default\s+)?function\s+([A-Z][A-Za-z0-9_]*)")
-                .unwrap(),
-            Regex::new(r"^\s*(?:export\s+)?(?:const|let)\s+([A-Z][A-Za-z0-9_]*)\s*[:=]").unwrap(),
-            Regex::new(r"^\s*(?:export\s+)?(?:default\s+)?class\s+([A-Z][A-Za-z0-9_]*)").unwrap(),
-        ]
-    });
-    let mut found = Vec::new();
-    for line in source.lines() {
-        for pattern in patterns {
-            if let Some(name) = pattern.captures(line).and_then(|capture| capture.get(1)) {
-                found.push(name.as_str().to_owned());
-                break;
-            }
-        }
-    }
-    found.sort();
-    found.dedup();
-    found
 }
 
 #[cfg(test)]

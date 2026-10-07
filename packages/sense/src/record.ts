@@ -8,7 +8,6 @@
  */
 
 import { lstat, readFile, stat } from 'node:fs/promises';
-import { indexSource } from '@variance-authority/core/attribute';
 import type { FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
 import type { Parsed, ParseCache } from './cache.js';
 import { digestString, type Digest } from './digest.js';
@@ -222,19 +221,23 @@ async function sized(absolute: string): Promise<number | undefined> {
   }
 }
 
-/** Everything one file's bytes say before anything about where it sits. */
+/**
+ * Everything one file's bytes say before anything about where it sits.
+ *
+ * The components a file declares are the module reader's answer, read off the
+ * tree the native batch reads them off ([`declarations.rs`](../native/src/declarations.rs)),
+ * so a module reaches the same record whichever path built it.
+ */
 function parsedFrom(file: string, contents: string, way: ParseWay, language: LanguageId): Parsed {
   const read = readerFor(language)(file, contents);
-  const declares = way.declaring && indexesComponents(language)
-    ? Object.keys(indexSource(file, contents))
-    : [];
+  const declares = way.declaring && indexesComponents(language) ? read.declares ?? [] : [];
   return {
     requests: read.requests,
     ...(read.exports === undefined ? {} : { exports: read.exports }),
     ...(read.symbols === undefined ? {} : { symbols: read.symbols }),
     ...(read.mocks === undefined ? {} : { mocks: read.mocks }),
     harvested: true,
-    ...(declares.length === 0 ? {} : { declares: declares.sort(byCodeUnit) }),
+    ...(declares.length === 0 ? {} : { declares }),
     ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
     ...(read.size === undefined ? {} : { size: read.size }),
   };
