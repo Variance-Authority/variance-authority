@@ -7,18 +7,16 @@
  * chooses one: the probes land on the file as Jest read it, and the project's
  * transformer runs on that, with the project's options.
  *
- * Two things decide what it costs. The first is Jest's transform cache: the
- * text this returns is stored on disk under `getCacheKey`, shared by every
- * worker and every later run, and a module whose content and configuration have
- * not changed is never handed to `process` again — so the parse `instrument`
- * does is paid once per content version per machine, not once per worker or per
- * run. The second is that the record of what the probes mean is written under
- * that same key: a cache hit is a hit for both halves, and a cache miss rewrites
- * both. Nothing is recomputed at report time.
+ * Jest's transform cache decides what it costs: the text this returns is
+ * stored on disk under `getCacheKey`, shared by every worker and every later
+ * run, and a module whose content and configuration have not changed is never
+ * handed to `process` again — so the parse `instrument` does is paid once per
+ * content version per machine, not once per worker or per run. Nothing about
+ * what the probes mean is written: the reporter cuts the module again from the
+ * file and the digest its probes report.
  *
  * A module the instrumenter cannot read reaches the inner transformer as it
- * is, with an inventory that says so; the selector widens over such a module
- * rather than trusting an absence of crossings.
+ * is.
  */
 
 import { createHash } from 'node:crypto';
@@ -27,17 +25,11 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import picomatch from 'picomatch';
-import { instrument, instrumentationId, PROBE_RUNTIME, type InstrumentMode } from '../instrument/index.js';
-import {
-  defaultInclude,
-  openRecords,
-  projectPath,
-  writeRecord,
-  type RecordWriter,
-} from './instrumented-modules.js';
-import { coverageBlocks } from './coverage-rows.js';
-import { jestStore, type SelectionTransformerConfig } from './jest.js';
-import { rawFrame, type TransformSourceMap } from './source-lines.js';
+import { instrumentationId, PROBE_RUNTIME, type InstrumentMode } from '../instrument/index.js';
+import { captureModule } from './captured-modules.js';
+import { defaultInclude } from './instrumented-modules.js';
+import type { SelectionTransformerConfig } from './jest.js';
+import type { TransformSourceMap } from './source-lines.js';
 
 /** The fields of Jest's project configuration this reads. */
 export interface JestProjectConfig {
@@ -129,15 +121,6 @@ export async function createTransformer(
       .slice(0, 32);
   const innerKeyAsync = inner?.getCacheKeyAsync ?? inner?.getCacheKey;
   const innerProcessAsync = inner?.processAsync ?? inner?.process;
-  // One segment per worker, held for the worker's life: this transformer is
-  // instantiated once per Jest worker process, and the store it writes to is
-  // named by a project configuration that does not change under it.
-  let records: RecordWriter | undefined;
-  const recordsOf = (config: JestProjectConfig): RecordWriter => {
-    const store = jestStore(config.cacheDirectory, config.id);
-    if (records === undefined || records.store !== store) records = openRecords(store, instrumentation);
-    return records;
-  };
 
   const transformer: JestTransformer = {
     canInstrument: inner?.canInstrument ?? false,
@@ -146,13 +129,13 @@ export async function createTransformer(
     getCacheKeyAsync: async (source, path, options) =>
       keyOf(source, path, options, await innerKeyAsync?.(source, path, forInner(options))),
     processAsync: async (source, path, options) => {
-      const code = place(root, recordsOf(options.config), path, options, source, mode, excluded);
+      const code = place(root, path, options, source, mode, excluded);
       return innerProcessAsync === undefined ? { code } : innerProcessAsync(code, path, forInner(options));
     },
   };
   if (inner === undefined || inner.process !== undefined) {
     transformer.process = (source, path, options) => {
-      const code = place(root, recordsOf(options.config), path, options, source, mode, excluded);
+      const code = place(root, path, options, source, mode, excluded);
       return inner?.process === undefined ? { code } : inner.process(code, path, forInner(options));
     };
   }
@@ -160,12 +143,7 @@ export async function createTransformer(
 }
 
 /**
- * Probes on the project's text, and the inventory beside Jest's cache entry.
- *
- * The inventory is written before the text is returned, synchronously, because
- * Jest writes its own cache entry the moment this returns and a worker can be
- * ended the moment after: a text in the cache with no inventory is a module the
- * reporter can never attribute.
+ * Probes on the project's text.
  *
  * A test file is not a module: nothing enters one, and its own edit is what
  * runs it. Which files are tests is the project's `testMatch` or `testRegex`,
@@ -177,7 +155,6 @@ export async function createTransformer(
  */
 function place(
   root: string,
-  records: RecordWriter,
   path: string,
   options: JestTransformRequest,
   source: string,
@@ -185,25 +162,8 @@ function place(
   excluded: ReadonlySet<string>,
 ): string {
   if (excluded.has(resolve(path)) || isTestFile(path, options.config)) return source;
-  const frame = rawFrame(source, path, defaultInclude, (at) => (at === path ? source : readFileSync(at, 'utf8')));
-  if (frame === undefined) return source;
-  const file = projectPath(root, frame.file);
-  // The module reports under the path Jest transformed, which is the path its
-  // journal row names; `file` is where the regions' lines are, which a build's
-  // map may place in its source.
-  const id = projectPath(root, path);
-  const done = instrument(source, file, id, { mode });
-  const { extentOf, sourceDigest, text } = frame;
-  writeRecord(records, done === undefined
-    ? { file, id, sourceDigest, instrumented: false, blocks: [] }
-    : {
-        file,
-        id,
-        sourceDigest,
-        instrumented: true,
-        blocks: coverageBlocks(done.blocks, { extentOf, text }),
-      });
-  return done?.code ?? source;
+  const original = (at: string) => (at === path ? source : readFileSync(at, 'utf8'));
+  return captureModule(root, path, source, defaultInclude, mode, original)?.code ?? source;
 }
 
 /** What Jest hashes when a transformer declares no key of its own. */

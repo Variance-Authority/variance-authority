@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { test as base, expect } from '@playwright/test';
 import { varianceFixtures, type VarianceFixtures, type VarianceWorkerFixtures } from '@variance-authority/playwright-test';
+import { moduleId } from '@variance-authority/sense/journal';
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 
 // Every call below ends in a comment naming it, which is how the test that
@@ -8,8 +10,11 @@ import { variancePrecondition } from '@variance-authority/sense/precondition';
 const test = base.extend<VarianceFixtures, VarianceWorkerFixtures>(varianceFixtures);
 
 // The page hands over one crossing of `src/cart.ts`, the way an instrumented
-// build's collector would.
-const CART = 'packages/playwright-test/test/fixtures/preconditions/src/cart.ts';
+// build's collector would, naming the text on disk.
+const CART = moduleId(
+  'packages/playwright-test/test/fixtures/preconditions/src/cart.ts',
+  readFileSync(new URL('../src/cart.ts', import.meta.url), 'utf8'),
+);
 const COLLECTOR = `globalThis.__variance_authority_execution__ = {
   drain: () => ({ instrumentation: 'sense:instrument/presence-v5', modules: [{ id: '${CART}', hits: [0], shared: [] }] }),
 };`;

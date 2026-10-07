@@ -49,6 +49,8 @@ export interface FetchedMainline {
   readonly commit: string;
   /** When it was fetched, as an ISO time. */
   readonly fetched: string;
+  /** `HEAD`'s merge base with the mainline when the line was asked; absent when the clone named none. */
+  readonly base?: string;
 }
 
 /** The mainline's record of one suite, as the last fetch on this machine kept it. */
@@ -86,9 +88,9 @@ export async function writeFetchedMainline(
 export function readFetchedMainline(readRoot: string): FetchedMainline | undefined {
   try {
     const value = JSON.parse(readFileSync(join(readRoot, FETCHED_MAINLINE), 'utf8')) as Partial<FetchedMainline>;
-    return typeof value.mainline === 'string' && typeof value.commit === 'string' && typeof value.fetched === 'string'
-      ? { mainline: value.mainline, commit: value.commit, fetched: value.fetched }
-      : undefined;
+    if (typeof value.mainline !== 'string' || typeof value.commit !== 'string' || typeof value.fetched !== 'string') return undefined;
+    const { mainline, commit, fetched, base } = value;
+    return { mainline, commit, fetched, ...(typeof base === 'string' ? { base } : {}) };
   } catch {
     return undefined;
   }

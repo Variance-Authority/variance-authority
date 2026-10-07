@@ -12,13 +12,14 @@ import {
   crossedBlock,
   crossingsAround,
   editedRegion,
-  lostCrossings,
+  owedByRecut,
   recutRows,
   reusableBlock,
   sameNumbering,
   withoutRetired,
 } from './merge-carry.js';
 import type { CoverageBlock, CoverageModule, CoverageTest, TestCoverage } from './index.js';
+import { editReaches, type EditReadings } from './edit-readings.js';
 
 /**
  * Which modules the output holds, and in what order.
@@ -75,8 +76,9 @@ export function layeredRows(input: {
   readonly retired: ReadonlySet<string>;
   readonly current: TestCoverage;
   readonly onDisk: ReadonlyMap<string, string>;
+  readonly readings: EditReadings | undefined;
 }): LayeredRows {
-  const { view, previousSets, previousFiles, currentTests, retired, current, onDisk } = input;
+  const { view, previousSets, previousFiles, currentTests, retired, current, onDisk, readings } = input;
   const {
     modulePath, moduleSource, moduleInstrumented, moduleBlocks,
     blockOrdinal, blockKind, blockOwner, blockDigest, blockName, blockPath,
@@ -215,7 +217,7 @@ export function layeredRows(input: {
           if (editedRegion(
             { sourceDigest: module.sourceDigest, digest: block.digest },
             { sourceDigest: view.string(moduleSource[at]!), digest: view.string(blockDigest[before]!) },
-          )) {
+          ) && editReaches(readings, module.file, view.string(moduleSource[at]!), module.sourceDigest, KINDS[blockKind[before]!]!)) {
             for (const file of files) if (!currentTests.has(file)) stale.add(file);
           }
           continue;
@@ -267,7 +269,8 @@ export function layeredRows(input: {
       const recut = recutRows(held, now, current.instrumentation);
       const lost = recut === 'mislaid'
         ? [...new Set(held.blocks.flatMap((block) => block.testFiles))]
-        : recut === undefined ? [] : lostCrossings(held, recut);
+        : recut === undefined ? [] : owedByRecut(held, recut, (kind) =>
+          editReaches(readings, file, held.sourceDigest, recut.sourceDigest, kind));
       for (const test of lost) if (!currentTests.has(test)) stale.add(test);
       if (recut === undefined || recut === 'mislaid') continue;
       recuts.set(row, objects.push(settledModule(withoutRetired(recut, retired))) - 1);

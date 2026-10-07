@@ -1,20 +1,22 @@
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { native, nativeRefusal, type NativeScanner } from '../native.js';
+import type { InstrumentMode } from '../instrument/index.js';
+import { native, nativeRefusal, type NativeJourneyModule, type NativeScanner } from '../native.js';
+import { NO_LINE } from './written-lines.js';
+import { deriveModules } from './captured-modules.js';
+import type { CapturedModule } from './instrumented-modules.js';
 
 const MANIFEST = 'run.json';
 const CASES = 'cases';
 
 interface PendingJourneyRun {
-  readonly version: 1;
+  readonly version: 2;
   readonly root: string;
-  readonly stores: readonly string[];
-  readonly instrumentation: string;
+  /** The recipe the run's probes were placed by; absent for the default. */
+  readonly mode?: InstrumentMode;
   /** Directories of part frames written beyond a fence; absent in a run that has none. */
   readonly parts?: readonly string[];
-  /** Where the inventories those parts name are kept. */
-  readonly partStores?: readonly string[];
 }
 
 /**
@@ -30,11 +32,12 @@ export interface JourneyArtifactResult {
   readonly passes?: number;
   readonly shards?: number;
   /**
-   * Files different transforms cut into different regions. Their crossings are
-   * credited to the regions every transform shares, which is coarser than
-   * either build recorded and never misses a case that ran a changed line.
+   * Files two shards cut into different regions. Their crossings are credited
+   * to the regions every shard shares, which is coarser than either recorded
+   * and never misses a case that ran a changed line. Absent from a finalize:
+   * one run cuts each module once.
    */
-  readonly renumbered: readonly string[];
+  readonly renumbered?: readonly string[];
   /**
    * Modules a case ran that no record holds. What ran there is in no region,
    * so a change to them selects nothing. Absent from a stitch of a shard that
@@ -82,27 +85,21 @@ export async function finalizeJestJourneys(journeyFile: string): Promise<Journey
   const output = resolve(journeyFile);
   const pending = pendingJourneyDirectory(output);
   const manifest = JSON.parse(await readFile(resolve(pending, MANIFEST), 'utf8')) as PendingJourneyRun;
-  if (manifest.version !== 1 || !Array.isArray(manifest.stores)) {
+  if (manifest.version !== 2) {
     throw new Error(`not a pending Variance journey run: ${pending}`);
   }
   const cases = resolve(pending, CASES);
   const scanner = native();
+  const ids = scanner?.journeyModuleIds;
   const foldTo = scanner?.foldJourneyTo;
-  if (foldTo === undefined) {
+  if (ids === undefined || foldTo === undefined) {
     throw new Error(
-      `finalizing journey coverage requires the Sense native addon: ${whyAbsent('foldJourneyTo')}`,
+      `finalizing journey coverage requires the Sense native addon: ${whyAbsent(ids === undefined ? 'journeyModuleIds' : 'foldJourneyTo')}`,
     );
   }
-  const result = foldTo(
-    cases,
-    manifest.root,
-    [...manifest.stores],
-    manifest.instrumentation,
-    output,
-    undefined,
-    [...manifest.parts ?? []],
-    [...manifest.partStores ?? []],
-  );
+  const parts = [...manifest.parts ?? []];
+  const modules = await deriveModules(manifest.root, ids(cases, manifest.root, parts), manifest.mode);
+  const result = foldTo(cases, manifest.root, [...modules.values()].map(nativeModule), output, undefined, parts);
   await rm(pending, { recursive: true, force: true });
   return result;
 }
@@ -121,6 +118,22 @@ export async function stitchJourneyArtifacts(
     );
   }
   return stitchTo(inputs, resolve(journeyFile));
+}
+
+/** A module cut again from the checkout, as the native fold reads it. */
+export function nativeModule(module: CapturedModule): NativeJourneyModule {
+  return {
+    id: module.id,
+    file: module.file,
+    blocks: module.blocks.map((block) => ({
+      kind: block.kind,
+      name: block.name,
+      path: block.path,
+      startLine: block.startLine ?? NO_LINE,
+      endLine: block.endLine ?? NO_LINE,
+      source: block.source,
+    })),
+  };
 }
 
 /** What stopped the addon loading, or which export the addon that did load lacks. */

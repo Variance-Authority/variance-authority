@@ -30,8 +30,8 @@ entered the code you are about to change, and how far each is from it:
 yarn variance covering --file <path> [--function <name>] [--hops]
 ```
 
-After the edit, `yarn test:since --dry-run` answers the same question for the
-diff. [Pre-verify](pre-verify.md) says how that selection is made.
+After the edit, `yarn variance select --suite <slice>` answers the same
+question for the diff. [Pre-verify](pre-verify.md) says how that selection is made.
 
 **What moved on `main`.** `git fetch` and `git log HEAD..origin/main`. A fix
 that landed after your branch point may already answer the task, or change the

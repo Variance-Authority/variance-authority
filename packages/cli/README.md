@@ -1518,7 +1518,7 @@ command that writes it:
 
 ```bash
 variance index
-variance select --format vitest
+variance select
 ```
 
 ```
@@ -1551,10 +1551,12 @@ to write prints `source index not written: <reason>, at <path>` and exits `2`.
 On your machine the command returns once the index is written. The code map,
 the journeys and the last two lines are made by a process it starts for them,
 and a `follow-ups:` line names that process and the file its lines go to. The
-next `variance` command waits for it before reading anything, and prints that on
-stderr, so no answer comes from a map older than the index. A process that ended
-before it finished is not waited on: the next command makes them itself and
-prints their lines. `--wait` makes them before `index` returns, which is what it
+next `variance` command that reads any of them waits for it, and prints that on
+stderr, so no answer comes from a map older than the index. `variance select`
+reads none of them, and waits only while the process brings the index up to
+date and folds its working layer into its base, which it does before the four. A process that ended before it
+finished is not waited on: the next command that reads them makes them itself
+and prints their lines. `--wait` makes them before `index` returns, which is what it
 always does in CI. `--follow-ups` is what the started process runs.
 
 In CI, run it as its own step after you restore the cache. A reader that finds
@@ -1576,12 +1578,18 @@ No `variance.config.json` is read.
 `variance run --since` narrows the subjects this tool renders. `variance select`
 answers the same journal for a suite this tool does not run — `vitest`, `jest`,
 or any runner a shell script hands paths to — by naming the test files that diff
-cannot reach:
+cannot reach. A Vitest or Jest config wrapped by `withTestSelection` reads the
+same answer when you set `VARIANCE_AUTHORITY_SINCE`, and the runner drops those
+files itself, with no path on its command line:
 
 ```bash
-vitest run $(variance select --format vitest)
-jest $(variance select --format jest)
+VARIANCE_AUTHORITY_SINCE= vitest run
+VARIANCE_AUTHORITY_SINCE= jest
+variance select              # the same reading, printed
 ```
+
+[The seam's own page](../sense/README.md#let-the-runner-skip-them) says what
+the run prints and when it does not select.
 
 The journal is what [`@variance-authority/sense`](../sense/README.md) wrote the
 last time that suite ran: its seams record Vitest, Jest and Rstest, and
@@ -1618,8 +1626,10 @@ back empty would run nothing, and the suite would go green in seconds.
 
 So stdout gets paths and nothing else, and every sentence about the reading
 goes to stderr, where a `$(...)` cannot pick it up and hand it to a runner as a
-path. `--format plain` writes one path per line, relative to the repository;
-`vitest` writes `--exclude=` arguments naming each file's absolute path, because
+path. `--format plain` writes one path per line, relative to the repository,
+for a runner with no seam. `vitest` and `jest` are deprecated, and say so on
+stderr: a large selection outgrows a command line, which the variable never
+touches. `vitest` writes `--exclude=` arguments naming each file's absolute path, because
 a workspace is many projects and a project matches an exclude pattern against
 its own directory rather than the root the journal counts from; `jest` writes
 `--testPathIgnorePatterns=` arguments and re-states jest's `/node_modules/`
@@ -1633,8 +1643,8 @@ that many imports from the change, and adds the rest to the skip list. Run
 `0-2`, then `3-`, and every selected file runs in one of the two:
 
 ```bash
-vitest run $(variance select --at-distance 0-2 --format vitest)
-vitest run $(variance select --at-distance 3- --format vitest)
+VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 vitest run
+VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- vitest run
 ```
 
 A leg is still a skip list. A selection that declines to narrow skips nothing
@@ -1695,7 +1705,7 @@ a changed file but never ran the changed branch. It names no commit, so you
 hand it the change:
 
 ```bash
-git diff origin/main | variance select --execution journeys.bin --diff - --format jest
+git diff origin/main | variance select --execution journeys.bin --diff -
 variance select --execution journeys.bin --diff change.patch
 ```
 

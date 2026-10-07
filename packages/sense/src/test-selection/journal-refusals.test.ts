@@ -8,7 +8,7 @@
  * no source — is green, silent, and wrong.
  */
 
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { testSelectionProbes, recordExecution } from './journal.js';
@@ -30,7 +30,7 @@ describe('a browser run that cannot be joined records nothing', () => {
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const plugin = testSelectionProbes({ root, cacheRoot, mode: 'entries' });
+      const plugin = testSelectionProbes({ root, mode: 'entries' });
       const transformed = plugin.transform(SOURCE, module)!;
       // The collector the plugin's own `load` answers with, as a page would
       // have it: the recipe is stamped on what the page reports, not only on
@@ -85,29 +85,28 @@ describe('a browser run that cannot be joined records nothing', () => {
     });
   });
 
-  it('records nothing, and says why, when the page names a module no store holds', async () => {
+  it('records nothing, and says why, when the page names no file under the root', async () => {
     // The page is instrumented and reports ordinals; what is missing is the
-    // record that says which regions those ordinals are. Joining anyway would
+    // file that says which regions those ordinals are. Joining anyway would
     // put crossings in regions nobody cut.
     await inRoot(async (root) => {
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
+      const elsewhere = resolve(root, 'elsewhere');
+      await mkdir(elsewhere);
 
-      const plugin = testSelectionProbes({ root, cacheRoot: resolve(root, 'cache') });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const transformed = testSelectionProbes({ root }).transform(SOURCE, module)!;
 
       const realm = evaluate(transformed.code);
       realm.price(20);
       const recorded = await recordExecution({
-        root,
-        cacheRoot: resolve(root, 'another-cache'),
+        root: elsewhere,
         coverageFile: resolve(root, 'coverage.bin'),
         subjects: [{ owner: 'story:price--premium', journal: realm.collector.drain() }],
       });
 
       expect(recorded.recorded).toBe(false);
-      expect(recorded.because).toContain('no source identity');
-      expect(recorded.because).toContain(resolve(root, 'another-cache'));
+      expect(recorded.because).toContain(`is a file under ${elsewhere}`);
     });
   });
 
@@ -116,7 +115,7 @@ describe('a browser run that cannot be joined records nothing', () => {
       const cacheRoot = resolve(root, 'cache');
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
-      const plugin = testSelectionProbes({ root, cacheRoot });
+      const plugin = testSelectionProbes({ root });
       plugin.transform(SOURCE, module);
 
       const recorded = await recordExecution({

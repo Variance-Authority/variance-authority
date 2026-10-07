@@ -8,6 +8,8 @@
 // in an index somebody has already written.
 
 import { describe, expect, it, vi } from 'vitest';
+import { INSTRUMENTATION_ID } from '../instrument/index.js';
+import { editKey, type EditReading } from './edit-readings.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { layerTestCoverage } from './format-layer.js';
 import { mergeCoverage } from './merge.js';
@@ -215,6 +217,23 @@ interface Case {
   readonly previous: TestCoverage | undefined;
   readonly current: TestCoverage;
   readonly onDisk?: ReadonlyMap<string, string>;
+  readonly readings?: ReadonlyMap<string, EditReading>;
+}
+
+/** The same snapshot with its test loading each module and entering nothing in it. */
+function loadedOnly(coverage: TestCoverage): TestCoverage {
+  return {
+    ...coverage,
+    modules: coverage.modules.map((module) => ({
+      ...module,
+      blocks: module.blocks.map((block) => (block.kind === 'module' ? block : { ...block, testFiles: [] })),
+    })),
+  };
+}
+
+/** The selector's reading of the edit {@link rewritten} makes to `src/decide.ts`. */
+function read(reading: EditReading): ReadonlyMap<string, EditReading> {
+  return new Map([[editKey('src/decide.ts', 'source:src/decide.ts', 'source:src/decide.ts-edited'), reading]]);
 }
 
 const CASES: Readonly<Record<string, Case>> = {
@@ -328,6 +347,11 @@ const CASES: Readonly<Record<string, Case>> = {
     current: { ...at(LOCAL, 'test/beta.test.ts'), modules: [] },
     onDisk: new Map([['src/decide.ts', 'const scale = 2;\n']]),
   },
+  'a carried module whose body was edited, under the recipe the seam records with': {
+    previous: { ...at(BASELINE, 'test/alpha.test.ts'), instrumentation: INSTRUMENTATION_ID },
+    current: { ...at(LOCAL, 'test/beta.test.ts'), instrumentation: INSTRUMENTATION_ID, modules: [] },
+    onDisk: new Map([['src/decide.ts', DECIDE.replace('n > 0', 'n > 1')]]),
+  },
   'a carried module whose text cannot be read as source': {
     previous: at(BASELINE, 'test/alpha.test.ts'),
     current: { ...at(LOCAL, 'test/beta.test.ts'), modules: [] },
@@ -358,15 +382,35 @@ const CASES: Readonly<Record<string, Case>> = {
     current: { ...at(LOCAL, 'test/beta.test.ts'), modules: [] },
     onDisk: new Map([['src/alpha.ts', DECIDE]]),
   },
+  'an edit a run was recorded over that runs nothing differently': {
+    previous: at(BASELINE, 'test/alpha.test.ts'),
+    current: rewritten(at(LOCAL, 'test/beta.test.ts')),
+    readings: read('none'),
+  },
+  'an edit a run was recorded over that moved a body': {
+    previous: at(BASELINE, 'test/alpha.test.ts'),
+    current: rewritten(at(LOCAL, 'test/beta.test.ts')),
+    readings: read('bodies'),
+  },
+  'an edit a run was recorded over that moved a body a carried test only loaded': {
+    previous: loadedOnly(at(BASELINE, 'test/alpha.test.ts')),
+    current: rewritten(at(LOCAL, 'test/beta.test.ts')),
+    readings: read('bodies'),
+  },
+  'an edit a run was recorded over that moved the load': {
+    previous: loadedOnly(at(BASELINE, 'test/alpha.test.ts')),
+    current: rewritten(at(LOCAL, 'test/beta.test.ts')),
+    readings: read('load'),
+  },
 };
 
 describe('layerTestCoverage', () => {
-  for (const [what, { previous, current, onDisk }] of Object.entries(CASES)) {
+  for (const [what, { previous, current, onDisk, readings }] of Object.entries(CASES)) {
     it(`writes the same file as decode, merge and encode: ${what}`, () => {
       const bytes = previous === undefined ? undefined : encodeTestCoverage(previous);
-      const expected = encodeTestCoverage(mergeCoverage(previous, current, onDisk));
+      const expected = encodeTestCoverage(mergeCoverage(previous, current, onDisk, readings));
 
-      expect(layerTestCoverage(bytes, current, onDisk).equals(expected)).toBe(true);
+      expect(layerTestCoverage(bytes, current, onDisk, readings).equals(expected)).toBe(true);
     });
   }
 

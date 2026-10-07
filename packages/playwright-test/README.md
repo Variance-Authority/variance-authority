@@ -509,9 +509,9 @@ staging directory merges for itself and prints that on stderr, and one that does
 contribute costs a file write it would have spent on the merge anyway.
 
 The reporter takes the same values the fixture was given, and they have to
-match — the workers stage crossings recorded against one root and one build's
-records, and a mismatch is not an error anybody sees but a record written under
-paths no later run will look up. `withTestSelection` is the way to set them
+match — the workers stage crossings recorded against one root, and a mismatch
+is not an error anybody sees but a record written under paths no later run will
+look up. `withTestSelection` is the way to set them
 once: it sets `varianceExecution` on the configuration and on each of its
 projects, and adds the reporter with the same values.
 
@@ -523,7 +523,7 @@ import { withTestSelection } from '@variance-authority/playwright-test';
 export default defineConfig(
   withTestSelection(
     { projects: [{ name: 'chromium', use: devices['Desktop Chrome'] }] },
-    { label: 'app', preconditions: ['playwright/fixtures.ts'] },
+    { preconditions: ['playwright/fixtures.ts'] },
   ),
 );
 ```
@@ -538,8 +538,7 @@ to an array of one.
 | Option | Purpose | Default |
 | --- | --- | --- |
 | `root` | A directory in the repository. Recorded paths are relative to the checkout that contains it. | The cwd. |
-| `label` | Matches the `label` given to `testSelectionProbes()`. | `build` |
-| `cacheRoot` | Where that build wrote its block records. | [The cache](https://variance-authority.dev/docs/cache). |
+| `cacheRoot` | Where the coverage layers live. | [The cache](https://variance-authority.dev/docs/cache). |
 | `suite` | The suite this run is, as the root `variance.config.json` declares it under `suites`. Required once any suite is declared. Cannot be combined with `coverageFile`. | None. |
 | `coverageFile` | The coverage index this run merges into. A relative path is read from `root`. | The repository-keyed file in the cache. |
 | `mode` | The probe recipe, matching the `mode` given to `testSelectionProbes()`. | `presence` |
@@ -597,7 +596,7 @@ message reads *preconditions unmeasured* rather than *no preconditions recorded*
 | `varianceRenderer` | Renderer shared by one Playwright worker. | A Playwright renderer created and closed by the fixture. |
 | `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
-| `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, label, cacheRoot, suite, coverageFile, heads, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
+| `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, cacheRoot, suite, coverageFile, heads, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
 | `varianceEvents` | Whether services behind the page announce, and where the driver leaves its return address. | `{}`. Accepts `heads` (the services that report for themselves, described below) and `origin`. The browser half needs neither. |
 | `varianceWire` | The worker's end of the loopback listener the page and any reporting service answer on. | A listener on an ephemeral port, opened and closed by the fixture. |
 | `varianceVantage` | Where this worker reports what it is doing, for a process watching the run. | Whatever `VARIANCE_AUTHORITY_VANTAGE` names, and `undefined` when nothing does. |
@@ -611,8 +610,8 @@ spec forever, no matter how well the browser half is watched.
 
 A **head** is a service that reports its own crossings. `heads` names them. Each
 one runs `collectJourneys()` from `@variance-authority/sense/journey` under the
-same name its build gave `testSelectionProbes()`, and one environment block is
-the whole of the configuration on that side:
+name `heads` lists for it, and one environment block is the whole of the
+configuration on that side:
 
 ```ts
 // playwright.config.ts

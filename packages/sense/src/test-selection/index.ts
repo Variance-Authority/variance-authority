@@ -87,14 +87,8 @@ export { changedLines, type LineRange } from './diff-lines.js';
 export { textAtRecording, textsAt } from './recorded-text.js';
 export { keptTexts } from './kept-texts.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
-export type {
-  Bearing,
-  DistanceOptions,
-  Face,
-  Faces,
-  ReachThrough,
-  TestDistance,
-} from './distance.js';
+export type { Bearing, DistanceOptions, Face, Faces, ReachThrough, TestDistance } from './distance.js';
+export { selectedLines, type SuiteSelection } from './suite-selection.js';
 export { eitherFace, indexFaces } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
 export { foldTestCoverage, journeyDivergences, mergeCoverage };

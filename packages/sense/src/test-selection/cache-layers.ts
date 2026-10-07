@@ -20,9 +20,9 @@
  *
  * ```
  * <cache>/test-selection/<repository>/
- *   coverage.bin, <label>/                the base: the primary checkout's own
+ *   coverage.bin, suites/                 the base: the primary checkout's own
  *   .work/<workspace>/                    one per worktree
- *     coverage.bin, <label>/
+ *     coverage.bin, suites/
  * ```
  *
  * A worktree reads both layers and writes only its own. That is the whole of the
@@ -30,10 +30,8 @@
  * to everyone who is not the primary checkout, so no two writers ever address
  * one byte. Nothing was given up to gain the sharing.
  *
- * `.work` is dotted because the sibling of these directories is a
- * {@link recordStore} label, and a label is caller-chosen — a bundler plugin's
- * word, or a Jest project id. A dot cannot begin one, which is the same reason
- * a run's scratch segments are already `.run-<pid>-<uuid>`.
+ * `.work` is dotted for the reason a run's scratch segments are
+ * `.run-<pid>-<uuid>`: nothing a caller names begins with a dot.
  *
  * ## Why the base is the primary checkout and not the git directory
  *

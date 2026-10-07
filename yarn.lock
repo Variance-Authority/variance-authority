@@ -5336,6 +5336,7 @@ __metadata:
     picomatch: "npm:^4.0.7"
     vite: "npm:^6.0.0"
   peerDependencies:
+    jest: ^30.0.0
     vitest: ^2.1.9 || ^3.0.0 || ^4.0.0
   dependenciesMeta:
     "@variance-authority/sense-darwin-arm64":
@@ -5347,6 +5348,8 @@ __metadata:
     "@variance-authority/sense-win32-x64-msvc":
       optional: true
   peerDependenciesMeta:
+    jest:
+      optional: true
     vitest:
       optional: true
   languageName: unknown

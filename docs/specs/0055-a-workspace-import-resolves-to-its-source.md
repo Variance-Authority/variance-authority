@@ -12,7 +12,7 @@ output came from, and nothing reads it backwards.
 
 This spec lands after 0.6.0. In 0.6.0 a workspace import that resolves into
 `dist` is `unresolved`, with a `packages` edge by name, and this repository
-bridges it in `tools/since-graph.mjs`.
+bridges it in tools/since-graph.mjs.
 
 ## 1. The promise
 
@@ -150,7 +150,7 @@ reasons in `packages/sense/src/record.ts:148-153`, rendered as `${file} — ${re
 
 An unowned member never widens selection; that is true since `03984ae7`, and
 this spec does not change it. The `unknown` does change one reading:
-`foldBuilt` (`tools/since-graph.mjs:147`) leaves a file with `unknown` out of
+`foldBuilt` (tools/since-graph.mjs, line 147) leaves a file with `unknown` out of
 `enumerated`, so a walk will not treat a dead end at that importer as a dead end
 in the code. That is the correct reading of a file whose edge list has a named
 hole.
@@ -217,7 +217,7 @@ import names.
 
 ## 8. Consumers that stop recomputing
 
-**`tools/since-graph.mjs`.** In the same change:
+**tools/since-graph.mjs.** In the same change:
 
 - Delete `target` (`:65`), `published` (`:80`) and `bridgeWorkspace` (`:118`),
   and the call at `:315`. They are a second resolver: `target` picks the first
@@ -234,7 +234,7 @@ import names.
   recorder names a `dist` module by its `src` path through tsc's map. Count
   `dist` rows in a fresh snapshot first. If there are none, `named` is the
   identity on scanned files. If there are some, it goes through `originalOf`.
-- `tools/since-graph.check.ts` loses the tests of `published` (`:26-48`) and
+- tools/since-graph.check.ts loses the tests of `published` (`:26-48`) and
   `bridgeWorkspace` (`:86-139`). Its `foldBuilt` tests (`:50-84`) follow the
   decision on `named`, and its faces tests (`:141-162`) pass unchanged.
 
@@ -243,8 +243,8 @@ the leading `../` fold, which is about worktree links, and the extension drop.
 The third, the `packages/<name>/dist/` → `src/` regex, is replaced by
 `originalOf` over a table built once when the config loads. `probeable`
 (`:126-128`) and every `stemOf` caller then read the table:
-`tools/test-since.mjs:152`, `:299` and `:353`, and `tools/since-diff.mjs:14`,
-`:18` and `:43`.
+tools/test-since.mjs, lines 152, 299 and 353, and tools/since-diff.mjs, lines
+14, 18 and 43.
 
 **Mocks.** `targetFrom` (`packages/sense/src/taint/join.ts:38-49`) calls
 `resolveTo`, which goes through the same `resolved()`. So `vi.mock('@acme/ui')`
@@ -345,7 +345,7 @@ as plain bytes, so no compiler runs.
   `unresolved`. Any member that declines is named in the failure message. Every
   `packages/*/tsconfig.json` sets `rootDir: ./src` and `outDir: ./dist` and every
   build is `tsc --build`, so the expected count is zero.
-- `tools/since-graph.check.ts` passes with the bridge deleted.
+- tools/since-graph.check.ts passes with the bridge deleted.
 - An optional check after a build: each `dist/*.js.map` with a single source
   agrees with `originalOf`. Orphan maps are reported, never trusted.
 
@@ -377,7 +377,7 @@ where the item is a defect in code that ships, as `.agents/references/change.md`
   alias clones and one package lookup, each built on first use.
 - Size: about +200 lines in `origins.ts`, +20 in `resolve.ts`, +40 in
   `witness.ts`, +10 in `record.ts`, +60 in Rust, and about 120 lines deleted
-  from `tools/since-graph.mjs` and its check.
+  from tools/since-graph.mjs and its check.
 
 ## 13. Open decision: a package built by something other than `tsc`
 
@@ -406,7 +406,7 @@ Recommended: **(a)**.
 The fixture in section 10 will pass all nine assertions and every variant, on
 the JavaScript and native paths, in a checkout with no `dist` and again after
 writing one. This repository's scan will have no `@variance-authority/*`
-specifier in any `unresolved`, and `tools/since-graph.mjs` will have no
+specifier in any `unresolved`, and tools/since-graph.mjs will have no
 `published` and no `bridgeWorkspace`. `yarn test:since` over a change to
 `packages/core/src/format/index.ts` will select the tests of `packages/cli`
 through scan edges alone.

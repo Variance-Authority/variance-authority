@@ -239,8 +239,8 @@ export async function installDiffOfPatch(patch: string, root: string = process.c
  * Both ends come from the caller, which is the one that knows where each
  * revision lives — a commit and the working tree, or two blobs a patch names —
  * and `manifestMoved` in the lockfile reader owns which fields the install
- * speaks for, so this and the repository's own `yarn test:since` cannot
- * disagree about it. No reader is no reading: every changed manifest moved.
+ * speaks for, so this and every other reader of an install cannot disagree
+ * about it. No reader is no reading: every changed manifest moved.
  */
 async function movedManifests(
   changed: readonly string[],

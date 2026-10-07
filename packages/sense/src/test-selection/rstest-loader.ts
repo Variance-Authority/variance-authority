@@ -4,7 +4,7 @@
  * Rstest builds the suite with Rspack and runs what it built, so the place a
  * module can be instrumented is a loader rather than a plugin hook. Declared
  * `enforce: 'pre'`, it receives the file as it is on disk, before SWC — the
- * same text the Vite and Jest seams instrument, read by {@link rawFrame}.
+ * same text the Vite and Jest seams instrument, cut by {@link captureModule}.
  *
  * A loader is loaded by path and given options, never handed the object the
  * configuration built, so the run it belongs to cannot be closed over. It is
@@ -18,11 +18,8 @@
  * reporter's empty-record note is what the user reads.
  */
 
-import { readFileSync } from 'node:fs';
-import { instrument } from '../instrument/index.js';
-import { cleanId, projectPath } from './instrumented-modules.js';
-import { coverageBlocks } from './coverage-rows.js';
-import { rawFrame } from './source-lines.js';
+import { captureModule } from './captured-modules.js';
+import { cleanId } from './instrumented-modules.js';
 import { runOf } from './selection-run.js';
 
 /** What the loader asks of the options its rule carries. */
@@ -54,42 +51,15 @@ function instrumentModule(this: SelectionLoaderContext, code: string): void {
   // its own header would ask for the log before the module has installed
   // it. It is a file under the project root like any other, so it is excluded
   // by path rather than by the shape of its name.
-  const frame = run === undefined || run.shims.has(file)
-    ? undefined
-    : rawFrame(code, file, run.include, (at) => readFileSync(at, 'utf8'));
-  if (run === undefined || frame === undefined) {
+  if (run === undefined || run.shims.has(file)) {
     this.callback(null, code);
     return;
   }
-  const { extentOf, sourceDigest, file: wrote, text } = frame;
-
-  // Under its path, the same one every other seam instruments under, so a journal
-  // reads the same whoever produced it.
-  const name = projectPath(run.root, wrote);
-  const moduleId = name;
-  const done = instrument(code, name, moduleId, { mode: run.mode });
-  if (done === undefined) {
-    run.modules.set(moduleId, {
-      file: name,
-      id: moduleId,
-      sourceDigest,
-      instrumented: false,
-      blocks: [],
-    });
-    this.callback(null, code);
-    return;
-  }
-
-  run.modules.set(moduleId, {
-    file: name,
-    id: moduleId,
-    sourceDigest,
-    instrumented: true,
-    blocks: coverageBlocks(done.blocks, { extentOf, text }),
-  });
+  const captured = captureModule(run.root, file, code, run.include, run.mode);
+  if (captured !== undefined) run.modules.set(captured.module.id, captured.module);
   // With no map: every probe sits on the line it reports, so SWC's map from
   // this text is a map from the file on disk.
-  this.callback(null, done.code);
+  this.callback(null, captured?.code ?? code);
 }
 
 // Named here and exported as the default, because a loader is named by path:

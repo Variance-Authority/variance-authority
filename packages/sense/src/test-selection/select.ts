@@ -1,4 +1,5 @@
 import { blocksAround, regionOf } from './blocks-around.js';
+import { builtNamesOf } from './built-names.js';
 import type { TestCoverageView } from './format-view.js';
 import { answerByImporters, type ExecutionNarrowingOptions, type ImporterReason } from './importers.js';
 import { findModules } from './lookup.js';
@@ -202,9 +203,16 @@ export function selectTestFilesFromView(
 function readDiff(
   coverage: TestCoverageView,
   diff: string,
-  options: ExecutionNarrowingOptions,
+  asked: ExecutionNarrowingOptions,
 ): Required<Pick<ExecutionNarrowing, 'entered' | 'unread' | 'because' | 'stale' | 'readings'>> &
   Pick<ExecutionNarrowing, 'declined'> {
+  // A checkout to read layouts in lets the record say which of its names are
+  // built from which source, and the graph's walk asks under the same names.
+  const changed = changedLines(diff);
+  const options: ExecutionNarrowingOptions =
+    asked.knownAs !== undefined || asked.root === undefined
+      ? asked
+      : { ...asked, knownAs: builtNamesOf(coverage, asked.root, changed.keys()) };
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   const selected = new Map<number, SelectionReason[]>();
   const select = (test: number, reason: SelectionReason): void => {
@@ -212,7 +220,6 @@ function readDiff(
     reasons.push(reason);
     selected.set(test, reasons);
   };
-  const changed = changedLines(diff);
   const governing = new Set<string>();
   const rowed = new Set<string>();
   const stale = new Set<string>();
@@ -283,8 +290,10 @@ function readDiff(
       const rebased = rebasedChange(file, frame.text, options.sourceAt?.(file, coverage.commit), context.hunks.get(file) ?? []);
       if (rebased === undefined) frame = 'stale';
       else if (rebased.ranges.length === 0) {
-        // The tests ran over the text the diff arrives at. No parser was
-        // asked, so the reading says so rather than claim equal runtime text.
+        // The record was taken over the text the diff arrives at, and a test
+        // carried onto it from an earlier text of an edited region was demoted
+        // when it landed. No parser was asked, so the reading says so rather
+        // than claim equal runtime text.
         readings.push({ file, verdict: 'none', names: [], kept: true });
         continue;
       } else {
@@ -334,7 +343,14 @@ function readDiff(
   // handed over together they are one read of it rather than two, and that
   // table is the only part of a snapshot large enough for the difference to
   // be the query.
-  const answered = answerByImporters(coverage, [...changed.keys()].sort(codeUnitOrder), rowed, options, governing);
+  const answered = answerByImporters(
+    coverage,
+    [...changed.keys()].sort(codeUnitOrder),
+    rowed,
+    options,
+    disowned,
+    governing,
+  );
   // A declaration is unconditional — *if this file's text moves, retire this
   // observation* — and nothing here narrows it. It is the one thing a record
   // says that no region of any row can say.

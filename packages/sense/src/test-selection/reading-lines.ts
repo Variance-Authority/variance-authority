@@ -2,7 +2,7 @@
  * What the parser made of each changed file, as the lines a run prints.
  *
  * Two selectors print this: `variance run --since` and `variance select` in the
- * CLI, and `yarn test:since` in this repository. They share this function so the
+ * CLI. They share this function so the
  * wording has one implementation; a second copy of a printed finding drifts from
  * the first the day one of them learns a new verdict.
  *
@@ -34,7 +34,7 @@ export function readingLines(readings: readonly FileReading[]): readonly string[
     return GLOSS[key];
   };
   return readings.flatMap((reading) => [
-    `read ${reading.file}: ${verdictOf(reading)}${reading.verdict !== undefined && reading.kept === true ? '' : once(reading.verdict ?? 'unread')}`,
+    `read ${reading.file}: ${verdictOf(reading)}${once(glossOf(reading))}`,
     ...(reading.verdict === undefined ? [] : (reading.unseen ?? [])).map(
       (test) => `unseen ${test}: loaded ${reading.file}${once('unseen')}`,
     ),
@@ -44,8 +44,10 @@ export function readingLines(readings: readonly FileReading[]): readonly string[
 function verdictOf(reading: FileReading): string {
   if (reading.verdict === undefined) return `unread (${UNREAD[reading.unread]})`;
   // No parser compared two texts here, so the parser's gloss would be a claim
-  // nothing made; the reason is printed on every line, as `unread`'s is.
-  if (reading.kept === true) return `${reading.verdict} (the recorded tests already ran this text)`;
+  // nothing made; the reason is printed on every line, as `unread`'s is. The
+  // reason names the record, not its tests: a run of one file lays a record
+  // over its own text that still names every test carried from an earlier one.
+  if (reading.kept === true) return `${reading.verdict} (the record was taken over this text)`;
   if (reading.verdict === 'values' && reading.names.length > 0) return `values (${reading.names.join(', ')})`;
   if (reading.verdict === 'load' && reading.effects !== undefined) {
     return `load (\`sideEffects\` declares ${reading.effects.join(', ')})`;
@@ -53,8 +55,18 @@ function verdictOf(reading: FileReading): string {
   return reading.verdict;
 }
 
+/** The gloss a reading's line explains itself with, the first time that line is printed. */
+function glossOf(reading: FileReading): keyof typeof GLOSS {
+  if (reading.verdict === undefined) return 'unread';
+  return reading.kept === true ? 'kept' : reading.verdict;
+}
+
 const GLOSS = {
   none: ' — the runtime text is equal',
+  // The landing that laid the record demoted every carried test that ran an
+  // edited region of the earlier text (`mergeCoverage`), so those tests are
+  // selected as incomplete rather than skipped as having run this one.
+  kept: ' — a test recorded over an earlier text of an edited region is not skipped',
   bodies: ' — the changed regions are charged, not the whole module',
   values: ' — the readers of the changed values and the changed regions are charged',
   load: ' — every test that loaded it is charged',
