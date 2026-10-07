@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { commitRunsAfter, commitRunsFile, readCommitRuns, type RecordedTests } from './commit-runs.js';
-import { installAfter, keepRecordedInstall } from './kept-install.js';
+import { installAfter, installKey, keepRecordedInstall, sameInstall } from './kept-install.js';
 import { keptTexts, landedTree } from './kept-texts.js';
 
 /**
@@ -138,6 +138,23 @@ describe('the install the runs at one commit ran on', () => {
       expect((await readCommitRuns(coverage))?.installed).toEqual({ 'yarn.lock': null });
     } finally {
       await rm(scratch, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('two installs are one install', () => {
+  const written = { 'yarn.lock': 'digest:lock', 'package.json': 'digest:root', 'packages/a/package.json': null };
+
+  it('when they name the same paths with the same texts, whatever order the paths were written in', () => {
+    const reordered = { 'packages/a/package.json': null, 'package.json': 'digest:root', 'yarn.lock': 'digest:lock' };
+    expect(installKey(reordered)).toBe(installKey(written));
+    expect(sameInstall(reordered, written)).toBe(true);
+  });
+
+  it('not when a path names another text, or none', () => {
+    for (const other of [{ ...written, 'yarn.lock': 'digest:bumped' }, { ...written, 'package.json': null }]) {
+      expect(installKey(other)).not.toBe(installKey(written));
+      expect(sameInstall(other, written)).toBe(false);
     }
   });
 });
