@@ -150,12 +150,15 @@ Pairs right out of 35, and out of the 9 whose owner is not `reach`:
 - **Julia has no relation reading.** It put 0.48 on CONSEQUENCE and 0.36 on
   CONSUMER on average and argmaxed PRIMARY for 1 of 70 candidates. Its three
   phrasings scored 13, 14 and 17.
-- **Clef's errors are not BM25's.** It fixed 4 of BM25's 6 misses (0031, 0043,
-  0079, 0089) and got all 9 non-`reach` pairs right on every scorer once it had
-  the code paths. It broke 6 of BM25's right answers, and every one has `reach`
-  as owner (0036, 0045, 0046, 0067, 0072, 0087). It scores `reach` below
-  `runtime`, `retention` and `stability`. The margins are 0.01 to 0.24, and
-  its phrasings scored 23, 27 and 28.
+- **Clef's errors are not BM25's.** In both rounds it fixed 4 of BM25's 6
+  misses (0031, 0043, 0079, 0089). It broke 6 of BM25's right answers in
+  round 1 (0036, 0045, 0046, 0067, 0072, 0087) and 5 in round 2 (0036, 0045,
+  0046, 0047, 0072), and every one has `reach` as an owner. It scores `reach`
+  below `runtime`, `retention` and `stability`. With the code paths it got all
+  9 pairs whose owner is not `reach` right on every scorer. Those 9 are not the
+  7 pairs in the tr11 notebook entry: those are the pairs that do not offer
+  `reach` at all, where BM25 scores 6. The margins are 0.01 to 0.24, and the
+  round-1 phrasings scored 23, 27 and 28.
 - **Neither model passed.** 28 is one pair short of 29, and four short of the
   `reach` rule.
 
