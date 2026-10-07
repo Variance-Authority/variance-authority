@@ -1830,8 +1830,10 @@ same whatever the shard count or the order you name the parts in.
 
 A subject that failed to render keeps the index at `--out` as it was: the merge
 writes what the parts hold to `<out>.incomplete`, names each failed subject
-with the `variance collect --shard k/n` that owns it, and exits `2`. The parts
-stay where they are, so you collect only that shard again and merge.
+with the command to collect it again, and exits `2`: `variance collect --shard
+k/n` for the shard that owns it, or `variance collect` when the collection was
+not sharded. The parts stay where they are, so you collect only that part again
+and merge.
 
 ### Sharding: `report` takes more than one file
 
