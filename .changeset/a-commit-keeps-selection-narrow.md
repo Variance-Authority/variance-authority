@@ -16,11 +16,14 @@ They now select the 4 that entered the regions the edits changed.
 way a change in the tree is read. The record's text is the old side, so the
 change lands on the regions the test's rows hold. A test still runs for an edit
 to a region it entered, and no longer for one elsewhere in the same file. The
-merge base with a ref named on purpose is still read whole.
+merge base with a ref named on purpose is still read whole, and so is a file a
+later run landed over an uncommitted edit to, whose rows for the test were
+never re-cut onto the record's text.
 
 `Stand` gains `changed`, every file changed from the stand to the record's
 commit. `whole` holds only what a stand charges whole, and is empty for a stand
 the runs recorded. `askPerStand` hands its selector a `StandQuestion` in place
 of the files to charge whole and the stand's commit, so a selector passed to it
 is rewritten to read the question; `standDiff` writes the change a `stand`
-question reads.
+question reads, and a `stand` question is read without the texts a landing
+kept.

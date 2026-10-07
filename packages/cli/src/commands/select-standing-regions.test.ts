@@ -70,6 +70,26 @@ describe('what changed after a test last ran is read region by region', () => {
 
     expect(said.out).toBe('test/far.test.ts\ntest/near.test.ts\n');
   });
+
+  // The run at C lands over a tree holding `held` in `shared.ts`, which it did
+  // not load, so the landing keeps that text for `far`'s carried rows, which
+  // were never re-cut. The tree is then put back to C, which `far` never ran.
+  it.each([
+    ['the text it ran', shared('n + 1', 'n * 2')],
+    ['a text that differs from it only in a function nobody ran', shared('n + 1', 'n * 9')],
+  ])('runs a test whose file the run after it landed over %s, with the tree back at the commit', async (_, held) => {
+    const repo = checkout();
+    const S = repo.commit({ ...TESTS, 'src/shared.ts': shared('n + 1', 'n * 2'), 'src/near.ts': NEAR }, 'S');
+    await landRun(repo.file, run(repo.root, S, ['far', 'near'], { near: 'src/near.ts' }), repo.root);
+    const C = repo.commit({ 'src/shared.ts': shared('n + 2', 'n * 2') }, 'C');
+    writeFileSync(join(repo.root, 'src/shared.ts'), held);
+    await landRun(repo.file, run(repo.root, C, ['near'], { near: 'src/near.ts' }), repo.root);
+    repo.git('checkout', '--', 'src/shared.ts');
+
+    const said = await repo.select();
+
+    expect(said.out).toBe('test/near.test.ts\n');
+  });
 });
 
 const TESTS = {

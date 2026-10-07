@@ -248,11 +248,13 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // Each group is charged the install that moved since it ran, and the files
   // a stand reads whole leave the hunk diff, so none is also read by its hunks.
   // What changed between a stand and the journal's commit is the diff between
-  // the two commits, read from both texts like the tree's.
+  // the two commits, read from both texts like the tree's. Its new side is the
+  // stand, never the tree, so a module the landing kept a text for is charged
+  // whole there: the kept text is not what the tree holds.
   const options = { relations, at, checkout: request.root, unmeasured: selection.unmeasuredOf(declared), distances: request.atDistance !== undefined };
   const ask = (question: StandQuestion) =>
     question.read === 'stand'
-      ? recordAgainst(here, selection.standDiff(gitIn(here), commit!, question.at), options)
+      ? recordAgainst(here, selection.standDiff(gitIn(here), commit!, question.at), { ...options, keptTexts: false })
       : recordAgainst(
           here,
           withWhole(

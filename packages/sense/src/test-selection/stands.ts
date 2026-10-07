@@ -29,10 +29,17 @@
  * ones the test's run and the snapshot's text disagree on. A run that would go
  * another way through the edit first goes another way in a region the test
  * entered, and that region is charged; a region the edit wrote takes the
- * crossings of the region around it. Neither of the readings this replaces
- * judged that pair: the hunks from the test's commit are numbered in the text
- * the rows no longer are, and the snapshot commit's text against the tree
- * leaves out the edit before it.
+ * crossings of the region around it. No other reading judges that pair: the
+ * hunks from the test's commit are numbered in the text the rows no longer
+ * are, and the snapshot commit's text against the tree leaves out the edit
+ * before it.
+ *
+ * A landing over a dirty tree carries the rows onto the text on disk instead,
+ * and keeps that text (`kept-texts.ts`). Those rows were never re-cut onto the
+ * snapshot commit's text, and the diff back to the stand is not written from
+ * the kept one, so the stand's question reads no kept text: such a file is
+ * stale for it and charged whole, which selects more inside it and never
+ * skips.
  */
 
 import type { CommitRuns } from './commit-runs.js';
@@ -370,7 +377,8 @@ export const standDiff = (git: Git, commit: string, stand: string): string =>
  * One question `askPerStand` puts to a selector. `tree` reads the change from
  * the snapshot's commit to the tree, on the install at `at`, with `whole`
  * charged whole and left out of the hunks; `stand` reads the change from the
- * snapshot's commit to `at`, from both texts, with no install of its own.
+ * snapshot's commit to `at`, from both texts, with no install of its own and
+ * no kept text, so a module a landing kept a text for is charged whole.
  */
 export type StandQuestion =
   | { readonly read: 'tree'; readonly at: string | undefined; readonly whole: readonly string[] }

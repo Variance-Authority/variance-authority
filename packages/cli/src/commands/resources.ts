@@ -194,6 +194,12 @@ export async function recordAgainst(
     readonly checkout?: string | undefined;
     readonly unmeasured?: Unmeasured | undefined;
     readonly distances?: boolean;
+    /**
+     * `false` for a diff whose new side is not the text the landing kept a
+     * text against: a module recorded over an edit then reads `stale` and is
+     * charged whole, rather than read from the kept text to that side.
+     */
+    readonly keptTexts?: false;
   },
 ): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances?: readonly TestDistance[] } | undefined> {
   const { relations, at, checkout = root, unmeasured } = options;
@@ -202,7 +208,7 @@ export async function recordAgainst(
   const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
   const asked = {
     sourceAt,
-    keptText: selection.keptTexts(checkout),
+    ...(options.keptTexts === false ? {} : { keptText: selection.keptTexts(checkout) }),
     root,
     ...(relations === undefined ? {} : { relations }),
     ...(unmeasured === undefined ? {} : { unmeasured }),
