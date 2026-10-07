@@ -4,6 +4,7 @@
 "@variance-authority/storybook-collector": patch
 "@variance-authority/route-collector": patch
 "@variance-authority/core": minor
+"@variance-authority/unit-test": patch
 ---
 
 The components a module declares are read from its code. A declaration written
@@ -38,6 +39,9 @@ they build from `source.dirs`:
 `indexSource` is removed from `@variance-authority/core/attribute`. Build a
 `SourceIndex` with `indexDeclarations` from `@variance-authority/sense`, or
 write one as plain data: a map from component name to `{ file, line, via }`.
+`SourceRef['via']` loses `'declared'`, which nothing produced, and
+`readCapture` in `@variance-authority/unit-test` refuses a capture whose source
+index carries it.
 
 The source index format moves to version 18, so an index written before this
 release is rebuilt once instead of keeping the names it read from comments.

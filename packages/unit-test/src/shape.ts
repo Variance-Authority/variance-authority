@@ -352,7 +352,7 @@ function sourceShape(value: unknown): boolean {
       return parsed !== null &&
         typeof parsed.file === 'string' &&
         finiteNumber(parsed.line) &&
-        ['function', 'const', 'class', 'declared'].includes(String(parsed.via));
+        ['function', 'const', 'class'].includes(String(parsed.via));
     }),
   );
 }

@@ -34,12 +34,13 @@ export interface SourceRef {
   /**
    * How the declaration was recognised. Carried so a bad match is debuggable.
    *
-   * The first four say which kind of statement declared the name.
-   * `engine` is the one that is not read from source at all: the browser was asked where
-   * the function it rendered was compiled from, and that position was mapped
-   * back to the file. It names the component that ran, whatever it was called.
+   * The first three say which kind of statement declared the name; a `let`
+   * binding is shown as `const`. `engine` is the one that is not read from
+   * source at all: the browser was asked where the function it rendered was
+   * compiled from, and that position was mapped back to the file. It names the
+   * component that ran, whatever it was called.
    */
-  readonly via: 'function' | 'const' | 'class' | 'declared' | 'engine';
+  readonly via: 'function' | 'const' | 'class' | 'engine';
 }
 
 /**
