@@ -37,8 +37,8 @@ export interface ExecutionNarrowing {
    * case, or one whose probes fired where nothing could place them. Absence
    * from `entered` is no evidence for them, but they are named, so a caller
    * that cuts the selection into legs can place them by the import path each
-   * ran to a changed file whose edit was read (`distanceFromView`), or run
-   * them in the open leg when they ran none.
+   * ran to a changed file it loaded (`distanceFromView`), or run them in the
+   * open leg when they ran none.
    * Absent when the reader names no such list, which is not the same as none.
    */
   readonly incomplete?: readonly string[];

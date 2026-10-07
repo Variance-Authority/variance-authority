@@ -27,7 +27,8 @@
  * one whose every case skipped, may call the change from a case the record did
  * not see. When the change entered it, it is placed by its hops like any other.
  * When it did not, sense places it by the shortest path it executed to a
- * changed file the run read, and it runs in the leg those hops fall in. With no
+ * changed file it loaded (`distanceFromView` names which changed files count),
+ * and it runs in the leg those hops fall in. With no
  * hop count it is unplaced, and runs in the open leg only: it is on the skip
  * list of every closed leg. A placed one counts toward the furthest hop, so it
  * decides which closed leg is an end leg.
@@ -58,8 +59,8 @@ export interface Leg {
 /**
  * Cut a selection down to one leg.
  *
- * The leg's skip list is the selection's, plus every entered test outside the
- * leg. A widened selection stays empty and names the leg anyway, so a loop
+ * The leg's skip list is the selection's, plus every entered or incomplete
+ * test outside the leg. A widened selection stays empty and names the leg anyway, so a loop
  * reading `json` sees which leg it asked for and that nothing was left.
  */
 export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | undefined): TestSelection {

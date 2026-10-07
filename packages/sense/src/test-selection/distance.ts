@@ -166,6 +166,9 @@ export interface DistanceOptions {
  * `none` — whitespace, a comment — is no seed either: that verdict says the
  * change reaches no test through it. A `none` the record's kept text decided
  * (`kept`) is, because a partial run over an edit reads its own edit that way.
+ * Every other reading seeds, an `unread` one included. A changed file with no
+ * reading seeds nothing: a stale one, or one whose text was checked and that
+ * has no line ranges, such as a rename, mode or binary change.
  * A test the walk could not measure (`unmeasured`) is left out with the rest.
  */
 export function distanceFromView(
