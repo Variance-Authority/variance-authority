@@ -5,8 +5,14 @@ import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it, vi } from 'vitest';
+import { digestString } from '../digest.js';
 import { nativeAvailable } from '../native.js';
+import { changedLines } from './diff-lines.js';
+import { openTestCoverage } from './format-view.js';
+import { encodeTestCoverage } from './format.js';
+import type { TestCoverage } from './index.js';
 import { textAtRecording, textsAt } from './recorded-text.js';
+import { narrowByExecutionFromView } from './select.js';
 
 /**
  * More paths than one window holds, so the answers below cross a window edge
@@ -230,6 +236,40 @@ describe('the text at a recording of a path the caller never named', () => {
       expect(sourceAt(path(10), commit)).toBe(body(10));
       expect(sourceAt(path(11), commit)).toBe(body(11));
       expect(sourceAt('src/added-since.ts', commit)).toBeUndefined();
+    });
+  });
+});
+
+describe('the texts a selection reads', () => {
+  it('are the texts of the files it frames, read together, not the whole diff', async () => {
+    await checkout(async (root, commit) => {
+      // Every file changed, and a row for only the two at either end of the
+      // sorted diff: the selection frames those two and nothing between them.
+      const framed = [path(0), path(FILES - 1)];
+      for (const at of every(0, FILES)) await writeFile(resolve(root, path(at)), body(at).replace(`= ${at};`, `= ${at + 1};`), 'utf8');
+      const diff = (await promisify(execFile)('git', ['diff', '--no-renames', commit], { cwd: root })).stdout;
+      const recorded: TestCoverage = {
+        version: 3,
+        instrumentation: 'fixture-instrumentation',
+        commit,
+        tests: framed.map((file) => ({ file: `test/${file}`, complete: true, preconditions: [] })),
+        modules: framed.map((file, at) => ({
+          file,
+          sourceDigest: digestString(body(at === 0 ? 0 : FILES - 1)),
+          instrumented: true,
+          blocks: [{ ordinal: 0, kind: 'module', digest: `block:${file}`, name: '', path: 'module', startLine: 1, endLine: 3, source: true, testFiles: [`test/${file}`] }],
+        })),
+      };
+      const coverage = openTestCoverage(encodeTestCoverage(recorded));
+
+      let narrowing: ReturnType<typeof narrowByExecutionFromView> | undefined;
+      const started = gitStarted(root, () => {
+        narrowing = narrowByExecutionFromView(coverage, diff, { sourceAt: textAtRecording(root, changedLines(diff).keys()) });
+      });
+
+      expect(narrowing?.stale).toEqual([]);
+      expect(narrowing?.entered).toEqual(framed.map((file) => `test/${file}`));
+      expect(started.filter((argv) => argv.includes('cat-file'))).toHaveLength(1);
     });
   });
 });

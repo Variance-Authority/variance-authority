@@ -49,7 +49,7 @@
 import { extname } from 'node:path';
 import { EDGE_KINDS, RUNTIME_EDGES, idOf, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
 import { native } from '../addon.js';
-import type { NativeModuleReaders } from '../native.js';
+import type { NativeModuleReaders, NativeScanner } from '../native.js';
 import { MODULE_EXTENSIONS } from '../read.js';
 import { blocksAround, gapInside, moduleRegion, outsideRegions, regionOf } from './blocks-around.js';
 import type { LineRange } from './diff-lines.js';
@@ -200,19 +200,12 @@ export function readRowless(
   context: ReadingContext,
   file: string,
 ): { readonly reading: FileReading; readonly charged: boolean } | undefined {
-  const { coverage, options, knownAs } = context;
-  const { relations, sourceAt } = options;
-  if (relations === undefined || sourceAt === undefined) return undefined;
-  const names = knownAs(file);
-  const id = firstId(relations, [...names, file]);
-  if (id === undefined || importedAsAsset(relations, id)) return undefined;
-  if (!MODULE_EXTENSIONS.includes(extname(file))) return { reading: { file, unread: 'language' }, charged: false };
-  const scanner = native();
-  if (scanner?.moduleVerdict === undefined || scanner.moduleReaders === undefined) {
-    return { reading: { file, unread: 'addon' }, charged: false };
-  }
+  const subject = rowlessSubject(context, file);
+  if (subject === undefined || 'unread' in subject) return subject && { reading: subject, charged: false };
+  const { coverage } = context;
+  const { names, sourceAt, scanner } = subject;
 
-  let frame: Frame = { name: relations.names[id]!, text: '' };
+  let frame: Frame = { name: subject.name, text: '' };
   for (const name of names) {
     const text = sourceAt(name, coverage.commit);
     if (text !== undefined) {
@@ -234,6 +227,38 @@ export function readRowless(
   const exports = [...new Set([...now.interface, ...verdict.gone])];
   readValues(context, file, frame, new Map(), { ...verdict, exports }, now);
   return { reading, charged: true };
+}
+
+/** The names `readRowless` asks `sourceAt` for `file`'s recorded text under: none when it reads no text. */
+export function rowlessNames(context: ReadingContext, file: string): readonly string[] {
+  const subject = rowlessSubject(context, file);
+  return subject === undefined || 'unread' in subject ? [] : subject.names;
+}
+
+/** What `readRowless` reads `file` with, why it reads nothing, or `undefined` when no reading applies. */
+function rowlessSubject(
+  context: ReadingContext,
+  file: string,
+):
+  | { readonly names: readonly string[]; readonly name: string; readonly sourceAt: SourceAt; readonly scanner: ModuleScanner }
+  | Extract<FileReading, { readonly unread: unknown }>
+  | undefined {
+  const { relations, sourceAt } = context.options;
+  if (relations === undefined || sourceAt === undefined) return undefined;
+  const names = context.knownAs(file);
+  const id = firstId(relations, [...names, file]);
+  if (id === undefined || importedAsAsset(relations, id)) return undefined;
+  if (!MODULE_EXTENSIONS.includes(extname(file))) return { file, unread: 'language' };
+  const scanner = native();
+  if (!readsModules(scanner)) return { file, unread: 'addon' };
+  return { names, name: relations.names[id]!, sourceAt, scanner };
+}
+
+type ModuleScanner = NativeScanner & Required<Pick<NativeScanner, 'moduleVerdict' | 'moduleReaders'>>;
+type SourceAt = NonNullable<ExecutionNarrowingOptions['sourceAt']>;
+
+function readsModules(scanner: NativeScanner | undefined): scanner is ModuleScanner {
+  return scanner?.moduleVerdict !== undefined && scanner.moduleReaders !== undefined;
 }
 
 /**
