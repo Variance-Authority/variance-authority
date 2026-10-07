@@ -367,4 +367,25 @@ describe('re-cutting over an edited body', () => {
 
     expect(merged.tests.filter((test) => !test.complete)).toEqual([]);
   });
+
+  it('demotes a test the edit left with no region at all', () => {
+    // `other` entered `label` alone, and the edit deleted `label`: no region of
+    // the text standing now holds `other`, so no diff could reach it again.
+    const priced = pricing(PRICED, { price: CART, label: OTHER });
+    const merged = mergeCoverage({
+      version: 3,
+      instrumentation: INSTRUMENTATION_ID,
+      commit: BASELINE,
+      tests: [CART, OTHER].map((file) => ({ file, complete: true, preconditions: [] })),
+      modules: [{ ...priced, blocks: priced.blocks.map((row) => (row.kind === 'module' ? { ...row, testFiles: [CART] } : row)) }],
+    }, {
+      version: 3,
+      instrumentation: INSTRUMENTATION_ID,
+      commit: LOCAL,
+      tests: [{ file: 'test/third.test.ts', complete: true, preconditions: [] }],
+      modules: [],
+    }, new Map([[PRICING, PRICED.slice(0, PRICED.indexOf('export function label'))]]));
+
+    expect(merged.tests.filter((test) => !test.complete).map((test) => test.file)).toContain(OTHER);
+  });
 });
