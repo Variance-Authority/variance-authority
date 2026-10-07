@@ -50,13 +50,19 @@ fetched here, and the reader says so.**
   Either way it prints which (`noteSeeded`). A test run never opens a
   connection, and a plain `yarn test` in a fresh worktree gets the same base
   `test:since` would have read.
-- **A fetch is reused for ten minutes** (`MAINLINE_REUSE_MS`), and so is a
-  line's answer that it gave no record, unreachable, holding none, or holding
-  one that does not read (`missed.json`): every reader of a sitting, and every
-  CI job handed the read root, reads the same answer.
-  Past the window, a remote that does not answer leaves the record fetched
-  earlier as the base, and the reader names when it was fetched and why it was
-  not fetched now. `variance share --suite <name>` always asks.
+- **A fetched record stands until a nearer one can exist.** The line holds
+  only its newest record, and the best base is the record at `HEAD`'s merge
+  base with the mainline. `fetched.json` keeps the merge base the line was
+  asked at. The record stands without asking when it is at or past the merge
+  base, or when the line was asked at this same merge base. Otherwise a pull
+  or a rebase has moved the merge base, and the line is asked once. Every
+  reader of a checkout, and every CI job handed the read root, has one merge
+  base and reads one record. A remote that does not answer leaves the record
+  fetched earlier as the base, and the reader names when it was fetched and
+  why it was not fetched now. `variance share --suite <name>` always asks.
+- **A miss stands for ten minutes** (`MISS_STANDS_MS`). The line's answer that
+  it gave no record, unreachable, holding none, or holding one that does not
+  read (`missed.json`), names no commit to place it by, so a clock does.
 - **Pruning keeps what `fetched.json` names.** A fetch runs the daily prune
   of ADR-0078 against the checkout being read, and the commit the name points
   at is never removed, however far off the line it is.
@@ -119,7 +125,9 @@ fetched here, and the reader says so.**
 
 ## Cost
 
-- A reader can be ten minutes behind a push to main.
+- A record main published after the line was asked at this merge base is not
+  read until the merge base moves, or `variance share --suite <name>` asks.
+  The older record selects more tests, never fewer.
 - The publish job runs `vitest list` as well as the build.
 - A developer who never runs `variance share --suite <name>`, `test:since` or
   `select` has never fetched, and their seams lay the primary checkout's
