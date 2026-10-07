@@ -89,6 +89,8 @@ sentence naming it and the edge is left to the recorded run.
 
 - `packages/sense/src/scan.ts` — `scanRelations`, the walk and the reuse ladder
 - `packages/sense/src/read.ts` — `readModule` and `readStyle`, source text to specifiers
+- `packages/sense/native/src/declarations.rs` — `declarations`, the components a
+  module declares, read off the tree its requests come from
 - `packages/sense/src/resolve.ts` — specifier to file, export conditions,
   `tsconfig` paths, and the case-folding checks that are invisible on a
   case-sensitive machine

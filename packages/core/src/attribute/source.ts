@@ -90,13 +90,15 @@ export function formatSource(resolution: Resolution): string {
  * written in, and it will miss a component produced by a factory, assigned
  * dynamically, or re-exported under another name. It can also match a function
  * that merely looks like a component — capitalised, declared at top level — and
- * name a non-component in a report.
+ * name a non-component in a report. It reads lines, not code, so a declaration
+ * spelled inside a block comment or a template literal matches too.
  *
  * Both failures are survivable in a way a wrong file path would not be: a miss
  * degrades the report to the component name, which is what it said before, and a
  * false positive can only appear if attribution already named that identifier.
- * Parsing properly is the right answer eventually; it is not worth a parser
- * dependency to find out whether the link is useful.
+ * The source scan reads the same names off a parsed tree
+ * ([`declarations.rs`](../../../sense/native/src/declarations.rs)); this one
+ * takes text and depends on nothing, for a caller with no parse of its own.
  */
 export function indexSource(file: string, contents: string): SourceIndex {
   const found: Record<string, SourceRef[]> = {};

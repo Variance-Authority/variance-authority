@@ -51,6 +51,12 @@ degrades to the component name it already had; a capitalized top-level function
 that is not a component can be matched, and can only surface if attribution
 already named that identifier.
 
+The source scan reads the same answer, without lines, off the tree it already
+parsed for a module's requests, so a declaration a comment, a string or a
+template spells is not one there. The text scan here takes a file's contents
+and no parser, which is what a caller with neither the native addon nor a parse
+of its own still has.
+
 It ranks nothing, opens nothing, and never decides which of several
 declarations is the one that moved.
 
@@ -58,6 +64,8 @@ declarations is the one that moved.
 
 - `packages/core/src/attribute/source.ts` — `indexSource`,
   `mergeSourceIndexes`, `resolveSource`, `formatSource`, `SourceIndex`
+- `packages/sense/native/src/declarations.rs` — `declarations`, the components
+  a module declares, read off its parsed tree for the source scan
 
 ## Diagram
 
