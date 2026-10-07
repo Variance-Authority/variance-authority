@@ -209,6 +209,25 @@ describe('what reaches the runner', () => {
     );
   });
 
+  it('writes only the place on disk when a file that runs ends in the relative path', () => {
+    // Each project of a workspace matches `test/alpha.test.ts` against its own
+    // directory, so from the top it would also skip the app's test, which runs.
+    const shared = skippableTests({
+      at: '/cache/coverage.bin',
+      ground: {
+        kind: 'read',
+        narrowing: reading({
+          whole: ['packages/app/test/alpha.test.ts', 'test/alpha.test.ts', 'test/gamma.test.ts'],
+          entered: ['packages/app/test/alpha.test.ts'],
+        }),
+      },
+    });
+
+    expect(formatSelection(shared, 'vitest', '/repo')).toBe(
+      '--exclude=/repo/test/alpha.test.ts\n--exclude=test/gamma.test.ts\n--exclude=/repo/test/gamma.test.ts\n',
+    );
+  });
+
   it('writes only the place on disk for a vitest run from outside the file', () => {
     // A project rooted in `/repo/src` globs nothing under `/repo/test`, and a
     // `../` pattern is one no glob of that project ever produces.

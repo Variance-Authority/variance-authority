@@ -1624,7 +1624,9 @@ path. `--format plain` writes one path per line, relative to the repository;
 `vitest` writes two `--exclude=` arguments for each file: its path from the
 directory `select` runs in, which every vitest matches in a project rooted there,
 and its absolute path, which vitest 3 and later match in every project of a
-workspace. Run `select` where vitest runs, and when your config moves `root` or
+workspace. When a test that runs sits at the same relative path under another
+project, only the absolute path is written, so no project skips it by mistake.
+Run `select` where vitest runs, and when your config moves `root` or
 `test.dir`, from that directory:
 `vitest run $(cd packages/app && variance select --format vitest)`. `jest` writes
 `--testPathIgnorePatterns=` arguments and re-states jest's `/node_modules/`

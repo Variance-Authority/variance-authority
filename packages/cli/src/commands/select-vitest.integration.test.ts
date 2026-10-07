@@ -46,7 +46,7 @@ describe('select against a vitest run from a package of a monorepo', () => {
 
     const said = await skipFrom(top, join(top, 'packages/app'));
 
-    expect(listed(top, said)).toEqual(['test/beta.test.mjs']);
+    expect(listed(top, said)).toEqual(['packages/app/test/beta.test.mjs']);
   }, 60_000);
 
   it('excludes them when vitest and select both run from the top of the checkout', async () => {
@@ -54,7 +54,25 @@ describe('select against a vitest run from a package of a monorepo', () => {
 
     const said = await skipFrom(top, top);
 
-    expect(listed(top, said)).toEqual(['test/beta.test.mjs']);
+    expect(listed(top, said)).toEqual(['packages/app/test/beta.test.mjs']);
+  }, 60_000);
+
+  it('runs the test another project holds at the path a skipped test has in its own', async () => {
+    // A workspace whose top is a project of its own, beside `packages/app`.
+    // Each project matches an exclusion against its own directory, so
+    // `test/alpha.test.mjs` from the top names the app's test as well.
+    const tests = ['test/alpha.test.mjs', 'packages/app/test/alpha.test.mjs'];
+    const top = monorepo(
+      {
+        'vitest.workspace.mjs': "export default [{ test: { name: 'top', include: ['test/**/*.test.mjs'] } }, 'packages/app'];\n",
+        'packages/app/vitest.config.mjs': "export default { test: { name: 'app' } };\n",
+      },
+      tests,
+    );
+
+    const said = await skipFrom(top, top, tests);
+
+    expect(listed(top, said)).toContain('[app] packages/app/test/alpha.test.mjs');
   }, 60_000);
 });
 
@@ -63,7 +81,7 @@ const TESTS = ['alpha', 'beta', 'gamma'].map((name) => `packages/app/test/${name
 const VITEST = resolve(fileURLToPath(new URL('../../../..', import.meta.url)), 'node_modules/vitest');
 
 /** A checkout whose one package holds the module and the three tests the record names. */
-function monorepo(files: Readonly<Record<string, string>>): string {
+function monorepo(files: Readonly<Record<string, string>>, tests: readonly string[] = TESTS): string {
   const top = realpathSync(mkdtempSync(join(tmpdir(), 'va-select-vitest-')));
   const git = (args: readonly string[]): string => execFileSync('git', args, { cwd: top, encoding: 'utf8' }).trim();
   git(['init', '--quiet', '--initial-branch', 'main']);
@@ -72,7 +90,7 @@ function monorepo(files: Readonly<Record<string, string>>): string {
   const all = {
     '.gitignore': 'node_modules\n',
     'packages/app/src/widget.ts': SOURCE,
-    ...Object.fromEntries(TESTS.map((test) => [test, "import { it } from 'vitest';\nit('runs', () => {});\n"])),
+    ...Object.fromEntries(tests.map((test) => [test, "import { it } from 'vitest';\nit('runs', () => {});\n"])),
     ...files,
   };
   for (const [file, text] of Object.entries(all)) {
@@ -86,14 +104,14 @@ function monorepo(files: Readonly<Record<string, string>>): string {
   return top;
 }
 
-/** What select prints from `from` after `other` changes, which only beta entered. */
-async function skipFrom(top: string, from: string): Promise<string> {
-  await writeTestCoverage(testCoverageFile(top), recorded(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: top, encoding: 'utf8' }).trim()));
+/** What select prints from `from` after `other` changes, which only the second test entered. */
+async function skipFrom(top: string, from: string, tests: readonly string[] = TESTS): Promise<string> {
+  await writeTestCoverage(testCoverageFile(top), recorded(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: top, encoding: 'utf8' }).trim(), tests));
   writeFileSync(join(top, 'packages/app/src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
   process.chdir(top);
   await indexOutput({ cwd: top });
   const said = await selectOutput({ cwd: from, format: 'vitest' });
-  expect(said.err).toContain('skipping 2 of 3 test files recorded whole');
+  expect(said.err).toContain(`skipping ${tests.length - 1} of ${tests.length} test files recorded whole`);
   return said.out;
 }
 
@@ -103,11 +121,11 @@ function listed(at: string, said: string): string[] {
     cwd: at,
     encoding: 'utf8',
   });
-  return out.split('\n').flatMap((line) => line.match(/test\/\w+\.test\.mjs/)?.[0] ?? []).sort();
+  return out.split('\n').flatMap((line) => line.match(/^(?:\[\w+\] )?[\w/]*\.test\.mjs$/)?.[0] ?? []).sort();
 }
 
-/** One module, two functions, three tests: alpha entered `widget`, beta entered `other`, gamma entered nothing. */
-function recorded(commit: string): TestCoverage {
+/** One module and two functions: the first test entered `widget`, the second entered `other`, any third entered nothing. */
+function recorded(commit: string, tests: readonly string[]): TestCoverage {
   const block = (ordinal: number, name: string, startLine: number, endLine: number, testFiles: readonly string[]) => ({
     ordinal,
     kind: ordinal === 0 ? ('module' as const) : ('function' as const),
@@ -124,16 +142,16 @@ function recorded(commit: string): TestCoverage {
     version: 3,
     instrumentation: 'fixture',
     commit,
-    tests: TESTS.map((file) => ({ file, complete: true, preconditions: [] })),
+    tests: tests.map((file) => ({ file, complete: true, preconditions: [] })),
     modules: [
       {
         file: 'packages/app/src/widget.ts',
         sourceDigest: digestString(SOURCE),
         instrumented: true,
         blocks: [
-          block(0, 'widget.ts', 1, 8, TESTS.slice(0, 2)),
-          block(1, 'widget', 1, 3, TESTS.slice(0, 1)),
-          block(2, 'other', 5, 7, TESTS.slice(1, 2)),
+          block(0, 'widget.ts', 1, 8, tests.slice(0, 2)),
+          block(1, 'widget', 1, 3, tests.slice(0, 1)),
+          block(2, 'other', 5, 7, tests.slice(1, 2)),
         ],
       },
     ],

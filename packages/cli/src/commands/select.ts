@@ -76,9 +76,9 @@
  * could type here.
  */
 
-import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { readingLines, type ExecutionNarrowing, type FileReading, type TestDistance } from '@variance-authority/sense/test-selection';
 import { many } from './reach.js';
+import { vitestExclusions } from './select-vitest.js';
 
 /** How the answer is written for whoever is about to run the tests. */
 export type SelectFormat = 'plain' | 'json' | 'vitest' | 'jest';
@@ -175,6 +175,13 @@ export interface TestSelection {
   readonly source?: SelectSource;
   /** Counts rather than lists: `whole` is the whole suite, and nobody reads it. */
   readonly recorded?: { readonly whole: number; readonly entered: number };
+  /**
+   * Every path the reading named: the tests recorded, whole or not, and the
+   * changed files it holds nothing about. Those not in `skip` run, and a shell
+   * format must not name them by a pattern meant for a skipped one. Absent when
+   * nothing was read.
+   */
+  readonly known?: readonly string[];
   readonly unread: readonly string[];
   /**
    * The changed files the record did not measure, in a suite that declines
@@ -256,7 +263,7 @@ export function skippableTests(input: SelectInput): TestSelection {
     };
   }
 
-  const { whole, entered, unread, declined, stale, readings } = input.ground.narrowing;
+  const { whole, incomplete, entered, unread, declined, stale, readings } = input.ground.narrowing;
   const notes = [
     ...base.notes,
     ...unreadNotes(unread),
@@ -271,6 +278,7 @@ export function skippableTests(input: SelectInput): TestSelection {
     stale,
     ...(readings === undefined ? {} : { readings }),
     recorded: { whole: whole.length, entered: entered.length },
+    known: [...whole, ...(incomplete ?? []), ...unread, ...(declined ?? [])],
   };
 
   if (whole.length === 0) {
@@ -381,7 +389,7 @@ function recordingNotes(
  * formats both need it for the same reason from opposite directions: a runner
  * matches an ignore pattern against a place on disk, and a journal speaks in
  * paths relative to the repository. Jest gets an anchored expression because it
- * is handed absolute paths to match; vitest gets the forms {@link vitestExcludes}
+ * is handed absolute paths to match; vitest gets the forms {@link vitestExclusions}
  * names, counted from `run`, the directory vitest runs in.
  */
 export function formatSelection(
@@ -397,32 +405,13 @@ export function formatSelection(
     format === 'plain'
       ? selection.skip
       : format === 'vitest'
-        ? selection.skip.flatMap((test) => vitestExcludes(resolve(root, test), run))
+        ? vitestExclusions(selection.skip, selection.known ?? [], root, run)
         : // `--testPathIgnorePatterns` replaces jest's default rather than adding
           // to it, so the default has to be handed back or a run that skips four
           // test files also walks `node_modules`.
           ['--testPathIgnorePatterns=/node_modules/', ...selection.skip.map(jestIgnore)];
 
   return `${lines.join('\n')}\n`;
-}
-
-/**
- * One skipped file as the exclusions vitest matches it by, from a run in `run`.
- *
- * Vitest globs a project's test files from the project's directory, its `root`
- * or `test.dir`, and reads each `--exclude` as an ignore pattern against that
- * directory. Vitest 2 matches only a path relative to it; vitest 3 and later
- * also resolve an absolute one against it, and only the absolute one reaches
- * every project of a workspace. An exclusion that matches nothing is not an
- * error anywhere, so the file goes out in both forms, each matching where the
- * other does not. A file outside `run` is globbed by no project rooted there.
- * Every project is handed the relative form, so in a workspace whose root is a
- * project, a test at the same path under another project is skipped with it.
- */
-function vitestExcludes(file: string, run: string): string[] {
-  const near = relative(run, file);
-  const outside = near === '..' || near.startsWith(`..${sep}`) || isAbsolute(near);
-  return [...(outside ? [] : [`--exclude=${near.split(sep).join('/')}`]), `--exclude=${file}`];
 }
 
 /**
