@@ -290,8 +290,10 @@ function readDiff(
       const rebased = rebasedChange(file, frame.text, options.sourceAt?.(file, coverage.commit), context.hunks.get(file) ?? []);
       if (rebased === undefined) frame = 'stale';
       else if (rebased.ranges.length === 0) {
-        // The tests ran over the text the diff arrives at. No parser was
-        // asked, so the reading says so rather than claim equal runtime text.
+        // The record was taken over the text the diff arrives at, and a test
+        // carried onto it from an earlier text of an edited region was demoted
+        // when it landed. No parser was asked, so the reading says so rather
+        // than claim equal runtime text.
         readings.push({ file, verdict: 'none', names: [], kept: true });
         continue;
       } else {

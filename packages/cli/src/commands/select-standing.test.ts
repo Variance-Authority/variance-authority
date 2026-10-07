@@ -43,8 +43,10 @@ describe('a test that did not run at the journal commit', () => {
     const said = await selectOutput({ cwd: root, format: 'plain' });
 
     // `near` ran at the journal's commit, after both edits; `far` last ran at P.
+    // The landing at H re-cut `far`'s module over the edit, so `far` is no
+    // longer recorded whole either; the runs record still says where it ran.
     expect(said.out).toBe('test/near.test.ts\n');
-    expect(said.err).toContain('skipping 1 of 2 test files recorded whole');
+    expect(said.err).toContain('skipping 1 of 1 test file recorded whole');
     expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}, before the journal's commit`);
   });
 
@@ -390,8 +392,8 @@ function npmLock(version: string): string {
 /**
  * What a run records: the tests it ran, and the module each loaded, with the
  * digest of the text on disk. Recorded under the recipe the seam records with,
- * so the landing re-cuts a carried module whose text moved and keeps its test
- * whole, as it does after a real partial run.
+ * so the landing re-cuts a carried module whose text moved and demotes the
+ * test on the edited region, as it does after a real partial run.
  */
 function run(root: string, commit: string, names: readonly string[]): TestCoverage {
   return {

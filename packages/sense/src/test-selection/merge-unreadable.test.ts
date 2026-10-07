@@ -121,16 +121,17 @@ describe('mergeCoverage over a module that would not open', () => {
     expect(blind?.sourceDigest).toBe(recorded.modules[0]!.sourceDigest);
   });
 
-  it('keeps them whole when the same file opens', async () => {
+  it('re-cuts it when the same file opens', async () => {
     // The control: the identical tree, read. Both modules moved the same way,
-    // so both are re-cut onto the lines the next diff will be taken in and
-    // alpha loses nothing.
+    // so both are re-cut onto the lines the next diff will be taken in, and
+    // alpha keeps its crossing on `decide`.
     const merged = mergeCoverage(recorded, loadedNothing, await sourcesWith(false));
     const decide = merged.modules
       .find((module) => module.file === BLIND)
       ?.blocks.find((block) => block.name === 'decide');
 
-    expect(merged.tests.every((test) => test.complete)).toBe(true);
+    expect(merged.modules.find((module) => module.file === BLIND)?.sourceDigest)
+      .not.toBe(recorded.modules[0]!.sourceDigest);
     expect(decide?.startLine).toBe(3);
     expect(decide?.testFiles).toEqual([ALPHA]);
   });
