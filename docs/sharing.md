@@ -42,7 +42,7 @@ baseline costs you the comparison.
   decides.
 - **Branch line** — the line of any other branch, `branch/<name>`.
 - **Entry** — one file a run publishes to a line. Its name states its format
-  version, such as `suite-index-v1`, and it names the commit it was derived at.
+  version, such as `suite-index-v2`, and it names the commit it was derived at.
 - **Record** — the entries a line has now, which may come from several runs.
 - **Manifest** — the file of a line that lists its entries: each entry's name,
   commit and digest.
@@ -60,13 +60,15 @@ baseline costs you the comparison.
 
 | Entry | What it is | Published when |
 | --- | --- | --- |
-| `suite-index-v1` | the [suite index](lexicon.md#where-it-is-kept) of the run | the run report has a [composition](composition.md) section and names a commit |
+| `suite-index-v2` | the [suite index](lexicon.md#where-it-is-kept) of the run | the run report has a [composition](composition.md) section and names a commit |
 | `subject-costs-v1` | what each subject took to collect, in whole milliseconds, and the file that declares it | the run report timed a subject, and is not one shard of a sharded build |
 | `report-v1` | the run report byte for byte, and a table from each image path it names to that image's digest | `report.carry` is `"share"` |
 | `suite-v1/<suite>` | that suite's execution record, as this machine recorded it | the suite's `carry` is `"share"`, its execution record here was recorded at the run report's commit, and the line is a branch's: a mainline takes it only from [`share --suite`](#a-suite-with-no-run-report) |
 
-Every publish includes `suite-index-v1`, which is what `variance share` reads,
-and the other entries are published only beside it. A run report has no
+Every publish includes `suite-index-v2`, which is what `variance share` reads,
+and the other entries are published only beside it. A line that still holds
+`suite-index-v1` is read too, until a publish writes `suite-index-v2` over it,
+by the rules in [What a line keeps](#what-a-line-keeps). A run report has no
 composition section, the part that records which subjects mounted which
 components, when it comes from a run that read no markup (a raster-only
 capture, or a run whose collector gave only images), or from one shard of a
@@ -159,7 +161,7 @@ from it*, and every lookup prints that distance.
 
 **A publish replaces only the entries it offers.** Two jobs that publish
 different suites at one commit leave both `suite-v1` entries on the line. Each
-also offers `suite-index-v1`, and `report-v1` when the report is shared, so the
+also offers `suite-index-v2`, and `report-v1` when the report is shared, so the
 line keeps those two from the job that published last: for a sharded run, the
 last shard's, covering that shard's subjects only. For an entry the line
 already has:
@@ -169,7 +171,7 @@ already has:
   finishing last:
 
   ```text
-  kept suite-index-v1: the line holds it at 9ab2…, which descends from this run's commit.
+  kept suite-index-v2: the line holds it at 9ab2…, which descends from this run's commit.
   ```
 
   Git answers descent for every kind of share. When the held entry is from
@@ -179,7 +181,7 @@ already has:
   entry replaces the held one:
 
   ```text
-  replaced suite-index-v1 without knowing whether the held commit was newer: git could not answer.
+  replaced suite-index-v2 without knowing whether the held commit was newer: git could not answer.
   ```
 
   After a force-push nothing descends, and the next publish replaces the entry.
@@ -191,7 +193,7 @@ already has:
   replace it:
 
   ```text
-  kept suite-index-v2: the line holds it in a newer format, at 9ab2….
+  kept suite-index-v3: the line holds it in a newer format, at 9ab2….
   ```
 
 In git, in a directory every writer mounts, or in an `http` store that sends an
@@ -352,7 +354,7 @@ A share published only from those CIs therefore has no mainline line, and
 The publish prints what it did, and where:
 
 ```text
-wrote suite-index-v1, report-v1, subject-costs-v1 to mainline main in refs/variance on origin.
+wrote suite-index-v2, report-v1, subject-costs-v1 to mainline main in refs/variance on origin.
 ```
 
 The store is named as `<namespace> on <remote>` for a `git` share, `the
@@ -400,7 +402,7 @@ npx variance share --publish shard-1/report.json shard-2/report.json shard-3/rep
 
 ```text
 suite index at 3f1c…bd, composed from 3 shard(s): <cache>/suite/checkout-ui/3f1c…bd.bin
-wrote suite-index-v1, subject-costs-v1 to mainline main in refs/variance on origin.
+wrote suite-index-v2, subject-costs-v1 to mainline main in refs/variance on origin.
 ```
 
 Keep each part beside its run report when you move the reports between jobs.
@@ -462,7 +464,7 @@ because each reason needs a different action:
 | The message says | What to do |
 | --- | --- |
 | `nothing is published there` | publish from a push to that mainline |
-| `it holds suite-index-v2, a format this version does not read` | upgrade the CLI |
+| `it holds suite-index-v3, a format this version does not read` | upgrade the CLI |
 | `no share is configured` | add a `share` section |
 | `nothing answered from config, remote-head, event` | set `share.mainlines`, or run `git remote set-head origin --auto` |
 | HTTP 401 or 403, git's authentication error, or a token variable that is not set | check the credential on this machine |
@@ -553,10 +555,10 @@ each line read, with its result:
 ```text
 there is no run report at /work/web/.variance/report.json, which is where `report` in your configuration points, and the share holds none for this checkout:
   branch feat/cart: nothing is published there
-  mainline main: it holds only suite-index-v1
+  mainline main: it holds only suite-index-v2
 ```
 
-*it holds only suite-index-v1* means CI publishes to that line without
+*it holds only suite-index-v2* means CI publishes to that line without
 `report.carry` set to `"share"`.
 
 Without a `share` section, the same message ends with *`variance run` writes it
@@ -670,7 +672,7 @@ record](#a-suite-your-checkout-has-not-recorded).
 - `variance share --publish` with no run report at the path, or one that does
   not parse;
 - a run report whose commit is not a commit id, for example
-  `cannot publish suite-index-v1: "HEAD" is not a commit`;
+  `cannot publish suite-index-v2: "HEAD" is not a commit`;
 - a config the CLI refuses, such as `"mainlines": []`, a `share` carrier with no
   `share` section, a `method` other than `PUT` or `POST`, or a `namespace`
   outside `refs/`;
@@ -918,7 +920,7 @@ jobs:
   so a push to a mainline leaves the suite out and prints that you need to pass
   `--collected`, which [`share --suite`](#a-suite-with-no-run-report) takes.
 - **Jobs that run different suites on one line** each keep their own
-  `suite-v1/<name>`, while `report-v1` and `suite-index-v1` are one per line,
+  `suite-v1/<name>`, while `report-v1` and `suite-index-v2` are one per line,
   from the job that published last.
 
 ### A suite with no run report

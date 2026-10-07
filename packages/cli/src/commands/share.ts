@@ -53,7 +53,7 @@ export { mainlinesOf, type Mainlines } from '../share-lines.js';
  */
 
 /** The entry a suite index is published under. Carries its version. */
-export const SUITE_INDEX_ENTRY = 'suite-index-v1';
+export const SUITE_INDEX_ENTRY = 'suite-index-v2';
 
 /** Where this machine keeps the index for one commit of one project. */
 export function suiteIndexPath(config: Pick<Config, 'project' | 'cacheRoot'>, commit: string): string {
@@ -279,7 +279,8 @@ export async function mainlineIndex(
   config: Config,
   options: Here & { readonly mainline?: string } = {},
 ): Promise<MainlineRead> {
-  const found = await mainlineEntry(config, SUITE_INDEX_ENTRY, options);
+  // Newest first: a line a CLI before this one wrote holds `suite-index-v1`, which `decodeSuiteIndex` reads.
+  const found = await mainlineEntry(config, [SUITE_INDEX_ENTRY, 'suite-index-v1'], options);
   if ('miss' in found) return found;
   const { at, held } = found;
   // TODO: nothing compares this machine's index with the digest the manifest
@@ -342,7 +343,7 @@ export async function mainlineSuite(
  */
 export async function mainlineEntry(
   config: Pick<Config, 'share' | 'cacheRoot'>,
-  name: string,
+  name: string | readonly string[],
   options: Here & { readonly mainline?: string; readonly base?: string },
 ): Promise<{ readonly at: MainlineAt; readonly held: LineEntry } | MainlineMissed> {
   const env = options.env ?? process.env;
@@ -370,16 +371,16 @@ export interface LineEntry {
 }
 
 /**
- * Where `line` holds `name`, or why it does not.
+ * Where `line` holds `name`, or the first of a list it holds, or the first's miss.
  *
  * An `absent` entry on a line that exists carries what the line does hold, so
- * a reader can say *it holds suite-index-v1* rather than *nothing is
+ * a reader can say *it holds suite-index-v2* rather than *nothing is
  * published*, which would send somebody to look for a publish that happened.
  */
 export async function lineEntry(
   config: Pick<Config, 'share' | 'cacheRoot'>,
   line: ShareLine,
-  name: string,
+  name: string | readonly string[],
   cwd: string,
 ): Promise<LineEntry | { readonly miss: MainlineMiss; readonly holds?: readonly string[] }> {
   const cell = await lineCellOf(config, { cwd, reuseMs: READ_REUSE_MS });
@@ -388,10 +389,9 @@ export async function lineEntry(
 
   const held = await readLine(cell, line);
   if ('kind' in held) return { miss: held };
-  const entry = findEntry(held.manifest, name);
-  if ('kind' in entry) {
-    return entry.kind === 'absent' ? { miss: entry, holds: held.manifest.entries.map((one) => one.name) } : { miss: entry };
-  }
+  const found = (typeof name === 'string' ? [name] : name).map((one) => findEntry(held.manifest, one));
+  const entry = found.find((one) => !('kind' in one)) ?? found[0]!;
+  if ('kind' in entry) return entry.kind === 'absent' ? { miss: entry, holds: held.manifest.entries.map((one) => one.name) } : { miss: entry };
   return { entry, bytes: () => held.entry(entry), image: (digest) => held.image(digest) };
 }
 

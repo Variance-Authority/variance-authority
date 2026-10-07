@@ -189,7 +189,7 @@ export async function publishTo(home: string, dir: string, commit: string, env: 
   const mainline = line.startsWith('mainline ');
   const done = await publishRun(shareConfig(home), await reportAt(home, commit), { env, cwd: dir });
   const reached = 'published' in done ? `${done.line.kind} ${done.line.name}: ${done.published.written.join(', ')}` : undefined;
-  const wanted = `${line}: ${mainline ? 'suite-index-v1' : 'suite-index-v1, suite-v1/unit'}`;
+  const wanted = `${line}: ${mainline ? 'suite-index-v2' : 'suite-index-v2, suite-v1/unit'}`;
   if (reached !== wanted) throw new Error(`the run was to publish ${wanted}, and the share answered ${JSON.stringify(done)}`);
   if (!mainline) return;
   const suite = await publishSuite(dir, 'unit', { env }, { collected: await collectedBoth(home) });

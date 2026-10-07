@@ -181,7 +181,7 @@ async function checkoutWithShare(timed = false): Promise<{ readonly checkout: st
   await writeRunReport(ci, { ...REPORT, observations, run: { id: 'ci', commit }, composition: { subjects: ['page/home'], components: [] } } as unknown as RunReport);
   const config = { project: 'mounted', report: join(checkout, 'report.json'), share, reportCarry: 'share' } as unknown as Config;
   const env = { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: 'push', GITHUB_REF_TYPE: 'branch', GITHUB_REF_NAME: 'main' };
-  const written = ['suite-index-v1', 'report-v1', ...(timed ? ['subject-costs-v1'] : [])];
+  const written = ['suite-index-v2', 'report-v1', ...(timed ? ['subject-costs-v1'] : [])];
   expect(await publishRun(config, ci, { env, cwd: checkout })).toMatchObject({ published: { written } });
   return { checkout, commit };
 }
