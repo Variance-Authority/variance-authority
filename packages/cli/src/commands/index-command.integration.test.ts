@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFailed, onTestFinish
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { indexOutput } from './index-command.js';
-import { awaitFollowUps, followUpsLockPath, followUpsLogPath, heldBy, holdFollowUps, reserveFollowUps } from './index-follow-ups.js';
+import { awaitFollowUps, followUpsLockPath, followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, reserveFollowUps } from './index-follow-ups.js';
 
 /**
  * `variance index`, the pipeline step every graph reader reads after.
@@ -192,7 +192,7 @@ describe('variance index', () => {
     const env = { ...process.env, CI: 'false' };
     const indexed = spawnSync(process.execPath, [BIN, 'index'], { cwd: root, env, encoding: 'utf8' });
     expect(indexed.status).toBe(EXIT_CLEAN);
-    expect(indexed.stdout).toMatch(/^follow-ups: .+ are being made by process \d+, and the next variance command waits for it/mu);
+    expect(indexed.stdout).toMatch(/^follow-ups: .+ are being made by process \d+, and the next variance command that reads them waits for it/mu);
 
     const searched = spawnSync(process.execPath, [BIN, 'ask', 'search', '--query', 'widget'], { cwd: root, env, encoding: 'utf8' });
     // The detached process may be done before the question is asked, and then nothing is waited on.
@@ -232,6 +232,82 @@ describe('variance index', () => {
     expect(waited).toEqual({ held: true, lock: { pid: holder.pid, log: followUpsLogPath(index) }, finished: true });
     expect(told).toEqual([holder.pid]);
     expect(await awaitFollowUps(index, () => told.push(0))).toEqual({ held: false });
+  });
+
+  it('lets a reader of the source index alone go once a live holder has readied it, and keeps it waiting until then', async () => {
+    const index = join(mkdtempSync(join(tmpdir(), 'va-follow-ups-')), 'source-index.bin');
+    const log = followUpsLogPath(index);
+    // The holder readies the index 200 ms after the lock names it, and lets go a second later.
+    const holder = spawn(process.execPath, ['-e', [
+      "const { renameSync, rmSync, writeFileSync } = require('node:fs');",
+      `const lock = ${JSON.stringify(followUpsLockPath(index))};`,
+      "process.stdin.once('data', () => setTimeout(() => {",
+      `  writeFileSync(lock + '.tmp', JSON.stringify({ pid: process.pid, log: ${JSON.stringify(log)}, readied: true }));`,
+      "  renameSync(lock + '.tmp', lock);",
+      '  setTimeout(() => rmSync(lock), 1_000);',
+      '}, 200));',
+    ].join('\n')]);
+    onTestFinished(() => { holder.kill(); });
+    holdFollowUps(index, { pid: holder.pid!, log });
+    holder.stdin.write('\n');
+    const told: number[] = [];
+
+    const waited = await awaitFollowUps(index, ({ pid }) => told.push(pid), 'readied');
+
+    const readied = { pid: holder.pid, log, readied: true };
+    expect(told).toEqual([holder.pid]);
+    expect(waited).toEqual({ held: true, lock: readied, finished: true });
+    // Still held: the code map, the journeys, the lexicon and the questions are not the reader's to wait for.
+    expect(heldBy(index)).toEqual(readied);
+    expect(await awaitFollowUps(index, () => told.push(0), 'readied')).toEqual({ held: true, lock: readied, finished: true });
+    expect(told).toEqual([holder.pid]);
+  });
+
+  it('runs `select` past a live holder that has readied the index, while a command that reads the follow-ups waits it out', async () => {
+    const root = checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const index = sourceIndexPath(root);
+    const lock = followUpsLockPath(index);
+    const holder = spawn(process.execPath, ['-e', `process.stdin.once('data', () => setTimeout(() => require('node:fs').rmSync(${JSON.stringify(lock)}), 1_000))`]);
+    onTestFinished(() => { holder.kill(); });
+    holdFollowUps(index, { pid: holder.pid!, log: followUpsLogPath(index), readied: true });
+    holder.stdin.write('\n');
+
+    const selected = await run(['select', '--since', 'HEAD']);
+
+    expect(selected.err).not.toContain('waiting for process');
+    expect(heldBy(index)?.pid).toBe(holder.pid);
+
+    const searched = await run(['ask', 'search', '--query', 'widget']);
+
+    expect(searched.err).toContain(`waiting for process ${holder.pid} to finish the code map`);
+    expect(existsSync(lock)).toBe(false);
+  });
+
+  it('leaves the follow-ups of a process that is gone to the next command that reads them, when `select` finds it', async () => {
+    const root = checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const index = sourceIndexPath(root);
+    const gone = spawnSync(process.execPath, ['-e', '']).pid!;
+    holdFollowUps(index, { pid: gone, log: followUpsLogPath(index) });
+
+    const selected = await run(['select', '--since', 'HEAD']);
+
+    expect(selected.err).not.toContain(`process ${gone} ended`);
+    expect(heldBy(index)?.pid).toBe(gone);
+  });
+
+  it('marks the lock readied only while this process holds it', () => {
+    const index = join(mkdtempSync(join(tmpdir(), 'va-follow-ups-')), 'source-index.bin');
+    const log = followUpsLogPath(index);
+    holdFollowUps(index, { pid: process.pid + 1, log });
+
+    readiedFollowUps(index, process.pid);
+    expect(heldBy(index)).toEqual({ pid: process.pid + 1, log });
+
+    holdFollowUps(index, { pid: process.pid, log });
+    readiedFollowUps(index, process.pid);
+    expect(heldBy(index)).toEqual({ pid: process.pid, log, readied: true });
   });
 
   it('takes the follow-ups only once a live holder lets them go, so a second `index` never writes over the first one\'s process', async () => {
