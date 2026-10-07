@@ -28,3 +28,7 @@ report's words, and the build it came from. Version 1 indexes still open, withou
 `variance run --workers` keeps where every worker located a component. Before,
 the report's lexicon carried only the last worker's locations, so a component
 another worker located fell back to the source scan's candidates.
+
+`variance share` refuses an unsharded part beside sharded ones, and two
+unsharded parts, rather than composing them into one index. A suite part that
+exists but cannot be read stops the command with its path.
