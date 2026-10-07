@@ -87,14 +87,8 @@ export { changedLines, type LineRange } from './diff-lines.js';
 export { textAtRecording, textsAt } from './recorded-text.js';
 export { keptTexts } from './kept-texts.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
-export type {
-  Bearing,
-  DistanceOptions,
-  Face,
-  Faces,
-  ReachThrough,
-  TestDistance,
-} from './distance.js';
+export type { Bearing, DistanceOptions, Face, Faces, ReachThrough, TestDistance } from './distance.js';
+export { selectedLines, type SuiteSelection } from './suite-selection.js';
 export { eitherFace, indexFaces } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
 export { foldTestCoverage, journeyDivergences, mergeCoverage };
@@ -201,7 +195,7 @@ export {
   type RecordedTests,
   type StandingEntry,
 } from './commit-runs.js';
-export { askPerStand, readingFrom, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandReading } from './stands.js';
+export { askPerStand, readingFrom, standDiff, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandAnswer, type StandQuestion, type StandReading } from './stands.js';
 export { caseMotion, type CaseMotion, type CaseMotionOptions, type MismatchedRow, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
 export {
   countCoverage,

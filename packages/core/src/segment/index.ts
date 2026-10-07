@@ -17,9 +17,7 @@
  *
  * The reader that matters next is not this one. Every field is a run of
  * fixed-width little-endian values at a computable offset, so a reader in
- * another language takes a slice where this one takes a loop — the same bargain
- * [`record-format.ts`](../../../sense/src/test-selection/record-format.ts)
- * already made for the coverage segments.
+ * another language takes a slice where this one takes a loop.
  *
  * ## Why the header is JSON
  *

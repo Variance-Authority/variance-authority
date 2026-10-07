@@ -2,9 +2,8 @@
  * `variance select --at-distance`: one leg of the selection, still a skip list.
  *
  * A leg is the part of the selection a given number of import hops from the
- * change. It is the cut `test:since --at-distance` runs, made by the same
- * `atDistance` over the same reading, so `vitest run $(variance select
- * --at-distance 0-2 --format vitest)` runs what that leg runs. What the leg
+ * change. It is the cut a seam runs under `VARIANCE_AUTHORITY_AT_DISTANCE`,
+ * made by the same `atDistance` over the same reading, through `selectSuite`. What the leg
  * leaves out is added to the skip list. Nothing else changes, so the four ways
  * {@link skippableTests} declines to narrow still decline here: a selection
  * that declines to narrow skips nothing, whichever leg was asked (ADR-0062).
@@ -18,11 +17,11 @@
  *
  * ## A test the record never saw whole runs with the leg that reaches the end
  *
- * `test:since` knows the suite, so a test the record never saw whole — new
- * since the recording, or recorded incomplete — goes with the other unplaced
- * tests into the leg that reaches the end. `select` reads no suite, so it can
- * do that only for a test the record names: one it holds incomplete, such as a
- * file whose every case skipped, is on the skip list of every leg with an end.
+ * A test the record never saw whole — new since the recording, or recorded
+ * incomplete — belongs with the other unplaced tests in the leg that reaches
+ * the end. A skip list can say that only for a test the record names: one it
+ * holds incomplete, such as a file whose every case skipped, is on the skip
+ * list of every leg with an end.
  * A test new since the recording is named nowhere, so it is in no skip list and
  * runs in every leg. That is the safe side of a skip list: it costs a file run
  * twice, never a file run zero times. A test the change entered is placed by
@@ -76,7 +75,7 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
 
   const { entered } = input.ground.narrowing;
   const placed = new Map((input.ground.distances ?? []).map((distance) => [distance.test, distance]));
-  // An entered test with no measured distance is unplaced, as `test:since` reads one.
+  // An entered test with no measured distance is unplaced.
   const reading: readonly TestDistance[] = entered
     .map((test): TestDistance => placed.get(test) ?? { test, bearing: 'unexplained' })
     .sort((one, other) => codeUnitOrder(one.test, other.test));

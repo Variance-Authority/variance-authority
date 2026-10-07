@@ -45,12 +45,10 @@ path you name, typically inside the repository so CI can upload it as an
 artifact, and ignore that path. The record carries the run's cases too, so
 there is no second file to upload.
 
-Two more things live under that directory. Each instrumenting build keeps a
-store of module records under a `<label>` of its own, and a run in progress keeps a
+One more thing lives under that directory: a run in progress keeps a
 `.run-<pid>-<uuid>` directory there until its reporter folds the journals and
-removes it. The Jest seam keeps its record store under Jest's own
-`cacheDirectory` instead, so a cached transform and the meaning of its ordinals
-are discarded together.
+removes it. An instrumenting build writes nothing there; what an ordinal means
+is cut again from the source file whenever a run is read.
 
 Delete any of it and you pay one full run. A missing, foreign or corrupt file is
 read as an absent record rather than an empty one, so a selector widens to the
@@ -129,9 +127,9 @@ Two answers are properties of this file rather than of a host, so they read the
 same under every host:
 
 - **A run that transformed nothing still records what its tests covered.** When
-  every module came from a warm cache, what a region means is already stored per
-  module under a content key, and a run joins those records rather than
-  producing them.
+  every module came from a warm cache, each probe still reports its file and a
+  digest of the text it was placed on, and the run cuts that file again from
+  the checkout to learn what each region means.
 - **An observation that did not finish is dropped from the pool.** It is not
   counted as a miss, so nothing a host retries or interrupts can justify a skip.
 
@@ -185,7 +183,7 @@ they return are the ones this page describes.
 |---|---|
 | `@variance-authority/sense/instrument` | `instrument`, `instrumentationId`, `instrumentModeOf`, `INSTRUMENTATION_ID`, `EVALUATING`; types `Block`, `BlockKind`, `Instrumented`, `InstrumentOptions`, `ModuleId` |
 | `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `selectTestFiles`, `narrowByExecution`, `mergeCoverage`, `foldTestCoverage`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `cacheRootFor`, `CACHE_CONFIG`, `repositoryLayers`, `layeredFiles`; types `CacheLayers`, `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CoverageShard`, `ExecutionIndex` |
-| `@variance-authority/sense/journal` | `testSelectionProbes`, `drainExecution`, `recordExecution`, `joinObservations`, `EXECUTION_GLOBAL`; types `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `ObservedSubject` |
+| `@variance-authority/sense/journal` | `testSelectionProbes`, `drainExecution`, `recordExecution`, `joinObservations`, `moduleId`, `EXECUTION_GLOBAL`; types `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `ObservedSubject` |
 | `@variance-authority/sense/journey` | `collectJourneys`, `stitchJourneys`, `mintJourney`, `journeyOf`, `JOURNEY_COOKIE`, `JOURNEY_VARIABLE`, `JOURNEY_HEAD_VARIABLE`; types `JourneyAccount`, `JourneyReport`, `StitchedJourneys` |
 
 Nothing else on this page is importable. Where the sections below describe the
@@ -196,13 +194,12 @@ those entry points, not functions you can call.
 
 | Structure | Primary key | Identity across runs | Lives |
 |---|---|---|---|
-| block | `(module path, ordinal)` | `kind`, `name`, `path` | module record, coverage |
-| module | file path | the same | module record, coverage |
+| block | `(module path, ordinal)` | `kind`, `name`, `path` | coverage, and the source file it is cut from |
+| module | file path | the same | coverage, and the source file it is cut from |
 | test | test file path, or a story id | the same | coverage |
 | case | test file path and the case's declaration path under it | the runner's id where it hands one over, otherwise the same pair | the case index, with the duration its runner reported |
 | precondition | `name` and `digest` together | the same pair | coverage, per test |
 | crossing | `(block, test)` | the same pair | coverage |
-| module record | module id under a build label | the instrumentation id | the label's store |
 | worker journal | one test file in one worker | none, folded on read | the run directory |
 | page journal | one drain of one page | none, folded on read | the driver's memory |
 | journey account | one delivery from one head | none, stitched by journey id | the wire, then the driver's memory |
@@ -497,8 +494,7 @@ recorded on the story's row and on its case, once however many times the story
 was read, and a story the run did not time is recorded without one.
 
 `variance ask slowest-tests` lists the slowest recorded files and the slowest
-recorded cases, anywhere or under the paths you name, and `yarn test:since`
-adds up the recorded cost of the files it selects.
+recorded cases, anywhere or under the paths you name.
 
 **Runs.** A section over sixty-four kilobytes is cut into runs — four thousand
 and ninety-six rows of a column, five hundred and twelve strings of the blob —
@@ -558,9 +554,9 @@ Decoding each use on its own costs twice the time and close to three times the
 heap, for a model that holds exactly the same values.
 
 **Location.** [Where the file is](#where-the-file-is-and-what-to-do-with-it),
-above. Beside the snapshot, each instrumenting build keeps what it instrumented
-as one record per module in a store named by that build's `<label>`; the
-ordinals in the snapshot mean nothing without it.
+above. Nothing beside the snapshot gives its ordinals their meaning: each
+module row names its file and the digest of the text its regions were cut from,
+and a reader cuts that text again.
 
 ## Keys
 
@@ -573,11 +569,28 @@ a duplicate.
 **Module.** The module's repository-relative path, with `modules.source` as
 the digest it must still have for its blocks to mean anything.
 
-**Module id.** The module's repository-relative path, and what an instrumented
-module reports itself as: the transform writes it into the emitted code as a
-literal. Every seam instruments under the same path, so a journal reads the same
-whichever runner wrote it, and every artifact joins another by that path with
-no table between them.
+**Module id.** A probe reports its module as `path@digest`: the
+repository-relative path of the file the transform was handed, and the first 32
+hexadecimal characters of the SHA-256 of the text the probes were placed on.
+`moduleId(path, code)` from `@variance-authority/sense/journal` builds it, for a
+driver that writes its own journal. The build writes nothing else down.
+Placing probes is deterministic, so one text, one path and one recipe give one
+set of ordinals, and every reader cuts the module again from the checkout:
+
+- **The file has the text the digest names.** The reader cuts it exactly as the
+  transform did, and every ordinal means the region it meant in the build.
+- **The file has other text.** The module is recorded as not instrumented: its
+  file is still named, with no regions. Every subject that ran it depends on
+  that file's text whole, so a change to it selects those subjects.
+- **The file is gone, or the id names no file under the root.** The module is
+  left out. The test that ran it is recorded incomplete, so a later run never
+  skips it.
+
+So a transform reads nothing from the rest of the build: ten changed files out
+of two hundred thousand are rebuilt in parallel, in any order, by processes that
+never meet, and two builds over one repository, such as a Storybook preview and
+the application a Playwright suite drives, need no name to keep their ordinals
+apart.
 
 **Block, within a file.** `(module row, ordinal)`. Ordinals are unique within
 a module and the first block is the module root.
@@ -776,13 +789,13 @@ Every runner seam records what one process observed and leaves the fold to the
 writer. Read this section when you are wiring a runner yourself; a suite using
 the shipped Vitest, Jest, Rstest, Playwright or Storybook seams never sees one.
 Three journal shapes exist, and each includes a list of `ExecutedModule`; the
-record that gives their ordinals meaning is the fourth shape here:
+[module id](#keys) after them gives their ordinals meaning:
 
 ```json
-{ "id": "src/cart/total.ts", "hits": [0, 1, 2, 3, 5, 6], "shared": [0], "loaded": [0, 1] }
+{ "id": "src/cart/total.ts@9b2f6e0c4a7d1e58b3c09f2a6d4e7b10", "hits": [0, 1, 2, 3, 5, 6], "shared": [0], "loaded": [0, 1] }
 ```
 
-`id` is the path the module was instrumented under, `hits` the ordinals whose counter was above zero, ascending,
+`id` is the module id the module was instrumented under, `hits` the ordinals whose counter was above zero, ascending,
 and `shared` the subset of `hits` whose counter had the `EVALUATING` bit set.
 `loaded`, in the worker journal only, is the subset of `hits` whose counter was
 already above zero in the snapshot the setup file took before the file's first
@@ -790,7 +803,7 @@ test: regions covered as a consequence of loading. Presence only: the counts
 never leave the process. The ordinals index the recipe the build instrumented
 under — `sense:instrument/presence-v5`, or `sense:instrument/entries-v2` when
 the seam was asked for `mode: 'entries'`, which numbers the module and each
-function and nothing between — and every reader refuses a journal, record or
+function and nothing between — and every reader refuses a journal or
 snapshot cut under the other.
 
 **Worker journal.** Written by the setup file of a Vitest, Jest or Rstest
@@ -802,78 +815,27 @@ one pass over each array and the reporter reads bytes.
 
 ```
 journal  "VAJRN" | version | test file | modules | module | module | …
-module   1 | path | hits | shared | loaded
+module   1 | id | hits | shared | loaded
 hits     count | gap | gap | …
 ```
 
-A module is written as `1 | path`, and a reader refuses any other tag as a
+A module is written as `1 | id`, and a reader refuses any other tag as a
 damaged frame. Counts, ids and gaps are varints and text is a length and its UTF-8; ordinals
 rise within a module, so a region costs one byte. A run of eight thousand test
 files over two hundred thousand modules reports sixteen million module rows. As
-frames each row is its module's path and its ordinals as gaps, which is under
+frames each row is its module's id and its ordinals as gaps, which is under
 half the bytes of the same rows as JSON, and nothing is rendered or parsed as
 text on the way. No checksum: one process writes a journal and
 closes it, one reader opens it once that process is gone, and the only damage
 available to it is a tail that never arrived — which a decode obliged to land
 exactly on the end of the frame refuses for nothing.
 
-The reporter reads the record each id names, folds every journal's `hits` into
+The reporter cuts each module an id names again from the checkout, folds every journal's `hits` into
 crossings and its `loaded` ordinals the same way over the other column, merges
 into the coverage file, and removes the run directory. A
 shared ordinal is credited to every test file that consumed the module; under
 isolation each file consumed its own evaluation and the credit goes to nobody
 else.
-
-**Module record.** One module as bytes, appended by whoever transformed it to a
-segment it alone holds open:
-
-```
-segment  "VAREC" | version | instrumentation id | frame | frame | …
-frame    length  | FNV-1a of the payload | payload, padded to eight
-payload  id 4 | flags 4 | blocks 4 | dictionary 4 | source digest 16 |
-         dictionary strings, the module's path first, then one column per
-         field: kind, owner, name, path, startLine, endLine, source bits, digest
-```
-
-The id is `0xffffffff`, which marks the module as named by its path, and a
-reader skips a frame holding anything else. The path is the first string of the
-dictionary, at a fixed offset from the start of the payload, so a reader places
-a frame without decoding it: a scan for one module reads four bytes and, at
-most, one string. The rest of the strings a record uses — its block names, its
-block paths — are interned within the frame and referenced by index; everything
-after them is a run of fixed-width little-endian values at a computable offset,
-so a reader takes a slice where a parser would take a pass. A module the parser
-refused has no blocks and records that in its flags, which is what makes a
-consumer widen instead of trusting an empty table.
-
-A frame contains everything it needs, which is what lets a writer append and
-return. A reader stops at the first frame that runs past the end of the file,
-so a process killed mid-append loses that module and not the segment, and a
-byte a filesystem lost silently fails the frame's own checksum rather than
-arriving as a block table. A module transformed twice appends twice, and the
-later frame is the one a reader takes.
-
-On this repository's source, at 33.1 blocks per module, a record is 1,841 bytes
-where the same record as JSON is 6,603. At two hundred thousand modules that is
-351 MB in a handful of segments against 1,563 MB in two hundred thousand files,
-and the JSON store's largest single document would not have been readable at
-all: `readFile(…, 'utf8')` throws past 512 MB. That ceiling is why the source
-index uses shared binary sections instead of one text document.
-
-Nothing collects the records into a document and nothing has to: a transform
-writes the module it just cut and reads nothing from the rest of the build,
-which is what lets ten changed files out of two hundred thousand be rebuilt in
-parallel, in any order, by processes that never meet, and lets the other
-hundred and ninety nine thousand nine hundred and ninety keep firing probes
-that still mean what they meant.
-
-`label` separates two builds over one repository, a Storybook preview and the
-application a Playwright suite drives, because an ordinal means something only
-against the record that minted it. A driven run has nowhere else to read its
-block table from, so a page journal's ordinals mean nothing without the store
-the build wrote. When one run reads several stores, a module two of them store
-with different source digests is recorded as not instrumented: its ordinals
-mean two things.
 
 **Page journal.** The collector that `testSelectionProbes` hoists in front of
 every instrumented module installs the page factory and exposes itself on
@@ -899,12 +861,13 @@ covered under that id. [`journeys.md`](journeys.md) is their page. The type
   "head": "api",
   "scope": "journey",
   "lost": 0,
-  "modules": [ { "file": "src/routes/cart.js", "hits": [0, 1, 4], "shared": [0] } ]
+  "modules": [ { "id": "src/routes/cart.js@4e0a91c37b2d58f6a1c9e3b07d5f2a84", "hits": [0, 1, 4], "shared": [0] } ]
 }
 ```
 
-`head` is the label the service's build instrumented under, so the driver uses
-it to find which store the ordinals index. `scope` is `journey` for crossings
+`head` is the name the service reports under, the name a driver declares in
+`heads`. Each module's `id` is a [module id](#keys), so the driver cuts the
+service's modules again from the checkout the way it cuts the page's. `scope` is `journey` for crossings
 made inside a request that carried a journey cookie and `process` for everything
 the process did outside any journey, its own initialization for instance, which
 the driver folds into every subject. `lost` counts the earlier accounts this
@@ -938,13 +901,12 @@ journal sizes).
 
 **Append from a driven run.** Call `recordExecution` with the drained subjects
 in memory, one per owner, with the journey accounts already joined through
-`joinObservations`. It reads from the store of the
-build and of every declared head the record of each module the subjects
-reported, refuses when it can identify none of them or when one names another
-instrumentation id, and folds under `<coverage>.lock`. The lock is
+`joinObservations`. It cuts each module the subjects reported again from the
+checkout, refuses when none of them is a file under the root or when one names
+another instrumentation id, and folds under `<coverage>.lock`. The lock is
 exclusive-create, waited on for ten seconds at a 25 ms poll, and considered
-stale after sixty. Two stores that disagree on one module's source digest
-record it as not instrumented. A module missing from every store is dropped,
+stale after sixty. A module whose file no longer has the text its id names is
+recorded as not instrumented. A module whose file is gone is dropped,
 and the subject that covered it is recorded incomplete, because a subject whose
 crossings cannot all be placed is one a later run may not skip. The fold is
 O(hits) over every subject's journal plus O(modules reported) to build the

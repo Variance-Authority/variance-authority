@@ -287,20 +287,20 @@ describe('landJourneys — N shard snapshots into the one this repository reads'
 });
 
 describe('recordPerStand — the record asked once per stand, the answers folded', () => {
-  const stands = [{ commit: 'c0ffee', tests: ['test/b.test.ts'], whole: ['test/b.test.ts'] }];
+  const stands = [{ commit: 'c0ffee', tests: ['test/b.test.ts'], changed: ['test/b.test.ts'], whole: [] }];
   const narrowing = (entered: readonly string[]) => ({ whole: [], entered, unread: [], stale: [], because: [] });
 
   it('folds what each stand entered into one answer', async () => {
-    const answer = await recordPerStand(stands, async (_whole, stand) => ({
-      narrowing: narrowing(stand === undefined ? ['test/a.test.ts'] : ['test/b.test.ts']),
+    const answer = await recordPerStand(stands, async (question) => ({
+      narrowing: narrowing(question.at === undefined ? ['test/a.test.ts'] : ['test/b.test.ts']),
     }));
 
     expect(answer?.narrowing.entered).toEqual(['test/a.test.ts', 'test/b.test.ts']);
   });
 
   it('has no answer when any stand has none, rather than a fold that is missing it', async () => {
-    const answer = await recordPerStand(stands, async (_whole, stand) =>
-      stand === undefined ? { narrowing: narrowing(['test/a.test.ts']) } : undefined,
+    const answer = await recordPerStand(stands, async (question) =>
+      question.at === undefined ? { narrowing: narrowing(['test/a.test.ts']) } : undefined,
     );
 
     expect(answer).toBeUndefined();

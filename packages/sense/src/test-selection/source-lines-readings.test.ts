@@ -2,7 +2,8 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readRecord, recordStore } from './instrumented-modules.js';
+import { captureModule } from './captured-modules.js';
+import { defaultInclude } from './instrumented-modules.js';
 import { testSelectionProbes } from './probes.js';
 
 /**
@@ -64,7 +65,6 @@ const TSC = {
 };
 
 const root = join(tmpdir(), `variance-readings-${process.pid}`);
-const cacheRoot = join(root, '.cache');
 
 beforeAll(async () => {
   await mkdir(join(root, 'app/src'), { recursive: true });
@@ -86,21 +86,17 @@ afterAll(async () => {
   await rm(root, { force: true, recursive: true });
 });
 
-/** The regions the build seam, `testSelectionProbes`, records once it read `code` as `file` last. */
-const recordedAfter = async (
-  code: string,
-  file: string,
-): Promise<readonly (readonly [string, number, number])[]> => {
-  const plugin = testSelectionProbes({ root, cacheRoot, include: () => true });
-  plugin.transform(code, join(root, file));
-  const record = await readRecord(recordStore(root, 'build', cacheRoot), 'app/src/a.ts');
-  return (record?.blocks ?? []).map((block) => [block.path, block.startLine, block.endLine] as const);
+/** The regions the build seam cuts from `code`, handed to it as `file`, for `app/src/a.ts`. */
+const recordedAfter = (code: string, file: string): readonly (readonly [string, number, number])[] => {
+  const module = captureModule(root, join(root, file), code, () => true, undefined)?.module;
+  expect(module?.file).toBe('app/src/a.ts');
+  return (module?.blocks ?? []).map((block) => [block.path, block.startLine, block.endLine] as const);
 };
 
 describe('a module read as itself and through its tsc build', () => {
   it('records an `else if` chain on the same lines whichever reading came last', async () => {
-    const build = await recordedAfter(TSC.code, 'app/dist/a.js');
-    const source = await recordedAfter(SOURCE, 'app/src/a.ts');
+    const build = recordedAfter(TSC.code, 'app/dist/a.js');
+    const source = recordedAfter(SOURCE, 'app/src/a.ts');
 
     expect(build).toContainEqual(['for#0/body/if#0/else', 6, 10]);
     expect(build).toContainEqual(['for#0/body/if#0/else/if#0/else', 7, 10]);
@@ -117,15 +113,16 @@ describe('a module read as itself and through its tsc build', () => {
  */
 describe('a module loaded from its tsc build under the default include', () => {
   const transformed = (file: string, code = TSC.code) =>
-    testSelectionProbes({ root, cacheRoot, label: 'default-include' }).transform(code, join(root, file));
+    testSelectionProbes({ root }).transform(code, join(root, file));
 
-  it('is instrumented and recorded under the source its map leads to', async () => {
+  it('is instrumented and recorded under the source its map leads to', () => {
     const done = transformed('app/dist/a.js');
 
-    expect(done?.code).toContain('.r("app/src/a.ts",');
-    expect(done?.code).not.toContain('"app/dist/a.js"');
-    const record = await readRecord(recordStore(root, 'default-include', cacheRoot), 'app/src/a.ts');
-    expect(record).toMatchObject({ file: 'app/src/a.ts', instrumented: true });
+    // The probes name the file whose text they were placed on, which is what
+    // the join reads again; the regions are recorded under the source.
+    expect(done?.code).toContain('.r("app/dist/a.js@');
+    const module = captureModule(root, join(root, 'app/dist/a.js'), TSC.code, defaultInclude, undefined)?.module;
+    expect(module).toMatchObject({ file: 'app/src/a.ts', instrumented: true });
   });
 
   it('is left out when it points at no map', () => {

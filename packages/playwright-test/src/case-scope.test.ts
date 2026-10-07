@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import type { Page, TestInfo } from '@playwright/test';
-import { testSelectionProbes } from '@variance-authority/sense/journal';
+import { moduleId } from '@variance-authority/sense/journal';
 import { decodeExecutionIndex, recordedEyesAt } from '@variance-authority/sense/test-selection';
 import { describe, expect, it, vi } from 'vitest';
 import { varianceCompletedFixtures } from './completed.js';
@@ -56,11 +56,10 @@ describe('the case a Playwright test runs as', () => {
     try {
       const cacheRoot = resolve(root, 'cache');
       await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
-      testSelectionProbes({ root, cacheRoot }).transform(SOURCE, resolve(root, 'price.js'));
       const coverageFile = resolve(root, 'coverage.bin');
       const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
       const page = {
-        evaluate: async () => ({ instrumentation: INSTRUMENTATION, modules: [{ id: 'price.js', hits: [0], shared: [] }] }),
+        evaluate: async () => ({ instrumentation: INSTRUMENTATION, modules: [{ id: moduleId('price.js', SOURCE), hits: [0], shared: [] }] }),
       } as unknown as Page;
 
       const found = scopeNow();
@@ -96,11 +95,10 @@ describe('the case a Playwright test runs as', () => {
     try {
       const cacheRoot = resolve(root, 'cache');
       await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
-      testSelectionProbes({ root, cacheRoot }).transform(SOURCE, resolve(root, 'price.js'));
       const coverageFile = resolve(root, 'coverage.bin');
       const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
       const page = {
-        evaluate: async () => ({ instrumentation: INSTRUMENTATION, modules: [{ id: 'price.js', hits: [0], shared: [] }] }),
+        evaluate: async () => ({ instrumentation: INSTRUMENTATION, modules: [{ id: moduleId('price.js', SOURCE), hits: [0], shared: [] }] }),
       } as unknown as Page;
       await ran(recorder, root, {}, async () => {
         scopeNow()!.watch();
@@ -118,11 +116,10 @@ describe('the case a Playwright test runs as', () => {
     try {
       const cacheRoot = resolve(root, 'cache');
       await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
-      testSelectionProbes({ root, cacheRoot }).transform(SOURCE, resolve(root, 'price.js'));
       const coverageFile = resolve(root, 'coverage.bin');
       const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
       const page = {
-        evaluate: async () => ({ instrumentation: INSTRUMENTATION, modules: [{ id: 'price.js', hits: [0], shared: [] }] }),
+        evaluate: async () => ({ instrumentation: INSTRUMENTATION, modules: [{ id: moduleId('price.js', SOURCE), hits: [0], shared: [] }] }),
       } as unknown as Page;
       await ran(recorder, root, {}, () =>
         recorder.note(page, 'tests/checkout.spec.ts', { name: 'checkout > pays', id: 'runner-id-1' }));

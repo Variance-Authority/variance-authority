@@ -3,9 +3,8 @@
  * the commit the snapshot names.
  *
  * A snapshot names the commit of the latest run laid into it, not the commit
- * every observation in it was made at. A partial run — one leg of `yarn
- * test:since --at-distance`, or a runner handed `variance select`'s skip list —
- * is a run: the seam lands it and stamps the snapshot at `HEAD`, and every test
+ * every observation in it was made at. A partial run — a runner that dropped
+ * what `selectSuite` skips, one leg of it or the whole selection — is a run: the seam lands it and stamps the snapshot at `HEAD`, and every test
  * it did not run still stands on the text it last ran on. Read from the
  * snapshot's commit alone, the next selection finds nothing changed and skips
  * every one of those tests. `landRun` writes down where each test the runs at
@@ -20,20 +19,34 @@
  * commit's text ran, so the branch's files are charged whole: a ref named on
  * purpose reads the whole branch rather than the runs.
  *
- * What changed between where a test stands and the snapshot's commit is
- * charged whole for that test, and left out of the hunk diff it is read
- * through. The merge re-cuts the rows such a test carried onto the text on
- * disk, so its line numbers are the snapshot commit's; but it never ran that
- * text, and the regions it would have entered in the edit are not in its row.
- * A hunk read would ask the wrong question, and a both-texts reading of the
- * snapshot commit against the tree judges the wrong pair of texts and can call
- * the edit inert. Whole files select more inside them and never skip.
+ * What changed between where a test stands and the snapshot's commit is read
+ * for that test from both texts, as the change in the tree is, and the two
+ * answers are kept together. The merge carries the rows such a test recorded
+ * onto the text the snapshot's commit holds, by each region's address, so its
+ * line numbers are that commit's; but it never ran that text. Read the other
+ * way — from the snapshot commit's text back to the text the test ran — the
+ * change is in the rows' own coordinates, and the regions it charges are the
+ * ones the test's run and the snapshot's text disagree on. A run that would go
+ * another way through the edit first goes another way in a region the test
+ * entered, and that region is charged; a region the edit wrote takes the
+ * crossings of the region around it. No other reading judges that pair: the
+ * hunks from the test's commit are numbered in the text the rows no longer
+ * are, and the snapshot commit's text against the tree leaves out the edit
+ * before it.
+ *
+ * A landing over a dirty tree carries the rows onto the text on disk instead,
+ * and keeps that text (`kept-texts.ts`). Those rows were never re-cut onto the
+ * snapshot commit's text, and the diff back to the stand is not written from
+ * the kept one, so the stand's question reads no kept text: such a file is
+ * stale for it and charged whole, which selects more inside it and never
+ * skips.
  */
 
 import type { CommitRuns } from './commit-runs.js';
 import { askCoverageFile } from './coverage-file.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import type { ExecutionNarrowing } from './select.js';
+import { nearestFirst, type TestDistance } from './distance.js';
+import type { ExecutionNarrowing, SelectionReason } from './select.js';
 
 /** One git invocation, answering its stdout and throwing when git fails. */
 export type Git = (...args: string[]) => string;
@@ -43,7 +56,13 @@ export interface Stand {
   readonly commit: string;
   /** In code-unit order. */
   readonly tests: readonly string[];
-  /** Every file changed from `commit` to the snapshot's commit, charged whole for `tests`. */
+  /** Every file changed from `commit` to the snapshot's commit, in code-unit order. */
+  readonly changed: readonly string[];
+  /**
+   * The files charged whole for `tests` rather than read from both texts:
+   * `changed`, for the merge base with a ref, which reads the whole branch;
+   * empty for a stand the runs recorded.
+   */
   readonly whole: readonly string[];
 }
 
@@ -234,7 +253,8 @@ export function readingFrom({
     try {
       // FIXME: a submodule's change lists only its gitlink path here, so neither a
       // test under it nor one that entered a file inside it is charged with that change.
-      read.push({ commit: stand, tests: standing, whole: [...new Set(paths(git('diff', '--name-only', '-z', '--no-renames', stand, commit)))].sort() });
+      const changed = [...new Set(paths(git('diff', '--name-only', '-z', '--no-renames', stand, commit)))].sort();
+      read.push({ commit: stand, tests: standing, changed, whole: stand === merged ? changed : [] });
     } catch {
       return {
         base: commit,
@@ -246,15 +266,16 @@ export function readingFrom({
       };
     }
   }
-  const whole = new Set(read.flatMap((stand) => stand.whole));
-  const count = read.reduce((sum, stand) => sum + stand.tests.length, 0);
-  return {
-    base: commit,
-    from: first,
-    stands: read,
-    says: `${reason}${note}; ${whole.size} file(s) changed between the commits ${count} test(s) last ran at and ${at}, where the snapshot was recorded, are read whole for them${said}`,
-    ...also,
-  };
+  const readings = [false, true].flatMap((whole) => {
+    const these = read.filter((stand) => (stand.commit === merged) === whole);
+    if (these.length === 0) return [];
+    const files = new Set(these.flatMap((stand) => stand.changed)).size;
+    const count = these.reduce((sum, stand) => sum + stand.tests.length, 0);
+    return whole
+      ? [`${files} file(s) changed between the merge base with ${ref} and ${at} are read whole for the ${count} test(s) read from it`]
+      : [`${files} file(s) changed between the commits ${count} test(s) last ran at and ${at}, where the snapshot was recorded, are read from both texts for them`];
+  });
+  return { base: commit, from: first, stands: read, says: `${reason}${note}; ${readings.join('; ')}${said}`, ...also };
 }
 
 /**
@@ -342,45 +363,93 @@ export function withoutFiles(diff: string, files: readonly string[]): string {
 export const wholeEntry = (file: string): string => `diff --git a/${file} b/${file}`;
 
 /**
- * Ask once for the tests read from the snapshot's commit, and once per older
- * stand for the tests standing there, and keep each answer only for the tests
- * it was asked for. One question over every stand at once would read a test
- * that ran after an edit as though it had not, and charge it whole.
- *
- * `ask` is handed the files a stand charges whole, empty for the snapshot's
- * own commit, and builds and asks the diff itself, because each selector
- * brings the hunks into its own coordinates. It is handed the stand's commit
- * too, `undefined` for the snapshot's own, because the install each group ran
- * on is the one at that commit: a group is charged the packages that moved
- * between there and the tree, and no other group's. `whole`, `readings` and
- * the rest of the narrowing are the snapshot commit's answer; `unread` and
- * `stale` are every answer's.
+ * The change from the snapshot's commit back to `stand`, as `git diff` writes
+ * it with every setting that would reword it turned off: the snapshot's text is
+ * the old side, so the hunks are numbered in the lines the rows hold.
  */
-export async function askPerStand<Distance extends { readonly test: string }>(
+export const standDiff = (git: Git, commit: string, stand: string): string =>
+  git(
+    '-c', 'core.quotePath=false', '-c', 'diff.noprefix=false', '-c', 'diff.mnemonicPrefix=false',
+    'diff', '--no-color', '--no-ext-diff', '--no-renames', commit, stand,
+  );
+
+/**
+ * One question `askPerStand` puts to a selector. `tree` reads the change from
+ * the snapshot's commit to the tree, on the install at `at`, with `whole`
+ * charged whole and left out of the hunks; `stand` reads the change from the
+ * snapshot's commit to `at`, from both texts, with no install of its own and
+ * no kept text, so a module a landing kept a text for is charged whole.
+ */
+export type StandQuestion =
+  | { readonly read: 'tree'; readonly at: string | undefined; readonly whole: readonly string[] }
+  | { readonly read: 'stand'; readonly at: string };
+
+/** What a selector answers one {@link StandQuestion} with. */
+export interface StandAnswer<Distance extends TestDistance> {
+  readonly narrowing: ExecutionNarrowing;
+  readonly distances?: readonly Distance[];
+}
+
+/**
+ * Ask once for the tests read from the snapshot's commit, and per older stand
+ * for the tests standing there, and keep each answer only for the tests it was
+ * asked for. One question over every stand at once would read a test that ran
+ * after an edit as though it had not.
+ *
+ * A stand is asked twice: what the tree changed since the snapshot's commit, on
+ * the install the stand's tests ran on, and what the snapshot's commit changed
+ * since the stand. A test either reading charges is entered, for the reasons
+ * both name, at the nearer distance. A stand that charges its files whole, the
+ * merge base with a ref, is asked the first question alone. Each selector
+ * builds and asks the diff itself, because each brings the hunks into its own
+ * coordinates. `whole`, `readings` and the rest of the narrowing are the
+ * snapshot commit's answer; `unread` and `stale` are every answer's.
+ */
+export async function askPerStand<Distance extends TestDistance>(
   stands: readonly Stand[],
-  ask: (
-    whole: readonly string[],
-    at: string | undefined,
-  ) => Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances?: readonly Distance[] }>,
+  ask: (question: StandQuestion) => Promise<StandAnswer<Distance>>,
 ): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances: readonly Distance[] }> {
   const owner = new Map(stands.flatMap((stand, at) => stand.tests.map((test) => [test, at] as const)));
   const mine = (at: number) => (test: string) => (owner.get(test) ?? -1) === at;
-  const here = await ask([], undefined);
-  const entered = here.narrowing.entered.filter(mine(-1));
-  const because = here.narrowing.because.filter((cause) => mine(-1)(cause.test));
-  const distances = (here.distances ?? []).filter((distance) => mine(-1)(distance.test));
-  const unread = new Set(here.narrowing.unread);
-  const stale = new Set(here.narrowing.stale);
+  const entered = new Set<string>();
+  const because = new Map<string, Map<string, SelectionReason>>();
+  const distances = new Map<string, Distance>();
+  const unread = new Set<string>();
+  const stale = new Set<string>();
+  const keep = (answer: StandAnswer<Distance>, at: number): void => {
+    for (const test of answer.narrowing.entered) if (mine(at)(test)) entered.add(test);
+    for (const cause of answer.narrowing.because) {
+      if (!mine(at)(cause.test)) continue;
+      const via = because.get(cause.test) ?? new Map<string, SelectionReason>();
+      for (const reason of cause.via) via.set(JSON.stringify(reason), reason);
+      because.set(cause.test, via);
+    }
+    for (const distance of answer.distances ?? []) {
+      if (!mine(at)(distance.test)) continue;
+      const held = distances.get(distance.test);
+      if (held === undefined || nearestFirst(distance, held) < 0) distances.set(distance.test, distance);
+    }
+    for (const path of answer.narrowing.unread) unread.add(path);
+    for (const name of answer.narrowing.stale) stale.add(name);
+  };
+  const here = await ask({ read: 'tree', at: undefined, whole: [] });
+  keep(here, -1);
   for (const [at, stand] of stands.entries()) {
-    const { narrowing, distances: far } = await ask(stand.whole, stand.commit);
-    entered.push(...narrowing.entered.filter(mine(at)));
-    because.push(...narrowing.because.filter((cause) => mine(at)(cause.test)));
-    distances.push(...(far ?? []).filter((distance) => mine(at)(distance.test)));
-    for (const path of narrowing.unread) unread.add(path);
-    for (const name of narrowing.stale) stale.add(name);
+    keep(await ask({ read: 'tree', at: stand.commit, whole: stand.whole }), at);
+    if (stand.whole.length === 0 && stand.changed.length > 0) keep(await ask({ read: 'stand', at: stand.commit }), at);
   }
+  const order = [...entered];
   return {
-    narrowing: { ...here.narrowing, entered, because, unread: [...unread].sort(), stale: [...stale].sort() },
-    distances,
+    narrowing: {
+      ...here.narrowing,
+      entered: order,
+      because: order.flatMap((test) => {
+        const via = because.get(test);
+        return via === undefined ? [] : [{ test, via: [...via.values()] }];
+      }),
+      unread: [...unread].sort(),
+      stale: [...stale].sort(),
+    },
+    distances: [...distances.values()],
   };
 }

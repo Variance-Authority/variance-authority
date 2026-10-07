@@ -59,14 +59,28 @@ export interface NativeJourneyProjection {
   readonly files: readonly string[];
 }
 
+/** One module a run's cases named, cut again from the checkout, as the fold reads it. */
+export interface NativeJourneyModule {
+  readonly id: string;
+  readonly file: string;
+  /** In ordinal order; empty for a module whose ordinals cannot be read. */
+  readonly blocks: readonly {
+    readonly kind: string;
+    readonly name: string;
+    readonly path: string;
+    /** Zero for a region with no line of any file. */
+    readonly startLine: number;
+    readonly endLine: number;
+    readonly source: boolean;
+  }[];
+}
+
 export interface NativeJourneyFold {
   readonly bytes: Buffer;
   readonly tests: number;
   readonly modules: number;
   readonly crossings: number;
   readonly passes: number;
-  /** Files two builds cut into different regions, read at the regions both hold. */
-  readonly renumbered: readonly string[];
   /** Modules a case ran that no record holds: a change there selects nothing. */
   readonly unrecorded: readonly string[];
   /** Part files that ran code under no journey a case handed out. */

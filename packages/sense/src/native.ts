@@ -26,6 +26,7 @@ import type {
   NativeJourneyProjection,
   NativeJourneyFold,
   NativeJourneyFoldResult,
+  NativeJourneyModule,
   NativeJourneyStitch,
   NativeJourneyStitchResult,
 } from './native-journey.js';
@@ -40,6 +41,7 @@ export type {
   NativeJourneyProjection,
   NativeJourneyFold,
   NativeJourneyFoldResult,
+  NativeJourneyModule,
   NativeJourneyStitch,
   NativeJourneyStitchResult,
 } from './native-journey.js';
@@ -220,24 +222,23 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   fetchMissingAt?(root: string, commit: string, paths: string[]): boolean;
   /** Of these files, those whose nearest `package.json` declares that loading them does something. */
   declaredEffects?(root: string, files: string[]): string[];
+  /** Every module id a run's cases and parts name, for the caller to cut again with `deriveModules`. */
+  journeyModuleIds?(caseDirectory: string, root: string, parts?: string[]): string[];
   /** Read, fold, and encode one run's case journals without crossing rows into V8. */
   foldJourney?(
     caseDirectory: string,
     root: string,
-    stores: string[],
-    instrumentation: string,
+    modules: NativeJourneyModule[],
     budgetMegabytes?: number,
   ): NativeJourneyFold;
   /** Fold and write the compressed artifact without returning its bytes to JavaScript. */
   foldJourneyTo?(
     caseDirectory: string,
     root: string,
-    stores: string[],
-    instrumentation: string,
+    modules: NativeJourneyModule[],
     output: string,
     budgetMegabytes?: number,
     parts?: string[],
-    partStores?: string[],
   ): NativeJourneyFoldResult;
   /** Union compressed journey artifacts while their crossing relation stays native. */
   stitchJourneys?(files: string[]): NativeJourneyStitch;

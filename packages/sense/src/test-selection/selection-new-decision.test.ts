@@ -190,8 +190,10 @@ describe('a decision written after the recorded journeys', () => {
       sourceAt: (file, commit) => file === PICK && commit === CURRENT ? DECISION_INSIDE : undefined,
     });
 
+    // Neither observer ran the decision, so the carry demotes both; the born
+    // region still answers the edit inside it from the junction around it.
     expect(selected).toMatchObject({
-      whole: [ONE, OTHER, ZERO],
+      whole: [OTHER],
       entered: [ONE],
       unread: [],
       stale: [],

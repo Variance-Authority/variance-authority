@@ -6,7 +6,6 @@ import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { chromium } from '@playwright/test';
-import { testSelectionProbes } from '@variance-authority/sense/journal';
 import { decodeExecutionIndex, type ExecutionIndex } from '@variance-authority/sense/test-selection';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -60,8 +59,6 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
     const cacheRoot = resolve(directory, 'cache');
     const coverageFile = resolve(directory, 'coverage.bin');
     const reportFile = resolve(directory, 'report.json');
-    const cart = resolve(fixture, 'src/cart.ts');
-    testSelectionProbes({ root: repository, cacheRoot }).transform(await readFile(cart, 'utf8'), cart);
     output = await execute(
       process.execPath,
       [resolve(repository, 'node_modules/@playwright/test/cli.js'), 'test', '--config', resolve(fixture, 'playwright.config.mjs')],

@@ -357,7 +357,7 @@ export default {
   framework: { name: '@storybook/react-vite', options: {} },
   viteFinal: async (config) => ({
     ...config,
-    plugins: [...(config.plugins ?? []), testSelectionProbes({ label: 'storybook' })],
+    plugins: [...(config.plugins ?? []), testSelectionProbes()],
   }),
 };
 ```
@@ -368,14 +368,15 @@ import { storybookCollector } from '@variance-authority/storybook-collector';
 
 export default storybookCollector({
   source: { dirs: ['src'] },
-  tests: { label: 'storybook' },
+  tests: true,
 });
 ```
 
-`tests` accepts `true` or an options object: `label` must match the one the
-preview's `testSelectionProbes()` was given, and `cacheRoot` and `coverageFile`
-override the repository-keyed cache paths for the block records and the coverage
-index. `suite` names the suite this run is, when the root `variance.config.json`
+`tests` accepts `true` or an options object: `cacheRoot` and `coverageFile`
+override the repository-keyed cache paths for the coverage layers and the
+coverage index. The preview's probes report each module's file and a digest of
+the text they were placed on, and the run cuts that file again from your
+checkout, so the preview's build writes nothing the run has to find. `suite` names the suite this run is, when the root `variance.config.json`
 declares its suites under `suites`; it is required once any suite is declared,
 and cannot be combined with `coverageFile`. `root` is the directory Storybook
 ran in, the cwd by default: story paths and a relative `coverageFile` are read
@@ -389,10 +390,10 @@ discards a layer cut by another one, so a preview probing under `entries` and a
 run folding under `presence` would each wipe the other. `preconditions` names
 files whose contents are a precondition of every story's observation — a
 `preview.js` that decides what renders belongs there, because a change to it
-invalidates every reading and no crossing will ever record it. `heads` and
-`commit` stamp the snapshot with the branch tips this recording stands on and
-the commit it was taken at, which is what lets a later run separate a stale
-layer from a current one.
+invalidates every reading and no crossing will ever record it. `commit`
+stamps the snapshot with the commit it was taken at, the checkout's `HEAD` by
+default, which is what lets a later run separate a stale layer from a current
+one.
 
 A story is its own owner in the recorded index — Storybook is an execution
 surface this tool drives one subject at a time — and a story that did not render
