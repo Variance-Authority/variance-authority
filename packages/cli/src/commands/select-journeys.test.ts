@@ -52,6 +52,19 @@ describe('selecting from a journey file', () => {
     expect(said.out).toBe('test/other.test.ts\n');
   });
 
+  it('spells a vitest exclusion from the top of the checkout when run from a directory inside it', async () => {
+    writeFileSync(join(root, 'change.patch'), patch(6));
+    process.chdir(join(root, 'src'));
+    const said = await selectOutput({
+      cwd: join(root, 'src'),
+      format: 'vitest',
+      execution: join(root, 'journeys.bin'),
+      diff: join(root, 'change.patch'),
+      noGit: true,
+    });
+    expect(said.out).toBe(`--exclude=${join(root, 'test/other.test.ts')}\n`);
+  });
+
   it('skips every test for a comment above a function, which sits in the region that ran as the module loaded', async () => {
     git('add', '.');
     git('commit', '-qm', 'before');

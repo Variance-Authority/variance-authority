@@ -164,7 +164,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // The skip list is resolved from there too, spelled the way the caller spells `cwd`.
   const top = await topLevel(request.cwd);
   const here = top ?? request.cwd;
-  const root = top === undefined ? request.cwd : resolve(request.cwd, relative(await realpath(request.cwd), top));
+  const root = await spelledTop(request.cwd, top);
   const own = at === (await landingRecord(request.cwd, request.suite));
   const stood = commit === undefined || top === undefined ? undefined : await standsOf(at, top, handed, own);
   const reading = stood === undefined || 'unread' in stood ? undefined : stood.reading;
@@ -385,9 +385,11 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
   const from = request.since ?? 'HEAD';
   // The diff is named from `cwd`, as the relations and the preimages below are, and git spells it through symlinks.
   const here = await realpath(request.cwd).catch(() => request.cwd);
+  // A journey file names its tests from the top of the checkout, so the skip list is resolved from there.
+  const root = await spelledTop(request.cwd, await topLevel(request.cwd));
   const text = request.diff === undefined ? await diffSince(from, [], undefined, { cwd: here }) : await handedDiff(request.diff);
   if (text === undefined) {
-    return saidOf({ at: request.execution, given: true, ground: { kind: 'no-diff', from } }, request);
+    return saidOf({ at: request.execution, given: true, ground: { kind: 'no-diff', from } }, request, root);
   }
   if (!/^diff --git /mu.test(text) && /^@@ /mu.test(text)) {
     throw new OperatorError(
@@ -408,7 +410,7 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
     ? await installDiff(await diffPoint(from, [], here), [...selection.changedLines(text).keys()])
     : await installDiffOfPatch(text, here);
   if (installed !== undefined && 'whole' in installed) {
-    return saidOf({ at: request.execution, given: true, ground: { kind: 'no-install', whole: installed.whole } }, request);
+    return saidOf({ at: request.execution, given: true, ground: { kind: 'no-install', whole: installed.whole } }, request, root);
   }
   const relations = await relationsFor(request.cwd, ['.'], [], [], {
     why: 'a whole-file change is answered by the file graph',
@@ -421,7 +423,7 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
   const suite = await journeySuite(here, request.suite);
   const { whole, ...rest } = await restingOf(here, suite, relations, [...changed.keys()]);
   const base = { at: request.execution, given: true, ...rest };
-  if (whole !== undefined) return saidOf({ ...base, ground: { kind: 'before', whole } }, request);
+  if (whole !== undefined) return saidOf({ ...base, ground: { kind: 'before', whole } }, request, root);
   const preimages = await patchPreimages(text, request.cwd);
   const { read, readings } = selection.readJourneyChange(text, (file) => preimages.get(file), {
     root: request.cwd,
@@ -432,7 +434,12 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
   const narrowing = await selection.selectJourneyFile(request.execution, changed, options)
     ?? selection.narrowByJourneys((await readExecutionFor(request.execution, changed)).index, changed, options);
   const unread = [...withoutManifests(narrowing.unread, installed?.manifests ?? []), ...beyond.unplaced].sort();
-  return saidOf({ ...base, ground: { kind: 'read', narrowing: { ...narrowing, unread, readings } } }, request);
+  return saidOf({ ...base, ground: { kind: 'read', narrowing: { ...narrowing, unread, readings } } }, request, root);
+}
+
+/** The top of the checkout `cwd` is in, spelled the way the caller spells `cwd`; `cwd` itself outside one. */
+async function spelledTop(cwd: string, top: string | undefined): Promise<string> {
+  return top === undefined ? cwd : resolve(cwd, relative(await realpath(cwd), top));
 }
 
 /** A patch handed in by `--diff`: a file, or `-` for stdin. */
