@@ -74,7 +74,7 @@ describe('one leg of the selection', () => {
     const input = read();
     const selection = inLeg(skippableTests(input), input, { from: 0, to: 2 });
 
-    // The ghost has no measured distance, and rides with the leg that reaches the end.
+    // The ghost has no measured distance, and runs in the end leg: `3-`, since FAR is past 2.
     expect(selection.skip).toEqual([FAR, GHOST, IDLE]);
     expect(selection.left).toEqual([FAR, GHOST]);
     expect(selection.leg).toEqual({ from: 0, to: 2 });
@@ -111,7 +111,6 @@ describe('one leg of the selection', () => {
   });
 
   it('cuts an entered test the record never saw whole, and counts it apart from the whole', () => {
-    const PARTIAL = 'test/partial.test.ts';
     const input: SelectInput = {
       at: '/cache/coverage.bin',
       ground: {
@@ -126,7 +125,7 @@ describe('one leg of the selection', () => {
     expect(selectionNotes(end)).toContain('skipping 4 test files: 1 of 5 recorded whole covered no changed line, and 3 are outside');
   });
 
-  it('runs a test the record holds incomplete, with no path to the change, only in the end leg', () => {
+  it('runs a test the record holds incomplete, with no path to the change, only in the open leg', () => {
     const SKIPPED = 'test/skipped.test.ts';
     const input = read(DISTANCES, [GHOST, SKIPPED]);
     const near = inLeg(skippableTests(input), input, { from: 0, to: 2 });
@@ -136,32 +135,58 @@ describe('one leg of the selection', () => {
     expect(near.left).toEqual([FAR, GHOST, SKIPPED]);
     expect(end.skip).toEqual([IDLE, MID, NEAR]);
     expect(selectionNotes(near)).toContain(
-      '1 test file the record never saw whole and the change did not enter is left for the leg that reaches the end',
+      '1 test file the record never saw whole and the change did not enter is left for the open leg',
     );
   });
 
   // A placed incomplete test is measured like an entered one, so it can be the
-  // furthest test of the reading: a closed leg short of it does not reach the
-  // end, and an entered test with no distance waits for the leg that does.
+  // furthest test of the reading: a closed leg short of it is no end leg, and an
+  // entered test with no distance waits for the one that is: GHOST runs in
+  // `0-2` while NEAR is the furthest, and moves to `3-` once PARTIAL is placed.
   it('runs an unplaced entered test only in the leg past a placed incomplete test', () => {
-    const PARTIAL = 'test/partial.test.ts';
-    const input: SelectInput = {
+    const reading = (incomplete: readonly string[]): SelectInput => ({
       at: '/cache/coverage.bin',
       ground: {
         kind: 'read',
-        narrowing: { whole: WHOLE, incomplete: [PARTIAL], entered: [GHOST, NEAR], unread: [], stale: [], because: [] },
+        narrowing: { whole: WHOLE, incomplete, entered: [GHOST, NEAR], unread: [], stale: [], because: [] },
         distances: [
           { test: NEAR, bearing: 'direct', hops: 1 },
           { test: GHOST, bearing: 'unexplained' },
           { test: PARTIAL, bearing: 'transitive', hops: 3 },
         ],
       },
-    };
+    });
+    const input = reading([PARTIAL]);
+    const alone = reading([]);
     const near = inLeg(skippableTests(input), input, { from: 0, to: 2 });
     const end = inLeg(skippableTests(input), input, { from: 3, to: Number.MAX_SAFE_INTEGER });
 
     expect(near.skip).toEqual([FAR, GHOST, IDLE, MID, PARTIAL]);
     expect(end.skip).toEqual([FAR, IDLE, MID, NEAR]);
+    expect(inLeg(skippableTests(alone), alone, { from: 0, to: 2 }).skip).toEqual([FAR, IDLE, MID]);
+  });
+
+  // A caller hands over its own distances, and one may name an incomplete test
+  // it could not place. Placed means a hop count, not a row: a closed end leg
+  // runs an entered test with no hops, never an incomplete one.
+  it('runs an incomplete test with a distance but no hops only in the open leg', () => {
+    const input: SelectInput = {
+      at: '/cache/coverage.bin',
+      ground: {
+        kind: 'read',
+        narrowing: { whole: WHOLE, incomplete: [PARTIAL], entered: [NEAR], unread: [], stale: [], because: [] },
+        distances: [
+          { test: NEAR, bearing: 'direct', hops: 1 },
+          { test: PARTIAL, bearing: 'unexplained' },
+        ],
+      },
+    };
+    const near = inLeg(skippableTests(input), input, { from: 0, to: 2 });
+    const end = inLeg(skippableTests(input), input, { from: 3, to: Number.MAX_SAFE_INTEGER });
+
+    expect(near.skip).toContain(PARTIAL);
+    expect(selectionNotes(near)).not.toContain('placed in this leg');
+    expect(end.skip).not.toContain(PARTIAL);
   });
 
   it('names what the leg left and the leg that runs it, on stderr', () => {
@@ -223,7 +248,7 @@ describe('one leg of the selection', () => {
 
     expect(err).toContain(
       'the change entered 4 test files: 1 at 1 hop, 1 at 2 hops, 1 at 3 hops, ' +
-        'and 1 at no measured distance, which runs with the furthest leg',
+        'and 1 at no measured distance, which runs in the end leg',
     );
   });
 
