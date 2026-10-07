@@ -73,6 +73,10 @@ fn every_shape_a_component_is_written_in_is_declared() {
         "const First = 1, Second = 2;\n",
         "export class Shown {}\n",
         "class Hidden {}\n",
+        "export abstract class Base {}\n",
+        "abstract class Unexported {}\n",
+        "function* Stepped() {}\n",
+        "let Later;\n",
         "function helper() {}\n",
         "const lower = 1;\n",
         "var Legacy = 1;\n",
@@ -80,9 +84,13 @@ fn every_shape_a_component_is_written_in_is_declared() {
     );
     assert_eq!(
         declares("Shapes.tsx", source),
-        ["Arrow", "Defaulted", "Exported", "First", "Hidden", "Local", "Second", "Served", "Shown", "Typed"],
+        [
+            "Arrow", "Base", "Defaulted", "Exported", "First", "Hidden", "Later", "Local", "Second", "Served",
+            "Shown", "Stepped", "Typed", "Unexported",
+        ],
     );
     assert_eq!(declares("Classy.tsx", "export default class Panel {}\n"), ["Panel"]);
+    assert_eq!(declares("Page.tsx", "export default async function Page() { return null; }\n"), ["Page"]);
 }
 
 #[test]
@@ -104,4 +112,31 @@ fn a_test_story_or_declaration_file_declares_nothing() {
     for file in ["Button.test.tsx", "Button.spec.tsx", "Button.stories.tsx", "button.d.ts"] {
         assert_eq!(declares(file, source), Vec::<String>::new(), "{file}");
     }
+}
+
+
+#[test]
+fn a_name_typescript_declares_as_living_elsewhere_is_not_declared() {
+    let source = concat!(
+        "declare function Foo(): void;\n",
+        "export declare const Bar: number;\n",
+        "declare class Baz {}\n",
+    );
+    assert_eq!(declares("ambient.ts", source), Vec::<String>::new());
+}
+
+/// Deliberate: the names are read off the tree, and a file the parser cannot
+/// recover has none. Nothing is guessed from its text; its `unknown` says the
+/// file was not read, which is what a reader needs to tell it from a file that
+/// declares nothing.
+#[test]
+fn a_file_the_parser_cannot_recover_declares_nothing_and_says_why() {
+    let source = concat!(
+        "// @flow\n",
+        "type Props = {| label: string |};\n",
+        "export function Button(props: Props) { return null; }\n",
+    );
+    let read = read_module("Button.js", source, &Allocator::default(), false);
+    assert_eq!(read.declares, Vec::<String>::new());
+    assert!(read.unknown.as_deref().is_some_and(|reason| reason.contains("parse error")), "{:?}", read.unknown);
 }

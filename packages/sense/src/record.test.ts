@@ -75,6 +75,17 @@ describe('recordFor', () => {
     expect(record.declares).toEqual(['Button']);
   });
 
+  it('records no declares for a module the parser cannot read, and says why', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-record-'));
+    made.push(root);
+    const source = '// @flow\ntype Props = {| label: string |};\nexport function Button(props: Props) { return null; }\n';
+    await writeFile(join(root, 'Button.js'), source, 'utf8');
+
+    const record = (await recordFor({ ...subject(root, 'Button.js'), largestFile: 1024 })).record;
+    expect(record).not.toHaveProperty('declares');
+    expect(record.unknown).toContain('parse error');
+  });
+
   it.skipIf(process.platform === 'win32')('names no bytes for a stylesheet it declined through a link', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-record-'));
     made.push(root);
