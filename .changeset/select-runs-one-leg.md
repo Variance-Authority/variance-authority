@@ -12,8 +12,10 @@ in any leg. A test the change did not enter and the record holds incomplete,
 such as a file whose every case skipped, runs only in the open leg, the one
 with no upper bound; a test new since the recording is named nowhere,
 so it runs in every leg. The execution narrowing names the incomplete tests as
-`incomplete`. stderr counts the tests the
-change entered at each hop count, and names how many selected files the leg
+`incomplete`. A test the change entered by no import it executed has no hop
+count, and runs in the one leg that holds the furthest hop measured, or in the
+open leg when nothing was measured. stderr counts the tests the
+change entered at each hop count, names the leg that runs those with none, and names how many selected files the leg
 left and the command that runs them. `--format json` gives the leg as `leg`,
 those files as `left`, and each entered test's hops, bearing and, where none
 was measured, the reason as `distances`. A leg over a
