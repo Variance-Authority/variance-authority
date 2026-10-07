@@ -1651,16 +1651,21 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- vitest run
 
 A leg is still a skip list. A selection that declines to narrow skips nothing
 in any leg, and a test new since the recording is on no skip list, so it runs in
-both. A test recorded incomplete, such as one a partial run over an edit left,
-and that the change did not enter, runs in the leg of the shortest import path
-it ran to a changed file it loaded; with no such path, it runs in the furthest
-leg. A test the change entered by no import it executed has no hop count and
-runs in the furthest leg too. stderr counts the entered tests at each hop count,
-counts the incomplete tests this leg runs because of their path to the change,
-and names how many selected files the leg left and the command that runs them.
-`--format json` gives the leg as `leg`, those files as `left`, and each placed
-test's `hops`, `bearing` and, where no distance was measured, `because`, as
-`distances`.
+both. A test the change entered by no import it executed has no hop count, and
+runs in the *end leg*: the open leg, such as `3-`, or a closed leg reaching the
+furthest hop measured, so `0-2` is one when something is placed and nothing past
+two hops. A test recorded incomplete, such as one a partial run over an edit
+left, that the change did not enter, is placed by the shortest import path it
+ran to a changed file whose edit was read, and runs in the leg its hops fall in.
+With no such path it runs in the *open leg* only, the one with no upper bound. A
+changed file whose edit was not read, such as a stale one or a rename, mode or
+binary change with no line ranges, places no test, and nor does one the record
+has no rows for, so a test that loaded only such files stays in the open leg. stderr counts the
+entered tests at each hop count, counts the incomplete tests this leg runs
+because of their path to the change, and names how many selected files the leg
+left and the command that runs them. `--format json` gives the leg as `leg`,
+those files as `left`, and each entered or placed test's `hops`, `bearing` and,
+where no distance was measured, `because`, as `distances`.
 
 It declines to narrow, out loud on stderr and with an empty stdout, whenever the
 journal holds no answer: nothing recorded on this machine, a diff git would not

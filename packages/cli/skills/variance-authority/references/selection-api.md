@@ -83,6 +83,9 @@ Read it by these rules:
   `precondition` by name (the test's own source, a setup or a configuration
   file it declared), a `reader` (a file that reads a `name` the changed file
   declares), or an `importer` with the trail.
+- `distances` can hold a test outside `entered`: one the record holds
+  incomplete and the diff did not enter, placed by the shortest path it ran to
+  a changed file whose edit was read.
 - Leave `relations` and `faces` out, and every test that is not a precondition
   comes back with no `hops`, `bearing: 'unmeasured'` and `because: 'no import
   graph was supplied'`.

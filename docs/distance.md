@@ -24,7 +24,7 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 The runner's own inventory is the other half of that join, so every selected
 file runs in one of the two legs. A test new since the recording runs in both. A
 test recorded incomplete runs in the leg of the shortest import path it ran to
-a changed file it loaded, or in the second when it ran none.
+a changed file whose edit was read, or in the second when it ran none.
 [Run the tests an edit needs](test-an-edit.md) is the page about that loop. The
 rest of this page is for a repository that composes the legs itself, across
 several test hosts, from the API in `@variance-authority/sense/test-selection`.
@@ -67,7 +67,9 @@ This is a partial integration: it reads recorded evidence but neither inventorie
 the current suite nor invokes a runner. `narrowing.whole` names test files whose
 recording completed, `narrowing.entered` names the recorded files the diff
 reached, and `narrowing.unread` names changed paths the snapshot has no rows
-for and the graph does not list.
+for and the graph does not list. `distances` can hold a test outside
+`narrowing.entered`: one recorded incomplete that the diff did not enter,
+placed by the shortest path it ran to a changed file whose edit was read.
 
 A safe execution integration starts from its **current host inventory** and
 subtracts only exclusions the snapshot proved:

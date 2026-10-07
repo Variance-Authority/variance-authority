@@ -70,7 +70,7 @@ describe('atDistance', () => {
     expect(atDistance(far, 3, Number.MAX_SAFE_INTEGER)).toEqual(['a.test.ts', 'b.test.ts']);
   });
 
-  it('leaves the unplaced to the leg that reaches the end', () => {
+  it('leaves the unplaced to the end leg', () => {
     // A leg that picks up where the last one stopped must not re-run what it
     // already ran, or a banded loop costs more than the whole suite — and the
     // near end must not be made expensive by everything nobody could place.
