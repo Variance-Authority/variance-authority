@@ -2558,6 +2558,7 @@
         "gitDigests": "function",
         "grainOf": "function",
         "inIndexTurn": "function",
+        "indexDeclarations": "function",
         "indexTurnPath": "function",
         "journeyMap": "function",
         "journeyMaps": "function",
