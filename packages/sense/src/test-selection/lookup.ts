@@ -15,11 +15,47 @@ import type { TestCoverageView } from './format-view.js';
  * `layeredDictionary()` merges two runs that are already in order — so a path
  * can be turned into the integer it was interned under before any column is
  * touched. That is what lets a question about a name be asked in integers.
+ *
+ * ## Why a view keeps what its searches decoded
+ *
+ * A search decodes the path at every row it probes, and every search over one
+ * column probes the same rows first: the middle, then a quarter in, and so on.
+ * One selection asks a few thousand paths — every name of every changed file,
+ * every importer the walks reach, every name the precondition table is asked
+ * about — so decoding each probe afresh decoded the same rows over and over, at
+ * three reads of the dictionary's offsets apiece: forty-four thousand decodes
+ * in one `variance select` over this repository, for under two thousand
+ * distinct rows and strings.
+ *
+ * So each view keeps the paths its searches decoded, by row, and the strings
+ * `findString` decoded, by id, for as long as the view is held. A row is
+ * decoded once per view at most, and only a row some search probed: a whole
+ * table built up front would decode every row of a recording to answer a diff
+ * that names three files, which on a recording of a few hundred thousand
+ * modules is more than the searches it replaces.
  */
+
+/** What one view's lookups decoded: a path by its row in each table, a string by its id. */
+interface Decoded {
+  readonly modules: Map<number, string>;
+  readonly tests: Map<number, string>;
+  readonly strings: Map<number, string>;
+}
+
+const decodedBy = new WeakMap<TestCoverageView, Decoded>();
+
+function decoded(coverage: TestCoverageView): Decoded {
+  let found = decodedBy.get(coverage);
+  if (found === undefined) {
+    found = { modules: new Map(), tests: new Map(), strings: new Map() };
+    decodedBy.set(coverage, found);
+  }
+  return found;
+}
 
 /** One module row recorded under exactly this path, if there is one; {@link findModules} has them all. */
 export function findModule(coverage: TestCoverageView, file: string): number | undefined {
-  return search(coverage, coverage.modulePath, file);
+  return search(coverage, coverage.modulePath, decoded(coverage).modules, file);
 }
 
 /**
@@ -32,12 +68,13 @@ export function findModule(coverage: TestCoverageView, file: string): number | u
  * a caller that reads one leaves the other's crossings on the floor.
  */
 export function findModules(coverage: TestCoverageView, file: string): readonly number[] {
-  const found = search(coverage, coverage.modulePath, file);
+  const held = decoded(coverage).modules;
+  const found = search(coverage, coverage.modulePath, held, file);
   if (found === undefined) return [];
   let first = found;
-  while (first > 0 && coverage.string(coverage.modulePath.at(first - 1)) === file) first -= 1;
+  while (first > 0 && pathAt(coverage, coverage.modulePath, held, first - 1) === file) first -= 1;
   let end = found + 1;
-  while (end < coverage.modulePath.length && coverage.string(coverage.modulePath.at(end)) === file) end += 1;
+  while (end < coverage.modulePath.length && pathAt(coverage, coverage.modulePath, held, end) === file) end += 1;
   const rows: number[] = [];
   for (let row = first; row < end; row += 1) rows.push(row);
   return rows;
@@ -45,7 +82,12 @@ export function findModules(coverage: TestCoverageView, file: string): readonly 
 
 /** The test row recorded under exactly this path, if there is one. */
 export function findTest(coverage: TestCoverageView, file: string): number | undefined {
-  return search(coverage, coverage.testPath, file);
+  return search(coverage, coverage.testPath, decoded(coverage).tests, file);
+}
+
+/** The path a test row was recorded under, decoded once per view whoever asks for it. */
+export function testPathOf(coverage: TestCoverageView, test: number): string {
+  return pathAt(coverage, coverage.testPath, decoded(coverage).tests, test);
 }
 
 /**
@@ -56,11 +98,16 @@ export function findTest(coverage: TestCoverageView, file: string): number | und
  * search a column for it already has its answer and can decline to look.
  */
 export function findString(coverage: TestCoverageView, value: string): number | undefined {
+  const held = decoded(coverage).strings;
   let low = 0;
   let high = coverage.strings - 1;
   while (low <= high) {
     const middle = Math.floor((low + high) / 2);
-    const candidate = coverage.string(middle);
+    let candidate = held.get(middle);
+    if (candidate === undefined) {
+      candidate = coverage.string(middle);
+      held.set(middle, candidate);
+    }
     if (candidate === value) return middle;
     if (candidate < value) low = middle + 1;
     else high = middle - 1;
@@ -68,17 +115,31 @@ export function findString(coverage: TestCoverageView, value: string): number | 
   return undefined;
 }
 
-function search(coverage: TestCoverageView, column: WordColumn, file: string): number | undefined {
+function search(
+  coverage: TestCoverageView,
+  column: WordColumn,
+  held: Map<number, string>,
+  file: string,
+): number | undefined {
   let low = 0;
   let high = column.length - 1;
   while (low <= high) {
     const middle = Math.floor((low + high) / 2);
-    const candidate = coverage.string(column.at(middle));
+    const candidate = pathAt(coverage, column, held, middle);
     if (candidate === file) return middle;
     if (candidate < file) low = middle + 1;
     else high = middle - 1;
   }
   return undefined;
+}
+
+function pathAt(coverage: TestCoverageView, column: WordColumn, held: Map<number, string>, row: number): string {
+  let path = held.get(row);
+  if (path === undefined) {
+    path = coverage.string(column.at(row));
+    held.set(row, path);
+  }
+  return path;
 }
 
 /**

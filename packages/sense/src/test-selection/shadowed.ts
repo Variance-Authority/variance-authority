@@ -33,6 +33,7 @@
 
 import { dependenciesOf, idOf, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
 import type { TestCoverageView } from './format-view.js';
+import { testPathOf } from './lookup.js';
 
 /** Per test file, every file its run never reaches. */
 export type ShadowedFor = (test: string) => ReadonlySet<string>;
@@ -107,17 +108,20 @@ export function disownedIn(coverage: TestCoverageView, relations: Relations | un
   const shadowed = shadowedFor(relations);
   if (shadowed === undefined) return undefined;
   // Asked once per crossing, so a test's path is decoded once per test row
-  // rather than once per question.
+  // rather than once per question, and its shadows are walked once per test.
   const byRow = new Map<number, ReadonlySet<string>>();
   const shadowedBy = (test: number): ReadonlySet<string> => {
     let found = byRow.get(test);
     if (found === undefined) {
-      found = shadowed(coverage.string(coverage.testPath.at(test)));
+      found = shadowed(testPathOf(coverage, test));
       byRow.set(test, found);
     }
     return found;
   };
+  // The shadows first: most tests mock nothing a crossing is in, and that answer
+  // is a set lookup, where whether the test crossed the block while its module
+  // evaluated is a read of the block's loaded set and of the set's members.
   return (file, test, block) =>
-    (block === undefined || coverage.crossings.has(coverage.blockLoadedSet.at(block), test)) &&
-    shadowedBy(test).has(file);
+    shadowedBy(test).has(file) &&
+    (block === undefined || coverage.crossings.has(coverage.blockLoadedSet.at(block), test));
 }
