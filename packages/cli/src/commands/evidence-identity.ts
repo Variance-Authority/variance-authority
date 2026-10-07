@@ -60,7 +60,8 @@ export function readsOf(config: Config, cwd: string): CanonicalValue {
     cli: CLI_VERSION,
     lexicon: LEXICON_VERSION,
     profile: config.profile,
-    viewport: { width: config.viewport.width, height: config.viewport.height },
+    // The viewport the semantic key reads: the pixel ratio reaches only pixels.
+    viewport: { width: config.viewport.width, height: config.viewport.height, colorScheme: config.viewport.colorScheme },
     browser: config.browser ?? null,
     fonts: [...config.fonts],
     subjects: {

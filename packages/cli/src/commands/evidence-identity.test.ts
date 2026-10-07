@@ -3,9 +3,10 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import type { Viewport } from '@variance-authority/core/format';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { directoryDigest, evidenceIdentity, readsOf } from './evidence-identity.js';
-import { configOf } from './run-fixture.js';
+import { configOf, VIEWPORT } from './run-fixture.js';
 
 const run = promisify(execFile);
 
@@ -109,5 +110,12 @@ describe('evidenceIdentity: the build and recipe every part of one collection mu
     expect(there).toEqual(here);
     expect(here).toMatchObject({ subjects: { kind: 'storybook', collector: 'collector.mjs', excludeTags: [] }, source: ['src'] });
     expect(readsOf(configOf({ viewport: { width: 1, height: 1 } }), root)).not.toEqual(readsOf(configOf(), root));
+  });
+
+  it('reads a colour scheme as the semantic key does, and leaves the pixel ratio to pixels', () => {
+    const at = (viewport: Partial<Viewport>) => readsOf(configOf({ viewport: { ...VIEWPORT, ...viewport } }), root);
+
+    expect(at({ colorScheme: 'dark' })).not.toEqual(at({ colorScheme: 'light' }));
+    expect(at({ deviceScaleFactor: 2 })).toEqual(at({ deviceScaleFactor: 1 }));
   });
 });
