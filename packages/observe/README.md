@@ -117,12 +117,16 @@ Change one of the two painter strings and the same call returns `incomparable`
 rather than a large diff blamed on the wrong thing:
 
 ```
-ios:checkout: incomparable — `ios:checkout` was given two images from different
-painters: declared:ios-simulator-17.4 (…, 1x, no fonts declared, no
-stabilization recorded, no rasterization recipe recorded) and
-declared:figma-export (…); pixels are machine-bound, so the two are not
-comparable
+ios:checkout: incomparable — the before image and the after image differ in the
+machine that painted them (renderer, engine, platform
+declared:ios-simulator-17.4 → declared:figma-export); pixels are machine-bound,
+so the two are not comparable
 ```
+
+The reason names only the fields that differ. When those are only the recipe —
+the stabilization or rasterization digest, which an upgrade of this package or a
+changed renderer option moves on an unchanged machine — it says the difference
+is a re-baseline rather than a regression.
 
 ## Compare against an approved baseline
 

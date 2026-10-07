@@ -73,6 +73,11 @@ describe('two images from a painter this process never ran', () => {
     );
 
     expect(observation.verdict).toBe('incomparable');
+    // A declared painter is its renderer, engine and platform at once, so the
+    // three fields name one pair of painters, once.
+    expect(observation.because).toContain(
+      'renderer, engine, platform declared:ios-simulator-17.4 → declared:figma-export',
+    );
   });
 
   it('names no component, because an image carries none', async () => {

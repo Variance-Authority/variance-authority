@@ -3,6 +3,7 @@ import type { NotObserved, RunReport } from '@variance-authority/report';
 import { presentationSummary } from '../presentation.js';
 import { indexed } from './locate.js';
 import { narrowing } from './narrowing.js';
+import { oncePerReason } from './shared-reasons.js';
 import { NO_ARGS, type Tool } from './tool.js';
 
 /**
@@ -89,7 +90,7 @@ export const summarize: Tool = {
         ? []
         : [
             '',
-            ...notable.map((observation) => {
+            ...oncePerReason(notable.map((observation) => {
               const cause = observation.regions.find((region) => region.cause);
               const lead = cause?.component !== undefined ? ` — ${cause.component}` : '';
               // Labelled by what it *is* rather than by its verdict. The verdict
@@ -114,8 +115,8 @@ export const summarize: Tool = {
                 : observation.alone?.reproduced === false
                   ? observation.alone.because
                   : observation.because;
-              return `[${label}] ${observation.subject}${lead}: ${because}`;
-            }),
+              return { label, subject: `${observation.subject}${lead}`, because };
+            })),
           ]),
       '',
       ...coverage(report),

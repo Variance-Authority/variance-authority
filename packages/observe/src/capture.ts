@@ -2,7 +2,7 @@ import type { CaptureArtifact } from '@variance-authority/core';
 import { hashComponents } from '@variance-authority/core/attribute';
 import type { Raster } from '@variance-authority/core/format';
 import {
-  describeIdentity,
+  incomparableBecause,
   type BaselineKey,
   type RasterStore,
   type Renderer,
@@ -98,10 +98,7 @@ export async function observeCaptureAgainstBaseline(
     return {
       subject: artifact.subject.id,
       verdict: 'incomparable',
-      because:
-        'a baseline exists but was rendered by ' +
-        `${describeIdentity(found.storedUnder)}, and this run is ` +
-        `${describeIdentity(candidate.identity)}; pixels are machine-bound, so the two are not comparable`,
+      because: incomparableBecause(found.storedUnder, candidate.identity),
       regions: [],
       rendered: false,
       missingFonts: candidate.missingFonts,

@@ -111,6 +111,141 @@ export function describeIdentity(identity: RenderIdentity): string {
   );
 }
 
+/**
+ * What to call the two sides of a refusal.
+ *
+ * The baseline and this run, almost always; two images handed in from outside,
+ * for `observeRasters`. Named rather than built into the sentence so that every
+ * refusal is the same sentence about whichever two things were compared.
+ */
+export interface IncomparableSides {
+  readonly stored: string;
+  readonly current: string;
+}
+
+const BASELINE_AND_RUN: IncomparableSides = { stored: 'the baseline', current: 'this run' };
+
+/**
+ * Whether two identities differ by the machine or only by this tool's recipe.
+ *
+ * `renderer`, `engine`, `platform`, scale and fonts are the machine: what is
+ * installed and how it is configured to paint. `stabilization` and
+ * `rasterization` are the recipe: what this tool does to a page before and while
+ * it is photographed, which moves when variance-authority is upgraded or a
+ * renderer option changes, on a machine that did not. The two need opposite
+ * actions — compare where the baseline was painted, or adopt this run's images
+ * — so a difference is classified before it is described.
+ *
+ * Each entry is a field that differs, with both values, stored side first. A
+ * field the two share is not listed: a reader handed two full descriptions has
+ * to find the one that moved by diffing seven fields by eye.
+ */
+function identityDifference(
+  stored: RenderIdentity,
+  current: RenderIdentity,
+): { readonly machine: readonly string[]; readonly recipe: readonly string[] } {
+  const machine = moves([
+    ['renderer', stored.renderer, current.renderer],
+    ['engine', stored.engine, current.engine],
+    ['platform', stored.platform, current.platform],
+    ['scale', `${stored.deviceScaleFactor}x`, `${current.deviceScaleFactor}x`],
+  ]);
+  const fonts = fontsMoved(stored.fonts, current.fonts);
+  if (fonts !== undefined) machine.push(fonts);
+  const recipe = moves([
+    ['stabilization', recorded(stored.stabilization), recorded(current.stabilization)],
+    ['rasterization', recorded(stored.rasterization), recorded(current.rasterization)],
+  ]);
+
+  return { machine, recipe };
+}
+
+/**
+ * The fields that moved, as `field a → b`. Fields that moved between the same
+ * two values share one entry — a declared painter is its renderer, engine and
+ * platform at once, and three copies of one pair of names bury nothing but the
+ * sentence.
+ */
+function moves(fields: readonly (readonly [string, string, string])[]): string[] {
+  const merged: { names: string[]; from: string; to: string }[] = [];
+  for (const [name, from, to] of fields) {
+    if (from === to) continue;
+    const same = merged.find((entry) => entry.from === from && entry.to === to);
+    if (same === undefined) merged.push({ names: [name], from, to });
+    else same.names.push(name);
+  }
+  return merged.map((entry) => `${entry.names.join(', ')} ${entry.from} → ${entry.to}`);
+}
+
+/**
+ * The reason a stored image and this run's cannot be compared, for every caller
+ * that refuses: the settlement, a baseline lookup, and two rasters handed in.
+ *
+ * One function so the classification cannot differ between the path that
+ * settles without painting and the path that paints and then looks up. A recipe
+ * difference is said to be one, with the command that re-baselines; a machine
+ * difference keeps the sentence it always had, naming only what moved.
+ */
+export function incomparableBecause(
+  stored: RenderIdentity,
+  current: RenderIdentity,
+  sides: IncomparableSides = BASELINE_AND_RUN,
+): string {
+  const { machine, recipe } = identityDifference(stored, current);
+  const both = `${sides.stored} and ${sides.current}`;
+
+  if (machine.length === 0 && recipe.length > 0) {
+    return (
+      `${both} were painted on the same machine under different recipes ` +
+      `(${recipe.join(', ')}). The recipe is variance-authority's, not the machine's — ` +
+      'an upgrade or a changed renderer option moves it — so this is a re-baseline, ' +
+      'not a regression: review the new images and adopt them with `variance accept --all` ' +
+      "(or the test runner's update-snapshots flag)"
+    );
+  }
+
+  // Nothing differs by field and the digests still disagreed: the identity grew
+  // a field this function does not know. Both descriptions in full, then, since
+  // there is no narrower true sentence.
+  if (machine.length === 0) {
+    return (
+      `${sides.stored} was painted by ${describeIdentity(stored)}, and ${sides.current} by ` +
+      `${describeIdentity(current)}; pixels are machine-bound, so the two are not comparable`
+    );
+  }
+
+  return (
+    `${both} differ in the machine that painted them (${machine.join(', ')})` +
+    (recipe.length === 0 ? '' : `, and under different recipes (${recipe.join(', ')})`) +
+    '; pixels are machine-bound, so the two are not comparable'
+  );
+}
+
+/** Whether a difference between two identities is the recipe's alone. */
+export function recipeOnly(stored: RenderIdentity, current: RenderIdentity): boolean {
+  const { machine, recipe } = identityDifference(stored, current);
+  return machine.length === 0 && recipe.length > 0;
+}
+
+/** A recipe digest as printed, or the fact that none was recorded. */
+function recorded(digest: string | undefined): string {
+  return digest === undefined ? 'not recorded' : short(digest);
+}
+
+/**
+ * The fonts that one side declared and the other did not, or `undefined` when
+ * the lists are equal. A list printed whole buries the one font that moved.
+ */
+function fontsMoved(stored: readonly string[], current: readonly string[]): string | undefined {
+  if (stored.length === current.length && stored.every((font, i) => font === current[i])) {
+    return undefined;
+  }
+  const gone = stored.filter((font) => !current.includes(font));
+  const added = current.filter((font) => !stored.includes(font));
+  if (gone.length === 0 && added.length === 0) return 'fonts declared in a different order';
+  return `fonts ${[...gone.map((font) => `-${font}`), ...added.map((font) => `+${font}`)].join(' ')}`;
+}
+
 /** Last eight characters of a `v1:`-prefixed digest, or of whatever was given. */
 function short(digest: string): string {
   return digest.slice(-8);

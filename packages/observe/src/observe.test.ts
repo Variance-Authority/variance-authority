@@ -65,12 +65,12 @@ function documentAt(deviceScaleFactor: number): RenderDocument {
  * A renderer that behaves the way every real one does: machine identity up
  * front, the document's scale folded in at render time.
  */
-function fakeRenderer(): Renderer & { calls: number } {
+function fakeRenderer(machine: RenderIdentity = MACHINE): Renderer & { calls: number } {
   const renderer = {
-    identity: MACHINE,
+    identity: machine,
     calls: 0,
     identityFor(document: RenderDocument): RenderIdentity {
-      return { ...MACHINE, deviceScaleFactor: document.viewport.deviceScaleFactor };
+      return { ...machine, deviceScaleFactor: document.viewport.deviceScaleFactor };
     },
     async render(document: RenderDocument): Promise<Raster> {
       renderer.calls += 1;
@@ -135,15 +135,35 @@ describe('a durable observation above 1x', () => {
 
     expect(observation.verdict).toBe('incomparable');
 
-    // Both sides, and the scale on each. Matched on the prefix rather than the
-    // whole parenthesis because `describeIdentity` also prints the fonts and the
-    // stabilization recipe — the two fields the digest covers and the sentence
-    // used to omit, which is how an identity mismatch came to be reported as two
-    // identical descriptions of one machine.
-    expect(observation.because).toContain(
-      'this run is playwright-chromium (chromium@131.0.0, darwin/arm64, 2x,',
+    // The scale on each side, and only the scale: it is the one field that
+    // moved, and a sentence describing both machines in full makes the reader
+    // find it by diffing two parentheses.
+    expect(observation.because).toContain('scale 1x → 2x');
+    expect(observation.because).not.toContain('chromium@131.0.0');
+    expect(observation.because).toContain('machine-bound');
+  });
+
+  it('calls a recipe-only difference a re-baseline and names the command', async () => {
+    // The MUI upgrade: one machine, one engine, one scale, and a rasterization
+    // key that moved because this tool changed what it digests. Blaming the
+    // machine sends the reader to compare two laptops that are the same laptop.
+    const store = createDurableStore(root);
+    const before = fakeRenderer({ ...MACHINE, rasterization: 'v1:8040e1a2e35d148b301ebd30e5ed66c6' });
+    const after = fakeRenderer({ ...MACHINE, rasterization: 'v1:54323cded938fde38b41cdd3865368fe' });
+
+    await store.put({ subject: 's' }, await before.render(documentAt(1)));
+
+    const observation = await observeAgainstBaseline(
+      documentAt(1),
+      { subject: 's' },
+      { renderer: after, store },
     );
-    expect(observation.because).toContain('rendered by playwright-chromium (chromium@131.0.0, darwin/arm64, 1x,');
+
+    expect(observation.verdict).toBe('incomparable');
+    expect(observation.because).toContain('rasterization e5ed66c6 → 865368fe');
+    expect(observation.because).toContain('same machine');
+    expect(observation.because).toContain('`variance accept --all`');
+    expect(observation.because).not.toContain('machine-bound');
   });
 
   it('gives every subject without a baseline the same reason, so a docket groups them', async () => {

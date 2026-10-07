@@ -105,7 +105,7 @@ and no other:
 | `changed` | Pixels moved. The report names the region, the component and the `file:line`. |
 | `new` | The subject was captured and no approved baseline exists. |
 | `ignored` | Pixels moved, and every one of them fell inside a subtree your `ignore` rules excluded. Green, and a separate word from `unchanged`, so a report can be asked how much of its green was earned and how much was declared. |
-| `incomparable` | The comparison was refused because the two images came from different painters. The report names which field differs. It is not zero difference. |
+| `incomparable` | The comparison was refused because the two images were not painted under the same identity. The report names which fields differ, and whether they are the machine or only the recipe. It is not zero difference. |
 
 A subject the run could not observe at all gets no verdict. It goes in
 `notObserved` under one of three kinds — `excluded` by configuration, `failed`
@@ -415,7 +415,11 @@ you can check.
 identity is the digest of renderer, engine, platform, device scale factor,
 fonts, and the two stabilization digests. When a run reports `incomparable`,
 that is this join failing: the baseline was written under one identity and this
-run painted under another. Run `variance doctor`. It prints your current
+run painted under another. The reason names the fields that differ. When they
+are only the recipe — `stabilization` or `rasterization`, moved by an upgrade or
+a changed renderer option on the same machine — the run still painted every
+subject, and `variance accept --all` re-baselines after you review the images.
+Otherwise run `variance doctor`. It prints your current
 identity, then every identity your baseline root stores and every identity in
 your render cache, with an arrow on yours. If the arrow points at an identity
 nobody else has, that is the whole diagnosis — pin one painter for laptop and

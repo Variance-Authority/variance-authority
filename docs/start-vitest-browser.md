@@ -244,7 +244,7 @@ There are five verdicts:
 | `unchanged` | the stored baseline and this run's image were comparable, and no pixels differ |
 | `changed` | pixels differ; `regions` names what drew them |
 | `new` | no baseline exists for this subject under this renderer identity. Not a pass and not a failure |
-| `incomparable` | a baseline exists but was painted by a different machine, so the comparison is refused. Never read it as zero difference |
+| `incomparable` | a baseline exists but was painted under a different identity, so the comparison is refused. The reason names the fields that differ, and whether they are the machine or only this tool's recipe. Never read it as zero difference |
 | `ignored` | pixels differ and every one of them fell inside something you excluded |
 
 `assertUnchanged` throws on all four of the others, `ignored` included, because
@@ -301,7 +301,7 @@ it, so nothing can decide whether a later run is entitled to compare against it.
 
 The consequence is that a baseline approved on your laptop is usually not
 comparable on a CI runner: different platform, different fonts. The run reports
-that — every such subject reports `incomparable`, naming both identities —
+that — every such subject reports `incomparable`, naming the fields that differ —
 rather than reporting a day of changed pixels nobody caused. Two ways to get a
 verdict instead of a refusal:
 

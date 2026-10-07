@@ -16,7 +16,7 @@ import type { Level } from '@variance-authority/core/judge';
 import { identityDigest } from '@variance-authority/core/format';
 import type { PngDecoder } from '@variance-authority/png';
 import {
-  describeIdentity,
+  incomparableBecause,
   type BaselineKey,
   type CompareOptions,
   type RasterComparison,
@@ -314,10 +314,10 @@ export async function observeRasters(
     return {
       subject,
       verdict: 'incomparable',
-      because:
-        `\`${subject}\` was given two images from different painters: ` +
-        `${describeIdentity(before.identity)} and ${describeIdentity(after.identity)}; ` +
-        'pixels are machine-bound, so the two are not comparable',
+      because: incomparableBecause(before.identity, after.identity, {
+        stored: 'the before image',
+        current: 'the after image',
+      }),
       regions: [],
       rendered: false,
       missingFonts: [],
@@ -404,10 +404,7 @@ export async function observeAgainstBaseline(
     return {
       subject: document.subject.id,
       verdict: 'incomparable',
-      because:
-        'a baseline exists but was rendered by ' +
-        `${describeIdentity(found.storedUnder)}, and this run is ${describeIdentity(identity)}; ` +
-        'pixels are machine-bound, so the two are not comparable',
+      because: incomparableBecause(found.storedUnder, identity),
       regions: [],
       rendered: fresh.rendered,
       missingFonts: fresh.raster.missingFonts,
