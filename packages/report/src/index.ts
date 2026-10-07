@@ -127,6 +127,8 @@ export {
 export type { CommitMessageOptions } from './changelog-message.js';
 
 export { promotionOf, selectByShape, whyNotWhole } from './promotion.js';
+
+export { byReason } from './shared-reasons.js';
 export type { Promotion } from './promotion.js';
 
 export { adjudicateRun, describeAdjudication, parseRoot } from './intent.js';

@@ -2174,6 +2174,7 @@
         "bandTitle": "function",
         "byArrival": "function",
         "byBand": "function",
+        "byReason": "function",
         "carriedLine": "function",
         "changelogBody": "function",
         "changelogOf": "function",

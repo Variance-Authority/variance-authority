@@ -1,4 +1,4 @@
-import type { ObservationRecord, RegionRecord } from '@variance-authority/report';
+import { byReason, type ObservationRecord, type RegionRecord } from '@variance-authority/report';
 import type { CliRunReport, NotObserved } from './run.js';
 
 /**
@@ -123,7 +123,7 @@ interface CauseAccumulator {
  */
 export function docketOf(report: CliRunReport): Docket {
   const causes = new Map<string, CauseAccumulator>();
-  const groups = new Map<string, { verdict: ObservationRecord['verdict']; because: string; subjects: string[] }>();
+  const withoutRegion: { label: ObservationRecord['verdict']; because: string; subject: string }[] = [];
   const missingFonts = new Map<string, number>();
   const collateralComponents = new Set<string>();
   const collateralSubjects = new Set<string>();
@@ -151,14 +151,7 @@ export function docketOf(report: CliRunReport): Docket {
       // with no geometry behind it. Grouped by the reason rather than listed one
       // per subject, because 300 subjects with no baseline share one sentence and
       // repeating it 300 times says nothing the count does not.
-      const key = `${observation.verdict}\u0000${observation.because}`;
-      const group = groups.get(key) ?? {
-        verdict: observation.verdict,
-        because: observation.because,
-        subjects: [],
-      };
-      group.subjects.push(observation.subject);
-      groups.set(key, group);
+      withoutRegion.push({ label: observation.verdict, because: observation.because, subject: observation.subject });
       continue;
     }
 
@@ -229,7 +222,11 @@ export function docketOf(report: CliRunReport): Docket {
       unrecorded,
       unrecordedPixels,
     },
-    withoutCause: [...groups.values()],
+    withoutCause: byReason(withoutRegion).map(({ label, because, subjects }) => ({
+      verdict: label,
+      because,
+      subjects,
+    })),
     reviewable,
     fresh,
     failed: notObserved.filter((entry) => entry.kind === 'failed'),
