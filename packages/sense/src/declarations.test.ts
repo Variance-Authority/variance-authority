@@ -33,6 +33,25 @@ describe('indexDeclarations', () => {
     });
   });
 
+  it('places a decorated class and a second declarator at the line their statement starts on', () => {
+    const decorated = '@sealed\nclass Decorated {}\nexport @sealed\nclass Two {}\n';
+    expect(indexDeclarations('src/Decorated.ts', decorated)).toEqual({
+      Decorated: [{ file: 'src/Decorated.ts', line: 1, via: 'class' }],
+      Two: [{ file: 'src/Decorated.ts', line: 3, via: 'class' }],
+    });
+
+    // A decorator above `export` is outside the statement, which starts at `export`.
+    expect(indexDeclarations('src/Three.ts', '@sealed\nexport class Three {}\n')).toEqual({
+      Three: [{ file: 'src/Three.ts', line: 2, via: 'class' }],
+    });
+
+    const declarators = 'export const First = 1,\n  Second = 2;\n';
+    expect(indexDeclarations('src/Declarators.ts', declarators)).toEqual({
+      First: [{ file: 'src/Declarators.ts', line: 1, via: 'const' }],
+      Second: [{ file: 'src/Declarators.ts', line: 1, via: 'const' }],
+    });
+  });
+
   it('indexes nothing from a file the parser cannot read', () => {
     const source = '// @flow\ntype Props = {| label: string |};\nexport function Button(props: Props) { return null; }\n';
     expect(indexDeclarations('src/Button.js', source)).toEqual({});
