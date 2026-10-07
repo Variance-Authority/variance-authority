@@ -10,6 +10,7 @@ import {
   findTest,
   sharedPreconditions,
   testPathOf,
+  testPathsOf,
   testsGovernedBy,
 } from './lookup.js';
 
@@ -154,6 +155,44 @@ describe('finding a row by the path it was recorded under', () => {
   });
 });
 
+describe('a path outside the basic plane, ordered as JavaScript orders it', () => {
+  // UTF-16 puts a surrogate pair (U+D800 up) before U+E000, where code points
+  // and UTF-8 put it after. The writer sorts in code units, so a search that
+  // compares any other way walks off the side a path is on and finds nothing.
+  const files = ['src/\u{e000}.ts', 'src/\u{1f600}.ts', 'src/\u{ff21}.ts', 'src/z.ts'];
+  const astral: TestCoverage = {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    tests: files.map((file) => ({
+      file: `test/${file}`,
+      complete: true,
+      preconditions: [
+        { name: `test/${file}`, digest: `source:${file}` },
+        { name: 'src/\u{1f600}.config.ts', digest: 'source:config' },
+        { name: 'src/\u{e000}.config.ts', digest: 'source:config' },
+      ],
+    })),
+    modules: files.map((file) => ({ file, sourceDigest: `source:${file}`, instrumented: true, blocks: [] })),
+  };
+
+  it('finds every row, test and string by its own path', () => {
+    const from = openTestCoverage(encodeTestCoverage(astral));
+
+    for (const file of files) {
+      expect(findModules(from, file).map((row) => from.string(from.modulePath.at(row)))).toEqual([file]);
+      expect(findTest(from, `test/${file}`)).not.toBeUndefined();
+      expect(from.string(findString(from, file) as number)).toBe(file);
+    }
+  });
+
+  it('names the shared preconditions in code-unit order', () => {
+    expect(sharedPreconditions(openTestCoverage(encodeTestCoverage(astral)))).toEqual([
+      'src/\u{1f600}.config.ts',
+      'src/\u{e000}.config.ts',
+    ]);
+  });
+});
+
 describe('the id a snapshot interned a string under', () => {
   it('holds every path the recording named', () => {
     const from = view();
@@ -221,41 +260,62 @@ describe('a row found by its path, from a lookup the view keeps', () => {
     }
   });
 
-  it('decodes each row it probes once per view, however many lookups probe it', () => {
-    const opened = openTestCoverage(encodeTestCoverage(wide));
-    let decoded = 0;
-    const from: TestCoverageView = {
-      ...opened,
-      string: (id) => {
-        decoded += 1;
-        return opened.string(id);
+  it('reads nothing more of the record once its lookups have probed it, however often they are asked again', () => {
+    const bytes = encodeTestCoverage(wide);
+    let reads = 0;
+    const from = openTestCoverage({
+      length: bytes.length,
+      read: (first, last) => {
+        reads += 1;
+        return bytes.slice(first, last);
       },
-    };
-
-    for (let pass = 0; pass < 3; pass += 1) {
+    });
+    const ask = (): void => {
       for (const file of [...modules, ...tests, ...absent]) {
         findModules(from, file);
         findTest(from, file);
       }
-    }
-
-    expect(decoded).toBeLessThanOrEqual(from.modulePath.length + from.testPath.length);
-  });
-
-  it('names a test row by its path, decoded once per view', () => {
-    const opened = openTestCoverage(encodeTestCoverage(wide));
-    let decoded = 0;
-    const from: TestCoverageView = {
-      ...opened,
-      string: (id) => {
-        decoded += 1;
-        return opened.string(id);
-      },
     };
 
-    for (let pass = 0; pass < 2; pass += 1) {
-      expect(tests.map((_, row) => testPathOf(from, row))).toEqual(tests);
-    }
-    expect(decoded).toBe(tests.length);
+    ask();
+    const once = reads;
+    ask();
+    ask();
+
+    expect(reads).toBe(once);
+  });
+
+  it('names test rows by their paths, in the order they are asked', () => {
+    const from = openTestCoverage(encodeTestCoverage(wide));
+
+    expect(tests.map((_, row) => testPathOf(from, row))).toEqual(tests);
+    expect(testPathsOf(from, [3, 0, 3])).toEqual([tests[3], tests[0], tests[3]]);
+    expect(testPathsOf(from, [])).toEqual([]);
+  });
+});
+
+describe('a recording large enough that its columns are stored in runs', () => {
+  const modules = Array.from({ length: 20_000 }, (_, at) => `packages/p${at % 7}/src/module-${String(at).padStart(5, '0')}.ts`);
+  const tests = Array.from({ length: 40 }, (_, at) => `packages/p${at % 7}/test/case-${String(at).padStart(2, '0')}.test.ts`);
+  const large: TestCoverage = {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    tests: tests.map((file, at) => ({
+      file,
+      complete: true,
+      preconditions: [file, 'vitest.config.ts', modules[at * 499]!].map((name) => ({ name, digest: `source:${name}` })),
+    })),
+    modules: modules.map((file) => ({ file, sourceDigest: `source:${file}`, instrumented: true, blocks: [] })),
+  };
+
+  it('answers as a decode of every row does', () => {
+    const from = openTestCoverage(encodeTestCoverage(large));
+    const sorted = [...modules].sort();
+
+    for (const row of [0, 1, 4095, 4096, 4097, 12_345, 19_999]) expect(findModules(from, sorted[row]!)).toEqual([row]);
+    expect(findModules(from, 'packages/p0/src/module-20000.ts')).toEqual([]);
+    expect(sharedPreconditions(from)).toEqual(['vitest.config.ts']);
+    expect(named(from, testsGovernedBy(from, [modules[499]!, 'nowhere.ts']))).toEqual({ [tests[1]!]: [modules[499]] });
+    expect(testsGovernedBy(from, [modules[499]!, 'nowhere.ts']).unread).toEqual(['nowhere.ts']);
   });
 });

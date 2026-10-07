@@ -1,7 +1,7 @@
-import { blocksAround, regionOf } from './blocks-around.js';
+import { blocksAround, regionsOf } from './blocks-around.js';
 import type { TestCoverageView } from './format-view.js';
 import { answerByImporters, type ExecutionNarrowingOptions, type ImporterReason } from './importers.js';
-import { findModules, testPathOf } from './lookup.js';
+import { findModules, testPathsOf } from './lookup.js';
 import { changedLines } from './diff-lines.js';
 import { hunksOf } from './patch.js';
 import { frameOf } from './frame.js';
@@ -169,8 +169,9 @@ export function narrowByExecutionFromView(
 ): ExecutionNarrowing {
   const whole: string[] = [];
   const incomplete: string[] = [];
-  for (let test = 0; test < coverage.testPath.length; test += 1) {
-    (coverage.testComplete.at(test) === 1 ? whole : incomplete).push(testPathOf(coverage, test));
+  const paths = testPathsOf(coverage, Array.from({ length: coverage.testPath.length }, (_, test) => test));
+  for (let test = 0; test < paths.length; test += 1) {
+    (coverage.testComplete.at(test) === 1 ? whole : incomplete).push(paths[test]!);
   }
 
   return {
@@ -295,7 +296,7 @@ function readDiff(
     if (frame === 'stale') {
       for (const [name, rows] of rowsOf) {
         stale.add(name);
-        for (const module of rows) chargeAll(coverage, module, (block) => charge(file, block, regionOf(coverage, name, block)));
+        for (const module of rows) chargeRegions(coverage, name, blocksOf(coverage, module), (block, region) => charge(file, block, region));
       }
       continue;
     }
@@ -322,7 +323,7 @@ function readDiff(
           if (range.added !== undefined && bindsOnly(range.added)) continue;
           for (const block of blocksAround(coverage, first, end, range)) blocks.add(block);
         }
-        for (const block of blocks) charge(file, block, regionOf(coverage, name, block));
+        chargeRegions(coverage, name, [...blocks], (block, region) => charge(file, block, region));
       }
     }
   }
@@ -370,8 +371,10 @@ function readDiff(
   // holds is unread: what the record did not measure was declined.
   const declining = options.unmeasured === 'nothing';
 
-  const because = [...selected]
-    .map(([test, via]): SelectionCause => ({ test: testPathOf(coverage, test), via }))
+  const tests = [...selected];
+  const named = testPathsOf(coverage, tests.map(([test]) => test));
+  const because = tests
+    .map(([, via], at): SelectionCause => ({ test: named[at]!, via }))
     .sort((left, right) => codeUnitOrder(left.test, right.test));
 
   return {
@@ -385,8 +388,22 @@ function readDiff(
 }
 
 /** Every region of one row. */
-function chargeAll(coverage: TestCoverageView, module: number, charge: (block: number) => void): void {
-  for (let block = coverage.moduleBlocks.at(module); block < coverage.moduleBlocks.at(module + 1); block += 1) charge(block);
+/** Every block of one module row. */
+function blocksOf(coverage: TestCoverageView, module: number): number[] {
+  const blocks: number[] = [];
+  for (let block = coverage.moduleBlocks.at(module); block < coverage.moduleBlocks.at(module + 1); block += 1) blocks.push(block);
+  return blocks;
+}
+
+/** Charge each block with its region, the regions named together. */
+function chargeRegions(
+  coverage: TestCoverageView,
+  name: string,
+  blocks: readonly number[],
+  charge: (block: number, region: ReturnType<typeof regionsOf>[number]) => void,
+): void {
+  const regions = regionsOf(coverage, name, blocks);
+  blocks.forEach((block, at) => charge(block, regions[at]!));
 }
 
 function codeUnitOrder(left: string, right: string): number {

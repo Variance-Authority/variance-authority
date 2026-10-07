@@ -34,6 +34,8 @@ import {
   type Header,
   type Section,
 } from './format-layout.js';
+import { native, nativeRefusal } from '../addon.js';
+import type { NativeCoverageLookup } from '../native-coverage-lookup.js';
 
 /**
  * Opening a snapshot: the section index is parsed, and nothing else is.
@@ -106,6 +108,16 @@ export interface TestCoverageView {
    * column of ids to compare the strings behind them.
    */
   readonly strings: number;
+  /**
+   * The record's lookups by path, answered by the native addon over this
+   * view's own door onto the bytes ([`lookup.ts`](./lookup.ts) asks them).
+   *
+   * Opened the first time something asks, and held for as long as the view
+   * is: a run of a path column or of the dictionary is decompressed once
+   * however many searches probe it, and a search hands back a row number
+   * rather than the strings it compared on the way.
+   */
+  readonly lookup: NativeCoverageLookup;
   /**
    * The dictionary as it is stored: every string's bytes end to end, and the
    * offsets that cut them.
@@ -303,6 +315,7 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
   const blockOrdinal = words('blocks.ordinal');
   const blockKind = flags('blocks.kind', (values) => kinds(values, KINDS.length));
   const blockStart = words('blocks.start');
+  let lookup: NativeCoverageLookup | undefined;
 
   return {
     get instrumentation() {
@@ -354,9 +367,20 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
     blockLoadedSet: words('blocks.loadedSet', (values) => ids(values, setCount)),
     string: stringAt,
     strings,
+    get lookup() {
+      return (lookup ??= openLookup(file));
+    },
     dictionary: () => ({ blob: blobBytes.all(), offsets: stringOffsets.all() }),
     crossingPool: () => ({ bytes: setBytes.all(), offsets: setOffsets.all(), testCount }),
   };
+}
+
+function openLookup(file: Bytes): NativeCoverageLookup {
+  const scanner = native();
+  if (scanner?.openCoverageLookup === undefined) {
+    throw new Error(`sense: looking up a test coverage record needs the native addon, which did not load: ${nativeRefusal() ?? 'it predates coverage lookups'}`);
+  }
+  return scanner.openCoverageLookup(file.length, (from, to) => file.read(from, to));
 }
 
 /** The same door onto a blob small enough to have been stored as it is. */

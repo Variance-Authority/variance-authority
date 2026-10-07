@@ -31,6 +31,7 @@ import type {
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
+import type { NativeCoverageLookups } from './native-coverage-lookup.js';
 import { witnessesOf } from './witness.js';
 export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal } from './addon.js';
 export type {
@@ -118,7 +119,7 @@ export interface NativeScanBatch extends NativeReadBatch {
   readonly targets: string[];
 }
 
-export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys {
+export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeCoverageLookups {
   /** `instrument()`'s walk and splice, or `null` for a source that does not parse. */
   instrument(source: string, file: string, entries: boolean): NativeInstrumented | null;
   gitTree(root: string): NativeGitTree | null;
