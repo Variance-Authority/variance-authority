@@ -237,7 +237,8 @@ must resolve the installed package binary.
 
 ## Read from entrypoint to symbol
 
-Call `docs_packages` when you have no specifier. It counts, one row per package
+Call `docs_packages` when you know the repository's areas, from `docs_orient`,
+but have no specifier. It counts, one row per package
 or specifier, the names each publishes and the names other packages import from
 it by path, and each row is the exact argument the remaining calls take. Pass
 one of those rows as `package` to list the import sites behind its counts.
