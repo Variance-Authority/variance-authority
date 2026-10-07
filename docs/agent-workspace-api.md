@@ -241,7 +241,10 @@ Call `docs_packages` first. It counts and lists no import site. A row in its
 first block is a specifier, what one import line names, with the names it
 opens. An indented row is a package other packages import files of: by path,
 when the package declares no entry, or past the entry it declares, a deep
-import. Either row goes to `docs_entrypoint` as `package`, exactly as printed.
+import. A package whose declared entry the reading could not follow to a source
+file, such as a build output the checkout does not hold, opens no names, and
+the imports that name that entry are counted apart from the deep ones. Either
+row goes to `docs_entrypoint` as `package`, exactly as printed.
 
 Called with a specifier, `docs_entrypoint` lists the names it opens, ranked by
 how many workspace packages import them. Called with a package's name, it lists
@@ -250,8 +253,9 @@ row per file, the file the most files import first; for a package that declares
 no entry it counts the imports of its files by path the same way. Each row is a
 specifier, and called with it, `docs_entrypoint` counts the imports written as
 that specifier per name, each with how many files import it; `docs_uses` with
-the name and the specifier lists their files and lines. Then call `docs_symbol` for the import line, declaration, signature,
-source documentation, and importing packages of the name you are investigating.
+the name and the specifier lists their files and lines. Then call `docs_symbol`
+for the import line, declaration, signature, source documentation, and
+importing packages of the name you are investigating.
 
 Call `docs_uses` when the question is how the name is written here rather than
 what it is. It returns the file and line of every import, with the

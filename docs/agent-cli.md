@@ -212,7 +212,10 @@ package other packages import files of. Under a package that declares no entry,
 such as `@acme/legacy`, the import names a file, such as
 `@acme/legacy/src/format`, because there is no entry to name, and it is an
 import by path. Under a package that declares an entry, the import reaches past
-that entry, and it is a deep import.
+that entry, and it is a deep import. A package whose declared entry the reading
+could not follow to a source file, such as a `main` naming a build output the
+checkout does not hold, opens no names; the imports that name that entry are
+counted apart, and only an import past every entry it declares is deep.
 
 Pass the package's name to count those imports per file, the file the most
 files import first: `variance ask entrypoint --package @acme/legacy`. Each row
