@@ -139,6 +139,21 @@ describe('collectEvidence: one job of a collection, with nothing compared', () =
     expect(part.subjects[0]!.lexicon.fields.files).toEqual(['src/Button.tsx', 'src/a/Button.tsx']);
     expect(part.fields).toContain('files');
   });
+
+  it("says what the plan warned and what each subject's collector said, by subject, in plan order", async () => {
+    const said = (id: string): Collected => {
+      const collected = answer(id);
+      if (!collected.ok || (id !== 'menu--open' && id !== 'button--quiet')) return collected;
+      return { ...collected, diagnostics: [{ severity: 'warn', code: 'font', message: `${id} fell back to a system font` }] };
+    };
+    const part = await collectEvidence(inputOf(collecting({ ...PLAN, warnings: ['two stories share one id'] }, said)));
+
+    expect(part.diagnostics).toEqual([
+      { severity: 'warn', code: 'plan', message: 'two stories share one id' },
+      { subject: 'button--quiet', severity: 'warn', code: 'font', message: 'button--quiet fell back to a system font' },
+      { subject: 'menu--open', severity: 'warn', code: 'font', message: 'menu--open fell back to a system font' },
+    ]);
+  });
 });
 
 /** Two subjects locate `Button` in two places; the answer is the same in any order. */
