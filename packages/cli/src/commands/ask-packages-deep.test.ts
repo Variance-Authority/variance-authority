@@ -31,7 +31,14 @@ afterEach(() => {
   delete process.env['VARIANCE_AUTHORITY_CACHE'];
 });
 
-function checkout(): string {
+/** A published package whose `main` names a file the checkout does not hold, and an import of one of its files. */
+const GONE = {
+  'packages/gone/package.json': JSON.stringify({ name: '@acme/gone', main: 'target/index.js' }),
+  'packages/gone/src/hush.ts': 'export const hush = (text: string): string => text;\n',
+  'apps/app/src/hushed.ts': "import { hush } from '@acme/gone/src/hush';\nexport const hushed = hush('quiet');\n",
+};
+
+function checkout(more: Readonly<Record<string, string>> = {}): string {
   // The cache is keyed by the path the checkout is at, which a temporary directory's name is not on macOS.
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-deep-')));
   const files: Record<string, string> = {
@@ -65,6 +72,7 @@ function checkout(): string {
     'apps/app/src/checkout.ts':
       "import { taxOf } from '@acme/kit/src/money/tax';\nimport { Button } from '@acme/kit/src/ui/Button';\nexport const checkout = Button(String(taxOf(10)));\n",
     'apps/app/src/stamped.ts': "import { stamp } from '@acme/kit-private/src/stamp';\nexport const stamped = stamp('paid');\n",
+    ...more,
   };
   for (const [path, text] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -75,6 +83,10 @@ function checkout(): string {
   symlinkSync('../../packages/lib-exports', join(root, 'node_modules/@acme/lib-exports'));
   symlinkSync('../../packages/kit', join(root, 'node_modules/@acme/kit'));
   symlinkSync('../../packages/kit-private', join(root, 'node_modules/@acme/kit-private'));
+  for (const path of Object.keys(more)) {
+    const dir = /^packages\/([^/]+)\/package\.json$/u.exec(path)?.[1];
+    if (dir !== undefined) symlinkSync(`../../packages/${dir}`, join(root, `node_modules/@acme/${dir}`));
+  }
   const git = (args: readonly string[]): void => {
     execFileSync('git', args, { cwd: root, stdio: 'pipe' });
   };
@@ -250,5 +262,29 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(packages.out).toMatch(/4 imports reach past a published entrypoint/);
     const hidden = await run(['ask', 'entrypoint', '--package', '@acme/kit-private']);
     expect(hidden.out).toContain('  @acme/kit-private/src/stamp — stamp — @acme/app at apps/app/src/again.ts:2');
+  });
+
+  it('keeps the imports into a package whose declared entry leads to no file, as imports past that entry', async () => {
+    checkout(GONE);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const packages = await run(['ask', 'packages']);
+    expect(packages.code).toBe(EXIT_CLEAN);
+    expect(packages.out).toMatch(/^ {2}@acme\/gone — 1 import$/m);
+    expect(packages.out).toMatch(/^1 package declares an entry that leads to no source file, so none of its names are listed\.$/m);
+    expect(packages.out).toMatch(/^ {2}variance ask entrypoint --package @acme\/gone$/m);
+
+    const gone = await run(['ask', 'entrypoint', '--package', '@acme/gone']);
+    expect(gone.code).toBe(EXIT_CLEAN);
+    expect(gone.out).toMatch(/^@acme\/gone opens no entry\.$/m);
+    expect(gone.out).toContain('@acme/gone/src/hush — @acme/app at apps/app/src/hushed.ts:1');
+
+    writeFileSync('apps/app/src/again.ts', "import { hush } from '@acme/gone/src/hush';\n\nconsole.log(hush('again'));\n");
+    commit('a second importer');
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const uses = await run(['ask', 'uses', '--name', 'hush']);
+    expect(uses.code).toBe(EXIT_CLEAN);
+    expect(uses.out).toMatch(/^apps\/app\/src\/again\.ts:1 — @acme\/app, deep import of @acme\/gone\/src\/hush$/m);
+    expect(uses.out).toMatch(/^apps\/app\/src\/hushed\.ts:1 — @acme\/app, deep import of @acme\/gone\/src\/hush$/m);
   });
 });

@@ -46,10 +46,11 @@ import {
   assembleHelp,
   ownership,
   publishes,
+  readImportTargets,
   readOfferings,
-  readUnentered,
   type Help,
   type HelpOptions,
+  type ImportTargets,
   type Offering,
   type Usage,
   type Use,
@@ -188,7 +189,7 @@ export async function readIndexedUsage(
   opened: ReadonlySet<string>,
   options: IndexedUsageOptions = {},
 ): Promise<Usage> {
-  const scanned = await scanIndexed(root, opened, readUnentered(root), options);
+  const scanned = await scanIndexed(root, opened, readImportTargets(root), options);
   options.tree?.(treeOf(scanned.records, resolve(root)));
   if (options.save !== false) await scanned.save();
   return scanned.usage;
@@ -197,7 +198,7 @@ export async function readIndexedUsage(
 async function scanIndexed(
   root: string,
   opened: ReadonlySet<string>,
-  unentered: ReadonlySet<string>,
+  targets: ImportTargets,
   options: IndexedUsageOptions,
   dirs: readonly string[] = ['.'],
 ): Promise<{
@@ -211,7 +212,7 @@ async function scanIndexed(
   const where = resolve(root);
   const index = await openSourceIndex(options.index ?? sourceIndexPath(where));
   const owner = ownership(where);
-  const usage = collectingUsage(opened, unentered);
+  const usage = collectingUsage(opened, targets);
   const sources = new Map<string, IndexedSource>();
 
   const records = await scanRelations({
@@ -323,7 +324,7 @@ async function scanWorkspace(root: string, options: ReadingOptions): Promise<Wor
     ),
   );
 
-  const scanned = await scanIndexed(scope.root, opened, readUnentered(where), options, scope.dirs);
+  const scanned = await scanIndexed(scope.root, opened, readImportTargets(where), options, scope.dirs);
   options.tree?.(treeAtWorkspace(treeOf(scanned.records, scope.root), where));
   return {
     workspace: where,

@@ -300,7 +300,8 @@ export type {
   Use,
   UseKind,
 } from './use.js';
-export { ownership, publishes, readOfferings, readUnentered, requested } from './manifest.js';
+export { ownership, publishes, readImportTargets, readOfferings, requested } from './manifest.js';
+export type { ImportTargets } from './entry.js';
 export type { Entrypoint, Offering, OfferingOptions } from './manifest.js';
 export { readMention, readmes } from './mention.js';
 export type { Mention, Readmes } from './mention.js';

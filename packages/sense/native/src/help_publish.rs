@@ -69,22 +69,23 @@ pub struct HelpPublished {
     pub graph_digest: String,
 }
 
-/// The reading of the chain at `index` for the entrypoints in `opened` and the
+/// The reading of the chain at `index` for the entrypoints in `opened`, the
+/// imports into the packages in `published` that no entry opens, and the
 /// packages in `unentered`, which declare no entry; `None` when there is no
 /// index.
 #[napi(ts_return_type = "Promise<HelpReading | null>")]
-pub fn read_help(root: String, index: String, opened: Vec<String>, unentered: Vec<String>) -> AsyncTask<OffThread<Option<HelpReading>>> {
-    off_thread(move || reading(&root, &index, &opened, &unentered))
+pub fn read_help(root: String, index: String, opened: Vec<String>, published: Vec<String>, unentered: Vec<String>) -> AsyncTask<OffThread<Option<HelpReading>>> {
+    off_thread(move || reading(&root, &index, &opened, &published, &unentered))
 }
 
-fn reading(root: &str, index: &str, opened: &[String], unentered: &[String]) -> napi::Result<Option<HelpReading>> {
+fn reading(root: &str, index: &str, opened: &[String], published: &[String], unentered: &[String]) -> napi::Result<Option<HelpReading>> {
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {index} did not read: {error}"));
     let Some(chain) = read_chain(index).map_err(fail)? else { return Ok(None) };
     let layers = chain.segments.par_iter().enumerate()
         .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
         .collect::<Result<Vec<_>, _>>()
         .map_err(fail)?;
-    let (read, tree) = rayon::join(|| usage(root, &layers, opened, unentered), || tree(&layers));
+    let (read, tree) = rayon::join(|| usage(root, &layers, opened, published, unentered), || tree(&layers));
     let IndexedUsage { exported, deep, by_path, unreadable, names } = read;
     let digest = exported_digest(&exported);
     Ok(Some(HelpReading { held: Arc::new(Held { exported, tree, digest }), usage: Some((names, deep, by_path, unreadable)) }))

@@ -2,7 +2,8 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
 import { type Parses, parseFile } from './declare.js';
 import { lineAt } from './doc.js';
-import { readUnentered, requested } from './manifest.js';
+import type { ImportTargets } from './entry.js';
+import { readImportTargets, requested } from './manifest.js';
 
 /**
  * Which published names anything in this repository actually imports.
@@ -254,9 +255,11 @@ export interface Exported {
  * The whole of what `readUsage` does once it has the imports, and separate from
  * the reading for the reason `Recorded` exists: two callers arrive here holding
  * the same facts read two different ways, and only one of them had to walk.
+ * `targets` names the packages an import is followed into, and the ones among
+ * them that declare no entry, whose imports are listed apart from the deep ones.
  */
-export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>, unentered: ReadonlySet<string>): Usage {
-  const packages = new Set([...[...opened].map((key) => key.slice(0, key.indexOf(' '))), ...unentered]);
+export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>, targets: ImportTargets): Usage {
+  const { published, unentered } = targets;
   const names = new Map<string, Map<string, Use[]>>();
   const deep: Deep[] = [];
   const byPath: Deep[] = [];
@@ -280,7 +283,7 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
     for (const asked of file.requests) {
       const key = requested(asked.specifier);
       const named = key.slice(0, key.indexOf(' '));
-      if (!packages.has(named)) continue;
+      if (!published.has(named) && !unentered.has(named)) continue;
 
       if (!opened.has(key)) {
         const taken = asked.names.map((bound) => ({ name: bound.imported, by, at, line: bound.line, type: bound.type, kind }));
@@ -449,5 +452,5 @@ export function readUsage(
     });
   });
 
-  return usageFrom(opened, files, readUnentered(root));
+  return usageFrom(opened, files, readImportTargets(root));
 }

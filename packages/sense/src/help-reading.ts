@@ -79,7 +79,7 @@ export interface HelpReading {
 }
 
 export interface NativeHelp {
-  readHelp?(root: string, index: string, opened: string[], unentered: string[]): Promise<HelpReading | null>;
+  readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[]): Promise<HelpReading | null>;
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
 }
@@ -94,17 +94,18 @@ function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<NativeHel
 }
 
 /**
- * The reading of the index at `index` for the entrypoints in `opened` and the
- * packages in `unentered`, which declare no entry; `null` when none was
- * published.
+ * The reading of the index at `index` for the entrypoints in `opened`, the
+ * imports into the packages in `targets.published` that no entry opens, and
+ * the packages in `targets.unentered`, which declare no entry; `null` when none
+ * was published.
  */
 export function readHelp(
   root: string,
   opened: readonly string[],
-  unentered: Iterable<string>,
+  targets: { readonly published: Iterable<string>; readonly unentered: Iterable<string> },
   index: string = sourceIndexPath(root),
 ): Promise<HelpReading | null> {
-  return entry('readHelp')(root, index, [...opened], [...unentered]);
+  return entry('readHelp')(root, index, [...opened], [...targets.published], [...targets.unentered]);
 }
 
 /** The search over `published` and `exported`, and the digest of `exported`. */

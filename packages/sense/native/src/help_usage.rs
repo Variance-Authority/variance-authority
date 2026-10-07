@@ -148,7 +148,7 @@ fn collect(layers: &[Layer], crossing: &Crossing, by: &str, packages: &HashSet<&
     part
 }
 
-pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], unentered: &[String]) -> IndexedUsage {
+pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: &[String], unentered: &[String]) -> IndexedUsage {
     let folded = fold(layers);
     let paths = beside(root, folded.keys().copied());
     let owners = owners(root, &paths);
@@ -160,7 +160,8 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], unentered: 
     join_parses(layers, &mut crossings);
     let opened: HashSet<&str> = opened.iter().map(String::as_str).collect();
     let unentered: HashSet<&str> = unentered.iter().map(String::as_str).collect();
-    let packages: HashSet<&str> = opened.iter().map(|key| key.split(' ').next().unwrap_or(key)).chain(unentered.iter().copied()).collect();
+    // A published package whose entry opens nothing is still one its importers reach past.
+    let packages: HashSet<&str> = published.iter().map(String::as_str).chain(unentered.iter().copied()).collect();
     let parts: Vec<Part> = crossings
         .par_iter()
         .map(|crossing| {

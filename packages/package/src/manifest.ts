@@ -1,7 +1,7 @@
 import { existsSync, globSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { legacyEntry, unentered } from './entry.js';
+import { type ImportTargets, importTargets, isPublished, legacyEntry } from './entry.js';
 import { subpathsOf } from './exports.js';
 import { members } from './members.js';
 
@@ -400,12 +400,9 @@ function followed(dir: string, condition: unknown, custom: ReadonlySet<string>):
   return condition;
 }
 
-/**
- * The workspace packages that declare no entry, private or not, as
- * {@link unentered} reads them.
- */
-export function readUnentered(root: string): ReadonlySet<string> {
-  return unentered(members(resolve(root), read).map((path) => read(path)));
+/** The workspace packages an import between packages is followed into, as {@link importTargets} reads them. */
+export function readImportTargets(root: string): ImportTargets {
+  return importTargets(members(resolve(root), read).map((path) => read(path)));
 }
 
 /**
@@ -423,7 +420,7 @@ export function readOfferings(root: string, options: OfferingOptions = {}): read
 
   for (const path of members(resolve(root), read)) {
     const manifest = read(path);
-    if (manifest['private'] === true || typeof manifest['name'] !== 'string') continue;
+    if (!isPublished(manifest)) continue;
 
     const dir = dirname(path);
     const declared: Record<string, unknown> = {};

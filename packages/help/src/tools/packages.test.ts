@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { NO_ARGS } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { BY_PATH, SUBPATHS_ONLY, busier, importOf } from '../__fixtures__/imported-by-path.js';
+import { BY_PATH, QUIET, SUBPATHS_ONLY, busier, importOf } from '../__fixtures__/imported-by-path.js';
 import { HELP_TOOLS } from '../tools.js';
 import { entrypoint } from './entrypoint.js';
 import { packages } from './packages.js';
@@ -96,6 +96,15 @@ describe('docs_packages', () => {
     const text = packages.run({ ...BY_PATH, packages: [{ name: '@acme/lib', declared: {}, openings: [] }] }, {});
 
     expect(text.split('\n')[0]).toBe('2 packages declare no entry. Other packages import their files by path, most names first:');
+  });
+
+  it('counts the packages whose declared entry leads to no source file, and names the one most imported past it', () => {
+    const text = packages.run(QUIET, {});
+
+    expect(text).toMatch(/^1 package declares an entry that leads to no source file, so none of its names are listed\.$/m);
+    expect(text).toMatch(/^ {2}@acme\/quiet — 1 import$/m);
+    expect(text).toMatch(/^ {2}variance ask entrypoint --package @acme\/quiet$/m);
+    expect(packages.run(BY_PATH, {})).not.toContain('leads to no source file');
   });
 
   it('is as long for a hundred imports of each file as for one', () => {

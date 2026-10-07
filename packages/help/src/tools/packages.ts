@@ -1,6 +1,7 @@
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { NO_ARGS } from '@variance-authority/mcp/tools';
-import type { Help } from '@variance-authority/package/help';
+import type { Documented, Help } from '@variance-authority/package/help';
 import { REACHING, counted, countsByPath } from './by-path.js';
 import { NOTHING_PUBLISHED, specifierOf } from './find.js';
 import { mostUsed, narrower, openingRow, plural, section, shell } from './format.js';
@@ -53,6 +54,16 @@ export const packages: Tool<Help> = {
         ...counts.deep.map(([owner, imports]) => `  ${owner} — ${plural(imports, 'import')}`),
       );
     }
+    // An entry that leads to no source file opens nothing, so the package has
+    // no row above, and every import of it is counted as past its entry.
+    const unfollowed = help.packages.filter((published) => published.openings.length === 0 && declaresEntry(published));
+    if (unfollowed.length > 0) {
+      section(
+        lines,
+        `${plural(unfollowed.length, 'package declares', 'packages declare')} an entry that leads to no source file, so none of ` +
+          `${unfollowed.length === 1 ? 'its' : 'their'} names are listed.`,
+      );
+    }
 
     // A file that could not be read makes a live name look dead, and a name that
     // looks dead is a name somebody deletes. Saying so beats ranking on it silently.
@@ -67,9 +78,22 @@ export const packages: Tool<Help> = {
     const door = mostUsed(opened);
     const doors = [
       ...(door === undefined ? [] : [specifierOf(...door)]),
-      ...[counts.unentered[0]?.[0], counts.deep[0]?.[0]].filter((owner) => owner !== undefined),
+      ...[counts.unentered[0]?.[0], counts.deep[0]?.[0], mostReached(unfollowed, counts.deep)].filter((owner) => owner !== undefined),
     ];
     const asks = [...new Set(doors)].map((asked) => `variance ask entrypoint --package ${shell(asked)}`);
     return [...lines, ...narrower(asks)].join('\n');
   },
 };
+
+/** Whether a package writes an entry for its bare name or a subpath: `exports`, `main` or `types`. */
+const declaresEntry = (published: Documented): boolean =>
+  ['exports', 'main', 'types'].some((key) => published.declared[key] !== undefined);
+
+/**
+ * Of the packages whose entry leads to no file, the one with the most imports
+ * past it, ties and packages nothing imports in code-unit order.
+ */
+function mostReached(unfollowed: readonly Documented[], deep: readonly (readonly [string, number])[]): string | undefined {
+  const names = new Set(unfollowed.map((published) => published.name));
+  return deep.find(([owner]) => names.has(owner))?.[0] ?? [...names].sort(codeUnitOrder)[0];
+}
