@@ -280,11 +280,18 @@ function readDiff(
   const undone = new Set(
     options.keptDigests === undefined || options.keptText === undefined || options.sourceAt === undefined
       ? []
-      : recordedOverKept(coverage, options.keptDigests(), (file) => changed.has(file) || rowed.has(file)),
+      : recordedOverKept(coverage, options.keptDigests(), (file) => changed.has(file) || knownAs(file).some((name) => rowed.has(name))),
   );
   for (const file of undone) {
-    rowsByFile.set(file, new Map([[file, findModules(coverage, file).filter((module) => coverage.moduleInstrumented.at(module) === 1)]]));
-    asking.push(file);
+    // Under every name, as a changed file is: a built twin's rows are in frame
+    // exactly when the source's are.
+    const rowsOf = new Map<string, readonly number[]>();
+    for (const name of knownAs(file)) {
+      const rows = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
+      if (rows.length > 0) rowsOf.set(name, rows);
+    }
+    rowsByFile.set(file, rowsOf);
+    asking.push(file, ...knownAs(file));
   }
 
   for (const [file, lines] of [...changed, ...[...undone].map((file) => [file, []] as const)]) {
@@ -312,7 +319,7 @@ function readDiff(
     // in the text it was cut from. The recorder wrote a digest of that text,
     // so whether these numbers mean anything here is a question the snapshot
     // answers about itself.
-    let frame = frameOf(coverage, undone.has(file) ? [file] : knownAs(file), rowsOf, options.sourceAt, options.keptText);
+    let frame = frameOf(coverage, knownAs(file), rowsOf, options.sourceAt, options.keptText);
     let reader = context;
     // An undone file read in the commit's own text, or not read at all, ran
     // what is on disk: nothing changed for it.
