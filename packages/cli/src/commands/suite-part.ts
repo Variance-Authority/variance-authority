@@ -47,7 +47,7 @@ export interface SuitePart {
   readonly declaredIn?: Readonly<Record<string, readonly string[]>>;
 }
 
-export interface PartSubject {
+interface PartSubject {
   readonly position: number;
   readonly subject: string;
   readonly instances: readonly ComponentInstance[];

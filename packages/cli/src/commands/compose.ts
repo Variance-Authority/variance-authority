@@ -255,7 +255,7 @@ export function lexiconReadingOf(input: ComposeInput): LexiconReading | undefine
  * carried, `files` when a source index was at hand or the fold produced one,
  * `regions` when a journal was read.
  */
-export function fieldsRead(read: { readonly snapshot: boolean; readonly files: boolean; readonly regions: boolean }): LexiconField[] {
+function fieldsRead(read: { readonly snapshot: boolean; readonly files: boolean; readonly regions: boolean }): LexiconField[] {
   const fields: LexiconField[] = ['example', 'components', 'createdBy', 'tokens'];
   if (read.snapshot) fields.push('names', 'text', 'roles');
   if (read.files) fields.push('files');
