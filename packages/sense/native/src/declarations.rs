@@ -8,12 +8,14 @@
 
 use oxc_ast::ast::Program;
 
+use crate::order::code_unit;
 use crate::top_level::top_level;
 
 /// Files whose names are not components: tests, stories and declaration files.
 const NOT_DECLARING: [&str; 4] = [".test.", ".spec.", ".stories.", ".d.ts"];
 
-/// The component names `program` declares, sorted, each once.
+/// The component names `program` declares, each once, sorted by code unit as
+/// JavaScript sorts them.
 pub fn declarations(file: &str, program: &Program<'_>) -> Vec<String> {
     if NOT_DECLARING.iter().any(|skip| file.contains(skip)) {
         return Vec::new();
@@ -25,7 +27,7 @@ pub fn declarations(file: &str, program: &Program<'_>) -> Vec<String> {
             push(bound.name, &mut found);
         }
     });
-    found.sort();
+    found.sort_by(|a, b| code_unit(a, b));
     found.dedup();
     found
 }
