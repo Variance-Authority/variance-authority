@@ -97,6 +97,9 @@ export const entrypoint: Tool<Help> = {
       const past = beyond(help, owner);
       if (past === undefined) return `${heading} No other package imports it.`;
       return sites(help, { ...past, lines: [heading, '', ...past.lines] });
+    } else if (published !== undefined && subpath === undefined && published.openings.length === 0) {
+      // It declares no entry, and nothing imports it by path, or `unenteredAnswer` would have answered: a `bin`-only package, say.
+      return `${owner} opens no entry, and no other package imports a file of it.`;
     } else if (published !== undefined && subpath === undefined && !published.openings.some((held) => held.subpath === '.')) {
       return subpathsOnly(help, published);
     }

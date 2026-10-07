@@ -154,6 +154,12 @@ describe('docs_entrypoint on a package other packages import by path', () => {
     expect(entrypoint.run(QUIET, { package: '@acme/quiet/src/hush' })).toMatch(/^ {2}hush — imported by 1 file$/m);
   });
 
+  it('answers a published package that declares no entry and that no other package imports', () => {
+    const help = { ...BY_PATH, packages: [...BY_PATH.packages, { name: '@acme/tool', declared: {}, entry: false, openings: [] }] };
+
+    expect(entrypoint.run(help, { package: '@acme/tool' })).toBe('@acme/tool opens no entry, and no other package imports a file of it.');
+  });
+
   it('refuses a specifier nothing opens and nothing imports, saying which of the two its package lacks', () => {
     expect(() => entrypoint.run(QUIET, { package: '@acme/quiet/src/nowhere' })).toThrow(
       '`@acme/quiet/src/nowhere`: @acme/quiet declares an entry this reading could not follow to a source file, such as a build ' +
