@@ -321,10 +321,6 @@ export async function layeredCoverage(
   } catch {
     return encodeTestCoverage(current);
   }
-  return layerTestCoverage(
-    previous,
-    current,
-    await carriedSources(root, previous, current),
-    await editReadings(root, previous, current, cacheRoot),
-  );
+  const onDisk = await carriedSources(root, previous, current);
+  return layerTestCoverage(previous, current, onDisk, await editReadings(root, previous, current, onDisk, cacheRoot));
 }

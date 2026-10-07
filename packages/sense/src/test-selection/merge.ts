@@ -345,7 +345,8 @@ export function mergeCoverage(
         : recutRows(module, now, current.instrumentation);
     const lost = recut === 'mislaid'
       ? [...new Set(module.blocks.flatMap((block) => block.testFiles))]
-      : recut === undefined ? [] : owedByRecut(module, recut);
+      : recut === undefined ? [] : owedByRecut(module, recut, (kind) =>
+        editReaches(readings, module.file, module.sourceDigest, recut.sourceDigest, kind));
     for (const test of lost) if (!currentTests.has(test)) stale.add(test);
     carried.push(recut === undefined || recut === 'mislaid' ? module : recut);
   }

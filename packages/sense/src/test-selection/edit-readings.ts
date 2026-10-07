@@ -4,8 +4,9 @@
  * What the edit a run was recorded over did to each module it re-recorded, read
  * by the selector's verdict before a landing moves the record past it.
  *
- * A landing moves a re-recorded module's rows to the text the run saw, and keeps
- * that text, so the next selection frames the module by it and reads no diff.
+ * A landing moves a re-recorded module's rows to the text the run saw, and a
+ * carried module's rows to the text on disk, and keeps that text, so the next
+ * selection frames the module by it and reads no diff.
  * Every test the record carries from before the edit is then answered by
  * whether the landing demoted it, and nothing else. Demoting each carried test
  * on a region whose digest moved made that answer every loader of the module:
@@ -68,7 +69,8 @@ export function editReaches(
 
 /**
  * The reading of every module `current` re-recorded over a text other than the
- * one `previous` holds its rows in.
+ * one `previous` holds its rows in, and of every carried module whose text
+ * `onDisk` holds (`carriedSources`), which the landing cuts again in it.
  *
  * The text the rows were cut from is a kept text, or the file at the record's
  * commit; the text the run saw is the file on disk, or a kept text. Each is
@@ -78,11 +80,12 @@ export async function editReadings(
   root: string,
   previous: Uint8Array,
   current: TestCoverage,
+  onDisk: ReadonlyMap<string, string>,
   cacheRoot?: string,
 ): Promise<EditReadings> {
   const scanner = native();
   if (scanner?.moduleVerdict === undefined) return new Map();
-  const edits: { file: string; from: string; to: string }[] = [];
+  const edits: { file: string; from: string; to: string; now?: string }[] = [];
   let commit: string | undefined;
   try {
     const view = openTestCoverage(previous);
@@ -103,6 +106,8 @@ export async function editReadings(
       const file = view.string(path[module]!);
       const from = view.string(source[module]!);
       for (const to of recorded.get(file) ?? []) if (to !== from) edits.push({ file, from, to });
+      const now = recorded.has(file) ? undefined : onDisk.get(file);
+      if (now !== undefined) edits.push({ file, from, to: digestString(now), now });
     }
   } catch {
     return new Map();
@@ -112,10 +117,10 @@ export async function editReadings(
   const kept = keptTexts(root, cacheRoot);
   const atRecording = textAtRecording(root, edits.map((edit) => edit.file));
   const readings = new Map<string, EditReading>();
-  for (const { file, from, to } of edits) {
+  for (const { file, from, to, now } of edits) {
     const before = kept(from) ?? hashingTo(atRecording(file, commit), from);
     if (before === undefined) continue;
-    const after = hashingTo(await onDisk(root, file), to) ?? kept(to);
+    const after = now ?? hashingTo(await fromDisk(root, file), to) ?? kept(to);
     if (after === undefined) continue;
     const verdict = scanner.moduleVerdict(file, before, after);
     if (verdict === null) continue;
@@ -145,7 +150,7 @@ function hashingTo(text: string | undefined, digest: string): string | undefined
   return text !== undefined && digestString(text) === digest ? text : undefined;
 }
 
-async function onDisk(root: string, file: string): Promise<string | undefined> {
+async function fromDisk(root: string, file: string): Promise<string | undefined> {
   try {
     return await readFile(resolve(root, file), 'utf8');
   } catch {

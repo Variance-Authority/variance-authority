@@ -279,7 +279,8 @@ export function layeredRows(input: {
       const recut = recutRows(held, now, current.instrumentation);
       const lost = recut === 'mislaid'
         ? [...new Set(held.blocks.flatMap((block) => block.testFiles))]
-        : recut === undefined ? [] : owedByRecut(held, recut);
+        : recut === undefined ? [] : owedByRecut(held, recut, (kind) =>
+          editReaches(readings, file, held.sourceDigest, recut.sourceDigest, kind));
       for (const test of lost) if (!currentTests.has(test)) stale.add(test);
       if (recut === undefined || recut === 'mislaid') continue;
       recuts.set(row, objects.push(settledModule(withoutRetired(recut, retired))) - 1);

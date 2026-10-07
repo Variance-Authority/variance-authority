@@ -19,8 +19,9 @@ import { indexOutput } from './index-command.js';
  * edit, less the tests the partial run just ran over it: a body edit runs the
  * tests that entered the edited body, and not every test that loaded the file.
  *
- * Any edit to a module moves the digest of the module's own region, so each case
- * below moves it, as every real edit does.
+ * Each case below also moves the digest of the module's own region, as a type
+ * annotation or a new function does in the real cut, so that what demotes is the
+ * landing's reading of the edit and not which digests moved.
  */
 describe('selecting after a partial run over an edit', () => {
   const cwd = process.cwd();

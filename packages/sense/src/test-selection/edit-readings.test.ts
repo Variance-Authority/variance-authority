@@ -93,7 +93,7 @@ describe.runIf(nativeAvailable())('reading the edit under a run', () => {
   async function readingOf(after: string, commit?: string): Promise<EditReading | undefined> {
     const { root, commit: head } = checkout(after);
     const previous = encodeTestCoverage(recorded(commit ?? head, BEFORE, ['test/alpha.test.ts'], false));
-    const readings = await editReadings(root, previous, recorded(head, after, ['test/beta.test.ts'], true), join(root, '.cache'));
+    const readings = await editReadings(root, previous, recorded(head, after, ['test/beta.test.ts'], true), new Map(), join(root, '.cache'));
     return readings.get(editKey(FILE, digestString(BEFORE), digestString(after)));
   }
 
@@ -107,6 +107,16 @@ describe.runIf(nativeAvailable())('reading the edit under a run', () => {
 
   it('reads an edit that changed a type alone as one that runs nothing differently', async () => {
     expect(await readingOf(BEFORE.replace('n: number', 'n: 0 | 1'))).toBe('none');
+  });
+
+  it('reads the edit to a module the run did not load, from the text the landing cuts it again in', async () => {
+    const { root, commit } = checkout(AFTER);
+    const previous = encodeTestCoverage(recorded(commit, BEFORE, ['test/alpha.test.ts'], false));
+    const run = { ...recorded(commit, AFTER, ['test/beta.test.ts'], true), modules: [] };
+
+    const readings = await editReadings(root, previous, run, new Map([[FILE, AFTER]]), join(root, '.cache'));
+
+    expect(readings.get(editKey(FILE, digestString(BEFORE), digestString(AFTER)))).toBe('bodies');
   });
 
   it('has no reading when the text the rows were cut from is nowhere to be had', async () => {

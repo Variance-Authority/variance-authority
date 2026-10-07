@@ -8,6 +8,8 @@ import { changedLines } from './diff-lines.js';
 import { encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
 import { coverageBlock, coverageBlocks } from './coverage-rows.js';
+import { editKey } from './edit-readings.js';
+import { digestString } from '../digest.js';
 import { recutRows } from './merge-carry.js';
 import { mergeCoverage } from './merge.js';
 import { narrowByExecutionFromView } from './select.js';
@@ -343,5 +345,26 @@ describe('re-cutting over an edited body', () => {
     }, new Map([[PRICING, PRICED.replace('return order.total;', 'return order.total * 2;')]]));
 
     expect(merged.tests.filter((test) => !test.complete).map((test) => test.file)).toEqual([CART]);
+  });
+
+  it('demotes nobody over an edit the selector reads as running nothing differently', () => {
+    // A comment moves the digest of the region it is written in, and the
+    // selector, reading the two texts, finds the program they run equal.
+    const edited = PRICED.replace('  return order.total;', '  // the total, taxes included\n  return order.total;');
+    const merged = mergeCoverage({
+      version: 3,
+      instrumentation: INSTRUMENTATION_ID,
+      commit: BASELINE,
+      tests: [CART, OTHER].map((file) => ({ file, complete: true, preconditions: [] })),
+      modules: [pricing(PRICED, { price: CART, label: OTHER })],
+    }, {
+      version: 3,
+      instrumentation: INSTRUMENTATION_ID,
+      commit: LOCAL,
+      tests: [{ file: 'test/third.test.ts', complete: true, preconditions: [] }],
+      modules: [],
+    }, new Map([[PRICING, edited]]), new Map([[editKey(PRICING, digestString(PRICED), digestString(edited)), 'none']]));
+
+    expect(merged.tests.filter((test) => !test.complete)).toEqual([]);
   });
 });

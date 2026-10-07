@@ -420,12 +420,21 @@ export function recutRows(
  * the region around it. Both are decided by {@link editedRegion}, as a
  * re-recorded module's are, so the two paths demote for the same edit.
  *
+ * Neither demotes for a region `reaches` says the edit left alone, by the
+ * selector's verdict ({@link editReaches}): a type or a comment moves the
+ * digest of every region around it, and every test on those would otherwise be
+ * owed a run.
+ *
  * A test the new text holds no region for at all is owed a run as well. Losing
  * one region is not losing a test — arrival nests, so a deleted function's
  * test keeps its crossing on whatever spans the place it was — but a test with
  * no region left has nowhere a diff could reach it.
  */
-export function owedByRecut(before: CoverageModule, after: CoverageModule): readonly string[] {
+export function owedByRecut(
+  before: CoverageModule,
+  after: CoverageModule,
+  reaches: (kind: string) => boolean,
+): readonly string[] {
   const previous = new Map(addressed(before.blocks));
   const owed = new Set<string>();
   for (const [address, row] of addressed(after.blocks)) {
@@ -434,7 +443,7 @@ export function owedByRecut(before: CoverageModule, after: CoverageModule): read
       { sourceDigest: after.sourceDigest, digest: row.digest },
       { sourceDigest: before.sourceDigest, digest: was.digest },
     );
-    if (!unmoved) for (const test of row.testFiles) owed.add(test);
+    if (!unmoved && reaches(row.kind)) for (const test of row.testFiles) owed.add(test);
   }
   const kept = new Set(after.blocks.flatMap((block) => block.testFiles));
   for (const block of before.blocks) for (const test of block.testFiles) if (!kept.has(test)) owed.add(test);
