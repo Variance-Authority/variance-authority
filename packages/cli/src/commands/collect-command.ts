@@ -1,10 +1,10 @@
 // compass: variance-authority.report.shard-merge
-import { mkdir, rename, writeFile } from 'node:fs/promises';
-import { dirname, relative } from 'node:path';
 import { encodeSuiteIndex } from '@variance-authority/report/suite-index';
 import type { ParsedCollect } from '../collect-args.js';
 import type { Config } from '../config.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, type ExitCode } from '../exit.js';
+import { said } from '../here.js';
+import { settle } from '../settle.js';
 import { collectEvidence } from './collect.js';
 import { mergeEvidence, type FailedSubject, type Named } from './collect-merge.js';
 import { collectorPath, loadCollector, planFor, type Collector, type CollectorContext } from './collector.js';
@@ -64,7 +64,7 @@ export async function runCollect(parsed: Collecting, config: Config, streams: St
   const done = part.outcomes.length - failed.length;
   const shard = parsed.shard === undefined ? 'the whole plan' : `shard ${String(parsed.shard.index)}/${String(parsed.shard.total)}`;
   streams.out(
-    `${shown(parsed.out, deps.cwd)}: ${shard} owns ${String(part.outcomes.length)} of ${String(part.plan.subjects.length)} subjects; ` +
+    `${said(parsed.out)}: ${shard} owns ${String(part.outcomes.length)} of ${String(part.plan.subjects.length)} subjects; ` +
       `${String(done)} read, ${String(failed.length)} failed\n`,
   );
   for (const outcome of failed) if (outcome.outcome === 'failed') streams.err(`${outcome.subject} failed: ${outcome.because}\n`);
@@ -72,16 +72,16 @@ export async function runCollect(parsed: Collecting, config: Config, streams: St
   return EXIT_CLEAN;
 }
 
-export async function runCollectMerge(parsed: Merging, streams: Streams, cwd = process.cwd()): Promise<ExitCode> {
+export async function runCollectMerge(parsed: Merging, streams: Streams): Promise<ExitCode> {
   const named: Named[] = [];
   for (const path of parsed.parts) {
     const part = await readEvidencePart(path);
-    if (typeof part === 'string') throw new OperatorError(`${part}; ${shown(parsed.out, cwd)} is left as it was`);
-    named.push({ path: shown(path, cwd), part });
+    if (typeof part === 'string') throw new OperatorError(`${part}; ${said(parsed.out)} is left as it was`);
+    named.push({ path: said(path), part });
   }
 
   const merged = mergeEvidence(named);
-  if (merged.kind === 'refused') throw new OperatorError(`${merged.because}; ${shown(parsed.out, cwd)} is left as it was`);
+  if (merged.kind === 'refused') throw new OperatorError(`${merged.because}; ${said(parsed.out)} is left as it was`);
   report(merged.diagnostics, streams);
 
   const bytes = encodeSuiteIndex(merged.index);
@@ -90,8 +90,8 @@ export async function runCollectMerge(parsed: Merging, streams: Streams, cwd = p
     await settle(kept, bytes);
     for (const failed of merged.failed) streams.err(`${failed.subject} failed: ${failed.because}; collect it again with ${rerun(failed)}\n`);
     streams.err(
-      `${shown(parsed.out, cwd)} is left as it was: ${String(merged.failed.length)} of ${String(merged.index.coverage?.length ?? 0)} subjects failed. ` +
-        `What the parts hold is in ${shown(kept, cwd)}; merge again once every shard reads whole.\n`,
+      `${said(parsed.out)} is left as it was: ${String(merged.failed.length)} of ${String(merged.index.coverage?.length ?? 0)} subjects failed. ` +
+        `What the parts hold is in ${said(kept)}; merge again once every shard reads whole.\n`,
     );
     return EXIT_OPERATOR;
   }
@@ -100,8 +100,8 @@ export async function runCollectMerge(parsed: Merging, streams: Streams, cwd = p
   const subjects = merged.index.subjects.length;
   streams.out(
     subjects === 0 && (merged.index.coverage?.length ?? 0) === 0
-      ? `the plan holds no subjects; wrote an empty index to ${shown(parsed.out, cwd)}\n`
-      : `wrote ${shown(parsed.out, cwd)}: ${String(subjects)} subjects, ${String(merged.index.components.length)} components, from ${String(named.length)} ${named.length === 1 ? 'part' : 'parts'}\n`,
+      ? `the plan holds no subjects; wrote an empty index to ${said(parsed.out)}\n`
+      : `wrote ${said(parsed.out)}: ${String(subjects)} subjects, ${String(merged.index.components.length)} components, from ${String(named.length)} ${named.length === 1 ? 'part' : 'parts'}\n`,
   );
   return EXIT_CLEAN;
 }
@@ -114,17 +114,4 @@ function report(diagnostics: readonly EvidenceDiagnostic[], streams: Streams): v
   for (const diagnostic of diagnostics) {
     streams.err(`${diagnostic.severity}: ${diagnostic.subject === undefined ? '' : `${diagnostic.subject}: `}${diagnostic.message}\n`);
   }
-}
-
-/** Write through a temporary file and a rename, so a reader never opens half of one. */
-async function settle(path: string, bytes: Uint8Array): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.${String(process.pid)}.tmp`;
-  await writeFile(temporary, bytes);
-  await rename(temporary, path);
-}
-
-function shown(path: string, cwd: string): string {
-  const near = relative(cwd, path);
-  return near.startsWith('..') ? path : near;
 }
