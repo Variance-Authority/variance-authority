@@ -41,7 +41,7 @@ names taken from them. `landing` says where one import between packages
 lands: opened by an entry, at a declared entry the reading could not follow,
 past every declared entry, or by path into a package that declares none.
 `Help` and `Usage` carry the imports of an entry the reading could not follow as
-`unfollowed`.
+`unfollowed`, and `gatheringUsage` is the one place a `Usage` is gathered.
 
 A package that declares its entry by `typings` alone is read as declaring one
 in every answer, where `variance ask packages` counted its imports as of an
@@ -50,9 +50,10 @@ and `Documented` carry whether a manifest declares an entry as `entry`, read
 from the whole manifest whichever keys `declared` records.
 
 On a repository whose packages declare no entry, `variance ask packages` went
-from 200,330 lines in 29.9 to 45.9 seconds to 1,339 lines in under half a
-second, and `variance ask entrypoint --package @kbn/core` went from 23,463
-lines to 13.
+from 200,330 lines in 29.9 to 45.9 seconds to 1,339 lines in half a second,
+`variance ask entrypoint --package @kbn/core` went from 23,463 lines to 13, and
+`variance ask entrypoint --package @kbn/core/server` answers in 241 lines, one
+per name.
 
 Breaking:
 
