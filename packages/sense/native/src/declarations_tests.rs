@@ -102,6 +102,15 @@ fn any_name_that_starts_with_a_capital_is_declared_whole() {
 }
 
 #[test]
+fn declared_names_sort_by_code_unit() {
+    // `𝐀` (U+1D400) is a surrogate pair from U+D835 in UTF-16, so it sorts
+    // before `Ａ` (U+FF21) the way JavaScript's `<` sorts them; UTF-8 bytes put
+    // it after.
+    let source = "export const Ａ = 1;\nexport const 𝐀 = 2;\n";
+    assert_eq!(declares("Wide.tsx", source), ["𝐀", "Ａ"]);
+}
+
+#[test]
 fn a_name_bound_inside_a_function_is_not_declared_by_the_module() {
     let source = concat!(
         "export function Outer() {\n",
