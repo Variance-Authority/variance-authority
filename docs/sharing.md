@@ -67,7 +67,8 @@ baseline costs you the comparison.
 
 Every publish includes `suite-index-v2`, which is what `variance share` reads,
 and the other entries are published only beside it. A line that still holds
-`suite-index-v1` is read too, until your next publish replaces it. A run report has no
+`suite-index-v1` is read too, until a publish writes `suite-index-v2` over it,
+by the rules in [What a line keeps](#what-a-line-keeps). A run report has no
 composition section, the part that records which subjects mounted which
 components, when it comes from a run that read no markup (a raster-only
 capture, or a run whose collector gave only images), or from one shard of a
