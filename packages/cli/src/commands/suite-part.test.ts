@@ -7,7 +7,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LEXICON_CAP, type SubjectComposition } from '@variance-authority/core/attribute';
 import { readSuiteIndex } from '@variance-authority/report/file';
 import { decodeSuiteIndex, encodeSuiteIndex } from '@variance-authority/report/suite-index';
+import { main } from '../bin.js';
 import type { Config } from '../config.js';
+import { EXIT_OPERATOR } from '../exit.js';
 import { composeReports } from './compose.js';
 import { SOURCE, SUITE, instance } from './compose-fixture.js';
 import { IDENTITY } from './run-fixture.js';
@@ -16,7 +18,7 @@ import { publishedLine, suiteIndexPath } from './share.js';
 import {
   composeSuiteIndex,
   encodeSuitePart,
-  readSuitePart,
+  openSuitePart,
   shareOutput,
   suitePartOf,
   writeSuitePart,
@@ -170,7 +172,7 @@ describe('share --publish over every shard', () => {
     const root = join(home, 'share');
     const reports = await writeShards(true);
 
-    expect((await readSuitePart(reports[0]!))?.shard).toEqual({ index: 1, total: 2 });
+    expect((await openSuitePart(suitePartPath(reports[0]!)))?.shard).toEqual({ index: 1, total: 2 });
     expect(await shareOutput(configOf(root), { publish: true, reports: [reports[0]!] })).toContainEqual(
       expect.stringMatching(/is one shard of a build/),
     );
@@ -192,6 +194,41 @@ describe('share --publish over every shard', () => {
     const lines = await shareOutput(configOf(), { publish: true, reports });
     expect(lines[0]).toBe(`nothing published: ${reports[0]} has no ${join(home, 'shard-1', 'run.suite-part.json')} beside it.`);
   });
+
+  it('refuses a part it cannot read by its path, through the binary, and publishes nothing', async () => {
+    const root = join(home, 'share');
+    const reports = await writeShards(true);
+    const torn = suitePartPath(reports[1]!);
+    await writeFile(torn, '{"version":2,"planned":2,"subjects":[]}\n');
+    const config = join(home, 'variance.config.json');
+    await writeFile(
+      config,
+      JSON.stringify({
+        project: 'web',
+        profile: 'chromium',
+        viewport: { width: 1280, height: 800 },
+        retention: 'ephemeral',
+        subjects: { kind: 'list', ids: ['story:ds-button--danger', 'story:page--default'], collector: './collector.mjs' },
+        fonts: [],
+        report: 'run.json',
+        share: { kind: 'directory', root, mainlines: ['main'] },
+      }),
+    );
+
+    let out = '';
+    let err = '';
+    const code = await main(['share', '--publish', ...reports, '--config', config], {
+      out: (text) => (out += text),
+      err: (text) => (err += text),
+    });
+
+    expect({ code, out, err: err.split('\n')[0] }).toEqual({
+      code: EXIT_OPERATOR,
+      out: '',
+      err: `nothing published: ${torn} is not a suite part this version reads.`,
+    });
+    expect(await readdir(home)).not.toContain('share');
+  });
 });
 
 describe('a part on disk', () => {
@@ -211,14 +248,14 @@ describe('a part on disk', () => {
     await writeSuitePart(report, part!);
 
     expect(new Uint8Array(await readFile(suitePartPath(report)))).toEqual(encodeSuitePart(part!));
-    expect(await readSuitePart(report)).toEqual(part);
+    expect(await openSuitePart(suitePartPath(report))).toEqual(part);
   });
 
   it('refuses a torn part by its path, and reads nothing where there is none', async () => {
     const report = join(root, 'run.json');
-    expect(await readSuitePart(report)).toBeUndefined();
+    expect(await openSuitePart(suitePartPath(report))).toBeUndefined();
 
     await writeFile(suitePartPath(report), '{"version":');
-    await expect(readSuitePart(report)).rejects.toThrow(`${suitePartPath(report)} is not JSON`);
+    expect(await openSuitePart(suitePartPath(report))).toBe(`${suitePartPath(report)} is not JSON`);
   });
 });

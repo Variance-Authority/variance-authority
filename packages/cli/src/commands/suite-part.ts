@@ -9,6 +9,7 @@ import {
 import { canonicalize, type CanonicalValue } from '@variance-authority/core/format';
 import type { SuiteIndex } from '@variance-authority/report/suite-index';
 import type { Config } from '../config.js';
+import { OperatorError } from '../exit.js';
 import { settle } from '../settle.js';
 import { writeSuiteIndex } from '@variance-authority/report/file';
 import { UNCOVERED } from './merge.js';
@@ -90,13 +91,6 @@ export function encodeSuitePart(part: SuitePart): Uint8Array {
 
 export async function writeSuitePart(reportPath: string, part: SuitePart): Promise<void> {
   await settle(suitePartPath(reportPath), encodeSuitePart(part));
-}
-
-/** The part beside a report, or nothing when there is none to read. */
-export async function readSuitePart(reportPath: string): Promise<SuitePart | undefined> {
-  const part = await openSuitePart(suitePartPath(reportPath));
-  if (typeof part === 'string') throw new Error(part);
-  return part;
 }
 
 /**
@@ -218,7 +212,8 @@ function firstOf(part: SuitePart): number {
  *
  * `merged` is the reports already merged, which has refused shards of
  * different builds. What is refused here is what only the parts can show: a
- * shard that is missing, and one whose report has no part beside it.
+ * shard that is missing, one whose report has no part beside it, and a part
+ * this version cannot read.
  */
 export async function publishComposed(
   config: Config,
@@ -234,8 +229,11 @@ export async function publishComposed(
 
   const parts: SuitePart[] = [];
   for (const path of reports) {
-    const part = await readSuitePart(path);
+    const part = await openSuitePart(suitePartPath(path));
     if (part === undefined) return [`nothing published: ${path} has no ${suitePartPath(path)} beside it.`];
+    // A part that is there and cannot be read is a file the operator has to
+    // replace, as a run report that does not parse is.
+    if (typeof part === 'string') throw new OperatorError(`nothing published: ${part}.`);
     parts.push(part);
   }
 
