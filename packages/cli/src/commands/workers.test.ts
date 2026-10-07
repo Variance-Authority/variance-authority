@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mergeReports } from './merge.js';
 import type { Collector, Plan } from './run.js';
+import { collecting, planOf as storiesOf, rendered } from './evidence-fixture.js';
 import { configOf, documentFor, runWith, storeAnswering } from './run-fixture.js';
 
 /**
@@ -98,6 +99,22 @@ describe('workers', () => {
 
     expect(three.report.observations).toEqual(one.report.observations);
     expect(three.report.warnings).toEqual(one.report.warnings);
+  });
+
+  it('keeps where every world located a component, not only the last world to answer', async () => {
+    const plan = storiesOf([['button--primary', 'src/Button.stories.tsx'], ['card--default', 'src/Card.stories.tsx']]);
+    const owner = (id: string) => (id === 'card--default' ? 'Card' : 'Button');
+    const { collector } = collecting(
+      plan,
+      (id) => {
+        const collected = rendered(id, [{ owner: owner(id), text: id }]);
+        return collected.ok ? { ...collected, source: { [owner(id)]: [{ file: `src/${owner(id)}.tsx`, line: 1, via: 'engine' as const }] } } : collected;
+      },
+      { delay: (id) => (id === 'button--primary' ? 10 : 0) },
+    );
+    const { report } = await runWith(configOf({ workers: 2 }), collector, storeAnswering(null));
+
+    expect(report.lexicon?.declaredIn).toEqual({ Button: ['src/Button.tsx'], Card: ['src/Card.tsx'] });
   });
 
   it('says so when the collector cannot open another world', async () => {

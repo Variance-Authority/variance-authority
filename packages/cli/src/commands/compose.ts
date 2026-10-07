@@ -237,19 +237,30 @@ export function lexiconReadingOf(input: ComposeInput): LexiconReading | undefine
   // sentence a locator has for it — `Not read: files (no source index and no
   // provenance)` — on exactly the runs that needed it. So the index answers for
   // itself: with no source index, `files` was read if the fold produced one.
-  const withSnapshot = present.some((subject) => subject.snapshot !== undefined);
-  const located = values.some((subject) => subject.fields.files !== undefined);
-
-  const fields: LexiconField[] = ['example', 'components', 'createdBy', 'tokens'];
-  if (withSnapshot) fields.push('names', 'text', 'roles');
-  if (input.source !== undefined || located) fields.push('files');
-  if (input.regions !== undefined) fields.push('regions');
+  const fields = fieldsRead({
+    snapshot: present.some((subject) => subject.snapshot !== undefined),
+    files: input.source !== undefined || values.some((subject) => subject.fields.files !== undefined),
+    regions: input.regions !== undefined,
+  });
 
   return {
     values,
     fields,
     ...(input.source === undefined ? {} : { declaredIn: Object.fromEntries(declaredIn) }),
   };
+}
+
+/**
+ * The fields a reading of subjects looked at: the snapshot's own when one was
+ * carried, `files` when a source index was at hand or the fold produced one,
+ * `regions` when a journal was read.
+ */
+function fieldsRead(read: { readonly snapshot: boolean; readonly files: boolean; readonly regions: boolean }): LexiconField[] {
+  const fields: LexiconField[] = ['example', 'components', 'createdBy', 'tokens'];
+  if (read.snapshot) fields.push('names', 'text', 'roles');
+  if (read.files) fields.push('files');
+  if (read.regions) fields.push('regions');
+  return fields;
 }
 
 /** Subject → the components it is the narrow example of, from the census. */
@@ -477,7 +488,7 @@ export function composeReports(given: ComposeInput): {
 }
 
 /** The scan under what the engine said, as one `source`; the input unchanged when the engine said nothing. */
-function withDeclared({ declared, ...input }: ComposeInput): ComposeInput {
+export function withDeclared({ declared, ...input }: ComposeInput): ComposeInput {
   if (declared === undefined) return input;
   return { ...input, source: overlaySourceIndex(input.source ?? {}, declared) };
 }

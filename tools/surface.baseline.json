@@ -2206,7 +2206,9 @@
         "writeSuiteIndex": "function"
       },
       "./suite-index": {
+        "SubjectCoverage": "interface",
         "SuiteIndex": "interface",
+        "SuiteProvenance": "interface",
         "decodeSuiteIndex": "function",
         "encodeSuiteIndex": "function",
         "suiteIndexOf": "function"

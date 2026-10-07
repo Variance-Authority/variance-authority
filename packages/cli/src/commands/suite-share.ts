@@ -193,7 +193,8 @@ function declaredIn(declared: readonly DeclaredSuite[] | undefined, suite: strin
   );
 }
 
-function headOf(cwd: string): Promise<string | undefined> {
+/** The checkout's HEAD commit, or nothing outside git or before a first commit. */
+export function headOf(cwd: string): Promise<string | undefined> {
   return gitLine(cwd, ['rev-parse', '--verify', '--quiet', 'HEAD']);
 }
 

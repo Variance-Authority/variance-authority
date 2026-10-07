@@ -183,18 +183,18 @@ export function noPositionals(positionals: readonly string[], command: string): 
 }
 
 /**
- * A `--limit` is a count, and the caller says a count of what.
+ * A count flag — `--limit`, `--workers` — and the caller says a count of what.
  *
- * Three commands take one, so the rule is here rather than restated in each:
+ * Several commands take one, so the rule is here rather than restated in each:
  * `0` and `-1` are typos for a number somebody meant, and a value that parsed
  * as `NaN` and quietly became *all of them* is the reading worth refusing.
  */
-export function countOf(value: string | undefined, of: string): number | undefined {
+export function countOf(value: string | undefined, of: string, flag = '--limit'): number | undefined {
   if (value === undefined) return undefined;
 
   if (!/^[1-9][0-9]*$/.test(value)) {
     throw new OperatorError(
-      `--limit is how many ${of} and must be a positive whole number, not \`${value}\``,
+      `${flag} is how many ${of} and must be a positive whole number, not \`${value}\``,
     );
   }
 

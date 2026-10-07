@@ -18,6 +18,7 @@ import { parseLayersArgs, type ParsedLayers } from './layers-args.js';
 import { parseRestrictionsArgs, type ParsedRestrictions } from './restrictions-args.js';
 import { parseShareArgs, type ParsedShare } from './share-args.js';
 import { parseCarryArgs, type ParsedCarry } from './carry-args.js';
+import { parseCollectArgs, type ParsedCollect } from './collect-args.js';
 import { parsePushArgs, type ParsedPush } from './push-args.js';
 import { parseAskArgs, type ParsedAsk } from './ask-args.js';
 import { parseCommentArgs, type ParsedComment } from './comment-args.js';
@@ -115,7 +116,7 @@ export type Parsed =
       readonly reports: readonly string[];
     }
   | ParsedAsk
-  | ParsedDistill | ParsedStory | ParsedCovering | ParsedCoverage | ParsedLayers | ParsedRestrictions | ParsedReview | ParsedIndex | ParsedSelect | ParsedReach | ParsedShare | ParsedCarry
+  | ParsedDistill | ParsedStory | ParsedCovering | ParsedCoverage | ParsedLayers | ParsedRestrictions | ParsedReview | ParsedIndex | ParsedSelect | ParsedReach | ParsedShare | ParsedCarry | ParsedCollect
   | {
       readonly command: 'accept';
       readonly config: string;
@@ -322,6 +323,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
     case 'select': return parseSelectArgs(flags);
     case 'reach': return parseReachArgs(flags);
     case 'share': return parseShareArgs(flags, config);
+    case 'collect': return parseCollectArgs(flags, config);
     case 'carry': return parseCarryArgs(flags);
 
     case 'adjudicate': {
@@ -470,8 +472,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
       };
     }
 
-    case 'push':
-      return parsePushArgs(flags, config);
+    case 'push': return parsePushArgs(flags, config);
 
     // No config, because a watcher is not about a project. It listens, holds
     // what a suite says, and answers; none of that reads a subject list, a

@@ -34,14 +34,17 @@ export async function scanSourceDirs(
   dirs: readonly string[],
 ): Promise<SourceIndex> {
   const contents = new Map<string, string>();
-
-  for (const dir of dirs) {
-    for (const file of walkSource(isAbsolute(dir) ? dir : join(root, dir))) {
-      contents.set(relative(root, file), await readFile(file, 'utf8'));
-    }
-  }
-
+  for (const file of sourceFiles(root, dirs)) contents.set(relative(root, file), await readFile(file, 'utf8'));
   return indexOf(contents);
+}
+
+/**
+ * The files `scanSourceDirs` reads, as absolute paths: whatever is on disk
+ * under `dirs`, git-ignored or not, so a build identity can digest exactly the
+ * bytes the scan saw.
+ */
+export function sourceFiles(root: string, dirs: readonly string[]): readonly string[] {
+  return dirs.flatMap((dir) => walkSource(isAbsolute(dir) ? dir : join(root, dir)));
 }
 
 /** Why a caller wants the file graph, and what they can do when there is none. */

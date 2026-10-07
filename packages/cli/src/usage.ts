@@ -38,6 +38,7 @@ export const COMMANDS = [
   'doctor',
   'prune',
   'share',
+  'collect',
   'carry',
   'comment',
 ] as const;
@@ -61,6 +62,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--flakes',
     '--exit-zero-on-changes',
   ],
+  collect: ['--subjects', '--shard', '--workers', '--out'],
   index: ['--no-git', '--wait', '--follow-ups'],
   select: ['--since', '--execution', '--diff', '--suite', '--at-distance', '--format', '--no-git'],
   reach: ['--since', '--format', '--whole-files', '--no-git'],
@@ -161,6 +163,7 @@ export const USAGE = [
   'variance doctor  [--config <path>]',
   'variance prune',
   'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>]]',
+  'variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>',
   'variance carry   restore | save [--config <path>] [--format text|github]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker',
   '',
@@ -251,6 +254,9 @@ export function helpFor(command: (typeof COMMANDS)[number]): string {
       : []),
     ...(flags.includes('--follow-ups')
       ? ['--follow-ups: what that process runs; lets go of the lock the other commands wait on when it is done.']
+      : []),
+    ...(flags.includes('--workers')
+      ? ['--workers: browsers this job opens. Every shard opens its own, so 4 shards × 2 workers is 8 browser worlds.']
       : []),
     ...(flags.includes('--whole-files')
       ? ['--whole-files: walk from every changed file whole, without reading the edit; the list is never shorter.']

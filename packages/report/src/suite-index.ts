@@ -11,10 +11,12 @@ import {
   stringReader,
   validateOffsets,
   type Column,
+  type OpenSegment,
 } from '@variance-authority/core/segment';
 import type { ComponentRecord } from './composition.js';
-import type { RunReport } from './format.js';
+import type { NotObservedKind, RunReport } from './format.js';
 import type { LexiconField, LexiconReport, SubjectLexicon } from './lexicon.js';
+import { decodeFacts, encodeFacts, factVocabulary, listColumns, listReader } from './suite-index-facts.js';
 
 /**
  * What a run knew about its suite, at a commit, as bytes.
@@ -73,10 +75,48 @@ export interface SuiteIndex {
   readonly components: readonly ComponentRecord[];
   /** Every name the run saw, per subject. Absent when the run read no names. */
   readonly lexicon?: LexiconReport;
+  /**
+   * What became of every subject the plan named, in plan order, then the ones
+   * the plan itself left out. Absent from an index a run published, whose
+   * report holds that list; present, failures included, from a collection.
+   */
+  readonly coverage?: readonly SubjectCoverage[];
+  /** Which plan, recipe and cut the index was composed from. Absent from a run's. */
+  readonly provenance?: SuiteProvenance;
+}
+
+/**
+ * What became of one planned subject: read, or not observed in one of the ways
+ * a run's report names, with a reason. A failed subject stays in the index, so
+ * a lookup that misses it says it failed rather than that it is not there.
+ */
+export interface SubjectCoverage {
+  readonly subject: string;
+  readonly outcome: 'collected' | NotObservedKind;
+  /** Why it was not collected. Absent for a collected subject. */
+  readonly because?: string;
+}
+
+export interface SuiteProvenance {
+  /** sha256 of the plan every part was cut from. */
+  readonly plan: string;
+  /** sha256 of what the evidence was read under. */
+  readonly recipe: string;
+  /**
+   * How the plan was cut into shards. Not how many: the index is the same
+   * whichever number of jobs read it, and says so by not depending on it.
+   */
+  readonly assignment: string;
+  readonly storybook?: string;
+  readonly source?: string;
+  /** The `--subjects` glob the collection was narrowed by. Absent for the whole plan. */
+  readonly scope?: string;
 }
 
 const FORMAT = 'variance-authority-suite-index';
-const VERSION = 1;
+/** Version 2 added landmarks, `declaredIn`, coverage and provenance; version 1 is still read. */
+const VERSION = 2;
+const FIRST_VERSION = 1;
 const WHAT = 'suite index';
 
 /**
@@ -95,21 +135,6 @@ export function suiteIndexOf(report: RunReport): SuiteIndex | undefined {
     components: composition.components,
     ...(report.lexicon === undefined ? {} : { lexicon: report.lexicon }),
   };
-}
-
-/** One list per row, as the offset column and the values it points into. */
-function listColumns<Row>(
-  rows: readonly Row[],
-  pick: (row: Row) => readonly string[],
-  id: (value: string) => number,
-): { readonly offsets: Uint32Array; readonly values: Uint32Array } {
-  const values: number[] = [];
-  const lengths = rows.map((row) => {
-    const list = pick(row);
-    for (const value of list) values.push(id(value));
-    return list.length;
-  });
-  return { offsets: offsetsOf(lengths), values: Uint32Array.from(values) };
 }
 
 /** Encode a suite index: interned strings, dense columns, and offset lists. */
@@ -169,6 +194,7 @@ export function encodeSuiteIndex(index: SuiteIndex): Uint8Array {
     'entries.terms-present': Uint8Array.from(entries, (entry) => (entry.terms === undefined ? 0 : 1)),
     'entries.elided': Uint32Array.from(entries, (entry) => entry.elided ?? NONE),
     'terms.value': terms.values,
+    ...encodeFacts(index, id, optionalId),
   };
 
   return encodeSegment(FORMAT, VERSION, columns);
@@ -176,7 +202,24 @@ export function encodeSuiteIndex(index: SuiteIndex): Uint8Array {
 
 /** Decode a suite index. Any malformed reference rejects the whole file. */
 export function decodeSuiteIndex(input: Uint8Array): SuiteIndex {
-  const opened = openSegment(FORMAT, VERSION, input, WHAT);
+  let opened: OpenSegment;
+  try {
+    opened = openSegment(FORMAT, VERSION, input, WHAT);
+  } catch {
+    // Written before the facts below were: what it holds is read, and what it
+    // never wrote is left out rather than filled in.
+    return decodeColumns(openSegment(FORMAT, FIRST_VERSION, input, WHAT)).read;
+  }
+  const { read, text, optional } = decodeColumns(opened);
+  return decodeFacts(opened, read, text, optional);
+}
+
+/** The columns both versions write. */
+function decodeColumns(opened: OpenSegment): {
+  readonly read: SuiteIndex;
+  readonly text: (id: number) => string;
+  readonly optional: (id: number) => string | undefined;
+} {
   const reject = opened.reject;
   const { text, optional } = stringReader(
     opened.u8('strings.blob'),
@@ -190,16 +233,7 @@ export function decodeSuiteIndex(input: Uint8Array): SuiteIndex {
   const renderings = opened.u32('components.renderings');
   sameLength(name.length, [instances, variants, renderings], reject);
 
-  const list = (
-    offsetColumn: string,
-    valueColumn: string,
-    rows: number,
-  ): ((row: number) => string[]) => {
-    const offsets = opened.u32(offsetColumn);
-    const values = opened.u32(valueColumn);
-    validateOffsets(offsets, values.length, rows, reject);
-    return (row) => rangeOf(offsets, row, reject).map((at) => text(values[at]!));
-  };
+  const list = (offsetColumn: string, valueColumn: string, rows: number) => listReader(opened, offsetColumn, valueColumn, rows, text);
 
   const subjectsOf = list('components.subjects', 'component-subjects.value', name.length);
   const examplesOf = list('components.examples', 'component-examples.value', name.length);
@@ -225,12 +259,13 @@ export function decodeSuiteIndex(input: Uint8Array): SuiteIndex {
   }
 
   const commit = optional(opened.u32('index.commit')[0]!);
-  return {
+  const read: SuiteIndex = {
     ...(commit === undefined ? {} : { commit }),
     subjects: [...opened.u32('subjects.name')].map(text),
     components,
     ...decodeLexicon(opened, text, reject),
   };
+  return { read, text, optional };
 }
 
 /** One subject's terms and elisions, folded to one row per field it mentions. */
@@ -285,7 +320,7 @@ function checkLexicon(lexicon: LexiconReport): void {
 }
 
 function decodeLexicon(
-  opened: ReturnType<typeof openSegment>,
+  opened: OpenSegment,
   text: (id: number) => string,
   reject: () => Error,
 ): { lexicon?: LexiconReport } {
@@ -348,5 +383,6 @@ function vocabulary(index: SuiteIndex): Iterable<string> {
     values.add(subject.subject);
     for (const list of Object.values(subject.terms)) for (const value of list) values.add(value);
   }
+  factVocabulary(index, values);
   return values;
 }

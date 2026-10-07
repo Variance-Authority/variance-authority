@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readdir } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -11,10 +11,11 @@ import type { Config } from '../config.js';
 import { composeReports } from './compose.js';
 import { SOURCE, SUITE, instance } from './compose-fixture.js';
 import { IDENTITY } from './run-fixture.js';
-import { writeCliRunReport, shardOwnedBecause, type CliRunReport } from './run-report.js';
+import { suitePartPath, writeCliRunReport, shardOwnedBecause, type CliRunReport } from './run-report.js';
 import { publishedLine, suiteIndexPath } from './share.js';
 import {
   composeSuiteIndex,
+  encodeSuitePart,
   readSuitePart,
   shareOutput,
   suitePartOf,
@@ -79,15 +80,33 @@ describe('a composed suite index', () => {
     expect(kept(composed)).toContain(`--t${String(LEXICON_CAP + 49)}`);
   });
 
-  it('refuses a build with a shard missing, one cut two ways, or one subject twice', () => {
+  it('takes where a component is declared from the same shard, in whatever order the parts arrive', () => {
+    const [one, two] = parts(SUITE, 2, (i) => (i < 2 ? 1 : 2));
+    // Both shards rendered Button, and their engines placed it in different files.
+    const a = { ...one!, declaredIn: { Button: ['src/one/Button.tsx'] } };
+    const b = { ...two!, declaredIn: { Button: ['src/two/Button.tsx'] } };
+    const forward = composeSuiteIndex([a, b], COMMIT);
+    expect(composeSuiteIndex([b, a], COMMIT)).toEqual(forward);
+    expect((forward as { lexicon?: { declaredIn?: unknown } }).lexicon?.declaredIn).toEqual({ Button: ['src/one/Button.tsx'] });
+  });
+
+  it('refuses a build with a shard missing, one cut two ways, one named twice, or one subject twice', () => {
     const [one, two] = parts(SUITE, 2, (i) => (i === 0 ? 1 : 2));
     const cutThree = parts(SUITE, 3, (i) => i + 1)[2]!;
 
     expect(composeSuiteIndex([one!], COMMIT)).toBe('shard 2/2 is missing');
     expect(composeSuiteIndex([one!, two!, cutThree], COMMIT)).toBe('the shards were cut 2 ways and 3 ways');
     expect(composeSuiteIndex([one!, { ...two!, shard: { index: 1, total: 2 } }], COMMIT)).toBe('shard 2/2 is missing');
-    const { shard: _, ...unnumbered } = one!;
-    expect(composeSuiteIndex([unnumbered, unnumbered], COMMIT)).toMatch(/was composed by two shards/);
+    expect(composeSuiteIndex([one!, two!, two!], COMMIT)).toBe('shard 2/2 was given twice');
+    expect(composeSuiteIndex([one!, { ...two!, subjects: one!.subjects }], COMMIT)).toMatch(/was composed by two shards/);
+  });
+
+  it('refuses an unsharded part beside a shard, and two unsharded parts', () => {
+    const [one] = parts(SUITE, 2, (i) => (i === 0 ? 1 : 2));
+    const { shard: _, ...whole } = one!;
+
+    expect(composeSuiteIndex([one!, whole], COMMIT)).toBe('an unsharded part was given with shard 1/2; they are not one build');
+    expect(composeSuiteIndex([whole, whole], COMMIT)).toBe('two unsharded parts were given; they are not one build');
   });
 });
 
@@ -172,5 +191,34 @@ describe('share --publish over every shard', () => {
     const reports = await writeShards(false);
     const lines = await shareOutput(configOf(), { publish: true, reports });
     expect(lines[0]).toBe(`nothing published: ${reports[0]} has no ${join(home, 'shard-1', 'run.suite-part.json')} beside it.`);
+  });
+});
+
+describe('a part on disk', () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'variance-suite-part-disk-'));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('is written canonically, so equal parts are equal bytes whoever wrote them', async () => {
+    const [part] = parts(SUITE, 1, () => 1);
+    const report = join(root, 'run.json');
+    await writeSuitePart(report, part!);
+
+    expect(new Uint8Array(await readFile(suitePartPath(report)))).toEqual(encodeSuitePart(part!));
+    expect(await readSuitePart(report)).toEqual(part);
+  });
+
+  it('refuses a torn part by its path, and reads nothing where there is none', async () => {
+    const report = join(root, 'run.json');
+    expect(await readSuitePart(report)).toBeUndefined();
+
+    await writeFile(suitePartPath(report), '{"version":');
+    await expect(readSuitePart(report)).rejects.toThrow(`${suitePartPath(report)} is not JSON`);
   });
 });

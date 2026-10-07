@@ -1,12 +1,13 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, realpath, rename, stat, writeFile } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { ShareLine, ShareMiss } from '@variance-authority/core/share';
 import type { RunReport } from '@variance-authority/report';
 import type { Config } from '../config.js';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
+import { settle } from '../settle.js';
 import { readReportEntry, REPORT_ENTRY } from '../share-entries.js';
 import { headPast, lineOfReader } from '../share-lines.js';
 import { AbsentReport } from './report-read.js';
@@ -186,7 +187,7 @@ async function fetched(source: SharedReport, digest: string, target: string): Pr
   const bytes = await source.image(digest);
   if (!(bytes instanceof Uint8Array)) return describeMiss(bytes);
   if (createHash('sha256').update(bytes).digest('hex') !== digest) return 'the bytes the line holds do not match their digest';
-  return settle(target, bytes);
+  return stored(target, bytes);
 }
 
 function headOf(entry: { readonly head?: string }): { readonly head?: string } {
@@ -292,17 +293,14 @@ async function keep(
   const parts = readReportEntry(bytes);
   if (typeof parts === 'string') return parts;
   // The table before the report: a kept report is a complete entry.
-  const failed = (await settle(tabled, new TextEncoder().encode(JSON.stringify(parts.images)))) ?? (await settle(path, parts.report));
+  const failed = (await stored(tabled, new TextEncoder().encode(JSON.stringify(parts.images)))) ?? (await stored(path, parts.report));
   return failed ?? { ...kept, images: parts.images };
 }
 
-/** Write through a temporary file and a rename, so a reader never opens half of one. */
-async function settle(path: string, bytes: Uint8Array): Promise<string | undefined> {
+/** Keep `bytes` at `path`, or say why this machine could not. */
+async function stored(path: string, bytes: Uint8Array): Promise<string | undefined> {
   try {
-    await mkdir(dirname(path), { recursive: true });
-    const temporary = `${path}.${String(process.pid)}.tmp`;
-    await writeFile(temporary, bytes);
-    await rename(temporary, path);
+    await settle(path, bytes);
     return undefined;
   } catch (error) {
     return `it could not be kept at ${path}: ${messageOf(error)}`;

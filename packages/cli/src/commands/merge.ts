@@ -175,18 +175,23 @@ function ignoresOf(shards: readonly Shard[]): { ignores?: IgnoreLedger } {
 }
 
 function agree(shards: readonly Shard[], field: string, of: (shard: Shard) => string): void {
-  const [first, ...rest] = shards;
-  const mine = of(first!);
+  const other = differing(shards, of);
+  if (other === undefined) return;
+  const first = shards[0]!;
+  throw new OperatorError(
+    `these reports were not one run: ${first.path} has ${field} ${of(first)} and ` +
+      `${other.path} has ${of(other)}. Shards of one suite must be produced by ` +
+      'the same configuration on the same machine image; merging them anyway ' +
+      'would put both answers under one heading with no way to tell which is which.',
+  );
+}
 
-  for (const other of rest) {
-    if (of(other) === mine) continue;
-    throw new OperatorError(
-      `these reports were not one run: ${first!.path} has ${field} ${mine} and ` +
-        `${other.path} has ${of(other)}. Shards of one suite must be produced by ` +
-        'the same configuration on the same machine image; merging them anyway ' +
-        'would put both answers under one heading with no way to tell which is which.',
-    );
-  }
+/** The first shard `of` tells apart from the first one, or nothing when they all agree. */
+export function differing<T>(shards: readonly T[], of: (shard: T) => string): T | undefined {
+  const [first, ...rest] = shards;
+  if (first === undefined) return undefined;
+  const mine = of(first);
+  return rest.find((other) => of(other) !== mine);
 }
 
 /**
