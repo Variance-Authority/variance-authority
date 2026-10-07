@@ -3,7 +3,6 @@ import { join, relative } from 'node:path';
 import {
   attributeRegions,
   formatSource,
-  indexSource,
   isolateRegions,
   mergeSourceIndexes,
   rankRegions,
@@ -17,6 +16,7 @@ import { buildDocket } from '@variance-authority/core/judge';
 import { normalize } from '@variance-authority/core/rules';
 import { comparePngs } from '@variance-authority/png';
 import type { Harness } from '@variance-authority/playwright';
+import { indexDeclarations } from '@variance-authority/sense';
 import { SCENARIOS, type Expectation, type Scenario, type Variant } from './scenarios.js';
 
 /**
@@ -80,7 +80,7 @@ function buildSourceIndex(packageRoot: string): SourceIndex {
 
   return mergeSourceIndexes(
     files.map((name) =>
-      indexSource(relative(packageRoot, join(directory, name)), readFileSync(join(directory, name), 'utf8')),
+      indexDeclarations(relative(packageRoot, join(directory, name)), readFileSync(join(directory, name), 'utf8')),
     ),
   );
 }

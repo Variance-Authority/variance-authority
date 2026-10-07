@@ -10,7 +10,8 @@
     "@variance-authority/core": "workspace:^",
     "@variance-authority/dom": "workspace:^",
     "@variance-authority/playwright": "workspace:^",
-    "@variance-authority/png": "workspace:^"
+    "@variance-authority/png": "workspace:^",
+    "@variance-authority/sense": "workspace:^"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { indexSource } from '@variance-authority/core/attribute';
-import type { AttributedRegion } from '@variance-authority/core/attribute';
+import type { AttributedRegion, SourceIndex } from '@variance-authority/core/attribute';
 import type { Observation } from './observe.js';
 import { summarizeObservation } from './summarize.js';
 
@@ -13,10 +12,9 @@ import { summarizeObservation } from './summarize.js';
  * a region nothing could attribute, and an instance line beating a declaration.
  */
 
-const SOURCE = indexSource(
-  'src/ds/components.tsx',
-  'export function Toggle() {\n  return null;\n}\n',
-);
+const SOURCE: SourceIndex = {
+  Toggle: [{ file: 'src/ds/components.tsx', line: 1, via: 'function' }],
+};
 
 function observation(regions: readonly AttributedRegion[]): Observation {
   return {

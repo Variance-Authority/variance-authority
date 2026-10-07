@@ -6,7 +6,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   attributeRegions,
   formatSource,
-  indexSource,
   isolateRegions,
   mergeSourceIndexes,
   rankRegions,
@@ -18,6 +17,7 @@ import { buildDocket } from '@variance-authority/core/judge';
 import { normalize } from '@variance-authority/core/rules';
 import { createHarness, type Harness } from '@variance-authority/playwright';
 import { comparePngs } from '@variance-authority/png';
+import { indexDeclarations } from '@variance-authority/sense';
 import type { Variant } from './workspace.js';
 import { pageAgentBundle } from '../test/page-agent-bundle.js';
 
@@ -29,9 +29,9 @@ const ROOT = join(HERE, '..');
 const VIEWPORT = { width: 640, height: 220, deviceScaleFactor: 1, colorScheme: 'light' } as const;
 const SUBJECT = 'workspace/sidebar';
 const SOURCE = mergeSourceIndexes([
-  indexSource('src/heading.tsx', readFileSync(join(HERE, 'heading.tsx'), 'utf8')),
-  indexSource('src/side-panel.tsx', readFileSync(join(HERE, 'side-panel.tsx'), 'utf8')),
-  indexSource('src/action-button.tsx', readFileSync(join(HERE, 'action-button.tsx'), 'utf8')),
+  indexDeclarations('src/heading.tsx', readFileSync(join(HERE, 'heading.tsx'), 'utf8')),
+  indexDeclarations('src/side-panel.tsx', readFileSync(join(HERE, 'side-panel.tsx'), 'utf8')),
+  indexDeclarations('src/action-button.tsx', readFileSync(join(HERE, 'action-button.tsx'), 'utf8')),
 ]);
 
 if (!BROWSER_AVAILABLE) {
