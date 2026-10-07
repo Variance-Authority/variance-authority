@@ -157,9 +157,12 @@ stays available without taking space from the first answer.
 | `stack` / `docs_stack` | a file or folder | every third-party package that location can already use: its role, how the owning manifest declares it, its version and how many times the code imports it |
 | `gaps` / `docs_gaps` | nothing | names other packages import that carry no documentation |
 
-`packages` needs no argument and returns one row per package or specifier, each
-the input another question takes. It counts and lists no import site; the
-narrower question it prints, `entrypoint --package`, lists them for one package.
+`packages` needs no argument and returns one row per specifier, then an
+indented row per package other packages import by path: a file inside the
+package rather than an entry its manifest publishes. It counts and lists no
+import site. Either row goes to `entrypoint --package` exactly as printed: a
+specifier lists the names it opens, and a package name lists the import sites
+behind its count.
 
 Every answer ends with the UTC time of the generation it used. A generation is
 manifests and module records, not a compilation, and the module records come

@@ -238,17 +238,19 @@ must resolve the installed package binary.
 ## Read from entrypoint to symbol
 
 Call `docs_packages` when you know the repository's areas, from `docs_orient`,
-but have no specifier. It counts, one row per package or specifier, the names
-each publishes and the names other packages import from it by path, and each
-row is the exact argument the remaining calls take.
+but have no specifier. It counts and lists no import site. A row in its first
+block is a specifier, what one import line names, with the names it opens. An
+indented row is a package whose files other packages import by path: the import
+names a file inside the package rather than an entry its manifest publishes,
+which is a deep import. Either row goes to `docs_entrypoint` as `package`,
+exactly as printed.
 
-Choose one specifier and call `docs_entrypoint` to see the names it opens,
-ranked by how many workspace packages import them. Asked by a package's name,
-it also lists the import sites behind that package's counts: each import that
-reaches past its entry, or, for a package that declares no entry, each import
-of its files by path. Then call `docs_symbol` for
-the import line, declaration, signature, source documentation, and importing
-packages of the name you are investigating.
+Called with a specifier, `docs_entrypoint` lists the names it opens, ranked by
+how many workspace packages import them. Called with a package's name, it lists
+the names its main entry opens and then each import that reaches past that
+entry, or, for a package that declares no entry, each import of its files by
+path. Then call `docs_symbol` for the import line, declaration, signature,
+source documentation, and importing packages of the name you are investigating.
 
 Call `docs_uses` when the question is how the name is written here rather than
 what it is. It returns the file and line of every import, with the

@@ -102,10 +102,13 @@ Ask it when you have no exact specifier. A published specifier is each subpath a
 `package.json` `exports` field opens, or, with no `exports`, the bare name its
 `types` or `main` opens. It takes no argument and counts, one row per specifier:
 the names it opens, how many anything imports, how many are documented. A
-package that declares no entry gets a row with how many of its names and files
-other packages import by path, and imports past a published entry are counted
-per package. It lists no import site; `entrypoint` lists the sites behind a
-row's counts. The answer ends with an `entrypoint` question for each of the
+package that declares no entry gets an indented row with how many of its names
+and files other packages import by path, and imports past a published entry are
+counted per package. An import by path, a deep import, names a file inside the
+package rather than an entry its manifest publishes. It lists no import site:
+pass a specifier row whole to `entrypoint --package` for the names it opens, and
+an indented row's package name to `entrypoint --package` for the import sites
+behind its count. The answer ends with an `entrypoint` question for each of the
 most-imported specifier, the package that declares no entry with the most names
 imported by path, and the package with the most imports past its entry, those
 the repository has.

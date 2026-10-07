@@ -163,9 +163,10 @@ scoped answer counts it in the first line instead.
 
 ## Ask the code, when the name is not in the run
 
-`locate` finds a subject by the names a run saw. When the thing you can only
+[`locate`](locate.md) finds a subject in a completed run by the names that run
+wrote down: components, visible text, files. When the thing you can only
 describe is a function, a type or a package rather than a rendered state, the
-names are in the source, and the same command reads them:
+names are in the source, and `variance ask` reads them there:
 
 ```bash
 variance ask search --query viewport
@@ -175,6 +176,11 @@ variance ask uses --name collect --from packages/cli/src/index.ts
 variance ask packages
 variance ask entrypoint --package @acme/ui
 ```
+
+These questions read the checkout under the working directory and nothing else:
+no report has to exist and `variance.config.json` is not opened. `--from` and
+`--to` take a path in the source tree, answered from what it reaches or what
+reaches it, as they do on `locate`.
 
 `search` tells you what a thing is called, where it is written, and how to
 import it. You ask for one of two reasons. To use it, you need an import line:
@@ -186,12 +192,37 @@ it. `--to` keeps the names in that code.
 It answers in two sections: the names a manifest publishes, ranked by how
 many packages import them, then the names the source exports without
 publishing. A third follows only when your words match a name that does not
-contain them, labelled as the looser reading it is. Every question takes a
-question: a word, a name or a specifier. `packages` is the one that takes none.
-It counts, one row per package or specifier, the names each publishes and the
-names other packages import from it by path, and each row is the argument the
-others take. `entrypoint` lists what one import specifier opens, and asked by a
-package's name it also lists the import sites behind that row's counts.
+contain them, labelled as the looser reading it is.
+
+Every other question needs something to ask about: a word, a name or a
+specifier. `packages` is the one that needs nothing, so ask it when you have
+none of those. It counts and lists no import site. An answer looks like this,
+abridged:
+
+```text
+@acme/ui — 12 names, 9 imported elsewhere, 7 documented
+@acme/ui/button — 3 names, 3 imported elsewhere, 1 documented
+
+1 package declares no entry. Other packages import their files by path, most names first:
+  @acme/legacy — 14 names from 3 of its files
+
+Narrower questions:
+  variance ask entrypoint --package @acme/ui
+  variance ask entrypoint --package @acme/legacy
+```
+
+Each row in the first block is a specifier, what one import line names. Pass it
+whole to list the names it opens, most imported first:
+`variance ask entrypoint --package @acme/ui/button`. Each indented row is a
+package whose files other packages import by path: the import names a file
+inside the package, such as `@acme/legacy/src/format`, rather than an entry its
+manifest publishes. That is a deep import. Pass the package's name to list each
+of those imports with the importer's file and line:
+`variance ask entrypoint --package @acme/legacy`. Both kinds of row go to the
+same `--package` flag. Asked by the name of a package that publishes an entry,
+`entrypoint` lists the names its main entry opens and then each import that
+reaches past it. The answer ends with the narrower questions it has.
+
 `symbol` prints one name's import line, declaration, signature, documentation
 and consumers; `uses` prints every import site, ordered by how much path it
 shares with `--from`; `gaps` lists the published names anybody imports that
@@ -210,17 +241,13 @@ start point. An exported row carries `at` and `line`. A section that was not run
 is missing: `loose` is present only when the other two are empty, and a refused
 start point returns `refused` with no sections. Only `search` answers in JSON.
 
-These questions read the checkout under the working directory and nothing else:
-no report has to exist and `variance.config.json` is not opened. `--from` and
-`--to` mean what they mean on `locate` — a path in the source tree, answered
-from what it reaches or what reaches it. Carry the path into `search` when the
-ticket, editor or stack trace already supplied one: the words find candidate
-names and the import graph removes candidates outside that relation. Then ask
-`symbol` and `uses` only for the name that remains. The graph is at file and
-module level; it does not record function calls. The reading, its caches and
-what an answer does and does not show are one boundary, whichever transport
-carries the question: [inspect the workspace public
-API](agent-workspace-api.md).
+Carry a path into `search` when the ticket, editor or stack trace already
+supplied one: the words find candidate names and the import graph removes
+candidates outside that relation. Then ask `symbol` and `uses` only for the
+name that remains. The graph is at file and module level; it does not record
+function calls. The reading, its caches and what an answer does and does not
+show are one boundary, whichever transport carries the question: [inspect the
+workspace public API](agent-workspace-api.md).
 
 ## Distill one completed test
 
