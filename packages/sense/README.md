@@ -38,11 +38,12 @@ one.
 npm install --save-dev @variance-authority/sense
 ```
 
-Node 22.15 or newer. Vitest is the only declared peer dependency
-(`^2.1.9`, optional) — install it yourself if you use the Vitest seam. The Jest
-seam is built and tested against Jest 30 and declares no peer, so your own Jest
-is the one that runs. Storybook and Playwright come from sibling packages
-rather than from here, and are covered below.
+Node 22.15 or newer. Vitest (`^2.1.9 || ^3.0.0 || ^4.0.0`) and Jest
+(`^30.0.0`) are optional peer dependencies: install the runner whose seam you
+use, and your own copy is the one that runs. Under an older Jest, a
+configuration that selects throws while it loads and names the version it
+found. Storybook and Playwright come from sibling packages rather than from
+here, and are covered below.
 
 ## Cut a Vitest run down to a diff
 
@@ -579,8 +580,9 @@ With `VARIANCE_AUTHORITY_SINCE` set, a Jest run skips files as
 Jest's `filter`, which runs before `--shard` and `--listTests`, so every shard
 and the listing see the same list. A `filter` your configuration names runs
 first, and the selection removes files from what it kept. `--filter` on the
-command line replaces the configuration's filter and `--skipFilter` turns it
-off, so either one runs every file, and stderr says which.
+command line replaces the configuration's filter, the selection included, with
+yours, and `--skipFilter` turns filters off. Either one turns the selection
+off, and stderr says which.
 
 `withTestSelection` reads the object you pass it, before Jest resolves
 anything, so three things are yours to spell out:

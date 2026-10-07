@@ -1,6 +1,7 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import filter from './jest-filter.cjs';
 import { SELECTION_FILTER, selectingFilter } from './jest-selection.js';
@@ -8,6 +9,8 @@ import type { SuiteSelection } from './suite-selection.js';
 import { withTestSelection } from './jest.js';
 
 const root = resolve('/checkout');
+/** A directory that resolves the Jest this repository tests against. */
+const rootDir = fileURLToPath(new URL('.', import.meta.url));
 const at = (file: string) => resolve(root, file);
 const selection = (skip: readonly string[], more: Partial<SuiteSelection> = {}): SuiteSelection => ({
   whole: new Set(skip),
@@ -26,7 +29,7 @@ describe('the Jest filter that drops what a selection may skip', () => {
     const lines: string[] = [];
     const configured = selectingFilter({}, {
       root,
-      rootDir: root,
+      rootDir,
       selection: async () => selection(['a.test.ts', 'c.test.ts'], { notes: ['read from the record at 0123abcd'] }),
       argv: [],
       say: (line) => lines.push(line),
@@ -43,7 +46,7 @@ describe('the Jest filter that drops what a selection may skip', () => {
     let reads = 0;
     selectingFilter({}, {
       root,
-      rootDir: root,
+      rootDir,
       selection: async () => {
         reads += 1;
         return selection(['unit/a.test.ts'], { notes: ['one note'] });
@@ -69,6 +72,7 @@ module.exports = async (paths) => {
 };
 module.exports.setup = async () => { ready = true; };
 `);
+    await installed(directory, '30.0.0');
     const lines: string[] = [];
     selectingFilter({ filter: '<rootDir>/own.cjs' }, {
       root: directory,
@@ -87,7 +91,7 @@ module.exports.setup = async () => { ready = true; };
     const lines: string[] = [];
     selectingFilter({}, {
       root,
-      rootDir: root,
+      rootDir,
       selection: async () => selection([], { declined: 'no execution journal at /checkout/.cache/coverage.bin' }),
       argv: [],
       say: (line) => lines.push(line),
@@ -100,7 +104,7 @@ module.exports.setup = async () => { ready = true; };
   it('fails the run with the refusal the reading made', async () => {
     selectingFilter({}, {
       root,
-      rootDir: root,
+      rootDir,
       selection: async () => {
         throw new Error('the record names no commit, and nothing was handed as --since');
       },
@@ -111,9 +115,23 @@ module.exports.setup = async () => { ready = true; };
     await expect(filter([at('a.test.ts')])).rejects.toThrow('the record names no commit');
   });
 
+  it('refuses a Jest older than 30, which reads the paths it answers as no files', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-filter-'));
+    temporary.push(directory);
+    await installed(directory, '29.7.0');
+
+    expect(() => selectingFilter({}, {
+      root: directory,
+      rootDir: directory,
+      selection: async () => selection([]),
+      argv: [],
+      say: () => {},
+    })).toThrow(`selection needs Jest 30 or newer, and ${directory} resolves Jest 29.7.0`);
+  });
+
   it('does not select in watch mode, and says so', () => {
     const lines: string[] = [];
-    const options = { root, rootDir: root, selection: async () => selection(['a.test.ts']), say: (line: string) => lines.push(line) };
+    const options = { root, rootDir, selection: async () => selection(['a.test.ts']), say: (line: string) => lines.push(line) };
 
     expect(selectingFilter({ watch: true }, { ...options, argv: [] })).toEqual({});
     expect(selectingFilter({}, { ...options, argv: ['node', 'jest', '--watchAll'] })).toEqual({});
@@ -122,23 +140,29 @@ module.exports.setup = async () => { ready = true; };
 
   it('says that a filter named on the command line turns the selection off', () => {
     const lines: string[] = [];
-    const options = { root, rootDir: root, selection: async () => selection(['a.test.ts']), say: (line: string) => lines.push(line) };
+    const options = { root, rootDir, selection: async () => selection(['a.test.ts']), say: (line: string) => lines.push(line) };
 
     expect(selectingFilter({}, { ...options, argv: ['node', 'jest', '--filter=./mine.cjs'] })).toEqual({});
     expect(selectingFilter({}, { ...options, argv: ['node', 'jest', '--skipFilter'] })).toEqual({});
     expect(lines).toEqual([
-      'variance-authority: --filter on the command line replaces the selection, so every file runs',
-      'variance-authority: --skipFilter turns the selection off, so every file runs',
+      'variance-authority: --filter on the command line replaces the selection filter, so nothing is selected',
+      'variance-authority: --skipFilter turns the selection filter off, so nothing is selected',
     ]);
   });
 
   it('is set by the seam when a selection is handed in, once however many times it wraps', () => {
     const handed = { coverageFile: 'coverage.bin', selection: async () => selection([]) };
-    const once = withTestSelection({ rootDir: '/repo' }, handed);
+    const once = withTestSelection({ rootDir }, handed);
     const twice = withTestSelection(once, handed);
 
     expect(once.filter).toBe(SELECTION_FILTER);
     expect(twice.filter).toBe(SELECTION_FILTER);
-    expect(withTestSelection({ rootDir: '/repo' }, { coverageFile: 'coverage.bin' }).filter).toBeUndefined();
+    expect(withTestSelection({ rootDir }, { coverageFile: 'coverage.bin' }).filter).toBeUndefined();
   });
 });
+
+/** A `jest` package of one version, installed where `directory` resolves it. */
+async function installed(directory: string, version: string): Promise<void> {
+  await mkdir(resolve(directory, 'node_modules/jest'), { recursive: true });
+  await writeFile(resolve(directory, 'node_modules/jest/package.json'), JSON.stringify({ name: 'jest', version }));
+}

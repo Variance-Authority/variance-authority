@@ -24,7 +24,17 @@ saw runs. Watch mode does not select, nor does Jest under `--filter` or
 `--skipFilter`, and each says so. A Vitest run whose selection is empty passes.
 
 The reading is `selectSuite` from `@variance-authority/cli`, the function
-`variance select` prints, so the project installs the cli to select.
+`variance select` prints, so the project installs the cli to select. It is
+resolved from the configuration's directory, so a package can hold the cli as
+its own devDependency. `@variance-authority/sense` declares `jest ^30.0.0` as an
+optional peer beside Vitest: Jest 29 reads the files a filter keeps as none, so
+a configuration that selects under it throws while it loads and names the
+version.
+
+A change to a source file now reaches the tests that loaded only its built
+copy when the record holds the file under both names, in `variance select` as
+in the runner. The `tsconfig` that builds the package says which recorded names
+are built from which source.
 
 `variance select --format vitest` and `--format jest` are deprecated, and say so
 on stderr: they put the selection on the runner's command line, which a large

@@ -12,10 +12,13 @@
  * chained rather than replaced: it runs first, and the selection drops from
  * what it kept. Jest 29 asked a filter for `{ test }` objects where Jest 30
  * asks for paths, so either shape is read from it, and this one answers Jest
- * 30's.
+ * 30's. Jest 29 reads that answer as no files and passes, so a configuration
+ * that selects under a Jest older than 30 throws while it loads, naming the
+ * version it found.
  *
  * `--filter` on the command line replaces the configuration's filter and
- * `--skipFilter` turns it off. Either means no selection, and the seam says so.
+ * `--skipFilter` turns filters off. Either turns the selection off, and the
+ * seam says so.
  */
 
 // compass: variance-authority.reach
@@ -63,13 +66,14 @@ export function selectingFilter(
     return {};
   }
   if (flag('--filter')) {
-    say('variance-authority: --filter on the command line replaces the selection, so every file runs');
+    say('variance-authority: --filter on the command line replaces the selection filter, so nothing is selected');
     return {};
   }
   if (flag('--skipFilter')) {
-    say('variance-authority: --skipFilter turns the selection off, so every file runs');
+    say('variance-authority: --skipFilter turns the selection filter off, so nothing is selected');
     return {};
   }
+  supported(options.rootDir);
   const own = typeof config.filter === 'string' ? ownFilter(config.filter, options.rootDir) : undefined;
   let read: Promise<SuiteSelection> | undefined;
   let told = false;
@@ -83,6 +87,26 @@ export function selectingFilter(
   };
   (globalThis as { [HANDED]?: { filter: typeof filter } })[HANDED] = { filter };
   return { filter: SELECTION_FILTER };
+}
+
+/** The oldest Jest that reads the paths a filter answers. */
+const SUPPORTED = 30;
+
+/** Refuses a Jest the filter's answer would be read as no files by, or none at all, by name. */
+function supported(rootDir: string): void {
+  const from = createRequire(resolve(rootDir, 'package.json'));
+  let version: string;
+  try {
+    version = (from(from.resolve('jest/package.json')) as { version: string }).version;
+  } catch {
+    throw new Error(`variance-authority: selection needs Jest ${SUPPORTED} or newer, and ${rootDir} resolves no \`jest\``);
+  }
+  if (Number.parseInt(version, 10) < SUPPORTED) {
+    throw new Error(
+      `variance-authority: selection needs Jest ${SUPPORTED} or newer, and ${rootDir} resolves Jest ${version}, ` +
+        'which reads the files a filter keeps as none',
+    );
+  }
 }
 
 /** The project's own filter, loaded as Jest loads one, answering paths whichever shape it returns. */
