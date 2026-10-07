@@ -7,7 +7,7 @@ import { changedLines } from './diff-lines.js';
 import { hunksOf } from './patch.js';
 import { frameOf } from './frame.js';
 import { rebasedChange } from './text-diff.js';
-import { readChange, readRowless, type FileReading } from './reading.js';
+import { readChange, readRowless, rowlessNames, type FileReading } from './reading.js';
 import { bindsOnly } from './inert.js';
 import { disownedIn } from './shadowed.js';
 import { routeOf } from './route.js';
@@ -209,10 +209,17 @@ function readDiff(
   // A checkout to read layouts in lets the record say which of its names are
   // built from which source, and the graph's walk asks under the same names.
   const changed = changedLines(diff);
-  const options: ExecutionNarrowingOptions =
+  const known: ExecutionNarrowingOptions =
     asked.knownAs !== undefined || asked.root === undefined
       ? asked
       : { ...asked, knownAs: builtNamesOf(coverage, asked.root, changed.keys()) };
+  // Every changed name the loop below reads a recorded text under, named to
+  // `sourceAt` with each ask: filled before the first ask, so a reader fetches
+  // those texts together and none of the rest of the diff.
+  const asking: string[] = [];
+  const sourceAt = known.sourceAt;
+  const options: ExecutionNarrowingOptions =
+    sourceAt === undefined ? known : { ...known, sourceAt: (file, commit) => sourceAt(file, commit, asking) };
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   const selected = new Map<number, SelectionReason[]>();
   const select = (test: number, reason: SelectionReason): void => {
@@ -236,14 +243,14 @@ function readDiff(
   };
   const context = { coverage, options, knownAs, hunks, charge, pick: select };
 
+  // Every row recorded under every name. One build reading a path is one
+  // row; two builds reading it are two, each with its own crossings, and the
+  // answer is all of them. `instrumented: false` is the build saying it never
+  // read this module — not that nothing ran in it — and its zero blocks
+  // would otherwise select nobody and look like an answer, so it takes
+  // nothing from the instrumented row beside it.
+  const rowsByFile = new Map<string, Map<string, readonly number[]>>();
   for (const [file, lines] of changed) {
-    let ranges = lines;
-    // Every row recorded under every name. One build reading a path is one
-    // row; two builds reading it are two, each with its own crossings, and the
-    // answer is all of them. `instrumented: false` is the build saying it never
-    // read this module — not that nothing ran in it — and its zero blocks
-    // would otherwise select nobody and look like an answer, so it takes
-    // nothing from the instrumented row beside it.
     const rowsOf = new Map<string, readonly number[]>();
     for (const name of knownAs(file)) {
       // Every changed name is asked of the precondition table, whatever its
@@ -259,6 +266,14 @@ function readDiff(
       rowed.add(name);
       rowsOf.set(name, rows);
     }
+    rowsByFile.set(file, rowsOf);
+    if (rowsOf.size > 0) asking.push(file, ...knownAs(file));
+    else if (lines.length > 0 && routeOf(false, options.unmeasured) !== 'nothing') asking.push(...rowlessNames(context, file));
+  }
+
+  for (const [file, lines] of changed) {
+    let ranges = lines;
+    const rowsOf = rowsByFile.get(file)!;
     if (rowsOf.size === 0) {
       // Nothing measured it under a row, and a suite that declines relations
       // asks nothing else; the tests that declare it are read below either way.

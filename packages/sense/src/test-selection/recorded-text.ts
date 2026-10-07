@@ -47,7 +47,10 @@
  * The caller decides which paths are worth a window at all. `files` is the set
  * this expects to be asked about, and it is read in order as the asks arrive, so
  * a caller that hands over only the paths it has a digest to compare against
- * never pays for the rest of the diff.
+ * never pays for the rest of the diff. The selector is that caller: it names,
+ * with every ask, the paths it will read a text under, and that list replaces
+ * `files`, so the changed files no test ran, which nothing asks about, are
+ * never read.
  *
  * ## A path from outside the set
  *
@@ -106,7 +109,8 @@ function positionOf(sorted: readonly string[], file: string): number {
  * Pass it the paths the selector will ask about — `changedLines(diff).keys()`,
  * so the two parses of the diff cannot disagree at the edges, or the narrower
  * set a caller that already knows which paths it holds a digest for can name.
- * Hand the result to `narrowByExecution` as `sourceAt`.
+ * Hand the result to `narrowByExecution` as `sourceAt`, which narrows the set
+ * further with `asking`: the paths it reads a text under.
  *
  * `undefined` for a path the position does not hold is the answer the selector
  * wants: a snapshot with a row for a file that did not exist at its own commit
@@ -116,8 +120,11 @@ function positionOf(sorted: readonly string[], file: string): number {
 export function textAtRecording(
   root: string,
   files: Iterable<string>,
-): (file: string, commit: string | undefined) => string | undefined {
-  const expected = [...new Set(files)].sort();
+): (file: string, commit: string | undefined, asking?: readonly string[]) => string | undefined {
+  let expected = [...new Set(files)].sort();
+  // The list the selector named with its asks, once one has arrived: it
+  // replaces `files`, because it is the part of them the selector reads.
+  let named: readonly string[] | undefined;
   let at: string | undefined;
   // Which paths this commit's reading has answered, and how wide the next window
   // is: both reset with the commit.
@@ -130,7 +137,11 @@ export function textAtRecording(
   let outside = 0;
   let listing: Listing | null | undefined;
 
-  return (file, commit) => {
+  return (file, commit, asking) => {
+    if (asking !== undefined && asking !== named) {
+      named = asking;
+      expected = [...new Set(asking)].sort();
+    }
     // No position to read from. A snapshot recorded outside a checkout cannot be
     // checked this way, and reporting every module stale would widen every run
     // to the whole suite for a fact nobody established.
