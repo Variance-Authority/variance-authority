@@ -128,8 +128,8 @@ fn relative(root: &Path, path: &Path) -> String {
     path.strip_prefix(root).unwrap_or(path).to_string_lossy().replace('\\', "/")
 }
 
-/// Version 5 added `readme`, 7 added `purpose`. An older one still answers queries; a refresh rewrites it.
-const VERSION: u8 = 7;
+/// Version 5 added `readme`, 7 added `purpose`, 8 reads `export =` from the tree. An older one still answers queries; a refresh rewrites it.
+const VERSION: u8 = 8;
 
 fn previous(path: &Path) -> Option<Lexicon> {
     let prior: Lexicon = serde_json::from_slice(&fs::read(path).ok()?).ok()?;

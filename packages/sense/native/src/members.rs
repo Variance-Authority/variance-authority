@@ -13,6 +13,10 @@
 //! resolved, so a parameter that reuses the holder's name lists its reads too;
 //! a holder handed to another function, or a specifier that is not a literal,
 //! lists nothing.
+//!
+//! The same walk reads the [`Loads`]: an `import()` is a request only the tree
+//! can read, and a member read through it needs that request's index, so the
+//! module's tree is walked once for both.
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -20,6 +24,7 @@ use oxc_ast::ast::*;
 use oxc_ast_visit::{walk, Visit};
 use serde::Serialize;
 
+use crate::loads::Loads;
 use crate::read::{Lines, Request};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -30,8 +35,11 @@ pub struct Member {
     pub(crate) line: u32,
 }
 
-/// `dynamic` pairs each `import()` expression's start offset with its request.
-pub fn members_in(program: &Program, lines: &Lines, requests: &[Request], dynamic: &[(u32, u32)]) -> Vec<Member> {
+/// The loads a module calls for, and the names it reads off what it holds.
+///
+/// `requests` are the ones the module record states; a member read through an
+/// `import()` is indexed as if `loads.dynamic` were appended to them.
+pub fn members_and_loads_in<'l>(program: &Program, lines: &'l Lines, requests: &[Request]) -> (Vec<Member>, Loads<'l>) {
     let mut holders = HashMap::new();
     for (index, request) in requests.iter().enumerate() {
         for binding in &request.bindings {
@@ -43,27 +51,30 @@ pub fn members_in(program: &Program, lines: &Lines, requests: &[Request], dynami
     let mut walker = Walker {
         lines,
         holders,
-        dynamic: dynamic.iter().copied().collect(),
+        stated: requests.len() as u32,
+        loads: Loads::new(lines),
         found: BTreeSet::new(),
     };
     walker.visit_program(program);
-    walker.found.into_iter().collect()
+    (walker.found.into_iter().collect(), walker.loads)
 }
 
 struct Walker<'l> {
     lines: &'l Lines,
     /// A local name to the request it holds.
     holders: HashMap<String, u32>,
-    dynamic: HashMap<u32, u32>,
+    /// How many requests the record states, which the `import()` ones follow.
+    stated: u32,
+    loads: Loads<'l>,
     found: BTreeSet<Member>,
 }
 
 impl Walker<'_> {
     /// The request an expression evaluates to, looking through parentheses and `await`.
-    fn held(&self, expression: &Expression) -> Option<u32> {
+    fn held(&mut self, expression: &Expression) -> Option<u32> {
         match expression.without_parentheses() {
             Expression::AwaitExpression(it) => self.held(&it.argument),
-            Expression::ImportExpression(it) => self.dynamic.get(&it.span.start).copied(),
+            Expression::ImportExpression(it) => self.loads.import(it).map(|index| self.stated + index),
             Expression::Identifier(it) => self.holders.get(it.name.as_str()).copied(),
             _ => None,
         }
@@ -123,8 +134,19 @@ impl<'a> Visit<'a> for Walker<'_> {
         walk::walk_jsx_member_expression(self, it);
     }
 
+    fn visit_import_expression(&mut self, it: &ImportExpression<'a>) {
+        self.loads.import(it);
+        walk::walk_import_expression(self, it);
+    }
+
+    fn visit_ts_import_equals_declaration(&mut self, it: &TSImportEqualsDeclaration<'a>) {
+        self.loads.import_equals(it);
+        walk::walk_ts_import_equals_declaration(self, it);
+    }
+
     // `import('m').then((m) => …)`: the callback's first parameter holds the module.
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        self.loads.call(it);
         if let Expression::StaticMemberExpression(callee) = it.callee.without_parentheses() {
             let loaded = matches!(callee.object.without_parentheses(), Expression::ImportExpression(_));
             if let (true, "then", Some(request)) = (loaded, callee.property.name.as_str(), self.held(&callee.object)) {

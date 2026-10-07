@@ -133,15 +133,20 @@ impl Reader<'_> {
                 names.entry((name.name.clone(), name.kind.clone())).or_insert(name);
             }
         }
-        if names.is_empty() && source.contains("export =") {
-            for symbol in crate::dependency_namespace::exported_namespace(&file.to_string_lossy(), &source) {
+        if names.is_empty() {
+            // `export =` publishes what the module record does not hold, so the
+            // tree answers it, parsed once for both readings.
+            let path = file.to_string_lossy();
+            let allocator = Allocator::default();
+            let program = crate::dependency_namespace::parse(&path, &source, &allocator);
+            for symbol in crate::dependency_namespace::exported_namespace(&path, &source, &program, &parsed.symbols) {
                 let name = Name { name: symbol.name, kind: symbol.kind,
                     at: relative(self.root, file), line: symbol.line,
                     signature: symbol.signature, doc: symbol.doc };
                 names.entry((name.name.clone(), name.kind.clone())).or_insert(name);
             }
             if names.is_empty() {
-                for request in crate::dependency_namespace::exported_import(&file.to_string_lossy(), &source) {
+                for request in crate::dependency_namespace::exported_import(&program) {
                     if let Some(target) = self.target(file, &request) {
                         for name in self.names(&target) {
                             names.entry((name.name.clone(), name.kind.clone())).or_insert(name);

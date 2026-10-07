@@ -5,7 +5,7 @@ use oxc_ast::ast::{Expression, Program, Statement, TSModuleReference, TSNamespac
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 
-use crate::harvest::TextSpan;
+use crate::harvest::{SourceSymbol, TextSpan};
 use crate::read::read_module;
 
 pub(crate) struct NamespaceSymbol {
@@ -40,16 +40,19 @@ fn assigned(program: &Program) -> Option<String> {
     })
 }
 
-fn dialect(file: &str) -> SourceType {
-    SourceType::from_path(file).unwrap_or_else(|_| SourceType::ts())
+/// A declaration file's tree, in the dialect its extension names: `.d.ts`,
+/// `.d.mts` or `.d.cts`.
+pub(crate) fn parse<'a>(file: &str, source: &'a str, allocator: &'a Allocator) -> Program<'a> {
+    let dialect = SourceType::from_path(file).unwrap_or_else(|_| SourceType::ts());
+    Parser::new(allocator, source, dialect).parse().program
 }
 
-pub(crate) fn exported_namespace(file: &str, source: &str) -> Vec<NamespaceSymbol> {
-    let allocator = Allocator::default();
-    let parsed = Parser::new(&allocator, source, dialect(file)).parse();
-    let Some(namespace) = assigned(&parsed.program) else { return Vec::new() };
+/// The members of the namespace `program` assigns to its export, and the
+/// namespace's own declarations among the file's `symbols`.
+pub(crate) fn exported_namespace(file: &str, source: &str, program: &Program, symbols: &[SourceSymbol]) -> Vec<NamespaceSymbol> {
+    let Some(namespace) = assigned(program) else { return Vec::new() };
     let mut answer = Vec::new();
-    for statement in &parsed.program.body {
+    for statement in &program.body {
         let Statement::TSNamespaceDeclaration(declaration) = statement else { continue };
         if declaration.id.name.as_str() != namespace { continue; }
         let TSNamespaceDeclarationBody::TSModuleBlock(block) = &declaration.body else { continue };
@@ -62,21 +65,18 @@ pub(crate) fn exported_namespace(file: &str, source: &str) -> Vec<NamespaceSymbo
                 signature: text(&utf16, symbol.signature), doc: doc(&utf16, symbol.doc) });
         }
     }
-    let direct = read_module(file, source, &Allocator::default(), true);
     let utf16: Vec<u16> = source.encode_utf16().collect();
-    for symbol in direct.symbols.into_iter().filter(|symbol| symbol.name == namespace) {
-        answer.push(NamespaceSymbol { name: symbol.name, kind: symbol.kind.to_owned(), line: symbol.line,
+    for symbol in symbols.iter().filter(|symbol| symbol.name == namespace) {
+        answer.push(NamespaceSymbol { name: symbol.name.clone(), kind: symbol.kind.to_owned(), line: symbol.line,
             signature: text(&utf16, symbol.signature), doc: doc(&utf16, symbol.doc) });
     }
     answer
 }
 
 /** A declaration that assigns an imported module to its public export. */
-pub(crate) fn exported_import(file: &str, source: &str) -> Vec<String> {
-    let allocator = Allocator::default();
-    let parsed = Parser::new(&allocator, source, dialect(file)).parse();
-    let Some(local) = assigned(&parsed.program) else { return Vec::new() };
-    parsed.program.body.iter().filter_map(|statement| match statement {
+pub(crate) fn exported_import(program: &Program) -> Vec<String> {
+    let Some(local) = assigned(program) else { return Vec::new() };
+    program.body.iter().filter_map(|statement| match statement {
         Statement::TSImportEqualsDeclaration(it) if it.id.name == local.as_str() => match &it.module_reference {
             TSModuleReference::ExternalModuleReference(reference) => Some(reference.expression.value.to_string()),
             _ => None,
@@ -87,30 +87,44 @@ pub(crate) fn exported_import(file: &str, source: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{exported_import, exported_namespace};
+    use oxc_allocator::Allocator;
+
+    use super::{exported_import, exported_namespace, parse};
+    use crate::read::read_module;
+
+    fn imported(source: &str) -> Vec<String> {
+        let allocator = Allocator::default();
+        exported_import(&parse("index.d.ts", source, &allocator))
+    }
+
+    fn published(source: &str) -> Vec<String> {
+        let symbols = read_module("index.d.ts", source, &Allocator::default(), true).symbols;
+        let allocator = Allocator::default();
+        let program = parse("index.d.ts", source, &allocator);
+        exported_namespace("index.d.ts", source, &program, &symbols).into_iter().map(|symbol| symbol.name).collect()
+    }
 
     #[test]
     fn an_import_assigned_to_the_export_is_read_from_code() {
         let source = "import globbing = require(\"./lib/globbing\");\nexport = globbing;\n";
-        assert_eq!(exported_import("index.d.ts", source), ["./lib/globbing"]);
+        assert_eq!(imported(source), ["./lib/globbing"]);
     }
 
     #[test]
     fn an_import_assigned_in_a_comment_is_not_an_export() {
-        let source = "/*\nimport hidden = require('./hidden');\nexport = hidden;\n*/\n";
-        assert!(exported_import("index.d.ts", source).is_empty());
+        assert!(imported("/*\nimport hidden = require('./hidden');\nexport = hidden;\n*/\n").is_empty());
     }
 
     #[test]
     fn a_namespace_assigned_in_a_comment_is_not_an_export() {
-        let source = "/*\nexport = Kit;\n*/\ndeclare namespace Kit {\nfunction pulse(): boolean;\n}\n";
-        assert!(exported_namespace("index.d.ts", source).is_empty());
+        assert!(published("/*\nexport = Kit;\n*/\ndeclare namespace Kit {\nfunction pulse(): boolean;\n}\n").is_empty());
     }
 
     #[test]
-    fn a_namespace_assigned_in_code_publishes_its_members() {
-        let source = "export = Kit;\ndeclare namespace Kit {\nfunction pulse(): boolean;\n}\n";
-        let names: Vec<_> = exported_namespace("index.d.ts", source).into_iter().map(|symbol| symbol.name).collect();
-        assert!(names.contains(&"pulse".to_owned()), "{names:?}");
+    fn a_namespace_assigned_in_code_publishes_its_members_however_it_is_spaced() {
+        for assignment in ["export = Kit;", "export=Kit;", "export   =   Kit"] {
+            let names = published(&format!("{assignment}\ndeclare namespace Kit {{\nfunction pulse(): boolean;\n}}\n"));
+            assert!(names.contains(&"pulse".to_owned()), "{assignment}: {names:?}");
+        }
     }
 }

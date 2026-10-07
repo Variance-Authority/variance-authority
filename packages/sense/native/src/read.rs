@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use crate::declared_role::DeclaredRoles;
 use crate::harvest::{Harvest, SourceSymbol, TextSpan};
-use crate::members::{members_in, Member};
+use crate::members::{members_and_loads_in, Member};
 use crate::mocks::{mocks_in, Mocks};
 use crate::source_size::{size_of, Size};
 
@@ -284,27 +284,12 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
     }));
 
     let mut reasons = Vec::new();
-    let mut dynamic = Vec::new();
-    for entry in &record.dynamic_imports {
-        let text = &source[entry.module_request.start as usize..entry.module_request.end as usize];
-        match quoted(text) {
-            Some(value) => {
-                dynamic.push((entry.span.start, requests.len() as u32));
-                requests.push(Request {
-                    value,
-                    kind: Kind::Dynamic,
-                    bindings: Vec::new(),
-                    line: lines.at(entry.span.start),
-                });
-            }
-            None => reasons.push("an `import()` whose specifier is not a literal".to_owned()),
-        }
-    }
-
-    let required = crate::requires::requires_in(&parsed.program, &lines);
-    requests.extend(required.requests);
-    if required.unread > 0 {
-        reasons.push(format!("{} `require()` call(s) with a specifier this cannot read", required.unread));
+    let (members, loads) = members_and_loads_in(&parsed.program, &lines, &requests);
+    requests.extend(loads.dynamic);
+    reasons.extend((0..loads.unread_dynamic).map(|_| "an `import()` whose specifier is not a literal".to_owned()));
+    requests.extend(loads.required);
+    if loads.unread_required > 0 {
+        reasons.push(format!("{} `require()` call(s) with a specifier this cannot read", loads.unread_required));
     }
     let depends = crate::depends::depends_in(source, &parsed.program.comments, &lines);
     requests.extend(depends.requests);
@@ -316,7 +301,6 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         reasons.push(format!("{count} parse error(s): {}", first.message));
     }
 
-    let members = members_in(&parsed.program, &lines, &requests, &dynamic);
     let clean = !parsed.panicked && parsed.diagnostics.is_empty();
     let size = size_of(source, &parsed.program, source_type.is_typescript(), clean);
     Read {
@@ -362,19 +346,6 @@ fn source_name(name: &ExportImportName<'_>) -> Option<String> {
         ExportImportName::All | ExportImportName::AllButDefault => Some("*".to_owned()),
         ExportImportName::Null => None,
     }
-}
-
-fn quoted(text: &str) -> Option<String> {
-    let trimmed = text.trim();
-    let first = *trimmed.as_bytes().first()?;
-    if trimmed.len() < 2
-        || (first != b'\'' && first != b'"')
-        || *trimmed.as_bytes().last()? != first
-    {
-        return None;
-    }
-    let value = &trimmed[1..trimmed.len() - 1];
-    (!value.contains("${")).then(|| value.to_owned())
 }
 
 fn declarations(file: &str, source: &str) -> Vec<String> {
