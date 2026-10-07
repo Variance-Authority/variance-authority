@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   caseSectionsAt,
+  commitRunsFile,
   declaredSuites,
   encodeAsSetExecutionIndex,
   landRun,
@@ -155,6 +156,25 @@ describe('the milestone under a checkout', () => {
     // `other` reads the new milestone's row; `total` keeps its own, which entered nothing.
     expect(crossers(await readTestCoverage(own))).toEqual(['test/other.test.ts']);
     expect(await readCommitRuns(own)).toMatchObject({ commit: next, over: next, files: ['test/total.test.ts'] });
+  });
+
+  it('drops the install of a runs record it moves to the snapshot\'s commit, which that install was not measured against', async () => {
+    const { ci, first, worktree, own } = await laidWorktree();
+    const next = await publishedNext(ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await landRun(own, ranAlone(next, 'test/total.test.ts'), worktree);
+    // A crash left the record naming the old commit, with an install measured against it.
+    const runs = commitRunsFile(own);
+    const held = JSON.parse(await readFile(runs, 'utf8')) as Record<string, unknown>;
+    await writeFile(runs, JSON.stringify({ ...held, commit: first, installed: { 'package-lock.json': digestString('measured at the old commit') } }));
+    await refetch(worktree, next);
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true } });
+
+    const repinned = await readCommitRuns(own);
+    expect(repinned).toMatchObject({ commit: next });
+    expect(repinned).not.toHaveProperty('installed');
   });
 
   it('carries the Eyes journals of the cases it keeps: its own for the tests it ran, the newer snapshot\'s for the rest', async () => {

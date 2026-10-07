@@ -216,10 +216,11 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // Where the runs record kept the install a group's tests ran on, its commit
   // is read through it: a bump they ran on uncommitted is no bump for them,
   // and one undone since is. A kept text this checkout cannot read is
-  // half an install, so the commit's is read whole and a note says so.
+  // half an install, so the commit's is read whole and a note says so, one
+  // for each commit it happened at.
   const changed = [...selection.changedLines(diff).keys()];
   const installs = new Map<string | undefined, InstallDiff | undefined>();
-  let unkept: string | undefined;
+  const unkept = new Set<string>();
   const ranOver = new Set<string | undefined>();
   if (request.diff !== undefined) installs.set(undefined, await installDiffOfPatch(diff, here));
   else {
@@ -229,18 +230,21 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
       const installed = stand === undefined ? reading?.installed : stand.installed;
       const ran = point === undefined || installed === undefined ? point : ranOn(point, installed, selection.keptTexts(request.root));
       const missing = ran !== undefined && 'missing' in ran;
-      if (missing) {
-        const at = (stand?.commit ?? commit)!.slice(0, 12);
-        unkept = `the suite ran over a ${ran.missing} that ${at} does not hold, and that text is not kept here, so the install is compared from ${at}`;
-      } else if (ran !== point) ranOver.add(stand?.commit);
+      const at = (stand?.commit ?? commit)?.slice(0, 12);
+      const note = missing
+        ? `the suite ran over a ${ran.missing} that ${at} does not hold, and that text is not kept here, so the install is compared from ${at}`
+        : undefined;
+      if (!missing && ran !== point) ranOver.add(stand?.commit);
       // A manifest the run kept is compared whether or not the tree still
       // differs from the commit there: one undone since moved for these tests.
       const kept = missing || ran === point ? [] : Object.keys(installed!);
       return {
         point: missing ? point : ran,
         changed: [...new Set([...changed, ...(stand?.changed ?? []), ...kept])],
+        note,
       };
     }));
+    for (const { note } of asked) if (note !== undefined) unkept.add(note);
     const answers = await installDiffs(asked, here);
     groups.forEach((stand, index) => installs.set(stand?.commit, answers[index]));
   }
@@ -266,7 +270,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   const install = installReached(installs, beyond, (stand) =>
     handed ? 'before the patch' : `${ranOver.has(stand) ? 'the install recorded ' : ''}at ${(stand ?? commit)?.slice(0, 12) ?? base}`,
   );
-  const notes = unkept === undefined ? {} : { standing: [...(recorded.standing ?? []), unkept] };
+  const notes = unkept.size === 0 ? {} : { standing: [...(recorded.standing ?? []), ...unkept] };
   const rested = { ...recorded, ...notes, ...rest, ...(install === undefined ? {} : { install }) };
   if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole } });
   // Each group is charged the install that moved since it ran, and the files

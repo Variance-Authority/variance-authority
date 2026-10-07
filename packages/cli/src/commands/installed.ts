@@ -81,6 +81,11 @@ export interface DiffPoint {
   readonly base: string;
   /** One file's contents at that commit, or `undefined` when it was not there. */
   at(path: string): Promise<string | undefined>;
+  /**
+   * The files the recorded run had deleted, which `at` answers as absent: the
+   * install it ran on had none, whatever the commit holds.
+   */
+  readonly ranWithout?: ReadonlySet<string>;
 }
 
 /**
@@ -105,7 +110,12 @@ export function ranOn(
     texts.set(path, text);
   }
   if (texts.size === 0) return point;
-  return { ...point, at: async (path) => (texts.has(path) ? texts.get(path) : await point.at(path)) };
+  const ranWithout = new Set([...texts].filter(([, text]) => text === undefined).map(([path]) => path));
+  return {
+    ...point,
+    at: async (path) => (texts.has(path) ? texts.get(path) : await point.at(path)),
+    ...(ranWithout.size === 0 ? {} : { ranWithout }),
+  };
 }
 
 /**
@@ -183,11 +193,10 @@ async function installDiffAt(
   if (before === found.text) return { lockfile: path, packages: [], manifests, moved };
 
   if (before === undefined) {
-    return {
-      whole:
-        `${path} is not in the tree at ${point.base.slice(0, 12)}, where this install is compared ` +
-        'from, so there is no install to compare it against and any package in it may have moved',
-    };
+    const where = point.ranWithout?.has(path)
+      ? `the suite ran at ${point.base.slice(0, 12)} with no ${path}`
+      : `${path} is not in the tree at ${point.base.slice(0, 12)}, where this install is compared from`;
+    return { whole: `${where}, so there is no install to compare it against and any package in it may have moved` };
   }
 
   return await compared(path, before, after, manifests, moved);

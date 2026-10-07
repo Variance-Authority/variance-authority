@@ -443,6 +443,8 @@ function jestIgnore(test: string): string {
 
 /** Everything the reading knows, for a caller that is a program. */
 function jsonOf(selection: TestSelection): object {
+  // The sentences are among the notes already.
+  const { says: _inNotes, ...install } = selection.install ?? {};
   return {
     skip: selection.skip,
     ...(selection.widened === undefined ? {} : { widened: selection.widened }),
@@ -457,8 +459,7 @@ function jsonOf(selection: TestSelection): object {
       ...(selection.source?.distance === undefined ? {} : { distance: selection.source.distance }),
     },
     unread: selection.unread,
-    // The sentences are among the notes already, and `undefined` is dropped from the text.
-    ...(selection.install === undefined ? {} : { install: { ...selection.install, says: undefined } }),
+    ...(selection.install === undefined ? {} : { install }),
     ...(selection.declined === undefined ? {} : { declined: selection.declined }),
     stale: selection.stale,
     ...(selection.readings === undefined ? {} : { readings: selection.readings }),

@@ -53,6 +53,8 @@ function readByInstall(path: string): boolean {
  * that for no record, which compares from the commit as before. Never throws.
  */
 export async function keepRecordedInstall(tree: LandedTree | undefined): Promise<KeptInstall | undefined> {
+  // FIXME: the install is read when the run lands, after its tests ran, so an
+  // install edited during the run is kept as if the tests had run on it.
   if (tree === undefined) return undefined;
   const { repository, top, changes } = tree;
   const kept: Record<string, string | null> = {};
@@ -104,8 +106,15 @@ export function keptInstallOf(value: unknown): KeptInstall | undefined {
   return fine ? (value as KeptInstall) : undefined;
 }
 
+/**
+ * `install` as one string: two installs that name the same paths with the same
+ * texts give the same key, whatever order their paths were written in.
+ */
+export function installKey(install: KeptInstall): string {
+  return JSON.stringify(Object.entries(install).sort(([a], [b]) => codeUnitOrder(a, b)));
+}
+
 /** Whether two installs name the same paths with the same texts. */
 export function sameInstall(a: KeptInstall, b: KeptInstall): boolean {
-  const paths = Object.keys(a);
-  return paths.length === Object.keys(b).length && paths.every((path) => path in b && a[path] === b[path]);
+  return installKey(a) === installKey(b);
 }

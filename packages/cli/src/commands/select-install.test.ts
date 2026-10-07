@@ -292,6 +292,45 @@ describe('the install a recording ran on', () => {
         `so the install is compared from ${head.slice(0, 12)}`,
     );
   });
+
+  it('says so for each commit whose recorded install is not kept here', async () => {
+    // The first run, over 1.4.0, leaves beta and gamma standing at `head`; the
+    // second ran alpha over 1.5.0 at the commit of the bump. Neither text is
+    // here, so each is compared from its own commit, and each says so.
+    const { root, head } = await recordedOver('1.4.0');
+    execFileSync('git', ['commit', '--quiet', '-am', 'the bump the suite ran on'], { cwd: root });
+    const bumped = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    writeFileSync(join(root, 'package-lock.json'), npmLock('1.5.0'));
+    const ran = snapshot(bumped);
+    const alone = { ...ran, tests: ran.tests.slice(0, 1), modules: ran.modules.map((module) => ({ ...module, blocks: module.blocks.map((block) => ({ ...block, testFiles: [] })) })) };
+    await landRun(testCoverageFile(root), alone, root);
+    await indexOutput({ cwd: root });
+    const kept = readdirSync(cache, { recursive: true, encoding: 'utf8' }).filter((path) => path.endsWith('.texts'));
+    for (const path of kept) rmSync(join(cache, path), { recursive: true, force: true });
+
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    for (const at of [head, bumped].map((commit) => commit.slice(0, 12))) {
+      expect(said.err).toContain(`the suite ran over a package-lock.json that ${at} does not hold, and that text is not kept here, so the install is compared from ${at}`);
+    }
+  });
+
+  it('names a lockfile the suite ran without as the reason it cannot compare', async () => {
+    const { root, head } = checkout({ 'package-lock.json': npmLock('1.3.0') });
+    rmSync(join(root, 'package-lock.json'));
+    await landRun(testCoverageFile(root), snapshot(head), root);
+    expect(await readCommitRuns(testCoverageFile(root))).toMatchObject({ installed: { 'package-lock.json': null } });
+    writeFileSync(join(root, 'package-lock.json'), npmLock('1.3.0'));
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('');
+    expect(said.err).toContain(
+      `the suite ran at ${head.slice(0, 12)} with no package-lock.json, so there is no install to compare it against and any package in it may have moved`,
+    );
+  });
 });
 
 const PAD = [

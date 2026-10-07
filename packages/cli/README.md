@@ -1686,10 +1686,13 @@ differed from its commit while it ran, so an install you had not committed yet
 when you recorded is the one compared from, and selecting over it with nothing
 else edited skips the whole recorded suite. A test keeps that install after you
 commit and run only the selected tests: it is compared from what it last ran
-on. A recording that kept no install, or one whose texts this cache does not
-hold, is compared from the journal's commit, and stderr says which. Every package the lockfile resolves differently
-is walked back through the packages that depend on it to the files that import
-them, and those files are read as changed whole. stderr names the lockfile, the
+on. Where no install was kept, tests are compared from the commit they last ran
+at. Where the kept texts are not in this cache, they are compared from that
+commit too, and stderr names each such commit. A suite that ran with its
+lockfile deleted has no install to compare, and stderr says it ran without one.
+Every package the lockfile resolves differently is walked back through the
+packages that depend on it to the files that import them, and those files are
+read as changed whole. stderr names the lockfile, the
 packages, the package most of each one's files imported it through and the
 files, and `json` gives the lockfile, the packages and the count of files under
 `install`:

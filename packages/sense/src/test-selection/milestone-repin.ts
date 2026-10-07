@@ -250,8 +250,12 @@ function repinnedRuns(
     else standing.splice(standing.indexOf(same), 1, { commit: same.commit, files: [...same.files, ...rest].sort(codeUnitOrder) });
   }
   // At the snapshot's own commit, which repairs a runs record a crash left
-  // naming another.
-  return { ...held, ...(commit === undefined ? {} : { commit }), over: record.commit, files, standing };
+  // naming another. The install the record kept differed from the commit it
+  // named; moved to another commit, it would be compared from the wrong one,
+  // so it is dropped and the install is compared from the new commit.
+  if (commit === undefined || commit === held.commit) return { ...held, over: record.commit, files, standing };
+  const { installed: _measuredElsewhere, ...rest } = held;
+  return { ...rest, commit, over: record.commit, files, standing };
 }
 
 /** Whether `older` is an ancestor of `newer` in `root`, or `undefined` when git cannot say. */

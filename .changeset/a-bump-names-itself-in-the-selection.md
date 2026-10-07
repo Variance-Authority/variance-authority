@@ -14,7 +14,9 @@ compared from the recorded one. Tests a later run leaves where they last ran
 are compared from the install they ran on too, so committing the bump and
 running the selection does not put them back in the run. A recording that kept
 no install is compared from its commit as before; one whose kept texts this
-cache does not hold is compared from its commit too, and a note says so.
+cache does not hold is compared from its commit too, and a note says so for each
+commit it happened at. A suite that ran with its lockfile deleted is no longer
+said to be missing it from the commit: the note says the suite ran without one.
 
 A package the lockfile resolves differently is walked back to the files that
 import it, and those files are read as changed whole. The selection then said
@@ -24,7 +26,7 @@ recording that had stopped narrowing. Now the reason says a test may also have
 entered a file the install moved, and a note names the lockfile, where it was
 compared from, each package it moved with the package most of its files
 imported it through (`tinyglobby through vitest`), and the files that import
-them. A manifest whose `exports`, `main` or `type` moved is named the same way.
-`--format json` gives the lockfile, the packages, the moved manifests and the
-count of files under `install`.
+them. A manifest whose `name`, `exports`, `main` or `type` moved is named the
+same way. `variance select --format json` gives the lockfile, the packages, the
+moved manifests and the count of files under `install`.
 `variance review --format json` names the same lockfile under `beyond`.

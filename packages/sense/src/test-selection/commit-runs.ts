@@ -49,7 +49,7 @@ import { layeredCoverage } from './format-layer.js';
 import { openTestCoverage } from './format-view.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { TestCoverage } from './index.js';
-import { installAfter, keepRecordedInstall, keptInstallOf, type KeptInstall } from './kept-install.js';
+import { installAfter, installKey, keepRecordedInstall, keptInstallOf, type KeptInstall } from './kept-install.js';
 import { keepRecordedTexts, landedTree } from './kept-texts.js';
 import { ownLayerAfter, readOwnLayer, workingTree, writeOwnLayer } from './own-layer.js';
 import { writeCoverageBytes } from './record-location.js';
@@ -339,7 +339,7 @@ function standingAfter(
   // on; the key is all three. The install goes with the tests, as a kept text
   // does, so a stand is compared from what its tests ran on at every select.
   const key = (commit: string, assumed: boolean, installed?: KeptInstall): string =>
-    `${assumed ? 'assumed' : 'observed'} ${commit}${installed === undefined ? '' : ` ${JSON.stringify(Object.entries(installed).sort(([a], [b]) => codeUnitOrder(a, b)))}`}`;
+    `${assumed ? 'assumed' : 'observed'} ${commit}${installed === undefined ? '' : ` ${installKey(installed)}`}`;
   const stands = new Map<string, StandingEntry>();
   const listed = new Map<string, string>();
   for (const entry of held.standing ?? []) {
