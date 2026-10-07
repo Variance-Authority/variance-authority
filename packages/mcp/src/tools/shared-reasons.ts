@@ -20,7 +20,7 @@ export function oncePerReason(
     subjects.length === 1
       ? [`[${label}] ${subjects[0]}: ${because}`]
       : [
-          `[${label}] ${subjects.length} subject(s): ${because}`,
+          `[${label}] ${subjects.length} subjects: ${because}`,
           ...subjects.map((subject) => `    ${subject}`),
         ],
   );

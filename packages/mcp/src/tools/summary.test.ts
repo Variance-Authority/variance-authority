@@ -44,7 +44,7 @@ describe('the summary', () => {
     const text = toolByName('variance_summary')!.run(REPORT, {}) as string;
 
     expect(text.split(because).length - 1).toBe(1);
-    expect(text).toContain(`[incomparable] 3 subject(s): ${because}`);
+    expect(text).toContain(`[incomparable] 3 subjects: ${because}`);
     for (const name of ['a', 'b', 'c']) expect(text).toContain(`    page/${name}`);
     // A reason only one subject has stays on that subject's line.
     expect(text).toContain('[incomparable] page/alone: a baseline exists under another machine');
