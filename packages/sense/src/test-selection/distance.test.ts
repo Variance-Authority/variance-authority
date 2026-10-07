@@ -131,7 +131,7 @@ describe('distanceFromView', () => {
     expect(distances.map(({ test }) => test)).not.toContain('test/registry.test.ts');
   });
 
-  it('measures a test the record never saw whole only from a changed file it entered', () => {
+  it('measures a test the record never saw whole only from a changed file it loaded', () => {
     // The card test's record holds the card and the button's face, not the base
     // the edit is in. The graph has the face's edge to the base, but nothing
     // says this test ran it, so a path ending on that edge is not one it ran.

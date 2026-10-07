@@ -21,8 +21,10 @@
  * one whose every case skipped, may call the change from a case the record did
  * not see. When the change entered it, it is placed by its hops like any other.
  * When it did not, sense places it by the shortest path it executed to a
- * changed file it entered, and it runs in the leg those hops fall in. With no
+ * changed file it loaded, and it runs in the leg those hops fall in. With no
  * such path it is unplaced, and is on the skip list of every leg with an end.
+ * A placed one counts toward the furthest hop, so it decides which closed leg
+ * reaches the end and runs the unplaced.
  * A test new since the recording is named nowhere, so it is in no skip list and
  * runs in every leg. That is the safe side of a skip list: it costs a file run
  * twice, never a file run zero times.

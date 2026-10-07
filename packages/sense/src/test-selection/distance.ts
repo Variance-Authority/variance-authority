@@ -203,12 +203,11 @@ export interface DistanceOptions {
  *
  * A test the record holds `incomplete` and the change did not enter is placed
  * too, by the shortest path it executed to a file the diff was read in
- * (`readings`) and the test entered, and left out when it executed none. Its
- * record is missing the cases it did not run, so *entered no changed region* is
- * no evidence it is far. A changed file it never entered is no seed: the last
+ * (`readings`) and the test loaded; with no such path it is left out. Its
+ * record lacks the cases it did not run, so *entered no changed region* is no
+ * evidence it is far, and a changed file it never loaded is no seed: the last
  * hop to it would be an edge nothing says the test ran. A partial run over an
- * edit is the ordinary way to get one: it demotes every test carried over the
- * edited region, and the reading of that file is then `none`.
+ * edit leaves such tests, and reads that file `none`.
  */
 export function distanceFromView(
   coverage: TestCoverageView,
@@ -219,16 +218,19 @@ export function distanceFromView(
   const placed = narrowing.because.map((cause) => place(coverage, cause, entered, options));
   const selected = new Set(narrowing.entered);
   const read = (narrowing.readings ?? []).map((reading) => reading.file);
-  const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   for (const test of narrowing.incomplete ?? []) {
-    const ran = entered.get(findTest(coverage, test) ?? -1);
-    const seeds = read.filter((file) => knownAs(file).some((name) => ran?.has(name) === true));
-    if (selected.has(test) || seeds.length === 0) continue;
-    const distance = measure(coverage, test, seeds, new Map(), entered, options);
+    if (selected.has(test)) continue;
+    const ran = entered.get(findTest(coverage, test) ?? -1) ?? new Set<string>();
+    const seeds = read.filter((file) => (options.knownAs ?? ownName)(file).some((name) => ran.has(name)));
+    if (seeds.length === 0) continue;
+    const distance = measure(test, seeds, new Map(), ran, options);
     if (distance.hops !== undefined) placed.push(distance);
   }
   return placed.sort(nearestFirst);
 }
+
+/** A file held under its own path alone, when no `knownAs` names more. */
+const ownName = (file: string): readonly string[] => [file];
 
 /** The one comparison every consumer of this reading sorts by. */
 export function nearestFirst(left: TestDistance, right: TestDistance): number {
@@ -275,19 +277,18 @@ function place(
     }
   }
 
-  return measure(coverage, cause.test, seeds, chains, entered, options);
+  return measure(cause.test, seeds, chains, entered.get(findTest(coverage, cause.test) ?? -1) ?? new Set(), options);
 }
 
-/** The walk from `test` to the nearest seed, with each seed's importer chain spliced back on. */
+/** Walk from `test` through the modules it `ran` to the nearest seed, and splice that seed's chain back on. */
 function measure(
-  coverage: TestCoverageView,
   test: string,
   seeds: readonly string[],
   chains: ReadonlyMap<string, readonly string[]>,
-  entered: ReadonlyMap<number, ReadonlySet<string>>,
+  ran: ReadonlySet<string>,
   options: DistanceOptions,
 ): TestDistance {
-  const walked = walk(test, seeds, entered.get(findTest(coverage, test) ?? -1) ?? new Set(), options);
+  const walked = walk(test, seeds, ran, options);
   if ('because' in walked) {
     return walked.because === undefined
       ? { test, bearing: 'unexplained' }
@@ -344,7 +345,7 @@ function walk(
   const { relations } = options;
   if (relations === undefined) return { because: 'no import graph was supplied' };
   if (seeds.length === 0) return { because: 'nothing named a file to measure from' };
-  const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
+  const knownAs = options.knownAs ?? ownName;
   const held = options.enumerated ?? ((): boolean => true);
 
   // Every name, not the first one that resolves. One module can be two nodes —

@@ -126,7 +126,7 @@ describe('one leg of the selection', () => {
     expect(selectionNotes(end)).toContain('skipping 4 test files: 1 of 5 recorded whole covered no changed line, and 3 are outside');
   });
 
-  it('runs a test the record holds incomplete, and the change did not enter, only in the end leg', () => {
+  it('runs a test the record holds incomplete, with no path to the change, only in the end leg', () => {
     const SKIPPED = 'test/skipped.test.ts';
     const input = read(DISTANCES, [GHOST, SKIPPED]);
     const near = inLeg(skippableTests(input), input, { from: 0, to: 2 });
@@ -138,6 +138,30 @@ describe('one leg of the selection', () => {
     expect(selectionNotes(near)).toContain(
       '1 test file the record never saw whole and the change did not enter is left for the leg that reaches the end',
     );
+  });
+
+  // A placed incomplete test is measured like an entered one, so it can be the
+  // furthest test of the reading: a closed leg short of it does not reach the
+  // end, and an entered test with no distance waits for the leg that does.
+  it('runs an unplaced entered test only in the leg past a placed incomplete test', () => {
+    const PARTIAL = 'test/partial.test.ts';
+    const input: SelectInput = {
+      at: '/cache/coverage.bin',
+      ground: {
+        kind: 'read',
+        narrowing: { whole: WHOLE, incomplete: [PARTIAL], entered: [GHOST, NEAR], unread: [], stale: [], because: [] },
+        distances: [
+          { test: NEAR, bearing: 'direct', hops: 1 },
+          { test: GHOST, bearing: 'unexplained' },
+          { test: PARTIAL, bearing: 'transitive', hops: 3 },
+        ],
+      },
+    };
+    const near = inLeg(skippableTests(input), input, { from: 0, to: 2 });
+    const end = inLeg(skippableTests(input), input, { from: 3, to: Number.MAX_SAFE_INTEGER });
+
+    expect(near.skip).toEqual([FAR, GHOST, IDLE, MID, PARTIAL]);
+    expect(end.skip).toEqual([FAR, IDLE, MID, NEAR]);
   });
 
   it('names what the leg left and the leg that runs it, on stderr', () => {
@@ -309,7 +333,7 @@ describe('a leg read from a real record and a real graph', () => {
   // one of them may call what changed. The change entered nobody here, so the
   // test is selected by being incomplete, and it is one import from the change.
   it('runs a test the record never saw whole in the leg its hops from the change put it in', async () => {
-    const { root, head } = checkout({ 'src/spare.ts': SPARE, [PARTIAL]: "import { kept } from '../src/spare';\nkept();\n" });
+    const { root, head } = checkout({ 'src/spare.ts': SPARE, [PARTIAL]: "import { untouched } from '../src/spare';\nuntouched();\n" });
     const recorded = snapshot(head);
     await writeTestCoverage(testCoverageFile(root), {
       ...recorded,
@@ -335,21 +359,19 @@ describe('a leg read from a real record and a real graph', () => {
   });
 
   // A file whose every case skipped, such as a browser file with no page built,
-  // is recorded incomplete with only the modules it loaded. It waits for the
-  // end leg until an edit lands in one of those, and then runs at its hops.
-  it('runs a file whose every case skipped in the near leg only when it loaded the changed file', async () => {
+  // is recorded incomplete with only the modules it loaded. When an edit lands
+  // in one of those, it runs at its hops.
+  it('runs a file whose every case skipped in the leg of its hops to a changed file it loaded', async () => {
     const LOADED = 'test/loaded.chromium.test.ts';
-    const ELSEWHERE = 'test/elsewhere.chromium.test.ts';
     const { root, head } = checkout({
       'src/spare.ts': SPARE,
       [LOADED]: "import { spare } from '../src/spare';\nit.skip('spare', () => spare());\n",
-      [ELSEWHERE]: "it.skip('nothing', () => {});\n",
     });
     const recorded = snapshot(head);
     const spare = spareModule();
     await writeTestCoverage(testCoverageFile(root), {
       ...recorded,
-      tests: [...recorded.tests, ...[LOADED, ELSEWHERE].map((file) => ({ file, complete: false, preconditions: [] }))],
+      tests: [...recorded.tests, { file: LOADED, complete: false, preconditions: [] }],
       modules: [...recorded.modules, { ...spare, blocks: spare.blocks.map((block) => ({ ...block, testFiles: [], loadedBy: [LOADED] })) }],
     });
     writeFileSync(join(root, 'src/spare.ts'), SPARE.replace("return 'b';", "return 'y';"));
@@ -363,16 +385,14 @@ describe('a leg read from a real record and a real graph', () => {
 
     expect(near.distances).toContainEqual(expect.objectContaining({ test: LOADED, hops: 1 }));
     expect(near.skip).not.toContain(LOADED);
-    expect(near.left).toContain(ELSEWHERE);
     expect(end.left).toContain(LOADED);
-    expect(end.skip).not.toContain(ELSEWHERE);
   });
 });
 
 const WIDGET = ['export function widget(): string {', "  return 'a';", '}', ''].join('\n');
 const CALLER = ["import { widget } from './widget';", 'export const caller = (): string => widget();', ''].join('\n');
 /** Two functions: a test that did not run whole entered the first, and nothing entered the second. */
-const SPARE = ['export function kept(): string {', "  return 'a';", '}', 'export function spare(): string {', "  return 'b';", '}', ''].join('\n');
+const SPARE = ['export function untouched(): string {', "  return 'a';", '}', 'export function spare(): string {', "  return 'b';", '}', ''].join('\n');
 const PARTIAL = 'test/partial.test.ts';
 const OUTER = ["import { caller } from './caller';", 'export const outer = (): string => caller();', ''].join('\n');
 
@@ -443,7 +463,7 @@ function spareModule(): TestCoverage['modules'][number] {
     instrumented: true,
     blocks: [
       { ...block, ordinal: 0, kind: 'module', digest: digestString('src/spare.ts'), name: 'src/spare.ts', path: 'module', startLine: 1, endLine: 6 },
-      { ...block, ordinal: 1, kind: 'function', owner: 0, digest: digestString('kept'), name: 'kept', path: 'kept', startLine: 1, endLine: 3 },
+      { ...block, ordinal: 1, kind: 'function', owner: 0, digest: digestString('untouched'), name: 'untouched', path: 'untouched', startLine: 1, endLine: 3 },
       { ...block, ordinal: 2, kind: 'function', owner: 0, digest: digestString('spare'), name: 'spare', path: 'spare', startLine: 4, endLine: 6, testFiles: [] },
     ],
   };
