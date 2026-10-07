@@ -36,6 +36,7 @@ async function collect(total: number, options: { ids?: readonly string[]; answer
     const path = join(root, `evidence-${String(index)}.json`);
     await runCollect({ command: 'collect', config: join(root, 'variance.config.json'), shard: { index, total }, out: path }, config, streams, {
       cwd: root,
+      env: {},
       load: async (_path, context) => collecting(context.plan!, options.answer ?? ok).collector,
     });
     paths.push(path);

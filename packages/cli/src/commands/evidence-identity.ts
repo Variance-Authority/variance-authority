@@ -1,13 +1,13 @@
 // compass: variance-authority.report.shard-merge
-import { execFile } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
-import { promisify } from 'node:util';
 import { digestBytes, digestValue, type CanonicalValue } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Config } from '../config.js';
 import { CLI_VERSION } from '../version.js';
+import { identityOf } from './history.js';
 import { sourceFiles } from './source-graph.js';
+import { headOf } from './suite-share.js';
 import { recipeOf, type EvidenceBuild, type EvidenceDiagnostic, type EvidenceRecipe } from './evidence-part.js';
 
 /**
@@ -21,8 +21,6 @@ import { recipeOf, type EvidenceBuild, type EvidenceDiagnostic, type EvidenceRec
  * job ran, so the same checkout on two machines reads one recipe.
  */
 
-const run = promisify(execFile);
-
 /** The lexicon a part's rows are written in; a row's reading changes when this does. */
 const LEXICON_VERSION = 1;
 
@@ -32,10 +30,11 @@ export interface Identity {
   readonly diagnostics: readonly EvidenceDiagnostic[];
 }
 
-export async function evidenceIdentity(config: Config, cwd: string): Promise<Identity> {
+/** `env` names the commit as it names a run's: the CI system's pair, read whole, before the checkout's HEAD. */
+export async function evidenceIdentity(config: Config, cwd: string, env: Readonly<Record<string, string | undefined>>): Promise<Identity> {
   const diagnostics: EvidenceDiagnostic[] = [];
   const [commit, storybook, source] = await Promise.all([
-    commitOf(cwd),
+    identityOf({}, env)?.commit ?? headOf(cwd),
     config.subjects.kind === 'storybook' ? directoryDigest(dirname(config.subjects.index)) : undefined,
     sourceDigest(cwd, config.source?.dirs ?? []),
   ]);
@@ -75,14 +74,6 @@ export function readsOf(config: Config, cwd: string): CanonicalValue {
     blank: (config.blank ?? null) as unknown as CanonicalValue,
     ignore: (config.ignore ?? null) as unknown as CanonicalValue,
   };
-}
-
-async function commitOf(cwd: string): Promise<string | undefined> {
-  try {
-    return (await run('git', ['rev-parse', '--verify', 'HEAD'], { cwd })).stdout.trim();
-  } catch {
-    return undefined;
-  }
 }
 
 /** The digest of every file under `root`, by path and contents. */

@@ -31,10 +31,12 @@ type Merging = Extract<ParsedCollect, { operation: 'merge' }>;
 
 export interface CollectDeps {
   readonly cwd: string;
+  /** Where CI says which commit it built. */
+  readonly env: Readonly<Record<string, string | undefined>>;
   readonly load: (path: string, context: CollectorContext) => Promise<Collector>;
 }
 
-const LIVE: CollectDeps = { cwd: process.cwd(), load: loadCollector };
+const LIVE: CollectDeps = { cwd: process.cwd(), env: process.env, load: loadCollector };
 
 export async function runCollect(parsed: Collecting, config: Config, streams: Streams, deps: CollectDeps = LIVE): Promise<ExitCode> {
   // The rules still live today, as `run` hands them over: an expired ignore
@@ -43,7 +45,7 @@ export async function runCollect(parsed: Collecting, config: Config, streams: St
     parsed.workers === undefined ? config : { ...config, workers: parsed.workers },
     new Date().toISOString(),
   );
-  const [plan, identity] = await Promise.all([planFor(effective), evidenceIdentity(effective, deps.cwd)]);
+  const [plan, identity] = await Promise.all([planFor(effective), evidenceIdentity(effective, deps.cwd, deps.env)]);
   const dirs = effective.source?.dirs ?? [];
   const source = dirs.length === 0 ? undefined : await scanSourceDirs(deps.cwd, dirs);
   const collector = await deps.load(collectorPath(effective.subjects), { config: effective, ...(plan === undefined ? {} : { plan }) });
