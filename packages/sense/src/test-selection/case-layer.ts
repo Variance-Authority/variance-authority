@@ -401,3 +401,13 @@ function caseOrder(left: KeyedCase, right: KeyedCase): number {
   }
   return 0;
 }
+
+/** The index `bytes` holds, opened at its sets; `undefined` when there is none, or none this build can lay over. */
+export function openPrevious(bytes: Uint8Array | undefined): OpenedSetExecutionIndex | undefined {
+  if (bytes === undefined) return undefined;
+  try {
+    return openSetExecutionIndex(bytes);
+  } catch {
+    return undefined;
+  }
+}

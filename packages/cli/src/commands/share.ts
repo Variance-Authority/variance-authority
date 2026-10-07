@@ -123,6 +123,8 @@ export type RunPublish =
       readonly leftOut?: readonly string[];
       readonly unpublished?: readonly string[];
       readonly eyes?: readonly string[];
+      /** By entry, the test files a mainline publish retired because the suite no longer collects them. */
+      readonly retired?: Readonly<Record<string, readonly string[]>>;
     } & NoMainline)
   | ({ readonly line: ShareLine; readonly miss: MainlineMiss } & NoMainline)
   | { readonly none: string };
@@ -460,6 +462,7 @@ export function describePublish(config: Pick<Config, 'share'>, done: RunPublish)
     ...(done.unpublished ?? []).map((why) => `left out ${why}.`),
     ...(done.eyes ?? []).map((name) =>
       `${name} carried its cases' Eyes journals: the record's eyes section went with it.`),
+    ...Object.entries(done.retired ?? {}).map(([name, files]) => `retired ${String(files.length)} test file(s) from ${name} that the suite no longer collects, ${files[0]!} among them.`),
   ];
 }
 

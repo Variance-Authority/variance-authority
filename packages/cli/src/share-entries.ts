@@ -33,6 +33,7 @@ import {
   askCoverageFile,
   caseSectionsAt,
   caseSectionsOf,
+  collectedRecord,
   commitRunsFile,
   lastCaseRunOf,
   sharedRecord,
@@ -140,6 +141,14 @@ export function readReportEntry(
 }
 
 /**
+ * A `suite-v1/<suite>` entry, and the test files a mainline publish retired
+ * from it because the suite no longer collects them; absent when it retired none.
+ */
+export interface SuiteEntry extends ShareEntry {
+  readonly retired?: readonly string[];
+}
+
+/**
  * One suite's record as a `suite-v1/<suite>` entry; undefined when the suite
  * has recorded nothing here, which is not an empty record; or why the record
  * here is not published.
@@ -158,6 +167,9 @@ export function readReportEntry(
  * whole suite at this commit, which {@link wholeRunAt} tells from the runs record
  * and from what the runner collects (`collected`), never from the caller's
  * word. Without `collected` it cannot be told, and the record is left out.
+ * With it, the published record holds only the test files the suite collects:
+ * a row for any other is retired, with its crossings and cases, and named in
+ * `retired`.
  *
  * A record whose run instrumented no module holds its cases and no coverage.
  * It names its commit through the run that kept those cases, and is published
@@ -170,7 +182,7 @@ export async function suiteEntryOf(
   suite: string,
   at: Derived,
   options: { readonly whole?: boolean; readonly collected?: ReadonlySet<string> } = {},
-): Promise<ShareEntry | { readonly unpublished: string } | undefined> {
+): Promise<SuiteEntry | { readonly unpublished: string } | undefined> {
   const coverage = testCoverageFile(root, { suite });
   const record = await held(coverage);
   if (record === undefined) return undefined;
@@ -184,19 +196,29 @@ export async function suiteEntryOf(
   if (recorded === undefined) return { unpublished: `its record at ${coverage} names no commit` };
   if (recorded !== at.commit) return { unpublished: `its record at ${coverage} was recorded at ${recorded}, not at ${at.commit}` };
   const runs = await held(commitRunsFile(coverage));
+  // The cases travel in the record; what names this checkout's last run does not.
+  let shared = sharedRecord(record);
+  let retired: readonly string[] = [];
   if (options.whole === true && !uncovered) {
     const partial = wholeRunAt(runs, at.commit, options.collected);
     if (partial !== undefined) return { unpublished: `its record at ${coverage} is not a whole run: ${partial}` };
+    // A whole run is counted against what the runner collects, so that list is
+    // here, and a row it does not name is no longer the suite's.
+    try {
+      ({ record: shared, retired } = collectedRecord(shared, options.collected!));
+    } catch (error) {
+      return { unpublished: `its record at ${coverage} is not cut to what the runner collects: ${error instanceof Error ? error.message : String(error)}` };
+    }
   }
 
   return {
     name: suiteEntry(suite),
     ...at,
     bytes: frame([
-      // The cases travel in the record; what names this checkout's last run does not.
-      ['coverage.bin', sharedRecord(record)],
+      ['coverage.bin', shared],
       ...(runs === undefined ? [] : [[RUNS_PART, runs] as const]),
     ]),
+    ...(retired.length === 0 ? {} : { retired }),
   };
 }
 
@@ -226,9 +248,9 @@ const RUNS_PART = 'coverage.runs.json';
  * file the suite no longer collects there. The runs record lists the tests that
  * ran at its commit and, under `standing`, where every other test last ran; a
  * record without `standing` does not know, and is not taken as whole. A test
- * file the suite stopped collecting stays in the record, because its cases are
- * what the base had, so a test standing at an older commit counts against the
- * run only while the suite still collects it.
+ * file the suite stopped collecting stands at the commit it last ran at until
+ * the publish retires it, so a test standing at an older commit counts against
+ * the run only while the suite still collects it.
  *
  * The runner owns what the suite collects, so `collected` is its answer: the
  * repository-relative test files it lists at `commit`, each of which the runs

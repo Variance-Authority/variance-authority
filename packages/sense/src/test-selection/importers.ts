@@ -115,8 +115,13 @@ export interface ExecutionNarrowingOptions {
    *
    * `undefined` for a file the commit does not hold is the same disagreement:
    * the snapshot has a row for a file that did not exist there.
+   *
+   * `asking` is every changed path the selection reads a text under, the same
+   * list with every ask, complete before the first: a reader that fetches
+   * paths together fetches these, and none of the rest of the diff. A path
+   * outside it — an unchanged importer — is still asked.
    */
-  readonly sourceAt?: (file: string, commit: string | undefined) => string | undefined;
+  readonly sourceAt?: (file: string, commit: string | undefined, asking?: readonly string[]) => string | undefined;
   /**
    * The text a landing kept for a digest `modules.source` holds, when the
    * commit on the label does not hold it (`keptTexts`).
