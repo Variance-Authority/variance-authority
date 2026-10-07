@@ -121,9 +121,15 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
 function byDistance(reading: readonly TestDistance[]): readonly string[] {
   if (reading.length === 0) return [];
   const groups = groupByDistance(reading);
-  // Nearest first, so the last placed group holds the furthest hop measured.
-  const furthest = groups.filter((group) => !group.unplaced).at(-1)?.hops;
-  const runs = furthest === undefined ? 'in the open leg' : `in the leg that holds ${many(furthest, 'hop')}, the furthest measured`;
+  // `atDistance` owns where the unplaced run: ask it which measured hop's leg
+  // returns one, and when none does, they run in the open leg.
+  const unplaced = groups.find((group) => group.unplaced)?.tests[0];
+  const carrier =
+    unplaced === undefined
+      ? undefined
+      : groups.find((group) => group.hops !== undefined && atDistance(reading, group.hops, group.hops).includes(unplaced))
+          ?.hops;
+  const runs = carrier === undefined ? 'in the open leg' : `in the leg that holds ${many(carrier, 'hop')}, the furthest measured`;
   const counts = groups.map((group) =>
     group.unplaced
       ? `${group.tests.length} at no measured distance, which ${group.tests.length === 1 ? 'runs' : 'run'} ${runs}`
