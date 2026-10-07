@@ -56,10 +56,12 @@ export const entrypoint: Tool<Help> = {
   },
 
   run(help, input) {
-    const subpath = typeof input['subpath'] === 'string' && input['subpath'] !== '' ? input['subpath'] : undefined;
+    // `.` is the default the schema names, so asking for it is not asking for a subpath.
+    const given = input['subpath'];
+    const subpath = typeof given === 'string' && given !== '' && given !== '.' ? given : undefined;
     const said = stringArg(input, 'package');
     // One string, the way an import line writes it, whichever way it was asked.
-    const asked = subpath === undefined || subpath === '.' ? said : `${said}${subpath.replace(/^\./u, '')}`;
+    const asked = subpath === undefined ? said : `${said}${subpath.replace(/^\./u, '')}`;
     const owner = ownerOf(asked);
 
     const unentered = unenteredAnswer(help, asked, owner);

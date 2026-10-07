@@ -15,6 +15,8 @@ asked by a package's name now also lists each import that reaches past its
 entry, and asked by such a specifier lists that specifier's imports. Asked by
 the name of a package whose `exports` opens only subpaths, it lists the
 specifiers the package opens where it used to refuse with "does not open `.`".
+`--subpath .` answers exactly as the package name alone, where it left out the
+imports past the entry, or refused for a package that opens only subpaths.
 
 An import into a published package whose declared entry leads to no source
 file, such as a `main` naming a build output the checkout does not hold, is

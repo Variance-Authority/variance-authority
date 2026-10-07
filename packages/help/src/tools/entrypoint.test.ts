@@ -68,6 +68,12 @@ describe('docs_entrypoint on a package other packages import by path', () => {
     expect(text).toMatch(/^ {2}variance ask entrypoint --package @acme\/srv\/server$/m);
   });
 
+  it('answers `--subpath .` exactly as it answers the package name alone', () => {
+    for (const [help, name] of [[BY_PATH, '@acme/lib'], [SUBPATHS_ONLY, '@acme/srv'], [QUIET, '@acme/quiet'], [BY_PATH, '@acme/kit']] as const) {
+      expect(entrypoint.run(help, { package: name, subpath: '.' })).toBe(entrypoint.run(help, { package: name }));
+    }
+  });
+
   it('says the counts are floors when a file could not be read', () => {
     const text = entrypoint.run({ ...BY_PATH, unreadable: ['apps/app/src/broken.ts'] }, { package: '@acme/lib' });
 
