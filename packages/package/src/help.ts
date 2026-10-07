@@ -295,7 +295,7 @@ export function undocumented(help: Help): readonly Entry[] {
  */
 export { opening, writeGaps, writeIndex, writeLlms } from './write.js';
 export type { Page } from './write.js';
-export { readUsage, usageFrom, kindOf } from './use.js';
+export { gatheringUsage, kindOf, readUsage, usageFrom } from './use.js';
 export type {
   Bound,
   Named,

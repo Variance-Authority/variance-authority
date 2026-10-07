@@ -266,12 +266,7 @@ export interface Exported {
  * them that declare no entry, whose imports are listed apart from the deep ones.
  */
 export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>, targets: ImportTargets): Usage {
-  const names = new Map<string, Map<string, Use[]>>();
-  const deep: Deep[] = [];
-  const byPath: Deep[] = [];
-  const unfollowed: Deep[] = [];
-  const exported: Named[] = [];
-  const unreadable: string[] = [];
+  const usage = gatheringUsage();
 
   for (const file of files) {
     const { at, by } = file;
@@ -279,12 +274,12 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
     // and a file that parsed with one specifier this could not follow, and
     // rounding the second down to the first would drop every import the file
     // does write — which is the direction of error this whole reading avoids.
-    if (file.unknown !== undefined) unreadable.push(at);
+    if (file.unknown !== undefined) usage.unreadable.push(at);
 
     const kind = kindOf(at);
 
     for (const published of file.publishes ?? []) {
-      exported.push({ name: published.name, at, by, line: published.line, type: published.type, kind });
+      usage.exported.push({ name: published.name, at, by, line: published.line, type: published.type, kind });
     }
 
     for (const asked of file.requests) {
@@ -294,22 +289,48 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
 
       if (lands !== 'opened') {
         const taken = asked.names.map((bound) => ({ name: bound.imported, by, at, line: bound.line, type: bound.type, kind }));
-        const into = lands === 'byPath' ? byPath : lands === 'unfollowed' ? unfollowed : deep;
-        into.push({ specifier: asked.specifier, by, at, line: asked.line, names: taken });
+        usage.past(lands, { specifier: asked.specifier, by, at, line: asked.line, names: taken });
         continue;
       }
 
-      const held = names.get(key) ?? new Map<string, Use[]>();
-      names.set(key, held);
-      for (const bound of asked.names) {
-        const uses = held.get(bound.imported) ?? [];
-        held.set(bound.imported, uses);
-        uses.push({ by, at, line: bound.line, type: bound.type, kind });
-      }
+      for (const bound of asked.names) usage.take(key, bound.imported, { by, at, line: bound.line, type: bound.type, kind });
     }
   }
 
-  return { names, deep, byPath, unfollowed, exported, unreadable };
+  return usage.read();
+}
+
+/**
+ * A `Usage` while it is gathered: the one place that says which list an import
+ * between packages is kept on. `usageFrom` fills one from recorded files, and
+ * the scan's collector fills one from the parses it already holds.
+ */
+export function gatheringUsage(): {
+  /** Keep an import that lands anywhere but in what the workspace opens, on the list its landing names. */
+  past(lands: 'byPath' | 'deep' | 'unfollowed', held: Deep): void;
+  /** Record one place that takes `name` through the opened specifier `key`. */
+  take(key: string, name: string, use: Use): void;
+  readonly exported: Named[];
+  readonly unreadable: string[];
+  read(): Usage;
+} {
+  const names = new Map<string, Map<string, Use[]>>();
+  const past = { byPath: [] as Deep[], deep: [] as Deep[], unfollowed: [] as Deep[] };
+  const exported: Named[] = [];
+  const unreadable: string[] = [];
+  return {
+    past: (lands, held) => void past[lands].push(held),
+    take(key, name, use) {
+      const held = names.get(key) ?? new Map<string, Use[]>();
+      names.set(key, held);
+      const uses = held.get(name) ?? [];
+      held.set(name, uses);
+      uses.push(use);
+    },
+    exported,
+    unreadable,
+    read: () => ({ names, ...past, exported, unreadable }),
+  };
 }
 
 /**

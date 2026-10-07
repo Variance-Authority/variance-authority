@@ -6,12 +6,12 @@
 import type { Parsed } from '@variance-authority/sense';
 import { NAMESPACE_NAME } from '@variance-authority/sense/read';
 import {
+  gatheringUsage,
   kindOf,
   landing,
   requested,
   type Deep,
   type ImportTargets,
-  type Named,
   type Taken,
   type Usage,
   type Use,
@@ -35,22 +35,17 @@ export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTarg
   targets(at: string, targets: readonly (string | undefined)[]): void;
   read(): Usage;
 } {
-  const names = new Map<string, Map<string, Use[]>>();
-  const deep: Deep[] = [];
-  const byPath: Deep[] = [];
-  const unfollowed: Deep[] = [];
+  const usage = gatheringUsage();
   const pending = new Map<string, Map<number, Pending>>();
-  const exported: Named[] = [];
-  const unreadable: string[] = [];
 
   return {
     accept(at, by, parsed) {
-      if (parsed.unknown !== undefined) unreadable.push(at);
+      if (parsed.unknown !== undefined) usage.unreadable.push(at);
       const kind = kindOf(at);
 
       for (const published of parsed.exports ?? []) {
         if (published.exported !== undefined) {
-          exported.push({
+          usage.exported.push({
             name: published.exported,
             at,
             by,
@@ -67,27 +62,19 @@ export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTarg
         if (lands === undefined) continue;
         if (lands !== 'opened') {
           const held: Pending = { specifier: asked.value, by, at, line: asked.line, names: takenBy(asked, index, parsed, by, at, kind) };
-          (lands === 'byPath' ? byPath : lands === 'unfollowed' ? unfollowed : deep).push(held);
+          usage.past(lands, held);
           const file = pending.get(at) ?? new Map<number, Pending>();
           pending.set(at, file);
           file.set(index, held);
           continue;
         }
 
-        const held = names.get(key) ?? new Map<string, Use[]>();
-        names.set(key, held);
         for (const binding of asked.bindings) {
-          if (binding.imported === NAMESPACE_NAME) continue;
-          const uses = held.get(binding.imported) ?? [];
-          held.set(binding.imported, uses);
-          uses.push({ by, at, line: binding.line, type: binding.type, kind });
+          if (binding.imported !== NAMESPACE_NAME) usage.take(key, binding.imported, { by, at, line: binding.line, type: binding.type, kind });
         }
         const through = { kind: asked.kind === 'dynamic' ? 'dynamic' : 'namespace', line: asked.line } as const;
         for (const member of parsed.members ?? []) {
-          if (member.request !== index) continue;
-          const uses = held.get(member.name) ?? [];
-          held.set(member.name, uses);
-          uses.push({ by, at, line: member.line, type: false, kind, through });
+          if (member.request === index) usage.take(key, member.name, { by, at, line: member.line, type: false, kind, through });
         }
       }
     },
@@ -97,7 +84,7 @@ export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTarg
         if (to !== undefined) held.to = to;
       }
     },
-    read: () => ({ names, deep, byPath, unfollowed, exported, unreadable }),
+    read: () => usage.read(),
   };
 }
 
