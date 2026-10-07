@@ -4,7 +4,7 @@ import { normalize } from '../rules/normalize/index.js';
 import type { SubjectComposition } from './composition.js';
 import { SUITE, chip, instance } from './composition-fixture.js';
 import { componentInstances } from './instances.js';
-import { LEXICON_CAP, lexiconOf, lexiconValuesOf, structureOf, withDeclaredIn } from './lexicon.js';
+import { LEXICON_CAP, lexiconOf, structureOf } from './lexicon.js';
 
 /**
  * The subject-first folds, tested at the edges where they would lie.
@@ -167,23 +167,5 @@ describe('structureOf — one subject as rows', () => {
       instances: [instance({ component: '(unattributed)', path: '0', depth: 0 })],
     });
     expect(rows).toEqual([]);
-  });
-});
-
-describe('withDeclaredIn — the declared files, read after the snapshot is gone', () => {
-  const declaredIn = new Map([['Chip', ['src/ds/Chip.tsx', ' ', 'v1:0123456789abcdef']], ['Story', ['a/Story.tsx']]]);
-
-  it('is the reading one pass with the source index would have taken', () => {
-    for (const subject of SUITE) {
-      const late = withDeclaredIn(lexiconValuesOf(subject), subject.instances, declaredIn);
-      expect(late).toEqual(lexiconValuesOf(subject, { declaredIn }));
-    }
-  });
-
-  it('adds to the files the snapshot named, and never reads an unattributed root', () => {
-    const row = { subject: 's', fields: { files: ['z/call.tsx'] }, landmarks: [], boundaries: 1 };
-    const instances = [instance({ component: '(unattributed)', path: '0', depth: 0 }), instance({ component: 'Story', path: '0/0' })];
-    expect(withDeclaredIn(row, instances, new Map([['(unattributed)', ['x.tsx']], ['Story', ['a/Story.tsx']]])).fields.files)
-      .toEqual(['a/Story.tsx', 'z/call.tsx']);
   });
 });
