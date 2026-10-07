@@ -1551,10 +1551,12 @@ to write prints `source index not written: <reason>, at <path>` and exits `2`.
 On your machine the command returns once the index is written. The code map,
 the journeys and the last two lines are made by a process it starts for them,
 and a `follow-ups:` line names that process and the file its lines go to. The
-next `variance` command waits for it before reading anything, and prints that on
-stderr, so no answer comes from a map older than the index. A process that ended
-before it finished is not waited on: the next command makes them itself and
-prints their lines. `--wait` makes them before `index` returns, which is what it
+next `variance` command that reads any of them waits for it, and prints that on
+stderr, so no answer comes from a map older than the index. `variance select`
+reads none of them, and waits only while the process brings the index up to
+date and folds its working layer into its base, which it does before the four. A process that ended before it
+finished is not waited on: the next command that reads them makes them itself
+and prints their lines. `--wait` makes them before `index` returns, which is what it
 always does in CI. `--follow-ups` is what the started process runs.
 
 In CI, run it as its own step after you restore the cache. A reader that finds

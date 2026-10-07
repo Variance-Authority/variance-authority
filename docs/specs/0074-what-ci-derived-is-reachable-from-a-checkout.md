@@ -43,8 +43,9 @@ reader says so.
   gutter names the mainline and the commit it was published at, the way
   `select`'s `record of "<suite>":` line does.
 - **The editor asks the CLI to fetch**, the way `variance share --suite
-  <name>` does, within the same reuse window, so an editor session asking ten
-  questions fetches once and a runner seam is never the one that fetches.
+  <name>` does, and keeps what it fetched while the merge base stands, so an
+  editor session asking ten questions fetches once and a runner seam is never
+  the one that fetches.
 
 ## Acceptance
 
