@@ -1,8 +1,8 @@
 ---
-"@variance-authority/help": patch
-"@variance-authority/cli": patch
-"@variance-authority/package": patch
-"@variance-authority/sense": patch
+"@variance-authority/help": minor
+"@variance-authority/cli": minor
+"@variance-authority/package": minor
+"@variance-authority/sense": minor
 ---
 
 `variance ask packages` (`docs_packages`) counts and lists no import site: one
@@ -36,21 +36,38 @@ package imports it. An import that names a declared entry is counted as an
 import of an entry this reading could not follow to a source file, not as one
 reaching past the entry; only an import past every declared entry reaches past
 it. `variance ask packages` counts those packages and their imports,
-`variance ask entrypoint` lists them, and `uses` and `symbol` answer for the
-names taken from them. `readUnentered` is replaced by `readImportTargets`,
-which reads the published packages, the ones that declare no entry and the
-entries each published package declares in one pass, and `landing` says where
-one import between packages lands: opened by an entry, at a declared entry the
-reading could not follow, past every declared entry, or by path into a package
-that declares none. `Help` and `Usage` carry those imports as `unfollowed`.
+`variance ask entrypoint` counts them, and `uses` and `symbol` answer for the
+names taken from them. `landing` says where one import between packages
+lands: opened by an entry, at a declared entry the reading could not follow,
+past every declared entry, or by path into a package that declares none.
+`Help` and `Usage` carry the imports of an entry the reading could not follow as
+`unfollowed`.
 
 A package that declares its entry by `typings` alone is read as declaring one
 in every answer, where `variance ask packages` counted its imports as of an
-entry it could not follow and left the package out of that count.
-`declaresEntry` is the one answer to whether a manifest declares an entry, and
-`Offering` and `Documented` carry it as `entry`.
+entry it could not follow and left the package out of that count. `Offering`
+and `Documented` carry whether a manifest declares an entry as `entry`, read
+from the whole manifest whichever keys `declared` records.
 
 On a repository whose packages declare no entry, `variance ask packages` went
 from 200,330 lines in 29.9 to 45.9 seconds to 1,339 lines in under half a
 second, and `variance ask entrypoint --package @kbn/core` went from 23,463
 lines to 13.
+
+Breaking:
+
+- `variance ask entrypoint --package <name>` (`docs_entrypoint`) counts the
+  imports past a package's entry, or of its files by path, one row per file, and
+  asked by one of those specifiers counts its imports per name. It printed
+  every import with the importer's file and line; `variance ask uses --name
+  <name> --package <specifier>` lists those for one name.
+- `readUnentered` and `publishes` are removed from
+  `@variance-authority/package/help`. `readImportTargets` reads the published
+  packages, the ones that declare no entry and the specifiers each published
+  manifest declares, in one pass.
+- `readHelp` from `@variance-authority/sense` takes those three as its third
+  argument, `{ published, unentered, declared }`, where it took the packages
+  that declare no entry; the native `read_help` it calls takes `published` and
+  `declared` as two more arguments.
+- `Offering` and `Documented` carry `entry`, and `Help` and `Usage` carry
+  `unfollowed`: a value built by hand adds them.
