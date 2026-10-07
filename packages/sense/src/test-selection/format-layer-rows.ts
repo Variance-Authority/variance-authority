@@ -18,6 +18,7 @@ import {
   withoutRetired,
 } from './merge-carry.js';
 import type { CoverageBlock, CoverageModule, CoverageTest, TestCoverage } from './index.js';
+import { editReaches, type EditReadings } from './edit-readings.js';
 
 /**
  * Which modules the output holds, and in what order.
@@ -73,8 +74,9 @@ export function layeredRows(input: {
   readonly retired: ReadonlySet<string>;
   readonly current: TestCoverage;
   readonly onDisk: ReadonlyMap<string, string>;
+  readonly readings: EditReadings | undefined;
 }): LayeredRows {
-  const { view, previousSets, previousTestRows, currentTests, retired, current, onDisk } = input;
+  const { view, previousSets, previousTestRows, currentTests, retired, current, onDisk, readings } = input;
   const {
     modulePath, moduleSource, moduleInstrumented, moduleBlocks,
     blockOrdinal, blockKind, blockOwner, blockDigest, blockName, blockPath,
@@ -225,7 +227,7 @@ export function layeredRows(input: {
           if (editedRegion(
             { sourceDigest: module.sourceDigest, digest: block.digest },
             { sourceDigest: view.string(moduleSource[at]!), digest: view.string(blockDigest[before]!) },
-          )) {
+          ) && editReaches(readings, module.file, view.string(moduleSource[at]!), module.sourceDigest, KINDS[blockKind[before]!]!)) {
             for (const file of files) if (!currentTests.has(file)) stale.add(file);
           }
           continue;

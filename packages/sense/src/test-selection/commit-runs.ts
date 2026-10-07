@@ -164,7 +164,7 @@ export async function landRun(
   const laid = cases === undefined
     ? previous
     : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules }, cases.eyes, recordedTexts(coverageFile), before?.commit);
-  const coverage = await layeredCoverage(coverageFile, current, root);
+  const coverage = await layeredCoverage(coverageFile, current, root, cacheRoot);
   const bytes = Object.values(laid).every((part) => part === undefined) ? coverage : withCaseSections(coverage, laid);
   await writeCoverageBytes(coverageFile, bytes);
   // The snapshot's rows are coordinates in the texts on disk now, and the

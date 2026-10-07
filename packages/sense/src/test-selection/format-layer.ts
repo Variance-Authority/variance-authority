@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { encodeTestCoverage, settledTest } from './format.js';
 import { carriedSources } from './carried-sources.js';
+import { editReadings, type EditReadings } from './edit-readings.js';
 import { wholeCoverage } from './format-view.js';
 import { layeredDictionary } from './format-dictionary.js';
 import { layeredRows } from './format-layer-rows.js';
@@ -40,6 +41,7 @@ export function layerTestCoverage(
   previous: Uint8Array | undefined,
   current: TestCoverage,
   onDisk: ReadonlyMap<string, string> = new Map(),
+  readings?: EditReadings,
 ): Buffer {
   if (previous === undefined) return encodeTestCoverage(current);
   // Undecodable counts as nothing to merge with, which is the bargain
@@ -97,6 +99,7 @@ export function layerTestCoverage(
     retired,
     current,
     onDisk,
+    readings,
   });
 
   const tests = [
@@ -302,11 +305,15 @@ export function layerTestCoverage(
  * its own: refusing would let a truncated write stop every later run from
  * recording anything, and this is a runner's teardown, where the sentence is
  * easiest to miss.
+ *
+ * The edits the run was recorded over are read here too ({@link editReadings}),
+ * so a body edit demotes the tests that entered the body and not every loader.
  */
 export async function layeredCoverage(
   file: string,
   current: TestCoverage,
   root: string,
+  cacheRoot?: string,
 ): Promise<Buffer> {
   let previous: Buffer;
   try {
@@ -314,5 +321,10 @@ export async function layeredCoverage(
   } catch {
     return encodeTestCoverage(current);
   }
-  return layerTestCoverage(previous, current, await carriedSources(root, previous, current));
+  return layerTestCoverage(
+    previous,
+    current,
+    await carriedSources(root, previous, current),
+    await editReadings(root, previous, current, cacheRoot),
+  );
 }
