@@ -122,6 +122,12 @@ describe('the owners reader', () => {
     expect((sources() as readonly string[]).filter((file) => /\.(test|spec|check|measure)\.[cm]?tsx?$/.test(file))).toEqual([]);
   });
 
+  it('reads the JavaScript a package ships beside its TypeScript', () => {
+    expect(sources()).toEqual(
+      expect.arrayContaining(['packages/editors/src/run.mjs', 'packages/jsx-source/jest-resolver.cjs']),
+    );
+  });
+
   it('refuses a file it cannot parse rather than finding nothing in it', () => {
     expect(() => sitesIn('packages/cli/src/a.ts', 'const = ;')).toThrow('packages/cli/src/a.ts');
   });

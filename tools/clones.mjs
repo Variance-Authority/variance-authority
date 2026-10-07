@@ -48,7 +48,15 @@ function fnv(text) {
   return `${(low >>> 0).toString(16).padStart(8, '0')}${(high >>> 0).toString(16).padStart(8, '0')}0000`;
 }
 
-const FORMATS = { '.ts': 'typescript', '.mts': 'typescript', '.cts': 'typescript', '.tsx': 'tsx', '.mjs': 'javascript' };
+const FORMATS = {
+  '.ts': 'typescript',
+  '.mts': 'typescript',
+  '.cts': 'typescript',
+  '.tsx': 'tsx',
+  '.js': 'javascript',
+  '.mjs': 'javascript',
+  '.cjs': 'javascript',
+};
 
 const formatOf = (file) => FORMATS[file.slice(file.lastIndexOf('.'))];
 

@@ -60,19 +60,20 @@ export const IDIOMS = {
 export function sources() {
   return execFileSync(
     'git',
-    // Without `:(glob)`, `*` crosses directories: these reach every depth.
-    ['ls-files', '--', 'packages/*/src/*.ts', 'packages/*/src/*.tsx', 'packages/*/src/*.mts', 'packages/*/src/*.cts',
-      'tools/*.mjs', 'tools/*.ts'],
+    // Without `:(glob)`, `*` crosses directories: these reach every depth. A
+    // package can also ship JavaScript, under `src/` or as a shim at its root.
+    ['ls-files', '--', ...['ts', 'tsx', 'mts', 'cts', 'js', 'mjs', 'cjs'].map((extension) => `packages/*/src/*.${extension}`),
+      ':(glob)packages/*/*.js', ':(glob)packages/*/*.mjs', ':(glob)packages/*/*.cjs', 'tools/*.mjs', 'tools/*.ts'],
     { cwd: ROOT, encoding: 'utf8' },
   )
     .trim()
     .split('\n')
-    .filter((file) => file !== '' && !isTest(file) && !file.endsWith('.d.ts'))
+    .filter((file) => file !== '' && !isTest(file) && !file.endsWith('.d.ts') && !/\.config\.[cm]?js$/.test(file))
     .filter((file) => existsSync(join(ROOT, file)));
 }
 
 const isTest = (file) =>
-  /\.(test|spec|check|measure)\.[cm]?tsx?$/.test(file) || /(^|\/)(__tests__|__fixtures__|fixtures|test)\//.test(file);
+  /\.(test|spec|check|measure)\.[cm]?[jt]sx?$/.test(file) || /(^|\/)(__tests__|__fixtures__|fixtures|test)\//.test(file);
 
 /** Every site of every idiom in one file's text, outside the files that own it. */
 export function sitesIn(file, text) {
