@@ -8,6 +8,7 @@
 // in an index somebody has already written.
 
 import { describe, expect, it } from 'vitest';
+import { INSTRUMENTATION_ID } from '../instrument/index.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { layerTestCoverage } from './format-layer.js';
 import { mergeCoverage } from './merge.js';
@@ -327,6 +328,11 @@ const CASES: Readonly<Record<string, Case>> = {
     previous: at(BASELINE, 'test/alpha.test.ts'),
     current: { ...at(LOCAL, 'test/beta.test.ts'), modules: [] },
     onDisk: new Map([['src/decide.ts', 'const scale = 2;\n']]),
+  },
+  'a carried module whose body was edited, under the recipe the seam records with': {
+    previous: { ...at(BASELINE, 'test/alpha.test.ts'), instrumentation: INSTRUMENTATION_ID },
+    current: { ...at(LOCAL, 'test/beta.test.ts'), instrumentation: INSTRUMENTATION_ID, modules: [] },
+    onDisk: new Map([['src/decide.ts', DECIDE.replace('n > 0', 'n > 1')]]),
   },
   'a carried module whose text cannot be read as source': {
     previous: at(BASELINE, 'test/alpha.test.ts'),

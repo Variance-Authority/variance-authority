@@ -18,7 +18,7 @@ import {
   crossedBlock,
   crossingsAround,
   editedRegion,
-  lostCrossings,
+  owedByRecut,
   recutRows,
   reusableBlock,
   sameNumbering,
@@ -342,7 +342,7 @@ export function mergeCoverage(
         : recutRows(module, now, current.instrumentation);
     const lost = recut === 'mislaid'
       ? [...new Set(module.blocks.flatMap((block) => block.testFiles))]
-      : recut === undefined ? [] : lostCrossings(module, recut);
+      : recut === undefined ? [] : owedByRecut(module, recut);
     for (const test of lost) if (!currentTests.has(test)) stale.add(test);
     carried.push(recut === undefined || recut === 'mislaid' ? module : recut);
   }

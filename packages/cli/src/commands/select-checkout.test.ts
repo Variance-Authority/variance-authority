@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import {
   landRun,
   testCoverageFile,
@@ -244,23 +245,45 @@ describe('reading this checkout', () => {
   });
 
   it('runs a test a partial run did not observe, over a body edited in a module the run never loaded', async () => {
-    // As above, but the run is `gamma` alone, which loads nothing: the landing
-    // cuts `widget.ts`'s carried rows again in the edited text.
-    const { root, head } = checkout();
-    await landRun(testCoverageFile(root), snapshot(head), root);
+    // As above, but the run is `gamma` alone, which loads `src/elsewhere.ts`
+    // and not `widget.ts`: the landing cuts `widget.ts`'s carried rows again in
+    // the edited text and keeps that text, so the next selection reads no diff
+    // for the module. Recorded under the recipe the seam records with, because
+    // a recipe the landing cannot cut with mislays the module instead, and that
+    // demotes every test on it whether the re-cut would have or not.
+    const { root, head } = checkout({ 'src/elsewhere.ts': ELSEWHERE });
+    const recorded = bySeam(snapshot(head));
+    await landRun(testCoverageFile(root), recorded, root);
 
     writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'a';", "return 'A';"));
-    const recorded = snapshot(head);
     await landRun(testCoverageFile(root), {
       ...recorded,
       tests: recorded.tests.filter((test) => test.file === 'test/gamma.test.ts'),
-      modules: [],
+      modules: [{
+        file: 'src/elsewhere.ts',
+        sourceDigest: digestString(ELSEWHERE),
+        instrumented: true,
+        blocks: [{
+          ordinal: 0,
+          kind: 'module',
+          digest: digestString('elsewhere'),
+          name: '',
+          path: 'module',
+          startLine: 1,
+          endLine: 1,
+          source: true,
+          testFiles: ['test/gamma.test.ts'],
+        }],
+      }],
     }, root);
     process.chdir(root);
 
     await indexOutput({ cwd: root });
     const said = await selectOutput({ cwd: root, format: 'plain' });
 
+    // `gamma` ran the text standing now. `alpha` entered `widget` and never ran
+    // its edited body.
+    expect(said.out).toContain('test/gamma.test.ts');
     expect(said.out).not.toContain('test/alpha.test.ts');
   });
 
@@ -389,6 +412,8 @@ describe('reading this checkout', () => {
   });
 });
 
+const ELSEWHERE = 'export const elsewhere = 1;\n';
+
 const SOURCE = [
   'export function widget(): string {',
   "  return 'a';",
@@ -418,6 +443,23 @@ function checkout(files: Readonly<Record<string, string>> = {}): { root: string;
   git(['commit', '--quiet', '-m', 'the text these line numbers are coordinates in']);
 
   return { root, head: git(['rev-parse', 'HEAD']) };
+}
+
+/**
+ * The snapshot as the seam records it: under the recipe it instruments with,
+ * and with each row at the address that recipe gives it, so a landing that
+ * re-cuts the module finds every recorded row where the cut puts it.
+ */
+function bySeam(recorded: TestCoverage): TestCoverage {
+  return {
+    ...recorded,
+    instrumentation: INSTRUMENTATION_ID,
+    modules: recorded.modules.map((module) => ({
+      ...module,
+      blocks: module.blocks.map((block) =>
+        block.kind === 'module' ? { ...block, name: '' } : { ...block, path: 'entry' }),
+    })),
+  };
 }
 
 /** Every region `lines` further down, the module's own included, as a comment above the first statement puts them. */
