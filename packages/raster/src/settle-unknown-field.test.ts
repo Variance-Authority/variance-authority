@@ -77,3 +77,23 @@ describe('a recipe move alongside a field the wording does not name', () => {
     expect(settlement.because).toContain('no image was produced');
   });
 });
+
+describe('a field the wording does not name, and nothing else', () => {
+  it('refuses with both machines described in full, since no narrower sentence is true', () => {
+    const stored = { ...IDENTITY, antialias: 'grayscale' } as RenderIdentity;
+    const mine = { ...IDENTITY, antialias: 'subpixel' } as RenderIdentity;
+    const found: Described = {
+      documentDigest: documentDigest(document),
+      comparable: false,
+      storedUnder: stored,
+      missingFonts: [],
+    };
+
+    const settlement = settle(documentDigest(document), found, mine);
+    expect(settlement).toMatchObject({ kind: 'settled', verdict: 'incomparable' });
+    expect(settlement.because).toContain('was painted by');
+    expect(settlement.because).toContain('playwright-chromium');
+    expect(settlement.because).toContain('pixels are machine-bound');
+    expect(settlement.because).not.toContain('only the recipe moved');
+  });
+});

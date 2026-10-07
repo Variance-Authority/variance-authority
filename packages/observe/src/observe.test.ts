@@ -223,6 +223,35 @@ describe('a durable observation above 1x', () => {
     ).not.toHaveProperty('components');
   });
 
+  it('refuses an existing raster from a machine with another font, and names that font alone', async () => {
+    // A raster captured elsewhere arrives already painted, so nothing here can
+    // repaint it under the baseline's machine. The refusal names the font that
+    // moved rather than both font lists, and says whether the document moved.
+    const store = createDurableStore(root);
+    const document = documentAt(1);
+    await store.put({ subject: 's' }, await fakeRenderer().render(document));
+    const elsewhere = await fakeRenderer({
+      ...MACHINE,
+      fonts: [...MACHINE.fonts, 'Roboto/400/normal/def'],
+    }).render(document);
+    const artifact: CaptureArtifact = {
+      artifactVersion: 1,
+      subject: document.subject,
+      material: { kind: 'raster', raster: { ...elsewhere, components: [] } },
+    };
+
+    const observation = await observeCaptureAgainstBaseline(artifact, { subject: 's' }, { store });
+
+    expect(observation).toMatchObject({
+      verdict: 'incomparable',
+      rendered: false,
+      signals: { document: 'unchanged' },
+    });
+    expect(observation.because).toContain('fonts +Roboto/400/normal/def');
+    expect(observation.because).not.toContain('Inter/400/normal/abc');
+    expect(observation.because).toContain('machine-bound');
+  });
+
   it('refuses value material instead of treating it as an unchanged raster', async () => {
     const artifact: CaptureArtifact = {
       artifactVersion: 1,
