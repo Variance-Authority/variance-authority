@@ -52,18 +52,19 @@ export async function evidenceIdentity(config: Config, cwd: string, env: Readonl
   };
 }
 
-/** What in the config changes what a subject yields. Paths relative to `cwd`, in `/` form. */
+/**
+ * What in the config changes what a subject yields. Paths relative to `cwd`, in
+ * `/` form. The profile, engine and fonts are not asked of the config: each
+ * snapshot says which read it, and the part carries that.
+ */
 export function readsOf(config: Config, cwd: string): CanonicalValue {
   const at = (path: string): string => relative(cwd, path).split(sep).join('/');
   const subjects = config.subjects;
   return {
     cli: CLI_VERSION,
     lexicon: LEXICON_VERSION,
-    profile: config.profile,
     // The viewport the semantic key reads: the pixel ratio reaches only pixels.
     viewport: { width: config.viewport.width, height: config.viewport.height, colorScheme: config.viewport.colorScheme },
-    browser: config.browser ?? null,
-    fonts: [...config.fonts],
     subjects: {
       kind: subjects.kind,
       collector: at(subjects.collector),

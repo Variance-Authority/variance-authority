@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { collectEvidence, type CollectInput } from './collect.js';
-import { collecting, planOf, rendered, type Opened } from './evidence-fixture.js';
+import { collecting, onEngine, planOf, rendered, type Opened } from './evidence-fixture.js';
 import { recipeOf, type EvidencePart } from './evidence-part.js';
 import { configOf } from './run-fixture.js';
 import { assign } from './shard.js';
@@ -49,6 +49,16 @@ describe('collectEvidence: one job of a collection, with nothing compared', () =
     expect(part.fields).toEqual(['example', 'components', 'createdBy', 'tokens', 'names', 'text', 'roles', 'files']);
     expect(JSON.stringify(part)).not.toContain('renderHash');
     expect(opened.worlds).toEqual({ opened: 2, closed: 2 });
+  });
+
+  it('says once each environment its snapshots were read in, as the engine reported it', async () => {
+    const part = await collectEvidence(inputOf(collecting(PLAN, (id) => (id === 'menu--open' ? onEngine(answer(id), 'chromium@132') : answer(id)))));
+
+    expect(part.environments).toEqual([
+      { profile: 'chromium', engine: 'chromium@131', ruleset: 'test', allowlist: 'test', fonts: [] },
+      { profile: 'chromium', engine: 'chromium@132', ruleset: 'test', allowlist: 'test', fonts: [] },
+    ]);
+    expect((await collectEvidence(inputOf(collecting(PLAN, (id) => rendered(id))))).environments).toEqual([]);
   });
 
   it('collects only the file groups its shard owns, and the same ones a run would', async () => {

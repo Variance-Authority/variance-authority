@@ -113,3 +113,10 @@ export function collecting(
 export function rendered(id: string, nodes?: readonly Node[]): Collected {
   return { ok: true, document: documentFor(id), ...(nodes === undefined ? {} : { snapshot: snapshotOf(id, nodes) }) };
 }
+
+/** `collected` as another engine read it. */
+export function onEngine(collected: Collected, engine: string): Collected {
+  if (!collected.ok || collected.snapshot === undefined) return collected;
+  const { snapshot } = collected;
+  return { ...collected, snapshot: { ...snapshot, environment: environmentKey({ ...snapshot.environment.inputs, engine }) } };
+}

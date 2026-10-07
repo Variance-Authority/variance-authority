@@ -1,15 +1,19 @@
 // compass: variance-authority.acquisition.suite-observation
 import { performance } from 'node:perf_hooks';
 import type { SourceIndex } from '@variance-authority/core/attribute';
+import { canonicalize, type CanonicalValue } from '@variance-authority/core/format';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Config } from '../config.js';
 import type { Shard } from '../shard-args.js';
 import { acquire } from './acquire.js';
 import type { Collector } from './collector.js';
 import { lexiconReadingOf, withDeclared } from './compose.js';
 import {
+  evidenceEnvironmentOf,
   evidencePlanOf,
   type EvidenceBuild,
   type EvidenceDiagnostic,
+  type EvidenceEnvironment,
   type EvidencePart,
   type EvidenceRecipe,
   type SubjectOutcome,
@@ -52,6 +56,7 @@ export async function collectEvidence(input: CollectInput): Promise<EvidencePart
     const outcomes: (SubjectOutcome | null)[] = plan.subjects.map(() => null);
     const said: (readonly EvidenceDiagnostic[] | null)[] = plan.subjects.map(() => null);
     const costs: Record<string, number> = {};
+    const environments = new Map<string, EvidenceEnvironment>();
 
     const { compositions, declared, warnings } = await acquire({
       plan,
@@ -67,6 +72,10 @@ export async function collectEvidence(input: CollectInput): Promise<EvidencePart
         const subject = planned.subject.id;
         costs[subject] = elapsed() - begun!;
         outcomes[position] = { position, subject, outcome: 'collected', snapshot: collected.snapshot !== undefined };
+        if (collected.snapshot !== undefined) {
+          const environment = evidenceEnvironmentOf(collected.snapshot.environment.inputs);
+          environments.set(canonicalize(environment as unknown as CanonicalValue), environment);
+        }
         if (collected.diagnostics !== undefined && collected.diagnostics.length > 0) {
           said[position] = collected.diagnostics.map(({ severity, code, message }) => ({ subject, severity, code, message }));
         }
@@ -87,6 +96,7 @@ export async function collectEvidence(input: CollectInput): Promise<EvidencePart
       ...suitePartOf(compositions, reading, commit, input.shard),
       build,
       recipe: input.recipe,
+      environments: [...environments].sort(([left], [right]) => codeUnitOrder(left, right)).map(([, environment]) => environment),
       plan: evidencePlanOf(plan),
       assignment: 'checksum',
       ...(input.scope === undefined ? {} : { scope: input.scope }),

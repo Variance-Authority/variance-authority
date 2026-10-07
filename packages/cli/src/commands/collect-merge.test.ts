@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { collectEvidence } from './collect.js';
 import { mergeEvidence, type Named } from './collect-merge.js';
 import type { Collected, Plan } from './collector.js';
-import { collecting, planOf, rendered } from './evidence-fixture.js';
+import { collecting, onEngine, planOf, rendered } from './evidence-fixture.js';
 import { recipeOf, type EvidencePart } from './evidence-part.js';
 import { configOf } from './run-fixture.js';
 
@@ -165,6 +165,14 @@ describe('mergeEvidence: the index of the whole suite, from every shard of one c
       const [first] = await partsOf(2);
       expect(refusal([first!, (await partsOf(2, { recipe: 'other' }))[1]!])).toMatch(/recipe/);
       expect(refusal([first!, (await partsOf(2, { commit: 'beef' }))[1]!])).toMatch(/build/);
+    });
+
+    it('read in another environment', async () => {
+      const [first] = await partsOf(2);
+      const [, second] = await partsOf(2, { answer: (id) => onEngine(answer(id), 'chromium@132') });
+      expect(refusal([first!, second!])).toBe(
+        'evidence-1.json and evidence-2.json were read in different environments (engine chromium@131 and chromium@132); they are not one collection',
+      );
     });
 
     it('claiming a subject another shard owns, or omitting one it owns', async () => {

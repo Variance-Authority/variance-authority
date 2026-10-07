@@ -1,5 +1,6 @@
 // compass: variance-authority.report.shard-merge
-import { canonicalize, digestValue, type CanonicalValue, type Viewport } from '@variance-authority/core/format';
+import { digestValue, type CanonicalValue, type EnvironmentInputs, type Viewport } from '@variance-authority/core/format';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Plan } from './collector.js';
 import { openSuitePart, type SuitePart } from './suite-part.js';
 
@@ -63,6 +64,12 @@ export interface EvidenceRecipe {
 }
 
 /**
+ * What a snapshot's environment says of the machine that read it, without what
+ * each subject sets for itself: its viewport, its conditions, its assets.
+ */
+export type EvidenceEnvironment = Pick<EnvironmentInputs, 'profile' | 'engine' | 'ruleset' | 'allowlist' | 'fonts' | 'stabilization'>;
+
+/**
  * A suite part, with its build, recipe, plan and cut, and an outcome for every
  * subject it owned. `subjects` holds the ones that carried a snapshot, and
  * `declaredIn` is the scan with what the engine located laid over it.
@@ -70,6 +77,8 @@ export interface EvidenceRecipe {
 export interface EvidencePart extends SuitePart {
   readonly build: Omit<EvidenceBuild, 'commit'>;
   readonly recipe: EvidenceRecipe;
+  /** Each environment its snapshots were read in, as the engine reported it, once, in canonical order. */
+  readonly environments: readonly EvidenceEnvironment[];
   readonly plan: EvidencePlan;
   /** How the plan was cut. Apart from the recipe, so a sharded collection compares to a whole one. */
   readonly assignment: 'checksum';
@@ -93,6 +102,12 @@ export function evidencePlanOf(plan: Plan): EvidencePlan {
   return { digest: digestValue({ subjects, excluded } as unknown as CanonicalValue), subjects, excluded };
 }
 
+/** The environment `inputs` says a subject was read in, as a part carries it. */
+export function evidenceEnvironmentOf(inputs: EnvironmentInputs): EvidenceEnvironment {
+  const { profile, engine, ruleset, allowlist, fonts, stabilization } = inputs;
+  return { profile, engine, ruleset, allowlist, fonts: [...fonts].sort(codeUnitOrder), ...(stabilization === undefined ? {} : { stabilization }) };
+}
+
 /** The digest a recipe is compared by. */
 export function recipeOf(reads: CanonicalValue): EvidenceRecipe {
   return { digest: digestValue(reads), reads };
@@ -103,6 +118,8 @@ export async function readEvidencePart(path: string): Promise<EvidencePart | str
   const what = 'a collection part';
   const part = (await openSuitePart(path, what)) ?? `${path} could not be read (ENOENT)`;
   if (typeof part === 'string') return part;
-  const { outcomes, plan } = part as Partial<EvidencePart>;
-  return Array.isArray(outcomes) && Array.isArray(plan?.subjects) ? (part as EvidencePart) : `${path} is not ${what} this version reads`;
+  const { outcomes, plan, environments } = part as Partial<EvidencePart>;
+  return Array.isArray(outcomes) && Array.isArray(plan?.subjects) && Array.isArray(environments)
+    ? (part as EvidencePart)
+    : `${path} is not ${what} this version reads`;
 }

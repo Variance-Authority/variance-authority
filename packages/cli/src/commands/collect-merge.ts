@@ -1,7 +1,7 @@
 // compass: variance-authority.report.shard-merge
 import { canonicalize, type CanonicalValue } from '@variance-authority/core/format';
 import type { SubjectCoverage, SuiteIndex } from '@variance-authority/report/suite-index';
-import type { EvidenceDiagnostic, EvidencePart } from './evidence-part.js';
+import type { EvidenceDiagnostic, EvidenceEnvironment, EvidencePart } from './evidence-part.js';
 import { differing } from './merge.js';
 import { assign } from './shard.js';
 import { composeSuiteIndex, missingShards } from './suite-part.js';
@@ -48,7 +48,7 @@ export function mergeEvidence(named: readonly Named[]): Merged {
   if (shards !== undefined) {
     return { kind: 'refused', because: `${shards}; collect each shard with \`variance collect --shard k/n\` and merge again` };
   }
-  const because = sameRefusal(parts) ?? ownershipRefusal(parts) ?? fieldsRefusal(parts);
+  const because = sameRefusal(parts) ?? environmentRefusal(parts) ?? ownershipRefusal(parts) ?? fieldsRefusal(parts);
   if (because !== undefined) return { kind: 'refused', because };
   return composed(parts);
 }
@@ -67,6 +67,28 @@ function sameRefusal(parts: readonly Named[]): string | undefined {
     if (other !== undefined) return `${parts[0]!.path} and ${other.path} ${says}; they are not one collection`;
   }
   return undefined;
+}
+
+const ENVIRONMENT: readonly (keyof EvidenceEnvironment)[] = ['profile', 'engine', 'ruleset', 'allowlist', 'fonts', 'stabilization'];
+
+/**
+ * One environment across every snapshot of every part, as the engines reported
+ * it: a recipe says what was asked for, and only the snapshot says what read it.
+ */
+function environmentRefusal(parts: readonly Named[]): string | undefined {
+  const read = parts.flatMap(({ path, part }) => part.environments.map((environment) => ({ path, environment })));
+  const said = (environment: EvidenceEnvironment, field: keyof EvidenceEnvironment): string => canonicalize((environment[field] ?? null) as CanonicalValue);
+  const other = differing(read, ({ environment }) => canonicalize(environment as unknown as CanonicalValue));
+  if (other === undefined) return undefined;
+  const first = read[0]!;
+  const fields = ENVIRONMENT.filter((field) => said(first.environment, field) !== said(other.environment, field));
+  const shown = (environment: EvidenceEnvironment, field: keyof EvidenceEnvironment): string => {
+    const value = environment[field];
+    return typeof value === 'string' ? value : said(environment, field);
+  };
+  const differences = fields.map((field) => `${field} ${shown(first.environment, field)} and ${shown(other.environment, field)}`).join(', ');
+  const who = first.path === other.path ? `${first.path} was` : `${first.path} and ${other.path} were`;
+  return `${who} read in different environments (${differences}); they are not one collection`;
 }
 
 /** Each part says what became of exactly the subjects the cut gives it, at their plan positions. */
