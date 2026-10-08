@@ -67,6 +67,11 @@ What changes is that git now runs in the read path, for a pointer only.
   cache is evicted, still downloads the suite, and a cache is a CI service's
   feature where this works wherever git does. The two compose: a cached object
   makes the pull local.
+- **The remote renderer's `batching`.** It coalesces overlapping calls too,
+  but flushes on the next turn of the event loop and lets batches run side by
+  side, and answers per item. Pulls in one work tree contend for its index, so
+  here only one runs at a time, and one pull either fetched its files or did
+  not. It also lives in `remote`, which `store` does not depend on.
 - **`git lfs smudge` per file, writing the bytes ourselves.** That is a second
   writer for the work tree, and `git status` would then report the file as
   modified. `git lfs pull` checks the file out the way the filter would.
@@ -82,6 +87,10 @@ What changes is that git now runs in the read path, for a pointer only.
   pulls that overlap contend for the index: each pull checks its file out and
   exits 0, and `git status` lists those files as modified until git rereads
   them. `git add` stores the same pointers, so nothing is committed by it.
+- A pull has no timeout, like every other git call in the store, so a hung LFS
+  server hangs the lookup that waits on it. ADR-0016 kept network calls out of
+  the path that decides a verdict for this reason; a pointer is the one case
+  that now has one, and the job's own timeout is what ends it.
 - Each pull is a process and a round trip to the LFS server. A run where every
   subject changed makes a few large pulls rather than one, which costs more
   than one smudge would have.
