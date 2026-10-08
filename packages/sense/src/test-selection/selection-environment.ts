@@ -101,12 +101,12 @@ export function timesFrom(request: SelectionRequest & { readonly recording?: str
   return async () => {
     if (request.recording !== undefined) return recordedTimes(request.recording);
     const from = request.from ?? request.root;
-    const cli = await installed(from);
-    if (cli?.suiteTimes === undefined) {
-      const why = cli === undefined ? `which ${from} does not resolve` : 'and the one installed predates them';
-      return { unread: `the times are read by ${CLI}, ${why}` };
-    }
     try {
+      const cli = await installed(from);
+      if (cli?.suiteTimes === undefined) {
+        const why = cli === undefined ? `which ${from} does not resolve` : 'and the one installed predates them';
+        return { unread: `the times are read by ${CLI}, ${why}` };
+      }
       return await cli.suiteTimes({ root: request.root, ...(request.suite === undefined ? {} : { suite: request.suite }) });
     } catch (error) {
       return { unread: error instanceof Error ? error.message : String(error) };
