@@ -27,9 +27,13 @@
  * ## Why the module record and not the tree
  *
  * `.module` is the ES module record the parser computed while it parsed — every
- * static import, every re-export, every `import()`, with the imported, local and
- * exported name of each binding. The tree is walked only for what the record
- * does not hold: top-level declarations, and the mocks a test writes.
+ * static import and every re-export, with the imported, local and exported name
+ * of each binding. The tree is walked only for what the record does not hold:
+ * top-level declarations, the mocks a test writes, and the loads a module calls
+ * for. The record lists no `require`, and gives an `import()` only as a span of
+ * text, so `import()`, `require()`, `module.require()` and
+ * `import x = require()` are read off the tree, in the walk that reads the
+ * members a module takes off a namespace.
  *
  * Everything returned is a string or a small object copied out, so the parse
  * result is garbage once its file is read: a scan holds findings, not trees.

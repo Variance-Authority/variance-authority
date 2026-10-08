@@ -85,12 +85,14 @@ export { changedLines, type LineRange } from './diff-lines.js';
 // ships because the check is opt-in: a caller that does not know to pass
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.
 export { textAtRecording, textsAt } from './recorded-text.js';
-export { keptTexts } from './kept-texts.js';
+export { keptDigests, keptTexts } from './kept-texts.js';
+export type { KeptInstall } from './kept-install.js';
 // A text cut as a seam records it, so rows written by hand stand where a
 // landing that cuts the text again puts them.
 export { sourceCut } from './coverage-rows.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
-export type { Bearing, DistanceOptions, Face, Faces, ReachThrough, TestDistance } from './distance.js';
+export type { Bearing, DistanceOptions, TestDistance } from './distance.js';
+export type { Face, Faces, ReachThrough } from './faces.js';
 export { selectedLines, type SuiteSelection } from './suite-selection.js';
 export { eitherFace, indexFaces } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };

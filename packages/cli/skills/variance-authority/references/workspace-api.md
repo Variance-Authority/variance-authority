@@ -98,19 +98,48 @@ server.
 
 ### `packages`
 
-Start here unless you already have an exact specifier. A published specifier is
-each subpath a `package.json` `exports` field opens, or, with no `exports`, the
-bare name its `types` or `main` opens. `packages` and `entrypoint` answer for
-the JavaScript half of a mixed repository. The other verbs read the source and
-answer for every language: ask `search` or `symbol` for a Python, Rust, Java,
-Kotlin or Swift name.
+Ask it when you have no exact specifier. A published specifier is each subpath a
+`package.json` `exports` field opens, or, with no `exports`, the bare name its
+`types` or `main` opens. It takes no argument and counts, one row per specifier:
+the names it opens, how many anything imports, how many are documented. A
+package that declares no entry gets an indented row with how many of its names
+and files other packages import by path, and imports past a declared entry, deep
+imports, are counted per package; a package's imports of itself are not. An
+import by path names a file of a package that declares no entry, so there is no
+entry for it to be past. A package whose declared entry this reading could not
+follow to a source file, such as a build output the checkout does not hold,
+opens nothing: it is counted apart, with the imports that name that entry, and
+only an import past every entry it declares is deep. It lists no import site:
+pass a specifier row whole to `entrypoint --package` for the names it opens,
+and an indented row's package name to `entrypoint --package` for its count per
+file. The answer ends with an `entrypoint` question for each of the
+most-imported specifier, the package that declares no entry with the most names
+imported by path, the package with the most imports past its entry, and, of the
+packages whose entry this reading could not follow, the one with the most
+imports past it, those the repository has. Asked by the name of a package whose
+`exports` opens only subpaths, `entrypoint` lists the specifiers it opens in
+place of the names of a main entry.
+
+`packages` and `entrypoint` answer for the JavaScript half of a mixed
+repository. The other verbs read the source and answer for every language: ask
+`search` or `symbol` for a Python, Rust, Java, Kotlin or Swift name.
 
 ### `entrypoint`
 
 `--package` takes the specifier as `packages` prints it, or the package name
-with `--subpath` set to a key of its `exports` map. A package that declares no
-entry opens nothing, and the answer lists the files and names other packages
-import from it by path, each with the importer's file and line.
+with `--subpath` set to a key of its `exports` map; `--subpath .` is the package
+name alone. Asked by the package name alone, the answer lists the names its main
+entry opens, then counts the imports that reach past its entry, one row per
+file: its specifier, how many names are taken from it and how many files import
+it, the most imported first. A package that declares no entry opens nothing, and
+the answer counts what other packages import from it by path the same way.
+Asked by one of those specifiers, it counts the imports written as that
+specifier per name, each name with how many files import it, the most imported
+first; an import that takes no name, for its side effect or the module whole,
+is counted on a row of its own. The answer ends with the narrower questions it
+has, if any: asked by a package, the first row's specifier and `uses` on the
+name the most files take through it; asked by a specifier, `uses` on its first
+name, which lists that name's import sites.
 
 ### `symbol --name <name> [--package <name>] [--from <path>]`
 

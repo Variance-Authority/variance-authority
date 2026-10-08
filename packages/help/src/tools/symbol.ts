@@ -132,9 +132,11 @@ function importedByPath(help: Help, name: string, sites: readonly PathSite[]): s
     const [first] = held;
     if (first === undefined) return '';
     const declared = declaration(help, name, first);
-    const why = first.deep
-      ? `not published: ${first.owner} declares an entry, and this file is not behind it.`
-      : `not published: ${first.owner} declares no entry, so every import of it names a file.`;
+    const why = {
+      deep: `not published: ${first.owner} declares an entry, and this file is not behind it.`,
+      byPath: `not published: ${first.owner} declares no entry, so every import of it names a file.`,
+      unfollowed: `not listed: ${first.owner} declares ${first.held.specifier} as an entry, and this reading could not follow it to a source file.`,
+    }[first.kind];
     return [
       name,
       ...(name === 'default' ? [] : [`import { ${name} } from '${first.held.specifier}';`]),

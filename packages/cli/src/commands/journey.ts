@@ -50,7 +50,7 @@
  * beside the answer; it does not change the answer.
  */
 
-import { many } from './reach.js';
+import { many } from './prose-counts.js';
 
 export interface JourneyInput {
   /** Subjects the structural ground would observe, by id. */

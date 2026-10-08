@@ -61,6 +61,7 @@ import {
 import type { ReachedComponent } from '@variance-authority/report';
 import { NO_INSTALL_DIFF, withoutManifests, type InstallDiff } from './installed.js';
 import { beyondOf } from './select-beyond.js';
+import { listed, many } from './prose-counts.js';
 
 /** What the walk found, when it could answer. */
 export interface AffectedComponents {
@@ -383,17 +384,6 @@ function withChain(trail: readonly string[], chains: ReadonlyMap<string, readonl
   return chain === undefined ? trail : [...chain, ...trail];
 }
 
-/**
- * `1 component`, `3 components` — never `3 component(s)`, which is storage.
- *
- * Exported because [`affected.ts`](./affected.ts) prints the other half of these
- * same sentences, and a run whose selector and whose report pluralise differently
- * reads as two tools that happened to agree.
- */
-export function many(count: number, singular: string): string {
-  return `${count} ${singular}${count === 1 ? '' : 's'}`;
-}
-
 /** The first three of a list, with a mark when there are more. */
 function sample(files: readonly string[]): string {
   return `${files.slice(0, 3).join(', ')}${files.length > 3 ? ', …' : ''}`;
@@ -417,20 +407,6 @@ function byExport(files: readonly string[], movedExports: MovedExports): string 
   const said = files.slice(0, 3).map((file) => `${file} changes ${movedExports.get(file)!.join(', ')}`);
   const more = files.length > 3 ? `; ${files.length - 3} more` : '';
   return `${said.join('; ')}${more}`;
-}
-
-/**
- * Up to three names in prose, and a count for the rest.
- *
- * Exported for [`reach-subjects.ts`](./reach-subjects.ts), which prints the
- * per-subject half of the same sentences.
- */
-export function listed(names: readonly string[]): string {
-  if (names.length <= 3) {
-    const head = names.slice(0, -1).join(', ');
-    return head === '' ? names[0]! : `${head} and ${names[names.length - 1]!}`;
-  }
-  return `${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
 }
 
 function byCodeUnit(a: string, b: string): number {

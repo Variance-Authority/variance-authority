@@ -6,6 +6,7 @@ import { findModules, testPathOf } from './lookup.js';
 import { changedLines } from './diff-lines.js';
 import { hunksOf } from './patch.js';
 import { frameOf } from './frame.js';
+import { recordedOverKept } from './kept-texts.js';
 import { rebasedChange } from './text-diff.js';
 import { readChange, readRowless, rowlessNames, type FileReading } from './reading.js';
 import { bindsOnly } from './inert.js';
@@ -36,8 +37,10 @@ export interface ExecutionNarrowing {
    * Recorded tests whose observation was not whole: a run that skipped every
    * case, or one whose probes fired where nothing could place them. Absence
    * from `entered` is no evidence for them, but they are named, so a caller
-   * that cuts the selection into legs can run them in its open leg. Absent
-   * when the reader names no such list, which is not the same as none.
+   * that cuts the selection into legs can place them by the import path each
+   * ran to a changed file it loaded (`distanceFromView`), or run them in the
+   * open leg when they ran none.
+   * Absent when the reader names no such list, which is not the same as none.
    */
   readonly incomplete?: readonly string[];
   /** Recorded tests that entered a region this diff changed. */
@@ -271,7 +274,33 @@ function readDiff(
     else if (lines.length > 0 && routeOf(false, options.unmeasured) !== 'nothing') asking.push(...rowlessNames(context, file));
   }
 
-  for (const [file, lines] of changed) {
+  // A row cut from a kept text whose file the diff does not name ran an edit
+  // that is gone: the tree is back at the commit's text, which is a change the
+  // tests that ran the edit have not run. The diff from the commit cannot say
+  // so, and the record can: its rows name the text they ran over. Asked only
+  // where that text can be read, so the change is read rather than assumed.
+  // FIXME: an undone edit whose text was not kept, or whose file has no
+  // instrumented row (a test file, a setup file), is found by nothing here and
+  // selects nothing; the ledger's dirty-run tree names every undone file. An
+  // undone file governs no precondition: a test that declared it is not re-run.
+  const undone = new Set(
+    options.keptDigests === undefined || options.keptText === undefined || options.sourceAt === undefined
+      ? []
+      : recordedOverKept(coverage, options.keptDigests(), (file) => changed.has(file) || knownAs(file).some((name) => rowed.has(name))),
+  );
+  for (const file of undone) {
+    // Under every name, as a changed file is: a built twin's rows are in frame
+    // exactly when the source's are.
+    const rowsOf = new Map<string, readonly number[]>();
+    for (const name of knownAs(file)) {
+      const rows = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
+      if (rows.length > 0) rowsOf.set(name, rows);
+    }
+    rowsByFile.set(file, rowsOf);
+    asking.push(file, ...knownAs(file));
+  }
+
+  for (const [file, lines] of [...changed, ...[...undone].map((file) => [file, []] as const)]) {
     let ranges = lines;
     const rowsOf = rowsByFile.get(file)!;
     if (rowsOf.size === 0) {
@@ -298,7 +327,10 @@ function readDiff(
     // answers about itself.
     let frame = frameOf(coverage, knownAs(file), rowsOf, options.sourceAt, options.keptText);
     let reader = context;
-    if (typeof frame === 'object' && frame.kept === true && ranges.length > 0) {
+    // An undone file read in the commit's own text, or not read at all, ran
+    // what is on disk: nothing changed for it.
+    if (undone.has(file) && (typeof frame !== 'object' || frame.kept !== true) && frame !== 'stale') continue;
+    if (typeof frame === 'object' && frame.kept === true && (ranges.length > 0 || undone.has(file))) {
       // The rows were cut from a text the landing kept, and the diff is written
       // against the commit's. The change the tests have not run is the one from
       // the kept text to the diff's new side, so that is what is read.
@@ -308,8 +340,9 @@ function readDiff(
         // The record was taken over the text the diff arrives at, and a test
         // carried onto it from an earlier text of an edited region was demoted
         // when it landed. No parser was asked, so the reading says so rather
-        // than claim equal runtime text.
-        readings.push({ file, verdict: 'none', names: [], kept: true });
+        // than claim equal runtime text. An undone file read empty is one the
+        // diff never named, and no reading is made of it.
+        if (!undone.has(file)) readings.push({ file, verdict: 'none', names: [], kept: true });
         continue;
       } else {
         ranges = rebased.ranges;

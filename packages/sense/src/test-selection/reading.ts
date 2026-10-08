@@ -103,6 +103,9 @@ export type FileReading =
       readonly unread: 'source' | 'hunk' | 'parse' | 'addon' | 'language';
     };
 
+/** Whether the change may reach a test through the file: every reading but a `none` the parser decided. */
+export const reachesThrough = (reading: FileReading): boolean => reading.verdict !== 'none' || reading.kept === true;
+
 /** What the reading needs from the query it runs inside. */
 export interface ReadingContext {
   readonly coverage: TestCoverageView;

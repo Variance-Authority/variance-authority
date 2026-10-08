@@ -6,10 +6,12 @@
 import type { Parsed } from '@variance-authority/sense';
 import { NAMESPACE_NAME } from '@variance-authority/sense/read';
 import {
+  gatheringUsage,
   kindOf,
+  landing,
   requested,
   type Deep,
-  type Named,
+  type ImportTargets,
   type Taken,
   type Usage,
   type Use,
@@ -24,30 +26,26 @@ type Pending = { -readonly [key in keyof Deep]: Deep[key] };
  * An import of a file behind no published door is kept whole — the names it
  * takes and, once the scan hands the file's targets over, the file it resolved
  * to — because that import is the only record of what the other package is used
- * for. `unentered` names the packages that declare no entry, whose imports are
- * listed apart from the deep ones.
+ * for. `targets` names the packages an import is followed into, and the ones
+ * among them that declare no entry, whose imports are listed apart from the
+ * deep ones.
  */
-export function collectingUsage(opened: ReadonlySet<string>, unentered: ReadonlySet<string>): {
+export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTargets): {
   accept(at: string, by: string, parsed: Parsed): void;
   targets(at: string, targets: readonly (string | undefined)[]): void;
   read(): Usage;
 } {
-  const packages = new Set([...[...opened].map((key) => key.slice(0, key.indexOf(' '))), ...unentered]);
-  const names = new Map<string, Map<string, Use[]>>();
-  const deep: Deep[] = [];
-  const byPath: Deep[] = [];
+  const usage = gatheringUsage();
   const pending = new Map<string, Map<number, Pending>>();
-  const exported: Named[] = [];
-  const unreadable: string[] = [];
 
   return {
     accept(at, by, parsed) {
-      if (parsed.unknown !== undefined) unreadable.push(at);
+      if (parsed.unknown !== undefined) usage.unreadable.push(at);
       const kind = kindOf(at);
 
       for (const published of parsed.exports ?? []) {
         if (published.exported !== undefined) {
-          exported.push({
+          usage.exported.push({
             name: published.exported,
             at,
             by,
@@ -60,31 +58,23 @@ export function collectingUsage(opened: ReadonlySet<string>, unentered: Readonly
 
       for (const [index, asked] of parsed.requests.entries()) {
         const key = requested(asked.value);
-        const named = key.slice(0, key.indexOf(' '));
-        if (!packages.has(named)) continue;
-        if (!opened.has(key)) {
+        const lands = landing(key, opened, targets);
+        if (lands === undefined) continue;
+        if (lands !== 'opened') {
           const held: Pending = { specifier: asked.value, by, at, line: asked.line, names: takenBy(asked, index, parsed, by, at, kind) };
-          (unentered.has(named) ? byPath : deep).push(held);
+          usage.past(lands, held);
           const file = pending.get(at) ?? new Map<number, Pending>();
           pending.set(at, file);
           file.set(index, held);
           continue;
         }
 
-        const held = names.get(key) ?? new Map<string, Use[]>();
-        names.set(key, held);
         for (const binding of asked.bindings) {
-          if (binding.imported === NAMESPACE_NAME) continue;
-          const uses = held.get(binding.imported) ?? [];
-          held.set(binding.imported, uses);
-          uses.push({ by, at, line: binding.line, type: binding.type, kind });
+          if (binding.imported !== NAMESPACE_NAME) usage.take(key, binding.imported, { by, at, line: binding.line, type: binding.type, kind });
         }
         const through = { kind: asked.kind === 'dynamic' ? 'dynamic' : 'namespace', line: asked.line } as const;
         for (const member of parsed.members ?? []) {
-          if (member.request !== index) continue;
-          const uses = held.get(member.name) ?? [];
-          held.set(member.name, uses);
-          uses.push({ by, at, line: member.line, type: false, kind, through });
+          if (member.request === index) usage.take(key, member.name, { by, at, line: member.line, type: false, kind, through });
         }
       }
     },
@@ -94,7 +84,7 @@ export function collectingUsage(opened: ReadonlySet<string>, unentered: Readonly
         if (to !== undefined) held.to = to;
       }
     },
-    read: () => ({ names, deep, byPath, exported, unreadable }),
+    read: () => usage.read(),
   };
 }
 

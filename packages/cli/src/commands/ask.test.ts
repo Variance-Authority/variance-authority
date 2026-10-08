@@ -100,6 +100,7 @@ const WORKSPACE: Help = {
     {
       name: '@example/alpha',
       declared: {},
+      entry: true,
       openings: [
         {
           subpath: '.',

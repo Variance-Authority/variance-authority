@@ -143,6 +143,9 @@ export async function landJourneys(
     // and land again, which writes the same record.
     const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
     const landed = folded === undefined ? previous : selection.mergeCoverage(previous, folded);
+    // FIXME: no install is passed, so a shard landing keeps none and its tests
+    // compare from the commit. Shards run over an uncommitted install read
+    // the bump they ran on as moved; each shard would have to keep its own.
     const runs = folded === undefined ? undefined : selection.commitRunsAfter(previous, held, folded);
     // The index beside the snapshot was cut from the texts the snapshot names.
     const { landing: cases, sections } = selection.landCases(

@@ -139,9 +139,10 @@ Look around:
   kind needs, as [pull request](.agents/references/pull-request.md) lists them.
 
 Write the body to
-[`.github/pull_request_template.md`](.github/pull_request_template.md). Before
+[`.github/pull_request_template.md`](.github/pull_request_template.md): the
+problem, the solution, and one row per block the change touches. Before
 anything is pushed, three subagents with no other context review the change,
-each for one question: does the body make sense on its own, should the change
+each for one question: does the body say the problem and the solution, should the change
 happen at all, and does the diff do what the body says. A change that writes a
 top-layer page gets a fourth, the `content-flow` reviewer, and it runs first:
 the other three wait until the page's structure passes. Fix what they mark

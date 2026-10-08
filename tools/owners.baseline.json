@@ -246,11 +246,6 @@
   },
   {
     "idiom": "code-unit-order",
-    "at": "packages/help/src/tools/by-path.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
     "at": "packages/help/src/tools/grep.ts",
     "count": 1
   },

@@ -49,7 +49,8 @@ import { layeredCoverage } from './format-layer.js';
 import { openTestCoverage } from './format-view.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { TestCoverage } from './index.js';
-import { keepRecordedTexts } from './kept-texts.js';
+import { installAfter, installKey, keepRecordedInstall, keptInstallOf, type KeptInstall } from './kept-install.js';
+import { keepRecordedTexts, landedTree } from './kept-texts.js';
 import { ownLayerAfter, readOwnLayer, workingTree, writeOwnLayer } from './own-layer.js';
 import { writeCoverageBytes } from './record-location.js';
 
@@ -101,6 +102,15 @@ export interface CommitRuns {
    * `over` or to `commit`, says it did.
    */
   readonly standing?: readonly StandingEntry[];
+  /**
+   * The install the tests in `files` ran on, where it differs from `commit`'s:
+   * each lockfile and manifest the runs found edited, by the digest of the
+   * text kept for it, or `null` for one they found deleted (`kept-install.ts`).
+   * Empty when they ran on the commit's own. Absent when that is not known: a
+   * record written before installs were kept, a landing of shards, or runs at
+   * this commit over two installs. A reader compares from `commit` then.
+   */
+  readonly installed?: KeptInstall;
 }
 
 /** Tests that last ran at one commit, or were assumed to have when no record could say. */
@@ -108,6 +118,8 @@ export interface StandingEntry {
   readonly commit: string;
   readonly files: readonly string[];
   readonly assumed?: true;
+  /** The install they ran on, as {@link CommitRuns.installed} says it; absent when not known. */
+  readonly installed?: KeptInstall;
 }
 
 /** Where the runs recorded into the snapshot at `coverageFile` are listed. */
@@ -170,12 +182,16 @@ export async function landRun(
   // The snapshot's rows are coordinates in the texts on disk now, and the
   // commit it names holds none of the edited ones. Kept after the write, so a
   // text is never kept for a row that did not land.
-  const kept = await keepRecordedTexts(root, openTestCoverage(bytes), cacheRoot);
+  // What differs from `HEAD` is asked once, for both.
+  const landed = current.commit === undefined ? undefined : await landedTree(root, cacheRoot);
+  const kept = await keepRecordedTexts(landed, openTestCoverage(bytes));
+  // So is the install it ran on, before the record that names it.
+  const installed = await keepRecordedInstall(landed);
   // FIXME: two writes, and nothing makes them one. A failed record write, or a
   // process killed between them, leaves the snapshot at this run's commit
   // beside the record of the one before: the shape `commitRunsAfter` reads as
   // a retried landing, which the next run here repairs and nothing else does.
-  await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, current));
+  await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, current, installed));
   // The ledger last: it names this run's tests as this checkout's, and a
   // landing that died before it leaves them read as the milestone's, which a
   // re-run here corrects. A record with no ledger was laid before there was
@@ -231,11 +247,15 @@ async function coveredRecord(coverageFile: string): Promise<Buffer | undefined> 
  *
  * {@link landRun} reads both inputs off the disk. A landing of shard snapshots
  * has already read the snapshot to merge over it, and passes that.
+ *
+ * `installed` is the install `current` ran on, which {@link landRun} keeps; a
+ * landing of shards ran nowhere this process can see, and passes none.
  */
 export function commitRunsAfter(
   before: RecordedTests | undefined,
   held: CommitRuns | undefined,
   current: RecordedTests,
+  installed?: KeptInstall,
 ): CommitRuns {
   const prior = before?.instrumentation === current.instrumentation ? before : undefined;
   const stood = prior?.commit;
@@ -256,6 +276,7 @@ export function commitRunsAfter(
   const over = again ? held.over : retried ? held.commit : stood;
   const ran = again ? [...new Set([...held.files, ...files])].sort(codeUnitOrder) : files;
   const standing = current.commit === undefined ? undefined : standingAfter(prior, held, retried ? held.commit : stood, ran);
+  const install = again ? installAfter(held, files, installed) : installed;
   return {
     ...(current.commit === undefined ? {} : { commit: current.commit }),
     ...(over === undefined ? {} : { over }),
@@ -264,6 +285,7 @@ export function commitRunsAfter(
     runs: again ? held.runs + 1 : 1,
     files: ran,
     ...(standing === undefined ? {} : { standing }),
+    ...(install === undefined ? {} : { installed: install }),
   };
 }
 
@@ -313,13 +335,17 @@ function standingAfter(
   const unobserved = prior.tests.map((test) => test.file).filter((test) => !observed.has(test));
   if (unobserved.length === 0) return [];
   if (base === undefined || held?.commit !== base) return undefined;
-  // A stand is a commit and whether it was assumed there; the key is both.
-  const key = (commit: string, assumed: boolean): string => `${assumed ? 'assumed' : 'observed'} ${commit}`;
+  // A stand is a commit, whether it was assumed there, and the install it ran
+  // on; the key is all three. The install goes with the tests, as a kept text
+  // does, so a stand is compared from what its tests ran on at every select.
+  const key = (commit: string, assumed: boolean, installed?: KeptInstall): string =>
+    `${assumed ? 'assumed' : 'observed'} ${commit}${installed === undefined ? '' : ` ${installKey(installed)}`}`;
   const stands = new Map<string, StandingEntry>();
   const listed = new Map<string, string>();
   for (const entry of held.standing ?? []) {
-    const at = key(entry.commit, entry.assumed === true);
-    stands.set(at, { commit: entry.commit, files: [], ...(entry.assumed ? { assumed: true } : {}) });
+    const at = key(entry.commit, entry.assumed === true, entry.installed);
+    const installed = entry.installed === undefined ? {} : { installed: entry.installed };
+    stands.set(at, { commit: entry.commit, files: [], ...(entry.assumed ? { assumed: true } : {}), ...installed });
     for (const file of entry.files) listed.set(file, at);
   }
   // Earliest landing first: the record's own order, then the start it names,
@@ -327,11 +353,12 @@ function standingAfter(
   // first when a run landed at a commit older than the one before it.
   const start = held.over === undefined ? undefined : key(held.over, true);
   if (start !== undefined && !stands.has(start)) stands.set(start, { commit: held.over!, files: [], assumed: true });
-  if (!stands.has(key(base, false))) stands.set(key(base, false), { commit: base, files: [] });
+  const ranAt = key(base, false, held.installed);
+  if (!stands.has(ranAt)) stands.set(ranAt, { commit: base, files: [], ...(held.installed === undefined ? {} : { installed: held.installed }) });
   const ranThere = new Set(held.files);
   const grouped = new Map<string, string[]>();
   for (const test of unobserved) {
-    const at = ranThere.has(test) ? key(base, false) : (listed.get(test) ?? start);
+    const at = ranThere.has(test) ? ranAt : (listed.get(test) ?? start);
     if (at === undefined) return undefined;
     grouped.set(at, [...(grouped.get(at) ?? []), test]);
   }
@@ -350,6 +377,10 @@ function standingAfter(
  * skip a test that should run. Each caller says what the record was for and
  * what to do. A writer need not refuse: {@link heldCommitRuns} lets it write a
  * record that says less, and says so.
+ *
+ * An install the record holds that is not one is left out, where it stands and
+ * at the record's commit: an install not known compares from the commit, which
+ * runs more and skips nothing.
  */
 export async function readCommitRuns(coverageFile: string): Promise<CommitRuns | undefined> {
   const file = commitRunsFile(coverageFile);
@@ -373,7 +404,22 @@ export async function readCommitRuns(coverageFile: string): Promise<CommitRuns |
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error(`the runs record at ${file} is not a JSON object`);
   }
-  return parsed as CommitRuns;
+  return withKnownInstalls(parsed as CommitRuns);
+}
+
+/** `record` with every install it holds that is not one left out: an install not known is compared from its commit. */
+function withKnownInstalls(record: CommitRuns): CommitRuns {
+  const { installed, ...rest } = record as CommitRuns & { readonly installed?: unknown };
+  const known = keptInstallOf(installed);
+  const standing = Array.isArray(record.standing)
+    ? record.standing.map((entry) => {
+        if (typeof entry !== 'object' || entry === null) return entry;
+        const { installed: its, ...stand } = entry as StandingEntry & { readonly installed?: unknown };
+        const kept = keptInstallOf(its);
+        return kept === undefined ? stand : { ...stand, installed: kept };
+      })
+    : record.standing;
+  return { ...rest, ...(standing === undefined ? {} : { standing }), ...(known === undefined ? {} : { installed: known }) };
 }
 
 /**

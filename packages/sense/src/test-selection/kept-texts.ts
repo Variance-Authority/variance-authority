@@ -26,14 +26,16 @@
 
 // compass: variance-authority.reach
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { access, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { digestOfSha256 } from '@variance-authority/core/format';
 import { digestString } from '../digest.js';
-import { workingTreeChanges } from '../working-tree-changes.js';
+import { workingTreeChanges, type WorkingTreeChanges } from '../working-tree-changes.js';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
 import type { TestCoverageView } from './format-view.js';
-import { findModules } from './lookup.js';
+import { codeUnitOrder } from './instrumented-modules.js';
+import { findModules, findString } from './lookup.js';
 import { writeCoverageBytes } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 
@@ -45,6 +47,32 @@ export const KEPT_TEXTS = '.texts';
 /** Where one digest's text sits inside a layer. */
 function keptName(digest: string): string {
   return `${KEPT_TEXTS}/${digest.replace(/^[^:]+:/u, '')}`;
+}
+
+/** The checkout a landing keeps texts for: its top, the layer they go to, and what git says differs from `HEAD`. */
+export interface LandedTree {
+  readonly repository: string;
+  readonly top: string;
+  readonly changes: WorkingTreeChanges;
+}
+
+/**
+ * The checkout `root` is in, asked once per landing for every text it keeps.
+ * `undefined` outside a checkout or when git does not answer, which keeps
+ * nothing. Never throws.
+ */
+export async function landedTree(root: string, cacheRoot?: string): Promise<LandedTree | undefined> {
+  let repository: string;
+  let top: string;
+  try {
+    repository = repositoryRoot(root);
+    ({ top } = repositoryLayers(repository, cacheRoot));
+  } catch {
+    return undefined;
+  }
+  // Asked as the scan asks it, so a checkout's untracked cache answers it.
+  const changes = await workingTreeChanges(repository, '');
+  return changes === undefined ? undefined : { repository, top, changes };
 }
 
 /**
@@ -60,23 +88,9 @@ function keptName(digest: string): string {
  * a module charged whole later, which is the answer that was given before any
  * text was kept.
  */
-export async function keepRecordedTexts(
-  root: string,
-  record: TestCoverageView,
-  cacheRoot?: string,
-): Promise<readonly string[]> {
-  if (record.commit === undefined) return [];
-  let repository: string;
-  let top: string;
-  try {
-    repository = repositoryRoot(root);
-    ({ top } = repositoryLayers(repository, cacheRoot));
-  } catch {
-    return [];
-  }
-  // Asked as the scan asks it, so a checkout's untracked cache answers it.
-  const changes = await workingTreeChanges(repository, '');
-  if (changes === undefined) return [];
+export async function keepRecordedTexts(tree: LandedTree | undefined, record: TestCoverageView): Promise<readonly string[]> {
+  if (record.commit === undefined || tree === undefined) return [];
+  const { repository, top, changes } = tree;
   const kept: string[] = [];
   for (const file of changes.changed) {
     const rows = findModules(record, file).filter((module) => record.moduleInstrumented.at(module) === 1);
@@ -90,20 +104,29 @@ export async function keepRecordedTexts(
     }
     const digest = digestString(text);
     if (!digests.has(digest)) continue;
-    const at = resolve(top, keptName(digest));
-    try {
-      // The name is the content, so a text already there is this text.
-      await access(at);
-    } catch {
-      try {
-        await writeCoverageBytes(at, Buffer.from(text, 'utf8'));
-      } catch {
-        continue;
-      }
-    }
-    kept.push(digest);
+    if (await keepText(top, digest, text)) kept.push(digest);
   }
   return kept;
+}
+
+/**
+ * Write `text` into the layer at `top` under `digest`, its own digest, unless
+ * it is there already. `false` when it could not be written.
+ */
+export async function keepText(top: string, digest: string, text: string): Promise<boolean> {
+  const at = resolve(top, keptName(digest));
+  try {
+    // The name is the content, so a text already there is this text.
+    await access(at);
+    return true;
+  } catch {
+    try {
+      await writeCoverageBytes(at, Buffer.from(text, 'utf8'));
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 
 /**
@@ -130,4 +153,67 @@ export function keptTexts(root: string, cacheRoot?: string): (digest: string) =>
     }
     return undefined;
   };
+}
+
+/**
+ * A lister of every digest a landing kept a text for, in this checkout's layer
+ * and the primary checkout's: one directory read per layer, and no text read.
+ *
+ * A reader asks it to find what the diff from the commit cannot name: a module
+ * recorded over an edit that has since been undone (`recordedOverKept`).
+ */
+export function keptDigests(root: string, cacheRoot?: string): () => readonly string[] {
+  return () => {
+    let layers: ReturnType<typeof repositoryLayers>;
+    try {
+      layers = repositoryLayers(root, cacheRoot);
+    } catch {
+      return [];
+    }
+    const digests = new Set<string>();
+    for (const directory of layeredFiles(layers, KEPT_TEXTS)) {
+      let names: string[];
+      try {
+        names = readdirSync(directory);
+      } catch {
+        continue;
+      }
+      // `keepRecordedTexts` names each text by its digest's hex alone; anything
+      // else in the directory, a write in flight among them, is not a kept text.
+      for (const name of names) {
+        const digest = digestOfSha256(name);
+        if (/^[0-9a-f]+$/u.test(name) && digest.endsWith(`:${name}`)) digests.add(digest);
+      }
+    }
+    return [...digests];
+  };
+}
+
+/**
+ * The paths of the instrumented rows cut from one of the kept `digests` that
+ * `named` does not hold, code-unit sorted.
+ *
+ * A row cut from a kept text was recorded over an edit. When the diff from the
+ * commit does not name its file, the file is back at the commit's text: the
+ * edit was undone, and the undo is a change the tests that ran the edit have
+ * not run.
+ */
+export function recordedOverKept(
+  coverage: TestCoverageView,
+  digests: readonly string[],
+  named: (file: string) => boolean,
+): readonly string[] {
+  const ids = new Set<number>();
+  for (const digest of digests) {
+    const id = findString(coverage, digest);
+    if (id !== undefined) ids.add(id);
+  }
+  if (ids.size === 0) return [];
+  const files = new Set<string>();
+  for (let module = 0; module < coverage.moduleSource.length; module += 1) {
+    if (!ids.has(coverage.moduleSource.at(module)) || coverage.moduleInstrumented.at(module) !== 1) continue;
+    const file = coverage.string(coverage.modulePath.at(module));
+    if (!named(file)) files.add(file);
+  }
+  return [...files].sort(codeUnitOrder);
 }

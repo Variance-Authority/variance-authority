@@ -21,7 +21,7 @@ use sha2::{Digest, Sha256};
 use crate::compact::Layer;
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
-use crate::help_usage::{usage, DeepRequest, IndexedUsage, NameUse, NamedExport};
+use crate::help_usage::{usage, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::tree;
 
@@ -29,7 +29,8 @@ use crate::source_tree::tree;
 #[napi]
 pub struct HelpReading {
     held: Arc<Held>,
-    usage: Option<(Vec<NameUse>, Vec<DeepRequest>, Vec<DeepRequest>, Vec<String>)>,
+    /// What `usage` hands over once, with its export list left empty.
+    usage: Option<IndexedUsage>,
 }
 
 /// What publishing reads, shared with the thread that writes it.
@@ -56,10 +57,11 @@ pub struct HelpPublish {
     /// The digest of the index manifest the reading was made from, which a
     /// later refresh over the same manifest keeps the value by.
     pub index_digest: String,
-    /// JSON of the value's `packages`, `deep`, `byPath` and `unreadable`.
+    /// JSON of the value's `packages`, `deep`, `byPath`, `unfollowed` and `unreadable`.
     pub packages: String,
     pub deep: String,
     pub by_path: String,
+    pub unfollowed: String,
     pub unreadable: String,
     pub published: PublishedRows,
 }
@@ -69,25 +71,27 @@ pub struct HelpPublished {
     pub graph_digest: String,
 }
 
-/// The reading of the chain at `index` for the entrypoints in `opened` and the
-/// packages in `unentered`, which declare no entry; `None` when there is no
-/// index.
+/// The reading of the chain at `index` for the entrypoints in `opened`, the
+/// imports into the packages in `published` that no entry opens, the packages
+/// in `unentered`, which declare no entry, and the specifiers in `declared`,
+/// which a manifest names whether or not the reading could follow them;
+/// `None` when there is no index.
 #[napi(ts_return_type = "Promise<HelpReading | null>")]
-pub fn read_help(root: String, index: String, opened: Vec<String>, unentered: Vec<String>) -> AsyncTask<OffThread<Option<HelpReading>>> {
-    off_thread(move || reading(&root, &index, &opened, &unentered))
+pub fn read_help(root: String, index: String, opened: Vec<String>, published: Vec<String>, unentered: Vec<String>, declared: Vec<String>) -> AsyncTask<OffThread<Option<HelpReading>>> {
+    off_thread(move || reading(&root, &index, &opened, &published, &unentered, &declared))
 }
 
-fn reading(root: &str, index: &str, opened: &[String], unentered: &[String]) -> napi::Result<Option<HelpReading>> {
+fn reading(root: &str, index: &str, opened: &[String], published: &[String], unentered: &[String], declared: &[String]) -> napi::Result<Option<HelpReading>> {
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {index} did not read: {error}"));
     let Some(chain) = read_chain(index).map_err(fail)? else { return Ok(None) };
     let layers = chain.segments.par_iter().enumerate()
         .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
         .collect::<Result<Vec<_>, _>>()
         .map_err(fail)?;
-    let (read, tree) = rayon::join(|| usage(root, &layers, opened, unentered), || tree(&layers));
-    let IndexedUsage { exported, deep, by_path, unreadable, names } = read;
+    let (mut read, tree) = rayon::join(|| usage(root, &layers, opened, published, unentered, declared), || tree(&layers));
+    let exported = std::mem::take(&mut read.exported);
     let digest = exported_digest(&exported);
-    Ok(Some(HelpReading { held: Arc::new(Held { exported, tree, digest }), usage: Some((names, deep, by_path, unreadable)) }))
+    Ok(Some(HelpReading { held: Arc::new(Held { exported, tree, digest }), usage: Some(read) }))
 }
 
 /// `exportedDigest` of a list JavaScript holds: a value published before the
@@ -109,8 +113,9 @@ impl HelpReading {
     /// export list is left empty, and stays here.
     #[napi]
     pub fn usage(&mut self) -> IndexedUsage {
-        let (names, deep, by_path, unreadable) = self.usage.take().unwrap_or_default();
-        IndexedUsage { exported: Vec::new(), deep, by_path, unreadable, names }
+        self.usage.take().unwrap_or_else(|| IndexedUsage {
+            exported: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new(),
+        })
     }
 
     /// Write the graph, the value and its search. A graph already written
@@ -156,9 +161,9 @@ fn value(o: &HelpPublish, generation: &SearchGeneration, digest: &str, exported:
     let mut out = Vec::with_capacity(exported.len() * 200);
     write!(
         out,
-        "{{\"format\":{},\"version\":{},\"root\":{},\"graphRoot\":{},\"graphDigest\":{},\"generatedAt\":{},\"exportedDigest\":{},\"indexDigest\":{},\"help\":{{\"packages\":{},\"deep\":{},\"byPath\":{},\"exported\":",
+        "{{\"format\":{},\"version\":{},\"root\":{},\"graphRoot\":{},\"graphDigest\":{},\"generatedAt\":{},\"exportedDigest\":{},\"indexDigest\":{},\"help\":{{\"packages\":{},\"deep\":{},\"byPath\":{},\"unfollowed\":{},\"exported\":",
         json(&o.format), o.version, json(&o.root), json(&o.graph_root), json(&generation.graph_digest), json(&o.generated_at), json(digest), json(&o.index_digest),
-        o.packages, o.deep, o.by_path,
+        o.packages, o.deep, o.by_path, o.unfollowed,
     )?;
     serde_json::to_writer(&mut out, exported)?;
     write!(out, ",\"unreadable\":{}}}}}\n", o.unreadable)?;

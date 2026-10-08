@@ -83,6 +83,13 @@ Read it by these rules:
   `precondition` by name (the test's own source, a setup or a configuration
   file it declared), a `reader` (a file that reads a `name` the changed file
   declares), or an `importer` with the trail.
+- `distances` can hold a test outside `entered`: one in `incomplete` that the
+  diff did not enter, placed by the shortest path it ran to a file in
+  `readings` it loaded. Every reading seeds, an `unread` one included, except
+  a `none` the parser decided; a `none` with `kept: true` seeds. A changed file
+  with no reading seeds no test: a stale one, or one whose text was checked and
+  that has no line ranges, such as a rename, mode or binary change. An
+  incomplete test with no path is left out of `distances`.
 - Leave `relations` and `faces` out, and every test that is not a precondition
   comes back with no `hops`, `bearing: 'unmeasured'` and `because: 'no import
   graph was supplied'`.

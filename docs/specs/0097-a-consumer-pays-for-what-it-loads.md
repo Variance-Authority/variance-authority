@@ -278,9 +278,8 @@ made it.
   as "needed before the cases ran".
 - A document replaced before it was drained leaves its test incomplete, as
   it does for execution, and its split isn't reported.
-- A dynamic import whose specifier isn't a quoted string has no edge, and
-  neither does a template literal, even one with no substitution. What it
-  loaded stays **unseen**.
+- A dynamic import whose specifier isn't a constant, a string or a template
+  with no substitution, has no edge. What it loaded stays **unseen**.
 
 ## Where it is read
 
@@ -314,8 +313,8 @@ made it.
    `lazy: true`. `variance distill` hands it the file graph's `dynamic`
    edges and prints that import as `lazily imports`. Fixtures in
    `own.test.ts`, and, read through the file graph in the CLI's file
-   reading, a `React.lazy` modal and an `import()` of a template literal
-   that stays unseen. Spec 0092's hole names a non-literal dynamic import.
+   reading, a `React.lazy` modal and an `import()` of a specifier built
+   at run time that stays unseen. Spec 0092's hole names a non-literal dynamic import.
    Open: the import's line, which `Relations` does not carry and which
    comes with spec 0095's item 5 for every import.
 2. **A use says whether an import was needed outside every case.**

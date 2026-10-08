@@ -20,7 +20,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeReach, changedBefore, type Relations } from '@variance-authority/core/relate';
-import { listed, many } from './reach.js';
+import { listed, many } from './prose-counts.js';
 
 /** Whether the diff moved what the suite rests on, and what to say either way. */
 export interface Rests {

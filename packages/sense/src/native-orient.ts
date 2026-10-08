@@ -361,10 +361,12 @@ export interface NativeDependencyLexicon {
 /** What the published index records of imports and exports, read by `readHelp`. */
 export interface NativeIndexedUsage {
   exported: { name: string; at: string; by: string; line: number; type: boolean; kind: 'story' | 'test' | 'source' }[];
-  /** Imports of a file past the entry its package declares. */
+  /** Imports of a file past every specifier its package declares. */
   deep: NativeByPath[];
   /** Imports of a file of a package that declares no entry. */
   byPath: NativeByPath[];
+  /** Imports of a specifier a published manifest declares, which the reading could not follow to a source file. */
+  unfollowed: NativeByPath[];
   unreadable: string[];
   names: NativeNameUse[];
 }

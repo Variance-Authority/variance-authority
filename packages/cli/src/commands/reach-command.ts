@@ -56,7 +56,8 @@ import { join, relative } from 'node:path';
 import { promisify } from 'node:util';
 import { OperatorError } from '../exit.js';
 import type { DiffPoint } from './installed.js';
-import { affectedFiles, listed, many, refused } from './reach.js';
+import { affectedFiles, refused } from './reach.js';
+import { listed, many } from './prose-counts.js';
 import { relationsFor } from './source-graph.js';
 import { changedSince, diffPoint, movedSince } from './since.js';
 

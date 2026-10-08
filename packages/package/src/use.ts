@@ -2,7 +2,8 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
 import { type Parses, parseFile } from './declare.js';
 import { lineAt } from './doc.js';
-import { readUnentered, requested } from './manifest.js';
+import { type ImportTargets, landing } from './entry.js';
+import { readImportTargets, requested } from './manifest.js';
 
 /**
  * Which published names anything in this repository actually imports.
@@ -123,8 +124,15 @@ export interface Deep {
 export interface Usage {
   /** `<package> <subpath>` to imported name to every place that imports it. */
   readonly names: ReadonlyMap<string, ReadonlyMap<string, readonly Use[]>>;
-  /** Specifiers naming a file of a package that declares an entry, past what that entry opens. */
+  /** Specifiers naming a file of a package that declares an entry, past every specifier it declares. */
   readonly deep: readonly Deep[];
+  /**
+   * Specifiers a published manifest declares that the reading could not follow
+   * to a source file: a `main` or an `exports` target naming a build output the
+   * checkout does not hold. None of them is deep, since each names the entry
+   * exactly; the names it takes cannot be listed, because no file was read.
+   */
+  readonly unfollowed: readonly Deep[];
   /**
    * Specifiers naming a file of a package that declares no entry: no `exports`,
    * `main`, `types` or `typings`. Every import of such a package is by path, and
@@ -254,14 +262,11 @@ export interface Exported {
  * The whole of what `readUsage` does once it has the imports, and separate from
  * the reading for the reason `Recorded` exists: two callers arrive here holding
  * the same facts read two different ways, and only one of them had to walk.
+ * `targets` names the packages an import is followed into, and the ones among
+ * them that declare no entry, whose imports are listed apart from the deep ones.
  */
-export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>, unentered: ReadonlySet<string>): Usage {
-  const packages = new Set([...[...opened].map((key) => key.slice(0, key.indexOf(' '))), ...unentered]);
-  const names = new Map<string, Map<string, Use[]>>();
-  const deep: Deep[] = [];
-  const byPath: Deep[] = [];
-  const exported: Named[] = [];
-  const unreadable: string[] = [];
+export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>, targets: ImportTargets): Usage {
+  const usage = gatheringUsage();
 
   for (const file of files) {
     const { at, by } = file;
@@ -269,36 +274,63 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
     // and a file that parsed with one specifier this could not follow, and
     // rounding the second down to the first would drop every import the file
     // does write — which is the direction of error this whole reading avoids.
-    if (file.unknown !== undefined) unreadable.push(at);
+    if (file.unknown !== undefined) usage.unreadable.push(at);
 
     const kind = kindOf(at);
 
     for (const published of file.publishes ?? []) {
-      exported.push({ name: published.name, at, by, line: published.line, type: published.type, kind });
+      usage.exported.push({ name: published.name, at, by, line: published.line, type: published.type, kind });
     }
 
     for (const asked of file.requests) {
       const key = requested(asked.specifier);
-      const named = key.slice(0, key.indexOf(' '));
-      if (!packages.has(named)) continue;
+      const lands = landing(key, opened, targets);
+      if (lands === undefined) continue;
 
-      if (!opened.has(key)) {
+      if (lands !== 'opened') {
         const taken = asked.names.map((bound) => ({ name: bound.imported, by, at, line: bound.line, type: bound.type, kind }));
-        (unentered.has(named) ? byPath : deep).push({ specifier: asked.specifier, by, at, line: asked.line, names: taken });
+        usage.past(lands, { specifier: asked.specifier, by, at, line: asked.line, names: taken });
         continue;
       }
 
-      const held = names.get(key) ?? new Map<string, Use[]>();
-      names.set(key, held);
-      for (const bound of asked.names) {
-        const uses = held.get(bound.imported) ?? [];
-        held.set(bound.imported, uses);
-        uses.push({ by, at, line: bound.line, type: bound.type, kind });
-      }
+      for (const bound of asked.names) usage.take(key, bound.imported, { by, at, line: bound.line, type: bound.type, kind });
     }
   }
 
-  return { names, deep, byPath, exported, unreadable };
+  return usage.read();
+}
+
+/**
+ * A `Usage` while it is gathered: the one place that says which list an import
+ * between packages is kept on. `usageFrom` fills one from recorded files, and
+ * the scan's collector fills one from the parses it already holds.
+ */
+export function gatheringUsage(): {
+  /** Keep an import that lands anywhere but in what the workspace opens, on the list its landing names. */
+  past(lands: 'byPath' | 'deep' | 'unfollowed', held: Deep): void;
+  /** Record one place that takes `name` through the opened specifier `key`. */
+  take(key: string, name: string, use: Use): void;
+  readonly exported: Named[];
+  readonly unreadable: string[];
+  read(): Usage;
+} {
+  const names = new Map<string, Map<string, Use[]>>();
+  const past = { byPath: [] as Deep[], deep: [] as Deep[], unfollowed: [] as Deep[] };
+  const exported: Named[] = [];
+  const unreadable: string[] = [];
+  return {
+    past: (lands, held) => void past[lands].push(held),
+    take(key, name, use) {
+      const held = names.get(key) ?? new Map<string, Use[]>();
+      names.set(key, held);
+      const uses = held.get(name) ?? [];
+      held.set(name, uses);
+      uses.push(use);
+    },
+    exported,
+    unreadable,
+    read: () => ({ names, ...past, exported, unreadable }),
+  };
 }
 
 /**
@@ -449,5 +481,5 @@ export function readUsage(
     });
   });
 
-  return usageFrom(opened, files, readUnentered(root));
+  return usageFrom(opened, files, readImportTargets(root));
 }

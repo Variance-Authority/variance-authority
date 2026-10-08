@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import { OFFERED, ownership, readOfferings } from './manifest.js';
+import { OFFERED, ownership, readImportTargets, readOfferings } from './manifest.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
 
@@ -64,6 +64,18 @@ describe('reading a workspace', () => {
   it('records only the keys an option asks for', () => {
     const [first] = readOfferings(WORKSPACE, { offered: ['files'] });
     expect(Object.keys(first!.declared)).toEqual(['files']);
+  });
+
+  it('records whether a manifest declares an entry, `typings` alone included, whichever keys it is asked to record', () => {
+    const root = workspace({
+      'package.json': { private: true, workspaces: ['packages/*'] },
+      'packages/typed/package.json': { name: '@acme/typed', typings: 'dist/index.d.ts' },
+      'packages/kit/package.json': { name: '@acme/kit' },
+    });
+    const offerings = readOfferings(root, { offered: ['files'], tolerant: true });
+
+    expect(Object.fromEntries(offerings.map((offering) => [offering.name, offering.entry]))).toEqual({ '@acme/kit': false, '@acme/typed': true });
+    expect([...readImportTargets(root).unentered]).toEqual(['@acme/kit']);
   });
 
   it('maps a published declaration back to the source it was compiled from', () => {
@@ -429,6 +441,12 @@ describe('a package with no `exports`', () => {
     const manifest = { name: 'lib', main: 'src/other.ts', exports: { '.': './src/index.ts' } };
     expect(opened(manifest, { 'src/other.ts': 'export const two = 2;\n' })).toEqual([[['.', 'src/index.ts']]]);
     expect(opened({ name: 'lib', main: 'src/index.ts', exports: {} })).toEqual([[]]);
+  });
+
+  it('reads `exports: null` as no `exports`, as Node does: `main` opens `.`, and without one the package declares no entry', () => {
+    expect(opened({ name: 'lib', exports: null, main: 'src/index.ts' })).toEqual([[['.', 'src/index.ts']]]);
+    const bare = readOfferings(workspace({ 'package.json': { name: 'lib', exports: null }, 'src/index.ts': 'export const one = 1;\n' }));
+    expect(bare.map((offering) => offering.entry)).toEqual([false]);
   });
 });
 

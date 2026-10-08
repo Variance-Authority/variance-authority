@@ -81,6 +81,41 @@ export interface DiffPoint {
   readonly base: string;
   /** One file's contents at that commit, or `undefined` when it was not there. */
   at(path: string): Promise<string | undefined>;
+  /**
+   * The files the recorded run had deleted, which `at` answers as absent: the
+   * install it ran on had none, whatever the commit holds.
+   */
+  readonly ranWithout?: ReadonlySet<string>;
+}
+
+/**
+ * `point` as the install a recording ran on: each lockfile and manifest the
+ * runs record keeps (`kept-install.ts` in sense) answers with its kept text,
+ * or as absent where the run had deleted it, and every other file with the
+ * commit's. `installed` names paths from the top of the checkout, as `at` does.
+ *
+ * `{ missing }` names the first kept path whose text `kept` cannot produce:
+ * the record was copied here without it. Half an install is no install, so
+ * the caller reads the commit's whole.
+ */
+export function ranOn(
+  point: DiffPoint,
+  installed: Readonly<Record<string, string | null>>,
+  kept: (digest: string) => string | undefined,
+): DiffPoint | { readonly missing: string } {
+  const texts = new Map<string, string | undefined>();
+  for (const [path, digest] of Object.entries(installed)) {
+    const text = digest === null ? undefined : kept(digest);
+    if (digest !== null && text === undefined) return { missing: path };
+    texts.set(path, text);
+  }
+  if (texts.size === 0) return point;
+  const ranWithout = new Set([...texts].filter(([, text]) => text === undefined).map(([path]) => path));
+  return {
+    ...point,
+    at: async (path) => (texts.has(path) ? texts.get(path) : await point.at(path)),
+    ...(ranWithout.size === 0 ? {} : { ranWithout }),
+  };
 }
 
 /**
@@ -155,14 +190,13 @@ async function installDiffAt(
   const manifests = [pathTail(found.file), MANIFEST];
   // Asked in one turn, so a point that reads its files together reads them at once.
   const [moved, before] = await Promise.all([movedSince(point, changed, from), point.at(path)]);
-  if (before === found.text) return { packages: [], manifests, moved };
+  if (before === found.text) return { lockfile: path, packages: [], manifests, moved };
 
   if (before === undefined) {
-    return {
-      whole:
-        `${path} is not in the tree at ${point.base.slice(0, 12)}, where this install is compared ` +
-        'from, so there is no install to compare it against and any package in it may have moved',
-    };
+    const where = point.ranWithout?.has(path)
+      ? `the suite ran at ${point.base.slice(0, 12)} with no ${path}`
+      : `${path} is not in the tree at ${point.base.slice(0, 12)}, where this install is compared from`;
+    return { whole: `${where}, so there is no install to compare it against and any package in it may have moved` };
   }
 
   return await compared(path, before, after, manifests, moved);
@@ -269,6 +303,7 @@ async function compared(
   try {
     const lock = await import('@variance-authority/sense/lock');
     return {
+      lockfile: path,
       manifests,
       packages: lock.changedPackages(lock.readLockfile(path, before), await after()),
       moved,
@@ -362,9 +397,14 @@ function messageOf(error: unknown): string {
  * those fields — `exports`, `main`, `type`, `name` — read at both revisions by
  * the same comparison. Each one's directory is a changed directory: every
  * importer of the package may now load a different file.
+ *
+ * `lockfile` is the lockfile compared, as the repository names it, for the
+ * sentence that says what a bump reached. Absent when none was: the change
+ * left every lockfile alone.
  */
 export type InstallDiff =
   | {
+      readonly lockfile?: string;
       readonly packages: readonly string[];
       readonly manifests: readonly string[];
       readonly moved: readonly string[];

@@ -60,10 +60,11 @@ export interface HelpPublish {
   readonly generatedAt: string;
   /** The digest of the index manifest the reading was made from. */
   readonly indexDigest: string;
-  /** JSON of the value's `packages`, `deep`, `byPath` and `unreadable`. */
+  /** JSON of the value's `packages`, `deep`, `byPath`, `unfollowed` and `unreadable`. */
   readonly packages: string;
   readonly deep: string;
   readonly byPath: string;
+  readonly unfollowed: string;
   readonly unreadable: string;
   readonly published: PublishedRows;
 }
@@ -79,7 +80,7 @@ export interface HelpReading {
 }
 
 export interface NativeHelp {
-  readHelp?(root: string, index: string, opened: string[], unentered: string[]): Promise<HelpReading | null>;
+  readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[], declared: string[]): Promise<HelpReading | null>;
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
 }
@@ -94,17 +95,20 @@ function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<NativeHel
 }
 
 /**
- * The reading of the index at `index` for the entrypoints in `opened` and the
- * packages in `unentered`, which declare no entry; `null` when none was
- * published.
+ * The reading of the index at `index` for the entrypoints in `opened`, the
+ * imports into the packages in `targets.published` that no entry opens, the
+ * packages in `targets.unentered`, which declare no entry, and the specifiers
+ * in `targets.declared`, which a manifest names whether or not the reading
+ * could follow them; `null` when none was published. `opened` and
+ * `targets.declared` are `<package> .<subpath>` keys.
  */
 export function readHelp(
   root: string,
   opened: readonly string[],
-  unentered: Iterable<string>,
+  targets: { readonly published: Iterable<string>; readonly unentered: Iterable<string>; readonly declared: Iterable<string> },
   index: string = sourceIndexPath(root),
 ): Promise<HelpReading | null> {
-  return entry('readHelp')(root, index, [...opened], [...unentered]);
+  return entry('readHelp')(root, index, [...opened], [...targets.published], [...targets.unentered], [...targets.declared]);
 }
 
 /** The search over `published` and `exported`, and the digest of `exported`. */

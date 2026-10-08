@@ -236,17 +236,21 @@ export function caseRunnerSource(
       runner.recording.continuations
     }, ${runner.recording.story});\n`;
   return `
-// \`vitest/runners\` on every supported major. Vitest 4.1 deprecates the entry in
-// favour of the package root and prints a line saying so on each run, but does
-// not export the class there yet — measured on 4.1.11, where the root has no
-// \`VitestTestRunner\` at all. The notice is the cost of the only entry that
-// answers on 2, 3 and 4 alike.
-import { VitestTestRunner } from 'vitest/runners';
+import * as vitest from 'vitest';
 import { getFn, getHooks } from ${JSON.stringify(runner.module ?? '@vitest/runner')};
 import { getNames } from ${JSON.stringify(runner.utils ?? '@vitest/runner/utils')};
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
+
+// The class this runner extends. Vitest 4.1 exports it from the package root as
+// \`TestRunner\` and deprecates \`vitest/runners\`, which prints a line saying so
+// in every worker that imports it; the root's \`VitestTestRunner\` there is a
+// type and nothing at run time. Vitest 2, 3 and 4.0 export the class only from
+// \`vitest/runners\`, so that entry is imported only where the root has none.
+// The root is read as a namespace because a named import it lacks fails to
+// link.
+const VitestTestRunner = vitest.TestRunner ?? (await import('vitest/runners')).VitestTestRunner;
 
 ${recording}
 // The runner's own tree, cut to what the fold reads a file's outcome from. The

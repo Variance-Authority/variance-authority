@@ -11,6 +11,7 @@ use oxc_ast_visit::{walk, Visit};
 use regex::Regex;
 use serde::Serialize;
 
+use crate::loads::constant;
 use crate::order::code_unit;
 
 /// `vi`, `jest` and `sb`: the callers every parse is read for.
@@ -90,18 +91,11 @@ fn method_of<'b>(call: &'b CallExpression<'_>) -> Option<&'b str> {
 
 /// `'./x'`, a template with no substitutions, or `import('./x')`.
 fn specifier_of(argument: &Argument<'_>) -> Option<String> {
-    argument.as_expression().and_then(specifier_of_expression)
-}
-
-fn specifier_of_expression(expression: &Expression<'_>) -> Option<String> {
-    match expression {
-        Expression::StringLiteral(literal) => Some(literal.value.to_string()),
-        Expression::TemplateLiteral(template) if template.quasis.len() == 1 => {
-            template.quasis[0].value.cooked.as_ref().map(|cooked| cooked.to_string())
-        }
-        Expression::ImportExpression(import) => specifier_of_expression(&import.source),
-        _ => None,
-    }
+    let expression = match argument.as_expression()? {
+        Expression::ImportExpression(import) => &import.source,
+        written => written,
+    };
+    constant(expression).map(str::to_owned)
 }
 
 /// A factory whose body is elsewhere.

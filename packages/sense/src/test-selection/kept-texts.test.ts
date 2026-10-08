@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, realpath, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -8,7 +8,7 @@ import { digestString } from '../digest.js';
 import { repositoryLayers } from './cache-layers.js';
 import { landRun } from './commit-runs.js';
 import { narrowByExecution, testCoverageFile, type FileReading, type TestCoverage } from './index.js';
-import { KEPT_TEXTS, keepRecordedTexts, keptTexts } from './kept-texts.js';
+import { KEPT_TEXTS, keepRecordedTexts, keepText, keptTexts, landedTree } from './kept-texts.js';
 import { openTestCoverage } from './format-view.js';
 import { encodeTestCoverage } from './format.js';
 import { textAtRecording } from './recorded-text.js';
@@ -126,7 +126,7 @@ describe('a run recorded over an edit keeps the text it ran over', () => {
       const coverageFile = await recordOver(at, COMMITTED);
       await writeFile(resolve(at.root, FILE), secondChanged(COMMITTED), 'utf8');
 
-      expect(await keepRecordedTexts(at.root, openTestCoverage(encodeTestCoverage(recording(COMMITTED, at.commit))), at.cacheRoot)).toEqual([]);
+      expect(await keepRecordedTexts(await landedTree(at.root, at.cacheRoot), openTestCoverage(encodeTestCoverage(recording(COMMITTED, at.commit))))).toEqual([]);
       expect(await select(at, coverageFile)).toEqual({ entered: ['test/second.test.ts'], stale: [] });
     });
   });
@@ -187,7 +187,7 @@ describe('a run recorded over an edit keeps the text it ran over', () => {
       await writeFile(resolve(at.root, FILE), secondChanged(NOTED), 'utf8');
       const record = openTestCoverage(encodeTestCoverage(recording(NOTED, at.commit)));
 
-      expect(await keepRecordedTexts(at.root, record, at.cacheRoot)).toEqual([]);
+      expect(await keepRecordedTexts(await landedTree(at.root, at.cacheRoot), record)).toEqual([]);
       expect(keptTexts(at.root, at.cacheRoot)(digestString(NOTED))).toBeUndefined();
     });
   });
@@ -202,6 +202,25 @@ describe('a run recorded over an edit keeps the text it ran over', () => {
       await writeFile(stored, COMMITTED, 'utf8');
       expect(keptTexts(at.root, at.cacheRoot)(digest)).toBeUndefined();
     });
+  });
+
+  it('writes a text once, and answers that it is kept every time it is asked to keep it', async () => {
+    const top = await realpath(await mkdtemp(resolve(tmpdir(), 'variance-keep-text-')));
+    try {
+      const digest = digestString(NOTED);
+      const stored = resolve(top, KEPT_TEXTS, digest.replace(/^[^:]+:/u, ''));
+      expect(await keepText(top, digest, NOTED)).toBe(true);
+      // Dated a whole second in the past, so a second write would show as a newer date.
+      const past = new Date(Math.floor(Date.now() / 1000) * 1000 - 60_000);
+      await utimes(stored, past, past);
+
+      expect(await keepText(top, digest, NOTED)).toBe(true);
+
+      expect((await stat(stored)).mtimeMs).toBe(past.getTime());
+      expect(await readFile(stored, 'utf8')).toBe(NOTED);
+    } finally {
+      await rm(top, { recursive: true, force: true });
+    }
   });
 
   it('serves a worktree reading the primary checkout\'s recording the text the primary kept', async () => {
@@ -241,7 +260,7 @@ describe('a run recorded over an edit keeps the text it ran over', () => {
       vi.stubEnv('GIT_TRACE2_PERF', trace);
       let kept: readonly string[];
       try {
-        kept = await keepRecordedTexts(at.root, openTestCoverage(encodeTestCoverage(recording(NOTED, commit))), at.cacheRoot);
+        kept = await keepRecordedTexts(await landedTree(at.root, at.cacheRoot), openTestCoverage(encodeTestCoverage(recording(NOTED, commit))));
       } finally {
         vi.unstubAllEnvs();
       }

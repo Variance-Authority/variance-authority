@@ -173,6 +173,7 @@ variance ask search --query viewport --from packages/app/
 variance ask symbol --name Viewport
 variance ask uses --name collect --from packages/cli/src/index.ts
 variance ask packages
+variance ask entrypoint --package @acme/ui
 ```
 
 `search` tells you what a thing is called, where it is written, and how to
@@ -185,14 +186,54 @@ it. `--to` keeps the names in that code.
 It answers in two sections: the names a manifest publishes, ranked by how
 many packages import them, then the names the source exports without
 publishing. A third follows only when your words match a name that does not
-contain them, labelled as the looser reading it is. Every question takes a
-question: a word, a name or a specifier. `packages` is the one that takes none,
-and it answers with the specifiers the others take, so it is where a reader who
-has none of those starts. `symbol` prints one name's import line, declaration,
-signature, documentation and consumers; `uses` prints every import site, ordered
-by how much path it shares with `--from`; `entrypoint` lists what one import
-specifier opens; `gaps` lists the published names anybody imports that nothing
-documents.
+contain them, labelled as the looser reading it is.
+
+Every other question needs something to ask about: a word, a name or a
+specifier. `packages` is the one that needs nothing, so ask it when you have
+none of those. It counts and lists no import site. An answer looks like this,
+abridged:
+
+```text
+@acme/ui — 12 names, 9 imported elsewhere, 7 documented
+@acme/ui/button — 3 names, 3 imported elsewhere, 1 documented
+
+1 package that declares no entry is imported by path, most names first:
+  @acme/legacy — 14 names from 3 of its files
+
+Narrower questions:
+  variance ask entrypoint --package @acme/ui
+  variance ask entrypoint --package @acme/legacy
+```
+
+Each row in the first block is a specifier, what one import line names. Pass it
+whole to list the names it opens, most imported first:
+`variance ask entrypoint --package @acme/ui/button`. Each indented row is a
+package other packages import files of. Under a package that declares no entry,
+such as `@acme/legacy`, the import names a file, such as
+`@acme/legacy/src/format`, because there is no entry to name, and it is an
+import by path. Under a package that declares an entry, the import reaches past
+that entry, and it is a deep import. A package whose declared entry the reading
+could not follow to a source file, such as a `main` naming a build output the
+checkout does not hold, opens no names; the imports that name that entry are
+counted apart, and only an import past every entry it declares is deep.
+
+Pass the package's name to count those imports per file, the file the most
+files import first: `variance ask entrypoint --package @acme/legacy`. Each row
+of that answer is a specifier. Pass it to count the imports written as that
+specifier per name, each name with how many files import it, and
+`variance ask uses --name <name> --package <specifier>` lists the importer's
+file and line for one name. A package with ten thousand importers answers in
+one row per file, and a specifier in one row per name, never one line per
+import. Asked by the name of a package that declares an entry, `entrypoint`
+lists the names its main entry opens and then counts the imports past it the
+same way. A package whose `exports` opens only subpaths has no main entry, so
+asked by its name it lists the specifiers it opens instead. The answer ends
+with the narrower questions it has.
+
+`symbol` prints one name's import line, declaration, signature, documentation
+and consumers; `uses` prints every import site, ordered by how much path it
+shares with `--from`; `gaps` lists the published names anybody imports that
+nothing documents.
 
 To read the answer as data, add `--format json`:
 

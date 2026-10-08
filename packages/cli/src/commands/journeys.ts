@@ -1,6 +1,6 @@
 import type { JourneyParting, JourneyRegionRecord, JourneysReport } from '@variance-authority/report';
 import type { CaseLanding } from '@variance-authority/sense/test-selection';
-import { many } from './reach.js';
+import { many } from './prose-counts.js';
 
 /**
  * `variance journeys` — the one question that narrows a flake to a place.

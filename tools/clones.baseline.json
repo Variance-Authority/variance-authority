@@ -204,13 +204,6 @@
   },
   {
     "files": [
-      "packages/help/src/collect-usage.ts",
-      "packages/package/src/use.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/help/src/indexed-surface.ts",
       "packages/package/src/reach.ts"
     ],
