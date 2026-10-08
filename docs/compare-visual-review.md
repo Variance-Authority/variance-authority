@@ -89,7 +89,8 @@ subjects × viewports × browsers × modes × selected builds
 
 The same multiplication drives the other bill. Every comparison that survives to
 a person is a decision somebody makes, and a suite that surfaces more than it
-should is a standing assignment rather than a test run.
+should is a standing assignment rather than a test run. [What visual review
+costs](visual-review-cost.md) argues both bills on their own page.
 
 What separates the products is where intelligence sits relative to the spend.
 Perceptual match levels and hosted review queues read a comparison that has

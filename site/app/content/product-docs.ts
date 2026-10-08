@@ -96,6 +96,7 @@ import understandInterface from "../../../docs/understand-interface.md?raw";
 import vantage from "../../../docs/vantage.md?raw";
 import variations from "../../../docs/variations.md?raw";
 import aBTesting from "../../../docs/a-b-testing.md?raw";
+import visualReviewCost from "../../../docs/visual-review-cost.md?raw";
 
 export interface ProductDocument {
   slug: string;
@@ -114,6 +115,7 @@ const documents = [
   ["evidence-field", evidenceField, "docs/evidence-field.md"],
   ["great-data", greatData, "docs/great-data.md"],
   ["adjacent-possible", adjacentPossible, "docs/adjacent-possible.md"],
+  ["visual-review-cost", visualReviewCost, "docs/visual-review-cost.md"],
   ["extend-what-you-use", extendWhatYouUse, "docs/extend-what-you-use.md"],
   ["better-tests", betterTests, "docs/better-tests.md"],
   ["own-fewer-tests", ownFewerTests, "docs/own-fewer-tests.md"],
