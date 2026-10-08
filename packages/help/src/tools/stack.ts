@@ -14,6 +14,7 @@ import type { Tool } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { dependencyStack, type Stack, type StackRow } from '../dependency-lexicon.js';
+import { shippedSkillLine } from './third-party.js';
 
 /** Rows shown when the question names no limit. */
 const SHOWN = 40;
@@ -52,14 +53,18 @@ export function formatStack(stack: Stack, where: string): string {
   if (stack.rows.length === 0) {
     return stack.total === 0 ? `${head}\nThe owning manifest declares nothing and the code imports nothing third-party.` : `${head}\nOffset ${stack.offset} is past the last row.`;
   }
-  const out: string[] = [head, `Rows ${stack.offset + 1}–${stack.offset + stack.rows.length}.`];
+  const skills =
+    stack.skilled === undefined ? 'Skills were not read: the dependency lexicon predates them; run `variance index` to read them.'
+    : stack.skilled === 0 ? undefined
+    : `${stack.skilled} ${stack.skilled === 1 ? 'package ships' : 'packages ship'} agent skills, each listed under its package with its SKILL.md.`;
+  const out: string[] = [head, ...(skills === undefined ? [] : [skills]), `Rows ${stack.offset + 1}–${stack.offset + stack.rows.length}.`];
   let group: StackRow['state'] | undefined;
   for (const row of stack.rows) {
     if (row.state !== group) {
       group = row.state;
       out.push('', `${GROUPS[group]}:`);
     }
-    out.push(line(row));
+    out.push(line(row), ...(row.skills ?? []).map(shippedSkillLine));
   }
   if (stack.unreadable.length > 0) {
     out.push('', 'Declarations that could not be read:', ...stack.unreadable.map((one) => `  ${one.package} in ${one.manifest} — ${one.reason}`));
@@ -74,7 +79,9 @@ export const stack: Tool<Help> = {
     'Every third-party package a location can already use, with no query: for each, its role ' +
     '(runtime, dev, types-only), how the owning manifest declares it, its version and how many ' +
     'times the code imports it. Imported packages come first, then the declared and not imported, ' +
-    'then those whose imports were not read. Paged in a stable order; `offset` takes the next page. ' +
+    'then those whose imports were not read. Under a package that ships agent skills, each skill ' +
+    'is named with its SKILL.md and what its front matter says it is for; read that file before using ' +
+    'the package. Paged in a stable order; `offset` takes the next page. ' +
     'Reads only the published dependency lexicon; nothing is opened at question time.',
   inputSchema: {
     type: 'object',

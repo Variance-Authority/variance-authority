@@ -13,6 +13,7 @@ use sha2::{Digest, Sha256};
 use crate::read::read_module;
 use crate::resolve::Resolvers;
 use super::purposes::purpose;
+use super::skilled::skills;
 use super::{boundary, relative, Api, Identity, Name, Readme, Source};
 
 fn digest(path: &Path) -> Option<String> {
@@ -177,16 +178,19 @@ pub(super) fn api(root: &Path, importer: &Path, specifier: &str, resolver: &Reso
             format!("the project resolver could not resolve `{specifier}` from {}", relative(root, importer))
         };
         let readme = readme(root, &runtime);
-        let purpose = purpose(root, &runtime, &declarations, None);
-        return (Api { runtime, declarations, entrypoint: None, names: None, sources: None, unavailable: Some(reason), readme, purpose }, false);
+        let skills = skills(root, &runtime, &declarations);
+        let purpose = purpose(root, &runtime, &declarations, None, skills.as_deref());
+        return (Api { runtime, declarations, entrypoint: None, names: None, sources: None, unavailable: Some(reason), readme, purpose, skills }, false);
     };
     let entrypoint = relative(root, declaration.path());
     if let Some(prior) = previous.filter(|prior| unchanged(root, prior, &runtime, &declarations, &entrypoint)) {
         // A README is not among the digested sources, so an entry that publishes no names reads it again.
         let readme = prior.unavailable.is_some().then(|| readme(root, &runtime)).flatten();
         // Nor is it: the words a package says about itself are read again, so a README edit reaches the next refresh.
-        let purpose = purpose(root, &runtime, &declarations, prior.names.as_deref());
-        return (Api { readme, purpose, ..prior.clone() }, true);
+        // Nor are its skills: a `SKILL.md` is read again on every refresh.
+        let skills = skills(root, &runtime, &declarations);
+        let purpose = purpose(root, &runtime, &declarations, prior.names.as_deref(), skills.as_deref());
+        return (Api { readme, purpose, skills, ..prior.clone() }, true);
     }
     let mut reader = Reader { root, package: declaration.package_json().map(|manifest| manifest.path().to_owned()), resolver, cache: HashMap::new(), stack: HashSet::new(), sources: BTreeSet::new() };
     if let Some(resolution) = runtime_resolution.as_ref() {
@@ -198,6 +202,7 @@ pub(super) fn api(root: &Path, importer: &Path, specifier: &str, resolver: &Reso
         Some(Source { at: relative(root, path), digest: digest(path)? })).collect();
     let unavailable = names.is_empty().then(|| format!("the declarations for `{specifier}` publish no names this reader can enumerate"));
     let readme = unavailable.is_some().then(|| readme(root, &runtime)).flatten();
-    let purpose = purpose(root, &runtime, &declarations, Some(&names));
-    (Api { runtime, declarations, entrypoint: Some(entrypoint), names: Some(names), sources: Some(sources), unavailable, readme, purpose }, false)
+    let skills = skills(root, &runtime, &declarations);
+    let purpose = purpose(root, &runtime, &declarations, Some(&names), skills.as_deref());
+    (Api { runtime, declarations, entrypoint: Some(entrypoint), names: Some(names), sources: Some(sources), unavailable, readme, purpose, skills }, false)
 }

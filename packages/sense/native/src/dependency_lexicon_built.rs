@@ -84,15 +84,18 @@ fn directories(root: &Path, owners: &[Owner]) -> BTreeSet<String> {
     found
 }
 
-/// What one entry read: its digested sources, and the manifests and README its purpose came from.
+/// What one entry read: its digested sources, the manifests and README its purpose came from, and its skills.
 pub(super) fn read_by(entry: &Entry) -> Vec<String> {
     let mut paths: Vec<String> = entry.api.sources.iter().flatten().map(|source| source.at.clone()).collect();
     for identity in [&entry.api.runtime, &entry.api.declarations].into_iter().flatten() {
         paths.push(identity.manifest.clone());
         if let Some(parent) = Path::new(&identity.manifest).parent() {
             paths.push(parent.join("README.md").to_string_lossy().into_owned());
+            // The directory's stamp moves when a skill is added or removed; each file's when one is edited.
+            paths.push(parent.join("skills").to_string_lossy().into_owned());
         }
     }
+    paths.extend(entry.api.skills.iter().flatten().map(|skill| skill.at.clone()));
     paths
 }
 

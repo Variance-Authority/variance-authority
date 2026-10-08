@@ -28,6 +28,7 @@ as the investigation grows.
 | What do you need to do? | Start here |
 | --- | --- |
 | Find where to start in an unfamiliar codebase | [Choose an orientation route](docs/orientation.md): exact text, exported names inside one import neighbourhood, or a captured UI subject you can describe. |
+| Use a library the way this project already does | [Ask what the file can import](docs/tech-stack.md): the packages its workspace declares, the installed signature of a name, and the agent skills a package ships, all read from `node_modules`. |
 | Find out why this test is stuck | [Hold a Playwright test at a line you chose](docs/agent-interrogate.md) and inspect the page and announced work while that exact test is still running. |
 | Run the tests this edit needs | [Set one variable on the Vitest or Jest run you already call](docs/test-an-edit.md) and it leaves out every test file that never executed the code you changed, nearest tests first if you ask. A test with no complete recording always runs. |
 | Make one test smaller | [Find the modules loaded and components rendered that the test never used](docs/distill.md), try one substitution, and confirm it with the same test. |

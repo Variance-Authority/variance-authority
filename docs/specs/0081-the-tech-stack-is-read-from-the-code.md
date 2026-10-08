@@ -95,7 +95,7 @@ install reuses every catalogue entry and says so.
 
 ## When it leaves
 
-When all seven are on main: the public [orientation page](../orientation.md)
+When all seven are on main: the public [tech stack page](../tech-stack.md)
 documents the stack, the concepts registry in
 `tools/docs-entrypoints.check.ts` gets an owner for *tech stack*, ADR-0082
 becomes `accepted`, the checkpoint is updated, and this file is deleted.

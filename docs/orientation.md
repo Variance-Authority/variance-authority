@@ -196,6 +196,9 @@ reads changed declarations without rescanning repository source. `ask search`
 uses this catalogue alongside local names; `--from` and `--to` constrain which
 workspace's available packages it shows. `orient --files` keeps the dependency
 graph concise. Ask for a name when its third-party API detail matters.
+[Use the packages your project already installed](tech-stack.md) covers the
+questions about third-party packages: what a file can use, which package does
+a job, and the agent skills a package ships.
 
 ## Ask the record, or produce a new one
 

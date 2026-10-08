@@ -19,6 +19,12 @@ depend on.
 <p>Choose exact text search, indexed source relations, or observed subject search from the evidence you already have.</p>
 <em>Orient before you change code →</em>
 </a>
+<a class="doc-link-card doc-link-card--compact" href="tech-stack.md">
+<span>Tech stack</span>
+<strong>Use the packages you installed</strong>
+<p>See which packages a file can already import, find one by the job it does, and read its signature and shipped agent skills at the installed version.</p>
+<em>Ask the tech stack →</em>
+</a>
 <a class="doc-link-card doc-link-card--compact" href="boundaries.md">
 <span>Structure</span>
 <strong>See what your imports build</strong>

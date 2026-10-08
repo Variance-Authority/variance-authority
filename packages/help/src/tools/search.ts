@@ -4,7 +4,7 @@ import type { Help } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
 import { encodeSearchIndex, openSearchIndex } from '../search-index.js';
 import { areaLine } from './area.js';
-import { describedLine, thirdLine, thirdScope } from './third-party.js';
+import { describedWithSkills, thirdLine, thirdScope } from './third-party.js';
 import type { ExportedMatch, PublishedMatch } from './search-answer.js';
 import { searched } from './search-answer.js';
 
@@ -148,7 +148,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
           `${third?.describedTotal ?? described.length} ${(third?.describedTotal ?? described.length) === 1 ? 'package describes' : 'packages describe'} \`${query}\` in ` +
             'their own words or the words of their names, best first:',
           '',
-          ...described.map(describedLine),
+          ...describedWithSkills(described),
           ...((third?.describedTotal ?? 0) > described.length ? [`\n${(third?.describedTotal ?? 0) - described.length} more not shown.`] : []),
         ];
   const seenLoosely = (answer.loose?.shown ?? []).map(matchLine);
@@ -231,8 +231,9 @@ export const search: Tool<Help> = {
     'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
     'but does not publish follow, with the file and line that exports them. Installed third-party ' +
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
-    'packages that describe your words — in their own description, keywords and README headings, or in ' +
-    'the words of their names — so a job reaches a package by what it does. Names that match only ' +
+    'packages that describe your words — in their own description, keywords and README headings, the ' +
+    'agent skills they ship, or the words of their names — so a job reaches a package by what it does; ' +
+    'each such package names its skills with the SKILL.md to read. Names that match only ' +
     'loosely — your words apart, or within a character of the ones written — are listed last and ' +
     'labelled, never mixed in. On a large ' +
     'repository a substring alone matches everywhere a product says its own name, so say where ' +

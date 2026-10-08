@@ -16,7 +16,7 @@ use napi_derive::napi;
 use serde::Serialize;
 
 use super::query::owners;
-use super::{Api, Lexicon};
+use super::{Api, Lexicon, Skill, SKILLS};
 
 /// Runtime first: it is the answer to *what may I import*; dev and types follow.
 fn rank(role: &str) -> u8 {
@@ -43,6 +43,9 @@ struct Row {
     site: Option<String>,
     /// Specifiers of the package the manifest reaches, when more than the bare name.
     specifiers: u32,
+    /// The agent skills the package ships, each with its `SKILL.md`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    skills: Vec<Skill>,
 }
 
 /// A package whose declaration could not be read; said, never dropped.
@@ -63,6 +66,9 @@ struct Stack {
     remaining: u32,
     rows: Vec<Row>,
     unreadable: Vec<Unreadable>,
+    /// Rows, on every page, whose package ships skills; absent when the lexicon predates reading them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    skilled: Option<u32>,
 }
 
 /// Every third-party package usable at `files`, paged in a stable order.
@@ -75,7 +81,7 @@ pub fn dependency_stack(path: String, files: Vec<String>, offset: u32, limit: u3
     };
     let lexicon: Lexicon = serde_json::from_slice(&bytes)
         .map_err(|error| napi::Error::from_reason(format!("the dependency lexicon did not read: {error}")))?;
-    if !matches!(lexicon.version, 4..=8) { return Err(napi::Error::from_reason("the dependency lexicon version is not supported")); }
+    if !matches!(lexicon.version, 4..=9) { return Err(napi::Error::from_reason("the dependency lexicon version is not supported")); }
     let allowed = owners(&lexicon, &files);
     let apis: std::collections::HashMap<&str, &Api> = lexicon.entries.iter().map(|entry| (entry.id.as_str(), &entry.api)).collect();
     let mut rows = BTreeMap::<(String, String), Row>::new();
@@ -86,8 +92,9 @@ pub fn dependency_stack(path: String, files: Vec<String>, offset: u32, limit: u3
         let role = if types_only { "types-only" } else if row.declared_as.as_deref() == Some("dev") { "dev" } else { "runtime" };
         let slot = rows.entry((row.owner.clone(), row.package.clone())).or_insert_with(|| Row {
             package: row.package.clone(), manifest: row.owner.clone(), role, declared_as: row.declared_as.clone(),
-            version: None, state: "unread", imports: None, site: None, specifiers: 0,
+            version: None, state: "unread", imports: None, site: None, specifiers: 0, skills: Vec::new(),
         });
+        if slot.skills.is_empty() { slot.skills = api.and_then(|api| api.skills.clone()).unwrap_or_default(); }
         slot.specifiers += 1;
         slot.version = slot.version.take().or(version);
         if rank(role) < rank(slot.role) { slot.role = role; }
@@ -104,6 +111,7 @@ pub fn dependency_stack(path: String, files: Vec<String>, offset: u32, limit: u3
         .then_with(|| (&a.package, &a.manifest).cmp(&(&b.package, &b.manifest))));
     let count = |state: &str| rows.iter().filter(|row| row.state == state).count() as u32;
     let (imported, unused, unread, total) = (count("imported"), count("unused"), count("unread"), rows.len() as u32);
+    let skilled = (lexicon.version >= SKILLS).then(|| rows.iter().filter(|row| !row.skills.is_empty()).count() as u32);
     let start = (offset as usize).min(rows.len());
     let page: Vec<Row> = rows.into_iter().skip(start).take(limit as usize).collect();
     let mut location: Vec<String> = allowed.iter().map(|manifest| (*manifest).to_owned()).collect();
@@ -112,6 +120,6 @@ pub fn dependency_stack(path: String, files: Vec<String>, offset: u32, limit: u3
         .map(|issue| Unreadable { manifest: issue.owner.clone(), package: issue.package.clone(), reason: issue.reason.clone() }).collect();
     unreadable.sort_by(|a, b| (&a.manifest, &a.package).cmp(&(&b.manifest, &b.package)));
     let answer = Stack { location, total, imported, unused, unread, offset: start as u32,
-        remaining: total - (start as u32 + page.len() as u32), rows: page, unreadable };
+        remaining: total - (start as u32 + page.len() as u32), rows: page, unreadable, skilled };
     serde_json::to_string(&answer).map(Some).map_err(|error| napi::Error::from_reason(error.to_string()))
 }

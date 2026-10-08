@@ -7,7 +7,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { DescribedPackage, LexiconScope, ThirdPartyMatch } from '../dependency-lexicon.js';
+import type { DependencySkill, DescribedPackage, LexiconScope, ThirdPartyMatch } from '../dependency-lexicon.js';
 
 /** Why a third-party name is offered: whose manifest, declared how, at what version, and whether the code already imports it. */
 export function provenance(match: ThirdPartyMatch): string {
@@ -40,4 +40,23 @@ export function describedLine(hit: DescribedPackage): string {
   const used = hit.imports === undefined ? 'imports not indexed' : hit.imports === 0 ? 'not imported' : `imported ${hit.imports}× (first ${hit.site ?? 'site not recorded'})`;
   const says = hit.description === undefined ? 'no description published' : hit.description.length > 140 ? `${hit.description.slice(0, 137)}...` : hit.description;
   return `${hit.specifier} ${version} · ${declared} · ${used} — ${says} [holds: ${hit.words.join(', ')}]`;
+}
+
+/** One skill a package ships, indented under the package: the file to read, and when its front matter says to read it. */
+export function shippedSkillLine(skill: DependencySkill): string {
+  const says =
+    skill.unreadable !== undefined ? `unreadable: ${skill.unreadable}`
+    : skill.description === undefined ? 'no description in its front matter'
+    : skill.description.length > 200 ? `${skill.description.slice(0, 197)}...`
+    : skill.description;
+  return `    skill ${skill.name}: ${skill.at} — ${says}`;
+}
+
+/** Each described hit, then the skills its package ships, each `SKILL.md` named once: a package's entry points share them. */
+export function describedWithSkills(described: readonly DescribedPackage[]): string[] {
+  const named = new Set<string>();
+  return described.flatMap((hit) => [
+    describedLine(hit),
+    ...(hit.skills ?? []).filter((skill) => !named.has(skill.at) && named.add(skill.at)).map(shippedSkillLine),
+  ]);
 }
