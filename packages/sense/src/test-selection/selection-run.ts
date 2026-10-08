@@ -74,6 +74,11 @@ export interface SelectionRun {
    * until it closes, because every rerun's workers load them.
    */
   watching: boolean;
+  /**
+   * Whether the run lands on no base: it is one shard of a run that selects
+   * nothing, set once the runner has said so. See `recordsAlone`.
+   */
+  alone: boolean;
 }
 
 const RUNS = Symbol.for('variance-authority.test-selection.runs');
@@ -114,6 +119,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     cases: true,
     settled: false,
     watching: false,
+    alone: false,
   };
 }
 

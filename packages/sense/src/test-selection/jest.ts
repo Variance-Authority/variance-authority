@@ -176,6 +176,8 @@ export interface SelectionReporterConfig {
   readonly mode?: InstrumentMode;
   /** Whether that recording follows each case through the async context, and names the runaways. */
   readonly continuations?: boolean;
+  /** Whether the run drops what a selection skips. A shard of a run that does not records alone. */
+  readonly selected?: true;
 }
 
 /** What the reporter is handed when it records journeys and nothing else. */
@@ -298,7 +300,10 @@ export function withTestSelection(
     ...(projects === undefined ? {} : { projects }),
     ...(selection === undefined ? {} : selectingFilter(config, { root, rootDir, selection })),
     ...placingSequencer(config, { root, rootDir, times }),
-    reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
+    reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, {
+      ...reporter,
+      ...(selection === undefined ? {} : { selected: true }),
+    }]],
   };
 }
 

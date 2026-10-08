@@ -1,13 +1,20 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { instrumentationId } from '../instrument/index.js';
 import { decodeTestCoverage } from './format.js';
-import { writeTestCoverage } from './index.js';
+import {
+  mainlineReadRoot,
+  readOwnLayer,
+  testCoverageFile,
+  writeFetchedMainline,
+  writeTestCoverage,
+} from './index.js';
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -110,5 +117,64 @@ describe('a Vitest run under --shard, with the times a record holds', () => {
     expect(first.stdout).not.toContain('dom.case.ts');
     expect(second.stdout).toContain('dom.case.ts');
     expect(second.stdout).not.toContain('unit.case.ts');
+  }, 30_000);
+});
+
+describe('a Vitest run under --shard, in a cache holding a fetched mainline', () => {
+  /**
+   * Shard `k` of 2 recording into a cache of its own, as a CI shard job does,
+   * after the mainline's record was fetched into that cache: what reading the
+   * suite's times through the cli leaves there. The record is at the path a
+   * run of this repository's `unit` suite lands in, a suite given to the share.
+   */
+  async function shard(k: number, selected: boolean) {
+    const cache = resolve(directory, `alone-${k}-${String(selected)}`);
+    const commit = 'a'.repeat(40);
+    const fetched = resolve(mainlineReadRoot(cache, 'unit'), commit, 'coverage.bin');
+    await mkdir(dirname(fetched), { recursive: true });
+    await writeTestCoverage(fetched, {
+      version: 3,
+      instrumentation: instrumentationId('presence'),
+      commit,
+      tests: [
+        { file: at('unit/unit.case.ts'), complete: true, preconditions: [] },
+        { file: at('dom/dom.case.ts'), complete: true, preconditions: [] },
+        { file: at('elsewhere/only.case.ts'), complete: true, preconditions: [] },
+      ],
+      modules: [],
+    });
+    await writeFetchedMainline(cache, 'unit', { mainline: 'main', commit, fetched: new Date().toISOString() });
+    const coverageFile = testCoverageFile(repository, { cacheRoot: cache, suite: 'unit' });
+    // A selection the run of this test was handed is not the fixture's.
+    const { VARIANCE_AUTHORITY_SINCE: _since, VARIANCE_AUTHORITY_AT_DISTANCE: _distance, ...inherited } = process.env;
+    await execute(process.execPath, [vitest, 'run', '--config', 'vitest.config.ts', '--shard', `${k}/2`], {
+      cwd: fixture,
+      env: {
+        ...inherited,
+        VARIANCE_AUTHORITY_COVERAGE: coverageFile,
+        VARIANCE_AUTHORITY_CACHE: cache,
+        ...(selected ? { FIXTURE_SKIP: '[]' } : {}),
+      },
+    });
+    return {
+      ran: decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file).sort(),
+      layer: await readOwnLayer(coverageFile),
+    };
+  }
+
+  it('records the files it ran and nothing else when it selects nothing, so the shards fold', async () => {
+    const first = await shard(1, false);
+    const second = await shard(2, false);
+
+    expect([...first.ran, ...second.ran].sort()).toEqual([at('dom/dom.case.ts'), at('unit/unit.case.ts')]);
+    expect(first.ran).toHaveLength(1);
+    expect(first.layer?.pinned).toBeUndefined();
+  }, 30_000);
+
+  it('records over the mainline it was laid on when it selects', async () => {
+    const { ran, layer } = await shard(1, true);
+
+    expect(ran).toContain(at('elsewhere/only.case.ts'));
+    expect(layer?.pinned).toEqual({ mainline: 'main', commit: 'a'.repeat(40) });
   }, 30_000);
 });
