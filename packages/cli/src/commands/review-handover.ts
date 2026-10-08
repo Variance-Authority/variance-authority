@@ -227,7 +227,8 @@ function remainder(rest: readonly Crumb[], after: boolean): string {
   const reached = rest.every(({ worst }) => isReached(worst)) ? 'every one reached by a case' : '';
   const listed = [...counts].map(([label, count]) => `${count} ${label}`).join(', ');
   if (after) return `And ${rest.length} more${reached === '' ? '' : `, ${reached}`}: ${listed}.`;
-  return `${reached === '' ? 'All of them' : 'Every one reached by a case'}: ${listed}.`;
+  // With nothing named, every crumb was reached from near.
+  return `Every one reached by a case: ${listed}.`;
 }
 
 function firstSentence(message: string): string {
