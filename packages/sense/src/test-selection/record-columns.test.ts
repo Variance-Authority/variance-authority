@@ -62,6 +62,20 @@ function recordOf(index: Uint8Array): string {
   return file;
 }
 
+/** The same index with one section dropped from its header, as a writer that never made it would leave it. */
+function without(bytes: Uint8Array, name: string): Buffer {
+  const framed = Buffer.from(bytes);
+  const headerLength = framed.readUInt32LE(0);
+  const header = JSON.parse(framed.toString('utf8', 4, 4 + headerLength).replace(/\0+$/u, '')) as {
+    version: number;
+    sections: { name: string }[];
+  };
+  const sections = header.sections.filter((section) => section.name !== name);
+  expect(sections.length).toBe(header.sections.length - 1);
+  const older = Buffer.from(JSON.stringify({ version: header.version, sections }).padEnd(headerLength, '\0'), 'utf8');
+  return Buffer.concat([framed.subarray(0, 4), older, framed.subarray(4 + headerLength)]);
+}
+
 function text(strings: StringTable, id: number): string {
   return new TextDecoder().decode(strings.blob.subarray(strings.offsets[id], strings.offsets[id + 1]));
 }
@@ -87,6 +101,17 @@ describe('a record read where it lies, without decoding it', () => {
     expect(text(strings, testFile[0])).toBe(TEST);
     expect(testStopped?.[0]).toBe(1);
     expect(text(strings, moduleFile[0])).toBe('src/total.ts');
+    const block = moduleBlocks[0];
+    expect(text(strings, blockKind[block])).toBe('function');
+    expect([...sets.members(blockCalled[block])]).toEqual([0]);
+  });
+
+  it('leaves how each case settled absent from an index that never said, and opens the rest as before', () => {
+    const columns = openSetColumns(without(encodeAsSetExecutionIndex(INDEX), 'tests.stopped'));
+    expect(columns).toBeDefined();
+    const { strings, testFile, testStopped, moduleBlocks, blockKind, blockCalled, sets } = columns!;
+    expect(testStopped).toBeUndefined();
+    expect(text(strings, testFile[0])).toBe(TEST);
     const block = moduleBlocks[0];
     expect(text(strings, blockKind[block])).toBe('function');
     expect([...sets.members(blockCalled[block])]).toEqual([0]);
