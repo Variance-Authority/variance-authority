@@ -210,9 +210,10 @@ changelog rather than forty.
 
 A retry hides an unstable state until the next time, and a tolerance big enough
 to absorb rendering noise is big enough to absorb a small real change. When a
-state differs, Variance Authority reads it again instead: once more in the same
-page to see whether it drifts on its own, then in a fresh page to see whether
-something an earlier test left behind changed it. Each reading names the
+state differs, Variance Authority reads it again instead, and each reading is
+evidence rather than a second chance: once more in the same page a moment later,
+to see whether it drifts on its own, and only when that agrees, in a fresh page,
+to see whether something an earlier test left behind changed it. Each reading names the
 component and the kind of change, so an animation, a different environment, an
 unstable component and leaked state each arrive as what they are.
 
