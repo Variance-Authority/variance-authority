@@ -91,14 +91,32 @@ describe('asking one place in the source who goes there', () => {
     ]);
   });
 
-  it('answers a line with the narrowest region holding it, and nothing around it', () => {
-    // The distance between this and a selection. A one-line diff at line 4
-    // charges the branch *and* the module root, because an edit there may be
-    // the enclosing region's text. Asked who *goes* to line 4, the module root
-    // is not an answer: beta never took the branch.
+  it('answers a line inside a branch with the branch, and nothing around it', () => {
+    // Line 4 is inside the branch on lines 3 to 5, so no text of the region
+    // around it is on the line: beta never took the branch and is no answer.
     const answer = testsReachingFromView(view(), { file: 'src/decide.ts', line: 4 });
     expect(answer.regions.map((region) => region.path)).toEqual(['if#0/then']);
     expect(answer.tests.map((test) => test.test)).toEqual(['test/alpha.test.ts']);
+  });
+
+  it('answers a line that opens a branch with the region whose condition it holds', () => {
+    // `if (…) {` on line 10 is the branch's first line and `cart`'s condition:
+    // an edit there selects both tests, so both go there.
+    const answer = testsReachingFromView(view(shaped), { file: 'src/cart.ts', line: 10 });
+    expect(answer.regions.map((region) => [region.name, region.path])).toEqual([
+      ['cart', 'if#0/then'],
+      ['cart', 'entry'],
+    ]);
+    expect(answer.tests.map((test) => test.test)).toEqual([
+      'test/clicks.test.ts',
+      'test/reads.test.ts',
+    ]);
+  });
+
+  it('answers a line inside a branch with the branch alone', () => {
+    const answer = testsReachingFromView(view(shaped), { file: 'src/cart.ts', line: 12 });
+    expect(answer.regions.map((region) => region.path)).toEqual(['if#0/then']);
+    expect(answer.tests.map((test) => test.test)).toEqual(['test/clicks.test.ts']);
   });
 
   it('counts how many tests crossed each region it resolved to', () => {

@@ -140,25 +140,11 @@ export function blocksAround(
   end: number,
   range: LineRange,
 ): readonly number[] {
+  const rows = rowsOf(coverage);
   const found = new Set<number>();
 
   for (let line = range.start; line <= range.end; line += 1) {
-    // Every region with source the line is in, narrowest first. Regions that
-    // hold one line mostly nest, so this is the chain from the line outwards —
-    // except where two of them meet on it, and then the wider one begins where
-    // the narrower ends and neither is inside the other.
-    const around: number[] = [];
-    for (let block = first; block < end; block += 1) {
-      const from = coverage.blockStart.at(block);
-      // A region the transform wrote without an origin is on no line, so no
-      // line is in it and it never stands for one.
-      if (from === NO_LINE) continue;
-      const to = Math.max(from, coverage.blockEnd.at(block));
-      if (from > line || to < line) continue;
-      if (coverage.blockSource.at(block) === 1) around.push(block);
-      else found.add(block);
-    }
-    if (around.length === 0) {
+    if (!chargeLine(rows, first, end, line, found)) {
       // Nothing recorded covers this line, so nothing about the module can be
       // ruled out from it. The module root, which every loader crossed, stands
       // for the regions with no line.
@@ -167,35 +153,109 @@ export function blocksAround(
       }
       return [...found];
     }
-    around.sort((left, right) => span(coverage, left) - span(coverage, right));
-    let index = 0;
-    let outwards = true;
-    while (index < around.length) {
-      // Regions of one span over one line are the same lines: all are charged,
-      // and any of them whose text here sits beside the next region's reaches
-      // that region.
-      const width = span(coverage, around[index]!);
-      let next = index;
-      while (next < around.length && span(coverage, around[next]!) === width) next += 1;
-      const group = around.slice(index, next);
-      const besideResume = group.every((block) => KINDS[coverage.blockKind.at(block)] === 'resume');
-      const shares = group.some((block) => sharesLine(coverage, block, line, besideResume));
-      // Charged when the walk reached it, and charged when its own text is on
-      // this line whether or not the walk reached it. The second is the sibling
-      // meeting: the region the line closes does not reach the one it opens,
-      // and the one it opens holds the line all the same.
-      if (outwards || shares) for (const block of group) found.add(block);
-      outwards = shares;
-      index = next;
-    }
     if (found.size === end - first) break;
   }
 
   return [...found];
 }
 
-function span(coverage: TestCoverageView, block: number): number {
-  return coverage.blockEnd.at(block) - coverage.blockStart.at(block);
+/**
+ * The blocks a change to `line` charges, by {@link blocksAround}'s rule, among
+ * the blocks of one module: what `variance covering` answers for a line, so it
+ * names every case a selection over an edit to that line would run.
+ *
+ * None for a line no block with source holds. A selection widens such a line to
+ * the module; an answer about the line has no region to give and says so.
+ */
+export function blocksChargedAt<Block extends RegionLines>(blocks: readonly Block[], line: number): readonly Block[] {
+  if (!Number.isInteger(line) || line < 1) return [];
+  const found = new Set<number>();
+  const rows: RegionRows = {
+    start: (row) => blocks[row]!.startLine,
+    end: (row) => blocks[row]!.endLine,
+    source: (row) => blocks[row]!.source,
+    kind: (row) => blocks[row]!.kind,
+  };
+  if (!chargeLine(rows, 0, blocks.length, line, found)) return [];
+  return [...found].sort((left, right) => left - right).map((row) => blocks[row]!);
+}
+
+/** The lines and kind of one recorded region, as a journey file's block spells them. */
+export interface RegionLines {
+  readonly kind: string;
+  readonly startLine: number;
+  readonly endLine: number;
+  readonly source: boolean;
+}
+
+/**
+ * What the walk reads of one module's regions, by row: the snapshot's columns
+ * or a journey file's blocks, so a line lands on the same regions whichever is
+ * asked.
+ */
+export interface RegionRows {
+  /** The first line, or `NO_LINE` for a region the transform wrote without an origin. */
+  start(row: number): number;
+  end(row: number): number;
+  source(row: number): boolean;
+  kind(row: number): string;
+}
+
+/** The snapshot's region columns, read as rows. */
+export function rowsOf(coverage: TestCoverageView): RegionRows {
+  return {
+    start: (row) => coverage.blockStart.at(row),
+    end: (row) => coverage.blockEnd.at(row),
+    source: (row) => coverage.blockSource.at(row) === 1,
+    kind: (row) => KINDS[coverage.blockKind.at(row)]!,
+  };
+}
+
+/**
+ * Add to `found` the rows among `first` to `end` a change to `line` charges, by
+ * the rule {@link blocksAround} states. False, with only regions without source
+ * added, when no region with source holds the line.
+ */
+export function chargeLine(rows: RegionRows, first: number, end: number, line: number, found: Set<number>): boolean {
+  // Every region with source the line is in, narrowest first. Regions that
+  // hold one line mostly nest, so this is the chain from the line outwards —
+  // except where two of them meet on it, and then the wider one begins where
+  // the narrower ends and neither is inside the other.
+  const around: number[] = [];
+  for (let block = first; block < end; block += 1) {
+    const from = rows.start(block);
+    // A region the transform wrote without an origin is on no line, so no
+    // line is in it and it never stands for one.
+    if (from === NO_LINE) continue;
+    const to = Math.max(from, rows.end(block));
+    if (from > line || to < line) continue;
+    if (rows.source(block)) around.push(block);
+    else found.add(block);
+  }
+  if (around.length === 0) return false;
+  const span = (block: number): number => rows.end(block) - rows.start(block);
+  around.sort((left, right) => span(left) - span(right));
+  let index = 0;
+  let outwards = true;
+  while (index < around.length) {
+    // Regions of one span over one line are the same lines: all are charged,
+    // and any of them whose text here sits beside the next region's reaches
+    // that region.
+    const width = span(around[index]!);
+    let next = index;
+    while (next < around.length && span(around[next]!) === width) next += 1;
+    const group = around.slice(index, next);
+    const besideResume = group.every((block) => rows.kind(block) === 'resume');
+    const shares = group.some((block) => sharesLine(rows, block, line, besideResume));
+    // Charged when the walk reached it, and charged when its own text is on
+    // this line whether or not the walk reached it. The second is the sibling
+    // meeting: the region the line closes does not reach the one it opens,
+    // and the one it opens holds the line all the same.
+    if (outwards || shares) for (const block of group) found.add(block);
+    outwards = shares;
+    index = next;
+  }
+  return true;
 }
 
 /**
@@ -210,10 +270,10 @@ function span(coverage: TestCoverageView, block: number): number {
  * line of it is the wider region's too, not only the first: a test whose await
  * rejected ran that text and never resumed.
  */
-function sharesLine(coverage: TestCoverageView, block: number, line: number, unaccompanied: boolean): boolean {
-  const kind = KINDS[coverage.blockKind.at(block)]!;
+function sharesLine(rows: RegionRows, block: number, line: number, unaccompanied: boolean): boolean {
+  const kind = rows.kind(block);
   if (kind === 'module' || kind === 'continuation') return false;
   if (kind === 'resume') return unaccompanied;
-  if (coverage.blockStart.at(block) === line) return true;
-  return kind === 'function' && coverage.blockEnd.at(block) === line;
+  if (rows.start(block) === line) return true;
+  return kind === 'function' && rows.end(block) === line;
 }

@@ -765,8 +765,9 @@ every block a test crossed is O(C) over the whole record. `ExecutionIndex` is
 the same data in the shape a collector or an editor integration supplies: each
 block lists the tests that crossed it with the call-stack depth from the test to
 the block. Pass one to `coveringTests` to ask by line or by function name, at
-O(M) to find the module and O(B²) to keep only the innermost regions of the
-line.
+O(M) to find the module and O(B) per region the line charges. A line answers
+with the regions a change to it would select: the innermost region holding it,
+and the enclosing one when the line opens a branch and holds its condition.
 
 ## Tracing a block to its place
 

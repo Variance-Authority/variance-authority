@@ -10,23 +10,22 @@
  * evidence, is worth nothing if it is wider than the truth, and is read by
  * somebody about to edit the line.
  *
- * ## It is not a diff with one hunk
+ * ## A line is answered as an edit to it is charged
  *
- * The temptation is to synthesize a one-line diff and call `narrowByExecution`.
- * That answers a different question and answers it wrong in the direction that
- * matters here. `blocksAround` charges outwards from a line onto the regions
- * around it — deliberately, because a line that opens a handler is also the
- * component's text and a selection that missed those tests would skip work it
- * should have run. Charged into an answer to *who enters this branch*, the same
- * rule returns every test that rendered the component and never took the
- * branch, and there is nothing in the result to tell the two apart. Selection
- * over-includes on purpose. An answer may not.
+ * A point query and a selection read a line by one rule, `chargeLine`. A line
+ * that opens a region — `if (ready) {`, `const onClick = () => {` — carries
+ * the enclosing region's text as well, so the tests that evaluated the
+ * condition and never took the branch go to that line, and an edit there
+ * selects them. Answered with the branch alone, *who goes to this line* would
+ * name fewer tests than a change to it runs, and the person about to edit it
+ * would read a skip list the selection does not keep. A line inside a region
+ * charges that region alone.
  *
- * So the resolution here is innermost and exact: the narrowest recorded regions
- * with source that hold the line, the region a declaration name addresses, the
- * region a branch path addresses. Nothing is charged outwards, and a point the
- * snapshot has no region for is reported as unrecorded rather than widened to
- * the module.
+ * What a point query does not share is the fallback. A line no recorded region
+ * holds is reported as unrecorded rather than widened to the module: a
+ * selection widens because the file may have grown past the snapshot, and a
+ * point is asked of the text the snapshot recorded. A declaration name and a
+ * branch path address their region exactly.
  *
  * ## The direction is the one the file is stored in
  *
@@ -66,6 +65,7 @@
 import type { BlockKind } from '../instrument/index.js';
 import { KINDS } from './format-layout.js';
 import type { TestCoverageView } from './format-view.js';
+import { chargeLine, rowsOf } from './blocks-around.js';
 import { askCoverageFile } from './coverage-file.js';
 import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
 import { findModules } from './lookup.js';
@@ -259,17 +259,10 @@ export function testsReachingFromView(
 /**
  * The regions of one module row the point addresses.
  *
- * Innermost for a line, and innermost is measured over regions that have
- * source: a synthesized region — the `else` nobody wrote — spans zero lines and
- * would be the narrowest thing on its line every time, so it is not a candidate
- * for *where is this line*. That is the same exclusion `blocksAround` makes and
- * it is made here for the opposite reason: there it stops a zero-span region
- * from deciding how far an edit reaches, here it stops one from standing in for
- * a line somebody can point at.
- *
- * A region that strictly contains another matching one is dropped. Two regions
- * of exactly the same extent are both kept — they are the same lines, and
- * picking one of them would be picking by a tiebreak nothing recorded.
+ * A line is charged by `chargeLine`, the rule a selection charges a changed
+ * line by, so the answer to *who goes to this line* is the set an edit to it
+ * would select. A declaration and a branch are the region their name and path
+ * address, exactly.
  */
 function resolve(
   coverage: TestCoverageView,
@@ -311,23 +304,10 @@ function resolve(
     return found;
   }
 
-  const line = point.line;
-  const holding: number[] = [];
-  for (let block = first; block < end; block += 1) {
-    if (coverage.blockSource.at(block) !== 1) continue;
-    if (point.function !== undefined && nameOf(block) !== point.function) continue;
-    const from = coverage.blockStart.at(block);
-    const to = Math.max(from, coverage.blockEnd.at(block));
-    if (from <= line && line <= to) holding.push(block);
-  }
-  return holding.filter((block) =>
-    !holding.some((other) =>
-      other !== block &&
-      coverage.blockStart.at(block) <= coverage.blockStart.at(other) &&
-      coverage.blockEnd.at(block) >= coverage.blockEnd.at(other) &&
-      span(coverage, other) < span(coverage, block),
-    ),
-  );
+  // A line is answered with the regions an edit to it would select.
+  const found = new Set<number>();
+  if (!chargeLine(rowsOf(coverage), first, end, point.line, found)) return [];
+  return [...found].filter((block) => point.function === undefined || nameOf(block) === point.function);
 }
 
 /** The structural path the walker opens a declaration's own region under. */
@@ -347,7 +327,7 @@ function codeUnitOrder(left: string, right: string): number {
  * The question a selection cannot be asked: not *what should run because
  * something changed*, but *who goes here*, about a file, a line, a declaration
  * or a branch that nobody has touched. See
- * the file docblock above for why it is not a one-line diff.
+ * the file docblock above for how a line is read.
  *
  * Opens the snapshot rather than decoding it. The answer costs a binary search
  * for the path, the regions of that one module, and one pool run per region the

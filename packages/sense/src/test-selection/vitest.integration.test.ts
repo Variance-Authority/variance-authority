@@ -406,9 +406,10 @@ describe('the Vitest integration', () => {
       expect(named(index, 8)).toEqual(['decide > falls through to B']);
 
       // And the function they share still names all three, so nothing was
-      // narrowed that should not have been. Only three: a line inside `decide`
-      // is answered by `decide`, not by the module root that also spans it.
-      expect(named(index, 1)).toEqual([
+      // narrowed that should not have been. Line 2 opens the first branch and
+      // holds the condition `decide` evaluates, so it is answered by `decide`,
+      // and only by it: the module root that also spans it is not charged.
+      expect(named(index, 2)).toEqual([
         'decide > falls through to B',
         'decide > takes the alpha branch',
         'decide > takes the gamma branch',
