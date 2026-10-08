@@ -26,27 +26,26 @@ import {
   askCoverageFile,
   changedLines,
   coveringChange,
-  distanceToSource,
+  coveringTestsInFile,
   readCommitRuns,
   readJourneyChange,
   testsGovernedBy,
   type CommitRuns,
-  type CoveringRegion,
   type ExecutionIndex,
   type ExecutionTest,
   type FileReading,
   type LineRange,
 } from '@variance-authority/sense/test-selection';
 import { digestString } from '@variance-authority/core/format';
-import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
 import { landingRecord, recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
-import { regionState } from './covering-frame.js';
 import { motionAgainst, motionOfRuns, runsWrote, type CoveringMotion } from './covering-motion.js';
 import { readExecutionFor, readExecutionIndex, recordedExecutionFile, replacedCases } from './execution-input.js';
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
+import { reviewedCommit } from './review-head.js';
+import { nearTests, regionsOf, removedText, treeLines } from './review-region.js';
 import { packagesReached, type PackageReach } from './review-install.js';
 import { diffPoint, diffSince } from './since.js';
 import { runsBase } from './runs-base.js';
@@ -77,13 +76,21 @@ export interface ReviewRegion {
   readonly endLine: number;
   readonly reach: Reach;
   /**
-   * The line it starts on is new or changed: a new function, or one declared
-   * again. Its first line, not every line, because a diff pairs a new closing
-   * brace with an old one as readily as with nothing.
+   * `new` when the change wrote every line of words in it, `moved` when those
+   * lines are also text the change removed, and `modified` otherwise. A
+   * function renamed or declared again over its old body is `modified`.
    */
-  readonly written: boolean;
+  readonly edit: 'new' | 'moved' | 'modified';
+  /** The file the text of a `moved` region was removed from: its own, when it moved within the file. */
+  readonly movedFrom?: string;
   /** How many cases called into it. */
   readonly cases: number;
+  /**
+   * How many of the cases that entered it ran a line of it the change wrote,
+   * as `variance covering --line` names them for each such line. A case can
+   * enter a function and take the branch the change left alone.
+   */
+  readonly changedLineCases: number;
   /** The test files those cases are declared in, in code-unit order. */
   readonly tests: readonly string[];
   /** Those cases by test file and title, in code-unit order: what a reader asks the count about. */
@@ -123,6 +130,21 @@ export interface BeforeReach {
 }
 
 export interface Review {
+  /**
+   * The checkout's commit and its parents, as git lists them, and `pull`, the
+   * pull request's head when the CI event names one: on a pull request, CI
+   * checks out the merge GitHub made, whose second parent is that head.
+   * `dirty` when the tree had edits or new files on top of it, and `blob`,
+   * where the host shows the files at it, only when it did not. Absent when
+   * git could not say.
+   */
+  readonly head?: {
+    readonly commit: string;
+    readonly parents: readonly string[];
+    readonly pull?: string;
+    readonly dirty?: true;
+    readonly blob?: string;
+  };
   /** Optional per-suite evidence carried in the uploaded artifact. */
   readonly coverage?: readonly ReviewCoverage[];
   /** The suite whose changed-code evidence and freshness the summary describes. */
@@ -237,6 +259,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   // case index; for any other file it holds an earlier commit's cases.
   const wrote = against === undefined && runs !== undefined ? await runsWrote(from, runs) : undefined;
   const comparable = (file: string): boolean => wrote === undefined || ('compared' in wrote && wrote.compared.has(file));
+  const removed = removedText(forward);
   const near = await nearTests(recorded.file, [...covered.values()].filter((file) => file.recorded).map((file) => file.file), relations);
 
   const files: ReviewFile[] = [];
@@ -252,7 +275,7 @@ export async function review(request: ParsedReview): Promise<Review> {
       ...(created ? { created: true } : read === undefined ? {} : readingOf(read)),
       ...(change === undefined ? {} : {
         recorded: change.recorded,
-        regions: change.regions.map((region) => regionOf(region, near.get(file), ranges)),
+        regions: regionsOf(change.regions, near.get(file), ranges, await treeLines(root, file), file, removed, coveringTestsInFile(index, file)),
       }),
       ...(cases === undefined ? {} : { cases }),
     });
@@ -268,7 +291,9 @@ export async function review(request: ParsedReview): Promise<Review> {
       : await motionOfRuns(full, from, wrote, root, ref);
 
   const record = await ranAsTree(recorded.file, root, files.filter((file) => file.recorded === true).map((file) => file.file));
+  const head = await reviewedCommit(point.repository);
   return {
+    ...(head === undefined ? {} : { head }),
     from: point.base,
     record,
     base: request.since !== undefined ? 'since' : mainline === undefined ? 'recording' : 'mainline',
@@ -329,34 +354,6 @@ function readingOf(read: FileReading): Pick<ReviewFile, 'verdict' | 'names' | 'u
   return read.names.length === 0 ? { verdict: read.verdict } : { verdict: read.verdict, names: read.names };
 }
 
-function regionOf(
-  region: CoveringRegion,
-  bearings: Bearings | undefined,
-  ranges: readonly LineRange[],
-): ReviewRegion {
-  const called = region.tests.filter((test) => test.loaded !== true);
-  const state = regionState(region);
-  const reach: Reach = called.some((test) => bearings?.near.has(test.file) === true)
-    ? 'near'
-    : called.some((test) => bearings === undefined || bearings.unmeasured.has(test.file))
-      ? 'unplaced'
-      : called.length > 0
-        ? 'far'
-        : state === 'loaded' || state === 'hole' || state === 'unwalked'
-          ? state
-          : 'unknown';
-  return {
-    kind: region.kind, name: region.name,
-    startLine: region.startLine, endLine: region.endLine,
-    reach,
-    written: ranges.some((range) => range.start <= region.startLine && region.startLine <= range.end),
-    cases: called.length,
-    tests: [...new Set(called.map((test) => test.file))].sort(),
-    called: called
-      .map((test) => ({ id: test.id, file: test.file, name: test.name, ...(test.preconditions === undefined ? {} : { preconditions: test.preconditions }) }))
-      .sort((left, right) => order(left.file, right.file) || order(left.name, right.name)),
-  };
-}
 /**
  * Whether the record ran these modules as the tree holds them: the digest it
  * took of each module's text, against the text on disk. A change with no
@@ -374,41 +371,6 @@ async function ranAsTree(coverageFile: string, root: string, files: readonly str
     if (text === undefined || recorded.get(file) !== digestString(text)) return 'before';
   }
   return 'ran';
-}
-
-function order(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
-/** The test files near a changed module, and those whose distance to it was not measured. */
-interface Bearings {
-  readonly near: ReadonlySet<string>;
-  readonly unmeasured: ReadonlySet<string>;
-}
-
-/**
- * For each changed module, the test files one import away from it or declaring
- * it: the tests a reviewer expects to exercise it. Measured by the file graph
- * over what each test executed, not by where the files sit. A test the graph
- * does not hold, such as one written after the source index was published, is
- * kept apart, so a region only it covered is not called far.
- */
-async function nearTests(
-  coverageFile: string,
-  files: readonly string[],
-  relations: Relations,
-): Promise<ReadonlyMap<string, Bearings>> {
-  const bearings = new Map<string, Bearings>();
-  for (const file of files) {
-    const { distances } = await distanceToSource(coverageFile, { file }, { relations });
-    const tests = (kept: (bearing: string) => boolean): ReadonlySet<string> =>
-      new Set(distances.filter((distance) => kept(distance.bearing)).map((distance) => distance.test));
-    bearings.set(file, {
-      near: tests((bearing) => bearing === 'direct' || bearing === 'precondition'),
-      unmeasured: tests((bearing) => bearing === 'unmeasured'),
-    });
-  }
-  return bearings;
 }
 
 /**

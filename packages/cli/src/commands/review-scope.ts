@@ -2,19 +2,22 @@
 /**
  * Where to look, disclosed a level at a time: first the changed functions
  * holding code no case ran, by name; then, folded, each location; and for the
- * rest the cases that ran them, by file, then by the functions that share one
- * set of cases, then by title. Only the record knows any of it — a reader of
- * the diff, person or agent, cannot — so every level is a name, a location or
- * a title a tool reading the comment can resolve, never only a count.
+ * rest one row a function, with the cases that entered it, the cases that ran
+ * a line the change wrote, and the test files they are in. Only the record
+ * knows any of it — a reader of the diff, person or agent, cannot — so every
+ * row is a name and a location a tool reading the comment can resolve. Case
+ * titles are the JSON's: a comment has a length limit and a review does not.
  */
 
-import { heldText, valued } from '@variance-authority/sense/test-selection';
+import { valued } from '@variance-authority/sense/test-selection';
 import type { Review, ReviewCase, ReviewFile, ReviewRegion } from './review.js';
 
 /** Functions named in the first line before the rest are counted. */
 const CALLOUT = 5;
-/** Case titles named under one set of functions before the rest are counted. */
-const TITLES = 30;
+/** Functions given a row before the rest are counted. */
+const ROWS = 100;
+/** Test files named on a row before the rest are counted. */
+const TEST_FILES = 3;
 
 const UNCOVERED = new Set(['hole', 'unwalked', 'unknown']);
 
@@ -76,36 +79,48 @@ export function uncoveredMarkdown(review: Review, mark: (region: ReviewRegion) =
     '',
     `<details><summary>${mark(rows[0]![1])} Where ${why}: ${rows.length} place${rows.length === 1 ? '' : 's'} in ${functions} function${functions === 1 ? '' : 's'}</summary>`,
     '',
-    ...rows.map(([file, region]) => `- ${where(file, region)}`),
+    ...rows.map(([file, region]) => `- ${where(review, file, region)} (${editLabel(file, region)})`),
     '',
     '</details>',
   ];
 }
 
 /**
- * The cases that ran each changed function, disclosed in three levels: a
- * fold for all of them, one per file, and one per set of functions the same
- * cases ran — a file's functions are most often run by one describe block, and
- * its titles are said once. Before the change has run, the same cases are the
- * ones it might move.
+ * Each changed function a case ran, one row each: the cases that entered it,
+ * the ones that ran a changed line in it, and their test files. Before the
+ * change has run, the same cases are the ones it might move.
  */
 export function functionsMarkdown(review: Review, mark: (region: ReviewRegion) => string): readonly string[] {
   const rows = located(review).filter(([, region]) => region.kind === 'function' && !uncovered(region));
   if (rows.length === 0) return [];
-  const byFile = new Map<string, ReviewRegion[]>();
-  for (const [file, region] of rows) byFile.set(file, [...(byFile.get(file) ?? []), region]);
   const cases = new Set(rows.flatMap(([, region]) => region.called.map((test) => test.id))).size;
   const tests = new Set(rows.flatMap(([, region]) => region.tests)).size;
   const counted = cases === 0 ? '' : ` — ${cases} case${cases === 1 ? '' : 's'} in ${tests} test file${tests === 1 ? '' : 's'}`;
   const lines = ['', `<details><summary>🧪 ${review.record === 'ran' ? 'What ran' : 'What the record ran for'} ${rows.length} changed function${
     rows.length === 1 ? '' : 's'
   }${counted}</summary>`, '', ...unheardMarkdown(rows.flatMap(([, region]) => region.called))];
-  for (const [file, regions] of [...byFile].sort(([left], [right]) => order(left, right))) {
-    lines.push(`<details><summary><code>${escape(file)}</code>: ${regions.length} function${regions.length === 1 ? '' : 's'}</summary>`, '');
-    for (const group of shared(regions)) lines.push(...groupMarkdown(file, group, mark), '');
-    lines.push('</details>', '');
+  lines.push('| | Function | Edit | Where | Cases entered | Ran a changed line | Test files |', '|---|---|---|---|--:|--:|---|');
+  for (const [file, region] of rows.slice(0, ROWS)) {
+    const named = region.tests.slice(0, TEST_FILES).map((test) => `\`${test}\``).join(', ');
+    const more = region.tests.length > TEST_FILES ? ` and ${region.tests.length - TEST_FILES} more` : '';
+    lines.push(`| ${mark(region)} | \`${region.name}\` | ${editLabel(file, region)} | ${place(review, file, region)} | ${region.cases}${spanned(region.called)} | ${
+      region.changedLineCases
+    } | ${named}${more} |`);
   }
-  return [...lines, '</details>'];
+  if (rows.length > ROWS) lines.push('', `${rows.length - ROWS} more function${rows.length - ROWS === 1 ? ' is' : 's are'} in the review's JSON.`);
+  return [
+    ...lines,
+    '',
+    'A case entered a function when it called into it, and ran a changed line when it entered the function and `variance covering --line` names it for a changed line in it. Case titles are in the review\'s JSON.',
+    '',
+    '</details>',
+  ];
+}
+
+/** What kind of edit wrote a region, as a reader says it. */
+function editLabel(file: string, region: ReviewRegion): string {
+  if (region.edit !== 'moved') return region.edit;
+  return region.movedFrom === undefined || region.movedFrom === file ? 'moved within the file' : `moved from \`${region.movedFrom}\``;
 }
 
 /**
@@ -124,38 +139,6 @@ function unheardMarkdown(called: readonly ReviewCase[]): readonly string[] {
   } ran under is unmeasured.`, ''];
 }
 
-/** Functions the same cases ran, in line order; a set of cases is said once. */
-function shared(regions: readonly ReviewRegion[]): readonly (readonly ReviewRegion[])[] {
-  const groups = new Map<string, ReviewRegion[]>();
-  for (const region of [...regions].sort((left, right) => left.startLine - right.startLine)) {
-    const key = `${region.reach}\0${region.cases}\0${region.called.map((test) => test.id).join('\0')}`;
-    groups.set(key, [...(groups.get(key) ?? []), region]);
-  }
-  return [...groups.values()];
-}
-
-function groupMarkdown(file: string, group: readonly ReviewRegion[], mark: (region: ReviewRegion) => string): readonly string[] {
-  const [first] = group as [ReviewRegion];
-  const names = group.map((region) => `<code>${escape(region.name)}</code>`).join(', ');
-  const summary = `${mark(first)} ${names}${ranBy(first)}${spanned(first.called)}`;
-  const at = `${group.map((region) => `\`${file}:${lines(region)}\``).join(', ')}`;
-  if (first.called.length === 0) return [`<details><summary>${summary}</summary>`, '', at, '', '</details>'];
-  const titled = first.called.slice(0, TITLES);
-  const body = [at, ''];
-  for (const test of first.tests) {
-    const named = titled.filter((called) => called.file === test);
-    if (named.length > 0) body.push(`- \`${test}\``, ...caseTree(named.map(saidPath)));
-  }
-  if (first.called.length > TITLES) body.push(`- and ${first.called.length - TITLES} more cases`);
-  return [`<details><summary>${summary}</summary>`, '', ...body, '', '</details>'];
-}
-
-/** A case's title path, its last step carrying what the case said it arranged, as `covering` prints it. */
-function saidPath(called: ReviewCase): { readonly path: readonly string[] } {
-  const path = called.name.split(' > ');
-  return { path: [...path.slice(0, -1), `${path.at(-1)!}${escape(heldText(called.preconditions))}`] };
-}
-
 /**
  * Every value of a name the cases said, where they said more than one: the
  * conditions the function ran under, which a reader would otherwise ask
@@ -171,7 +154,7 @@ function spanned(called: readonly ReviewCase[]): string {
   const said = [...byName]
     .filter(([, values]) => values.size > 1)
     .sort(([left], [right]) => order(left, right))
-    .flatMap(([, values]) => [...values].sort(([left], [right]) => order(left, right)).map(([, held]) => escape(valued(held))));
+    .flatMap(([, values]) => [...values].sort(([left], [right]) => order(left, right)).map(([, held]) => escape(valued(held)).replaceAll('|', '\\|')));
   return said.length === 0 ? '' : `; ran under ${said.join(', ')}`;
 }
 
@@ -211,16 +194,18 @@ function lines(region: ReviewRegion): string {
 }
 
 /** `path:line` or `path:start-end`, and what is there: a branch or loop is named by the function holding it. */
-function where(file: string, region: ReviewRegion): string {
+function where(review: Review, file: string, region: ReviewRegion): string {
   const name = region.name === '' ? region.kind : region.kind === 'function' ? `function \`${region.name}\`` : `${region.kind} in \`${region.name}\``;
-  return `\`${file}:${lines(region)}\` ${name}`;
+  return `${place(review, file, region)} ${name}`;
 }
 
-/** How many cases ran it, and in how many test files. */
-function ranBy(region: ReviewRegion): string {
-  const cases = `${region.cases} case${region.cases === 1 ? '' : 's'}`;
-  if (region.tests.length === 0) return ` — ${cases}`;
-  return ` — ${cases} in ${region.tests.length === 1 ? '1 test file' : `${region.tests.length} test files`}`;
+/** `path:line` or `path:start-end`, linked to the commit the review read when the host shows it. */
+function place(review: Review, file: string, region: ReviewRegion): string {
+  const at = `\`${file}:${lines(region)}\``;
+  const blob = review.head?.blob;
+  if (blob === undefined) return at;
+  const anchor = region.startLine === region.endLine ? `L${region.startLine}` : `L${region.startLine}-L${region.endLine}`;
+  return `[${at}](${blob}/${file.split('/').map(encodeURIComponent).join('/')}#${anchor})`;
 }
 
 function escape(value: string): string {

@@ -2569,6 +2569,7 @@
         "TimedTestFile": "interface",
         "TreeShape": "interface",
         "Violation": "interface",
+        "WorkingTreeChanges": "interface",
         "auditTaints": "function",
         "cappedLayers": "function",
         "cappedTiers": "function",
@@ -2641,7 +2642,8 @@
         "tierMoves": "function",
         "tierOf": "function",
         "treeShapeOf": "function",
-        "updateSourceIndex": "function"
+        "updateSourceIndex": "function",
+        "workingTreeChanges": "function"
       },
       "./read": {
         "Binding": "interface",
@@ -2884,6 +2886,7 @@
         "heldText": "function",
         "heldValues": "function",
         "hunksByFile": "function",
+        "hunksOf": "function",
         "importReferences": "function",
         "indexFaces": "function",
         "innermostAt": "function",
