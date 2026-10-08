@@ -156,14 +156,6 @@ for the whole run rather than one started per capture.
 Canvas, WebGL and video draw outside the document; a state built on one is
 captured as a screenshot and pays for its picture every run.
 
-### No meter, and what you pay instead
-
-There is no per-screenshot bill: the packages are MIT-licensed and run in your
-CI, against baselines you keep. Compute, storage, renderer capacity, retention,
-upgrades and the pager are yours instead, and if you would rather buy those as a
-service, [compare the operating models](compare-visual-review.md) before you
-choose.
-
 ## Easier to keep: each difference arrives answered
 
 The review bill is paid in decisions, and a decision is expensive when you
