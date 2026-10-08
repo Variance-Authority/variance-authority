@@ -159,7 +159,8 @@ export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore
   const records = options.recordRoot === undefined ? {} : { recordRoot: options.recordRoot };
   const run = options.git ?? runCommand;
   // `verify: false` keeps git out of the store entirely, fetches included: a
-  // pointer then meets the refusal below, as it does on a clone without git-lfs.
+  // pointer then meets the refusal below. With verification on, a pointer is
+  // pulled, and a pull that fails is refused by the fetching reader instead.
   const fetching =
     options.verify === false ? {} : { readImage: fetchingReader(options.root, run) };
   const baselines = createDurableStore(options.root, { ...layout, ...records, ...fetching });
@@ -295,7 +296,8 @@ function refuseAPointer(raster: Raster, what: string): void {
   throw new RasterStoreError(
     `${what} is a git-LFS pointer, not an image. The file was checked out without ` +
       'git-lfs installed, so the working tree holds the pointer text where the PNG ' +
-      `should be. Run \`git lfs install && git lfs pull\`. ${REFUSAL}.`,
+      `should be. Run \`git lfs install --local\`, and \`git lfs pull\` to fetch every image, or ` +
+      `drop \`verify: false\` to fetch only the images the run compares. ${REFUSAL}.`,
   );
 }
 

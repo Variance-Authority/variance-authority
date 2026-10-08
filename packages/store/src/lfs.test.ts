@@ -345,4 +345,8 @@ describe('against a real git', () => {
       await rm(records, { recursive: true, force: true });
     }
   });
+
+  it.todo(
+    'a checkout made with GIT_LFS_SKIP_SMUDGE=1 on a machine without git-lfs hands `find` a pointer the filter wrote, and the lookup is refused rather than read as absent — needs a git with no `lfs` subcommand on PATH',
+  );
 });
