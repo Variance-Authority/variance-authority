@@ -349,8 +349,8 @@ function linesOf(layer: Uint8Array | undefined): number[] {
   return decodeExecutionIndex(layer!).modules[0]!.blocks.map((block) => block.startLine);
 }
 
-/** A region with its lines: kind, name, first and last line, and the cases that called it. */
-type Nested = readonly [kind: string, name: string, lines: readonly [number, number], callers: readonly string[]];
+/** A region with its lines: kind, name, first and last line, the cases that called it, and whether it ran while the module loaded. */
+type Nested = readonly [kind: string, name: string, lines: readonly [number, number], callers: readonly string[], loaded?: boolean];
 
 /** One module cut into regions that nest by their lines, as a function's resumptions sit in its continuation. */
 function nestedAt(cases: readonly string[], file: string, regions: readonly Nested[]): Buffer {
@@ -362,7 +362,7 @@ function nestedAt(cases: readonly string[], file: string, regions: readonly Nest
     file,
     blocks: regions.map(([kind, name, [startLine, endLine]]) => ({ kind, name, path: name, startLine, endLine, source: true })),
     called: Uint32Array.from(regions, ([, , , callers]) => sets.intern(callers.map((id) => at.get(id)!))),
-    loaded: new Uint8Array(regions.length),
+    loaded: Uint8Array.from(regions, ([, , , , loaded]) => (loaded ? 1 : 0)),
   };
   return encodeSetExecutionIndex({ tests, modules: [module], sets: sets.pool() });
 }
@@ -397,6 +397,22 @@ describe('a module the run cut into more regions than the index holds', () => {
       'put/continuation/born': [observe, parity],
       'put/continuation/born/inner': [observe, parity],
       'put/continuation/resume': [observe],
+    });
+  });
+
+  it('carries the load flag of the region around a newly cut one with its cases, as the rows carry `loadedBy` with `testFiles`', () => {
+    const loadedHeld = nestedAt([observe, run], 'src/durable.ts', [
+      ['module', '', [1, 40], [observe, run], true],
+    ]);
+    const loadedFresh = nestedAt([run], 'src/durable.ts', [
+      ['module', '', [1, 40], [run], true],
+      ['function', 'helper', [32, 38], []],
+    ]);
+    const { merged } = layerCaseIndex(loadedHeld, loadedFresh, { ...ran(['run.test.ts']), sameText: () => true });
+
+    expect(read(merged).regions['src/durable.ts']).toEqual({
+      ' (loaded)': [observe, run],
+      'helper (loaded)': [observe],
     });
   });
 });

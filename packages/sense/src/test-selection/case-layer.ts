@@ -287,16 +287,19 @@ function moduleUnion(
  * on the new one, and the case index says nobody does.
  *
  * A case index stores no owner, so the region around is read off the lines:
- * the narrowest region before it in the cut whose lines hold its own
- * ({@link enclosing}), which is where a stitch of several cuts lands a region
- * only some of them hold. Owners come before the regions they own, so the walk
- * never runs forward. Where nothing landed there is nothing to hand down, and
- * where everything landed nothing is born, so neither walks.
+ * the narrowest region with source before it in the cut whose lines hold its
+ * own ({@link enclosing}), which is where a stitch of several cuts lands a
+ * region only some of them hold. Owners come before the regions they own, so
+ * the walk never runs forward. Where nothing landed there is nothing to hand
+ * down, and where everything landed nothing is born, so neither walks.
  *
  * -1 where nothing is carried.
  */
 function carriedFrom(recorded: SetExecutionModule, lands: Int32Array): (block: number) => number {
   if (!lands.includes(-1) || !lands.some((from) => from >= 0)) return (block) => lands[block]!;
+  // FIXME: the lines name a region's owner only where no earlier sibling's lines also hold it — in a
+  // recorded durable.ts 27 of 119 regions, most a one-line branch on the line a sibling ends on, read
+  // the sibling. A born one there takes the sibling's cases, where its row takes the owner's crossings.
   return heldAround<number, number>(
     (block) => enclosing(recorded.blocks, recorded.blocks[block]!, block),
     (block) => (lands[block]! >= 0 ? lands[block] : undefined),
