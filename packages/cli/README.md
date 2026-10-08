@@ -716,8 +716,9 @@ counted. Absences come first; past twelve lines the rest are counted, and the
 block ends with the `variance covering` command that reads one file in full.
 Every declared suite is read, and when more than one is, each line names its
 suite; a suite whose record cannot be read is named with the reason, and one
-named with `--suite` fails instead. A suite run on the change is the word on
-what in a file it read the change touched, and what is new. The block sits
+named with `--suite` fails instead. When a suite ran on the change, its record
+decides, for every file it read, which functions the change touched and which
+are new. The block sits
 between `<!-- variance-authority: handover -->` and its closing marker: the
 block a later run prints is pasted over everything between them.
 
