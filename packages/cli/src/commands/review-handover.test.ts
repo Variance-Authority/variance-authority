@@ -146,6 +146,12 @@ describe('a review handed over in the pull request body, before CI', () => {
 
     expect(out).toContain('1 changed function, reached by a case');
     expect(out).not.toContain('🔴');
+    const before = formatHandover([
+      { suite: 'integration', review: at('before', [part('function', 172, 289, 'unwalked', []), part('continuation', 201, 288, 'unwalked', [])]) },
+      { suite: 'unit', review: at('before', [part('function', 173, 287, 'near', ['test/a.test.ts']), part('continuation', 202, 286, 'near', ['test/a.test.ts'])]) },
+    ]);
+    expect(before).toContain('1 changed function, reached by a case');
+    expect(before).not.toContain('🔴');
   });
 
   it('names a function a suite ran on the change without a case, though a suite read from before counts it new', () => {
