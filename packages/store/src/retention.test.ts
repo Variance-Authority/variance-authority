@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { digestFileName, identityDigest } from '@variance-authority/core/format';
 import { createDurableStore } from './durable.js';
-import { sweepRenderCache } from './retention.js';
+import { renderCacheIn, sweepRenderCache } from './retention.js';
 
 /** The directory a store names for this identity's partition. */
 const partition = (identity: RenderIdentity): string => digestFileName(identityDigest(identity));
@@ -192,5 +192,23 @@ describe('the timestamp the sweep reads', () => {
     const swept = await sweepRenderCache(root, { maxAgeMs: 14 * DAY });
     expect(swept.removed).toBe(1);
     expect(await exists(`${stale}.json`)).toBe(false);
+  });
+});
+
+describe('the render cache inside a cache directory', () => {
+  it('is `renders`, where a store built on it paints and its sweep looks', async () => {
+    const renders = renderCacheIn(join(root, 'cache'));
+    const store = createDurableStore(join(root, 'baselines'), { cacheRoot: renders });
+    await store.renderCache.put({
+      documentDigest: 'v1:here',
+      identity: MAC,
+      width: 1,
+      height: 1,
+      bytes: Buffer.alloc(8).toString('base64'),
+      missingFonts: [],
+    });
+
+    expect(renders).toBe(join(root, 'cache', 'renders'));
+    expect((await sweepRenderCache(renders)).found).toBe(1);
   });
 });

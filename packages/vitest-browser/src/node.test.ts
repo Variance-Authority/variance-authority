@@ -1,11 +1,13 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PNG } from 'pngjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CaptureArtifact } from '@variance-authority/core';
 import {
+  digestFileName,
   documentDigest,
+  identityDigest,
   type Raster,
   type RenderDocument,
   type RenderIdentity,
@@ -199,6 +201,54 @@ describe('the command the browser half calls', () => {
     await commands.close();
 
     expect(renderer.closed).toBe(0);
+  });
+});
+
+describe('the render cache a directory store keeps', () => {
+  // A baseline root is one somebody commits, so the cache the run paints into
+  // is kept in the checkout's cache, where `variance run` keeps it, and bounded
+  // the way that run bounds it. `VARIANCE_AUTHORITY_CACHE` is the cache here.
+  let root: string;
+  let cache: string;
+  let previous: string | undefined;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'va-vitest-renders-'));
+    cache = join(root, 'cache');
+    previous = process.env['VARIANCE_AUTHORITY_CACHE'];
+    process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
+  });
+  afterEach(async () => {
+    if (previous === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    else process.env['VARIANCE_AUTHORITY_CACHE'] = previous;
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const byDocument = (under: string): string =>
+    join(under, digestFileName(identityDigest(MACHINE)), 'by-document');
+
+  it('paints into the checkout`s cache, and leaves the baseline root to baselines', async () => {
+    const baselines = join(root, 'baselines');
+    const commands = varianceCommands({ baselines, renderer: fakeRenderer(), accept: true });
+
+    await commands.varianceObserve(undefined, { artifact: artifactFor('a') });
+
+    expect(await readdir(byDocument(join(cache, 'renders')))).toContainEqual(expect.stringMatching(/\.png$/));
+    await expect(readdir(byDocument(baselines))).rejects.toThrow();
+  });
+
+  it('bounds that cache when the run closes, the way `variance run` does', async () => {
+    const stale = join(byDocument(join(cache, 'renders')), 'v1:stale');
+    await mkdir(join(stale, '..'), { recursive: true });
+    await writeFile(`${stale}.png`, Buffer.alloc(16));
+    await writeFile(`${stale}.json`, '{}\n', 'utf8');
+    const month = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    await utimes(`${stale}.png`, month, month);
+    await utimes(`${stale}.json`, month, month);
+
+    await varianceCommands({ baselines: join(root, 'baselines'), renderer: fakeRenderer() }).close();
+
+    await expect(readdir(join(cache, 'renders'))).rejects.toThrow();
   });
 });
 

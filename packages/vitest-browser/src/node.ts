@@ -8,7 +8,12 @@ import {
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import type { BaselineKey, RasterStore, Renderer } from '@variance-authority/raster';
 import { bulkSkips } from '@variance-authority/report';
-import { createDurableStore } from '@variance-authority/store/durable';
+import { cacheRootFor } from '@variance-authority/sense/cache-root';
+import {
+  createDurableStore,
+  renderCacheIn,
+  sweepRenderCache,
+} from '@variance-authority/store/durable';
 import { OBSERVE_COMMAND, type Observed, type ObserveRequest } from './protocol.js';
 
 /**
@@ -61,7 +66,13 @@ export interface VarianceCommands {
 }
 
 export function varianceCommands(options: VarianceNodeOptions = {}): VarianceCommands {
-  const store = options.store ?? createDurableStore(options.baselines ?? '.variance/baselines');
+  // A store opened here is on a root somebody commits, so its render cache goes
+  // where `variance run` puts it, and is bounded when the run closes, as there.
+  const renders =
+    options.store === undefined ? renderCacheIn(cacheRootFor(process.cwd())) : undefined;
+  const store =
+    options.store ??
+    createDurableStore(options.baselines ?? '.variance/baselines', { cacheRoot: renders! });
   let renderer: Promise<Renderer> | undefined = undefined;
 
   // Opened on the first observation rather than here. A watch-mode session that
@@ -110,11 +121,13 @@ export function varianceCommands(options: VarianceNodeOptions = {}): VarianceCom
       };
     },
     close: async () => {
-      if (renderer === undefined) return;
-      const opened = await renderer;
-      renderer = undefined;
-      // A renderer the caller supplied is a lifetime the caller owns.
-      if (options.renderer === undefined) await opened.close();
+      if (renderer !== undefined) {
+        const opened = renderer;
+        renderer = undefined;
+        // A renderer the caller supplied is a lifetime the caller owns.
+        if (options.renderer === undefined) await (await opened).close();
+      }
+      if (renders !== undefined) await sweepRenderCache(renders);
     },
   };
 }

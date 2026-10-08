@@ -2383,6 +2383,10 @@
           "types": "./dist/test-selection/index.d.ts",
           "default": "./dist/test-selection/index.js"
         },
+        "./cache-root": {
+          "types": "./dist/test-selection/cache-root.d.ts",
+          "default": "./dist/test-selection/cache-root.js"
+        },
         "./journal": {
           "types": "./dist/test-selection/journal.d.ts",
           "default": "./dist/test-selection/journal.js"
@@ -2976,6 +2980,9 @@
         "writeFetchedMainline": "function",
         "writeTestCoverage": "function"
       },
+      "./cache-root": {
+        "cacheRootFor": "function"
+      },
       "./journal": {
         "CasePrecondition": "interface",
         "EXECUTION_GLOBAL": "const",
@@ -3279,6 +3286,7 @@
         "RenderCacheBound": "interface",
         "RenderCacheSwept": "interface",
         "createDurableStore": "function",
+        "renderCacheIn": "function",
         "sweepRenderCache": "function"
       },
       "./lfs": {

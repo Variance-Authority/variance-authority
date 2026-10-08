@@ -23,10 +23,10 @@ import { createDeclarationReader, type DeclarationReader } from '@variance-autho
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import { settle, type BaselineKey, type RasterStore, type Renderer } from '@variance-authority/raster';
 import { suspenseRefusal } from '@variance-authority/react';
-import { createDurableStore } from '@variance-authority/store/durable';
 import { accepted, adopts } from './accepted.js';
 import type { MaterializationOptions, VarianceOptions } from './options.js';
 import { bundlePageAgent } from './bundle.js';
+import { checkoutStore } from './render-cache.js';
 import { acquireFrom } from './acquire.js';
 import { runOf, type VarianceRun } from './run.js';
 import { settledCapture } from './in-place.js';
@@ -253,7 +253,9 @@ export const varianceFixtures: Fixtures<
 
   varianceStore: [
     async ({ varianceBaselines }, use) => {
-      await use(createDurableStore(varianceBaselines));
+      const { store, sweep } = checkoutStore(varianceBaselines);
+      await use(store);
+      await sweep();
     },
     { scope: 'worker' },
   ],

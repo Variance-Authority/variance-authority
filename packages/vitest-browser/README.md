@@ -205,12 +205,12 @@ its contents rather than the directory, so git still descends into it:
 ```gitignore
 .variance/*
 !.variance/baselines/
-.variance/baselines/**/by-document/
 ```
 
-The third line keeps the render cache out. A durable store is also a cache keyed
-by the digest of the document that produced each image; it gains an entry on
-every edit and is worth nothing after the next one.
+The images a run paints to compare go to `renders/` in
+[the cache](https://variance-authority.dev/docs/cache), not to the baseline
+directory, and the plugin prunes them when the run closes. A `store` you pass in
+keeps its render cache wherever you built it to.
 
 ## Read a failure
 
@@ -240,8 +240,8 @@ Paths are absolute, and are made relative to `sourceRoot` when you pass one.
 
 The images are files. The approved baseline is the `.png` under the baseline
 directory, beside a `.json` recording what painted it; the candidate this run
-painted is in the render cache under `by-document/`, named by the digest of the
-document it came from.
+painted is in `renders/` in the cache, named by the digest of the document it
+came from.
 
 ## Read the verdict yourself
 

@@ -321,12 +321,19 @@ Because `git` is injected, all of this is testable without a git repository.
 
 The render cache is keyed by document digest, so it gains an entry for every
 edit and is worth nothing after the next one. Left under a committed `root` it
-grows without bound. Sweep it:
+grows without bound. `variance run`, the Playwright fixture and the Vitest
+plugin keep it in `renders/` inside
+[the cache](https://variance-authority.dev/docs/cache) and sweep it there.
+`renderCacheIn(cache)` returns that directory, so a store you build shares the
+same cache and the same bound:
 
 ```js
-import { sweepRenderCache } from '@variance-authority/store/durable';
+import { createDurableStore, renderCacheIn, sweepRenderCache } from '@variance-authority/store/durable';
 
-console.log(await sweepRenderCache('.variance/cache', { maxAgeMs: 14 * 24 * 60 * 60 * 1000, ceilingBytes: 512 * 1024 * 1024 }));
+const renders = renderCacheIn('node_modules/.cache/variance-authority');
+const store = createDurableStore('.variance/baselines', { cacheRoot: renders });
+
+console.log(await sweepRenderCache(renders, { maxAgeMs: 14 * 24 * 60 * 60 * 1000, ceilingBytes: 512 * 1024 * 1024 }));
 ```
 
 Those are the defaults — two weeks since an entry was last *asked for* (a hit

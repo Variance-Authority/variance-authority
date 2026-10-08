@@ -311,7 +311,7 @@ opens and closes the rest itself.
 | Option | Use it when | Default and boundary |
 | --- | --- | --- |
 | `baselines` | Baselines belong somewhere other than the default directory. | `.variance/baselines`. Ignored when `store` is supplied. |
-| `store` | Baselines do not live in a directory at all — a remote store, a fixture, a cache. | A durable directory store over `baselines`. |
+| `store` | Baselines do not live in a directory at all — a remote store, a fixture, a cache. | A durable directory store over `baselines`, whose render cache is `renders/` in [the cache](https://variance-authority.dev/docs/cache), pruned when the session closes, once per process. |
 | `renderer` | The suite already owns a renderer and its lifetime. | One is created and closed with the session. A supplied renderer is never closed by `close()`. |
 | `bundle` | The suite deliberately builds its own page agent. | The package's bundled agent. A custom bundle must install itself both in the current document and on future navigations. |
 | `tests` | The next run should be able to skip specs whose code nothing touched. | `false`. Requires the application under test to be built with `testSelectionProbes()` from `@variance-authority/sense/journal`; without a collector in the page the session says so on stderr and records nothing. |
@@ -599,7 +599,7 @@ message reads *preconditions unmeasured* rather than *no preconditions recorded*
 | --- | --- | --- |
 | `varianceBaselines` | Directory of durable baselines. | `.variance/baselines` |
 | `varianceRenderer` | Renderer shared by one Playwright worker. | A Playwright renderer created and closed by the fixture. |
-| `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`. |
+| `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`, whose render cache is `renders/` in [the cache](https://variance-authority.dev/docs/cache), pruned when the worker tears down. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
 | `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, cacheRoot, suite, coverageFile, heads, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
 | `varianceEvents` | Whether services behind the page announce, and where the driver leaves its return address. | `{}`. Accepts `heads` (the services that report for themselves, described below) and `origin`. The browser half needs neither. |

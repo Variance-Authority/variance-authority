@@ -5,7 +5,7 @@ import { digestOfFileName, type Digest } from '@variance-authority/core/format';
 import type { Renderer } from '@variance-authority/raster';
 import type { BrowserEngine, Config } from '../config.js';
 import { readCache, type CacheReading } from './doctor-cache.js';
-import { renderCacheRoot } from './resources.js';
+import { renderCacheRoot } from './renders.js';
 
 /**
  * What `variance doctor` asks *this* machine, separated from what it concludes.

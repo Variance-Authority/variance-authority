@@ -1,10 +1,41 @@
 // compass: variance-authority.retention
 
-import { sweepRenderCache, type RenderCacheSwept } from '@variance-authority/store/durable';
+import {
+  renderCacheIn,
+  sweepRenderCache,
+  type RenderCacheSwept,
+} from '@variance-authority/store/durable';
 import type { Config } from '../config.js';
-import { renderCacheRoot } from './resources.js';
+import { cacheOf } from './resources.js';
 
 export type { RenderCacheSwept };
+
+/**
+ * Where the render cache goes: in the cache, never beside the baselines.
+ *
+ * A durable store is also a render cache, keyed by document digest. Left where
+ * the baselines are, the cache of an LFS store lands inside a tracked, LFS-routed
+ * directory and is committed exactly like a baseline — and unlike a baseline it
+ * gains an entry for every edit and is worthless the moment the next one lands.
+ * The repository then grows without bound with images nobody will ever look at,
+ * and the quota that was bought for baselines pays for them.
+ *
+ * **Why the location is allowed to fall back to the environment, when nothing
+ * else is.** The config file refuses inferred values because they change what is
+ * observed. This one cannot: the cache is content-addressed by document digest
+ * under an identity digest, so a lookup either finds an image painted from this
+ * exact document by this exact machine or finds nothing. A wrong location, a
+ * stale entry, or a cache shared between projects can therefore cost a re-render
+ * and can never produce a wrong image, so `cacheRootFor` may answer from
+ * `VARIANCE_AUTHORITY_CACHE` when the repository names no `cacheRoot`.
+ *
+ * *What it costs.* A directory the baselines do not reach, which is why it
+ * prunes itself rather than waiting to be found. See {@link sweepRenderCache},
+ * which every run applies.
+ */
+export function renderCacheRoot(config: Pick<Config, 'cacheRoot'>): string {
+  return renderCacheIn(cacheOf(config));
+}
 
 /**
  * Apply the bound to this machine's render cache, and say what it took.

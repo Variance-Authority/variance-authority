@@ -98,15 +98,16 @@ Running 1 test using 1 worker
   1 passed (4.3s)
 ```
 
-The baseline directory now holds the image, its metadata, and the document the
-pixels were rendered from, under a key for the renderer identity:
+The baseline directory now holds the image and its metadata, under a key for
+the renderer identity:
 
 ```
 v1:09e74320ec70c26d7a5e40add47c455f/cart%2Fempty.png
 v1:09e74320ec70c26d7a5e40add47c455f/cart%2Fempty.json
-v1:09e74320ec70c26d7a5e40add47c455f/by-document/v1:501aa7bb8b17ac7bfcdb4312b4f93b1e.png
-v1:09e74320ec70c26d7a5e40add47c455f/by-document/v1:501aa7bb8b17ac7bfcdb4312b4f93b1e.json
 ```
+
+The image the run painted from the document is in `renders/` in the checkout's
+cache, outside the baseline directory.
 
 The outer Vitest file asserts exactly that sequence: exit 1, then exit 0 under
 the flag, then exit 0 with `1 passed`.

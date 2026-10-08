@@ -40,6 +40,7 @@ export type { BaselineLayout } from './placement.js';
  * {@link DurableStoreOptions.cacheRoot}, and that is this entrypoint's caller.
  */
 export {
+  renderCacheIn,
   sweepRenderCache,
   type RenderCacheBound,
   type RenderCacheSwept,
@@ -104,8 +105,8 @@ export interface DurableStoreOptions {
    * nobody will look at, and the quota bought for baselines pays for them.
    *
    * Left unset the cache stays under `root`, which is what a store with no
-   * opinion about the work tree should do. The CLI sets it, because the CLI is
-   * the caller that knows the root is tracked.
+   * opinion about the work tree should do. Callers that know the root is
+   * tracked set it to {@link renderCacheIn}.
    */
   readonly cacheRoot?: string;
 }

@@ -65,7 +65,11 @@ that holds every backend to the rule; the in-memory cache in
 [`materialization`](../../materialization/README.md) coordinates it as the
 caller of the cache: one module, two contracts, and the coordinate is shared on
 both counts. Backends: `packages/store/src/durable.ts` (`cacheRoot`),
-`packages/remote/src/store.ts` (`CACHE_FIND_PATH`, `CACHE_PUT_PATH`).
+`packages/remote/src/store.ts` (`CACHE_FIND_PATH`, `CACHE_PUT_PATH`). The place
+outside a committed root and its bound: `packages/store/src/retention.ts`
+(`renderCacheIn`, `sweepRenderCache`), applied by the CLI, by
+`packages/playwright-test/src/render-cache.ts` and by
+`packages/vitest-browser/src/node.ts`.
 
 ## Diagram
 
