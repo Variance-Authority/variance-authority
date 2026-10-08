@@ -24,9 +24,10 @@ on:
   # request laid on `main` and the groups queued ahead of it. With `check`
   # required on `main`, the queue merges a group only when it is green, so two
   # pull requests green on their own bases cannot break what `check` tests
-  # together through the queue. A group runs the `queue` job alone: lint, the
-  # repository's rules and the tests within two imports of what the group
-  # changes, `verify:near`'s wave. Every pull request in it already ran its own
+  # together through the queue. A group runs the `queue` jobs alone: lint and
+  # the repository's rules in one, and in the others, a slice or a shard each,
+  # the tests within two imports of what the group changes, `verify:near`'s
+  # wave. Every pull request in it already ran its own
   # whole selection, and the push to `main` after it runs every file, so the
   # queue asks only whether the group's changes break each other's neighbours.
   # It publishes nothing.
@@ -224,8 +225,10 @@ jobs:
     # to `main` can move it while this run's suite jobs are starting. Read by
     # each job on its own, two jobs of one run read two records, select from
     # two bases, and hand on records `record` then refuses to fold. Read here
-    # once, every job lays the same base. A merge group's one `queue` job reads
-    # the line for itself, so `base` and the jobs that need it do not run there.
+    # once, every job lays the same base. In a merge group each `queue` job reads
+    # the line for itself, so `base` and the jobs that need it do not run there:
+    # a group records nothing, so two legs that read two records only select
+    # from two bases, and nothing is folded.
     if: github.event_name != 'merge_group'
     runs-on: ubuntu-24.04
     # Whether the upload made an artifact. The artifact's id rather than the
@@ -985,20 +988,41 @@ jobs:
         run: yarn test:unit cases && yarn test:chromium cases
 
   queue:
-    # A merge group's gate, and the only job a group runs: lint, the
-    # repository's rules, then the tests within two imports of what the group
-    # changes, the wave `verify:near` runs on a laptop. The whole gate took
-    # thirteen minutes a group, three and a half of them `base` building before any test
-    # started, and it answered again what each pull request in the group had
-    # already answered on its own base.
+    # A merge group's gate, and the only harness a group runs: lint and the
+    # repository's rules in one job, and the tests within two imports of what
+    # the group changes, the wave `verify:near` runs on a laptop, in the others.
+    # The whole gate took thirteen minutes a group, three and a half of them
+    # `base` building before any test started, and it answered again what each
+    # pull request in the group had already answered on its own base.
     #
-    # One job, so no `base` to hand a read to: it reads the mainline itself, as
-    # a laptop does, and selects from it. The group's commit is `main` with the
+    # No `base` to hand a read to: each job reads the mainline itself, as a
+    # laptop does, and selects from it. The group's commit is `main` with the
     # pull requests laid on it, so the selection is what they changed together
     # since the record was published. A slice whose record is not read runs
     # whole and says why. In the Playwright image, for the reason written at
     # `suite`: the near wave includes chromium files.
+    #
+    # Sharded as `suite` is, and for its reason: the near wave of the three
+    # slices in one job took twelve and a half minutes when the mainline record
+    # was a week old and it selected every file. The selection drops what it
+    # skips before Vitest cuts the shard, so the shards split what runs, and a
+    # shard left with nothing passes and says `selected none`. A group records
+    # nothing, so no shard's record is folded and the same split serves.
+    #
+    # Not `fail-fast`, for the reason written at `suite`.
     if: github.event_name == 'merge_group'
+    name: queue (${{ matrix.part }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { part: rules }
+          - { part: unit, shard: 1/2 }
+          - { part: unit, shard: 2/2 }
+          - { part: integration }
+          - { part: chromium, shard: 1/3 }
+          - { part: chromium, shard: 2/3 }
+          - { part: chromium, shard: 3/3 }
     runs-on: ubuntu-24.04
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
@@ -1040,23 +1064,32 @@ jobs:
       - uses: ./.github/actions/build
 
       - name: lint
+        if: matrix.part == 'rules'
         shell: bash
         run: yarn lint
 
       - name: check
+        if: matrix.part == 'rules'
         shell: bash
         run: yarn check
 
-      # Each shared suite's mainline record, laid as `suite` lays one slice's.
-      - name: keep the base records
+      # The slice's mainline record, laid as `suite` lays it.
+      - name: keep the base record
+        if: matrix.part != 'rules'
         shell: bash
-        run: node tools/keep-base.mjs
+        env:
+          SUITE: ${{ matrix.part }}
+        run: node tools/keep-base.mjs "$SUITE"
 
       - name: near tests
+        if: matrix.part != 'rules'
         shell: bash
+        env:
+          SUITE: ${{ matrix.part }}
+          SHARD: ${{ matrix.shard }}
         run: |
           yarn variance index
-          VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn test
+          VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
 
   # The one check a branch rule names, and the one line that combines the
   # harnesses its event runs: `queue` for a merge group, and `rules`, `measure`,
