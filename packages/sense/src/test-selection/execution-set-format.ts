@@ -224,6 +224,7 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
         ...(module.loaded[at] === 1 ? { loaded: true as const } : {}),
         crossings: Array.from(members(sets, module.called[at]!, tests.length), (test) => ({ test, distance: 0 })),
       })),
+      ...(module.owner === undefined ? {} : { owner: module.owner }),
     })),
   };
 }
@@ -258,7 +259,7 @@ export function encodeAsSetExecutionIndex(index: ExecutionIndex): Buffer {
       called[at] = sets.intern(cases);
       return block;
     });
-    return { file: module.file, blocks, called, loaded };
+    return { file: module.file, blocks, called, loaded, ...(module.owner === undefined ? {} : { owner: module.owner }) };
   });
   return encodeSetExecutionIndex({ tests: index.tests, modules, sets: sets.pool() });
 }

@@ -4,7 +4,6 @@ import type { FreshCases, LaidRun } from './case-landing.js';
 import type { ModuleId } from '../instrument/index.js';
 import { CrossingSets } from './crossing-sets.js';
 import { scanJournal, type JournalVisitor } from './crossing-fold.js';
-import { NO_OWNER } from './execution-set-columns.js';
 import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import {
   codeUnitOrder,
@@ -12,7 +11,7 @@ import {
   projectPath,
   type CapturedModule,
 } from './instrumented-modules.js';
-import { AMBIENT, caseIds, caseKey, inCaseOrder, settledAcross, unpackCase, unpackFrames } from './cases.js';
+import { AMBIENT, caseIds, caseKey, inCaseOrder, keptOwners, settledAcross, unpackCase, unpackFrames } from './cases.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
 import eyesFrames from './eyes-frame.cjs';
 import type { EyesSection, RecordedEyes } from './eyes-record.js';
@@ -21,7 +20,6 @@ import preconditions from './case-preconditions.cjs';
 import type { ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
 import type { Reading } from './readings.js';
-import { heldAround } from './region-around.js';
 
 /** What the first, allocation-free pass over a case-journal directory learned. */
 export interface CaseRun {
@@ -382,20 +380,6 @@ export async function foldCaseRun(
     passes,
     crossings,
   };
-}
-
-/**
- * Each written region's owner, as its position among the written regions: the
- * owner its row names, or the nearest one up its owners that was written where
- * the transform wrote that one. {@link NO_OWNER} where none up to the module
- * root was.
- */
-function keptOwners(blocks: CapturedModule['blocks']): Uint32Array {
-  const byOrdinal = new Map(blocks.map((block) => [block.ordinal, block]));
-  const keptAt = new Map<number, number>();
-  for (const block of blocks) if (isWritten(block)) keptAt.set(block.ordinal, keptAt.size);
-  const kept = heldAround<number, number>((ordinal) => byOrdinal.get(ordinal)?.owner, (ordinal) => keptAt.get(ordinal), NO_OWNER);
-  return Uint32Array.from(blocks.filter(isWritten), (block) => (block.owner === undefined ? NO_OWNER : kept(block.owner)));
 }
 
 function markRange(

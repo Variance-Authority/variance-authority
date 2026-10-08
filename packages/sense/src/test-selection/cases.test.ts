@@ -11,6 +11,8 @@ import {
   unpackCase,
   unpackFrames,
 } from './cases.js';
+import { layerCaseIndex } from './case-layer.js';
+import { decodeSetExecutionIndex, encodeAsSetExecutionIndex } from './execution-set-format.js';
 import type { CapturedModule } from './instrumented-modules.js';
 import { coveringTests } from './reverse.js';
 
@@ -196,6 +198,28 @@ describe('folding case frames into an execution index', () => {
 
   it('leaves out a module no case entered', () => {
     expect(executionIndexFrom([], inventory).modules).toEqual([]);
+  });
+
+  it('names each region\'s owner, so a driver\'s run laid over a cut without its branch hands the branch the function\'s cases', () => {
+    const cut = (regions: readonly (readonly [kind: string, name: string, lines: [number, number], owner?: number])[]): ReadonlyMap<ModuleId, CapturedModule> =>
+      new Map([[7, {
+        file: 'src/decide.ts', id: 7, sourceDigest: 'digest', instrumented: true,
+        blocks: regions.map(([kind, name, [startLine, endLine], owner], ordinal) => ({
+          ordinal, kind, digest: `block-${ordinal}`, name, path: name, startLine, endLine, source: true, testFiles: [],
+          ...(owner === undefined ? {} : { owner }),
+        })),
+      }]]);
+    const held = cut([['module', '', [1, 9]], ['function', 'decide', [2, 8], 0]]);
+    const recorded = cut([['module', '', [1, 9]], ['function', 'decide', [2, 8], 0], ['branch', 'decide/then', [3, 4], 1]]);
+    const record = encodeAsSetExecutionIndex(executionIndexFrom([journal('a.test.ts', 'alpha', '1', [1])], held));
+    // The bytes a browser driver hands the record (`journal.ts`).
+    const run = encodeAsSetExecutionIndex(executionIndexFrom([journal('b.test.ts', 'beta', '2', [0])], recorded));
+
+    const { merged } = layerCaseIndex(record, run, { ran: new Set(['b.test.ts']), finished: new Set(['b.test.ts']), present: () => true });
+
+    const laid = decodeSetExecutionIndex(merged);
+    expect(Object.fromEntries(laid.modules[0]!.blocks.map((block) => [block.name, block.crossings.map(({ test }) => laid.tests[test]!.name)])))
+      .toEqual({ '': ['beta'], decide: ['alpha'], 'decide/then': ['alpha'] });
   });
 });
 

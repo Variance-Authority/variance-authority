@@ -526,11 +526,6 @@
   },
   {
     "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/reverse.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
     "at": "packages/sense/src/test-selection/select.ts",
     "count": 1
   },
