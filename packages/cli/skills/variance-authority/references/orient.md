@@ -70,7 +70,8 @@ imports it. Ask it before you add a dependency. It reads the dependency lexicon
 `search`: it searches the same lexicon.
 
 Under a package that ships agent skills, each skill is a line: its name, the
-`SKILL.md` to read, and the first sentence of its description. Read that file
+`SKILL.md` to read, and the first sentence of its description, cut at 160
+characters. Read that file
 before you write code against the package; nothing is installed or copied for
 you. Only `skills/<name>/SKILL.md` beside the package's `package.json` is read,
 the layout [TanStack Intent](https://tanstack.com/intent/latest) set for npm. A

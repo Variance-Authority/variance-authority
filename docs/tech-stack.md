@@ -89,7 +89,7 @@ is versioned with the code it describes.
 
 `stack` lists those skills under their package, one line each: the skill's
 name, the file, and the first sentence of the description in its front matter,
-which is what an agent needs to decide whether to open it. The rest stays in
+cut at 160 characters, which is what an agent needs to decide whether to open it. The rest stays in
 the file until your agent reads it, from `node_modules`, at the installed
 version. `search` does not list skills or match their words. Nothing is copied into your agent's configuration and no
 skill is installed: the list is rebuilt from what is in `node_modules` each time
