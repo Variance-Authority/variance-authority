@@ -163,7 +163,9 @@ describe('a review of what a change did, after the run that recorded it', () => 
     expect(markdown).toContain('<details><summary>🔴 Where no case ran: 1 place in 1 function</summary>\n\n- `src/total.ts:5-7` function `round` (new)');
     expect(markdown).toContain('| 🟢 | `applyDiscount` | modified | `src/total.ts:1-3` | 1 | 1 | `test/total.test.ts` |');
     expect(markdown).toContain('🟢 a test importing the file ran it · 🟡 only tests further away ran it');
-    expect(markdown).not.toContain('flowchart');
+    // The diagram of the same functions follows their table, folded.
+    expect(markdown.indexOf('<summary>🔀 2 changed functions, 1 with no case</summary>')).toBeGreaterThan(markdown.indexOf('| 🟢 | `applyDiscount`'));
+    expect(markdown).toContain('"🔴 round · new<br/>no case"]:::none');
     expect(markdown).not.toContain('| **');
     // The cases a change added are read before the counts of what ran.
     expect(markdown.indexOf('✏️ Cases added and removed')).toBeLessThan(markdown.indexOf('🔴 Where no case ran'));

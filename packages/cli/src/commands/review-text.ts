@@ -15,6 +15,7 @@ import { formatCoverage } from './coverage-text.js';
 import type { ReviewFormat } from '../review-args.js';
 import { clampComment, COMMENT_CHARACTERS } from './comment-text.js';
 import { functionsIn, motionText } from './covering-motion.js';
+import { changeGraph } from './review-graph.js';
 import { installLines } from './review-install.js';
 import { caseTree, functionsMarkdown, namedList, outermost, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
@@ -127,7 +128,7 @@ function markdown(review: Review): string {
   const uncovered = uncoveredMarkdown(review, mark);
   const functions = functionsMarkdown(review, mark);
   if (uncovered.length + functions.length > 0) lines.push('', `<sub>${LEGEND}</sub>`);
-  lines.push(...uncovered, ...functions);
+  lines.push(...uncovered, ...functions, ...changeGraph(review));
   if (review.coverage !== undefined) lines.push(...reviewCoverageDetails(review.coverage));
   const more: string[] = [];
   const said: string[] = [];

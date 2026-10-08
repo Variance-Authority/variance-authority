@@ -910,6 +910,15 @@ the first three test files of each function; the cases by title are in
 changed file are folded under **Recording scope and limitations**, which lists
 the first 40 moved regions, test files whose reach moved, and files not
 compared, and counts the rest.
+
+Under the table, folded, the changed functions are drawn as a Mermaid diagram,
+those no case ran included: each under its file, coloured by how near the
+nearest case that ran it is, with its edit and both counts, and an edge from
+each test file whose cases called into it. A red function with no edge is one
+no case ran. The diagram draws 24 functions, those no case ran first, then
+those a file only loaded, then those furthest from their nearest case, and the
+8 test files that reach the most of them, and counts the rest.
+
 GitHub rejects a comment longer than 65,536 characters, so a longer markdown
 review is cut at a line break before that length, and its last line gives the
 number of characters not shown.

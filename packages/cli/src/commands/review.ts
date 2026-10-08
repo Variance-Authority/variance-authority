@@ -86,9 +86,9 @@ export interface ReviewRegion {
   /** How many cases called into it. */
   readonly cases: number;
   /**
-   * How many cases ran a line of it the change wrote, as `variance covering
-   * --line` names them for each such line. A case can enter a function and
-   * take the branch the change left alone.
+   * How many of the cases that entered it ran a line of it the change wrote,
+   * as `variance covering --line` names them for each such line. A case can
+   * enter a function and take the branch the change left alone.
    */
   readonly changedLineCases: number;
   /** The test files those cases are declared in, in code-unit order. */
