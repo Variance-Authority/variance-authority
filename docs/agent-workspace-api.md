@@ -62,6 +62,9 @@ symbol, labelled as that file's. Naming `--package` reports the README even when
 it does not mention the symbol; a package with no README is reported as shipping
 none.
 
+The packages a file can already use, and the agent skills those packages ship,
+are on [their own page](tech-stack.md).
+
 This is a resolved module graph, not a function-call graph. It records file
 imports, re-exports, literal dynamic imports, type imports, asset edges, and the
 files a module names in `/// <depends path="…" />`. It can answer what a file

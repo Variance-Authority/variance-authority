@@ -142,7 +142,7 @@ pub fn query_dependency_lexicon(path: String, query: String, files: Option<Vec<S
     };
     let lexicon: Lexicon = serde_json::from_slice(&bytes)
         .map_err(|error| napi::Error::from_reason(format!("the dependency lexicon did not read: {error}")))?;
-    if !matches!(lexicon.version, 4..=8) { return Err(napi::Error::from_reason("the dependency lexicon version is not supported")); }
+    if !matches!(lexicon.version, 4..=9) { return Err(napi::Error::from_reason("the dependency lexicon version is not supported")); }
     let allowed = files.as_ref().map(|files| owners(&lexicon, files));
     let entries: HashMap<&str, &Api> = lexicon.entries.iter().map(|entry| (entry.id.as_str(), &entry.api)).collect();
     let query = if exact { query } else { query.to_lowercase() };

@@ -84,7 +84,13 @@ fn directories(root: &Path, owners: &[Owner]) -> BTreeSet<String> {
     found
 }
 
-/// What one entry read: its digested sources, and the manifests and README its purpose came from.
+/// The `skills/` directories beside the manifests one entry was read from.
+fn skill_homes(entry: &Entry) -> impl Iterator<Item = std::path::PathBuf> + '_ {
+    [&entry.api.runtime, &entry.api.declarations].into_iter().flatten()
+        .filter_map(|identity| Path::new(&identity.manifest).parent().map(|parent| parent.join("skills")))
+}
+
+/// What one entry read: its digested sources, the manifests and README its purpose came from, and its skills.
 pub(super) fn read_by(entry: &Entry) -> Vec<String> {
     let mut paths: Vec<String> = entry.api.sources.iter().flatten().map(|source| source.at.clone()).collect();
     for identity in [&entry.api.runtime, &entry.api.declarations].into_iter().flatten() {
@@ -93,11 +99,36 @@ pub(super) fn read_by(entry: &Entry) -> Vec<String> {
             paths.push(parent.join("README.md").to_string_lossy().into_owned());
         }
     }
+    // The directory's stamp moves when a skill folder is added or removed; each file's when one is edited.
+    paths.extend(skill_homes(entry).map(|home| home.to_string_lossy().into_owned()));
+    paths.extend(entry.api.skills.iter().flatten().map(|skill| skill.at.clone()));
     paths
+}
+
+/// A `SKILL.md` for every folder under the entry's `skills/`, read or not: one written into a folder that
+/// held none moves from `absent`, which the folder's own directory stamp does not show.
+fn skill_files(root: &Path, entry: &Entry) -> Vec<String> {
+    skill_homes(entry).flat_map(|home| {
+        fs::read_dir(root.join(&home)).into_iter().flatten().flatten()
+            .filter(|child| child.file_type().is_ok_and(|kind| kind.is_dir() || kind.is_symlink()))
+            .map(move |child| home.join(child.file_name()).join("SKILL.md").to_string_lossy().into_owned())
+    }).collect()
+}
+
+/// Whether anything the entry read, or a `SKILL.md` beside its skills, is among the moved paths.
+pub(super) fn moved(entry: &Entry, changed: &std::collections::HashSet<String>) -> bool {
+    if read_by(entry).iter().any(|path| changed.contains(path)) { return true; }
+    let homes: Vec<_> = skill_homes(entry).collect();
+    changed.iter().any(|path| {
+        let path = Path::new(path);
+        path.file_name().is_some_and(|name| name == "SKILL.md")
+            && path.parent().and_then(Path::parent).is_some_and(|home| homes.iter().any(|held| held == home))
+    })
 }
 
 pub(super) fn record(root: &Path, lexicon: &Path, chain: Vec<String>, version: u8, entries: &[Entry], owners: &[Owner], manifests: &[String], carried: Option<&Built>, packages: u32, unavailable: u32) -> Built {
     let mut paths: BTreeSet<String> = entries.iter().flat_map(read_by).collect();
+    paths.extend(entries.par_iter().flat_map_iter(|entry| skill_files(root, entry)).collect::<Vec<_>>());
     // The directories an owner resolves through were listed by the refresh that made the record, and a refresh that
     // merged did not move any of them, so they are carried; one that read everything lists them again.
     match carried {

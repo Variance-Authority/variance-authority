@@ -25,7 +25,7 @@ A missing domain is unavailable, never an empty measurement.
 | current workspace source | What is the name for the thing I can only describe, in the part of the repository I am working in? | `variance ask search --query <word> --from <path>` | `docs_search` on the workspace API server |
 | current workspace source | What are the parts of this repository, and which packages does each one put in front? | `variance ask orient [--area <id>]` | `docs_orient` with no `files` on the workspace API server |
 | current workspace source | Which packages are these files in, what crosses their edges, which tests ran them, and what calls into them? | `variance ask orient --files <path>[:<line>][,...]` | `docs_orient` on the workspace API server |
-| current workspace source | Which third-party packages can this file already use, and does the code import them? | `variance ask stack --from <path> [--limit <n>] [--offset <n>]` | `docs_stack` on the workspace API server |
+| current workspace source | Which third-party packages can this file already use, does the code import them, and which [agent skills](tech-stack.md#read-the-skills-a-package-ships) do they ship? | `variance ask stack --from <path> [--limit <n>] [--offset <n>]` | `docs_stack` on the workspace API server |
 | a recorded test run | Which test files and test cases did the runner spend longest in, under these tests or in the tests that entered this code? | `variance ask slowest-tests [--from <path>[,...]] [--to <path>[,...]] [--limit <n>]` | `docs_slowest_tests` on the workspace API server |
 
 For [source orientation](orientation.md), ask three questions in this order:

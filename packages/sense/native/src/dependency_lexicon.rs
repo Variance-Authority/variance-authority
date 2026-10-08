@@ -26,6 +26,9 @@ mod describing;
 #[path = "dependency_purpose.rs"]
 mod purposes;
 use purposes::Purpose;
+#[path = "dependency_skills.rs"]
+mod skilled;
+use skilled::Skill;
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Identity { name: String, version: String, manifest: String }
@@ -71,6 +74,9 @@ struct Api {
     /// What the package says it is for, read from the installed package at refresh.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     purpose: Option<Purpose>,
+    /// The agent skills the package ships in `skills/`, read from the installed package at refresh.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    skills: Option<Vec<Skill>>,
 }
 #[derive(Clone, Serialize, Deserialize)]
 struct Entry { id: String, api: Api }
@@ -128,8 +134,10 @@ fn relative(root: &Path, path: &Path) -> String {
     path.strip_prefix(root).unwrap_or(path).to_string_lossy().replace('\\', "/")
 }
 
-/// Version 5 added `readme`, 7 added `purpose`, 8 reads `export =` from the tree. An older one still answers queries; a refresh rewrites it.
-const VERSION: u8 = 8;
+/// Version 5 added `readme`, 7 added `purpose`, 8 reads `export =` from the tree, 9 added `skills`. An older one still answers queries; a refresh rewrites it.
+const VERSION: u8 = 9;
+/// The first version that read skills; an older lexicon answers with them unread, not absent.
+const SKILLS: u8 = 9;
 
 fn previous(path: &Path) -> Option<Lexicon> {
     let prior: Lexicon = serde_json::from_slice(&fs::read(path).ok()?).ok()?;

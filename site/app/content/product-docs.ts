@@ -48,6 +48,7 @@ import nativeCode from "../../../docs/native-code.md?raw";
 import observability from "../../../docs/observability.md?raw";
 import boundaries from "../../../docs/boundaries.md?raw";
 import orientation from "../../../docs/orientation.md?raw";
+import techStack from "../../../docs/tech-stack.md?raw";
 import ownFewerTests from "../../../docs/own-fewer-tests.md?raw";
 import optimizeATest from "../../../docs/optimize-a-test.md?raw";
 import parting from "../../../docs/parting.md?raw";
@@ -105,6 +106,7 @@ export interface ProductDocument {
 const documents = [
   ["overview", index, "docs/README.md"],
   ["orientation", orientation, "docs/orientation.md"],
+  ["tech-stack", techStack, "docs/tech-stack.md"],
   ["boundaries", boundaries, "docs/boundaries.md"],
   ["tests", tests, "docs/tests.md"],
   ["changed", changed, "docs/changed.md"],

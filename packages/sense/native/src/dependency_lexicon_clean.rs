@@ -40,7 +40,7 @@ impl<'a> Prior<'a> {
         for &row in rows {
             if super::availability(owner, package, wanted, &row.specifier, row.entry.clone(), true) != *row { return None; }
             let entry = *self.entries.get(row.entry.as_str())?;
-            if built::read_by(entry).iter().any(|path| self.changed.contains(path)) { return None; }
+            if built::moved(entry, self.changed) { return None; }
             kept.push((row.clone(), entry.clone(), true));
         }
         let issues = self.issues.get(&(owner.manifest.as_str(), package)).into_iter().flatten().map(|issue| issue.reason.clone()).collect();

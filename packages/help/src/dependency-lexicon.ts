@@ -17,8 +17,12 @@ export interface DependencyApi {
   readonly unavailable?: string;
   /** Only on an unavailable entry: the `README.md` beside the runtime package's manifest. */
   readonly readme?: DependencyReadme;
+  /** The agent skills the package ships in `skills/`; absent when it ships none or the lexicon predates them. */
+  readonly skills?: readonly DependencySkill[];
 }
 export interface DependencyReadme { readonly at: string; readonly lines?: number; readonly unreadable?: string }
+/** One agent skill a package ships: `skills/<directory>/SKILL.md`, named by its front matter or, failing that, its directory. */
+export interface DependencySkill { readonly name: string; readonly at: string; readonly description?: string; readonly unreadable?: string }
 
 export interface LexiconEntry { readonly id: string; readonly api: DependencyApi }
 export interface LexiconAvailability {
@@ -36,7 +40,7 @@ export interface LexiconAvailability {
 }
 export interface LexiconIssue { readonly owner: string; readonly package: string; readonly reason: string }
 export interface DependencyLexicon {
-  readonly version: 4 | 5 | 6 | 7 | 8;
+  readonly version: 4 | 5 | 6 | 7 | 8 | 9;
   readonly refreshedAt: string;
   readonly entries: readonly LexiconEntry[];
   readonly availability: readonly LexiconAvailability[];
@@ -50,7 +54,7 @@ export function readDependencyLexicon(root: string): { readonly path: string; re
   const path = pathOf(root);
   try {
     const value: unknown = JSON.parse(readFileSync(path, 'utf8'));
-    if (typeof value !== 'object' || value === null || ![4, 5, 6, 7, 8].includes((value as Partial<DependencyLexicon>).version ?? 0)
+    if (typeof value !== 'object' || value === null || ![4, 5, 6, 7, 8, 9].includes((value as Partial<DependencyLexicon>).version ?? 0)
       || !Array.isArray((value as Partial<DependencyLexicon>).entries)
       || !Array.isArray((value as Partial<DependencyLexicon>).availability)) return { path };
     return { path, lexicon: value as DependencyLexicon };
@@ -127,6 +131,8 @@ export interface StackRow {
   /** `unread` when the source index was not read for the owner, which is not the same as no imports. */
   readonly state: 'imported' | 'unused' | 'unread';
   readonly imports?: number; readonly site?: string; readonly specifiers: number;
+  /** The agent skills the package ships; absent when it ships none. */
+  readonly skills?: readonly DependencySkill[];
 }
 export interface Stack {
   readonly location: readonly string[]; readonly total: number;
@@ -134,6 +140,8 @@ export interface Stack {
   readonly offset: number; readonly remaining: number;
   readonly rows: readonly StackRow[];
   readonly unreadable: readonly { readonly manifest: string; readonly package: string; readonly reason: string }[];
+  /** Rows, across every page, whose package ships skills; absent when the lexicon predates reading them. */
+  readonly skilled?: number;
 }
 
 /** Every package usable at `files`, imported first, one page; absent when the lexicon is unpublished. */
