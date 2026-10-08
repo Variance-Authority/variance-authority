@@ -219,9 +219,9 @@ paired with it through the diff from that commit, not read as if they had not
 moved. So a line says which cases stood on the function before the change,
 which is the right place to start reading, and code the change wrote shows as
 *new, not run yet* rather than as uncovered. A suite you ran on the change
-answers alone for every file it read, since an older record's cases reached
-the old code; where the block reads both, the summary counts what only an
-older record reached, and its lines say *in the record*. What CI's run did
+answers alone for every changed file it read, since an older record's cases reached
+the old code; where the block reads both, a summary with no gap counts what
+only an older record reached, and its lines say *in the record*. What CI's run did
 arrives later as its own comment.
 
 ## What none of it decides

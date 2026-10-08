@@ -770,10 +770,10 @@ block ends with the `variance covering` command that reads one file in full.
 Every declared suite is read, and when more than one is, each line names its
 suite; a suite whose record cannot be read is named with the reason, and one
 named with `--suite` fails instead. When a suite ran on the change, the runs
-on the change alone answer for every file it read: a record from before the
+on the change alone answer for every changed file it read: a record from before the
 change places the edit by its old lines, and its cases reached the old code.
-Elsewhere a record from before the change answers, and the summary counts what
-only it reached; when the block reads both, a line it answers says *in the
+Elsewhere a record from before the change answers, and a summary with no gap in it
+counts what only it reached; when the block reads both, a line it answers says *in the
 record*. The block sits between `<!-- variance-authority: handover -->` and
 its closing marker: the block a later run prints is pasted over everything
 between them.

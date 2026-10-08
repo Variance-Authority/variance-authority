@@ -11,6 +11,6 @@ from a distance not measured or only while its module loaded, those no case
 reached first, with the test file to open; functions reached from near are
 counted. Past twelve lines the rest are counted, and the block ends with the
 `variance covering` command for one file. A suite run on the change answers
-alone for every file it read; what only a record from before the change
-reached is counted apart. Markers around the block mark what a later run's
+alone for every changed file it read; when nothing is left unreached, what
+only a record from before the change reached is counted apart. Markers around the block mark what a later run's
 block is pasted over.
