@@ -1800,8 +1800,9 @@ Every shard is charged its `--setup`, and the count is the one whose wait and
 setups come to least, so a shard is added only when it shortens the wait by more
 than it spends. `--budget <seconds>` asks instead for the fewest shards whose last
 one finishes within it. Either way the count stops at the slowest test file,
-which no shard can finish before; the answer names it, and its slowest cases when
-the run kept them. `--workers` is how many files one shard's runner runs at once.
+which no shard can finish before; the answer names it, and its slowest case when
+the run kept its cases. `--workers` is how many files one shard's runner runs at
+once.
 
 `--since <ref>` leaves out the files that change lets the run skip, as the seam
 does under `VARIANCE_AUTHORITY_SINCE`, so a change that reaches no test answers

@@ -92,7 +92,7 @@ by more than it spends. Two things end the count:
 
 - **One file takes longer than a shard's share.** No shard finishes before its
   slowest file, and a file is never split. The answer names that file, and its
-  slowest cases when the record has them. Here one file takes 245.2 s, so a
+  slowest case when the record has its cases. Here one file takes 245.2 s, so a
   third shard would finish no sooner.
 - **Setup costs more than one more shard saves.** The answer says what the next
   shard would save and what it would cost. On a later change that ran 85 of the

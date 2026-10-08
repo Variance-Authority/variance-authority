@@ -44,6 +44,14 @@ export function parseShardsArgs(flags: Flags): ParsedShards {
   }
   const budget = secondsOf(flags.values.get('--budget'), '--budget', 'one shard may take, setup included');
   if (budget === 0) throw new OperatorError('--budget is what one shard may take, and no shard finishes in 0 s');
+  // Every shard spends its setup before its first test, so no count meets a
+  // budget the setup alone takes, and a slow file is never what stands in the way.
+  if (budget !== undefined && budget <= setup) {
+    throw new OperatorError(
+      `--budget is what one shard may take, setup included, and no shard finishes in ${flags.values.get('--budget')} s ` +
+        `when each spends ${flags.values.get('--setup')} s on setup before its first test`,
+    );
+  }
   const max = countOf(flags.values.get('--max'), 'shards to start', '--max');
   const workers = countOf(flags.values.get('--workers'), 'test files one shard runs at once', '--workers');
   const unrecorded = flags.values.get('--unrecorded');

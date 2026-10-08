@@ -181,6 +181,9 @@ export function formatShards(answer: ShardsAnswer, format: ShardsFormat): string
   ].join('\n');
 }
 
+/** The longest case name the text prints whole; a parametrised name can run to hundreds. */
+const CASE_NAME_LIMIT = 80;
+
 function reasonOf(answer: Extract<ShardsAnswer, { by: 'recorded' }>): string {
   switch (answer.why) {
     case 'setup': {
@@ -192,10 +195,11 @@ function reasonOf(answer: Extract<ShardsAnswer, { by: 'recorded' }>): string {
       return `The fewest whose last finishes within the ${durationText(answer.budget!)} budget.`;
     case 'slowest group': {
       const { file, duration, cases } = answer.slowest!;
-      const slowCases = cases === undefined
+      // One case, named short: the JSON answer keeps the slowest cases whole.
+      const slowest = cases?.[0];
+      const slowCases = slowest === undefined
         ? ''
-        : `, its slowest ${cases.length === 1 ? 'case' : 'cases'} ` +
-          cases.map((test) => `${test.name} ${durationText(test.duration)}`).join(', ');
+        : `, its slowest case ${clipped(slowest.name, CASE_NAME_LIMIT)} ${durationText(slowest.duration)}`;
       const unmet = answer.budget !== undefined && answer.wall > answer.budget
         ? ` The ${durationText(answer.budget)} budget is out of reach until that file is split.`
         : '';
@@ -208,6 +212,14 @@ function reasonOf(answer: Extract<ShardsAnswer, { by: 'recorded' }>): string {
     case 'nothing to run':
       return '';
   }
+}
+
+const CHARACTERS = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+/** Cut between the characters a reader sees, so an emoji in a case name is never halved. */
+function clipped(text: string, limit: number): string {
+  const characters = Array.from(CHARACTERS.segment(text), (part) => part.segment);
+  return characters.length <= limit ? text : `${characters.slice(0, limit - 1).join('').trimEnd()}…`;
 }
 
 function matrixOf(shards: number): readonly string[] {
