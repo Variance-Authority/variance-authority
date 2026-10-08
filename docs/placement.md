@@ -277,9 +277,10 @@ Three things this needs from the repository:
 - **A branch in this repository.** A pull request from a fork runs with no
   secrets and a read-only token, so its label run cannot push. Its baselines are
   committed by hand.
-- **git-lfs in the job, for `lfs`.** The Playwright image has none. Install it
-  and fetch LFS objects in the checkout, or the store stops on a pointer file
-  where it expected an image.
+- **git-lfs in the job, for `lfs`.** The Playwright image has none, so install
+  it. Leave LFS objects out of the checkout: the run reads a baseline image only
+  for a subject whose document changed, and fetches that one image with `git lfs
+  pull`. Without git-lfs, the run stops with exit 2 on the first image it needs.
 
 ### A review service
 

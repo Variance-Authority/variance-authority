@@ -112,8 +112,9 @@ three arrangements. This is what each one needs in your copy:
   The push starts the run that checks the new commit, which is why the token
   has to be one whose push starts a workflow. The first baseline comes from the
   label on the pull request that adds the suite: a dispatch with `accept` is
-  refused, because it has no branch to commit to. For `lfs`, add `lfs: true` to
-  the checkout and install git-lfs in a step before it.
+  refused, because it has no branch to commit to. For `lfs`, install git-lfs in
+  a step before the checkout and leave the checkout's `lfs` off: the run fetches
+  the images it compares.
 - **`tribunal`** skips the cache and sends every run to the service with
   `variance push`, red or green. The label accepts nothing, and the comment
   sends the reviewer to the service's page. A dispatch with `accept` writes

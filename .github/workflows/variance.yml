@@ -227,9 +227,9 @@ jobs:
       # A fork's pull request gets no secrets, so there the label cannot commit:
       # the contributor commits the baselines themselves.
       #
-      # For `lfs`, add `lfs: true` here and install git-lfs in a step before this
-      # one: the Playwright image has no git-lfs, and the store refuses to read
-      # a pointer file as an image.
+      # For `lfs`, install git-lfs in a step before this one: the Playwright
+      # image has none. Leave `lfs` off here. The run fetches the image of each
+      # subject whose document changed, and only that image.
       - uses: actions/checkout@v4
         with:
           repository: ${{ env.VARIANCE_REVIEW == 'git' && github.event.pull_request.head.repo.full_name || github.repository }}

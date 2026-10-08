@@ -44,12 +44,20 @@ function rasterOf(identity: RenderIdentity, bytes = 'QUJD'): Raster {
 function gitReporting(filter: string, lfsInstalled = true): CommandRunner {
   return async (command, args): Promise<CommandResult> => {
     if (command !== 'git') throw new Error(`unexpected command ${command}`);
-    if (args[1] === 'version') return { code: lfsInstalled ? 0 : 1, stdout: '', stderr: '' };
+    if (args[0] === 'rev-parse') return { code: 0, stdout: `${root}\n`, stderr: '' };
+    if (args[0] === 'lfs') {
+      return lfsInstalled
+        ? { code: 0, stdout: '', stderr: '' }
+        : { code: 1, stdout: '', stderr: "git: 'lfs' is not a git command. See 'git --help'.\n" };
+    }
     return { code: 0, stdout: `probe.png: filter: ${filter}\n`, stderr: '' };
   };
 }
 
 const TRACKED = gitReporting('lfs');
+
+/** Tracked, on a machine where nothing implements the filter. */
+const WITHOUT_LFS = gitReporting('lfs', false);
 
 const hasGit = spawnSync('git', ['--version']).status === 0;
 
@@ -79,11 +87,11 @@ describe('a baseline store in the repository', () => {
     expect((await stat(path)).isFile()).toBe(true);
   });
 
-  it('never runs git to read or write an image', async () => {
+  it('never runs git to read or write an image it already holds', async () => {
     // The rule the previous test can only imply. LFS is a clean/smudge filter, so
-    // the bytes are already at the path; a `git show` in the read path would be a
-    // second source for the same image and a process per lookup. git is asked one
-    // question, once, and it is not about content.
+    // on a smudged checkout the bytes are already at the path; a `git show` in the
+    // read path would be a second source for the same image and a process per
+    // lookup. git is asked about content only for a pointer (`lfs-fetch.test.ts`).
     const calls: string[] = [];
     const counted: CommandRunner = async (command, args) => {
       calls.push([command, ...args].join(' '));
@@ -230,7 +238,7 @@ describe('a clone without git-lfs', () => {
     // PNG should be. Reporting that as absent makes the verdict `new`, `new`
     // re-records what is on screen, and the baseline it overwrites was the only
     // copy of what the subject looked like before.
-    const store = await createLfsStore({ root, git: TRACKED });
+    const store = await createLfsStore({ root, git: WITHOUT_LFS });
     await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
 
     const pointer =
@@ -246,7 +254,7 @@ describe('a clone without git-lfs', () => {
       RasterStoreError,
     );
     await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toThrow(
-      /git-LFS pointer, not an image/,
+      /git-LFS pointer.*'lfs' is not a git command/s,
     );
   });
 
@@ -257,7 +265,7 @@ describe('a clone without git-lfs', () => {
     // painted from" is a fact about two committed text files and stays true where
     // the PNG is 130 bytes of pointer. The moment the bytes are needed — the
     // document moved, something must be compared — `find` runs and refuses.
-    const store = await createLfsStore({ root, git: TRACKED });
+    const store = await createLfsStore({ root, git: WITHOUT_LFS });
     await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
     await writeFile(
       join(root, partition(MAC), 'todo--empty.png'),
@@ -273,7 +281,7 @@ describe('a clone without git-lfs', () => {
       missingFonts: [],
     });
     await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toThrow(
-      /git-LFS pointer, not an image/,
+      /git-LFS pointer.*'lfs' is not a git command/s,
     );
   });
 
@@ -281,7 +289,7 @@ describe('a clone without git-lfs', () => {
     // A store that acquired its own idea of what a raster may contain would make
     // "switching implementations changes no verdict" false for reasons unrelated
     // to storage.
-    const store = await createLfsStore({ root, git: TRACKED });
+    const store = await createLfsStore({ root, git: WITHOUT_LFS });
     await store.put({ subject: 's' }, rasterOf(MAC, 'AAAA'));
 
     expect((await store.find({ subject: 's' }, MAC))?.raster.bytes).toBe('AAAA');
@@ -320,16 +328,4 @@ describe('against a real git', () => {
       await rm(records, { recursive: true, force: true });
     }
   });
-
-  it.todo(
-    'a committed baseline is a pointer in the object database and a whole PNG in the working tree — needs git-lfs installed and `git lfs install` run in the temporary repository above',
-  );
-
-  it.todo(
-    'a checkout made with GIT_LFS_SKIP_SMUDGE=1 hands `find` a pointer this file did not write by hand, and the refusal fires on that one — needs git-lfs installed, since every pointer here is a string literal the filter never produced',
-  );
-
-  it.todo(
-    'bytes put through the clean filter and read back through smudge are the bytes that went in — needs git-lfs installed, and it is spec 0018 assertion 4',
-  );
 });

@@ -1,7 +1,9 @@
 # Spec 0018 — git-LFS proven as git-LFS
 
-**Missing:** any execution of the filter. No clean/smudge has run, and no image
-has been committed through one, so the failure that matters has only ever been
+**Missing:** assertions 1 to 3 against a real clone. The store's tests commit
+an image through the real filter, clone without the smudge and fetch it back
+byte for byte (assertion 4, `packages/store/src/lfs-fetch.test.ts`); the refusal
+on a machine without git-lfs, its exit code and doctor's view of it are still
 simulated.
 **Built on:** the store, which ships and produces identical verdicts to the
 directory and remote backends on the same scenarios

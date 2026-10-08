@@ -1,6 +1,6 @@
 // compass: variance-authority.retention
 
-import { mkdir, readdir, rm, rmdir, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, rmdir, utimes, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   digestFileName,
@@ -17,7 +17,7 @@ import {
   type RasterStore,
 } from '@variance-authority/raster';
 import { orAbsent } from './absent.js';
-import { load, readRaster, readSidecar, type Places } from './pair.js';
+import { load, readRaster, readSidecar, type ImageReader, type Places } from './pair.js';
 import { held } from './held.js';
 import { holder, identityOfPartition, partitionsOf, pathFor } from './placement.js';
 import type { BaselineLayout } from './placement.js';
@@ -29,6 +29,7 @@ import type { BaselineLayout } from './placement.js';
  * file of their own.
  */
 export type { BaselineLayout } from './placement.js';
+export type { ImageReader } from './pair.js';
 
 /**
  * Re-exported for {@link BaselineLayout}'s reason, and one more: the bound on
@@ -104,12 +105,24 @@ export interface DurableStoreOptions {
    * the caller that knows the root is tracked.
    */
   readonly cacheRoot?: string;
+
+  /**
+   * How a baseline's image is read, when `find` needs its bytes.
+   *
+   * Defaults to reading the file. The LFS store passes a reader that fetches
+   * the image first when the working tree holds its pointer, so the placement
+   * that says where the file is stays here and nowhere else. A reader that
+   * throws ENOENT means no image, and any other throw refuses the lookup, as a
+   * read of the file would. The render cache and `describe` never call it.
+   */
+  readonly readImage?: ImageReader;
 }
 
 export function createDurableStore(root: string, options: DurableStoreOptions = {}): RasterStore {
   const cacheRoot = options.cacheRoot ?? root;
   const recordRoot = options.recordRoot ?? root;
   const layout = options.layout ?? 'flat';
+  const readImage = options.readImage ?? readFile;
   const holderFor = (key: BaselineKey): string => holder(recordRoot, layout, key);
   const placesFor = (key: BaselineKey, partition: string): Places => ({
     image: pathFor(holder(root, layout, key), partition, key, layout),
@@ -121,7 +134,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
 
     async find(key, identity): Promise<Found | null> {
       for await (const { partition, comparable } of searched(holderFor(key), identityDigest(identity))) {
-        const found = await load(placesFor(key, partition));
+        const found = await load(placesFor(key, partition), readImage);
         if (found !== null) return { raster: found.raster, comparable, storedUnder: found.identity };
       }
       return null;

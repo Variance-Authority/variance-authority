@@ -301,7 +301,14 @@ un-smudged clone does not read as a passing run.
 That last case is the one worth naming. An un-smudged checkout — LFS not
 installed, or `GIT_LFS_SKIP_SMUDGE` set — hands you about 130 bytes of text
 where a PNG should be, and comparing two of those reports `unchanged` for every
-subject in the suite. The store refuses a pointer file read as an image.
+subject in the suite. When `find` reads a pointer, the store runs `git lfs pull
+--include=<that file>` and reads the image it fetched. Pointers met while a pull
+runs go into the next one. If the image cannot be fetched, the lookup throws a
+`RasterStoreError` rather than reporting a missing baseline.
+
+So a CI job can check out with `GIT_LFS_SKIP_SMUDGE=1` and download only the
+baselines of the subjects whose documents changed. `describe` reads the `.json`
+sidecar, which is never a pointer, and fetches nothing.
 
 `createLfsStore` takes:
 
@@ -312,7 +319,7 @@ subject in the suite. The store refuses a pointer file read as an image.
 | `attributesFile` | `<root>/.gitattributes` | where the tracking entry lives — the baseline root, not the repository root |
 | `cacheRoot` | `root` | where the render cache goes. Defaults to `root`, so cache entries are tracked and committed alongside baselines unless this points outside the work tree |
 | `recordRoot` | `root` | where the `.json` sidecars go, passed straight to the durable store. The reason to set it is sharpest here: `pattern` routes the images out of the object database, and the sidecars are the text left behind gaining a revision per document change |
-| `verify` | `true` | `false` skips consulting git entirely, and records that in `tracking.diagnostics` rather than silently |
+| `verify` | `true` | `false` skips consulting git entirely, fetches included, and records that in `tracking.diagnostics` rather than silently |
 | `git` | `runCommand` | the `CommandRunner` git is invoked through — a `(command, args, { cwd }) => Promise<{ code, stdout, stderr }>` function, defaulting to a wrapper around `execFile`, swappable in tests |
 
 Because `git` is injected, all of this is testable without a git repository.

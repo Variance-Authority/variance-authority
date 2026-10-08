@@ -22,6 +22,9 @@ import { orAbsent } from './absent.js';
  * from one call, and the default makes both fields the string the file used to
  * pass around.
  */
+/** How a baseline's `.png` becomes bytes. See `DurableStoreOptions.readImage`. */
+export type ImageReader = (path: string) => Promise<Buffer>;
+
 export interface Places {
   /** The `.png`'s path, without the extension. */
   readonly image: string;
@@ -31,8 +34,9 @@ export interface Places {
 
 export async function load(
   places: Places,
+  readImage: ImageReader,
 ): Promise<{ raster: Raster; identity: RenderIdentity } | null> {
-  const raster = await readRaster(places);
+  const raster = await readRaster(places, readImage);
   return raster === null ? null : { raster, identity: raster.identity };
 }
 
@@ -64,10 +68,13 @@ export async function load(
  * `RenderCache` and not in a judgement made here. This still throws; the cache
  * wrapper reads the throw as a miss, and the baseline path does not.
  */
-export async function readRaster(places: Places): Promise<Raster | null> {
+export async function readRaster(
+  places: Places,
+  readImage: ImageReader = readFile,
+): Promise<Raster | null> {
   const [sidecar, bytes] = await Promise.all([
     orAbsent(() => readFile(`${places.record}.json`, 'utf8'), `${places.record}.json`),
-    orAbsent(() => readFile(`${places.image}.png`), `${places.image}.png`),
+    orAbsent(() => readImage(`${places.image}.png`), `${places.image}.png`),
   ]);
 
   if (sidecar === null && bytes === null) return null;
