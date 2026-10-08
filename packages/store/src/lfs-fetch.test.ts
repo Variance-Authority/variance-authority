@@ -200,6 +200,54 @@ describe('a clone that skipped the smudge', () => {
     );
   });
 
+  it('refuses when there is no work tree to fetch into', async () => {
+    await pointersFor(['todo--empty']);
+    const { git: tracked } = skippedSmudge();
+    const outside: CommandRunner = async (command, args, options) =>
+      args[0] === 'rev-parse'
+        ? { code: 128, stdout: '', stderr: 'fatal: not a git repository (or any of the parent directories): .git\n' }
+        : tracked(command, args, options);
+    const store = await createLfsStore({ root, git: outside });
+
+    const lookup = store.find({ subject: 'todo--empty' }, MAC);
+
+    await expect(lookup).rejects.toBeInstanceOf(RasterStoreError);
+    await expect(lookup).rejects.toThrow(/rev-parse --show-toplevel.*exited 128.*not a git repository/s);
+  });
+
+  it('refuses, naming git, when git cannot be run to fetch', async () => {
+    await pointersFor(['todo--empty']);
+    const { git: tracked } = skippedSmudge();
+    const missing: CommandRunner = async (command, args, options) =>
+      args[0] === 'lfs' && args[1] === 'pull'
+        ? Promise.reject(new Error('spawn git ENOENT'))
+        : tracked(command, args, options);
+    const store = await createLfsStore({ root, git: missing });
+
+    const lookup = store.find({ subject: 'todo--empty' }, MAC);
+
+    await expect(lookup).rejects.toBeInstanceOf(RasterStoreError);
+    await expect(lookup).rejects.toThrow(/git could not be run to fetch.*spawn git ENOENT/s);
+  });
+
+  it('refuses rather than reporting a miss when the file is gone after its pull', async () => {
+    // Read as ENOENT, the file would be an absent baseline, and `new` would
+    // re-record over the image the pull was meant to bring.
+    await pointersFor(['todo--empty']);
+    const { git: tracked } = skippedSmudge();
+    const removing: CommandRunner = async (command, args, options) => {
+      if (args[0] !== 'lfs' || args[1] !== 'pull') return tracked(command, args, options);
+      await rm(join(root, partition, 'todo--empty.png'));
+      return OK;
+    };
+    const store = await createLfsStore({ root, git: removing });
+
+    const lookup = store.find({ subject: 'todo--empty' }, MAC);
+
+    await expect(lookup).rejects.toBeInstanceOf(RasterStoreError);
+    await expect(lookup).rejects.toThrow(/todo--empty\.png is a git-LFS pointer, and fetching the image failed.*ENOENT/s);
+  });
+
   it('fetches nothing when it was told not to consult git', async () => {
     await pointersFor(['todo--empty']);
     const { git, calls } = skippedSmudge();

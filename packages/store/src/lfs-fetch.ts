@@ -142,8 +142,8 @@ interface Batch {
 }
 
 function batch(): Batch {
-  let settle: () => void = () => undefined;
-  let refuse: (error: unknown) => void = () => undefined;
+  let settle!: () => void;
+  let refuse!: (error: unknown) => void;
   const done = new Promise<void>((resolve, reject) => {
     settle = resolve;
     refuse = reject;
