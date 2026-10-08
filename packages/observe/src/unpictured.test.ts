@@ -143,10 +143,10 @@ describe('a subject with no pixels', () => {
   });
 
   it.each([
-    ['the baseline', undefined, [hash('AlertTitle', 'v1:same')]],
-    ['the run', [hash('AlertTitle', 'v1:same')], undefined],
-    ['either side, as an empty list', [], []],
-  ])('is changed when its document moved and %s carries no component hashes', async (_, before, after) => {
+    ['the baseline carries no component hashes', undefined, [hash('AlertTitle', 'v1:same')]],
+    ['the run carries no component hashes', [hash('AlertTitle', 'v1:same')], undefined],
+    ['both sides carry an empty list of component hashes', [], []],
+  ])('is changed when its document moved and %s', async (_, before, after) => {
     const result = await observeRasters('AlertTitle', empty('v1:before', before), empty('v1:after', after));
 
     expect(result).toMatchObject({ verdict: 'changed', signals: { document: 'changed' } });
