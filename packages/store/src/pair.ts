@@ -14,17 +14,17 @@ import { orAbsent } from './absent.js';
  * one half missing, and two copies of that answer are two chances to disagree.
  */
 
-/**
- * Where the two halves of one baseline go.
- *
- * Equal prefixes unless {@link DurableStoreOptions.recordRoot} is set, which is
- * why the split costs a reader nothing to ignore: every path in this file comes
- * from one call, and the default makes both fields the string the file used to
- * pass around.
- */
 /** How a baseline's `.png` becomes bytes. See `DurableStoreOptions.readImage`. */
 export type ImageReader = (path: string) => Promise<Buffer>;
 
+/**
+ * Where the two halves of one baseline go.
+ *
+ * Equal prefixes unless `DurableStoreOptions.recordRoot` is set, which is why
+ * the split costs a reader nothing to ignore: every path in this file comes from
+ * one call, and the default makes both fields the string the file used to pass
+ * around.
+ */
 export interface Places {
   /** The `.png`'s path, without the extension. */
   readonly image: string;

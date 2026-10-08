@@ -87,8 +87,33 @@ export function fetchingReader(cwd: string, run: CommandRunner): ImageReader {
     const bytes = await readFile(file);
     if (!isPointer(bytes)) return bytes;
     await fetched(file);
-    return readFile(file);
+    return reread(file);
   };
+}
+
+/**
+ * The file again, after its pull: the image, or a refusal.
+ *
+ * `git lfs pull` exits 0 without checking a file out when git-lfs is installed
+ * but was never set up in the repository — it says so and skips the checkout — or
+ * when the pattern matched nothing. The file is still a pointer then, and the
+ * remedy is not the one for a machine without git-lfs. A file gone since the
+ * pull is refused too: read as ENOENT, it would be an absent baseline.
+ */
+async function reread(file: string): Promise<Buffer> {
+  let bytes: Buffer;
+  try {
+    bytes = await readFile(file);
+  } catch (error) {
+    throw refusal([file], error);
+  }
+  if (!isPointer(bytes)) return bytes;
+  throw new RasterStoreError(
+    `${file} is still a git-LFS pointer after \`git lfs pull\` exited 0, so the image was ` +
+      'not checked out. git-lfs skips the checkout in a repository it was never set up in: ' +
+      'run `git lfs install --local` (add `--skip-smudge` to keep checkouts from downloading ' +
+      `every image). ${REFUSAL}.`,
+  );
 }
 
 /**
@@ -149,16 +174,18 @@ async function locate(cwd: string, run: CommandRunner): Promise<string> {
  * A file's path as a `--include` pattern matches it, and nothing else.
  *
  * git-lfs reads the list as gitignore patterns separated by commas. `[`, `]`,
- * `*` and `?` are glob characters anywhere, `!` and `#` mean something at the
- * start, and a backslash makes each literal. A comma cannot be escaped, so it is
- * answered by `?`, which matches the comma and any file that differs from this
- * one there alone — at worst an extra image fetched, never one missed.
+ * `*`, `?` and `\` are special anywhere and a backslash makes each literal. `!`
+ * and `#` are special only at the start, and escaped anywhere else git-lfs 3.7
+ * matches nothing. A comma cannot be escaped, so it is answered by `?`, which
+ * matches the comma and any file that differs from this one there alone — at
+ * worst an extra image fetched, never one missed.
  */
 function patternFor(toplevel: string, file: string): string {
   return relative(toplevel, file)
     .split(sep)
     .join('/')
-    .replace(/[[\]*?!#\\]/g, '\\$&')
+    .replace(/[[\]*?\\]/g, '\\$&')
+    .replace(/^[!#]/, '\\$&')
     .replaceAll(',', '?');
 }
 

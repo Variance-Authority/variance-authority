@@ -41,10 +41,13 @@ function rasterOf(identity: RenderIdentity, bytes = 'QUJD'): Raster {
 }
 
 /** A git that reports the glob as tracked, without a git being present. */
-function gitReporting(filter: string, lfsInstalled = true): CommandRunner {
+function gitReporting(filter: string, lfsInstalled = true, setUp = lfsInstalled): CommandRunner {
   return async (command, args): Promise<CommandResult> => {
     if (command !== 'git') throw new Error(`unexpected command ${command}`);
     if (args[0] === 'rev-parse') return { code: 0, stdout: `${root}\n`, stderr: '' };
+    if (args[0] === 'config') {
+      return setUp ? { code: 0, stdout: 'git-lfs clean -- %f\n', stderr: '' } : { code: 1, stdout: '', stderr: '' };
+    }
     if (args[0] === 'lfs') {
       return lfsInstalled
         ? { code: 0, stdout: '', stderr: '' }
@@ -107,7 +110,11 @@ describe('a baseline store in the repository', () => {
     await store.renderCache.put(rasterOf(MAC));
     await store.renderCache.get('v1:doc', MAC);
 
-    expect(calls).toEqual(['git check-attr filter -- probe.png', 'git lfs version']);
+    expect(calls).toEqual([
+      'git check-attr filter -- probe.png',
+      'git lfs version',
+      'git config --get filter.lfs.clean',
+    ]);
     expect(calls.length).toBe(during);
   });
 
@@ -223,6 +230,16 @@ describe('a machine that cannot be asked about tracking', () => {
 
     expect(store.tracking.filter).toBe('lfs');
     expect(store.tracking.diagnostics.join('\n')).toMatch(/git-lfs is not installed/);
+  });
+
+  it('reports git-lfs installed but never set up in the repository', async () => {
+    // What a CI job gets from installing git-lfs with apt and checking out with
+    // `lfs` off: the attribute routes images to a filter git has no command for,
+    // so a commit stores the whole image, and `git lfs pull` leaves the pointer.
+    const store = await createLfsStore({ root, git: gitReporting('lfs', true, false) });
+
+    expect(store.tracking.filter).toBe('lfs');
+    expect(store.tracking.diagnostics.join('\n')).toMatch(/filter\.lfs\.clean.*git lfs install --local/s);
   });
 
   it('states that it did not check when it was told not to', async () => {

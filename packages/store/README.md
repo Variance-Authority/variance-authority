@@ -307,8 +307,11 @@ subject in the suite. When `find` reads a pointer, the store runs `git lfs pull
 runs go into the next one. If the image cannot be fetched, the lookup throws a
 `RasterStoreError` rather than reporting a missing baseline.
 
-So a CI job can check out with `GIT_LFS_SKIP_SMUDGE=1` and download only the
-baselines of the subjects whose documents changed. `describe` reads the `.json`
+So a CI job can check out with `GIT_LFS_SKIP_SMUDGE=1`, run `git lfs install
+--local --skip-smudge`, and download only the baselines of the subjects whose
+documents changed. Without that install, git never runs git-lfs: the pull leaves
+the pointer, which the lookup refuses naming the install, and
+`tracking.diagnostics` says so at open. `describe` reads the `.json`
 sidecar, which is never a pointer, and fetches nothing.
 
 `createLfsStore` takes:

@@ -60,6 +60,7 @@ function skippedSmudge(options: { hold?: Promise<void>; pull?: CommandResult } =
     calls.push([command, ...args].join(' '));
     if (args[0] === 'check-attr') return { ...OK, stdout: 'probe.png: filter: lfs\n' };
     if (args[0] === 'rev-parse') return { ...OK, stdout: `${await realpath(root)}\n` };
+    if (args[0] === 'config') return { ...OK, stdout: 'git-lfs clean -- %f\n' };
     if (args[0] === 'lfs' && args[1] === 'pull') {
       const included = (args[2] ?? '').replace(/^--include=/, '').split(',');
       pulls.push(included);
@@ -139,7 +140,35 @@ describe('a clone that skipped the smudge', () => {
     release();
 
     for (const found of await Promise.all([first, ...rest])) expect(found?.raster.bytes).toBe(IMAGE);
-    expect(pulls).toEqual([[`${partition}/a.png`], [`${partition}/b.png`, `${partition}/c.png`]]);
+    // Within a batch, the order is whichever read finished first.
+    expect(pulls.map((pull) => [...pull].sort())).toEqual([
+      [`${partition}/a.png`],
+      [`${partition}/b.png`, `${partition}/c.png`],
+    ]);
+  });
+
+  it('splits a batch too long for one command line into consecutive pulls', async () => {
+    // A run where every subject moved meets every pointer at once.
+    const names = Array.from({ length: 150 }, (_, i) => `${String(i).padStart(3, '0')}--${'x'.repeat(100)}`);
+    await pointersFor(['a', ...names]);
+    let release = (): void => undefined;
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { git, calls, pulls } = skippedSmudge({ hold });
+    const store = await createLfsStore({ root, git });
+
+    const first = store.find({ subject: 'a' }, MAC);
+    await until(() => pulls.length === 1);
+    const rest = names.map((subject) => store.find({ subject }, MAC));
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    release();
+    await Promise.all([first, ...rest]);
+
+    const includes = calls.filter((call) => call.startsWith('git lfs pull')).slice(1);
+    expect(includes.length).toBeGreaterThan(1);
+    for (const call of includes) expect(call.length).toBeLessThan(8100);
+    expect(pulls.slice(1).flat().sort()).toEqual(names.map((name) => `${partition}/${name}.png`));
   });
 
   it('refuses, naming the pull, when git-lfs could not fetch the image', async () => {
@@ -155,6 +184,20 @@ describe('a clone that skipped the smudge', () => {
 
     await expect(lookup).rejects.toBeInstanceOf(RasterStoreError);
     await expect(lookup).rejects.toThrow(/git lfs pull.*exited 2.*Repository or object not found/s);
+    // Said once: the read around the fetch lets a refusal through as it is.
+    await expect(lookup).rejects.not.toThrow(/could not read/);
+  });
+
+  it('refuses, naming the remedy, when the pull leaves the pointer where it was', async () => {
+    // git-lfs installed and never set up in the repository: `git lfs pull`
+    // downloads the object, says it is skipping the checkout, and exits 0.
+    await pointersFor(['todo--empty']);
+    const { git } = skippedSmudge({ pull: OK });
+    const store = await createLfsStore({ root, git });
+
+    await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toThrow(
+      /still a git-LFS pointer.*git lfs install --local/s,
+    );
   });
 
   it('fetches nothing when it was told not to consult git', async () => {
@@ -187,8 +230,9 @@ describe('against a real git with git-lfs', () => {
       git(work, 'lfs', 'install', '--local');
 
       // `beside`, under a directory named the way a route segment is: `[` is a
-      // glob character to `--include`, and an unescaped one matches nothing.
-      const baselines = join(work, 'app', '[slug]');
+      // glob character to `--include`, and an unescaped one matches nothing. A
+      // `!` inside a name is the opposite: escaped, it matches nothing.
+      const baselines = join(work, 'app', '[slug]', 'a!b');
       await mkdir(baselines, { recursive: true });
       const writer = await createLfsStore({ root: baselines, layout: 'beside' });
       expect(writer.tracking.diagnostics).toEqual([]);
@@ -199,19 +243,20 @@ describe('against a real git with git-lfs', () => {
       git(work, 'push', '--quiet', 'origin', 'HEAD');
 
       // The committed image is a pointer in the object database.
-      const tracked = `app/[slug]/${partition}/page--empty.png`;
+      const tracked = `app/[slug]/a!b/${partition}/page--empty.png`;
       expect(git(work, 'show', `HEAD:${tracked}`)).toMatch(/^version https:\/\/git-lfs/);
 
       git(root, 'clone', '--quiet', origin, clone, { GIT_LFS_SKIP_SMUDGE: '1' });
       git(clone, 'lfs', 'install', '--local', '--skip-smudge');
       expect(await readFile(join(clone, tracked), 'utf8')).toMatch(/^version https:\/\/git-lfs/);
 
-      const reader = await createLfsStore({ root: join(clone, 'app', '[slug]'), layout: 'beside' });
+      const reader = await createLfsStore({ root: join(clone, 'app', '[slug]', 'a!b'), layout: 'beside' });
+      expect(reader.tracking.diagnostics).toEqual([]);
       const found = await reader.find({ subject: 'page--empty' }, MAC);
 
       expect(found?.raster.bytes).toBe(IMAGE);
       expect(
-        await readFile(join(clone, `app/[slug]/${partition}/page--full.png`), 'utf8'),
+        await readFile(join(clone, `app/[slug]/a!b/${partition}/page--full.png`), 'utf8'),
       ).toMatch(/^version https:\/\/git-lfs/);
       expect(git(clone, 'status', '--porcelain')).toBe('');
     },

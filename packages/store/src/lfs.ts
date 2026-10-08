@@ -445,6 +445,19 @@ async function checkTracking(
           `${lfs.code}); the filter is configured but nothing implements it, so images ` +
           'will be committed whole and a clone will not get pointers',
       );
+    } else {
+      // Installed is not set up. A package manager installs the binary; `git lfs
+      // install` is what tells git to run it, and `actions/checkout` runs that
+      // only with `lfs: true`.
+      const clean = await run('git', ['config', '--get', 'filter.lfs.clean'], { cwd });
+      if (clean.code !== 0 || clean.stdout.trim() === '') {
+        diagnostics.push(
+          `git-lfs is installed but \`filter.lfs.clean\` is unset in ${cwd}, so git does not ` +
+            'run it: images will be committed whole, and `git lfs pull` leaves pointers in ' +
+            'place. Run `git lfs install --local` (add `--skip-smudge` to keep checkouts ' +
+            'from downloading every image)',
+        );
+      }
     }
   } catch (error) {
     diagnostics.push(`git-lfs could not be checked (${messageOf(error)})`);

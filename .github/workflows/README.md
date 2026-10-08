@@ -113,8 +113,9 @@ three arrangements. This is what each one needs in your copy:
   has to be one whose push starts a workflow. The first baseline comes from the
   label on the pull request that adds the suite: a dispatch with `accept` is
   refused, because it has no branch to commit to. For `lfs`, install git-lfs in
-  a step before the checkout and leave the checkout's `lfs` off: the run fetches
-  the images it compares.
+  a step before the checkout, leave the checkout's `lfs` off, and run `git lfs
+  install --local --skip-smudge` after it: the run fetches the images it
+  compares, and a commit stores pointers.
 - **`tribunal`** skips the cache and sends every run to the service with
   `variance push`, red or green. The label accepts nothing, and the comment
   sends the reviewer to the service's page. A dispatch with `accept` writes

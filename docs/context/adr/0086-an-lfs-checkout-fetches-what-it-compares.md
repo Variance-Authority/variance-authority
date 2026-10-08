@@ -24,8 +24,12 @@ scaled with the suite.
 
 **When `find` reads a pointer, the LFS store runs `git lfs pull --include=<that
 file>`, then reads the file again.** A job checks out with
-`GIT_LFS_SKIP_SMUDGE=1`, or `lfs: false` on `actions/checkout`, and downloads
-the images of the subjects it compares.
+`GIT_LFS_SKIP_SMUDGE=1`, or `lfs: false` on `actions/checkout`, runs `git lfs
+install --local --skip-smudge`, and downloads the images of the subjects it
+compares. Without that install git-lfs is on the machine but git never runs it:
+a pull skips the checkout and a commit stores the whole image. The store
+reports the unset `filter.lfs.clean` at open, and refuses a pointer the pull
+left in place, naming the install.
 
 - **One pull at a time.** The first pointer starts a pull. Every pointer met
   while it runs joins the next pull, which starts when it finishes. There is no
@@ -58,6 +62,11 @@ What changes is that git now runs in the read path, for a pointer only.
   prefetch. Here the working set is the subjects whose documents moved, which
   is known only after `describe`, inside each lane. A list built before the
   lanes run would be every subject.
+- **Cache `.git/lfs/objects` between runs.** No code, and the usual answer to
+  LFS bandwidth on GitHub. The first run on a runner, and every run after the
+  cache is evicted, still downloads the suite, and a cache is a CI service's
+  feature where this works wherever git does. The two compose: a cached object
+  makes the pull local.
 - **`git lfs smudge` per file, writing the bytes ourselves.** That is a second
   writer for the work tree, and `git status` would then report the file as
   modified. `git lfs pull` checks the file out the way the filter would.
@@ -69,6 +78,10 @@ What changes is that git now runs in the read path, for a pointer only.
 - An unsmudged checkout on a machine without git-lfs now fails with git-lfs's
   own error ("'lfs' is not a git command") inside the refusal, not with a
   generic pointer message.
+- Batching is per process. Playwright workers each pull for themselves, and
+  pulls that overlap contend for the index: each pull checks its file out and
+  exits 0, and `git status` lists those files as modified until git rereads
+  them. `git add` stores the same pointers, so nothing is committed by it.
 - Each pull is a process and a round trip to the LFS server. A run where every
   subject changed makes a few large pulls rather than one, which costs more
   than one smudge would have.
