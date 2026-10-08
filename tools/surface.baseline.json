@@ -2869,6 +2869,7 @@
         "decodeTestCoverage": "function",
         "defaultInclude": "function",
         "deviationOfTests": "function",
+        "diffPath": "function",
         "distanceByExecution": "function",
         "distanceFromView": "function",
         "distanceRange": "function",

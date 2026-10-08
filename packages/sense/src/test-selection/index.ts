@@ -80,7 +80,7 @@ export { testsReaching, testsReachingFromView, distanceToSource } from './at-sou
 export type { SourceAudience, SourceAudienceTest, SourcePoint, SourceRegion };
 // The file list a selection will ask about, so a caller wiring `sourceAt` names the
 // paths the selector names, not a second parse that disagrees at the edges.
-export { changedLines, type LineRange } from './diff-lines.js';
+export { changedLines, diffPath, type LineRange } from './diff-lines.js';
 // The other half of that wiring, for the ordinary case of a git checkout. It
 // ships because the check is opt-in: a caller that does not know to pass
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.

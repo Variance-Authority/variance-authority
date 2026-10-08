@@ -209,6 +209,11 @@ function gitPaths(rest: string): readonly string[] {
   return left === right ? [left] : [left, right];
 }
 
+/**
+ * The repository path a diff's `---` or `+++` header names, without its `a/` or
+ * `b/` prefix and with git's quoting undone. Absent for `/dev/null`, the side
+ * of an added or deleted file that has no path.
+ */
 export function diffPath(value: string): string | undefined {
   const path = value.startsWith('"') ? quoted(value)[0] : value.split('\t')[0];
   if (path === undefined || path === '/dev/null') return undefined;

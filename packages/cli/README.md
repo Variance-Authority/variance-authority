@@ -766,15 +766,15 @@ variance review --since origin/main
 ```text
 Changes since 3f9e21c07a44.
 
-2 changed regions in 1 file, 1 of them new.
-- 1 no case covered, 1 of them new.
+2 changed regions in 1 file: 1 new, 1 modified.
+- 1 no case covered: 1 new.
 - 0 covered only by tests further than one import away.
 
 Edits:
       1  top-level values
       1  not a module
 
-Changed regions (new in brackets):
+Changed regions (new or moved in brackets):
       1 (0)  covered by a test that imports the file, or is the file
       1 (1)  no case covered it
 
@@ -798,7 +798,9 @@ Each part comes from the party that owns the answer:
   covered it. When the only tests that ran a region are further than one import
   from its file, a failure there points at code the test never names. A branch
   inside an uncovered function is counted once, with the function;
-  `--format json` keeps every region.
+  `--format json` keeps every region. Each region is new, modified or moved:
+  new when the change wrote every line of it, moved when those lines are text
+  the diff removed, from that file or another, and modified otherwise.
 - **Cases** added and removed are read from the case index, per test file.
 - **Before any import** names changed files the test runner loads before any
   test, such as its config, or declares in `preconditions`, and how many test
@@ -869,8 +871,8 @@ printed. The markdown starts with a hidden marker line, so a pipeline finds its
 own pull request comment and edits it instead of posting another.
 
 `--coverage` includes coverage for every declared suite in the same review.
-The comment leads with the changed-code finding, which test files ran at this
-commit, and the execution changes per suite. Percentages and source inventories
+The comment leads with the changed-code finding, which test files ran, and the
+execution changes per suite. Percentages and source inventories
 are folded under **Coverage by suite**. Each suite keeps its own denominator
 and baseline; a missing record or baseline is named rather than counted as zero.
 The coverage readings travel in `review.json`, so `--from-run` prints the same
@@ -888,24 +890,38 @@ suite, and review after it:
     npx variance review --since "$BASE" --out review --format markdown >> "$GITHUB_STEP_SUMMARY"
 ```
 
-In the markdown, the test files whose reach moved are also drawn as a Mermaid
-diagram: a test file on the left, a directory of the code it runs on the right,
-and each edge counts the functions it now enters or no longer enters. The same
-lines as the text follow it, folded. The markdown lists the first 40 moved
-regions, test files whose reach moved, and files not compared, and counts the rest.
+The markdown's first line names what it read: the commit reviewed, the commit
+the change starts from, the commit the cases ran at, and the commit of each
+recording coverage is compared with. In CI on a pull request the checkout is
+GitHub's merge of it, so the comment names the pull request's head, the merge
+it was tested as, and says it describes an earlier commit once the head moves
+on. Each changed place links to its lines at that commit.
+
+Changed functions are listed in one table: how the edit wrote each (new,
+modified, or moved and from where), the cases that entered it, and the cases
+that ran a changed line in it. A case entered a function when it called into
+it, and ran a changed line when it entered the innermost region holding one, so
+a test that calls the function and takes the branch the change left alone is
+counted in the first and not the second. The cases added and removed come
+first, the legend for the marks above the table, and the table's 100 rows name
+the first three test files of each function; the cases by title are in
+`review.json`. Files not in the record, cases moved against the base and each
+changed file are folded under **Recording scope and limitations**, which lists
+the first 40 moved regions, test files whose reach moved, and files not
+compared, and counts the rest.
 GitHub rejects a comment longer than 65,536 characters, so a longer markdown
 review is cut at a line break before that length, and its last line gives the
 number of characters not shown.
 
-Under each changed function a case ran, the markdown lists those cases by test
-file and title, each with the preconditions it recorded, the way `covering`
-prints them: `applies the discount — discount=on (test/flags.ts:6)`. When the
-cases recorded more than one value of a name, the function's line names every
-value — `ran under discount=off, discount=on` — so you see which states ran the
-change without asking `covering --where`. For a record made before cases
-recorded preconditions, the state they ran under is printed as unmeasured, and
-cases from a runner that does not record preconditions are counted apart from
-the cases that recorded nothing.
+When the cases that entered a function recorded more than one value of a
+precondition, its row names every value — `ran under discount=off,
+discount=on` — so you see which states ran the change without asking
+`covering --where`. `review.json` keeps each case with the preconditions it
+recorded, the way `covering` prints them: `applies the discount — discount=on
+(test/flags.ts:6)`. For a record made before cases recorded preconditions, the
+state they ran under is printed as unmeasured, and cases from a runner that
+does not record preconditions are counted apart from the cases that recorded
+nothing.
 
 A comment shows part of the answer, and `review.json` holds all of it. Upload
 the `--out` directory as an artifact, and anyone with the GitHub CLI can print
@@ -975,17 +991,20 @@ add up to the change:
 ```text
 coverage at 7556a03a against each suite's base — 4,812 regions (4,790 at the base) in 311 files the suites loaded
   any suite           4,310 → 4,356  90.0% → 90.5%
-    checkout  e2e     3,832 → 3,900  80.0% → 81.0%  gained 51 · lost 2 · written 22, 19 run
-    stories   visual  1,437 →   718  30.0% → 14.9%  lost 716 · hidden 3
-    unit      unit    3,353 → 3,352  70.0% → 69.7%  gained 4 · lost 9 · written 22, 4 run
+    checkout  e2e     3,832 → 3,900  80.0% → 81.0%  +51 newly run · −2 no longer run · +19 run in 22 added regions
+    stories   visual  1,437 →   718  30.0% → 14.9%  −716 no longer run · −3 no longer run after a case stopped
+    unit      unit    3,353 → 3,352  70.0% → 69.7%  +4 newly run · −9 no longer run · +4 run in 22 added regions
   stories: src/checkout.stories.tsx no longer runs 716 regions it ran at the base
 ```
 
-`gained`, `lost` and `hidden` are the regions whose cases changed, the words
-[What a change moved](#what-a-change-moved) uses. `written` and `deleted` are
-regions only one of the two records has, in a file both have, and `now loads`
-and `no longer loads` count the files only one of them has. The parts always
-add up to the change in the count. The test files whose regions changed most
+Each part is signed by what it does to the count. `newly run` and `no longer
+run` are regions whose cases changed, the `gained` and `lost` of
+[What a change moved](#what-a-change-moved); `no longer run after a case
+stopped` is its `hidden`. `added regions` and `removed regions` are regions
+only one of the two records has, in a file both have, and `newly loaded files`
+and `files no longer loaded` count the files only one of them has. `run by
+fewer cases` is unsigned, because those regions still run. The signed parts add
+up to the change in the count, and the markdown says so when they do not. The test files whose regions changed most
 are named under the table.
 
 Each suite's base is the record its mainline published to the
