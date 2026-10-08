@@ -1819,7 +1819,7 @@ set to `unlisted`, for whatever it adds. `--at-distance <hops>` counts one leg o
 is counted with `--at-distance 0-2`; without `--since` it cuts nothing, and the
 answer counts the whole suite and says so. Without `--since`, only the recorded files
 are counted. With nothing recorded the answer is `1 shard` and says so, unless
-`--unrecorded <n>` names the count to start until it is. `--format json` prints the count, a `matrix` of
+`--unrecorded <n>` names the count to start until it is, one at least. `--format json` prints the count, a `matrix` of
 `k/n` strings, each shard's load, and why, with `notes` naming anything the
 count could not weigh. A pull request's build can start its
 matrix from it; the push to your mainline runs without `--since`, so its shards'

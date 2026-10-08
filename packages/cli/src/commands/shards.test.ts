@@ -180,4 +180,21 @@ describe('variance shards', () => {
     expect(answer).toEqual({ shards: 3, matrix: ['1/3', '2/3', '3/3'], by: 'unrecorded', recording: '/cache/coverage.va', unread: 'nothing is recorded there' });
     expect(JSON.parse(formatShards(answer, 'json'))).toEqual(answer);
   });
+
+  it('starts one shard when --unrecorded says zero, since the suite still has to run', () => {
+    const answer = shardsAnswer({
+      times: { recording: '/cache/coverage.va', unread: 'nothing is recorded there' },
+      unrecorded: 0,
+    });
+    expect(answer).toMatchObject({ shards: 1, matrix: ['1/1'], by: 'unrecorded' });
+    expect(formatShards(answer, 'text')).toBe(
+      '1 shard: nothing is recorded there (/cache/coverage.va). `--unrecorded 0` would start none, and the suite still has to run.\n',
+    );
+  });
+
+  it('says the runner collects nothing when --collected names no test file', () => {
+    const answer = shardsAnswer({ times: timed({ 'a.test.ts': 100 }), setup: 60_000, collected: new Set() });
+    expect(answer).toMatchObject({ shards: 0, matrix: [], why: 'nothing to run', files: 0 });
+    expect(formatShards(answer, 'text')).toBe('0 shards: --collected names no test file to run.\n');
+  });
 });

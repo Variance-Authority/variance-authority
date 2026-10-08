@@ -178,7 +178,7 @@ empty, it selects.
 
 With nothing recorded, `variance shards` answers one shard and says so: the
 first build of a suite has no times to count by. `--unrecorded <n>` names the
-count to start until there are. Without `--since`, the count reads only the files the
+count to start until there are, one at least. Without `--since`, the count reads only the files the
 record holds. [`shards`: how many CI jobs a suite is worth](../packages/cli/README.md#shards-how-many-ci-jobs-a-suite-is-worth)
 lists every flag and the JSON.
 

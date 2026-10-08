@@ -57,6 +57,8 @@ export type ShardsAnswer =
       /** Of those, the ones the record has not seen, priced at the median; absent when none. */
       readonly untimed?: number;
       /** The recorded files the change skips; absent when no change was asked about. */
+      /** How many test files `--collected` named; absent without it. */
+      readonly collected?: number;
       readonly skipped?: number;
       readonly since?: string;
       /** Absent when no `--setup` was given, and the count weighed none. */
@@ -88,13 +90,14 @@ export type ShardsAnswer =
       readonly by: 'unrecorded';
       readonly recording?: string;
       readonly unread: string;
-      /** Present when no `--unrecorded` chose the count. */
+      /** Present when no `--unrecorded` chose the count, or it chose none. */
       readonly notes?: readonly string[];
     };
 
 const UNRECORDED_NOTE = '`--unrecorded <n>` sets the count until the suite is recorded.';
 const SETUP_NOTE = '`--setup` was not given, so the count does not weigh what each shard spends before its first test.';
 const UNLISTED_NOTE = 'Without `--collected <file>`, only the test files the record has seen are counted.';
+const NO_SHARD_NOTE = '`--unrecorded 0` would start none, and the suite still has to run.';
 const UNCUT_NOTE = '`--at-distance` cuts nothing without `--since`, so the count is of the whole suite.';
 
 export function shardsAnswer(input: ShardsInput): ShardsAnswer {
@@ -105,14 +108,14 @@ export function shardsAnswer(input: ShardsInput): ShardsAnswer {
       ? 'the record holds no time for any test file'
       : undefined;
   if ('unread' in times || unread !== undefined) {
-    const shards = input.unrecorded ?? 1;
+    const shards = Math.max(input.unrecorded ?? 1, 1);
     return {
       shards,
       matrix: matrixOf(shards),
       by: 'unrecorded',
       ...(times.recording === undefined ? {} : { recording: times.recording }),
       unread: unread!,
-      ...(input.unrecorded === undefined ? { notes: [UNRECORDED_NOTE] } : {}),
+      ...(input.unrecorded === undefined ? { notes: [UNRECORDED_NOTE] } : input.unrecorded === 0 ? { notes: [NO_SHARD_NOTE] } : {}),
     };
   }
 
@@ -152,6 +155,7 @@ export function shardsAnswer(input: ShardsInput): ShardsAnswer {
     recording: times.recording,
     ...(times.commit === undefined ? {} : { commit: times.commit }),
     files: running.length,
+    ...(input.collected === undefined ? {} : { collected: input.collected.size }),
     ...(untimed === 0 ? {} : { untimed }),
     ...(input.skipped === undefined ? {} : { skipped: input.skipped.files.size, since: input.skipped.since }),
     ...(input.setup === undefined ? {} : { setup: input.setup }),
@@ -195,7 +199,7 @@ export function formatShards(answer: ShardsAnswer, format: ShardsFormat): string
   if (answer.why === 'nothing to run') {
     const all = answer.files + (answer.skipped ?? 0);
     const zero = answer.since === undefined
-      ? '0 shards: the record holds no test file to run.'
+      ? answer.collected === undefined ? '0 shards: the record holds no test file to run.' : '0 shards: --collected names no test file to run.'
       : `0 shards: the change since ${answer.since} skips every recorded test file, ${all} in all.`;
     return [zero, ...notes, ''].join('\n');
   }
