@@ -95,14 +95,14 @@ async function recordedUnder(
     await writeFile(resolve(root, 'src/rate.ts'), RATE, 'utf8');
     const configured = withTestSelection({}, { root, coverageFile, include });
     const plugin = (configured.plugins as unknown as Array<{
-      transform: Transform;
+      transform: { handler: Transform };
       watchChange(id: string): void;
     }>)[0]!;
     // A `projects` layout wraps each project's config, and each brings a plugin of its own.
     const other = projects === 1
       ? plugin
       : (withTestSelection({}, { root, coverageFile, include }).plugins as unknown as Array<{
-          transform: Transform;
+          transform: { handler: Transform };
         }>)[0]!;
     const reporter = (configured.test!.reporters as unknown as Array<{
       onFinished(files: readonly []): Promise<void>;
@@ -120,10 +120,10 @@ async function recordedUnder(
     await maps('AAAA');
     const transform = (readings: readonly Reading[], source: string): void => {
       for (const reading of readings) {
-        if (reading === 'source') plugin.transform(source, resolve(root, 'src/cart.ts'));
-        else if (reading === 'build') other.transform(BUILT, resolve(root, 'dist/cart.js'));
-        else if (reading === 'legacy') other.transform(LEGACY, resolve(root, 'lib/cart.js'));
-        else plugin.transform(RATE, resolve(root, 'src/rate.ts'));
+        if (reading === 'source') plugin.transform.handler(source, resolve(root, 'src/cart.ts'));
+        else if (reading === 'build') other.transform.handler(BUILT, resolve(root, 'dist/cart.js'));
+        else if (reading === 'legacy') other.transform.handler(LEGACY, resolve(root, 'lib/cart.js'));
+        else plugin.transform.handler(RATE, resolve(root, 'src/rate.ts'));
       }
     };
     transform(order, SOURCE);
@@ -245,13 +245,13 @@ describe('a module the runner loaded from its build alone', () => {
         { root, coverageFile },
       );
       const plugin = (configured.plugins as unknown as Array<{
-        transform(code: string, id: string): { code: string } | null;
+        transform: { handler(code: string, id: string): { code: string } | null };
       }>)[0]!;
       const source = 'export default function setup() { return 1; }';
 
-      expect(plugin.transform(source, resolve(root, 'eyes.globalSetup.ts'))).toBeNull();
+      expect(plugin.transform.handler(source, resolve(root, 'eyes.globalSetup.ts'))).toBeNull();
       // The exclusion is the named path, not every file beside it.
-      expect(plugin.transform(source, resolve(root, 'src/cart.ts'))!.code).toContain('function __va(i)');
+      expect(plugin.transform.handler(source, resolve(root, 'src/cart.ts'))!.code).toContain('function __va(i)');
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -273,16 +273,16 @@ describe('a module the runner loaded from its build alone', () => {
       );
       const configured = withTestSelection({ test: { globalSetup: ['./dist/setup.js'] } }, { root, coverageFile });
       const plugin = (configured.plugins as unknown as Array<{
-        transform(code: string, id: string): { code: string } | null;
+        transform: { handler(code: string, id: string): { code: string } | null };
       }>)[0]!;
       const built = 'export default function setup() { return 1; }\n//# sourceMappingURL=setup.js.map\n';
       await writeFile(resolve(root, 'dist/setup.js'), built);
       await writeFile(resolve(root, 'dist/other.js'), built.replace('setup.js.map', 'other.js.map'));
 
-      expect(plugin.transform(built, resolve(root, 'dist/setup.js'))).toBeNull();
+      expect(plugin.transform.handler(built, resolve(root, 'dist/setup.js'))).toBeNull();
       // Read from another build, the same text is a library like any other.
       await writeFile(resolve(root, 'dist/other.js.map'), JSON.stringify({ version: 3, sources: ['../src/setup.ts'], names: [], mappings: 'AAAA' }));
-      expect(plugin.transform(built.replace('setup.js.map', 'other.js.map'), resolve(root, 'dist/other.js'))).not.toBeNull();
+      expect(plugin.transform.handler(built.replace('setup.js.map', 'other.js.map'), resolve(root, 'dist/other.js'))).not.toBeNull();
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -341,12 +341,12 @@ async function recordedTyped(reading: 'source' | 'build' | 'helped'): Promise<Te
     await writeFile(resolve(root, 'dist/cart.js'), built, 'utf8');
     await writeFile(resolve(root, 'dist/cart.js.map'), map, 'utf8');
     const configured = withTestSelection({}, { root, coverageFile, include: () => true });
-    const plugin = (configured.plugins as unknown as Array<{ transform: Transform }>)[0]!;
+    const plugin = (configured.plugins as unknown as Array<{ transform: { handler: Transform } }>)[0]!;
     const reporter = (configured.test!.reporters as unknown as Array<{
       onFinished(files: readonly []): Promise<void>;
     }>)[1]!;
-    if (reading === 'source') plugin.transform(TYPED, resolve(root, 'src/cart.ts'));
-    else plugin.transform(built, resolve(root, 'dist/cart.js'));
+    if (reading === 'source') plugin.transform.handler(TYPED, resolve(root, 'src/cart.ts'));
+    else plugin.transform.handler(built, resolve(root, 'dist/cart.js'));
     await reporter.onFinished([]);
     return decodeTestCoverage(await readFile(coverageFile)).modules;
   } finally {

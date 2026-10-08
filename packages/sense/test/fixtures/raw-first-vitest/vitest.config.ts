@@ -6,13 +6,24 @@ import type { Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 // The probes go in before every transform here: esbuild strips the types, runs
-// the legacy decorators and compiles the JSX with its source locations, and a
-// React Refresh-style plugin registers each component, as `@vitejs/plugin-react`
-// does, on lines below the author's last.
+// the legacy decorators and compiles the JSX with its source locations, a
+// compiler declared `enforce: 'pre'` writes a line above the author's first, as
+// `vite-plugin-solid` hoists its templates, and a React Refresh-style plugin
+// registers each component, as `@vitejs/plugin-react` does, on lines below the
+// author's last.
 const root = fileURLToPath(new URL('.', import.meta.url));
 const source = resolve(root, 'src');
 const coverageFile = process.env['VARIANCE_AUTHORITY_COVERAGE'];
 if (coverageFile === undefined) throw new Error('VARIANCE_AUTHORITY_COVERAGE is required');
+
+const compiler: Plugin = {
+  name: 'compile-ahead',
+  enforce: 'pre',
+  transform(code, id) {
+    if (!id.endsWith('/compiled.ts')) return null;
+    return { code: `globalThis.compiledAhead = true;\n${code}`, map: null };
+  },
+};
 
 const refresh: Plugin = {
   name: 'refresh-registration',
@@ -27,7 +38,7 @@ const refresh: Plugin = {
 export default withTestSelection(
   defineConfig({
     root,
-    plugins: [jsxSource(), refresh],
+    plugins: [jsxSource(), compiler, refresh],
     esbuild: {
       jsx: 'automatic',
       jsxDev: true,

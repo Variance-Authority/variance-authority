@@ -5,6 +5,7 @@ import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { digestString } from '../digest.js';
 import { decodeTestCoverage } from './format.js';
 import type { CoverageModule } from './index.js';
 
@@ -13,9 +14,11 @@ import type { CoverageModule } from './index.js';
  * `raw-first-vitest`, esbuild strips TypeScript-only syntax, runs legacy
  * decorators and compiles JSX with `jsxDev`, the jsx-source runtime records
  * where each element was written, and a React Refresh-style plugin appends
- * component registrations. The cases assert the compiled code behaves, that
+ * component registrations. A compiler the project declared `enforce: 'pre'`
+ * writes a line above the author's first, and the probes still go in ahead of
+ * it. The cases assert the compiled code behaves, that
  * each element carries the line the author wrote it on, and that the
- * registration ran; this file asserts the record.
+ * registration and the compiler ran; this file asserts the record.
  */
 
 const execute = promisify(execFile);
@@ -74,5 +77,20 @@ describe('a component with probes inside its JSX, compiled and registered after 
       ['List', 1, 11, list],
       ['List/map.arg0', 7, 7, list],
     ]);
+  });
+});
+
+describe('a module a compiler the project declared `enforce: pre` rewrites', () => {
+  // `vite-plugin-solid` is one: it compiled every Solid module ahead of a seam
+  // appended after it, and the record named each region by a compiled line.
+  it('records each function on the line the author wrote it, digested as the file on disk', async () => {
+    const compiled = [named('test/compiled.case.ts')];
+    expect(entered('src/compiled.ts')).toEqual([
+      ['', 1, 7, compiled],
+      ['greet', 1, 3, compiled],
+      ['shout', 5, 7, compiled],
+    ]);
+    const disk = await readFile(resolve(fixture, 'src/compiled.ts'), 'utf8');
+    expect(modules.find((module) => module.file === named('src/compiled.ts'))?.sourceDigest).toBe(digestString(disk));
   });
 });

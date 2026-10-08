@@ -113,7 +113,10 @@ interface TestConfig {
 interface VitePlugin extends ConfigPlugin {
   readonly enforce: 'pre';
   readonly config: (config: TestConfig) => void;
-  readonly transform: (code: string, id: string) => { code: string; map: null } | null;
+  readonly transform: {
+    readonly order: 'pre';
+    readonly handler: (code: string, id: string) => { code: string; map: null } | null;
+  };
   readonly closeBundle: () => Promise<void>;
   readonly watchChange: (id: string) => void;
 }
@@ -303,6 +306,7 @@ function selectionPlugin(
 ): VitePlugin {
   const { modules } = run;
   let closing: Promise<void> | undefined;
+  let inPage = false;
   return {
     name: 'variance-authority:test-selection',
     // First, on the file as it is on disk: the record is named, digested and
@@ -326,6 +330,7 @@ function selectionPlugin(
     // `afterEach`, carried on each test's `meta` as the file's is.
     config(config) {
       if (config.test?.browser?.enabled !== true) return;
+      inPage = true;
       // FIXME: a `snapshotSerializers` or `diff` file that imports product
       // source throws at its first probe in a page. `@vitest/browser` 3.2.7 and
       // 4.1.2 load them in `initiateRunner`, before `startTests` runs the first
@@ -357,7 +362,9 @@ function selectionPlugin(
         if (pathOf(moduleId) === changed || module.file === changed) modules.delete(moduleId);
       }
     },
-    transform(code, id) {
+    // Ahead of every transform not ordered first, wherever its plugin sits: a
+    // compiler at `enforce: 'pre'` would otherwise hand the seam its output.
+    transform: { order: 'pre', handler(code, id) {
       // The setup module installs the probe log; instrumented, its own header
       // would ask for the log's root before the module has installed it.
       // The runner module is this seam's too, and both sit under the root the
@@ -374,9 +381,19 @@ function selectionPlugin(
       // this process, so the modules stay in this map.
       const captured = captureModule(root, file, code, include, mode);
       if (captured === undefined) return null;
+      // Only the file itself: any query, such as `?raw`, asks for a module built
+      // from it. In a page, `vi.mock` loads its mock under the file's name.
+      // Otherwise its lines are not the author's, so it fails its importers.
+      if (captured.changed === true && id === file) {
+        if (inPage) return null;
+        throw new Error(
+          `\`${projectPath(root, file)}\` reached \`withTestSelection\` already changed: a \`load\` hook or a plugin placed ahead ` +
+            'of it rewrote the file, and its lines no longer match the file on disk. Let the file load as it is on disk, or leave it out of `include`.',
+        );
+      }
       modules.set(captured.module.id, captured.module);
       return captured.code === undefined ? null : { code: captured.code, map: null };
-    },
+    } },
   };
 }
 
