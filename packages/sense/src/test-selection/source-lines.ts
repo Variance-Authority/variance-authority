@@ -213,6 +213,11 @@ export function recordedFrame(
  * the blanked text again. Blanking keeps every offset and every line, so the
  * frame is the file's: its digest, and regions cut from it.
  *
+ * A file on disk that is not the text handed over, as it is or blanked, was
+ * changed by something that ran first, and nothing relates the two texts'
+ * lines. The frame is still cut from the text handed over, as before, and says
+ * so with {@link RawFrame.changed}: what a caller does about it is the caller's.
+ *
  * `undefined` when neither name is accepted.
  */
 export function rawFrame(
@@ -220,8 +225,9 @@ export function rawFrame(
   file: string,
   include: (file: string) => boolean,
   original: (path: string) => string,
-): RecordedFrame | undefined {
-  const disk = handedFile(code, file, original);
+): RawFrame | undefined {
+  const read = onDisk(file, original);
+  const disk = read !== undefined && handedTexts(read).includes(code) ? read : undefined;
   const map = disk === undefined ? undefined : builtMap(disk, file, original);
   const source = map === undefined ? undefined : originalFile(map, file);
   if (source !== undefined && !NODE_MODULES.test(source) && include(source)) {
@@ -230,7 +236,14 @@ export function rawFrame(
   }
   if (!include(file)) return undefined;
   const frame = recordedFrame(code, undefined, file, original);
-  return disk === undefined || frame.text !== code ? frame : { ...frame, sourceDigest: digestString(disk), text: disk };
+  if (disk === undefined) return read === undefined ? frame : { ...frame, changed: true };
+  return frame.text !== code ? frame : { ...frame, sourceDigest: digestString(disk), text: disk };
+}
+
+/** A {@link RecordedFrame} as {@link rawFrame} cuts it. */
+export interface RawFrame extends RecordedFrame {
+  /** The file is on disk, and the text handed over is not it: something changed it first. */
+  readonly changed?: true;
 }
 
 /** A sibling's name only: a `data:` map or a path elsewhere has a `/` in it. */
@@ -238,21 +251,21 @@ const SOURCE_MAPPING_URL = /\/\/[#@] sourceMappingURL=([^\s'"/\\]+)(?=\s*$)/;
 const NODE_MODULES = /[/\\]node_modules[/\\]/;
 
 /**
- * The file on disk, when `code` is that file: as it is, or with the comment
- * blanked in place, which is what a Vite dev server hands a plugin once it has
- * read the map itself.
+ * The file on disk, outside `node_modules`. {@link rawFrame} takes it as the
+ * text handed over when that is the file as it is, or with the comment blanked
+ * in place, which is what a Vite dev server hands a plugin once it has read the
+ * map itself.
  */
-function handedFile(code: string, file: string, original: (path: string) => string): string | undefined {
+function onDisk(file: string, original: (path: string) => string): string | undefined {
   if (NODE_MODULES.test(file)) return undefined;
   try {
-    const disk = original(file);
-    return handedTexts(disk).includes(code) ? disk : undefined;
+    return original(file);
   } catch {
     return undefined;
   }
 }
 
-/** The map {@link handedFile}'s text points at. */
+/** The map the file on disk points at. */
 function builtMap(disk: string, file: string, original: (path: string) => string): TransformSourceMap | undefined {
   try {
     const pointer = SOURCE_MAPPING_URL.exec(disk);

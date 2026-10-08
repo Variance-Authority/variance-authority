@@ -193,7 +193,9 @@ export function withTestSelection(
   const story = askedForStories(coverageFile);
   return {
     ...config,
-    plugins: [...array(config.plugins), plugin],
+    // Ahead of the project's own: Vite runs the `enforce: 'pre'` plugins in the
+    // order of the array, and the seam reads each file as it is on disk.
+    plugins: [plugin, ...array(config.plugins)],
     test: {
       ...config.test,
       ...selecting(config, root, configRoot, options, coverageFile),
@@ -374,10 +376,25 @@ function selectionPlugin(
       // this process, so the modules stay in this map.
       const captured = captureModule(root, file, code, include, mode);
       if (captured === undefined) return null;
+      // Only the file itself: a query such as `?raw` asks for a module built from it.
+      if (captured.changed === true && id === file) throw changedAhead(projectPath(root, file));
       modules.set(captured.module.id, captured.module);
       return captured.code === undefined ? null : { code: captured.code, map: null };
     },
   };
+}
+
+/**
+ * A module some other plugin changed before the seam read it. Its lines are
+ * not the author's, and a record cut from them would name every region by a
+ * line nobody wrote, so the run stops rather than record it.
+ */
+function changedAhead(file: string): Error {
+  return new Error(
+    `\`${file}\` reached \`withTestSelection\` already changed: a \`load\` hook or a plugin placed ahead of it ` +
+      'rewrote the file, and its lines no longer match the file on disk. ' +
+      'Let the file load as it is on disk, or leave it out of `include`.',
+  );
 }
 
 /**

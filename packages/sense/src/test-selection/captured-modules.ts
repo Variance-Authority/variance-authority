@@ -26,6 +26,8 @@ export interface Captured {
   readonly module: CapturedModule;
   /** `undefined` when the instrumenter could not read the text: it runs as it is. */
   readonly code: string | undefined;
+  /** The text is not the file on disk, and nothing maps one onto the other: see {@link rawFrame}. */
+  readonly changed?: true;
 }
 
 /**
@@ -56,6 +58,7 @@ export function captureModule(
       ? { file, id, sourceDigest, instrumented: false, blocks: [] }
       : { file, id, sourceDigest, instrumented: true, blocks: recordedBlocks(done.blocks, frame, code, mode ?? 'presence') },
     code: done?.code,
+    ...(frame.changed === undefined ? {} : { changed: frame.changed }),
   };
 }
 
