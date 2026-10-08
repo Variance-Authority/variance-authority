@@ -19,4 +19,10 @@ such a module now fails with an error that names the module, rather than
 recording it on lines you did not write. Let that file load as it is on disk, or
 leave it out of `include`. A variant of a file, such as `?raw` or any other
 query, is not the file and is not refused, and neither is a file whose
-`sourceMappingURL` comments Vite blanked after reading its map.
+`sourceMappingURL` comments Vite blanked after reading its map. When your files
+run in a page, `vi.mock` loads its mock under the file's own name, so there such
+a module goes through as it came and is not recorded.
+
+The same blanking reaches Storybook's probes: a module whose inline map comment,
+or a map in another directory, Vite blanked was recorded as not instrumented,
+and is now recorded on the file's own lines.

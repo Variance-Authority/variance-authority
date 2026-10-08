@@ -18,10 +18,15 @@ import { withTestSelection } from './vitest.js';
 const SOURCE = 'export function greet(name) {\n  return `hello ${name}`;\n}\n';
 
 type Transform = (code: string, id: string) => { code: string } | null;
-type Plugin = { name: string; transform?: { handler: Transform } };
+type Plugin = {
+  name: string;
+  config?: (config: { test: { browser: { enabled: boolean } } }) => void;
+  transform?: { handler: Transform };
+};
 
 let root: string;
 let transform: Transform;
+let inPage: () => void;
 
 beforeEach(async () => {
   root = await mkdtemp(resolve(tmpdir(), 'variance-changed-ahead-'));
@@ -29,6 +34,7 @@ beforeEach(async () => {
   const configured = withTestSelection({}, { root, coverageFile: resolve(root, 'coverage.bin'), include: () => true });
   const plugin = (configured.plugins as unknown as Plugin[]).find(({ name }) => name === 'variance-authority:test-selection')!;
   transform = plugin.transform!.handler.bind(plugin);
+  inPage = () => plugin.config!({ test: { browser: { enabled: true } } });
 });
 
 afterEach(async () => {
@@ -40,6 +46,15 @@ describe('a module another plugin changed before the seam read it', () => {
     expect(() => transform(`globalThis.compiledAhead = true;\n${SOURCE}`, resolve(root, 'greet.ts'))).toThrow(
       /`greet\.ts` reached `withTestSelection` already changed/,
     );
+  });
+
+  it('is passed through as it came when the files run in a page, where Vitest serves a mock under the file\'s name', () => {
+    // `vi.mock` in a page swaps the module's text in a `load` hook of its own,
+    // ordered first: what arrives is the mock, which is not the file and does
+    // not run its lines.
+    inPage();
+    const mock = `export const greet = globalThis.__vitest_mocker__.mocked;\n`;
+    expect(transform(mock, resolve(root, 'greet.ts'))).toBeNull();
   });
 
   it('is recorded when it is the file on disk', () => {

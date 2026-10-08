@@ -306,6 +306,7 @@ function selectionPlugin(
 ): VitePlugin {
   const { modules } = run;
   let closing: Promise<void> | undefined;
+  let inPage = false;
   return {
     name: 'variance-authority:test-selection',
     // First, on the file as it is on disk: the record is named, digested and
@@ -329,6 +330,7 @@ function selectionPlugin(
     // `afterEach`, carried on each test's `meta` as the file's is.
     config(config) {
       if (config.test?.browser?.enabled !== true) return;
+      inPage = true;
       // FIXME: a `snapshotSerializers` or `diff` file that imports product
       // source throws at its first probe in a page. `@vitest/browser` 3.2.7 and
       // 4.1.2 load them in `initiateRunner`, before `startTests` runs the first
@@ -360,10 +362,8 @@ function selectionPlugin(
         if (pathOf(moduleId) === changed || module.file === changed) modules.delete(moduleId);
       }
     },
-    // Ahead of every transform that does not ask to be first, whatever its
-    // `enforce` and wherever it sits: a project's compiler at `enforce: 'pre'`,
-    // such as `vite-plugin-solid`, would otherwise hand the seam its output, and
-    // so would a root config's plugins, which `extends` puts ahead of a project's.
+    // Ahead of every transform not ordered first, wherever its plugin sits: a
+    // compiler at `enforce: 'pre'` would otherwise hand the seam its output.
     transform: { order: 'pre', handler(code, id) {
       // The setup module installs the probe log; instrumented, its own header
       // would ask for the log's root before the module has installed it.
@@ -381,19 +381,19 @@ function selectionPlugin(
       // this process, so the modules stay in this map.
       const captured = captureModule(root, file, code, include, mode);
       if (captured === undefined) return null;
-      // Only the file itself: any query, such as `?raw`, asks for a module built from it.
-      if (captured.changed === true && id === file) throw changedAhead(projectPath(root, file));
+      // Only the file itself: any query, such as `?raw`, asks for a module built
+      // from it. In a page, `vi.mock` loads its mock under the file's name.
+      if (captured.changed === true && id === file) {
+        if (inPage) return null;
+        throw changedAhead(projectPath(root, file));
+      }
       modules.set(captured.module.id, captured.module);
       return captured.code === undefined ? null : { code: captured.code, map: null };
     } },
   };
 }
 
-/**
- * A module some other plugin changed before the seam read it. Its lines are
- * not the author's, and a record cut from them would name every region by a
- * line nobody wrote, so the run stops rather than record it.
- */
+/** A module changed before the seam read it: its lines are not the author's, so it fails its importers. */
 function changedAhead(file: string): Error {
   return new Error(
     `\`${file}\` reached \`withTestSelection\` already changed: a \`load\` hook or a plugin placed ahead of it ` +
