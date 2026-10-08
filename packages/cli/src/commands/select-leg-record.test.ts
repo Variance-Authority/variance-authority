@@ -9,6 +9,7 @@ import { parseArgs } from '../parse.js';
 import { answerConfigless, withoutConfig } from './configless.js';
 import { indexOutput } from './index-command.js';
 import { selectOutput } from './select-command.js';
+import { shardsOutput } from './shards-command.js';
 
 /**
  * `variance select --at-distance` over a record written to disk and a graph
@@ -73,6 +74,30 @@ describe('a leg read from a real record and a real graph', () => {
     await answerConfigless(parsed, { out: (text) => (out += text), err: () => {} });
 
     expect(JSON.parse(out)).toMatchObject({ leg: { from: 0, to: 2 }, skip: [FAR, GHOST, IDLE], left: [FAR, GHOST] });
+  });
+
+  it('counts the shards of the leg it is asked for, as the leg\'s shards split it', async () => {
+    const { root, head } = checkout();
+    const recorded = snapshot(head);
+    await writeTestCoverage(testCoverageFile(root), { ...recorded, tests: recorded.tests.map((test) => ({ ...test, duration: 60_000 })) });
+    writeFileSync(join(root, 'src/widget.ts'), WIDGET.replace("return 'a';", "return 'z';"));
+    writeFileSync(join(root, 'collected.txt'), `${WHOLE.join('\n')}\n`);
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    const count = async (atDistance?: { from: number; to: number }) =>
+      JSON.parse(await shardsOutput({
+        cwd: root, setup: 10_000, since: head, collected: 'collected.txt', format: 'json', ...(atDistance === undefined ? {} : { atDistance }),
+      }));
+
+    expect(await count()).toMatchObject({ files: 4, skipped: 1, shards: 4 });
+    expect(await count({ from: 0, to: 2 })).toMatchObject({ files: 2, skipped: 3, shards: 2, matrix: ['1/2', '2/2'] });
+  });
+
+  it('carries `--at-distance` from the command line to the count', () => {
+    expect(parseArgs(['shards', '--setup', '1', '--since', 'main', '--collected', 'files.txt', '--at-distance', '0-2']))
+      .toMatchObject({ atDistance: { from: 0, to: 2 } });
+    expect(() => parseArgs(['shards', '--setup', '1', '--at-distance', '0-2'])).toThrow(/none is named: pass `--since <ref>`/);
   });
 
   // A test the record holds incomplete ran cases the record did not see, and

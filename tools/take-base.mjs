@@ -1,8 +1,9 @@
 /**
  * Take the mainline's records another CI job read, as if this job had read
  * them: `node tools/take-base.mjs <handed> <uploaded>`, where `<handed>` is the
- * read root `check.yml`'s `base` job uploaded, one directory per suite, and
- * `<uploaded>` is `true` when that job's upload made an artifact.
+ * read root `check.yml`'s `base` job uploaded, or `plan` in a merge group, one
+ * directory per suite, and `<uploaded>` is `true` when that job's upload made
+ * an artifact.
  *
  * Each suite's directory is copied under this checkout's read root. The
  * pointer to the record fetched names the merge base the line was asked at,

@@ -66,7 +66,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   collect: ['--subjects', '--shard', '--workers', '--out'],
   index: ['--no-git', '--wait', '--follow-ups'],
   select: ['--since', '--execution', '--diff', '--suite', '--at-distance', '--format', '--no-git'],
-  shards: ['--setup', '--budget', '--max', '--workers', '--since', '--collected', '--suite', '--unrecorded', '--format'],
+  shards: ['--setup', '--budget', '--max', '--workers', '--since', '--collected', '--at-distance', '--suite', '--unrecorded', '--format'],
   reach: ['--since', '--format', '--whole-files', '--no-git'],
   covering: [
     '--file',
@@ -145,7 +145,7 @@ export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]',
   'variance index   [--no-git] [--wait | --follow-ups]',
   'variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]',
-  'variance shards  --setup <seconds> [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> --collected <file>] [--suite <name>] [--unrecorded <n>] [--format text|json]',
+  'variance shards  --setup <seconds> [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> --collected <file> [--at-distance <hops>]] [--suite <name>] [--unrecorded <n>] [--format text|json]',
   'variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]',
   'variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]',
   'variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]',

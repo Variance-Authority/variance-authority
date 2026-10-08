@@ -1,4 +1,5 @@
 import { countOf, noPositionals, type Flags } from './args.js';
+import { parseAtDistance } from './covering-args.js';
 import { OperatorError } from './exit.js';
 import type { ShardsFormat } from './commands/shards.js';
 
@@ -7,6 +8,8 @@ export interface ParsedShards {
   readonly suite?: string;
   /** `--since <ref>`: the change whose skipped files ask for no shard. */
   readonly since?: string;
+  /** `--at-distance <hops>`: count only the leg of the change's selection this many imports away. */
+  readonly atDistance?: { readonly from: number; readonly to: number };
   /** `--setup <seconds>`, in milliseconds: what each shard spends before its first test. */
   readonly setup: number;
   /** `--budget <seconds>`, in milliseconds: what one shard may take, setup included. */
@@ -61,6 +64,10 @@ export function parseShardsArgs(flags: Flags): ParsedShards {
   const suite = flags.values.get('--suite');
   const since = flags.values.get('--since');
   const collected = flags.values.get('--collected');
+  const atDistance = parseAtDistance(flags);
+  if (atDistance !== undefined && since === undefined) {
+    throw new OperatorError('`variance shards --at-distance` cuts the selection of a change, and none is named: pass `--since <ref>`');
+  }
   if (since !== undefined && collected === undefined) {
     throw new OperatorError(
       '`variance shards --since` needs `--collected <file>`, the runner\'s list of test files: the record holds only ' +
@@ -72,6 +79,7 @@ export function parseShardsArgs(flags: Flags): ParsedShards {
     ...(suite === undefined ? {} : { suite }),
     ...(since === undefined ? {} : { since }),
     ...(collected === undefined ? {} : { collected }),
+    ...(atDistance === undefined ? {} : { atDistance }),
     setup,
     ...(budget === undefined ? {} : { budget }),
     ...(max === undefined ? {} : { max }),
