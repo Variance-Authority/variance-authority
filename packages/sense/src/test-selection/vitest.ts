@@ -383,23 +383,18 @@ function selectionPlugin(
       if (captured === undefined) return null;
       // Only the file itself: any query, such as `?raw`, asks for a module built
       // from it. In a page, `vi.mock` loads its mock under the file's name.
+      // Otherwise its lines are not the author's, so it fails its importers.
       if (captured.changed === true && id === file) {
         if (inPage) return null;
-        throw changedAhead(projectPath(root, file));
+        throw new Error(
+          `\`${projectPath(root, file)}\` reached \`withTestSelection\` already changed: a \`load\` hook or a plugin placed ahead ` +
+            'of it rewrote the file, and its lines no longer match the file on disk. Let the file load as it is on disk, or leave it out of `include`.',
+        );
       }
       modules.set(captured.module.id, captured.module);
       return captured.code === undefined ? null : { code: captured.code, map: null };
     } },
   };
-}
-
-/** A module changed before the seam read it: its lines are not the author's, so it fails its importers. */
-function changedAhead(file: string): Error {
-  return new Error(
-    `\`${file}\` reached \`withTestSelection\` already changed: a \`load\` hook or a plugin placed ahead of it ` +
-      'rewrote the file, and its lines no longer match the file on disk. ' +
-      'Let the file load as it is on disk, or leave it out of `include`.',
-  );
 }
 
 /**
