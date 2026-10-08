@@ -93,7 +93,7 @@ export { sourceCut } from './coverage-rows.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
 export type { Bearing, DistanceOptions, TestDistance } from './distance.js';
 export type { Face, Faces, ReachThrough } from './faces.js';
-export { selectedLines, type SuiteSelection } from './suite-selection.js';
+export { selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
 export { eitherFace, indexFaces } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
 export { foldTestCoverage, journeyDivergences, mergeCoverage };

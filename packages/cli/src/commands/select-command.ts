@@ -395,7 +395,7 @@ function handedNotes(reading: StandReading, commit: string): readonly string[] {
  * layer that holds one. For a suite given to a share the first note after the verdict says whose
  * record it read, because they select differently and a skip list alone does not say which.
  */
-async function recordedOrMainline(
+export async function recordedOrMainline(
   request: SuiteRequest,
 ): Promise<{ readonly at: string; readonly held: boolean; readonly source?: SelectSource }> {
   const recorded = await recordedSuite(request.root, request.suite);

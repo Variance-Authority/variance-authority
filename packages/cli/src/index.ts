@@ -152,6 +152,7 @@ export type { MainlineMissed, MainlineRecord, MissedMainline } from './commands/
  * `VARIANCE_AUTHORITY_SINCE` is set.
  */
 export { selectSuite } from './commands/select-command.js';
+export { suiteTimes, type TimesRequest } from './commands/suite-times.js';
 export type { SuiteReading, SuiteRequest } from './commands/select-suite.js';
 export type { Leg } from './commands/select-leg.js';
 

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { decodeTestCoverage } from './format.js';
+import { writeTestCoverage } from './index.js';
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -78,5 +79,36 @@ describe('a Vitest run over two projects, handed a selection', () => {
       stderr: expect.stringContaining('the record at coverage.bin could not be read'),
     });
     expect(existsSync(resolve(directory, 'refused.bin'))).toBe(false);
+  }, 30_000);
+});
+
+describe('a Vitest run under --shard, with the times a record holds', () => {
+  /** Shard `k` of 2, each with a record of its own, as a CI job is, that times the unit file as the slow one. */
+  async function shard(k: number) {
+    await writeTestCoverage(resolve(directory, `timed-${k}.bin`), {
+      version: 3,
+      instrumentation: 'fixture',
+      tests: [
+        { file: at('unit/unit.case.ts'), complete: true, preconditions: [], duration: 9000 },
+        { file: at('dom/dom.case.ts'), complete: true, preconditions: [], duration: 100 },
+      ],
+      modules: [],
+    });
+    return execute(process.execPath, [vitest, 'run', '--config', 'vitest.config.ts', '--shard', `${k}/2`], {
+      cwd: fixture,
+      env: environment(`timed-${k}`, {}),
+    });
+  }
+
+  it('places each file by its recorded time, and says what each shard takes', async () => {
+    const first = await shard(1);
+    const second = await shard(2);
+
+    expect(first.stderr).toContain('variance-authority: shard 1/2 by the times recorded at');
+    expect(first.stderr).toContain('1 of 2 files, 9.0 s (shards 100 ms to 9.0 s)');
+    expect(first.stdout).toContain('unit.case.ts');
+    expect(first.stdout).not.toContain('dom.case.ts');
+    expect(second.stdout).toContain('dom.case.ts');
+    expect(second.stdout).not.toContain('unit.case.ts');
   }, 30_000);
 });

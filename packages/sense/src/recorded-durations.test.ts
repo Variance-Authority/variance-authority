@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { recordedDurations, recordedPaths } from './recorded-durations.js';
+import { recordedDurations, recordedPaths, recordedTimes } from './recorded-durations.js';
 import { withCaseSections } from './test-selection/case-record.js';
 import { encodeExecutionIndex } from './test-selection/execution-format.js';
 import { encodeTestCoverage } from './test-selection/format.js';
@@ -196,5 +196,19 @@ describe('slowest where', () => {
     expect(recordedPaths(root)).toEqual([
       'spec/c.test.ts', 'src/format.ts', 'src/other/read.ts', 'test/a.test.ts', 'test/b.test.ts',
     ]);
+  });
+});
+
+describe('the times a shard places its files by', () => {
+  it('holds every timed file and the commit it was recorded at, and leaves an untimed one out', () => {
+    const at = record({ ...coverage([['test/a.test.ts', 40], ['test/b.test.ts', undefined], ['test/c.test.ts', 0]]), commit: 'c'.repeat(40) });
+
+    const times = recordedTimes(at);
+
+    expect(times).toEqual({ recording: at, commit: 'c'.repeat(40), times: new Map([['test/a.test.ts', 40], ['test/c.test.ts', 0]]) });
+  });
+
+  it('says why when nothing is recorded there, rather than handing an empty map', () => {
+    expect(recordedTimes(testCoverageFile(root))).toEqual({ recording: testCoverageFile(root), unread: 'nothing is recorded there' });
   });
 });

@@ -105,6 +105,7 @@ export {
 export {
   recordedDurations,
   recordedPaths,
+  recordedTimes,
   type DurationScope,
   type RecordedCaseDurations,
   type ScopeCounts,

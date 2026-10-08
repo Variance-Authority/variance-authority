@@ -24,6 +24,21 @@ export interface SuiteSelection {
 }
 
 /**
+ * The milliseconds a suite's record holds for each of its test files, which is
+ * what a seam under `--shard` places them by, or why there are none to read.
+ */
+export type SuiteTimes =
+  | {
+      /** The record the times were read from. */
+      readonly recording: string;
+      /** Repository-relative test file to the milliseconds its runner reported; an untimed file is absent. */
+      readonly times: ReadonlyMap<string, number>;
+      /** The commit the record was taken at; absent when it has no position. */
+      readonly commit?: string;
+    }
+  | { readonly recording?: string; readonly unread: string };
+
+/**
  * What a seam prints before the run: the count, or which reading declined,
  * then the notes.
  *

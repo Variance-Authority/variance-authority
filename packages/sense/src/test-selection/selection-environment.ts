@@ -20,8 +20,9 @@
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { recordedTimes } from '../recorded-durations.js';
 import { distanceRange } from './at-distance.js';
-import type { SuiteSelection } from './suite-selection.js';
+import type { SuiteSelection, SuiteTimes } from './suite-selection.js';
 
 /** Where the selection is read: the checkout, whose record, and where the cli is installed. */
 export interface SelectionRequest {
@@ -44,6 +45,8 @@ interface Selector {
     readonly suite?: string;
     readonly atDistance?: { readonly from: number; readonly to: number };
   }): Promise<SuiteSelection>;
+  /** Absent from a cli older than placement by time. */
+  suiteTimes?(request: { readonly root: string; readonly suite?: string }): Promise<SuiteTimes>;
 }
 
 const CLI = '@variance-authority/cli';
@@ -87,16 +90,48 @@ export function selectionFrom(
   };
 }
 
-/** `@variance-authority/cli` as the project installed it, or a refusal that names it. */
-async function selector(from: string): Promise<Selector> {
+/**
+ * The suite's recorded times, read the first time a run under `--shard` asks.
+ * A record named by file is read where it is; a suite's is read by the cli,
+ * from where `variance select` reads it, this checkout's or the mainline's.
+ * A cli the configuration does not resolve is a reason rather than a failure:
+ * the runner can still cut the shard by count, and the line it prints says why.
+ */
+export function timesFrom(request: SelectionRequest & { readonly recording?: string }): () => Promise<SuiteTimes> {
+  return async () => {
+    if (request.recording !== undefined) return recordedTimes(request.recording);
+    const from = request.from ?? request.root;
+    const cli = await installed(from);
+    if (cli?.suiteTimes === undefined) {
+      const why = cli === undefined ? `which ${from} does not resolve` : 'and the one installed predates them';
+      return { unread: `the times are read by ${CLI}, ${why}` };
+    }
+    try {
+      return await cli.suiteTimes({ root: request.root, ...(request.suite === undefined ? {} : { suite: request.suite }) });
+    } catch (error) {
+      return { unread: error instanceof Error ? error.message : String(error) };
+    }
+  };
+}
+
+async function installed(from: string): Promise<Selector | undefined> {
   let entry: string;
   try {
     entry = createRequire(resolve(from, 'package.json')).resolve(CLI);
   } catch {
+    return undefined;
+  }
+  return (await import(pathToFileURL(entry).href)) as Selector;
+}
+
+/** `@variance-authority/cli` as the project installed it, or a refusal that names it. */
+async function selector(from: string): Promise<Selector> {
+  const cli = await installed(from);
+  if (cli === undefined) {
     throw new Error(
       `VARIANCE_AUTHORITY_SINCE is set, and the selection is read by ${CLI}, which ${from} does not resolve: ` +
         `add it to the project's devDependencies, or unset the variable to run every file`,
     );
   }
-  return (await import(pathToFileURL(entry).href)) as Selector;
+  return cli;
 }

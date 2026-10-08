@@ -22,6 +22,7 @@ import { decodeExecutionIndex, decodeExecutionTests } from './test-selection/exe
 import { NO_DURATION } from './test-selection/format-layout.js';
 import { nearestTestCoverage } from './test-selection/record-location.js';
 import { declaredSuites } from './test-selection/suites.js';
+import type { SuiteTimes } from './test-selection/suite-selection.js';
 import {
   countScope,
   pathsOfSnapshot,
@@ -114,6 +115,30 @@ export function recordedDurations(
       return { ...named, recording, unread: messageOf(error), cases };
     }
   });
+}
+
+/**
+ * Every test file the snapshot at `recording` holds a duration for, and the
+ * commit it was taken at: what a sharded run places its files by. A file whose
+ * runner reported none is absent rather than zero, so the placement prices it
+ * the way it prices a file the record never saw.
+ */
+export function recordedTimes(recording: string): SuiteTimes {
+  if (!existsSync(recording)) return { recording, unread: 'nothing is recorded there' };
+  try {
+    return askCoverageFile(recording, (view) => {
+      const paths = view.testPath.all();
+      const durations = view.testDuration?.all();
+      const times = new Map<string, number>();
+      paths.forEach((path, test) => {
+        const duration = durations?.[test] ?? NO_DURATION;
+        if (duration !== NO_DURATION) times.set(view.string(path), duration);
+      });
+      return { recording, times, ...(view.commit === undefined ? {} : { commit: view.commit }) };
+    });
+  } catch (error) {
+    return { recording, unread: messageOf(error) };
+  }
 }
 
 /** The slowest cases in the case index at `recording`, which is the one beside the snapshot the durations were read from. */
