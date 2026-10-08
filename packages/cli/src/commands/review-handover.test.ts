@@ -173,6 +173,20 @@ describe('a review handed over in the pull request body, before CI', () => {
     expect(out).toContain('<summary>🧭 Coverage of the changed area: no changed function</summary>');
   });
 
+  it('takes a suite that ran on the change as the word on what in a file it read the change touched', () => {
+    const at = (record: string, regions: readonly ReviewRegion[]) =>
+      ({ from: 'a'.repeat(40), record, base: 'since', files: [{ file: 'src/a.ts', recorded: true, regions }] }) as unknown as Review;
+    const region = (name: string, reach: ReviewRegion['reach'], cases: number): ReviewRegion =>
+      ({ kind: 'function', name, startLine: name === 'total' ? 20 : 5, endLine: name === 'total' ? 30 : 9, reach, edit: 'modified', changedLineCases: cases, cases, tests: cases === 0 ? [] : ['test/a.test.ts'], called: [] });
+
+    const out = formatHandover([
+      { suite: 'integration', review: at('before', [region('total', 'unwalked', 0), region('round', 'hole', 0)]) },
+      { suite: 'unit', review: at('ran', [region('round', 'far', 1)]) },
+    ]);
+
+    expect(out.split('\n').filter((line) => line.startsWith('- '))).toEqual(['- 🟡 `round` in `src/a.ts` — 1 case, far: `test/a.test.ts` (`unit`)']);
+  });
+
   it('says so when the change touched no function, and why a suite was not read, in one sentence', () => {
     const out = formatHandover([
       { suite: 'unit', review: { from: 'a'.repeat(40), record: 'before', base: 'since', files: [] } as unknown as Review },

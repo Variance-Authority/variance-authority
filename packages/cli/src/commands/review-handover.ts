@@ -128,16 +128,19 @@ function gapOf(part: Part): string {
 /**
  * Each changed region once, answered for by the suite whose cases came nearest.
  * A suite that ran on the change and read the file is the word on what in it
- * is new: a record from before the change can only place the edit by its old
- * lines, and counts what the edit moved as written.
+ * the change touched, and what is new: a record from before the change can
+ * only place the edit by its old lines, and counts what the edit moved as
+ * written.
  */
 function nearestOfEach(parts: readonly Part[]): Part[] {
   const keyOf = (part: Part) => `${part.file}\0${part.region.startLine}\0${part.region.endLine}\0${part.region.name}`;
-  const ran = new Set(parts.filter((part) => part.ran).map((part) => part.file));
+  const ranParts = parts.filter((part) => part.ran);
+  const ran = new Set(ranParts.map((part) => part.file));
+  const touched = new Set(ranParts.map(keyOf));
   const nearest = new Map<string, Part>();
   for (const part of parts) {
     const key = keyOf(part);
-    if (part.fresh && ran.has(part.file)) continue;
+    if (!part.ran && ran.has(part.file) && (part.fresh || !touched.has(key))) continue;
     const held = nearest.get(key);
     if (held === undefined || rank(part) > rank(held) || (rank(part) === rank(held) && part.region.cases > held.region.cases)) nearest.set(key, part);
   }

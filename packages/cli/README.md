@@ -714,11 +714,12 @@ measured, ⚪ only while its module loaded. A reached line names how many cases 
 A function every case reached from a test file that imports it is only
 counted. Absences come first; past twelve lines the rest are counted, and the
 block ends with the `variance covering` command that reads one file in full.
-Every declared suite is read and each line names its suite; a suite whose
-record cannot be read is named with the reason, and one named with `--suite`
-fails instead. A suite run on the change is the word on what in a file it read is new.
-The block sits between `<!-- variance-authority: handover -->` and its
-closing marker, so a later run replaces it in place.
+Every declared suite is read, and when more than one is, each line names its
+suite; a suite whose record cannot be read is named with the reason, and one
+named with `--suite` fails instead. A suite run on the change is the word on
+what in a file it read the change touched, and what is new. The block sits
+between `<!-- variance-authority: handover -->` and its closing marker: the
+block a later run prints is pasted over everything between them.
 
 It reads this checkout's record as `covering` does. `--from-run`, `--out`,
 `--coverage` and `--against` read or compare what a run made, so a handover
