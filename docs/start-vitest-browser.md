@@ -116,22 +116,11 @@ so git still descends into it:
 ```gitignore
 .variance/*
 !.variance/baselines/
-.variance/baselines/**/by-document/
 ```
 
-The third line matters. A durable store is also a render cache, keyed by the
-digest of the document that produced each image, and on this path it lands in a
-`by-document/` directory inside the baseline root. It gains an entry on every
-edit and is worth nothing after the next one, so keep it out of the commit — or
-move it entirely by building the store yourself and passing it as `store`:
-
-```ts
-import { createDurableStore } from '@variance-authority/store/durable';
-
-variancePlugin({
-  store: createDurableStore('.variance/baselines', { cacheRoot: '.variance/renders' }),
-});
-```
+The images a run paints to compare are not baselines, and the plugin keeps them
+out of this directory: they go to `renders/` in [your cache](cache.md), which
+the plugin prunes when the run closes.
 
 [Baseline placement](placement.md) covers Git LFS and remote stores for corpora
 too large to commit as blobs.
@@ -288,7 +277,7 @@ rather than blame, so a container pushed by an edit can outrank the edit itself.
 
 The images themselves are files. The approved baseline is the `.png` under the
 baseline directory, beside the `.json` recording what painted it. The candidate
-this run painted is in the render cache, under `by-document/`, named by the
+this run painted is in `renders/` in [your cache](cache.md), named by the
 digest of the document it was painted from.
 
 ## Make CI judge a baseline you approved locally

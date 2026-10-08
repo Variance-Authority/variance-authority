@@ -3,9 +3,9 @@ import type { Observed } from './evidence.js';
 import { createDeclarationReader } from '@variance-authority/playwright';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import type { RasterStore, Renderer } from '@variance-authority/raster';
-import { createDurableStore } from '@variance-authority/store/durable';
 import { bundlePageAgent } from './bundle.js';
 import { observeLocator } from './fixture.js';
+import { checkoutStore } from './render-cache.js';
 import type { MaterializationOptions, VarianceOptions } from './options.js';
 import {
   createExecutionRecorder,
@@ -99,7 +99,10 @@ export async function createVariance(
   if (owner !== undefined) await recorder!.join(page, owner, run.baseURL);
   const bundle = options.bundle ?? (await bundlePageAgent());
   const materialization = options.materialization ?? { kind: 'deferred' };
-  const store = options.store ?? createDurableStore(options.baselines ?? '.variance/baselines');
+  const owned = options.store === undefined
+    ? checkoutStore(options.baselines ?? '.variance/baselines')
+    : undefined;
+  const store = options.store ?? owned!.store;
   const ownsRenderer = materialization.kind === 'deferred' && options.renderer === undefined;
   let closed = false;
 
@@ -156,6 +159,7 @@ export async function createVariance(
       await declared.close();
       await recorder?.close();
       if (ownsRenderer) await renderer!.close();
+      await owned?.sweep();
     },
   };
 }

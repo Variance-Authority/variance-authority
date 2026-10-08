@@ -308,11 +308,16 @@ baselines/v1-6c1f…/by-document/v1-a04e….png
 
 Commit that cache and the repository grows by a render on every edit, so `npx
 variance run` points it at `<cache>/renders` in [your cache](cache.md) and
-leaves the configured root with baselines and nothing else. `cacheRoot` in the
-root `variance.config.json` moves it with the rest of the cache.
+leaves the configured root with baselines and nothing else. The
+[Playwright fixture](../packages/playwright-test), its `createVariance` and
+`observe` helpers, and the [Vitest plugin](../packages/vitest-browser) point the
+stores they open at the same directory. `cacheRoot` in the root
+`variance.config.json` moves it with the rest of the cache.
 Building a store yourself, `createDurableStore` and `createLfsStore` both take
 `cacheRoot`, and both default it to the baseline root — pass a path outside the
-work tree.
+work tree. `renderCacheIn(cache)` from `@variance-authority/store/durable`
+returns the `renders` directory inside a cache, and `sweepRenderCache` applies
+the bound below to it.
 
 ### The cache prunes itself
 
@@ -327,6 +332,11 @@ Every run sweeps it, and prints what is left:
 ```
 renders: 214.6 MiB cached in <cache>/renders, freed 91.2 MiB
 ```
+
+The test-runner integrations sweep it by the same rules and print nothing: the
+Playwright fixture once in each worker, when its store tears down or a
+`createVariance` session closes, whichever comes first, and the Vitest plugin
+when the run closes.
 
 An entry survives on two conditions. It must have been requested in the last
 fortnight — a hit refreshes its timestamp, so this is time since something

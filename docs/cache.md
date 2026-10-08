@@ -39,8 +39,9 @@ recording is seen by nothing that reacts to it. `XDG_CACHE_HOME` is not read:
 agent harnesses set it for their own reasons, and a repository whose
 recording follows it has as many recordings as it has harnesses.
 
-`cacheRootFor(root)` from `@variance-authority/sense/test-selection` returns the
-answer for a checkout. `variance index` prints the path of the source index it
+`cacheRootFor(root)` from `@variance-authority/sense/test-selection`, or from
+`@variance-authority/sense/cache-root` when you want it without the parser and
+resolver loaded, returns the answer for a checkout. `variance index` prints the path of the source index it
 wrote, which is inside it.
 
 ## Name it yourself
@@ -191,10 +192,11 @@ a commit your clone does not have, and anything git could not answer for stay
 until nothing in them has been written for 30 days. `share/<digest>.git` is
 not removed.
 
-`variance run` checks `renders/` at the end of every run, as
-[the render cache](placement.md#the-cache-prunes-itself) describes, and
-everything else at its end too, at most once a day. Each part prints one line
-when it removed something:
+`variance run` checks `renders/` at the end of every run, and the Playwright and
+Vitest integrations check it when they close, as
+[the render cache](placement.md#the-cache-prunes-itself) describes. `variance
+run` checks everything else at its end too, at most once a day, and prints one
+line for each part it removed something from:
 
 ```
 cache: freed 17.8 MiB in <cache>/test-selection: 218 runs whose processes are gone, 7 worktrees git no longer lists
