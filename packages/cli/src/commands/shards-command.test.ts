@@ -30,10 +30,30 @@ describe('variance shards', () => {
     expect(answer).toMatchObject({ shards: 4, matrix: ['1/4', '2/4', '3/4', '4/4'], why: 'slowest group', wall: 70_000 });
   });
 
-  it('refuses to count with nothing recorded, and names the flag that answers anyway', async () => {
+  it('plans the soonest count for a budget the setup alone takes, and names the setup, never a file', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'va-shards-setup-'));
+    await writeTestCoverage(testCoverageFile(root), {
+      version: 3,
+      instrumentation: 'fixture',
+      commit: 'a'.repeat(40),
+      tests: ['a', 'b', 'c', 'd'].map((name) => ({ file: `${name}.test.ts`, complete: true, preconditions: [], duration: 60_000 })),
+      modules: [],
+    });
+
+    const answer = JSON.parse(await shardsOutput({ cwd: root, setup: 20_000, budget: 5_000, format: 'json' }));
+    const text = await shardsOutput({ cwd: root, setup: 20_000, budget: 5_000, format: 'text' });
+
+    expect(answer).toMatchObject({ shards: 4, why: 'setup over budget', setup: 20_000, budget: 5_000, wall: 80_000 });
+    expect(answer).not.toHaveProperty('slowest');
+    expect(text.split('\n')[2]).toBe('The 5.0 s budget is out of reach: each shard spends 20.0 s of setup alone before its first test.');
+  });
+
+  it('answers one shard with nothing recorded, and names the flag that sets the count', async () => {
     const root = mkdtempSync(join(tmpdir(), 'va-shards-bare-'));
 
-    await expect(shardsOutput({ cwd: root, setup: 30_000, format: 'text' })).rejects.toThrow(/--unrecorded <n>/);
+    expect(await shardsOutput({ cwd: root, setup: 30_000, format: 'text' })).toBe(
+      `1 shard: nothing is recorded there (${testCoverageFile(root)}). \`--unrecorded <n>\` sets the count until the suite is recorded.\n`,
+    );
     expect(await shardsOutput({ cwd: root, setup: 30_000, unrecorded: 2, format: 'text' }))
       .toBe(`2 shards, as --unrecorded says: nothing is recorded there (${testCoverageFile(root)}).\n`);
   });
@@ -45,23 +65,20 @@ describe('parsing variance shards', () => {
       .toEqual({ command: 'shards', setup: 90_000, budget: 600_500, max: 8, unrecorded: 0, format: 'json' });
   });
 
-  it('has no default setup, because it is one CI pipeline and not another', () => {
-    expect(() => parseArgs(['shards'])).toThrow(/needs `--setup <seconds>`/);
+  it('takes no setup as none given, and refuses only one that is not seconds', () => {
+    expect(parseArgs(['shards'])).toEqual({ command: 'shards', format: 'text' });
     expect(() => parseArgs(['shards', '--setup', '1m'])).toThrow(/--setup is .* in seconds, not `1m`/);
   });
 
-  it('refuses a budget the setup alone takes, since no count finishes within it', () => {
-    // Every shard spends its setup before its first test, so a budget no longer
-    // than the setup is a contradiction in the flags, like a budget of 0.
-    expect(() => parseArgs(['shards', '--setup', '20', '--budget', '5'])).toThrow(
-      '--budget is what one shard may take, setup included, and no shard finishes in 5 s when each spends 20 s on setup before its first test',
-    );
-    expect(() => parseArgs(['shards', '--setup', '20', '--budget', '20'])).toThrow('no shard finishes in 20 s');
-    expect(parseArgs(['shards', '--setup', '20', '--budget', '20.5'])).toMatchObject({ setup: 20_000, budget: 20_500 });
+  it('takes a budget the setup alone takes, since the answer says why no count meets it', () => {
+    expect(parseArgs(['shards', '--setup', '20', '--budget', '5'])).toMatchObject({ setup: 20_000, budget: 5_000 });
+    expect(parseArgs(['shards', '--setup', '20', '--budget', '20'])).toMatchObject({ setup: 20_000, budget: 20_000 });
+    expect(parseArgs(['shards', '--setup', '20', '--budget', '0'])).toMatchObject({ setup: 20_000, budget: 0 });
+    expect(() => parseArgs(['shards', '--setup', '20', '--budget', 'five'])).toThrow(/--budget is .* in seconds, not `five`/);
   });
 
-  it('counts a change only against the files the runner collects', () => {
-    expect(() => parseArgs(['shards', '--setup', '1', '--since', 'origin/main'])).toThrow(/--since` needs `--collected <file>`/);
+  it('counts a change with or without the files the runner collects', () => {
+    expect(parseArgs(['shards', '--setup', '1', '--since', 'origin/main'])).toMatchObject({ since: 'origin/main' });
     expect(parseArgs(['shards', '--setup', '1', '--since', 'origin/main', '--collected', 'files.txt']))
       .toMatchObject({ since: 'origin/main', collected: 'files.txt' });
   });

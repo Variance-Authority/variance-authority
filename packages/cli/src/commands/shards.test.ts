@@ -27,10 +27,11 @@ describe('variance shards', () => {
     );
   });
 
-  it('is zero when the change skips every recorded file', () => {
+  it('is zero when the change skips every file the runner collects', () => {
     const answer = shardsAnswer({
       times: timed({ 'a.test.ts': 100 }),
       setup: 60_000,
+      collected: new Set(['a.test.ts']),
       skipped: { since: 'origin/main', files: new Set(['a.test.ts']) },
     });
     expect(answer).toMatchObject({ shards: 0, matrix: [], why: 'nothing to run', files: 0, skipped: 1 });
@@ -89,9 +90,59 @@ describe('variance shards', () => {
     expect(formatShards(answer, 'text')).toContain(`its slowest case ${'x'.repeat(78)}\u{1F469}\u200D\u{1F4BB}… 54 ms.`);
   });
 
-  it('refuses to guess a count when nothing is recorded', () => {
-    expect(() => shardsAnswer({ times: { recording: '/cache/coverage.va', unread: 'nothing is recorded there' }, setup: 60_000 }))
-      .toThrow('/cache/coverage.va: nothing is recorded there, so there are no times to count shards by. Pass `--unrecorded <n>`');
+  it('answers one shard when nothing is recorded, and says which flag sets the count', () => {
+    const answer = shardsAnswer({ times: { recording: '/cache/coverage.va', unread: 'nothing is recorded there' }, setup: 60_000 });
+    expect(answer).toEqual({
+      shards: 1,
+      matrix: ['1/1'],
+      by: 'unrecorded',
+      recording: '/cache/coverage.va',
+      unread: 'nothing is recorded there',
+      notes: ['`--unrecorded <n>` sets the count until the suite is recorded.'],
+    });
+  });
+
+  it('counts with no setup given, and says the count does not weigh it', () => {
+    const answer = shardsAnswer({ times: timed(even) });
+    expect(answer).toMatchObject({ shards: 30, setup: 0, why: 'slowest group' });
+    const note = '`--setup` was not given, so the count does not weigh what each shard spends before its first test.';
+    expect(answer).toMatchObject({ notes: [note] });
+    expect(formatShards(answer, 'text').split('\n')[3]).toBe(note);
+  });
+
+  it('names the setup, not a file, when the budget is no longer than the setup', () => {
+    const answer = shardsAnswer({ times: timed(even), setup: 60_000, budget: 0 });
+    expect(answer).toMatchObject({ why: 'setup over budget' });
+    expect(answer).not.toHaveProperty('slowest');
+    expect(formatShards(answer, 'text').split('\n')[2]).toBe(
+      'The 0 ms budget is out of reach: each shard spends 60.0 s of setup alone before its first test.',
+    );
+  });
+
+  it('counts a change without the runner\'s list from the record, and says what that leaves out', () => {
+    const answer = shardsAnswer({
+      times: timed({ 'a.test.ts': 100, 'b.test.ts': 200 }),
+      setup: 60_000,
+      skipped: { since: 'origin/main', files: new Set(['a.test.ts']) },
+    });
+    const note = 'Test files the record has not seen are not counted: `--collected <file>` lists them.';
+    expect(answer).toMatchObject({ shards: 1, files: 1, skipped: 1, notes: [note] });
+    expect(formatShards(answer, 'text').split('\n')[3]).toBe(note);
+  });
+
+  it('starts one shard, never none, for a change that skips every recorded file when nothing lists the rest', () => {
+    // Without the runner's list, a change that only adds tests skips every
+    // recorded file, and its new files still have to run somewhere.
+    const answer = shardsAnswer({
+      times: timed({ 'a.test.ts': 100 }),
+      setup: 60_000,
+      skipped: { since: 'origin/main', files: new Set(['a.test.ts']) },
+    });
+    expect(answer).toMatchObject({ shards: 1, matrix: ['1/1'], why: 'unlisted', files: 0, skipped: 1, wall: 60_000 });
+    expect(formatShards(answer, 'text')).toBe(
+      '1 shard: the change since origin/main skips every recorded test file, 1 in all, and one shard runs whatever it adds.\n' +
+        'Test files the record has not seen are not counted: `--collected <file>` lists them.\n',
+    );
   });
 
   it('answers the count it was given for a suite nothing has timed, and says why', () => {

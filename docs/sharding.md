@@ -73,7 +73,8 @@ placed.
 
 `variance shards` reads the same record and answers how many shards to start.
 `--setup` is what one shard spends before its first test: checkout, install and
-build, from your own CI's timings. `--workers` is how many test files one
+build, from your own CI's timings. Without it the count weighs no setup, and the
+answer says so. `--workers` is how many test files one
 shard's runner runs at once.
 
 ```bash
@@ -103,18 +104,23 @@ by more than it spends. Two things end the count:
   ```
 
 `--budget <seconds>` asks a different question: the fewest shards whose last one
-finishes within that time, setup included. `--max <n>` caps the count.
+finishes within that time, setup included. `--max <n>` caps the count. A budget
+no longer than `--setup` is out of reach at any count, since every shard spends
+its setup before its first test: the answer is the count that finishes soonest,
+and its last line names the setup as the reason.
 
 ### Start only what the change needs
 
 On a pull request, `--since <ref>` leaves out of the count the files the change
-lets the run skip, as the shards themselves leave them out. It needs
-`--collected <file>`, the runner's own list of the suite's test files, because
-the record holds only the files it has seen: a test file the change adds is
-counted from the list, priced at the median, as the shards price it. List the
+lets the run skip, as the shards themselves leave them out. Pass
+`--collected <file>` with it, the runner's own list of the suite's test files,
+because the record holds only the files it has seen: a test file the change adds
+is counted from the list, priced at the median, as the shards price it. Without
+the list, only recorded files are counted, the answer says so, and a change that
+skips every one of them still gets one shard, for whatever it adds. List the
 suite alone: with several Vitest projects, pass `--project <name>` to
 `vitest list`, or every other suite's files are counted too. A change that reaches no
-test answers `0 shards`, and the build starts none. Keep it off the
+test answers `0 shards` when the list is passed, and the build starts none. Keep it off the
 push to your mainline: that build runs the whole suite, so its shards' records
 fold into the one the next build is placed by. A selected shard's record does
 not fold with another's, so a pull request's shards record for themselves, not
@@ -163,9 +169,9 @@ jobs:
 `VARIANCE_AUTHORITY_SINCE` is set only on a pull request: set at all, even
 empty, it selects.
 
-With nothing recorded, `variance shards` refuses rather than guess: the first
-build of a suite has no times to count by. `--unrecorded <n>` names the count to
-start until there are. Without `--since`, the count reads only the files the
+With nothing recorded, `variance shards` answers one shard and says so: the
+first build of a suite has no times to count by. `--unrecorded <n>` names the
+count to start until there are. Without `--since`, the count reads only the files the
 record holds. [`shards`: how many CI jobs a suite is worth](../packages/cli/README.md#shards-how-many-ci-jobs-a-suite-is-worth)
 lists every flag and the JSON.
 

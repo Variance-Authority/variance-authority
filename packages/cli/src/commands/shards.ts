@@ -7,28 +7,28 @@
  * every shard of the run computes for itself, so the count predicted here is
  * the count those shards split by.
  *
- * Nothing recorded is not a count of one. A suite with no times has no answer
- * to give, so the command refuses unless `--unrecorded <n>` names the count the
- * operator chose for that case, and the answer says that is where it came from.
+ * The command always answers, and an answer it could not weigh fully says what
+ * it left out, in its `notes`. A suite with no times is one shard until
+ * `--unrecorded <n>` names the count the operator chose for that case, and the
+ * answer says where its count came from either way.
  */
 
 import { MATRIX_LIMIT, durationText, priced, shardCount, type ShardCountReason } from '@variance-authority/core/shard';
 import type { SuiteTimes } from '@variance-authority/sense/test-selection';
-import { OperatorError } from '../exit.js';
 import { many } from './prose-counts.js';
 
 export type ShardsFormat = 'text' | 'json';
 
 export interface ShardsInput {
   readonly times: SuiteTimes;
-  /** Milliseconds each shard spends before its first test. */
-  readonly setup: number;
+  /** Milliseconds each shard spends before its first test; absent, the count weighs none. */
+  readonly setup?: number;
   /** Milliseconds one shard may take, setup included. */
   readonly budget?: number;
   readonly max?: number;
   /** How many test files one shard's runner runs at once. */
   readonly workers?: number;
-  /** The count to answer when nothing is recorded; absent, that refuses. */
+  /** The count to answer when nothing is recorded; absent, one. */
   readonly unrecorded?: number;
   /** The recorded files the change since `since` lets the run skip. */
   readonly skipped?: { readonly since: string; readonly files: ReadonlySet<string> };
@@ -65,13 +65,19 @@ export type ShardsAnswer =
       readonly load: readonly number[];
       /** Milliseconds until the last shard finishes, setup included. */
       readonly wall: number;
-      readonly why: ShardCountReason;
+      /**
+       * `unlisted`: the change skips every recorded file and no `--collected`
+       * says what it adds, so one shard runs whatever that is.
+       */
+      readonly why: ShardCountReason | 'unlisted';
       readonly next?: { readonly wall: number };
       readonly slowest?: {
         readonly file: string;
         readonly duration: number;
         readonly cases?: readonly { readonly name: string; readonly duration: number }[];
       };
+      /** What the count could not weigh, one sentence each; absent when it weighed everything. */
+      readonly notes?: readonly string[];
     }
   | {
       readonly shards: number;
@@ -79,7 +85,13 @@ export type ShardsAnswer =
       readonly by: 'unrecorded';
       readonly recording?: string;
       readonly unread: string;
+      /** Present when no `--unrecorded` chose the count. */
+      readonly notes?: readonly string[];
     };
+
+const UNRECORDED_NOTE = '`--unrecorded <n>` sets the count until the suite is recorded.';
+const SETUP_NOTE = '`--setup` was not given, so the count does not weigh what each shard spends before its first test.';
+const UNLISTED_NOTE = 'Test files the record has not seen are not counted: `--collected <file>` lists them.';
 
 export function shardsAnswer(input: ShardsInput): ShardsAnswer {
   const { times } = input;
@@ -89,22 +101,20 @@ export function shardsAnswer(input: ShardsInput): ShardsAnswer {
       ? 'the record holds no time for any test file'
       : undefined;
   if ('unread' in times || unread !== undefined) {
-    const where = times.recording === undefined ? '' : `${times.recording}: `;
-    if (input.unrecorded === undefined) {
-      throw new OperatorError(
-        `${where}${unread}, so there are no times to count shards by. Pass \`--unrecorded <n>\` for the ` +
-          'count to answer until the suite is recorded, or record it first.',
-      );
-    }
+    const shards = input.unrecorded ?? 1;
     return {
-      shards: input.unrecorded,
-      matrix: matrixOf(input.unrecorded),
+      shards,
+      matrix: matrixOf(shards),
       by: 'unrecorded',
       ...(times.recording === undefined ? {} : { recording: times.recording }),
       unread: unread!,
+      ...(input.unrecorded === undefined ? { notes: [UNRECORDED_NOTE] } : {}),
     };
   }
 
+  const setup = input.setup ?? 0;
+  const unlisted = input.skipped !== undefined && input.collected === undefined;
+  const notes = [...(input.setup === undefined ? [SETUP_NOTE] : []), ...(unlisted ? [UNLISTED_NOTE] : [])];
   const files = [...(input.collected ?? times.times.keys())].filter((file) => !(input.skipped?.files.has(file) ?? false));
   // Priced as the shards price what they keep. With none of it timed, they
   // fall back to the runner's split, and the record's median is the guess.
@@ -113,12 +123,16 @@ export function shardsAnswer(input: ShardsInput): ShardsAnswer {
   const costs = priced(files.map((file) => ({ key: file, costs: [times.times.get(file)] }))) ?? files.map(unseen);
   const running = files.map((file, at) => [file, costs[at]!] as const);
   const untimed = files.filter((file) => !times.times.has(file)).length;
-  const count = shardCount(costs, {
-    setup: input.setup,
+  // Without the runner's list, a change that skips every recorded file may
+  // still add one, and one shard runs it.
+  const count = unlisted && files.length === 0
+    ? { shards: 1, load: [0], wall: setup, why: 'unlisted' as const }
+    : shardCount(costs, {
+    setup,
     ...(input.budget === undefined ? {} : { budget: input.budget }),
     ...(input.max === undefined ? {} : { max: input.max }),
     ...(input.workers === undefined ? {} : { workers: input.workers }),
-  });
+    });
   const slowest = running.reduce<(typeof running)[number] | undefined>(
     (best, entry) => (best === undefined || entry[1] > best[1] || (entry[1] === best[1] && entry[0] < best[0]) ? entry : best),
     undefined,
@@ -132,14 +146,14 @@ export function shardsAnswer(input: ShardsInput): ShardsAnswer {
     files: running.length,
     ...(untimed === 0 ? {} : { untimed }),
     ...(input.skipped === undefined ? {} : { skipped: input.skipped.files.size, since: input.skipped.since }),
-    setup: input.setup,
+    setup,
     ...(input.budget === undefined ? {} : { budget: input.budget }),
     ...(input.max === undefined ? {} : { max: input.max }),
     ...(input.workers === undefined ? {} : { workers: input.workers }),
     load: count.load,
     wall: count.wall,
     why: count.why,
-    ...(count.next === undefined ? {} : { next: count.next }),
+    ...('next' in count && count.next !== undefined ? { next: count.next } : {}),
     ...(count.why !== 'slowest group' || slowest === undefined
       ? {}
       : {
@@ -149,6 +163,7 @@ export function shardsAnswer(input: ShardsInput): ShardsAnswer {
             ...(input.cases === undefined || input.cases.length === 0 ? {} : { cases: input.cases }),
           },
         }),
+    ...(notes.length === 0 ? {} : { notes }),
   };
 }
 
@@ -156,13 +171,25 @@ export function formatShards(answer: ShardsAnswer, format: ShardsFormat): string
   if (format === 'json') return `${JSON.stringify(answer, null, 2)}\n`;
   if (answer.by === 'unrecorded') {
     const where = answer.recording === undefined ? '' : ` (${answer.recording})`;
-    return `${many(answer.shards, 'shard')}, as --unrecorded says: ${answer.unread}${where}.\n`;
+    return answer.notes === undefined
+      ? `${many(answer.shards, 'shard')}, as --unrecorded says: ${answer.unread}${where}.\n`
+      : `${many(answer.shards, 'shard')}: ${answer.unread}${where}. ${answer.notes.join(' ')}\n`;
+  }
+  const notes = answer.notes ?? [];
+  if (answer.why === 'unlisted') {
+    return [
+      `1 shard: the change since ${answer.since} skips every recorded test file, ${answer.skipped} in all, ` +
+        'and one shard runs whatever it adds.',
+      ...notes,
+      '',
+    ].join('\n');
   }
   if (answer.why === 'nothing to run') {
     const all = answer.files + (answer.skipped ?? 0);
-    return answer.since === undefined
-      ? '0 shards: the record holds no test file to run.\n'
-      : `0 shards: the change since ${answer.since} skips every recorded test file, ${all} in all.\n`;
+    const zero = answer.since === undefined
+      ? '0 shards: the record holds no test file to run.'
+      : `0 shards: the change since ${answer.since} skips every recorded test file, ${all} in all.`;
+    return [zero, ...notes, ''].join('\n');
   }
   const longest = Math.max(...answer.load);
   const total = answer.load.reduce((sum, load) => sum + load, 0);
@@ -177,6 +204,7 @@ export function formatShards(answer: ShardsAnswer, format: ShardsFormat): string
         : `, about ${durationText(answer.wall - answer.setup)} on ${answer.workers} workers.`),
     `From ${many(answer.files, 'test file')}, ${durationText(total)} in all, recorded at ${at}${skipped}${untimed}.`,
     reasonOf(answer),
+    ...notes,
     '',
   ].join('\n');
 }
@@ -205,11 +233,15 @@ function reasonOf(answer: Extract<ShardsAnswer, { by: 'recorded' }>): string {
         : '';
       return `More shards finish no sooner: ${file} alone takes ${durationText(duration)}${slowCases}.${unmet}`;
     }
+    case 'setup over budget':
+      return `The ${durationText(answer.budget!)} budget is out of reach: each shard spends ` +
+        `${durationText(answer.setup)} of setup alone before its first test.`;
     case 'max':
       return answer.max === undefined
         ? `The most one GitHub Actions matrix starts, ${MATRIX_LIMIT}.`
         : `The most \`--max ${answer.max}\` allows.`;
     case 'nothing to run':
+    case 'unlisted':
       return '';
   }
 }

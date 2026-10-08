@@ -31,10 +31,17 @@ shortens the wait by more than it spends, and the count stops at the slowest
 test file, which the answer names with its slowest case. `--budget` asks for
 the fewest shards that finish within it, `--workers` divides a shard's share
 among its runner's workers, and `--since` leaves out what the change lets the
-run skip, so a change that reaches no test answers `0 shards`. `--since` needs
-`--collected <file>`, the runner's list of test files, so a test file the
-record has not seen is counted, priced at the median. With nothing
-recorded it refuses unless `--unrecorded <n>` names the count to start.
+run skip, so a change that reaches no test answers `0 shards`. `--collected
+<file>`, the runner's list of test files, counts a test file the record has not
+seen, priced at the median.
+
+It always answers, and names what it could not weigh, in `notes` under
+`--format json`. Without `--setup` the count weighs no setup. A budget no
+longer than the setup is out of reach at any count, and the answer is the count
+that finishes soonest, with `why` set to `setup over budget`. `--since` without
+`--collected` counts only recorded files and never answers fewer than one
+shard. With nothing recorded it answers one shard until `--unrecorded <n>`
+names the count to start.
 
 `@variance-authority/core/shard` is the placement and the count, which
 `variance run --shard` places stories and routes by too.

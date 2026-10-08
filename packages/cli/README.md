@@ -146,7 +146,7 @@ ids are the safe default after initial setup.
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]
 variance index   [--no-git] [--wait | --follow-ups]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]
-variance shards  --setup <seconds> [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> --collected <file> [--at-distance <hops>]] [--suite <name>] [--unrecorded <n>] [--format text|json]
+variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>] [--at-distance <hops>]] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
@@ -1798,23 +1798,29 @@ More shards finish no sooner: packages/sense/src/test-selection/journey-trace.in
 
 Every shard is charged its `--setup`, and the count is the one whose wait and
 setups come to least, so a shard is added only when it shortens the wait by more
-than it spends. `--budget <seconds>` asks instead for the fewest shards whose last
-one finishes within it. Either way the count stops at the slowest test file,
+than it spends. Without `--setup` the count weighs no setup, and the answer says
+so. `--budget <seconds>` asks instead for the fewest shards whose last
+one finishes within it; a budget no longer than `--setup` is out of reach at any
+count, and the answer is the count that finishes soonest, naming the setup as
+the reason. Either way the count stops at the slowest test file,
 which no shard can finish before; the answer names it, and its slowest case when
 the run kept its cases. `--workers` is how many files one shard's runner runs at
 once.
 
 `--since <ref>` leaves out the files that change lets the run skip, as the seam
 does under `VARIANCE_AUTHORITY_SINCE`, so a change that reaches no test answers
-`0 shards`. It needs `--collected <file>`, the runner's list of the suite's test
-files, as `share --collected` reads it: the record holds only the files it has
-seen, and a file on the list it has not is priced at the median of the timed
-ones. `--at-distance <hops>` counts one leg of that selection, as `select
+`0 shards`. Pass `--collected <file>` with it, the runner's list of the suite's
+test files, as `share --collected` reads it: the record holds only the files it
+has seen, and a file on the list it has not is priced at the median of the timed
+ones. Without the list, only recorded files are counted, the answer says so in
+`notes`, and a change that skips every one of them answers `1 shard`, with `why`
+set to `unlisted`, for whatever it adds. `--at-distance <hops>` counts one leg of that selection, as `select
 --at-distance` cuts it: a near wave under `VARIANCE_AUTHORITY_AT_DISTANCE=0-2`
 is counted with `--at-distance 0-2`. Without `--since`, only the recorded files
-are counted. With nothing recorded the command refuses, rather than guess,
-unless `--unrecorded <n>` names the count to start until it is. `--format json` prints the count, a `matrix` of
-`k/n` strings, each shard's load, and why. A pull request's build can start its
+are counted. With nothing recorded the answer is `1 shard` and says so, unless
+`--unrecorded <n>` names the count to start until it is. `--format json` prints the count, a `matrix` of
+`k/n` strings, each shard's load, and why, with `notes` naming anything the
+count could not weigh. A pull request's build can start its
 matrix from it; the push to your mainline runs without `--since`, so its shards'
 records fold into the one the next build is placed by, as
 [sharding](../../docs/sharding.md#start-only-what-the-change-needs) shows:
