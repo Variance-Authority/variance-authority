@@ -68,9 +68,25 @@ describe('captureFiles', () => {
     // The one failure worth a throw. An empty list is a legitimate answer — a
     // suite that captured nothing — so a missing directory answering the same way
     // is a run that compares nothing, passes, and says so in green.
-    await expect(captureFiles(join(tmpdir(), 'variance-archive-absent'))).rejects.toThrow(
-      'cannot read capture directory',
-    );
+    const absent = join(tmpdir(), 'variance-archive-absent');
+    // The operator's to fix, and coded so: the directory is missing because the
+    // tests that write it have not run, which is a step to name, not a defect in
+    // the tool.
+    await expect(captureFiles(absent)).rejects.toMatchObject({
+      varianceOperatorError: true,
+      message:
+        `capture directory ${absent} does not exist, so there is no capture to compare. ` +
+        'Your unit tests write it through `writeCapture`: run them first, then run variance again. ' +
+        'If they have run, none of them wrote a capture to this directory.',
+    });
+  });
+
+  it('refuses a path that is not a directory as the operator\'s to fix', async () => {
+    const file = join(await directoryWith(['captures']), 'captures');
+    await expect(captureFiles(file)).rejects.toMatchObject({
+      varianceOperatorError: true,
+      message: expect.stringContaining(`cannot read capture directory ${file}: ENOTDIR`),
+    });
   });
 });
 

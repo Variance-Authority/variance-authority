@@ -2,6 +2,7 @@ import { link, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path';
 import type { CaptureArtifact } from '@variance-authority/core';
 import { fileNameFor } from '@variance-authority/core/format';
+import { operatorError } from './operator.js';
 import { captureArtifactFrom } from './shape.js';
 
 export const CAPTURE_SUFFIX = '.va-capture.json';
@@ -100,12 +101,31 @@ export async function readCapture(path: string): Promise<CaptureArtifact> {
   return captureArtifactFrom(value, path);
 }
 
+/**
+ * The capture files in `directory`, sorted.
+ *
+ * A directory that is not there is refused, not read as empty: an empty list is
+ * a suite that captured nothing, and a missing directory is a run that came
+ * before the tests that write it. That is the operator's to fix, so the refusal
+ * carries the operator marker and names the step.
+ */
 export async function captureFiles(directory: string): Promise<readonly string[]> {
   let entries: readonly string[];
   try {
     entries = await readdir(directory);
   } catch (error) {
-    throw new Error(`cannot read capture directory ${directory}`, { cause: error });
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw operatorError(
+        `capture directory ${directory} does not exist, so there is no capture to compare. ` +
+          'Your unit tests write it through `writeCapture`: run them first, then run variance again. ' +
+          'If they have run, none of them wrote a capture to this directory.',
+        { cause: error },
+      );
+    }
+    throw operatorError(
+      `cannot read capture directory ${directory}: ${(error as Error).message}`,
+      { cause: error },
+    );
   }
   return entries
     .filter((entry) => entry.endsWith(CAPTURE_SUFFIX))

@@ -53,6 +53,20 @@ describe('browserless capture archive', () => {
     });
   });
 
+  it('names the step that writes the captures when a run plans before it', async () => {
+    // `variance run` before the unit tests: the collector's plan is the first
+    // thing the CLI calls, and the CLI exits 2 with this message only when the
+    // error carries the operator marker. Without it the run reports a defect in
+    // the tool.
+    const directory = join(tmpdir(), 'variance-unit-never-captured');
+    const collector = await captureCollector({ directory })({ config: { viewport: VIEWPORT } });
+
+    await expect(collector.plan()).rejects.toMatchObject({
+      varianceOperatorError: true,
+      message: expect.stringContaining('Your unit tests write it through `writeCapture`: run them first'),
+    });
+  });
+
   it('refuses an external resource unless its immutable bytes are supplied', async () => {
     const root = mount('<img src="https://assets.example/icon.svg">');
 
