@@ -100,8 +100,6 @@ export interface DescribedPackage {
   /** How many of them the package says about itself rather than through a name. */
   readonly said: number;
   readonly description?: string;
-  /** The agent skills the package ships; absent when it ships none. */
-  readonly skills?: readonly DependencySkill[];
 }
 export interface LexiconMatches {
   readonly total: number; readonly shown: readonly ThirdPartyMatch[];

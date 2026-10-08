@@ -70,14 +70,12 @@ imports it. Ask it before you add a dependency. It reads the dependency lexicon
 `search`: it searches the same lexicon.
 
 Under a package that ships agent skills, each skill is a line: its name, the
-`SKILL.md` to read, and the description from its front matter. Read that file
+`SKILL.md` to read, and the first sentence of its description. Read that file
 before you write code against the package; nothing is installed or copied for
 you. Only `skills/<name>/SKILL.md` beside the package's `package.json` is read,
 the layout [TanStack Intent](https://tanstack.com/intent/latest) set for npm. A
 skill a package keeps elsewhere and installs with its own command, as
-Playwright does for its CLI skills, is not listed. `search` matches the words of a
-skill's name and description too, and names each skill once, under the first hit from its
-package. A lexicon written before skills were read says so
+Playwright does for its CLI skills, is not listed. `search` does not list skills. A lexicon written before skills were read says so
 in the answer; `variance index` reads them.
 
 ## `slowest-tests`

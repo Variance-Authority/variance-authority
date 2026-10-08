@@ -4,17 +4,13 @@
 "@variance-authority/cli": patch
 ---
 
-`variance ask stack` and `variance ask search`, and `docs_stack` and
-`docs_search` on the MCP server, list the agent skills an installed package
-ships. A skill is a `skills/<name>/SKILL.md` beside the package's
+`variance ask stack`, and `docs_stack` on the MCP server, list the agent
+skills an installed package ships. A skill is a `skills/<name>/SKILL.md` beside the package's
 `package.json`, the layout TanStack Intent set for npm. Each is listed under
-its package with its name, the file to read and the description from its front
-matter. Nothing is installed or copied: your agent reads the file from
+its package with its name, the file to read and the first sentence of the
+description in its front matter. Nothing is installed or copied: your agent reads the file from
 `node_modules`, at the version you installed. A `SKILL.md` deeper inside a
 package is not listed.
-
-`search` also finds a package by the words of its skills' names and
-descriptions, and names each skill once, under the first hit from its package.
 
 The dependency lexicon moves to version 9 and records each package's skills.
 A lexicon written before this release still answers, and `stack` says that

@@ -179,7 +179,7 @@ pub(super) fn api(root: &Path, importer: &Path, specifier: &str, resolver: &Reso
         };
         let readme = readme(root, &runtime);
         let skills = skills(root, &runtime, &declarations);
-        let purpose = purpose(root, &runtime, &declarations, None, skills.as_deref());
+        let purpose = purpose(root, &runtime, &declarations, None);
         return (Api { runtime, declarations, entrypoint: None, names: None, sources: None, unavailable: Some(reason), readme, purpose, skills }, false);
     };
     let entrypoint = relative(root, declaration.path());
@@ -189,7 +189,7 @@ pub(super) fn api(root: &Path, importer: &Path, specifier: &str, resolver: &Reso
         // Nor is it: the words a package says about itself are read again, so a README edit reaches the next refresh.
         // Nor are its skills: a `SKILL.md` is read again on every refresh.
         let skills = skills(root, &runtime, &declarations);
-        let purpose = purpose(root, &runtime, &declarations, prior.names.as_deref(), skills.as_deref());
+        let purpose = purpose(root, &runtime, &declarations, prior.names.as_deref());
         return (Api { readme, purpose, skills, ..prior.clone() }, true);
     }
     let mut reader = Reader { root, package: declaration.package_json().map(|manifest| manifest.path().to_owned()), resolver, cache: HashMap::new(), stack: HashSet::new(), sources: BTreeSet::new() };
@@ -203,6 +203,6 @@ pub(super) fn api(root: &Path, importer: &Path, specifier: &str, resolver: &Reso
     let unavailable = names.is_empty().then(|| format!("the declarations for `{specifier}` publish no names this reader can enumerate"));
     let readme = unavailable.is_some().then(|| readme(root, &runtime)).flatten();
     let skills = skills(root, &runtime, &declarations);
-    let purpose = purpose(root, &runtime, &declarations, Some(&names), skills.as_deref());
+    let purpose = purpose(root, &runtime, &declarations, Some(&names));
     (Api { runtime, declarations, entrypoint: Some(entrypoint), names: Some(names), sources: Some(sources), unavailable, readme, purpose, skills }, false)
 }

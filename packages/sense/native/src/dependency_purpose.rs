@@ -13,7 +13,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use super::{Identity, Name, Skill};
+use super::{Identity, Name};
 
 /// Headings kept per package: the first ones say what it is; a long tail is a table of contents.
 const HEADINGS: usize = 24;
@@ -91,8 +91,8 @@ fn headings(text: &str) -> Vec<String> {
     kept
 }
 
-/// The words the runtime package (or, failing that, its declarations) publishes about itself, its skills' among them.
-pub(super) fn purpose(root: &Path, runtime: &Option<Identity>, declarations: &Option<Identity>, names: Option<&[Name]>, skills: Option<&[Skill]>) -> Option<Purpose> {
+/// The words the runtime package (or, failing that, its declarations) publishes about itself.
+pub(super) fn purpose(root: &Path, runtime: &Option<Identity>, declarations: &Option<Identity>, names: Option<&[Name]>) -> Option<Purpose> {
     let identity = runtime.as_ref().or(declarations.as_ref())?;
     let manifest = root.join(&identity.manifest);
     let value: serde_json::Value = serde_json::from_slice(&fs::read(&manifest).ok()?).ok()?;
@@ -105,10 +105,6 @@ pub(super) fn purpose(root: &Path, runtime: &Option<Identity>, declarations: &Op
         .and_then(|path| fs::read_to_string(path).ok()).map(|text| headings(&text)).unwrap_or_default();
     let mut said = stems(&identity.name);
     for text in description.iter().chain(&keywords).chain(&headings) { said.extend(stems(text)); }
-    for skill in skills.unwrap_or(&[]) {
-        said.extend(stems(&skill.name));
-        if let Some(text) = skill.description.as_deref() { said.extend(stems(text)); }
-    }
     let mut named = Vec::new();
     for name in names.unwrap_or(&[]) {
         named.extend(stems(&name.name));
@@ -117,6 +113,5 @@ pub(super) fn purpose(root: &Path, runtime: &Option<Identity>, declarations: &Op
     let mut named = sorted(named);
     named.truncate(NAMED);
     let found = Purpose { description, keywords, headings, said: sorted(said), named };
-    (found.description.is_some() || !found.keywords.is_empty() || !found.headings.is_empty() || !found.named.is_empty()
-        || skills.is_some_and(|skills| !skills.is_empty())).then_some(found)
+    (found.description.is_some() || !found.keywords.is_empty() || !found.headings.is_empty() || !found.named.is_empty()).then_some(found)
 }

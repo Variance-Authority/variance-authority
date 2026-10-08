@@ -13,8 +13,8 @@ import { stack } from './stack.js';
 /**
  * A package that ships agent skills under `skills/<name>/SKILL.md` has them
  * named where the package is: `stack` lists each skill under its package with
- * the file to read, and `search` reaches the package by the words of a skill's
- * description. Nothing is installed or copied; the agent reads the file.
+ * the file to read and the first sentence of what it is for. Nothing is
+ * installed or copied; the agent reads the file.
  */
 
 const before = process.env['VARIANCE_AUTHORITY_CACHE'];
@@ -58,7 +58,7 @@ async function workspace(): Promise<string> {
   return root;
 }
 
-it('lists the skills a package ships under the package, each with the file to read and what its front matter says', async () => {
+it('lists the skills a package ships under the package, each with the file to read and the first sentence of its description', async () => {
   const root = await workspace();
   const answer = stack.run(readHelp(root), { from: 'src/index.ts' }, { root });
   expect(answer).toContain('1 package ships agent skills, each listed under its package with its SKILL.md.');
@@ -66,8 +66,8 @@ it('lists the skills a package ships under the package, each with the file to re
   const at = kit.findIndex((row) => row.startsWith('  env-kit@1.0.0'));
   expect(kit.slice(at + 1, at + 4)).toEqual([
     '    skill encrypted: node_modules/env-kit/skills/encrypted/SKILL.md — Encrypt the secrets a .env file holds.',
-    '    skill env-loading: node_modules/env-kit/skills/env-loading/SKILL.md — Load variables from a .env file. Use when configuring an app.',
-    '    skill nameless: node_modules/env-kit/skills/nameless/SKILL.md — no description in its front matter',
+    '    skill env-loading: node_modules/env-kit/skills/env-loading/SKILL.md — Load variables from a .env file.',
+    '    skill nameless: node_modules/env-kit/skills/nameless/SKILL.md — no description',
   ]);
   expect(answer).not.toContain('skills/empty');
   expect(answer).not.toContain('lib/tools/skills/deep');
@@ -75,14 +75,11 @@ it('lists the skills a package ships under the package, each with the file to re
   expect(answer.split('\n').filter((row) => row.startsWith('    skill '))).toHaveLength(3);
 });
 
-it('reaches a package by the words of its skills, and names each skill once, under its first hit', async () => {
+it('leaves skills out of search: their words reach no package and no skill is printed', async () => {
   const root = await workspace();
   const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'encrypt secrets' }, treeOf([], root), root);
-  expect(said).toContain('2 packages describe `encrypt secrets`');
-  expect(said).toContain('env-kit @1.0.0 · dependency in package.json · imported 1×');
-  expect(said).toContain('    skill encrypted: node_modules/env-kit/skills/encrypted/SKILL.md — Encrypt the secrets a .env file holds.');
-  expect(said).not.toContain('plain-kit');
-  expect(said.split('\n').filter((row) => row.startsWith('    skill encrypted: '))).toHaveLength(1);
+  expect(said).not.toContain('env-kit');
+  expect(said).not.toContain('SKILL.md');
 });
 
 it('reads a skill again when its SKILL.md is edited, though nothing else in the package moved', async () => {

@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::Serialize;
 
 use super::purposes::stems;
-use super::{Api, Availability, Skill};
+use super::{Api, Availability};
 
 /// A package that says it does what was asked.
 #[derive(Serialize)]
@@ -37,9 +37,6 @@ pub(super) struct Described {
     said: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
-    /// The agent skills the package ships, each with its `SKILL.md`.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    skills: Vec<Skill>,
 }
 
 /// The question's distinct stems, each with the word it was written as.
@@ -67,7 +64,7 @@ pub(super) fn described<'a>(query: &str, rows: impl Iterator<Item = (&'a Availab
             version: api.runtime.as_ref().or(api.declarations.as_ref()).map(|identity| identity.version.clone()),
             declared_as: row.declared_as.clone(), imports: row.imports, site: row.site.clone(), imported: row.imported == Some(true),
             words: held.iter().map(|stem| asked[*stem].clone()).collect(), said: said.len() as u32,
-            description: purpose.description.clone(), skills: api.skills.clone().unwrap_or_default(),
+            description: purpose.description.clone(),
         };
         let key = (row.package.clone(), row.specifier.clone());
         let better = best.get(&key).is_none_or(|prior| (hit.words.len(), hit.imported) > (prior.words.len(), prior.imported));

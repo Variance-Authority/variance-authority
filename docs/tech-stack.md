@@ -33,7 +33,7 @@ Rows 1–2.
 
 Imported here:
   dotenv@17.4.2 · runtime · dependency in package.json · imported 1× (first src/env.ts:1)
-    skill dotenv: node_modules/dotenv/skills/dotenv/SKILL.md — Load environment variables from a .env file into process.env for Node.js applications. Use when configuring apps with secrets, setting up local development environments, managing API keys and datab...
+    skill dotenv: node_modules/dotenv/skills/dotenv/SKILL.md — Load environment variables from a .env file into process.env for Node.js applications.
     skill dotenvx: node_modules/dotenv/skills/dotenvx/SKILL.md — Use dotenvx to run commands with environment variables, manage multiple .env files, expand variables, and encrypt env files for safe commits and CI/CD.
 
 Declared, not imported here:
@@ -55,17 +55,15 @@ dependency.
 `variance ask search --query "<words>"` searches your own code first. After it,
 a separate section lists the installed packages whose own words describe the
 query: the `description` and `keywords` in their `package.json`, the headings
-of their README, the names and descriptions of the skills they ship, and the
-words inside their exported names. Words are matched by stem, so `encrypt`
+of their README, and the words inside their exported names. Words are matched by stem, so `encrypt`
 finds `encrypted`. A package is listed when it has at least half of the query's
 words, best first.
 
 ```text
-dotenv @17.4.2 · dependency in package.json · imported 1× (first src/env.ts:1) — Loads environment variables from .env file [holds: encrypt, env, files]
-    skill dotenvx: node_modules/dotenv/skills/dotenvx/SKILL.md — Use dotenvx to run commands with environment variables, manage multiple .env files, expand variables, and encrypt env files for safe commits and CI/CD.
+dotenv @17.4.2 · dependency in package.json · imported 1× (first src/env.ts:1) — Loads environment variables from .env file [holds: env, files]
 ```
 
-That is the answer to `--query "encrypt env files"`, shortened to one skill. The
+That is the first line of the answer to `--query "env files"`. The
 words in brackets are the ones the package has. Pass `--from` with a path and the
 third-party section keeps only the packages the workspaces around that path can
 import. There is no model and no synonym list: a package that never writes your
@@ -89,10 +87,11 @@ Some packages ship agent skills inside the npm package, in
 [TanStack Intent](https://tanstack.com/intent/latest) set for npm, so a skill
 is versioned with the code it describes.
 
-Variance lists those skills under their package in `stack` and in `search`.
-Each line gives the skill's name, the file, and the description from its front
-matter. Your agent reads the file it needs, from `node_modules`, at the
-installed version. Nothing is copied into your agent's configuration and no
+`stack` lists those skills under their package, one line each: the skill's
+name, the file, and the first sentence of the description in its front matter,
+which is what an agent needs to decide whether to open it. The rest stays in
+the file until your agent reads it, from `node_modules`, at the installed
+version. `search` does not list skills or match their words. Nothing is copied into your agent's configuration and no
 skill is installed: the list is rebuilt from what is in `node_modules` each time
 `variance index` runs, so a skill leaves with the package version that shipped
 it.
