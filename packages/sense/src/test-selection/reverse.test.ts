@@ -101,6 +101,10 @@ describe('coveringTests', () => {
     expect(coveringTests(index, { file: 'src/cart/total.ts', line: 20 })).toEqual([]);
     expect(coveringTests(index, { file: 'src/cart/total.ts', function: 'missing' })).toEqual([]);
   });
+
+  it.each([0, -1, 1.5])('names no case for line %s, which is no line of a file', (line) => {
+    expect(coveringTests(index, { file: 'src/cart/total.ts', line })).toEqual([]);
+  });
 });
 
 describe('coveringTestsInFile', () => {

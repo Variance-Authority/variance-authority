@@ -214,7 +214,7 @@ export function rowsOf(coverage: TestCoverageView): RegionRows {
 /**
  * Add to `found` the rows among `first` to `end` a change to `line` charges, by
  * the rule {@link blocksAround} states. False, with only regions without source
- * added, when no region with source holds the line.
+ * added, when no region with source holds the line. `line` counts from one.
  */
 export function chargeLine(rows: RegionRows, first: number, end: number, line: number, found: Set<number>): boolean {
   // Every region with source the line is in, narrowest first. Regions that
@@ -223,10 +223,9 @@ export function chargeLine(rows: RegionRows, first: number, end: number, line: n
   // the narrower ends and neither is inside the other.
   const around: number[] = [];
   for (let block = first; block < end; block += 1) {
+    // A region the transform wrote without an origin holds `NO_LINE` at both
+    // ends, so no line of a file is in it and it never stands for one.
     const from = rows.start(block);
-    // A region the transform wrote without an origin is on no line, so no
-    // line is in it and it never stands for one.
-    if (from === NO_LINE) continue;
     const to = Math.max(from, rows.end(block));
     if (from > line || to < line) continue;
     if (rows.source(block)) around.push(block);
