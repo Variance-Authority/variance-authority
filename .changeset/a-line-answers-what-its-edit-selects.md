@@ -17,4 +17,6 @@ the recording places on that line. A line inside a branch answers with the
 branch alone. `coveringTests`, `coveringTestsInFile` and `testsReaching` answer
 the same way, and so do the import hops of `covering --hops` and
 `--at-distance`. `testsReaching` asked by a branch path still names only the
-tests that took the branch.
+tests that took the branch, and it now refuses a `line` given with a
+`function`, as `variance covering` already did: the two address a region two
+ways.

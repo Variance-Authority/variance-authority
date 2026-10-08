@@ -205,5 +205,7 @@ describe('asking one place in the source who goes there', () => {
   it('refuses a point that addresses a region two ways', () => {
     expect(() => testsReachingFromView(view(), { file: 'src/decide.ts', line: 4, branch: 'if#0/then' }))
       .toThrow(/one/);
+    expect(() => testsReachingFromView(view(), { file: 'src/decide.ts', line: 4, function: 'decide' }))
+      .toThrow(/one/);
   });
 });

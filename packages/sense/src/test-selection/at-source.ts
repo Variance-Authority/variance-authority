@@ -77,9 +77,9 @@ import { NO_LINE } from './written-lines.js';
  * Where to ask.
  *
  * `file` alone is the whole module: every region it holds, and therefore every
- * test that entered any of it. The other three narrow it, and at most one of
- * `line` and `branch` may be given — they address a region two different ways
- * and a caller that means both means neither.
+ * test that entered any of it. The other three narrow it, and `line` is given
+ * alone: beside `branch` or `function` it addresses a region two different
+ * ways, and a caller that means both means neither.
  *
  * `function` is a declaration name path as the journal writes it —
  * `Cart/render`, `applyTier/reduce.arg0` — and matches the region of that
@@ -182,6 +182,9 @@ export function testsReachingFromView(
 ): SourceAudience {
   if (point.line !== undefined && point.branch !== undefined) {
     throw new Error('`line` and `branch` address a region two ways; give one');
+  }
+  if (point.line !== undefined && point.function !== undefined) {
+    throw new Error('`line` and `function` address a region two ways; give one');
   }
   if (point.line !== undefined && (!Number.isInteger(point.line) || point.line < 1)) {
     throw new Error('`line` must be a positive integer');
@@ -308,7 +311,7 @@ function resolve(
   // A line is answered with the regions an edit to it would select.
   const found = new Set<number>();
   if (!chargeLine(rowsOf(coverage), first, end, point.line, found)) return [];
-  return [...found].filter((block) => point.function === undefined || nameOf(block) === point.function);
+  return [...found];
 }
 
 /** The structural path the walker opens a declaration's own region under. */
