@@ -14,10 +14,13 @@ runs in the leg of the shortest import path it ran to a changed file it
 loaded. One with no such path, such as a file whose every case skipped and
 that loaded nothing changed, runs only in the open leg, the one with no upper
 bound. A test new since the recording is named nowhere, so it runs in every
-leg. The execution narrowing names the incomplete tests as `incomplete`.
-stderr counts the tests the change entered at each hop count and the
-incomplete tests the leg runs by their path, and names how many selected files
-the leg left and the command that runs them. `--format json` gives the leg as
-`leg`, those files as `left`, and each entered or placed test's hops, bearing
-and, where none was measured, the reason as `distances`. A leg over a journey
-file is refused, because a journey file records no imports to count hops by.
+leg. The execution narrowing names the incomplete tests as `incomplete`. A
+test the change entered by no import it executed has no hop count, and runs in
+the one leg that holds the furthest hop measured, or in the open leg when
+nothing was measured. stderr counts the tests the change entered at each hop
+count, names the leg that runs those with none, counts the incomplete tests the
+leg runs by their path, and names how many selected files the leg left and the
+command that runs them. `--format json` gives the leg as `leg`, those files as
+`left`, and each entered or placed test's hops, bearing and, where none was
+measured, the reason as `distances`. A leg over a journey file is refused,
+because a journey file records no imports to count hops by.

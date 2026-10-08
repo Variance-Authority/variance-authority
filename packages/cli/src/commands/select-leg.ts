@@ -18,10 +18,10 @@
  * ## Where an unplaced test runs
  *
  * The *open leg* is the one with no upper bound, such as `3-`. The *end leg* is
- * the open leg, or a closed leg reaching the furthest hop the reading measured:
- * `0-2` is an end leg when something is placed and nothing past 2; with nothing
- * placed, only the open leg is. An entered test with no hop count runs in the
- * end leg, as `atDistance` carries it.
+ * the one leg that holds the furthest hop the reading measured: `0-2` is the
+ * end leg when something is placed and nothing past 2, and `3-` then is not.
+ * With nothing placed, the open leg is the end leg. An entered test with no hop
+ * count runs in the end leg, as `atDistance` carries it.
  *
  * A test the record holds incomplete, such as a file a partial run demoted, or
  * one whose every case skipped, may call the change from a case the record did
@@ -30,10 +30,10 @@
  * changed file it loaded (`distanceFromView` names which changed files count),
  * and it runs in the leg those hops fall in. With no hop count it is unplaced,
  * and runs in the open leg only: it is on the skip list of every closed leg. A
- * placed one counts toward the furthest hop, so it decides which closed leg is
- * an end leg. A test new since the recording is named nowhere, so it is in no
- * skip list and runs in every leg. That is the safe side of a skip list: it
- * costs a file run twice, never a file run zero times.
+ * placed one counts toward the furthest hop, so it decides which leg is the end
+ * leg. A test new since the recording is named nowhere, so it is in no skip
+ * list and runs in every leg. That is the safe side of a skip list: it costs a
+ * file run twice, never a file run zero times.
  *
  * ## The reading a leg was cut from is said with it
  *
@@ -44,7 +44,7 @@
  * the one a reader expects in the near leg and finds in the end leg.
  */
 
-import { groupByDistance, remaining, type TestDistance } from '@variance-authority/sense/test-selection';
+import { atDistance, groupByDistance, remaining, type TestDistance } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { many } from './prose-counts.js';
 import type { SelectInput, TestSelection } from './select.js';
@@ -105,7 +105,10 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
   const unseen = leg.to === Number.MAX_SAFE_INTEGER ? [] : partial.filter((test) => !placedPartial.has(test));
   const outside = [...cut, ...unseen].sort(codeUnitOrder);
   const skip = [...new Set([...selection.skip, ...outside])].sort(codeUnitOrder);
-  const nearer = cut.filter((test) => (placed.get(test)?.hops ?? Number.MAX_SAFE_INTEGER) < leg.from);
+  // A test the leg left is nearer when the leg before it runs it: a placed one
+  // by its hops, an unplaced one when that leg is the end leg.
+  const before = new Set(leg.from === 0 ? [] : atDistance(measured, 0, leg.from - 1));
+  const nearer = cut.filter((test) => before.has(test));
   const further = cut.length - nearer.length;
   const whole = selection.recorded?.whole ?? 0;
 
@@ -122,7 +125,7 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
       `covered no changed line, and ${outside.length} ${outside.length === 1 ? 'is' : 'are'} outside \`--at-distance ${range}\`; ` +
       'every other test file runs',
     notes: [
-      ...byDistance(reading),
+      ...byDistance(reading, measured),
       ...placedNote(placedHere),
       ...leftNote(further, 'for a later leg', `${leg.to + 1}-`),
       ...unseenNote(unseen.length, `${leg.to + 1}-`),
@@ -132,12 +135,29 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
   };
 }
 
-/** How many entered tests sit at each distance, nearest first, the unplaced last. */
-function byDistance(reading: readonly TestDistance[]): readonly string[] {
+/**
+ * How many entered tests sit at each distance, nearest first, the unplaced last.
+ *
+ * `measured` is the reading the leg was cut from, which also holds the
+ * incomplete tests placed by their hops: one of those can hold the furthest
+ * hop, and so decide the end leg.
+ */
+function byDistance(reading: readonly TestDistance[], measured: readonly TestDistance[]): readonly string[] {
   if (reading.length === 0) return [];
-  const counts = groupByDistance(reading).map((group) =>
+  const groups = groupByDistance(reading);
+  // `atDistance` owns where the unplaced run: ask it which measured hop's leg
+  // returns one, and when none does, they run in the open leg.
+  const unplaced = groups.find((group) => group.unplaced)?.tests[0];
+  const carrier =
+    unplaced === undefined
+      ? undefined
+      : groupByDistance(measured).find(
+          (group) => group.hops !== undefined && atDistance(measured, group.hops, group.hops).includes(unplaced),
+        )?.hops;
+  const runs = carrier === undefined ? 'in the open leg' : `in the leg that holds ${many(carrier, 'hop')}, the furthest measured`;
+  const counts = groups.map((group) =>
     group.unplaced
-      ? `${group.tests.length} at no measured distance, which ${group.tests.length === 1 ? 'runs' : 'run'} in the end leg`
+      ? `${group.tests.length} at no measured distance, which ${group.tests.length === 1 ? 'runs' : 'run'} ${runs}`
       : `${group.tests.length} at ${many(group.hops ?? 0, 'hop')}`,
   );
   const listed = counts.length === 1 ? counts[0] : `${counts.slice(0, -1).join(', ')}, and ${counts.at(-1)}`;
