@@ -10,7 +10,7 @@ import { browserSetupSource, caseRunnerSource, setupSource } from './worker-sour
 import { foldRun } from './selection-fold.js';
 import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
 import { removeSeamModules, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
-import { recordFileFor } from './record-location.js';
+import { recordFileFor, recordsAlone } from './record-location.js';
 import { selectionReporter } from './vitest-reporter.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
@@ -151,7 +151,7 @@ export function withTestSelection(
   const suite = options.suite === undefined ? {} : { suite: options.suite };
   const selection = options.selection ?? selectionFrom(process.env, { root, from: configRoot, ...suite });
   const settle = foldRun(run, { coverageFile, shims: [setupId, runnerId] });
-  const reporter = selectionReporter(run, settle, selection !== undefined);
+  const reporter = selectionReporter(run, settle);
   const reporters = config.test?.reporters === undefined ? ['default'] : array(config.test.reporters);
 
   // A configuration that names projects describes the run rather than a suite:
@@ -170,7 +170,7 @@ export function withTestSelection(
         name: 'variance-authority:test-selection-config',
         configResolved: declareConfig(run, declared, [setupId, runnerId]),
       } satisfies ConfigPlugin],
-      test: { ...config.test, ...selecting(config, root, configRoot, options, coverageFile, selection), reporters: [...reporters, reporter] },
+      test: { ...config.test, ...selecting(config, root, configRoot, options, coverageFile, selection, run), reporters: [...reporters, reporter] },
     };
   }
 
@@ -184,7 +184,7 @@ export function withTestSelection(
     plugins: [...array(config.plugins), plugin],
     test: {
       ...config.test,
-      ...selecting(config, root, configRoot, options, coverageFile, selection),
+      ...selecting(config, root, configRoot, options, coverageFile, selection, run),
       // First, so what a setup file of the project's loads is logged into the
       // file's own bucket: before the shim opens it, a probe in a realm that
       // already ran a file writes into the idle one, and under a runner of the
@@ -232,6 +232,7 @@ function selecting(
   options: TestSelectionOptions,
   coverageFile: string,
   selection: (() => Promise<SuiteSelection>) | undefined,
+  run: SelectionRun,
 ): Pick<NonNullable<UserConfig['test']>, 'sequence'> {
   const suite = options.suite === undefined ? {} : { suite: options.suite };
   const sequence = config.test?.sequence;
@@ -241,6 +242,7 @@ function selecting(
   const times = timesFrom({ root, from: configRoot, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) });
   const sequencer = selectingSequencer(own, {
     root, configRoot, ...(selection === undefined ? {} : { selection }), times, shuffle: sequence?.shuffle,
+    sharded: (asked) => { run.alone = recordsAlone(asked, selection !== undefined); },
   });
   type Sequence = NonNullable<NonNullable<UserConfig['test']>['sequence']>;
   return { sequence: { ...sequence, sequencer: sequencer as unknown as NonNullable<Sequence['sequencer']> } };

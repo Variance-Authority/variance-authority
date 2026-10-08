@@ -127,8 +127,8 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
    * suite's times through the cli leaves there. The record is at the path a
    * run of this repository's `unit` suite lands in, a suite given to the share.
    */
-  async function shard(k: number, selected: boolean) {
-    const cache = resolve(directory, `alone-${k}-${String(selected)}`);
+  async function shard(k: number, selected: boolean, flags: readonly string[] = []) {
+    const cache = resolve(directory, `alone-${k}-${String(selected)}-${flags.join('')}`);
     const commit = 'a'.repeat(40);
     const fetched = resolve(mainlineReadRoot(cache, 'unit'), commit, 'coverage.bin');
     await mkdir(dirname(fetched), { recursive: true });
@@ -147,7 +147,7 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
     const coverageFile = testCoverageFile(repository, { cacheRoot: cache, suite: 'unit' });
     // A selection the run of this test was handed is not the fixture's.
     const { VARIANCE_AUTHORITY_SINCE: _since, VARIANCE_AUTHORITY_AT_DISTANCE: _distance, ...inherited } = process.env;
-    await execute(process.execPath, [vitest, 'run', '--config', 'vitest.config.ts', '--shard', `${k}/2`], {
+    await execute(process.execPath, [vitest, 'run', '--config', 'vitest.config.ts', '--shard', `${k}/2`, ...flags], {
       cwd: fixture,
       env: {
         ...inherited,
@@ -168,6 +168,14 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
 
     expect([...first.ran, ...second.ran].sort()).toEqual([at('dom/dom.case.ts'), at('unit/unit.case.ts')]);
     expect(first.ran).toHaveLength(1);
+    expect(first.layer?.pinned).toBeUndefined();
+  }, 30_000);
+
+  it('records alone when a command-line `--reporter` replaces the seam\'s reporter', async () => {
+    const first = await shard(1, false, ['--reporter', 'dot']);
+    const second = await shard(2, false, ['--reporter', 'dot']);
+
+    expect([...first.ran, ...second.ran].sort()).toEqual([at('dom/dom.case.ts'), at('unit/unit.case.ts')]);
     expect(first.layer?.pinned).toBeUndefined();
   }, 30_000);
 

@@ -72,6 +72,12 @@ export interface SelectingOptions {
   readonly selection?: () => Promise<SuiteSelection>;
   /** The suite's recorded times, read once, and only by a run under `--shard`. */
   readonly times?: () => Promise<SuiteTimes>;
+  /**
+   * Told, as each sequencer is made, whether the run asked for `--shard`, as
+   * the runner resolved it: the sequencer is made under any reporter, and a
+   * command-line `--reporter` replaces the seam's.
+   */
+  readonly sharded?: (asked: boolean) => void;
   /** Where the count goes; stderr unless a test says otherwise. */
   readonly say?: (line: string) => void;
   /**
@@ -102,6 +108,7 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
 
     constructor(ctx: SequencerContext) {
       this.#ctx = ctx;
+      options.sharded?.(shardAsked(ctx.config.shard) !== undefined);
     }
 
     async shard<T extends Spec>(files: T[]): Promise<T[]> {

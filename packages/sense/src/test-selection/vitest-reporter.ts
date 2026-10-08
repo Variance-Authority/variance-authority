@@ -17,16 +17,10 @@ import {
 import { reportedCases, taskCases } from './case-durations.js';
 import { noteRunner, projectConfig, type RunnerContext } from './governing-config.js';
 import { reopenRun, type SelectionRun } from './selection-run.js';
-import { recordsAlone } from './record-location.js';
 
-/**
- * `selected` is whether the run drops what a selection skips. A shard of a
- * run that selects nothing records alone; see `recordsAlone`.
- */
 export function selectionReporter(
   run: SelectionRun,
   settle: (files: readonly FinishedFile[]) => Promise<void>,
-  selected: boolean,
 ): Reporter {
   // Vitest 2 announces the end of a run as `onFinished(files)`, where a file is
   // a runner task. Vitest 3 replaced that with `onTestRunEnd(testModules)` over
@@ -52,7 +46,6 @@ export function selectionReporter(
       runner = context;
       byName = noteRunner(run, context);
       run.watching = context.config?.watch === true;
-      run.alone = recordsAlone(context.config?.shard !== undefined, selected);
     },
     onWatcherRerun: () => reopenRun(run),
     onTestRunStart: () => reopenRun(run),
