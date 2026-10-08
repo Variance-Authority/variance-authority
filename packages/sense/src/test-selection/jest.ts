@@ -27,10 +27,11 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
+import { placingSequencer } from './jest-placing.js';
 import { selectingFilter } from './jest-selection.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
-import { selectionFrom } from './selection-environment.js';
+import { selectionFrom, timesFrom } from './selection-environment.js';
 import type { SuiteSelection } from './suite-selection.js';
 
 export interface JestTestSelectionOptions {
@@ -288,12 +289,15 @@ export function withTestSelection(
   };
   const suite = options.suite === undefined ? {} : { suite: options.suite };
   const selection = options.selection ?? selectionFrom(process.env, { root, from: rootDir, ...suite });
+  // A record named by file is the one this run lands in, so a shard's times are read there.
+  const times = timesFrom({ root, from: rootDir, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) });
 
   return {
     ...(projects === undefined ? instrumented(config, root, rootDir, mode, declared) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     ...(selection === undefined ? {} : selectingFilter(config, { root, rootDir, selection })),
+    ...placingSequencer(config, { root, rootDir, times }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
   };
 }
