@@ -65,6 +65,8 @@ export interface ThirdPartyMatch {
   readonly kind: string; readonly package: string; readonly version?: string;
   /** The manifest this hit is offered under. */
   readonly manifest: string;
+  /** The installed package's own manifest: which copy of it answered. */
+  readonly installed?: string;
   /** How that manifest declares the package; absent when it only imports it. */
   readonly declaredAs?: 'dependency' | 'optional' | 'peer' | 'dev';
   /** Written imports of the specifier under that manifest; absent when no source index was read. */
@@ -78,6 +80,8 @@ export interface ThirdPartyMatch {
 /** A package the workspace resolves that publishes no names to match, and the README it ships instead. */
 export interface SilentPackage {
   readonly package: string; readonly specifier: string; readonly version?: string;
+  /** The installed package's own manifest: which copy of it is silent. */
+  readonly installed?: string;
   readonly reason: string; readonly readme?: DependencyReadme; readonly imported: boolean;
 }
 /** What a question searched: the manifests it read and how many distinct packages they offered. */

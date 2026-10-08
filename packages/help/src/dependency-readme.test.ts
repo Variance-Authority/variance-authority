@@ -13,14 +13,12 @@ let root = '';
 
 beforeAll(async () => {
   process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-readme-cache-'));
-  root = mkdtempSync(join(tmpdir(), 'va-readme-fixture-'));
-  execFileSync('git', ['init', '--quiet', root]);
   const untyped = (name: string, readme?: string) => ({
     [`node_modules/${name}/package.json`]: JSON.stringify({ name, version: '2.0.0', main: 'index.js' }),
     [`node_modules/${name}/index.js`]: 'module.exports = { spin() {} };\n',
     ...(readme === undefined ? {} : { [`node_modules/${name}/README.md`]: readme }),
   });
-  for (const [path, value] of Object.entries({
+  root = await build(mkdtempSync(join(tmpdir(), 'va-readme-fixture-')), {
     'package.json': JSON.stringify({ name: 'fixture', dependencies: { 'bare-kit': '2.0.0', 'door-kit': '3.0.0', 'mute-kit': '2.0.0', 'note-kit': '2.0.0' } }),
     'src/page.ts': "import { spin } from 'bare-kit';\nimport { hush } from 'mute-kit';\nexport const page = [spin, hush];\n",
     'src/boot.ts': "import { wake } from 'door-kit';\nwake();\n",
@@ -39,24 +37,30 @@ beforeAll(async () => {
     ...untyped('bare-kit', '# bare-kit\n\nSmall helpers.\n\nCall `spin` to turn the wheel once.\nIt returns nothing.\n'),
     ...untyped('mute-kit'),
     ...untyped('note-kit', '# note-kit\n\nRun it once `wake` has returned.\n'),
-  })) {
-    mkdirSync(dirname(join(root, path)), { recursive: true });
-    writeFileSync(join(root, path), value);
-  }
-  execFileSync('git', ['add', '.'], { cwd: root });
-  await updateSourceIndex(root);
-  await refreshDependencyLexicon(root);
+  });
 });
+
+async function build(at: string, files: Record<string, string>): Promise<string> {
+  execFileSync('git', ['init', '--quiet', at]);
+  for (const [path, value] of Object.entries(files)) {
+    mkdirSync(dirname(join(at, path)), { recursive: true });
+    writeFileSync(join(at, path), value);
+  }
+  execFileSync('git', ['add', '.'], { cwd: at });
+  await updateSourceIndex(at);
+  await refreshDependencyLexicon(at);
+  return at;
+}
 
 afterAll(() => {
   if (before === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
   else process.env['VARIANCE_AUTHORITY_CACHE'] = before;
 });
 
-function ask(args: Record<string, unknown>): string {
+function ask(args: Record<string, unknown>, at = root): string {
   const tool = HELP_TOOLS.find((candidate) => candidate.name === 'docs_symbol');
   if (tool === undefined) throw new Error('no docs_symbol tool');
-  return tool.run(readHelp(root), args, { root });
+  return tool.run(readHelp(at), args, { root: at });
 }
 
 it('records the README beside an unavailable package, and none beside one that ships none', () => {
@@ -106,6 +110,28 @@ it('prints a silent package README once, under every door that falls back to it'
   expect(text).toContain('door-kit/boot · door-kit@3.0.0 — the declarations for `door-kit/boot` publish no names');
   expect(text).toContain('door-kit/boot.js · door-kit@3.0.0');
   expect(text).toContain('door-kit/cli · door-kit@3.0.0 — the project resolver found no declarations for `door-kit/cli`');
+});
+
+it('keeps the README of another installed copy of the same version, whose declarations are missing', async () => {
+  // One `door-kit@3.0.0` declares `wake`; a second copy of that version, in a
+  // sibling workspace, ships no declarations and only its README names it.
+  const twin = await build(mkdtempSync(join(tmpdir(), 'va-readme-twin-')), {
+    'package.json': JSON.stringify({ name: 'twin', workspaces: ['typed', 'legacy'] }),
+    'typed/package.json': JSON.stringify({ name: 'typed', dependencies: { 'door-kit': '3.0.0' } }),
+    'typed/boot.ts': "import { wake } from 'door-kit';\nwake();\n",
+    'typed/node_modules/door-kit/package.json': JSON.stringify({ name: 'door-kit', version: '3.0.0', types: './index.d.ts', main: './index.js' }),
+    'typed/node_modules/door-kit/index.js': 'exports.wake = () => {};\n',
+    'typed/node_modules/door-kit/index.d.ts': 'export declare function wake(): void;\n',
+    'legacy/package.json': JSON.stringify({ name: 'legacy', dependencies: { 'door-kit': '3.0.0' } }),
+    'legacy/main.js': "require('door-kit').wake();\n",
+    'legacy/node_modules/door-kit/package.json': JSON.stringify({ name: 'door-kit', version: '3.0.0', main: './index.js' }),
+    'legacy/node_modules/door-kit/index.js': 'exports.wake = () => {};\n',
+    'legacy/node_modules/door-kit/README.md': '# door-kit\n\nCall `wake` before anything else.\n',
+  });
+  const text = ask({ name: 'wake', package: 'door-kit' }, twin);
+  expect(text.startsWith('door-kit · wake [function] · door-kit@3.0.0')).toBe(true);
+  expect(text).toContain('README: legacy/node_modules/door-kit/README.md');
+  expect(text).toContain('legacy/node_modules/door-kit/README.md:3 names `wake`:');
 });
 
 it('answers a lexicon written before READMEs were recorded as it did, and says nothing about one', () => {

@@ -1,5 +1,6 @@
 ---
 "@variance-authority/help": patch
+"@variance-authority/sense": patch
 ---
 
 `variance ask symbol` answers an installed name from its declaration first. A
@@ -10,3 +11,6 @@ the `dotenv/config` and `dotenv/lib/*` entries and their README passages above
 it. A package that declares nothing still points to its README, now after any
 declared match. Its entry points are listed one per line, with the README path
 and passage printed once below them instead of once per entry point.
+Only entry points of the same installed copy are left out: a second copy of the
+same version, in another workspace, that declares nothing still points to its
+README.

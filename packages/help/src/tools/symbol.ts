@@ -71,9 +71,10 @@ export const symbol: Tool<Help> = {
       const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, 100);
       const shown = here ?? everywhere;
       // A door that declares nothing is a fallback for a package silent about
-      // the name; one whose package declares the name elsewhere has answered it.
+      // the name; one whose installed copy declares the name elsewhere has
+      // answered it. Another copy of the same version answers nothing for it.
       const answered = (one: SilentPackage): boolean =>
-        shown.shown.some((match) => match.package === one.package && match.version === one.version);
+        one.installed !== undefined && shown.shown.some((match) => match.installed === one.installed);
       const silent = silentBlocks(invocation.root, name, (shown.silent ?? []).filter((one) => !answered(one)), wanted !== undefined);
       const described = (entry: ThirdPartyMatch): string =>
         `${entry.specifier} · ${entry.name} [${entry.kind}] · ${entry.package}${entry.version === undefined ? '' : `@${entry.version}`}` +

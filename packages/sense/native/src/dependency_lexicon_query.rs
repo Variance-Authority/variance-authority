@@ -20,6 +20,9 @@ struct Match {
     package: String,
     /// The manifest that declares it, or the one it was imported under.
     manifest: String,
+    /// The installed package's own manifest: which copy of it answered.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    installed: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     declared_as: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -51,6 +54,9 @@ struct Silent {
     specifier: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     version: Option<String>,
+    /// The installed package's own manifest: which copy of it is silent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    installed: Option<String>,
     reason: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     readme: Option<Readme>,
@@ -111,6 +117,7 @@ fn matches(api: &Api, row: &super::Availability, query: &str, exact: bool) -> Ve
     }).map(|name| Match {
         source: "third-party", name: name.name.clone(), specifier: row.specifier.clone(),
         kind: name.kind.clone(), package: row.package.clone(), manifest: row.owner.clone(),
+        installed: api.runtime.as_ref().or(api.declarations.as_ref()).map(|identity| identity.manifest.clone()),
         declared_as: row.declared_as.clone(), imports: row.imports, site: row.site.clone(),
         version: api.runtime.as_ref().or(api.declarations.as_ref()).map(|identity| identity.version.clone()),
         summary: name.doc.as_deref().map(summary), imported: row.imported == Some(true),
@@ -158,6 +165,7 @@ pub fn query_dependency_lexicon(path: String, query: String, files: Option<Vec<S
                 silent.insert(key, Silent {
                     package: row.package.clone(), specifier: row.specifier.clone(),
                     version: api.runtime.as_ref().map(|identity| identity.version.clone()),
+                    installed: api.runtime.as_ref().map(|identity| identity.manifest.clone()),
                     reason: reason.clone(), readme: api.readme.clone(), imported,
                 });
             }
