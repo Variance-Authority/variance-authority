@@ -50,6 +50,16 @@ describe('parsing variance shards', () => {
     expect(() => parseArgs(['shards', '--setup', '1m'])).toThrow(/--setup is .* in seconds, not `1m`/);
   });
 
+  it('refuses a budget the setup alone takes, since no count finishes within it', () => {
+    // Every shard spends its setup before its first test, so a budget no longer
+    // than the setup is a contradiction in the flags, like a budget of 0.
+    expect(() => parseArgs(['shards', '--setup', '20', '--budget', '5'])).toThrow(
+      '--budget is what one shard may take, setup included, and no shard finishes in 5 s when each spends 20 s on setup before its first test',
+    );
+    expect(() => parseArgs(['shards', '--setup', '20', '--budget', '20'])).toThrow('no shard finishes in 20 s');
+    expect(parseArgs(['shards', '--setup', '20', '--budget', '20.5'])).toMatchObject({ setup: 20_000, budget: 20_500 });
+  });
+
   it('counts a change only against the files the runner collects', () => {
     expect(() => parseArgs(['shards', '--setup', '1', '--since', 'origin/main'])).toThrow(/--since` needs `--collected <file>`/);
     expect(parseArgs(['shards', '--setup', '1', '--since', 'origin/main', '--collected', 'files.txt']))

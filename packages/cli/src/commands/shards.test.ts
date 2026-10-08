@@ -53,18 +53,40 @@ describe('variance shards', () => {
     );
   });
 
-  it('names the file no shard can finish before, and its slowest cases', () => {
+  it('names the file no shard can finish before, and its slowest case', () => {
     const answer = shardsAnswer({
       times: timed({ 'heavy.test.ts': 100_000, 'a.test.ts': 10_000, 'b.test.ts': 10_000 }),
       setup: 0,
       budget: 60_000,
-      cases: [{ name: 'heavy > renders all', duration: 70_000 }],
+      cases: [{ name: 'heavy > renders all', duration: 70_000 }, { name: 'heavy > renders one', duration: 20_000 }],
     });
     expect(answer).toMatchObject({ shards: 2, why: 'slowest group', slowest: { file: 'heavy.test.ts', duration: 100_000 } });
     expect(formatShards(answer, 'text')).toContain(
       'More shards finish no sooner: heavy.test.ts alone takes 100.0 s, its slowest case heavy > renders all 70.0 s. ' +
         'The 60.0 s budget is out of reach until that file is split.',
     );
+  });
+
+  it('cuts a long case name in the text, and keeps the slowest cases whole in JSON', () => {
+    // A parametrised case's name carries its parameters: one from TanStack
+    // Query's ESLint rule tests runs past 300 characters.
+    const name = `rule > invalid > order is detected for ${'getNextPageParam, queryFn, '.repeat(12)}`;
+    const cases = [{ name, duration: 54 }, { name: `${name} again`, duration: 48 }];
+    const answer = shardsAnswer({ times: timed({ 'heavy.test.ts': 2_300, 'a.test.ts': 100 }), setup: 0, cases });
+    const reason = formatShards(answer, 'text').split('\n')[2]!;
+    expect(reason).toBe(`More shards finish no sooner: heavy.test.ts alone takes 2.3 s, its slowest case ${name.slice(0, 79).trimEnd()}… 54 ms.`);
+    expect(JSON.parse(formatShards(answer, 'json')).slowest.cases).toEqual(cases);
+  });
+
+  it('cuts a case name between characters, never inside one', () => {
+    // A woman technologist: three code points that read as one.
+    const name = `${'x'.repeat(78)}\u{1F469}\u200D\u{1F4BB}\u{1F469}\u200D\u{1F4BB} and more`;
+    const answer = shardsAnswer({
+      times: timed({ 'heavy.test.ts': 2_300, 'a.test.ts': 100 }),
+      setup: 0,
+      cases: [{ name, duration: 54 }],
+    });
+    expect(formatShards(answer, 'text')).toContain(`its slowest case ${'x'.repeat(78)}\u{1F469}\u200D\u{1F4BB}… 54 ms.`);
   });
 
   it('refuses to guess a count when nothing is recorded', () => {

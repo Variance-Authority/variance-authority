@@ -28,7 +28,7 @@ line says why. A failed read never fails the run. A Jest config that names no
 worth, and with `--format json` a `matrix` of `k/n` strings for a CI job to
 start. Every shard is charged its setup, so a shard is added only when it
 shortens the wait by more than it spends, and the count stops at the slowest
-test file, which the answer names with its slowest cases. `--budget` asks for
+test file, which the answer names with its slowest case. `--budget` asks for
 the fewest shards that finish within it, `--workers` divides a shard's share
 among its runner's workers, and `--since` leaves out what the change lets the
 run skip, so a change that reaches no test answers `0 shards`. `--since` needs
