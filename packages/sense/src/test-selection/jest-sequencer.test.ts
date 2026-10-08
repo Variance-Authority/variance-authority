@@ -84,6 +84,14 @@ describe('the Jest sequencer under --shard', () => {
     expect(paths(sorted)).toEqual(['d.test.ts', 'c.test.ts', 'b.test.ts', 'a.test.ts']);
   });
 
+  it('names Jest\'s own sequencer when neither it nor Jest can be found', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-jest-absent-'));
+    temporary.push(directory);
+    placingSequencer({}, { root, rootDir: directory, times, say: () => {} });
+
+    await expect(async () => sequencer().sort(files.map(test))).rejects.toThrow(/@jest\/test-sequencer/);
+  });
+
   it('wraps a configuration once', () => {
     expect(placingSequencer({ testSequencer: PLACING_SEQUENCER }, { root, rootDir, times, say: () => {} })).toEqual({});
   });

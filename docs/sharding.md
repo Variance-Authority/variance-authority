@@ -109,9 +109,11 @@ finishes within that time, setup included. `--max <n>` caps the count.
 
 On a pull request, `--since <ref>` leaves out of the count the files the change
 lets the run skip, as the shards themselves leave them out. It needs
-`--collected <file>`, the runner's own list of test files, because the record
-holds only the files it has seen: a test file the change adds is counted from
-the list, priced at the median, as the shards price it. A change that reaches no
+`--collected <file>`, the runner's own list of the suite's test files, because
+the record holds only the files it has seen: a test file the change adds is
+counted from the list, priced at the median, as the shards price it. List the
+suite alone: with several Vitest projects, pass `--project <name>` to
+`vitest list`, or every other suite's files are counted too. A change that reaches no
 test answers `0 shards`, and the build starts none. Keep it off the
 push to your mainline: that build runs the whole suite, so its shards' records
 fold into the one the next build is placed by. A selected shard's record does
@@ -163,7 +165,7 @@ empty, it selects.
 
 With nothing recorded, `variance shards` refuses rather than guess: the first
 build of a suite has no times to count by. `--unrecorded <n>` names the count to
-start until there are. Without `--collected`, the count reads only the files the
+start until there are. Without `--since`, the count reads only the files the
 record holds. [`shards`: how many CI jobs a suite is worth](../packages/cli/README.md#shards-how-many-ci-jobs-a-suite-is-worth)
 lists every flag and the JSON.
 

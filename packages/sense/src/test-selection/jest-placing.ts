@@ -57,7 +57,11 @@ function jestSequencer(rootDir: string): string {
       return require.resolve(JEST_SEQUENCER);
     } catch (error) {
       if (next === undefined) throw error;
-      from = require.resolve(next);
+      try {
+        from = require.resolve(next);
+      } catch {
+        throw error;
+      }
     }
   }
   throw new Error(`unreachable: ${JEST_SEQUENCER}`);

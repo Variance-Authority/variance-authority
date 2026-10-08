@@ -1805,10 +1805,10 @@ the run kept them. `--workers` is how many files one shard's runner runs at once
 
 `--since <ref>` leaves out the files that change lets the run skip, as the seam
 does under `VARIANCE_AUTHORITY_SINCE`, so a change that reaches no test answers
-`0 shards`. It needs `--collected <file>`, the runner's list of test files, as
-`share --collected` reads it: the record holds only the files it has seen, and a
-file on the list it has not is priced at the median, as every shard prices it.
-Without the list, only the recorded files are counted. With nothing
+`0 shards`. It needs `--collected <file>`, the runner's list of the suite's test
+files, as `share --collected` reads it: the record holds only the files it has
+seen, and a file on the list it has not is priced at the median of the timed
+ones. Without `--since`, only the recorded files are counted. With nothing
 recorded the command refuses, rather than guess, unless `--unrecorded <n>` names
 the count to start until it is. `--format json` prints the count, a `matrix` of
 `k/n` strings, each shard's load, and why. A pull request's build can start its
