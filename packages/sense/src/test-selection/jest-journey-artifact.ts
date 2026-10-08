@@ -99,6 +99,11 @@ export async function finalizeJestJourneys(journeyFile: string): Promise<Journey
   }
   const parts = [...manifest.parts ?? []];
   const modules = await deriveModules(manifest.root, ids(cases, manifest.root, parts), manifest.mode);
+  // FIXME: the native fold, and the stitch below, write no `blocks.owner`,
+  // where the JavaScript fold (`foldCaseRun`, through `keptOwners`) writes
+  // one. An index they write names no region around any: laid as a case
+  // index over one cut without a region, that region takes none of its
+  // owner's cases.
   const result = foldTo(cases, manifest.root, [...modules.values()].map(nativeModule), output, undefined, parts);
   await rm(pending, { recursive: true, force: true });
   return result;

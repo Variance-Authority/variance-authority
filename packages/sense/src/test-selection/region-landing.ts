@@ -31,6 +31,12 @@ import { addressKey, sameNumbering } from './merge-carry.js';
 // neighbour without a signal — the limit the snapshot's
 // re-cut has. The index carrying the text each module was recorded from would
 // let a reader leave such a module uncompared instead.
+//
+// FIXME: the re-lined module drops `owner`, since its kept regions are
+// renumbered and the owners would have to be too. The before layer then names
+// no region around any region of a module it re-lined, and when `layerBefore`
+// lays it over an earlier before, a region the earlier one lacks takes none
+// of its owner's cases.
 export function relined(held: SetExecutionModule, recorded: SetExecutionModule): SetExecutionModule | undefined {
   const lands = landing(recorded, held, true);
   const to = new Map<number, number>();
