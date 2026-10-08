@@ -26,7 +26,7 @@ import { carriedSources } from './carried-sources.js';
 import { caseSectionsOf, withCaseSections } from './case-record.js';
 import { layerCaseIndex } from './case-layer.js';
 import { commitRunsFile, readCommitRuns, writeCommitRuns, type CommitRuns, type StandingEntry } from './commit-runs.js';
-import { decodeSetExecutionIndex, encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
+import { decodeSetExecutionIndex, encodeOwnedSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes } from './eyes-record.js';
 import { decodeTestCoverage } from './format.js';
 import { layerTestCoverage } from './format-layer.js';
@@ -171,8 +171,11 @@ function ownSubset(own: TestCoverage, tests: ReadonlySet<string>): TestCoverage 
  * be laid on, and the record carries none.
  */
 function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array | undefined, tests: ReadonlySet<string>): Uint8Array | undefined {
-  if (own === undefined || openSetExecutionIndex(own) === undefined || tests.size === 0) return milestone;
+  const opened = own === undefined ? undefined : openSetExecutionIndex(own);
+  if (own === undefined || opened === undefined || tests.size === 0) return milestone;
   const index = decodeSetExecutionIndex(own);
+  // Each module keeps its regions in place, so the owners it recorded still hold.
+  const owners = new Map(opened.modules.flatMap((module) => (module.owner === undefined ? [] : [[module.file, module.owner] as const])));
   // Crossings name a case by its position, so the kept cases are renumbered.
   const at = new Map<number, number>();
   const cases = index.tests.filter((test, position) => {
@@ -180,7 +183,7 @@ function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array | unde
     at.set(position, at.size);
     return true;
   });
-  const fresh = encodeAsSetExecutionIndex({
+  const fresh = encodeOwnedSetExecutionIndex({
     tests: cases,
     // A module no kept case entered keeps the milestone's layout of it.
     modules: index.modules.flatMap((module) => {
@@ -193,7 +196,7 @@ function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array | unde
       }));
       return blocks.some((block) => block.crossings.length > 0) ? [{ ...module, blocks }] : [];
     }),
-  });
+  }, owners);
   return layerCaseIndex(milestone, fresh, { ran: tests, finished: tests, present: () => true }).merged;
 }
 

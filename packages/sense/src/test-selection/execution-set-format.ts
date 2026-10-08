@@ -1,4 +1,4 @@
-import { blob, column, sections } from './format-layout.js';
+import { blob, column, NO_OWNER, sections } from './format-layout.js';
 import { type CrossingSetsView } from './crossing-sets-read.js';
 import { CrossingSets, type CrossingSetsPool } from './crossing-sets.js';
 import { codeUnitOrder, intern } from '@variance-authority/core/segment';
@@ -10,7 +10,6 @@ import {
   fail,
   LOADED_SETS_FORMAT,
   members,
-  NO_OWNER,
   sectionsOf,
   setColumns,
   stoppedColumn,
@@ -102,6 +101,9 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
     if (module.called.length !== module.blocks.length || module.loaded.length !== module.blocks.length ||
       (module.owner !== undefined && module.owner.length !== module.blocks.length)) {
       throw new Error('journey set columns do not match the region inventory');
+    }
+    if (module.owner?.some((owner, at) => owner !== NO_OWNER && owner >= at) === true) {
+      throw new Error(`${module.file} names a region around one that does not come before it`);
     }
     blockOwner?.set(module.owner ?? new Uint32Array(module.blocks.length).fill(NO_OWNER), block);
     moduleFile[moduleAt] = id(module.file);
@@ -224,7 +226,6 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
         ...(module.loaded[at] === 1 ? { loaded: true as const } : {}),
         crossings: Array.from(members(sets, module.called[at]!, tests.length), (test) => ({ test, distance: 0 })),
       })),
-      ...(module.owner === undefined ? {} : { owner: module.owner }),
     })),
   };
 }
@@ -241,6 +242,17 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
  * with one is refused rather than flattened.
  */
 export function encodeAsSetExecutionIndex(index: ExecutionIndex): Buffer {
+  return encodeOwnedSetExecutionIndex(index, new Map());
+}
+
+/**
+ * {@link encodeAsSetExecutionIndex}, with the region around each region of the
+ * modules `owners` names by file, as positions among that module's blocks. An
+ * `ExecutionIndex` is a plain object a foreign producer writes and a reshaper
+ * spreads, and a position does not survive either, so the owners travel beside
+ * it from the cut that recorded them.
+ */
+export function encodeOwnedSetExecutionIndex(index: ExecutionIndex, owners: ReadonlyMap<string, Uint32Array>): Buffer {
   const sets = new CrossingSets(index.tests.length);
   sets.intern([]);
   const modules = index.modules.map((module): SetExecutionModule => {
@@ -259,7 +271,8 @@ export function encodeAsSetExecutionIndex(index: ExecutionIndex): Buffer {
       called[at] = sets.intern(cases);
       return block;
     });
-    return { file: module.file, blocks, called, loaded, ...(module.owner === undefined ? {} : { owner: module.owner }) };
+    const owner = owners.get(module.file);
+    return { file: module.file, blocks, called, loaded, ...(owner === undefined ? {} : { owner }) };
   });
   return encodeSetExecutionIndex({ tests: index.tests, modules, sets: sets.pool() });
 }

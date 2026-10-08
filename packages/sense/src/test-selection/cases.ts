@@ -120,7 +120,7 @@ import type { ModuleId } from '../instrument/index.js';
 import journalFormat from './journal-format.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { NO_OWNER } from './execution-set-columns.js';
+import { NO_OWNER } from './format-layout.js';
 import { heldAround } from './region-around.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
 import { heardAcross, heardOf, type Said } from './case-precondition-column.js';
@@ -368,10 +368,17 @@ export function executionIndexFrom(
             .sort((left, right) => left - right)
             .map((test): ExecutionCrossing => ({ test, distance: 0 })),
         })),
-        owner: keptOwners(module.blocks),
       }))
       .sort((left, right) => codeUnitOrder(left.file, right.file)),
   };
+}
+
+/**
+ * The owners of the regions {@link executionIndexFrom} keeps, by file: what
+ * `encodeOwnedSetExecutionIndex` writes beside the index it builds.
+ */
+export function ownersOf(modules: ReadonlyMap<ModuleId, CapturedModule>): ReadonlyMap<string, Uint32Array> {
+  return new Map([...modules.values()].map((module) => [module.file, keptOwners(module.blocks)]));
 }
 
 /**

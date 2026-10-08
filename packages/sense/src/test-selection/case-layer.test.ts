@@ -5,7 +5,7 @@ import { caseMotion } from './case-motion.js';
 import { coverageChange } from './coverage-count.js';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
-import { NO_OWNER } from './execution-set-columns.js';
+import { NO_OWNER } from './format-layout.js';
 import { encodeSetExecutionIndex, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 
 /** A region, the cases that called it by id, and whether it ran at load. */

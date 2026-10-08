@@ -1,5 +1,4 @@
 import { affectedBy, type Relations } from '@variance-authority/core/relate';
-import { codeUnitOrder } from '@variance-authority/core/segment';
 import { blocksChargedAt } from './blocks-around.js';
 import { shadowedFor, type ShadowedFor } from './shadowed.js';
 import { outside, sameCases, stoppedIn } from './stopped.js';
@@ -79,8 +78,6 @@ export interface ExecutionBlock {
 export interface ExecutionModule {
   readonly file: string;
   readonly blocks: readonly ExecutionBlock[];
-  /** The region around each, by its place in `blocks` or `NO_OWNER`; absent where none was recorded. */
-  readonly owner?: Uint32Array;
 }
 
 /** Runner-independent execution data supplied by a collector or editor integration. */
@@ -337,6 +334,10 @@ function invalidDistance(): Error {
 
 function invalidTest(test: number): Error {
   return new Error(`invalid execution index: test ${test} does not exist`);
+}
+
+function codeUnitOrder(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 /**

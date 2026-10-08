@@ -1,14 +1,11 @@
 import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.js';
-import { durationWord, NO_DURATION, validSections, type Header, type Section } from './format-layout.js';
+import { durationWord, NO_DURATION, NO_OWNER, validSections, type Header, type Section } from './format-layout.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import { PRECONDITIONS_COLUMN, UNHEARD } from './case-precondition-column.js';
 import type { ExecutionTest } from './reverse.js';
 
 /** The version that recorded the set of cases that loaded each region, read as the flag its set implies. */
 export const LOADED_SETS_FORMAT = 2;
-
-/** A region's owner where the cut names no region around it: the outermost, or one whose owner was not kept. */
-export const NO_OWNER = 0xFFFF_FFFF;
 
 /**
  * A set-spelled index as the columns it is stored in, every id still an id.

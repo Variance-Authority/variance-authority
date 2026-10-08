@@ -19,6 +19,8 @@ import {
 import { readTestCoverage, selectTestFiles } from './index.js';
 import { coveringChange, coveringTests, ranWhileLoading, type ExecutionIndex } from './reverse.js';
 import { decodeExecutionIndex } from './execution-format.js';
+import { openSetExecutionIndex } from './execution-set-format.js';
+import { NO_OWNER } from './format-layout.js';
 import { caseIndexOf } from './case-record.js';
 import preconditions from './case-preconditions.cjs';
 import {
@@ -77,6 +79,11 @@ describe('a driver that can tell its cases apart', () => {
       const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
       expect(named(index, PREMIUM_LINE)).toEqual(['charges twice above ten']);
       expect(named(index, PLAIN_LINE)).toEqual(['charges the amount below it']);
+      // Each branch names the region around it, so a later run that cuts a
+      // region this one never held hands it that region's cases.
+      const [price] = openSetExecutionIndex((await caseIndexOf(coverageFile))!).modules;
+      const around = (line: number) => price!.owner?.[price!.blocks.findLastIndex((block) => block.startLine <= line && line <= block.endLine)] ?? NO_OWNER;
+      expect([around(PREMIUM_LINE), around(PLAIN_LINE)].map((owner) => price!.blocks[owner]?.name)).toEqual(['price', 'price']);
       // A selection reader opens the same record and reads it as it did.
       expect((await readTestCoverage(coverageFile))?.tests.map((test) => test.file)).toEqual(['e2e/price.spec.ts']);
     });

@@ -10,7 +10,7 @@ import { layCases, lastCaseRunOf } from './case-landing.js';
 import type { CaseSections } from './case-record.js';
 import { AMBIENT, packCase, packFrames } from './cases.js';
 import { decodeExecutionIndex } from './execution-format.js';
-import { NO_OWNER } from './execution-set-columns.js';
+import { NO_OWNER } from './format-layout.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
 import eyesFrames from './eyes-frame.cjs';
 import type { CapturedModule } from './instrumented-modules.js';

@@ -15,7 +15,7 @@ record held, by the rule the rows follow.
 
 The case index records each region's owner, the region around it that the
 rows already name, in an optional `blocks.owner` column of the same format
-version, and `ExecutionModule` carries it as `owner`. Every run this version
-records writes it, a browser driver's included. A run's index written without it, a
-shard recorded by an older build or spelled as rows, names no owner: a region it
-cut that the record never held takes nothing from around it.
+version. Every case index a run of this version lays into the record writes it,
+a browser driver's included. A run's index without it, a shard recorded by an
+older build or spelled as rows, names no owner: a region it cut that the record
+never held takes nothing from around it.

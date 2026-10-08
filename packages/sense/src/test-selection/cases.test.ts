@@ -5,6 +5,7 @@ import {
   type CaseJournal,
   countCrossings,
   executionIndexFrom,
+  ownersOf,
   packCase,
   packFrames,
   settledAcross,
@@ -12,7 +13,7 @@ import {
   unpackFrames,
 } from './cases.js';
 import { layerCaseIndex } from './case-layer.js';
-import { decodeSetExecutionIndex, encodeAsSetExecutionIndex } from './execution-set-format.js';
+import { decodeSetExecutionIndex, encodeOwnedSetExecutionIndex } from './execution-set-format.js';
 import type { CapturedModule } from './instrumented-modules.js';
 import { coveringTests } from './reverse.js';
 
@@ -211,9 +212,9 @@ describe('folding case frames into an execution index', () => {
       }]]);
     const held = cut([['module', '', [1, 9]], ['function', 'decide', [2, 8], 0]]);
     const recorded = cut([['module', '', [1, 9]], ['function', 'decide', [2, 8], 0], ['branch', 'decide/then', [3, 4], 1]]);
-    const record = encodeAsSetExecutionIndex(executionIndexFrom([journal('a.test.ts', 'alpha', '1', [1])], held));
+    const record = encodeOwnedSetExecutionIndex(executionIndexFrom([journal('a.test.ts', 'alpha', '1', [1])], held), ownersOf(held));
     // The bytes a browser driver hands the record (`journal.ts`).
-    const run = encodeAsSetExecutionIndex(executionIndexFrom([journal('b.test.ts', 'beta', '2', [0])], recorded));
+    const run = encodeOwnedSetExecutionIndex(executionIndexFrom([journal('b.test.ts', 'beta', '2', [0])], recorded), ownersOf(recorded));
 
     const { merged } = layerCaseIndex(record, run, { ran: new Set(['b.test.ts']), finished: new Set(['b.test.ts']), present: () => true });
 

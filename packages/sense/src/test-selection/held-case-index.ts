@@ -1,9 +1,9 @@
 import { UNHEARD, preconditionStrings, preconditionWords } from './case-precondition-column.js';
 import type { CrossingSetsPool } from './crossing-sets.js';
-import { durationColumn, NO_OWNER, stoppedColumn, type SetColumns } from './execution-set-columns.js';
+import { durationColumn, stoppedColumn, type SetColumns } from './execution-set-columns.js';
 import { moduleAt, openSetColumns, writeSetColumns, type SetExecutionModule } from './execution-set-format.js';
 import { below, mergedDictionary } from './format-dictionary.js';
-import { NO_DURATION } from './format-layout.js';
+import { NO_DURATION, NO_OWNER } from './format-layout.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { stringBound } from './lookup.js';
 import type { ExecutionTest } from './reverse.js';

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
-import { NO_OWNER } from './execution-set-columns.js';
+import { NO_OWNER } from './format-layout.js';
 import { encodeSetExecutionIndex, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import { blob, column, sections } from './format-layout.js';
 

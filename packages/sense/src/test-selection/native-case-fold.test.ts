@@ -182,15 +182,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
       1,
     );
 
-    // FIXME: the native fold writes no `blocks.owner`, so a region born in a
-    // journey artifact it folded would take nothing from around it; no record's
-    // case index is folded natively, so it is compared without the column.
-    const unowned = (bytes: Uint8Array) => {
-      const index = decodeExecutionIndex(bytes);
-      return { ...index, modules: index.modules.map(({ owner: _owner, ...module }) => module) };
-    };
-    expect(decodeExecutionIndex(oracle.bytes).modules[0]!.owner).toBeDefined();
-    expect(unowned(answered.bytes)).toEqual(unowned(oracle.bytes));
+    expect(decodeExecutionIndex(answered.bytes)).toEqual(decodeExecutionIndex(oracle.bytes));
     expect(decodeExecutionIndex(answered.bytes).tests).toMatchObject([
       {
         id: 'test/branch.test.ts > alpha',
