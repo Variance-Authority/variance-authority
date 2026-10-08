@@ -1,3 +1,4 @@
+import { bandsBetween } from '@variance-authority/core/attribute';
 import { mergeDiagnostics, pictured, type Raster } from '@variance-authority/core/format';
 import { attributionOf } from './attribution.js';
 import { accessibilityBetween, decide } from './decide.js';
@@ -66,8 +67,6 @@ function withoutPixels(
   const accessibility = accessibilityBetween(before, after);
   const diagnostics = mergeDiagnostics(options.snapshot?.diagnostics);
   const diagnosticsField = diagnostics.length === 0 ? {} : { diagnostics };
-  const documentMoved = before.documentDigest !== after.documentDigest;
-  const document = documentMoved ? ('changed' as const) : ('unchanged' as const);
   const accessibilityField = accessibility === undefined ? {} : { accessibility };
 
   // A subject that gained or lost its pixels. Deliberately not `incomparable`:
@@ -78,6 +77,8 @@ function withoutPixels(
   // painted subject that went empty is the reverse. Calling that "cannot say"
   // would file the one finding under the one verdict nobody reviews.
   if (pictured(before) !== pictured(after)) {
+    const document =
+      before.documentDigest === after.documentDigest ? ('unchanged' as const) : ('changed' as const);
     const gained = pictured(after);
     const size = gained ? sizeOf(after) : sizeOf(before);
 
@@ -99,16 +100,20 @@ function withoutPixels(
   // Neither side was photographed. `unobservable` rather than `unchanged`: there
   // was nothing to measure, and a reader who saw `unchanged` on the pixel axis
   // would take it as evidence the images agreed.
+  const document = documentMovedUnpainted(before, after);
   const signals = { document, pixels: 'unobservable' as const, ...accessibilityField };
   const accessibilityMoved = accessibility?.verdict === 'changed';
 
-  if (!documentMoved && !accessibilityMoved) {
+  if (document === 'unchanged' && !accessibilityMoved) {
     return {
       subject,
       verdict: 'unchanged',
       because:
-        `\`${subject}\` occupies no pixels on either side, and its document, rules and ` +
-        'accessibility tree are identical',
+        before.documentDigest === after.documentDigest
+          ? `\`${subject}\` occupies no pixels on either side, and its document, rules and ` +
+            'accessibility tree are identical'
+          : `\`${subject}\` occupies no pixels on either side; its markup differs only in what ` +
+            'the component hashes leave out, and its accessibility tree is identical',
       regions: [],
       rendered,
       missingFonts,
@@ -123,9 +128,9 @@ function withoutPixels(
     verdict: 'changed',
     because:
       `\`${subject}\` occupies no pixels, and ` +
-      (documentMoved && accessibilityMoved
+      (document === 'changed' && accessibilityMoved
         ? 'both its document and its accessibility tree changed'
-        : documentMoved
+        : document === 'changed'
           ? 'its document or rules changed'
           : 'its accessibility tree changed'),
     regions: [],
@@ -135,6 +140,36 @@ function withoutPixels(
     ...attribution,
     ...diagnosticsField,
   };
+}
+
+/**
+ * Whether the document of a subject that paints nothing on either side moved.
+ *
+ * The raw digest is the render cache's key, so it covers every byte of markup:
+ * a random `className`, a `Math.random` id, a `data-testid` a harness made up.
+ * Material UI's conformance tests put all three on every mount, so its markup
+ * differs between two runs of one commit while every band the normalized layer
+ * keeps (ADR-0003) is byte-identical. Read raw, 209 of its 1235 subjects with no
+ * pixels were reported changed, each with no component that moved.
+ *
+ * So a moved digest is read through the component hashes when both sides carry
+ * them, by the same {@link bandsBetween} a sensitivity level reads: the document
+ * moved only if some component, `(unattributed)` included, moved a band or is
+ * on one side only. A component rendered once more moves its `structure`. The
+ * hashes can only clear a moved digest, never move a still one, and a side
+ * without them, or with an empty list, leaves the raw answer standing. Not
+ * `attribution.moved`: `movedBandsBetween` skips `(unattributed)`, and a change
+ * outside every component is still a change.
+ *
+ * Only here, where the document is the verdict and nothing it leaves out can
+ * reach a pixel. A painted subject is decided by its pixels, and an
+ * incomparable one carries the raw answer, which is what lets `accept --all`
+ * adopt a recipe bump only where the markup did not move at all.
+ */
+function documentMovedUnpainted(before: Raster, after: Raster): 'unchanged' | 'changed' {
+  if (before.documentDigest === after.documentDigest) return 'unchanged';
+  if (!before.components?.length || !after.components?.length) return 'changed';
+  return bandsBetween(before.components, after.components).length === 0 ? 'unchanged' : 'changed';
 }
 
 /** The side that has an image, in the device pixels every other count is in. */

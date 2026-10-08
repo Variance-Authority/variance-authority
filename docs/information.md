@@ -114,8 +114,13 @@ a report whose `notObserved` is absent entirely cannot be read as a clean run.
 
 Beside the verdict, `signals` shows what each boundary independently measured:
 `document` is `unchanged` or `changed`; `pixels` adds `unobservable` for a
-subject that occupies no pixels; `accessibility` adds `incomparable`. These are
-measurements, not decisions, and they do not override the verdict.
+subject that occupies no pixels; `accessibility` adds `incomparable`. For a
+subject that occupies no pixels on either side, `document` is read through the
+component hashes, so a random class name or id your harness puts on each mount
+does not move it; for every other subject it covers every byte of markup.
+These are measurements, not decisions, and they do not override the verdict,
+except for a subject that occupies no pixels on either side, whose verdict is
+its `document` and `accessibility`.
 
 `variance adjudicate --claims <path>` answers a second question — whether the
 change you said you were making is the change that happened — and it uses its

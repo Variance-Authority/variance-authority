@@ -99,6 +99,59 @@ describe('a subject with no pixels', () => {
     });
   });
 
+  // Material UI's conformance harness passes `randomStringValue()` as the
+  // `className` and `data-testid` of every mount, and its `useId` falls back to
+  // `Math.random`. The markup differs on every run, so the digest of it does,
+  // while every band the normalized layer keeps (ADR-0003) is byte-identical:
+  // 209 of 1235 such subjects were reported changed on two runs of one commit.
+  it('is unchanged when its document moved only in what the normalized layer drops', async () => {
+    const components = [hash('(unattributed)', 'v1:same'), hash('AlertTitle', 'v1:same')];
+
+    const result = await observeRasters(
+      'AlertTitle',
+      empty('v1:className-sxeqg8cmfuzb', components),
+      empty('v1:className-shpmkp85k6no', components),
+    );
+
+    expect(result).toMatchObject({
+      verdict: 'unchanged',
+      because:
+        '`AlertTitle` occupies no pixels on either side; its markup differs only in what the ' +
+        'component hashes leave out, and its accessibility tree is identical',
+      signals: { document: 'unchanged', pixels: 'unobservable' },
+    });
+  });
+
+  it('is changed when the nodes outside every component moved', async () => {
+    const result = await observeRasters(
+      'AlertTitle',
+      empty('v1:before', [hash('(unattributed)', 'v1:a'), hash('AlertTitle', 'v1:same')]),
+      empty('v1:after', [hash('(unattributed)', 'v1:b'), hash('AlertTitle', 'v1:same')]),
+    );
+
+    expect(result).toMatchObject({ verdict: 'changed', signals: { document: 'changed' } });
+  });
+
+  it('is changed when a component rendered on one side only', async () => {
+    const result = await observeRasters(
+      'AlertTitle',
+      empty('v1:before', [hash('AlertTitle', 'v1:same')]),
+      empty('v1:after', [hash('AlertTitle', 'v1:same'), hash('Typography', 'v1:same')]),
+    );
+
+    expect(result).toMatchObject({ verdict: 'changed', signals: { document: 'changed' } });
+  });
+
+  it.each([
+    ['the baseline carries no component hashes', undefined, [hash('AlertTitle', 'v1:same')]],
+    ['the run carries no component hashes', [hash('AlertTitle', 'v1:same')], undefined],
+    ['both sides carry an empty list of component hashes', [], []],
+  ])('is changed when its document moved and %s', async (_, before, after) => {
+    const result = await observeRasters('AlertTitle', empty('v1:before', before), empty('v1:after', after));
+
+    expect(result).toMatchObject({ verdict: 'changed', signals: { document: 'changed' } });
+  });
+
   it('is changed when only its accessibility tree moved', async () => {
     const before = empty('v1:same');
     const after: Raster = {
