@@ -119,7 +119,8 @@ Each path needs different evidence:
   [Rstest](start-rstest.md), or [a custom collector](start-custom.md). [Observe
   one state](start.md) takes a single UI state through capture, review, and
   explicit acceptance before you decide how much of the suite belongs in the
-  workflow.
+  workflow. [What visual review costs](visual-review-cost.md) argues why
+  that suite is cheaper to run and less work to keep here than as screenshots.
 - Source discovery needs only a readable TypeScript checkout.
 - Test selection and reduction need an [execution record](execution-record.md), which a
   Node runner or a [JVM test suite](jvm.md) writes.
