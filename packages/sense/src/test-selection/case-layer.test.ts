@@ -7,6 +7,7 @@ import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { NO_OWNER } from './format-layout.js';
 import { encodeSetExecutionIndex, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
+import { repinnedCases } from './milestone-repin.js';
 
 /** A region, the cases that called it by id, and whether it ran at load. */
 type Region = readonly [name: string, callers: readonly string[], loaded?: boolean, kind?: string];
@@ -449,9 +450,45 @@ describe('a module the run cut into more regions than the index holds', () => {
     });
   });
 
+  it('carries the cases of the region around a newly cut one onto it when a repin lays the checkout\'s cases over a newer milestone', () => {
+    const repinned = repinnedCases(held, fresh, new Set(['run.test.ts']));
+
+    expect(read(repinned!).regions['src/durable.ts']).toMatchObject({
+      'put/continuation/born': [observe, parity],
+      'put/continuation/born/inner': [observe, parity],
+    });
+  });
+
   it('keeps the owners the run recorded, so a landing that lays its shard\'s index again walks them too', () => {
     const { merged } = layerCaseIndex(held, fresh, { ...ran(['run.test.ts']), sameText: () => true });
 
     expect(openSetExecutionIndex(merged)!.modules[0]!.owner).toEqual(openSetExecutionIndex(fresh)!.modules[0]!.owner);
+  });
+
+  it('moves no case when a run lays one cut, another, and the first again, so a region\'s inherited cases never read as lost or thinned', () => {
+    const again = nestedAt([run], 'src/durable.ts', [
+      ['module', '', [1, 40], [run]],
+      ['function', 'put', [5, 30], [run]],
+      ['continuation', 'put/continuation', [10, 29], []],
+      ['resume', 'put/continuation/resume', [29, 29], []],
+    ]);
+    const lay = (previous: Uint8Array, cut: Uint8Array) =>
+      layerCaseIndex(previous, cut, { ...ran(['run.test.ts']), sameText: () => true }).merged;
+    const first = lay(held, again);
+    const second = lay(first, fresh);
+    const third = lay(second, again);
+    const moved = (base: Uint8Array, now: Uint8Array) =>
+      caseMotion(decodeExecutionIndex(base), decodeExecutionIndex(now), { diff: new Map() }).regions;
+
+    expect(read(second).regions['src/durable.ts']!['put/continuation/born']).toEqual([observe, parity]);
+    expect([moved(first, second), moved(second, third), moved(first, third)]).toEqual([[], [], []]);
+  });
+
+  it('keeps the owners of a module the run did not record, as the index stored them', () => {
+    const elsewhere = index([run], { 'src/elsewhere.ts': [['', [run]]] });
+    const { merged } = layerCaseIndex(held, elsewhere, ran(['run.test.ts']));
+
+    const kept = openSetExecutionIndex(merged)!.modules.find((module) => module.file === 'src/durable.ts');
+    expect(kept!.owner).toEqual(openSetExecutionIndex(held)!.modules[0]!.owner);
   });
 });

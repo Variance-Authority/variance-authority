@@ -95,7 +95,7 @@ describe('the journey set spelling', () => {
     expect(decodeExecutionIndex(bytes).tests).toEqual(timed);
   });
 
-  it('keeps the region around each region, names none in an index that recorded none, and refuses one that does not come first', () => {
+  it('keeps the region around each region, names none in an index that recorded none, and refuses one that does not come first or does not cover every region', () => {
     const module = (file: string, owner?: Uint32Array): SetExecutionModule => ({
       file,
       blocks: [{ ...shape, startLine: 1, endLine: 9 }, { ...shape, startLine: 2, endLine: 3 }],
@@ -111,6 +111,7 @@ describe('the journey set spelling', () => {
       .map((held) => held.owner)).toEqual([Uint32Array.of(NO_OWNER, 0), Uint32Array.of(NO_OWNER, NO_OWNER)]);
     expect(openSetExecutionIndex(index(module('src/m.ts')))!.modules[0]!.owner).toBeUndefined();
     expect(() => index(module('src/m.ts', Uint32Array.of(1, NO_OWNER)))).toThrow('src/m.ts names a region around one that does not come before it');
+    expect(() => index(module('src/m.ts', Uint32Array.of(NO_OWNER)))).toThrow('journey set columns do not match the region inventory');
   });
 
   it('refuses a file whose owner column names a region that does not come first, or does not cover every region', () => {

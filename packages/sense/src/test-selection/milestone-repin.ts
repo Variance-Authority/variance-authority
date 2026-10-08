@@ -170,7 +170,7 @@ function ownSubset(own: TestCoverage, tests: ReadonlySet<string>): TestCoverage 
  * record's own. Without either there is nothing this checkout's cases could
  * be laid on, and the record carries none.
  */
-function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array | undefined, tests: ReadonlySet<string>): Uint8Array | undefined {
+export function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array | undefined, tests: ReadonlySet<string>): Uint8Array | undefined {
   const opened = own === undefined ? undefined : openSetExecutionIndex(own);
   if (own === undefined || opened === undefined || tests.size === 0) return milestone;
   const index = decodeSetExecutionIndex(own);
