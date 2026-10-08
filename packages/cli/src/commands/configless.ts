@@ -110,6 +110,13 @@ export async function answerConfigless(
     // are the whole input, so a project that has never configured this tool can
     // still be handed a pair of files somebody else recorded.
     case 'distill': {
+      if (parsed.format === 'jsonl') {
+        const { distillRows } = await import('./distill.js');
+        const { rows, unrecorded } = await distillRows(parsed);
+        for (const row of rows) streams.out(`${JSON.stringify(row)}\n`);
+        if (unrecorded !== undefined) streams.err(`Not recorded: ${unrecorded.length === 1 ? 'suite' : 'suites'} ${unrecorded.join(', ')}.\n`);
+        return EXIT_CLEAN;
+      }
       const { distillFiles, formatDistill } = await import('./distill.js');
       streams.out(formatDistill(await distillFiles(parsed), parsed.format));
       return EXIT_CLEAN;

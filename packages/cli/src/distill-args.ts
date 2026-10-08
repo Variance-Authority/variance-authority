@@ -16,7 +16,8 @@ export interface ParsedDistill {
   readonly suite?: string;
   /** The checkout whose record is read; defaults to the working directory. */
   readonly root: string;
-  readonly format: 'text' | 'json';
+  /** `jsonl` writes one row a test file of a scope, and reads no case and no single file. */
+  readonly format: 'text' | 'json' | 'jsonl';
 }
 
 /** Parse the self-contained evidence reader outside the config-shaped command parser. */
@@ -29,8 +30,11 @@ export function parseDistill(flags: Flags): ParsedDistill {
     throw new OperatorError('`--from` reads every test file under a directory; `--test` and `--file` read one case or one file. Pass one scope');
   }
   const format = flags.values.get('--format') ?? 'text';
-  if (format !== 'text' && format !== 'json') {
-    throw new OperatorError(`--format must be text or json, not \`${format}\``);
+  if (format !== 'text' && format !== 'json' && format !== 'jsonl') {
+    throw new OperatorError(`--format must be text, json or jsonl, not \`${format}\``);
+  }
+  if (format === 'jsonl' && (test !== undefined || file !== undefined)) {
+    throw new OperatorError('`--format jsonl` writes one line for each test file of a scope; `--test` and `--file` read one case or one file. Pass `--format json`');
   }
   const execution = flags.values.get('--execution');
   const suite = flags.values.get('--suite');

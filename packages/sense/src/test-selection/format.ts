@@ -6,7 +6,7 @@ import type {
   TestCoverage,
 } from './index.js';
 import {
-  KINDS,
+  BLOCK_KINDS,
   MODEL,
   NO_DURATION,
   NO_OWNER,
@@ -261,7 +261,7 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
       }
       blocks.push({
         ordinal: blockOrdinal[block]!,
-        kind: KINDS[blockKind[block]!]!,
+        kind: BLOCK_KINDS[blockKind[block]!]!,
         ...(blockOwner[block] === NO_OWNER ? {} : { owner: blockOwner[block]! }),
         digest: string(blockDigest[block]!),
         name: string(blockName[block]!),

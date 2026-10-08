@@ -1,6 +1,6 @@
 import type { ExecutionIndex, TestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
-import { distillScope, formatScopeDistillation, type ScopeRecord } from './index.js';
+import { distillScope, formatScopeDistillation, scopeRows, type ScopeRecord } from './index.js';
 
 type Block = TestCoverage['modules'][number]['blocks'][number];
 
@@ -201,5 +201,26 @@ describe('distillScope', () => {
     const text = formatScopeDistillation(distillScope({ records: [record(MODULES)] }));
 
     expect(text.split('\n')[3]).toBe('  packages/ui/src/chart.ts: 1 module(s) in 3 test file(s), 300 line(s)');
+  });
+});
+
+describe('scopeRows', () => {
+  it('gives each test file what it loaded and what of that no case of it entered', () => {
+    expect([...scopeRows({ records: [record(MODULES, { suite: 'unit' })] })]).toEqual([
+      { suite: 'unit', file: A, cases: 1, loaded: { modules: 4, lines: 160 }, unentered: { modules: 2, lines: 140 } },
+      { suite: 'unit', file: B, cases: 1, loaded: { modules: 3, lines: 120 }, unentered: { modules: 1, lines: 100 } },
+      { suite: 'unit', file: C, cases: 1, loaded: { modules: 3, lines: 120 }, unentered: { modules: 1, lines: 100 } },
+    ]);
+  });
+
+  it('says why a row is withheld instead of counting what no case entered', () => {
+    const rows = [...scopeRows({ within: 'packages/app', records: [record(MODULES, { incomplete: [B] })] })];
+
+    expect(rows[1]).toEqual({ file: B, cases: 1, loaded: { modules: 3, lines: 120 }, withheld: expect.stringContaining('incomplete') });
+  });
+
+  it('refuses a directory that holds no recorded test file', () => {
+    expect(() => [...scopeRows({ within: 'packages/none', records: [record(MODULES)] })])
+      .toThrow('The record holds no test file under `packages/none`.');
   });
 });

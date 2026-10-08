@@ -279,6 +279,7 @@ a measured-empty addressed surface.
 | `distillFile(input)` | `FileDistillInput` in, `FileDistillation` out: the modules one test file loaded that no case, or only some cases, entered. Throws when no recorded test file, or more than one, contains `file`. |
 | `LoadCause` | Why a file loaded a module no case entered: the one `import` every path to it runs through, `shared` with the file where its paths part, or `unseen` by any static import. Set when `FileDistillInput.imports` gives the static imports of each file. |
 | `formatFileDistillation(result)` | The text of a file reading, as the CLI prints it for `--file` alone. |
+| `scopeRows(input)` | `ScopeDistillInput` in, one `ScopeRow` a test file out, as `variance distill --format jsonl` writes them: the file's `suite`, `cases`, what it `loaded` and its lines, and what no case of it `unentered`, or `withheld` with the reason. Throws when the scope holds no recorded test file. |
 
 `DistillInput` names the case by `test`, `file`, or both — `file` alone when
 the file holds one case — and carries the `execution` index, an optional `root`,
@@ -294,7 +295,7 @@ range. On an `EnteredModule`, `entered` and `unentered` split those regions, and
 
 `FileDistillInput` carries a part of the test file's path as `file`, the
 record's case index as `execution`, and its coverage rows as `coverage`.
-`FileDistillation` lists `LoadedModule` entries — `file`, `lines`, and
+`FileDistillation` counts what the file `loaded` and their `lines`, and lists `LoadedModule` entries — `file`, `lines`, and
 `entered`, how many of the file's cases entered the module — fewest entered
 first, then most lines, then by path. `modules` is absent, and `withheld` says
 why, when the index keeps no cases for the file, when a case stopped or did not

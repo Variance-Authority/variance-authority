@@ -66,6 +66,8 @@ export interface FileDistillation {
   readonly cases: readonly ExecutionTest[];
   /** Modules the file loaded that declare a function, other than the test file itself. */
   readonly loaded: number;
+  /** Their lines, summed; a module whose top level kept no lines counts none. */
+  readonly lines: number;
   /**
    * The loaded modules fewer than all of the cases entered: none first, then
    * fewest, then longest. Absent when the case index keeps no cases for the
@@ -106,7 +108,13 @@ export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>
   const cases = index.cases.get(file) ?? [];
   const candidates = (index.loads.get(file) ?? []).filter((module) => module.file !== file);
   const mocks = input.shadows === undefined ? [] : misplacedOf(input.shadows(file));
-  const base = { file, cases: cases.map(({ test }) => test), loaded: candidates.length, ...(mocks.length === 0 ? {} : { mocks }) };
+  const base = {
+    file,
+    cases: cases.map(({ test }) => test),
+    loaded: candidates.length,
+    lines: candidates.reduce((sum, module) => sum + (linesOf(module) ?? 0), 0),
+    ...(mocks.length === 0 ? {} : { mocks }),
+  };
   if (cases.length === 0) return { ...base, withheld: `the record keeps no cases for ${file}.` };
   if (index.incomplete.has(file)) {
     return {
@@ -160,7 +168,7 @@ export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>
   };
   const modules = candidates
     .map((module): LoadedModule => {
-      const lines = module.blocks.find((block) => block.kind === 'module')?.endLine;
+      const lines = linesOf(module);
       const count = entered.get(module.file)!;
       return {
         file: module.file,
@@ -212,6 +220,11 @@ function indexed(coverage: TestCoverage, execution: ExecutionIndex): Indexed {
   };
   byExecution.set(execution, index);
   return index;
+}
+
+/** A module's lines: where its top level ends, or absent when it kept none. */
+function linesOf(module: CoverageModule): number | undefined {
+  return module.blocks.find((block) => block.kind === 'module')?.endLine;
 }
 
 function push<T>(map: Map<string, T[]>, key: string, value: T): void {

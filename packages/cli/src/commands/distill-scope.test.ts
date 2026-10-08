@@ -174,4 +174,43 @@ describe('distill over a scope of test files', () => {
     expect(answer.code).toBe(EXIT_OPERATOR);
     expect(answer.err).toContain('--from');
   });
+
+  it('writes one JSON line for each test file of the scope with `--format jsonl`', async () => {
+    await checkout();
+
+    const answer = await run(['distill', '--format', 'jsonl']);
+
+    expect(answer.code).toBe(EXIT_CLEAN);
+    expect(answer.out.endsWith('\n')).toBe(true);
+    const row = (suite: string, file: string) =>
+      ({ suite, file, cases: 1, loaded: { modules: 2, lines: 35 }, unentered: { modules: 1, lines: 30 } });
+    expect(answer.out.trimEnd().split('\n').map((line) => JSON.parse(line))).toEqual([
+      row('e2e', E2E[0]!),
+      ...UNIT.map((file) => row('unit', file)),
+    ]);
+  });
+
+  it('names a suite that has not recorded on stderr, beside the rows of the rest', async () => {
+    await checkout({ e2e: false });
+
+    const answer = await run(['distill', '--format', 'jsonl']);
+
+    expect(answer.code).toBe(EXIT_CLEAN);
+    expect(answer.out.trimEnd().split('\n')).toHaveLength(UNIT.length);
+    expect(answer.err).toBe('Not recorded: suite e2e.\n');
+  });
+
+  it('refuses `--format jsonl` beside `--test` or `--file`, which read no scope', async () => {
+    await checkout();
+
+    const answers = [
+      await run(['distill', '--file', 'cart.test', '--format', 'jsonl']),
+      await run(['distill', '--test', 'cart.test > adds', '--format', 'jsonl']),
+    ];
+
+    for (const answer of answers) {
+      expect(answer.code).toBe(EXIT_OPERATOR);
+      expect(answer.err).toContain('`--format jsonl` writes one line for each test file of a scope');
+    }
+  });
 });

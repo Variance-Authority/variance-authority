@@ -20,7 +20,10 @@ export interface TestColumns {
   readonly testId: Uint32Array;
   readonly testFile: Uint32Array;
   readonly testName: Uint32Array;
-  /** Absent in an index written before cases said how they settled. */
+  /**
+   * How each case settled: `0` it did not say, `1` it finished, `2` it stopped.
+   * Absent in an index written before cases said how they settled.
+   */
   readonly testStopped: Uint8Array | undefined;
   /** Absent in an index written before cases carried a duration. */
   readonly testDuration: Uint32Array | undefined;
@@ -34,6 +37,11 @@ export interface StringTable {
   readonly offsets: Uint32Array;
 }
 
+/**
+ * A case index's module and region columns beside its test columns. A region's
+ * `blockCalled` names the set of cases that crossed it after its module loaded,
+ * and `sets.members` reads that set's case rows.
+ */
 export interface SetColumns extends TestColumns {
   readonly strings: StringTable;
   readonly moduleFile: Uint32Array;

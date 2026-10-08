@@ -133,6 +133,7 @@
         "readMissedMainline": "function",
         "readVantage": "function",
         "recordOf": "function",
+        "recordedExecutionFile": "function",
         "renderComment": "function",
         "rendererFor": "function",
         "run": "function",
@@ -729,6 +730,7 @@
         "ScopeDistillInput": "interface",
         "ScopeDistillation": "interface",
         "ScopeRecord": "interface",
+        "ScopeRow": "interface",
         "Spill": "interface",
         "SpillCause": "type",
         "UpdatePhase": "interface",
@@ -738,7 +740,8 @@
         "formatDistillation": "function",
         "formatFileDistillation": "function",
         "formatScopeDistillation": "function",
-        "parseExecutionIndex": "function"
+        "parseExecutionIndex": "function",
+        "scopeRows": "function"
       }
     }
   },
@@ -2702,6 +2705,7 @@
       },
       "./test-selection": {
         "AxisStep": "interface",
+        "BLOCK_KINDS": "const",
         "Bearing": "type",
         "BlockKind": "type",
         "CACHE_CONFIG": "const",
@@ -2813,6 +2817,7 @@
         "Seeded": "type",
         "SelectionCause": "interface",
         "SelectionReason": "type",
+        "SetColumns": "interface",
         "SourceAudience": "interface",
         "SourceAudienceTest": "interface",
         "SourcePoint": "interface",
@@ -2824,6 +2829,7 @@
         "StandQuestion": "type",
         "StandReading": "interface",
         "StandingEntry": "interface",
+        "StringTable": "interface",
         "StructuralLink": "type",
         "StructuralName": "interface",
         "SuiteChange": "interface",
@@ -2832,6 +2838,7 @@
         "SuiteSelection": "interface",
         "SuiteTimes": "type",
         "SuitesError": "class",
+        "TestColumns": "interface",
         "TestCoverage": "interface",
         "TestDeviation": "interface",
         "TestDistance": "interface",
@@ -2918,6 +2925,7 @@
         "nearestFirst": "function",
         "noteSeeded": "function",
         "openCoverageFile": "function",
+        "openSetColumns": "function",
         "outsideVocabulary": "function",
         "parseBefore": "function",
         "parseEntrypoints": "function",

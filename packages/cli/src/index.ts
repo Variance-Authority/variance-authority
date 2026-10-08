@@ -142,6 +142,13 @@ export type {
  * a runner outside this CLI that reads it.
  */
 export { layMainline, suiteBase } from './commands/suite-base.js';
+/**
+ * The record `distill`, `covering` and `review` read for a suite, or for a
+ * repository that declares none: the nearest that holds a run's cases, refused
+ * as `unrecorded` when no run kept any. A script reading a record through the
+ * sense readers starts here, so its numbers are the CLI's.
+ */
+export { recordedExecutionFile } from './commands/execution-input.js';
 export type { SuiteBase, SuiteBaseOptions } from './commands/suite-base.js';
 export { mainlineMissed, mainlineRead, primaryRead, readMissedMainline, writeMissedMainline } from './commands/mainline-base.js';
 export type { MainlineMissed, MainlineRecord, MissedMainline } from './commands/mainline-base.js';

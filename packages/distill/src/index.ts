@@ -179,9 +179,11 @@ export {
 export {
   distillScope,
   formatScopeDistillation,
+  scopeRows,
   type ScopeDistillInput,
   type ScopeDistillation,
   type ScopeRecord,
+  type ScopeRow,
   type Spill,
   type SpillCause,
 } from './scope.js';
