@@ -1,7 +1,9 @@
 import type { SetId } from './crossing-sets.js';
+import { enclosing } from './execution-merge.js';
 import { openSetExecutionIndex, type OpenedSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import { HeldIndex, writeLaid, type CarriedModule, type LaidModule, type LaidTest } from './held-case-index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
+import { heldAround } from './region-around.js';
 import { landing, relined, strayed } from './region-landing.js';
 import type { ExecutionTest } from './reverse.js';
 import { EMPTY, Translation } from './set-translation.js';
@@ -96,8 +98,11 @@ export interface CaseLayers {
  * carried cases land on them by address — the region's name and structural
  * path, told apart by occurrence — and kind, the rule the snapshot carries its
  * rows by. A region the text no longer has drops its carried cases rather than
- * guessing a place for them. A module this run did not record keeps the regions
- * it was recorded with, as it did before any partial run.
+ * guessing a place for them. A region the index never held takes the cases of
+ * the nearest region around it that some landed on, as a row born in a re-cut
+ * takes the crossings around it ({@link carriedFrom}). A module this run did
+ * not record keeps the regions it was recorded with, as it did before any
+ * partial run.
  *
  * The before layer is cut at the lines of the text it is named at. A held
  * module the run recorded from that text is read at the recorded lines where
@@ -141,12 +146,12 @@ export function layerCaseIndex(
     // the snapshot's, not the index's: those cases land where the numbering agrees.
     const file = recorded.file;
     const same = files.sameText?.(file) === true && before !== undefined && relined(before, recorded) !== undefined;
-    const lands = before === undefined ? undefined : landing(recorded, before, same);
+    const lands = before === undefined ? undefined : carriedFrom(recorded, landing(recorded, before, same));
     const called = new Uint32Array(recorded.blocks.length);
     const loaded = new Uint8Array(recorded.blocks.length);
     for (let block = 0; block < recorded.blocks.length; block += 1) {
       const own = fromRun(recorded.called[block]!);
-      const from = lands?.[block] ?? -1;
+      const from = lands?.(block) ?? -1;
       called[block] = from < 0 ? own : merged.union(own, fromHeld(before!.called[from]!));
       loaded[block] = recorded.loaded[block]! | (from < 0 ? 0 : before!.loaded[from]!);
     }
@@ -271,6 +276,32 @@ function moduleUnion(
   }
   for (; next < recorded.length; next += 1) union.push({ recorded: recorded[next]!.module });
   return union;
+}
+
+/**
+ * The held region each region recorded now carries its cases and load flag
+ * from: its landing, and for a region the held cut never had, the landing of
+ * the nearest region around it — the reading `crossingsAround` gives a
+ * row born in a re-cut, and for the same reason. Without it the two layers
+ * disagree: the rows say every test that stood on the enclosing region stands
+ * on the new one, and the case index says nobody does.
+ *
+ * A case index stores no owner, so the region around is read off the lines:
+ * the narrowest region before it in the cut whose lines hold its own
+ * ({@link enclosing}), which is where a stitch of several cuts lands a region
+ * only some of them hold. Owners come before the regions they own, so the walk
+ * never runs forward. Where nothing landed there is nothing to hand down, and
+ * where everything landed nothing is born, so neither walks.
+ *
+ * -1 where nothing is carried.
+ */
+function carriedFrom(recorded: SetExecutionModule, lands: Int32Array): (block: number) => number {
+  if (!lands.includes(-1) || !lands.some((from) => from >= 0)) return (block) => lands[block]!;
+  return heldAround<number, number>(
+    (block) => enclosing(recorded.blocks, recorded.blocks[block]!, block),
+    (block) => (lands[block]! >= 0 ? lands[block] : undefined),
+    -1,
+  );
 }
 
 /** The held module named `file`, as an object, when the index holds one. */

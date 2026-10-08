@@ -348,3 +348,55 @@ describe('a module the index holds at an older text than the snapshot', () => {
 function linesOf(layer: Uint8Array | undefined): number[] {
   return decodeExecutionIndex(layer!).modules[0]!.blocks.map((block) => block.startLine);
 }
+
+/** A region with its lines: kind, name, first and last line, and the cases that called it. */
+type Nested = readonly [kind: string, name: string, lines: readonly [number, number], callers: readonly string[]];
+
+/** One module cut into regions that nest by their lines, as a function's resumptions sit in its continuation. */
+function nestedAt(cases: readonly string[], file: string, regions: readonly Nested[]): Buffer {
+  const tests = cases.map((id) => ({ id, file: id.split(' > ')[0]!, name: id.split(' > ')[1]! }));
+  const sets = new CrossingSets(tests.length);
+  sets.intern([]);
+  const at = new Map(cases.map((id, position) => [id, position]));
+  const module: SetExecutionModule = {
+    file,
+    blocks: regions.map(([kind, name, [startLine, endLine]]) => ({ kind, name, path: name, startLine, endLine, source: true })),
+    called: Uint32Array.from(regions, ([, , , callers]) => sets.intern(callers.map((id) => at.get(id)!))),
+    loaded: new Uint8Array(regions.length),
+  };
+  return encodeSetExecutionIndex({ tests, modules: [module], sets: sets.pool() });
+}
+
+describe('a module the run cut into more regions than the index holds', () => {
+  const [observe, parity, run] = ['observe.test.ts > reads', 'parity.test.ts > agrees', 'run.test.ts > runs'];
+  // The index holds the cut a source build gives; the run loaded only the
+  // dist build of the same text, which cuts a resumption inside the
+  // continuation, and one inside that, the source build never cut.
+  const held = nestedAt([observe, parity, run], 'src/durable.ts', [
+    ['module', '', [1, 40], [observe, parity, run]],
+    ['function', 'put', [5, 30], [observe, parity, run]],
+    ['continuation', 'put/continuation', [10, 29], [observe, parity]],
+    ['resume', 'put/continuation/resume', [29, 29], [observe]],
+  ]);
+  const fresh = nestedAt([run], 'src/durable.ts', [
+    ['module', '', [1, 40], [run]],
+    ['function', 'put', [5, 30], [run]],
+    ['continuation', 'put/continuation', [10, 29], []],
+    ['resume', 'put/continuation/born', [12, 16], []],
+    ['resume', 'put/continuation/born/inner', [14, 15], []],
+    ['resume', 'put/continuation/resume', [29, 29], []],
+  ]);
+
+  it('carries the cases of the region around a newly cut one onto it, as the rows take crossings from the region around', () => {
+    const { merged } = layerCaseIndex(held, fresh, { ...ran(['run.test.ts']), sameText: () => true });
+
+    expect(read(merged).regions['src/durable.ts']).toEqual({
+      '': [observe, parity, run],
+      put: [observe, parity, run],
+      'put/continuation': [observe, parity],
+      'put/continuation/born': [observe, parity],
+      'put/continuation/born/inner': [observe, parity],
+      'put/continuation/resume': [observe],
+    });
+  });
+});

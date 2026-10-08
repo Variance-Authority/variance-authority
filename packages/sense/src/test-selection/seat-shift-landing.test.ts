@@ -167,9 +167,10 @@ describe('a local leg at the mainline commit, over a function written in front o
     const { coverage, cases, complete } = await landBoth(NAMED, NAMED_INSERTED);
 
     // The new region also reads the crossings of the module around it, the
-    // rule for a region no run has been asked about (`crossingsAround`).
+    // rule for a region no run has been asked about (`crossingsAround`), and
+    // its cases are the cases of that module, by the same rule.
     expect(coverage).toEqual({ 'n + 1': [ONE], 'n * 2': [TWO], 'n - 1': [ONE, THREE, TWO] });
-    expect(cases).toEqual({ 'n + 1': [caseOf(ONE)], 'n * 2': [caseOf(TWO)], 'n - 1': [caseOf(THREE)] });
+    expect(cases).toEqual({ 'n + 1': [caseOf(ONE)], 'n * 2': [caseOf(TWO)], 'n - 1': [caseOf(ONE), caseOf(THREE), caseOf(TWO)] });
     // The module's own region changed text, so the tests on it run again.
     expect(complete).toEqual([THREE]);
   });
