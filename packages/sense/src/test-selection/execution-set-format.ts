@@ -10,6 +10,7 @@ import {
   fail,
   LOADED_SETS_FORMAT,
   members,
+  NO_OWNER,
   sectionsOf,
   setColumns,
   stoppedColumn,
@@ -33,6 +34,8 @@ import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } f
  * `tests.stopped` and `tests.duration` joined version 3 without a new number:
  * each is one optional column a reader looks for by name, and a file without
  * it — the addon's journeys among them — reads as cases that said nothing.
+ * `blocks.owner` joined the same way, and a file without it names no region
+ * around any.
  */
 export const SET_EXECUTION_FORMAT = 3;
 
@@ -43,6 +46,12 @@ export interface SetExecutionModule {
   readonly called: Uint32Array;
   /** `1` where the block ran while its module evaluated, in any test file. */
   readonly loaded: Uint8Array;
+  /**
+   * Where the region around each block stands among `blocks`, always before
+   * it, or {@link NO_OWNER}: the owner a coverage row names by ordinal. Absent
+   * where the index recorded none.
+   */
+  readonly owner?: Uint32Array;
 }
 
 export interface SetExecutionIndex {
@@ -86,12 +95,15 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
   const blockSource = new Uint8Array(blockCount);
   const blockCalled = new Uint32Array(blockCount);
   const blockLoaded = new Uint8Array(blockCount);
+  const blockOwner = modules.some((module) => module.owner !== undefined) ? new Uint32Array(blockCount) : undefined;
 
   let block = 0;
   for (const [moduleAt, module] of modules.entries()) {
-    if (module.called.length !== module.blocks.length || module.loaded.length !== module.blocks.length) {
+    if (module.called.length !== module.blocks.length || module.loaded.length !== module.blocks.length ||
+      (module.owner !== undefined && module.owner.length !== module.blocks.length)) {
       throw new Error('journey set columns do not match the region inventory');
     }
+    blockOwner?.set(module.owner ?? new Uint32Array(module.blocks.length).fill(NO_OWNER), block);
     moduleFile[moduleAt] = id(module.file);
     moduleBlocks[moduleAt] = block;
     for (const [at, held] of module.blocks.entries()) {
@@ -126,10 +138,11 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
     blockSource,
     blockCalled,
     blockLoaded,
+    blockOwner,
   }, index.sets);
 }
 
-/** The columns an index is written from: every one {@link SetColumns} reads, none of them optional. */
+/** The columns an index is written from: every one {@link SetColumns} reads, none optional but the owner column. */
 export interface WrittenSetColumns extends Omit<SetColumns, 'sets' | 'testStopped' | 'testDuration' | 'testPreconditions'> {
   readonly testStopped: Uint8Array;
   readonly testDuration: Uint32Array;
@@ -160,6 +173,7 @@ export function writeSetColumns(columns: WrittenSetColumns, sets: CrossingSetsPo
     'blocks.source': column(columns.blockSource),
     'blocks.calledSet': column(columns.blockCalled),
     'blocks.loaded': column(columns.blockLoaded),
+    ...(columns.blockOwner === undefined ? {} : { 'blocks.owner': column(columns.blockOwner) }),
     'sets.blob': blob(sets.bytes, sets.offsets),
     'sets.off': column(sets.offsets),
   }, SET_EXECUTION_FORMAT);
@@ -350,6 +364,7 @@ export function moduleAt(columns: SetColumns, at: number, string: (id: number) =
     blocks,
     called: columns.blockCalled.slice(first, last),
     loaded: columns.blockLoaded.slice(first, last),
+    ...(columns.blockOwner === undefined ? {} : { owner: columns.blockOwner.slice(first, last) }),
   };
 }
 

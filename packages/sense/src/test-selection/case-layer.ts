@@ -1,5 +1,5 @@
 import type { SetId } from './crossing-sets.js';
-import { enclosing } from './execution-merge.js';
+import { NO_OWNER } from './execution-set-columns.js';
 import { openSetExecutionIndex, type OpenedSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import { HeldIndex, writeLaid, type CarriedModule, type LaidModule, type LaidTest } from './held-case-index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
@@ -146,7 +146,7 @@ export function layerCaseIndex(
     // the snapshot's, not the index's: those cases land where the numbering agrees.
     const file = recorded.file;
     const same = files.sameText?.(file) === true && before !== undefined && relined(before, recorded) !== undefined;
-    const lands = before === undefined ? undefined : carriedFrom(recorded, landing(recorded, before, same));
+    const lands = before === undefined ? undefined : carriedFrom(recorded.owner, landing(recorded, before, same));
     const called = new Uint32Array(recorded.blocks.length);
     const loaded = new Uint8Array(recorded.blocks.length);
     for (let block = 0; block < recorded.blocks.length; block += 1) {
@@ -155,7 +155,7 @@ export function layerCaseIndex(
       called[block] = from < 0 ? own : merged.union(own, fromHeld(before!.called[from]!));
       loaded[block] = recorded.loaded[block]! | (from < 0 ? 0 : before!.loaded[from]!);
     }
-    modules.push({ file, blocks: recorded.blocks, called, loaded });
+    modules.push({ file, blocks: recorded.blocks, called, loaded, ...(recorded.owner === undefined ? {} : { owner: recorded.owner }) });
   }
 
   const unlined: string[] = [];
@@ -282,26 +282,23 @@ function moduleUnion(
  * The held region each region recorded now carries its cases and load flag
  * from: its landing, and for a region the held cut never had, the landing of
  * the nearest region around it — the reading `crossingsAround` gives a
- * row born in a re-cut, and for the same reason. Without it the two layers
- * disagree: the rows say every test that stood on the enclosing region stands
- * on the new one, and the case index says nobody does.
+ * row born in a re-cut, by the same owners and the same walk. Without it the
+ * two layers disagree: the rows say every test that stood on the enclosing
+ * region stands on the new one, and the case index says nobody does.
  *
- * A case index stores no owner, so the region around is read off the lines:
- * the narrowest region with source before it in the cut whose lines hold its
- * own ({@link enclosing}), which is where a stitch of several cuts lands a
- * region only some of them hold. Owners come before the regions they own, so
- * the walk never runs forward. Where nothing landed there is nothing to hand
- * down, and where everything landed nothing is born, so neither walks.
+ * `owners` is the cut's own word for the region around each one, which no
+ * reading of lines can stand in for: a branch on the line a sibling ends sits
+ * inside the sibling's lines and is the function's. An index that recorded no
+ * owners names no region around any, and a born region there takes nothing.
+ * Where nothing landed there is nothing to hand down, and where everything
+ * landed nothing is born, so neither walks.
  *
  * -1 where nothing is carried.
  */
-function carriedFrom(recorded: SetExecutionModule, lands: Int32Array): (block: number) => number {
-  if (!lands.includes(-1) || !lands.some((from) => from >= 0)) return (block) => lands[block]!;
-  // FIXME: the lines name a region's owner only where no earlier sibling's lines also hold it — in a
-  // recorded durable.ts 27 of 119 regions, most a one-line branch on the line a sibling ends on, read
-  // the sibling. A born one there takes the sibling's cases, where its row takes the owner's crossings.
+function carriedFrom(owners: Uint32Array | undefined, lands: Int32Array): (block: number) => number {
+  if (owners === undefined || !lands.includes(-1) || !lands.some((from) => from >= 0)) return (block) => lands[block]!;
   return heldAround<number, number>(
-    (block) => enclosing(recorded.blocks, recorded.blocks[block]!, block),
+    (block) => (owners[block] === NO_OWNER ? undefined : owners[block]),
     (block) => (lands[block]! >= 0 ? lands[block] : undefined),
     -1,
   );

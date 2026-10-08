@@ -12,3 +12,9 @@ the region around it, so `variance covering` and CI's evidence comment named
 fewer cases on those lines than selection charges. The case index now gives the
 region the cases and the load flag of the nearest region around it that the
 record held, by the rule the rows follow.
+
+The case index records each region's owner, the region around it that the
+rows already name, in an optional `blocks.owner` column of the same format
+version. An index written before it reads as naming no owner: a region it
+never held, laid over it, takes nothing from around it until the next run
+writes one.

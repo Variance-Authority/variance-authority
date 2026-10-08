@@ -10,6 +10,8 @@ import { layCases, lastCaseRunOf } from './case-landing.js';
 import type { CaseSections } from './case-record.js';
 import { AMBIENT, packCase, packFrames } from './cases.js';
 import { decodeExecutionIndex } from './execution-format.js';
+import { NO_OWNER } from './execution-set-columns.js';
+import { openSetExecutionIndex } from './execution-set-format.js';
 import eyesFrames from './eyes-frame.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import type { ExecutionIndex } from './reverse.js';
@@ -117,6 +119,27 @@ describe('the bounded case fold', () => {
     });
     expect(folded.passes).toBe(1);
     expect(folded.crossings).toBe(3);
+  });
+
+  it('names each region\'s owner among the regions it keeps, past one the transform wrote', async () => {
+    const cases = await directory();
+    await writeFile(resolve(cases, 'worker.vac'), packFrames([
+      journalFormat.encodeJournal(
+        packCase('/repo/test/branch.test.ts', 'calls deep', '1'),
+        new Map([['src/branch.ts', counters(4, [0, 1, 2, 3])]]),
+      ),
+    ]));
+    const [root, , below, deepest] = captured('src/branch.ts', 'src/branch.ts', 4).blocks;
+    // A helper the transform prepended has no lines, and owns the region below it.
+    const helper = { ordinal: 1, kind: 'function', digest: 'helper', name: 'helper', path: 'helper', source: false, testFiles: [], owner: 0 };
+    const module: CapturedModule = {
+      ...captured('src/branch.ts', 'src/branch.ts', 4),
+      blocks: [root!, helper, { ...below!, owner: 1 }, { ...deepest!, owner: 2 }],
+    };
+
+    const folded = await foldCaseRun(await inspectCaseRun(cases, '/repo'), new Map([['src/branch.ts', module]]), 64);
+
+    expect(openSetExecutionIndex(folded.bytes)!.modules[0]!.owner).toEqual(Uint32Array.from([NO_OWNER, 0, 1]));
   });
 
   it('joins a case written twice, across workers and passes', async () => {

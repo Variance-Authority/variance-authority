@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
-import { encodeSetExecutionIndex } from './execution-set-format.js';
+import { NO_OWNER } from './execution-set-columns.js';
+import { encodeSetExecutionIndex, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import { blob, column, sections } from './format-layout.js';
 
 const tests = [
@@ -92,5 +93,23 @@ describe('the journey set spelling', () => {
     const bytes = encodeSetExecutionIndex({ tests: timed, modules: [], sets: new CrossingSets(2).pool() });
 
     expect(decodeExecutionIndex(bytes).tests).toEqual(timed);
+  });
+
+  it('keeps the region around each region, names none in an index that recorded none, and refuses one that does not come first', () => {
+    const module = (file: string, owner?: Uint32Array): SetExecutionModule => ({
+      file,
+      blocks: [{ ...shape, startLine: 1, endLine: 9 }, { ...shape, startLine: 2, endLine: 3 }],
+      called: Uint32Array.of(0, 0),
+      loaded: Uint8Array.of(0, 0),
+      ...(owner === undefined ? {} : { owner }),
+    });
+    const sets = new CrossingSets(tests.length);
+    sets.intern([]);
+    const index = (...modules: SetExecutionModule[]): Buffer => encodeSetExecutionIndex({ tests, modules, sets: sets.pool() });
+
+    expect(openSetExecutionIndex(index(module('src/m.ts', Uint32Array.of(NO_OWNER, 0)), module('src/n.ts')))!.modules
+      .map((held) => held.owner)).toEqual([Uint32Array.of(NO_OWNER, 0), Uint32Array.of(NO_OWNER, NO_OWNER)]);
+    expect(openSetExecutionIndex(index(module('src/m.ts')))!.modules[0]!.owner).toBeUndefined();
+    expect(() => openSetExecutionIndex(index(module('src/m.ts', Uint32Array.of(1, NO_OWNER))))).toThrow();
   });
 });

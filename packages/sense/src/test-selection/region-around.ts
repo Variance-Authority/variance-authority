@@ -5,9 +5,9 @@
  * held evidence on the regions cut now by identity, and a region the held cut
  * never had has no identity to be placed by. Both answer it with the nearest
  * region around it that something was carried onto; {@link crossingsAround}
- * says why. They differ only in how a region names the one it sits in: a row
- * by its owner's ordinal, a case index region, which stores no owner, by its
- * lines.
+ * says why. Both name that region by the owner the cut recorded: a row by its
+ * owner's ordinal, a case index region by its owner's position among the
+ * module's regions.
  */
 
 /**

@@ -10,6 +10,7 @@ import { landRun } from './commit-runs.js';
 import { coverageBlock } from './coverage-rows.js';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
+import { NO_OWNER } from './execution-set-columns.js';
 import { encodeSetExecutionIndex } from './execution-set-format.js';
 import { readTestCoverage, testCoverageFile, type CoverageModule, type TestCoverage } from './index.js';
 
@@ -91,6 +92,9 @@ function casesOf(text: string, tests: readonly string[]): Uint8Array {
       })),
       called: Uint32Array.from(regions, ({ ran }) => sets.intern(ran.map((file) => tests.indexOf(file)))),
       loaded: new Uint8Array(regions.length),
+      // Every region here is written, so its owner stands where the fold writes it: at its row's owner.
+      owner: Uint32Array.from(regions, ({ block }) =>
+        (block.owner === undefined ? NO_OWNER : regions.findIndex((region) => region.block.ordinal === block.owner))),
     }],
     sets: sets.pool(),
   });

@@ -150,14 +150,9 @@ export function reconcileRegions<Region extends Shape = Shape>(
   return { blocks, lands };
 }
 
-/**
- * The narrowest region with source among the first `end` of `shared` whose
- * lines hold `block`'s, the first of equal widths; nothing when none does.
- */
-export function enclosing(shared: readonly Shape[], block: Shape, end = shared.length): number | undefined {
+function enclosing(shared: readonly Shape[], block: Shape): number | undefined {
   let best: number | undefined;
-  for (let at = 0; at < end; at += 1) {
-    const outer = shared[at]!;
+  for (const [at, outer] of shared.entries()) {
     if (!outer.source || outer.startLine > block.startLine || block.endLine > outer.endLine) continue;
     const held = best === undefined ? undefined : shared[best]!;
     if (held === undefined || outer.endLine - outer.startLine < held.endLine - held.startLine) best = at;

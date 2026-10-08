@@ -279,9 +279,8 @@ export interface Crossings {
  *
  * The walk follows each row's owner and stops at the module root, which is
  * addressed the same way in every cut of a file and so is never itself born;
- * {@link heldAround} walks it, and walks the case index's regions to the
- * nearest region around too, finding that region by its lines, since a case
- * index stores no owner.
+ * {@link heldAround} walks it, and walks the case index's regions by the same
+ * owners, which the fold writes beside them.
  */
 export function crossingsAround(
   blocks: readonly CoverageBlock[],
