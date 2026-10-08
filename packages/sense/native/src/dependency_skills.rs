@@ -59,15 +59,18 @@ fn front(text: &str) -> (Option<String>, Option<String>) {
     (value("name"), value("description").map(|text| text.chars().take(DESCRIPTION).collect()))
 }
 
-/// The skills under `skills/` beside the runtime package's manifest (or its declarations'), by directory in code-unit order.
+/// The skills under `skills/` beside the runtime package's manifest (or its declarations'), by directory in code-unit order;
+/// a `SKILL.md` that resolves outside the package is not read.
 pub(super) fn skills(root: &Path, runtime: &Option<Identity>, declarations: &Option<Identity>) -> Option<Vec<Skill>> {
     let identity = runtime.as_ref().or(declarations.as_ref())?;
-    let directory = root.join(&identity.manifest).parent()?.join("skills");
-    let mut found: Vec<Skill> = fs::read_dir(&directory).ok()?.filter_map(Result::ok)
+    let package = root.join(&identity.manifest).parent()?.to_path_buf();
+    // A link may stay inside the package; one that leaves it reads a file the package did not ship.
+    let inside = package.canonicalize().ok()?;
+    let mut found: Vec<Skill> = fs::read_dir(package.join("skills")).ok()?.filter_map(Result::ok)
         .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir() || kind.is_symlink()))
         .filter_map(|entry| {
             let path = entry.path().join("SKILL.md");
-            if !path.is_file() { return None; }
+            if !path.canonicalize().is_ok_and(|real| real.starts_with(&inside) && real.is_file()) { return None; }
             let folder = entry.file_name().to_string_lossy().into_owned();
             let at = relative(root, &path);
             Some(match fs::read_to_string(&path) {

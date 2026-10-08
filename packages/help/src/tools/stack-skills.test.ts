@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
@@ -108,6 +108,20 @@ it('reads a SKILL.md written into a skill folder that held none', async () => {
   await refreshDependencyLexicon(root);
   const answer = stack.run(readHelp(root), { from: 'src/index.ts' }, { root });
   expect(answer).toContain('    skill filled: node_modules/env-kit/skills/empty/SKILL.md — Written after the folder was read.');
+});
+
+it('reads no SKILL.md that a link inside the package points outside it', async () => {
+  const root = await workspace();
+  mkdirSync(join(root, 'outside/folder'), { recursive: true });
+  writeFileSync(join(root, 'outside/folder/SKILL.md'), '---\nname: borrowed\ndescription: Lives outside the package.\n---\n');
+  writeFileSync(join(root, 'outside/file.md'), '---\nname: linked\ndescription: Linked from outside the package.\n---\n');
+  symlinkSync(join(root, 'outside/folder'), join(root, 'node_modules/env-kit/skills/borrowed'));
+  symlinkSync(join(root, 'outside/file.md'), join(root, 'node_modules/env-kit/skills/empty/SKILL.md'));
+  await refreshDependencyLexicon(root);
+  const answer = stack.run(readHelp(root), { from: 'src/index.ts' }, { root });
+  expect(answer).toContain('    skill encrypted: node_modules/env-kit/skills/encrypted/SKILL.md');
+  expect(answer).not.toContain('borrowed');
+  expect(answer).not.toContain('linked');
 });
 
 it('says skills were not read when the lexicon was written before they were recorded', async () => {
