@@ -24,10 +24,10 @@ on:
   # request laid on `main` and the groups queued ahead of it. With `check`
   # required on `main`, the queue merges a group only when it is green, so two
   # pull requests green on their own bases cannot break what `check` tests
-  # together through the queue. A group runs the `queue` jobs alone: lint and
-  # the repository's rules in one, and in the others, a slice or a shard each,
-  # the tests within two imports of what the group changes, `verify:near`'s
-  # wave. Every pull request in it already ran its own
+  # together through the queue. A group runs `plan` and the `queue` jobs
+  # alone: lint and the repository's rules in one, and in the others, a slice
+  # or a shard each, as many as `plan` counts the group's change is worth, the
+  # tests within two imports of what it changes, `verify:near`'s wave. Every pull request in it already ran its own
   # whole selection, and the push to `main` after it runs every file, so the
   # queue asks only whether the group's changes break each other's neighbours.
   # It publishes nothing.
@@ -987,6 +987,88 @@ jobs:
         shell: bash
         run: yarn test:unit cases && yarn test:chromium cases
 
+  # How many shards each slice's near wave is worth in this group, counted by
+  # `variance shards` from the times the mainline record holds and what the
+  # group's change selects within two imports. A fixed split paid for every
+  # shard of a slice the group barely touched, and split no further a slice a
+  # hub change selected whole. A slice that selects nothing gets no job. The
+  # count is the fewest shards whose last one finishes within `BUDGET`, setup
+  # included, because what a group costs is the wait of every pull request
+  # behind it. `SETUP` is what one `queue` job spent before its first test. A
+  # slice with no record keeps the count `suite` gives it.
+  plan:
+    if: github.event_name == 'merge_group'
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      options: --ipc=host
+    outputs:
+      legs: ${{ steps.count.outputs.legs }}
+
+    steps:
+      - name: version control and compiler
+        shell: bash
+        run: apt-get update && apt-get install -y --no-install-recommends git build-essential curl ca-certificates jq
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: rust
+        shell: bash
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: trust the workspace
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: install
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - uses: ./.github/actions/build
+
+      # Every shared slice's mainline record, the one each `queue` job lays and
+      # places its shards by.
+      - name: keep the base records
+        shell: bash
+        run: node tools/keep-base.mjs
+
+      # Each slice's files listed under its own config, so a test file the
+      # group adds is counted. Workers are the slice's from `vitest.config.mts`,
+      # and for `unit`, which sets none, Vitest's own: one fewer than the cores.
+      # `--since` is only the fallback: the record's own commit wins.
+      - id: count
+        name: count the shards
+        shell: bash
+        env:
+          BASE: ${{ github.event.merge_group.base_sha }}
+          SETUP: '100'
+          BUDGET: '240'
+        run: |
+          set -euo pipefail
+          yarn variance index
+          legs='[{"part":"rules"}]'
+          for suite in unit integration chromium; do
+            case "$suite" in unit) config=vitest.config.mts unrecorded=2 ;; integration) config=vitest.integration.config.mts unrecorded=1 ;; chromium) config=vitest.chromium.config.mts unrecorded=3 ;; esac
+            yarn vitest list --filesOnly --config "$config" > "$RUNNER_TEMP/collected-$suite.txt"
+            workers=$(SUITE="$suite" node --input-type=module -e "const { availableParallelism } = await import('node:os'); const { SLICES } = await import('./vitest.config.mts'); console.log(SLICES[process.env.SUITE].workers ?? Math.max(1, availableParallelism() - 1))")
+            answer=$(node packages/cli/dist/bin.js shards --suite "$suite" --setup "$SETUP" --budget "$BUDGET" --workers "$workers" --unrecorded "$unrecorded" \
+              --since "$BASE" --collected "$RUNNER_TEMP/collected-$suite.txt" --at-distance 0-2 --format json)
+            echo "$answer" | jq -r --arg suite "$suite" '"\($suite): \(.shards) shard(s), \(if .by == "recorded" then "\(.files) file(s) selected, \(.skipped // 0) skipped, last done in \(.wall / 1000 | round) s, \(.why)" else "unrecorded: \(.unread)" end)"' | tee -a "$GITHUB_STEP_SUMMARY"
+            legs=$(jq -c --arg suite "$suite" --argjson answer "$answer" \
+              '. + (if $answer.shards == 1 then [{part: $suite}] else [$answer.matrix[] | {part: $suite, shard: .}] end)' <<<"$legs")
+          done
+          echo "legs=$legs" >> "$GITHUB_OUTPUT"
+
   queue:
     # A merge group's gate, and the only harness a group runs: lint and the
     # repository's rules in one job, and the tests within two imports of what
@@ -1002,27 +1084,20 @@ jobs:
     # whole and says why. In the Playwright image, for the reason written at
     # `suite`: the near wave includes chromium files.
     #
-    # Sharded as `suite` is, and for its reason: the near wave of the three
-    # slices in one job took twelve and a half minutes when the mainline record
-    # was a week old and it selected every file. The selection drops what it
-    # skips before Vitest cuts the shard, so the shards split what runs, and a
-    # shard left with nothing passes and says `selected none`. A group records
-    # nothing, so no shard's record is folded and the same split serves.
+    # Sharded as `plan` counts: the near wave of the three slices in one job took
+    # twelve and a half minutes when the mainline record was a week old and it
+    # selected every file. The selection drops what it skips before Vitest cuts
+    # the shard, so the shards split what runs, by the record `plan` counted
+    # from. A group records nothing, so no shard's record is folded.
     #
     # Not `fail-fast`, for the reason written at `suite`.
+    needs: plan
     if: github.event_name == 'merge_group'
     name: queue (${{ matrix.part }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }})
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { part: rules }
-          - { part: unit, shard: 1/2 }
-          - { part: unit, shard: 2/2 }
-          - { part: integration }
-          - { part: chromium, shard: 1/3 }
-          - { part: chromium, shard: 2/3 }
-          - { part: chromium, shard: 3/3 }
+        include: ${{ fromJSON(needs.plan.outputs.legs) }}
     runs-on: ubuntu-24.04
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
@@ -1092,7 +1167,7 @@ jobs:
           VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
 
   # The one check a branch rule names, and the one line that combines the
-  # harnesses its event runs: `queue` for a merge group, and `rules`, `measure`,
+  # harnesses its event runs: `plan` and `queue` for a merge group, and `rules`, `measure`,
   # `base`, `suite` and `record` for everything else. `needs` alone would skip this job when one of them failed,
   # and a skipped job counts as passing to a branch rule — so it runs
   # `always()` and turns every harness's result into its own colour. Anything
@@ -1100,7 +1175,7 @@ jobs:
   # not finish said nothing about the change. The jobs the event does not run
   # are skipped on purpose and are not read.
   check:
-    needs: [rules, measure, base, suite, record, queue]
+    needs: [rules, measure, base, suite, record, plan, queue]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     steps:
@@ -1112,7 +1187,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$EVENT" = merge_group ]; then
-            gate='["queue"]'
+            gate='["plan","queue"]'
           else
             gate='["rules","measure","base","suite","record"]'
           fi

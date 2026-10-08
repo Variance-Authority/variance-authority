@@ -248,19 +248,8 @@ export async function answerConfigless(
     // splits by, in a repository that may configure this tool for nothing else.
     case 'shards': {
       const { shardsOutput } = await import('./shards-command.js');
-      const { suite, since, collected, setup, budget, max, workers, unrecorded, format } = parsed;
-      streams.out(await shardsOutput({
-        cwd: process.cwd(),
-        setup,
-        format,
-        ...(suite === undefined ? {} : { suite }),
-        ...(since === undefined ? {} : { since }),
-        ...(collected === undefined ? {} : { collected }),
-        ...(budget === undefined ? {} : { budget }),
-        ...(max === undefined ? {} : { max }),
-        ...(workers === undefined ? {} : { workers }),
-        ...(unrecorded === undefined ? {} : { unrecorded }),
-      }));
+      const { command: _shards, ...asked } = parsed;
+      streams.out(await shardsOutput({ cwd: process.cwd(), ...asked }));
       return EXIT_CLEAN;
     }
 
