@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { reviewedCommit } from './review-head.js';
+import { formatReview } from './review-text.js';
 
 const git = (at: string, args: readonly string[]): string =>
   execFileSync('git', args, { cwd: at, stdio: 'pipe', encoding: 'utf8' }).trim();
@@ -39,5 +40,15 @@ describe('the commit a review read', () => {
     expect((await reviewedCommit(root, {}))?.blob).toBe(`https://github.com/o/r/blob/${commit}`);
     process.chdir(join(root, 'app'));
     expect((await reviewedCommit(root, {}))?.blob).toBe(`https://github.com/o/r/blob/${commit}/app`);
+  });
+
+  it('names the pull request and its merge when CI left the checkout dirty', () => {
+    const [base, head, merge] = ['b', 'h', 'm'].map((letter) => letter.repeat(40));
+    const markdown = formatReview({
+      from: base!, base: 'since', files: [], head: { commit: merge!, parents: [base!, head!], pull: head!, dirty: true },
+    }, 'markdown');
+
+    expect(markdown).toContain(`Reviewed the working tree over \`${merge!.slice(0, 12)}\`, the merge of \`${head!.slice(0, 12)}\` into \`${base!.slice(0, 12)}\` for this run.`);
+    expect(markdown).toContain(`If the pull request's head is no longer \`${head!.slice(0, 12)}\`, this review describes an earlier commit.`);
   });
 });

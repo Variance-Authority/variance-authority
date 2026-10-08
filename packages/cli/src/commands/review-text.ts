@@ -292,11 +292,13 @@ function header(review: Review, code: (value: string) => string = (value) => val
 function markdownHeader(review: Review, code: (value: string) => string): string {
   const short = (commit: string): string => code(commit.slice(0, 12));
   const head = review.head;
-  const merged = head !== undefined && head.dirty !== true && head.pull !== undefined && head.parents[1] === head.pull ? head.pull : undefined;
+  const merged = head !== undefined && head.pull !== undefined && head.parents[1] === head.pull ? head.pull : undefined;
   const reviewed = head === undefined
     ? []
     : head.dirty === true
-      ? [`Reviewed the working tree over ${short(head.commit)}.`]
+      ? [`Reviewed the working tree over ${short(head.commit)}${
+        merged === undefined ? '' : `, the merge of ${short(merged)} into ${short(head.parents[0]!)} for this run`
+      }.`]
       : merged !== undefined
         ? [`Reviewed ${short(merged)} (merged into ${short(head.parents[0]!)} as ${short(head.commit)} for this run).`]
         : [`Reviewed ${short(head.commit)}.`];
