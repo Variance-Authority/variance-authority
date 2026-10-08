@@ -35,8 +35,8 @@ wrapped in from the recording `main` saved, and a push to `main` runs the whole
 suite. It then posts two comments on the pull request, each under its own
 marker so neither overwrites the gate's: `variance review` over the suite's
 recording, and `variance coverage` against the record `main` saved. A merge
-group runs one job, `queue`: lint, `yarn check` and the tests within two
-imports of what the group changed, and it posts nothing.
+group runs `queue` in place of those jobs: lint, `yarn check` and the tests
+within two imports of what the group changed, and it posts nothing.
 
 Here, the gate runs on every pull request and on every push to `main`, the sweep
 nightly, and the shards on demand only — sharding fourteen subjects across two
@@ -46,8 +46,8 @@ overwrite each other.
 
 `check.yml` runs one job per harness — the repository's rules, the timed
 measurements, and the vitest suite — and a `check` job that turns their results
-into the one check a branch rule names. In a merge group the `queue` job
-replaces them all, and `check` reads it alone.
+into the one check a branch rule names. In a merge group `queue` replaces the
+harness jobs, and `check` still runs, reading only `queue`'s result.
 
 ## How the CLI reaches the runner
 
