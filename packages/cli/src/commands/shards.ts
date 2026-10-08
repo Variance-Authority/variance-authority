@@ -12,7 +12,7 @@
  * operator chose for that case, and the answer says that is where it came from.
  */
 
-import { MATRIX_LIMIT, durationText, shardCount, type ShardCountReason } from '@variance-authority/core/shard';
+import { MATRIX_LIMIT, durationText, priced, shardCount, type ShardCountReason } from '@variance-authority/core/shard';
 import type { SuiteTimes } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { many } from './prose-counts.js';
@@ -32,6 +32,12 @@ export interface ShardsInput {
   readonly unrecorded?: number;
   /** The recorded files the change since `since` lets the run skip. */
   readonly skipped?: { readonly since: string; readonly files: ReadonlySet<string> };
+  /**
+   * The test files the runner collects, from `--collected`. Absent, the count is
+   * of the files the record holds; present, of these, and one the record has not
+   * seen is priced at the median of the recorded ones, as every shard prices it.
+   */
+  readonly collected?: ReadonlySet<string>;
   /** The slowest recorded cases of the slowest file, slowest first, when a run kept cases. */
   readonly cases?: readonly { readonly name: string; readonly duration: number }[];
 }
@@ -44,8 +50,10 @@ export type ShardsAnswer =
       readonly by: 'recorded';
       readonly recording: string;
       readonly commit?: string;
-      /** The recorded files that would run. */
+      /** The test files that would run. */
       readonly files: number;
+      /** Of those, the ones the record has not seen, priced at the median; absent when none. */
+      readonly untimed?: number;
       /** The recorded files the change skips; absent when no change was asked about. */
       readonly skipped?: number;
       readonly since?: string;
@@ -97,8 +105,15 @@ export function shardsAnswer(input: ShardsInput): ShardsAnswer {
     };
   }
 
-  const running = [...times.times].filter(([file]) => !(input.skipped?.files.has(file) ?? false));
-  const count = shardCount(running.map(([, duration]) => duration), {
+  const files = [...(input.collected ?? times.times.keys())].filter((file) => !(input.skipped?.files.has(file) ?? false));
+  // Priced as the shards price what they keep. With none of it timed, they
+  // fall back to the runner's split, and the record's median is the guess.
+  const recorded = [...times.times].map(([key, duration]) => ({ key, costs: [duration] }));
+  const unseen = (): number => priced([{ key: '', costs: [undefined] }, ...recorded])![0]!;
+  const costs = priced(files.map((file) => ({ key: file, costs: [times.times.get(file)] }))) ?? files.map(unseen);
+  const running = files.map((file, at) => [file, costs[at]!] as const);
+  const untimed = files.filter((file) => !times.times.has(file)).length;
+  const count = shardCount(costs, {
     setup: input.setup,
     ...(input.budget === undefined ? {} : { budget: input.budget }),
     ...(input.max === undefined ? {} : { max: input.max }),
@@ -115,7 +130,8 @@ export function shardsAnswer(input: ShardsInput): ShardsAnswer {
     recording: times.recording,
     ...(times.commit === undefined ? {} : { commit: times.commit }),
     files: running.length,
-    ...(input.skipped === undefined ? {} : { skipped: times.times.size - running.length, since: input.skipped.since }),
+    ...(untimed === 0 ? {} : { untimed }),
+    ...(input.skipped === undefined ? {} : { skipped: input.skipped.files.size, since: input.skipped.since }),
     setup: input.setup,
     ...(input.budget === undefined ? {} : { budget: input.budget }),
     ...(input.max === undefined ? {} : { max: input.max }),
@@ -152,13 +168,14 @@ export function formatShards(answer: ShardsAnswer, format: ShardsFormat): string
   const total = answer.load.reduce((sum, load) => sum + load, 0);
   const at = answer.commit === undefined ? answer.recording : answer.commit.slice(0, 12);
   const skipped = answer.since === undefined ? '' : `; the change since ${answer.since} skips ${answer.skipped} more`;
+  const untimed = answer.untimed === undefined ? '' : `; ${answer.untimed} not in the record, priced at the median`;
   return [
     `${many(answer.shards, 'shard')}, the last done ${durationText(answer.wall)} in: ` +
       `${durationText(answer.setup)} of setup and up to ${durationText(longest)} of tests each` +
       (answer.workers === undefined || answer.workers === 1
         ? '.'
         : `, about ${durationText(answer.wall - answer.setup)} on ${answer.workers} workers.`),
-    `From ${many(answer.files, 'test file')}, ${durationText(total)} in all, recorded at ${at}${skipped}.`,
+    `From ${many(answer.files, 'test file')}, ${durationText(total)} in all, recorded at ${at}${skipped}${untimed}.`,
     reasonOf(answer),
     '',
   ].join('\n');

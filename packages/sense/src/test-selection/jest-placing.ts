@@ -38,6 +38,31 @@ interface Inner {
 
 type SequencerClass = new (options: unknown) => Inner;
 
+/** Jest's own sequencer, and the packages it is a dependency of, from the outside in. */
+const JEST_SEQUENCER = '@jest/test-sequencer';
+const JEST_CHAIN = ['jest', '@jest/core', 'jest-config'] as const;
+
+/**
+ * Where Jest's own sequencer is, for a configuration that names none. Jest
+ * resolves it from `jest-config`, its dependency, not from the project: under
+ * pnpm or any layout that does not hoist it, the project cannot resolve it, and
+ * a run that never asked for `--shard` would fail on a sequencer it never named.
+ * So it is looked for from the project, then from each package on Jest's path to it.
+ */
+function jestSequencer(rootDir: string): string {
+  let from = resolve(rootDir, 'package.json');
+  for (const next of [...JEST_CHAIN, undefined]) {
+    const require = createRequire(from);
+    try {
+      return require.resolve(JEST_SEQUENCER);
+    } catch (error) {
+      if (next === undefined) throw error;
+      from = require.resolve(next);
+    }
+  }
+  throw new Error(`unreachable: ${JEST_SEQUENCER}`);
+}
+
 export interface PlacingOptions {
   /** The checkout the record names its files from. */
   readonly root: string;
@@ -56,14 +81,17 @@ export function placingSequencer(
   if (config.testSequencer === PLACING_SEQUENCER) return {};
   const say = options.say ?? ((line: string) => process.stderr.write(`${line}\n`));
   const from = createRequire(resolve(options.rootDir, 'package.json'));
-  const spelled = typeof config.testSequencer === 'string' ? config.testSequencer : '@jest/test-sequencer';
-  const path = spelled.startsWith('<rootDir>') ? resolve(options.rootDir, spelled.replace(/^<rootDir>\/?/, '')) : spelled;
+  const spelled = typeof config.testSequencer === 'string' ? config.testSequencer : undefined;
+  const path = spelled === undefined
+    ? undefined
+    : spelled.startsWith('<rootDir>') ? resolve(options.rootDir, spelled.replace(/^<rootDir>\/?/, '')) : spelled;
   let own: SequencerClass | undefined;
   let read: Promise<SuiteTimes> | undefined;
   let told = false;
   const handed = {
     own: (): SequencerClass => {
-      const module = from(from.resolve(path, { paths: [options.rootDir] })) as SequencerClass | { default: SequencerClass };
+      const at = path === undefined ? jestSequencer(options.rootDir) : from.resolve(path, { paths: [options.rootDir] });
+      const module = from(at) as SequencerClass | { default: SequencerClass };
       return (own ??= typeof module === 'function' ? module : module.default);
     },
     shard: async (tests: { path: string }[], shard: Shard, inner: Inner): Promise<unknown[]> => {
@@ -73,7 +101,7 @@ export function placingSequencer(
       told = true;
       if (part.take !== undefined) return part.take.map((at) => tests[at]!);
       if (inner.shard === undefined) {
-        throw new TypeError(`Shard ${shard.shardIndex}/${shard.shardCount} requested, but the test sequencer ${path} has no shard method.`);
+        throw new TypeError(`Shard ${shard.shardIndex}/${shard.shardCount} requested, but the test sequencer ${path ?? JEST_SEQUENCER} has no shard method.`);
       }
       return (await inner.shard(tests, shard)) as unknown[];
     },

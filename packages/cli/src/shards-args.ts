@@ -14,6 +14,8 @@ export interface ParsedShards {
   readonly max?: number;
   /** `--workers <n>`: how many test files one shard's runner runs at once. */
   readonly workers?: number;
+  /** `--collected <file>`: the runner's list of test files, which `--since` needs. */
+  readonly collected?: string;
   /** `--unrecorded <n>`: the count to answer while nothing is recorded. */
   readonly unrecorded?: number;
   readonly format: ShardsFormat;
@@ -50,10 +52,18 @@ export function parseShardsArgs(flags: Flags): ParsedShards {
   }
   const suite = flags.values.get('--suite');
   const since = flags.values.get('--since');
+  const collected = flags.values.get('--collected');
+  if (since !== undefined && collected === undefined) {
+    throw new OperatorError(
+      '`variance shards --since` needs `--collected <file>`, the runner\'s list of test files: the record holds only ' +
+        'the files it has seen, and a change that only adds tests would count 0 shards without the list',
+    );
+  }
   return {
     command: 'shards',
     ...(suite === undefined ? {} : { suite }),
     ...(since === undefined ? {} : { since }),
+    ...(collected === undefined ? {} : { collected }),
     setup,
     ...(budget === undefined ? {} : { budget }),
     ...(max === undefined ? {} : { max }),

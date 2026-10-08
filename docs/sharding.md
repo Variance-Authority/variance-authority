@@ -95,10 +95,11 @@ by more than it spends. Two things end the count:
   slowest cases when the record has them. Here one file takes 245.2 s, so a
   third shard would finish no sooner.
 - **Setup costs more than one more shard saves.** The answer says what the next
-  shard would save and what it would cost:
+  shard would save and what it would cost. On a later change that ran 85 of the
+  suite's files, the answer was one shard:
 
   ```text
-  One more would finish 335.2 s in: 49.6 s sooner, for 90.0 s more of setup.
+  One more would finish 124.0 s in: 25.3 s sooner, for 90.0 s more of setup.
   ```
 
 `--budget <seconds>` asks a different question: the fewest shards whose last one
@@ -106,9 +107,16 @@ finishes within that time, setup included. `--max <n>` caps the count.
 
 ### Start only what the change needs
 
-With `--since <ref>`, the files the change lets the run skip are left out of the
-count, as the shards themselves leave them out. A change that reaches no test
-answers `0 shards`, and the build starts none.
+On a pull request, `--since <ref>` leaves out of the count the files the change
+lets the run skip, as the shards themselves leave them out. It needs
+`--collected <file>`, the runner's own list of test files, because the record
+holds only the files it has seen: a test file the change adds is counted from
+the list, priced at the median, as the shards price it. A change that reaches no
+test answers `0 shards`, and the build starts none. Keep it off the
+push to your mainline: that build runs the whole suite, so its shards' records
+fold into the one the next build is placed by. A selected shard's record does
+not fold with another's, so a pull request's shards record for themselves, not
+for the share.
 
 GitHub Actions can build a matrix from an earlier job's output, so the count is
 decided per build. `--format json` gives a `matrix` of `k/n` strings, empty for
@@ -126,7 +134,11 @@ jobs:
           fetch-depth: 0
       - run: npm ci
       - id: count
-        run: echo "shards=$(npx variance shards --suite unit --setup 90 --workers 8 --since origin/main --format json | jq -c .matrix)" >> "$GITHUB_OUTPUT"
+        run: |
+          npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
+          since=()
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then since=(--since origin/main --collected "$RUNNER_TEMP/collected.txt"); fi
+          echo "shards=$(npx variance shards --suite unit --setup 90 --workers 8 "${since[@]}" --format json | jq -c .matrix)" >> "$GITHUB_OUTPUT"
 
   test:
     needs: plan
@@ -141,16 +153,18 @@ jobs:
         with:
           fetch-depth: 0
       - run: npm ci
-      - run: npx vitest run --shard ${{ matrix.shard }}
-        env:
-          VARIANCE_AUTHORITY_SINCE: origin/main
+      - run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then export VARIANCE_AUTHORITY_SINCE=origin/main; fi
+          npx vitest run --shard ${{ matrix.shard }}
 ```
+
+`VARIANCE_AUTHORITY_SINCE` is set only on a pull request: set at all, even
+empty, it selects.
 
 With nothing recorded, `variance shards` refuses rather than guess: the first
 build of a suite has no times to count by. `--unrecorded <n>` names the count to
-start until there are. The count reads only the files the record holds, so a
-branch that adds a slow file is counted without it until the mainline records
-it. [`shards`: how many CI jobs a suite is worth](../packages/cli/README.md#shards-how-many-ci-jobs-a-suite-is-worth)
+start until there are. Without `--collected`, the count reads only the files the
+record holds. [`shards`: how many CI jobs a suite is worth](../packages/cli/README.md#shards-how-many-ci-jobs-a-suite-is-worth)
 lists every flag and the JSON.
 
 ## Every shard computes the same split

@@ -39,6 +39,20 @@ describe('variance shards', () => {
     );
   });
 
+  it('counts the files the runner collects, pricing one the record has not seen at the median', () => {
+    const answer = shardsAnswer({
+      times: timed({ 'a.test.ts': 100, 'gone.test.ts': 900 }),
+      setup: 60_000,
+      collected: new Set(['a.test.ts', 'added.test.ts']),
+      skipped: { since: 'origin/main', files: new Set(['a.test.ts']) },
+    });
+    expect(answer).toMatchObject({ shards: 1, files: 1, skipped: 1, untimed: 1, load: [900] });
+    expect(formatShards(answer, 'text').split('\n')[1]).toBe(
+      'From 1 test file, 900 ms in all, recorded at aaaaaaaaaaaa; the change since origin/main skips 1 more; ' +
+        '1 not in the record, priced at the median.',
+    );
+  });
+
   it('names the file no shard can finish before, and its slowest cases', () => {
     const answer = shardsAnswer({
       times: timed({ 'heavy.test.ts': 100_000, 'a.test.ts': 10_000, 'b.test.ts': 10_000 }),

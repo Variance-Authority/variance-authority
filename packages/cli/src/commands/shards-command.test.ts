@@ -50,6 +50,12 @@ describe('parsing variance shards', () => {
     expect(() => parseArgs(['shards', '--setup', '1m'])).toThrow(/--setup is .* in seconds, not `1m`/);
   });
 
+  it('counts a change only against the files the runner collects', () => {
+    expect(() => parseArgs(['shards', '--setup', '1', '--since', 'origin/main'])).toThrow(/--since` needs `--collected <file>`/);
+    expect(parseArgs(['shards', '--setup', '1', '--since', 'origin/main', '--collected', 'files.txt']))
+      .toMatchObject({ since: 'origin/main', collected: 'files.txt' });
+  });
+
   it('takes no --config, because it reads a record and no project', () => {
     expect(() => parseArgs(['shards', '--setup', '1', '--config', 'x.json'])).toThrow(/--config/);
   });

@@ -146,7 +146,7 @@ ids are the safe default after initial setup.
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]
 variance index   [--no-git] [--wait | --follow-ups]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]
-variance shards  --setup <seconds> [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref>] [--suite <name>] [--unrecorded <n>] [--format text|json]
+variance shards  --setup <seconds> [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> --collected <file>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
@@ -1791,8 +1791,8 @@ variance shards --suite unit --setup 90 --workers 8
 ```
 
 ```text
-2 shards, the last done 335.2 s in: 90.0 s of setup and up to 1749.9 s of tests each, about 245.2 s on 8 workers.
-From 664 test files, 3499.7 s in all, recorded at 8e3b0f0e9028.
+2 shards, the last done 335.2 s in: 90.0 s of setup and up to 1629.5 s of tests each, about 245.2 s on 8 workers.
+From 782 test files, 3259.1 s in all, recorded at 789bdbddee97.
 More shards finish no sooner: packages/sense/src/test-selection/journey-trace.integration.test.ts alone takes 245.2 s.
 ```
 
@@ -1805,18 +1805,27 @@ the run kept them. `--workers` is how many files one shard's runner runs at once
 
 `--since <ref>` leaves out the files that change lets the run skip, as the seam
 does under `VARIANCE_AUTHORITY_SINCE`, so a change that reaches no test answers
-`0 shards`. Test files the record has not seen are not counted. With nothing
+`0 shards`. It needs `--collected <file>`, the runner's list of test files, as
+`share --collected` reads it: the record holds only the files it has seen, and a
+file on the list it has not is priced at the median, as every shard prices it.
+Without the list, only the recorded files are counted. With nothing
 recorded the command refuses, rather than guess, unless `--unrecorded <n>` names
 the count to start until it is. `--format json` prints the count, a `matrix` of
-`k/n` strings, each shard's load, and why:
+`k/n` strings, each shard's load, and why. A pull request's build can start its
+matrix from it; the push to your mainline runs without `--since`, so its shards'
+records fold into the one the next build is placed by, as
+[sharding](../../docs/sharding.md#start-only-what-the-change-needs) shows:
 
 ```yaml
+# a pull_request workflow
 plan:
   outputs:
     shards: ${{ steps.count.outputs.shards }}
   steps:
     - id: count
-      run: echo "shards=$(npx variance shards --suite unit --setup 90 --since origin/main --format json | jq -c .matrix)" >> "$GITHUB_OUTPUT"
+      run: |
+        npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
+        echo "shards=$(npx variance shards --suite unit --setup 90 --since origin/main --collected "$RUNNER_TEMP/collected.txt" --format json | jq -c .matrix)" >> "$GITHUB_OUTPUT"
 test:
   needs: plan
   if: needs.plan.outputs.shards != '[]'

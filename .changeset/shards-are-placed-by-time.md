@@ -19,7 +19,9 @@ variance-authority: shard 1/2 by the times recorded at 8e3b0f0e9028: 1 of 5 file
 ```
 
 When the times cannot be read, the runner's own split runs instead, and the
-line says why. A failed read never fails the run. Under
+line says why. A failed read never fails the run. A Jest config that names no
+`testSequencer` finds Jest's own through Jest, so a layout that does not hoist
+`@jest/test-sequencer`, as pnpm does not, runs as before. Under
 `VARIANCE_AUTHORITY_SINCE`, only the files the selection keeps are placed.
 
 `variance shards --setup <seconds>` prints how many shards a recorded suite is
@@ -29,7 +31,9 @@ shortens the wait by more than it spends, and the count stops at the slowest
 test file, which the answer names with its slowest cases. `--budget` asks for
 the fewest shards that finish within it, `--workers` divides a shard's share
 among its runner's workers, and `--since` leaves out what the change lets the
-run skip, so a change that reaches no test answers `0 shards`. With nothing
+run skip, so a change that reaches no test answers `0 shards`. `--since` needs
+`--collected <file>`, the runner's list of test files, so a test file the
+record has not seen is counted, priced at the median. With nothing
 recorded it refuses unless `--unrecorded <n>` names the count to start.
 
 `@variance-authority/core/shard` is the placement and the count, which

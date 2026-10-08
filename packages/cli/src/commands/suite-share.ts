@@ -157,7 +157,7 @@ export async function suiteShareLines(root: string, options: SuiteShareOptions, 
  * repository root, which is how the runs record names them. A list that cannot
  * be read is refused: the publish was told to count against it.
  */
-async function collectedIn(root: string, file: string): Promise<ReadonlySet<string>> {
+export async function collectedIn(root: string, file: string): Promise<ReadonlySet<string>> {
   let listed: string;
   try {
     listed = await readFile(resolve(root, file), 'utf8');

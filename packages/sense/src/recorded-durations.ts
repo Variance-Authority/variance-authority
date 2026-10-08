@@ -141,7 +141,6 @@ export function recordedTimes(recording: string): SuiteTimes {
   }
 }
 
-/** The slowest cases in the case index at `recording`, which is the one beside the snapshot the durations were read from. */
 /**
  * The `limit` slowest cases `file` declares, slowest first, as its recording's
  * case index holds them: what names the cases inside a file too slow to split
@@ -152,6 +151,7 @@ export function fileCases(recording: string, file: string, limit: number): reado
   return 'unread' in cases ? undefined : cases.slowest;
 }
 
+/** The slowest cases in the case index at `recording`, which is the one beside the snapshot the durations were read from. */
 function caseDurations(recording: string, limit: number, scope: DurationScope): RecordedCaseDurations {
   if (!keepsCases(recording)) return { recording, unread: 'no run kept its cases there' };
   try {

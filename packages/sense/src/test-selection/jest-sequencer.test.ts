@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -58,6 +58,26 @@ describe('the Jest sequencer under --shard', () => {
       '};',
     ].join('\n'));
     placingSequencer({ testSequencer: '<rootDir>/reversing.cjs' }, { root, rootDir: directory, times, say: () => {} });
+
+    const sorted = await sequencer().sort(files.map(test));
+
+    expect(paths(sorted)).toEqual(['d.test.ts', 'c.test.ts', 'b.test.ts', 'a.test.ts']);
+  });
+
+  it('finds Jest\'s own sequencer through Jest when the project cannot resolve it, as under pnpm', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-jest-unhoisted-'));
+    temporary.push(directory);
+    const chain = ['jest', '@jest/core', 'jest-config', '@jest/test-sequencer'];
+    let at = directory;
+    for (const name of chain) {
+      at = resolve(at, 'node_modules', name);
+      await mkdir(at, { recursive: true });
+      await writeFile(resolve(at, 'package.json'), JSON.stringify({ name, main: 'index.js' }));
+      await writeFile(resolve(at, 'index.js'), name === '@jest/test-sequencer'
+        ? 'module.exports = class Nested { sort(tests) { return [...tests].reverse(); } };'
+        : 'module.exports = {};');
+    }
+    placingSequencer({}, { root, rootDir: directory, times, say: () => {} });
 
     const sorted = await sequencer().sort(files.map(test));
 

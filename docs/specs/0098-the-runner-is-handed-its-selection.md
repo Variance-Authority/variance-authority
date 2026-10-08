@@ -141,8 +141,9 @@ runner exits with no tests. Jest exits 1 there unless the project set
 ### One selection per commit and record
 
 A sharded run starts one process per shard, often on separate machines, and each
-computes its selection. Both Jest and Vitest sort by a hash and slice, so where
-a file lands depends on the whole list: two shards that computed different
+computes its selection. Both Jest and Vitest sort by a hash and slice, and under
+`withTestSelection` both place by recorded time instead, so where a file lands
+depends on the whole list either way: two shards that computed different
 selections can each drop a file the other assigned. A selection is therefore a
 function of the commit, the record, the suite and the leg, and a sharded run
 hands every shard the same record. Dropping happens before sharding in both

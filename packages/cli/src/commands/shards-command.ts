@@ -7,12 +7,15 @@
  * record `select` reads, this checkout's own or the mainline's from the share
  * ([`suite-times.ts`](./suite-times.ts)). With `--since`, the files the change
  * lets the run skip are left out, as the seam leaves them out inside the
- * runner, so a change that reaches no test asks for no shard.
+ * runner, so a change that reaches no test asks for no shard. The runner's list
+ * (`--collected`) is what makes that 0 true: the record holds only the files it
+ * has seen, and a test file the change adds runs on a shard all the same.
  */
 
 import { fileCases } from '@variance-authority/sense';
 import { selectSuite } from './select-command.js';
 import { formatShards, shardsAnswer, type ShardsFormat, type ShardsInput } from './shards.js';
+import { collectedIn } from './suite-share.js';
 import { suiteTimes } from './suite-times.js';
 
 /** How many cases of the slowest file the answer names. */
@@ -22,6 +25,8 @@ export interface ShardsRequest {
   readonly cwd: string;
   readonly suite?: string;
   readonly since?: string;
+  /** The runner's list of test files, read as `share --collected` reads it. */
+  readonly collected?: string;
   readonly setup: number;
   readonly budget?: number;
   readonly max?: number;
@@ -31,13 +36,19 @@ export interface ShardsRequest {
 }
 
 export async function shardsOutput(request: ShardsRequest): Promise<string> {
-  const { cwd, suite, since, format, ...counting } = request;
+  const { cwd, suite, since, collected: listed, format, ...counting } = request;
   const asked = { root: cwd, ...(suite === undefined ? {} : { suite }) };
   const times = await suiteTimes(asked);
   const skipped = since === undefined || 'unread' in times
     ? undefined
     : { since, files: (await selectSuite({ ...asked, since })).skip };
-  const input: ShardsInput = { times, ...counting, ...(skipped === undefined ? {} : { skipped }) };
+  const collected = listed === undefined || 'unread' in times ? undefined : await collectedIn(cwd, listed);
+  const input: ShardsInput = {
+    times,
+    ...counting,
+    ...(skipped === undefined ? {} : { skipped }),
+    ...(collected === undefined ? {} : { collected }),
+  };
   const answer = shardsAnswer(input);
   if (answer.by === 'recorded' && answer.slowest !== undefined) {
     const cases = fileCases(answer.recording, answer.slowest.file, SLOWEST_CASES);
