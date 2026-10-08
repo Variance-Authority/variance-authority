@@ -77,9 +77,10 @@ yarn variance review --since origin/main --format handover
 ```
 
 Paste its output under the template, unedited. It names each changed function
-no case reached, the change wrote, or a case reached only from far, with the
-test file to open, and counts the rest, read from the record. After a rebase, run it again and replace the block between its
-markers.
+no case reached, the change wrote, or a case reached only from far, from a
+distance not measured or only while its module loaded, with the test file to
+open, and counts the rest. After a rebase, run it again and paste the new
+block over the one between its markers.
 
 Before anything is pushed, three subagents review the change, and a fourth when
 the change writes a top-layer page. Each starts with

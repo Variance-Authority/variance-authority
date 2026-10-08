@@ -698,35 +698,6 @@ the merge base with `<ref>`, since the index's line ranges are in that commit's
 coordinates and nothing else's. Record before you read: an index behind the tree
 answers fluently about regions that have moved.
 
-### Handing the coverage to a reviewer before CI runs
-
-```bash
-variance review --since origin/main --format handover
-```
-
-prints breadcrumbs to the coverage of the changed area as one folded
-`<details>` block for the pull request body. A review bot reads the body when
-the pull request opens, before any check has finished. A changed function gets
-a line when there is something to look at: 🔴 when part of it ran under no
-case, or has none in a record from before the change, 🔵 when the change wrote it and no case has run it yet; otherwise the
-review comment's mark for its furthest reached part: 🟡 far, 🟠 a distance not
-measured, ⚪ only while its module loaded. A reached line names how many cases and the first test file to open.
-A function every case reached from a test file that imports it is only
-counted. Absences come first; past twelve lines the rest are counted, and the
-block ends with the `variance covering` command that reads one file in full.
-Every declared suite is read, and when more than one is, each line names its
-suite; a suite whose record cannot be read is named with the reason, and one
-named with `--suite` fails instead. When a suite ran on the change, its record
-decides, for every file it read, which functions the change touched and which
-are new. The block sits
-between `<!-- variance-authority: handover -->` and its closing marker: the
-block a later run prints is pasted over everything between them.
-
-It reads this checkout's record as `covering` does. `--from-run`, `--out`,
-`--coverage` and `--against` read or compare what a run made, so a handover
-refuses them, and it leaves out the cases local runs moved: CI's comment
-reports those.
-
 #### What a change moved
 
 A change to a test does its work on lines the diff does not show. The test that
@@ -778,6 +749,39 @@ base, the files the base branch changed in
 between are left out and named, because what moved in them is that branch's
 doing, not yours. `--against` answers in `text`, `refs` and `json`; `refs`
 names the moved regions' cases by the numbers of its case table.
+
+### Handing the coverage to a reviewer before CI runs
+
+```bash
+variance review --since origin/main --format handover
+```
+
+prints breadcrumbs to the coverage of the changed area as one folded
+`<details>` block for the pull request body. A review bot reads the body when
+the pull request opens, before any check has finished. A changed function gets
+a line when there is something to look at: 🔴 when part of it ran under no
+case, or has none in a record from before the change, 🔵 when the change wrote
+it and no case has run it yet; otherwise the review comment's mark for its
+furthest reached part: 🟡 far, 🟠 a distance not measured, ⚪ only while its
+module loaded. A reached line names how many cases and the first test file to
+open. A function every case reached from a test file that imports it is only
+counted. Absences come first; past twelve lines the rest are counted, and the
+block ends with the `variance covering` command that reads one file in full.
+Every declared suite is read, and when more than one is, each line names its
+suite; a suite whose record cannot be read is named with the reason, and one
+named with `--suite` fails instead. When a suite ran on the change, the runs
+on the change alone answer for every file it read: a record from before the
+change places the edit by its old lines, and its cases reached the old code.
+Elsewhere a record from before the change answers, and the summary counts what
+only it reached; when the block reads both, a line it answers says *in the
+record*. The block sits between `<!-- variance-authority: handover -->` and
+its closing marker: the block a later run prints is pasted over everything
+between them.
+
+It reads this checkout's record as `covering` does. `--from-run`, `--out`,
+`--coverage` and `--against` read or compare what a run made, so a handover
+refuses them, and it leaves out the cases local runs moved: CI's comment
+reports those.
 
 ### Review: what a change did, for the person merging it
 

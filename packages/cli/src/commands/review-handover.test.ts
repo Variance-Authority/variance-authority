@@ -154,6 +154,28 @@ describe('a review handed over in the pull request body, before CI', () => {
     expect(before).not.toContain('🔴');
   });
 
+  it('lets no record from before the change answer for a file a suite ran on the change, and says what only such a record reached', () => {
+    const region = (name: string, reach: ReviewRegion['reach'], cases: number): ReviewRegion => ({
+      kind: 'function', name, startLine: 5, endLine: 9, reach, edit: 'modified', changedLineCases: cases, cases, tests: cases === 0 ? [] : ['test/a.test.ts'], called: [],
+    });
+    const at = (record: string, files: Record<string, readonly ReviewRegion[]>) => ({ from: 'a'.repeat(40), record, base: 'since',
+      files: Object.entries(files).map(([file, regions]) => ({ file, recorded: true, regions })) }) as unknown as Review;
+
+    const out = formatHandover([
+      { suite: 'integration', review: at('before', { 'src/a.ts': [region('round', 'near', 4)], 'src/b.ts': [region('total', 'far', 2)], 'src/c.ts': [region('sum', 'near', 1)] }) },
+      { suite: 'unit', review: at('ran', { 'src/a.ts': [region('round', 'hole', 0)] }) },
+    ]);
+
+    expect(out.split('\n').filter((line) => line.startsWith('- '))).toEqual([
+      '- 🔴 `round` in `src/a.ts` — no case (`unit`)',
+      '- 🟡 `total` in `src/b.ts` — 2 cases in the record, far: `test/a.test.ts` (`integration`)',
+    ]);
+    expect(out).toContain('And 1 more, every one reached by a case: 1 near in the record before the change.');
+    expect(formatHandover([{ suite: 'integration', review: at('before', { 'src/b.ts': [region('total', 'far', 2)], 'src/c.ts': [region('sum', 'near', 1)] }) },
+      { suite: 'unit', review: at('ran', { 'src/d.ts': [region('mean', 'near', 1)] }) }]))
+      .toContain('3 changed functions, every one reached by a case, 2 only in the record before the change</summary>');
+  });
+
   it('names a function a suite ran on the change without a case, though a suite read from before counts it new', () => {
     const region = (reach: ReviewRegion['reach']): ReviewRegion => ({
       kind: 'function', name: 'round', startLine: 5, endLine: 9, reach, edit: 'new', changedLineCases: 0, cases: 0, tests: [], called: [],

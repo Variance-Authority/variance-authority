@@ -86,8 +86,10 @@ export function formatHandover(sections: readonly HandoverSection[]): string {
   const lines = [HANDOVER_START, `<details><summary>🧭 Coverage of the changed area: ${read.length === 0 ? 'no record read' : summary(crumbs)}</summary>`, ''];
   if (read.length > 0) lines.push(origin(read), '');
   const tagged = read.length > 1;
-  lines.push(...shown.map((crumb) => crumbLine(crumb, tagged)));
-  if (rest.length > 0) lines.push(...(shown.length === 0 ? [] : ['']), remainder(rest, shown.length > 0));
+  // Read from both: what a record from before the change reached is said apart, as the old code's.
+  const mixed = read.some(({ review: answer }) => answer.record === 'ran') && read.some(({ review: answer }) => answer.record !== 'ran');
+  lines.push(...shown.map((crumb) => crumbLine(crumb, tagged, mixed)));
+  if (rest.length > 0) lines.push(...(shown.length === 0 ? [] : ['']), remainder(rest, shown.length > 0, mixed));
   for (const section of sections) {
     if ('missed' in section) {
       const why = section.unrecorded === true ? 'this checkout holds no case-level record of it' : firstSentence(section.missed);
@@ -112,9 +114,14 @@ function summary(crumbs: readonly Crumb[]): string {
   for (const { worst } of crumbs) {
     if (!isReached(worst)) counts.set(gapOf(worst), (counts.get(gapOf(worst)) ?? 0) + 1);
   }
-  const reached = crumbs.length === 1 ? 'reached by a case' : crumbs.length === 2 ? 'both reached by a case' : 'every one reached by a case';
+  const before = crumbs.filter(({ worst }) => !worst.ran).length;
+  const only = before === 0 ? '' : before < crumbs.length ? `, ${before} only ${BEFORE}` : crumbs.length === 1 ? `, ${BEFORE}` : `, all ${BEFORE}`;
+  const reached = (crumbs.length === 1 ? 'reached by a case' : crumbs.length === 2 ? 'both reached by a case' : 'every one reached by a case') + only;
   return `${counted}, ${counts.size === 0 ? reached : [...counts].map(([gap, count]) => `${count} ${gap}`).join(', ')}`;
 }
+
+/** Where a reach read from a record made before the change was seen: on the old code. */
+const BEFORE = 'in the record before the change';
 
 /** The function name a module's own top level is given. */
 const TOP_LEVEL = 'the top level';
@@ -127,20 +134,17 @@ function gapOf(part: Part): string {
 
 /**
  * Each changed region once, answered for by the suite whose cases came nearest.
- * A suite that ran on the change and read the file is the word on what in it
- * the change touched, and what is new: a record from before the change can
- * only place the edit by its old lines, and counts what the edit moved as
- * written.
+ * A file a suite ran on the change read is answered by the runs on the change
+ * alone: a record from before the change places the edit by its old lines,
+ * counts what the edit moved as written, and its cases reached the old code.
  */
 function nearestOfEach(parts: readonly Part[]): Part[] {
   const keyOf = (part: Part) => `${part.file}\0${part.region.startLine}\0${part.region.endLine}\0${part.region.name}`;
-  const ranParts = parts.filter((part) => part.ran);
-  const ran = new Set(ranParts.map((part) => part.file));
-  const touched = new Set(ranParts.map(keyOf));
+  const ran = new Set(parts.filter((part) => part.ran).map((part) => part.file));
   const nearest = new Map<string, Part>();
   for (const part of parts) {
     const key = keyOf(part);
-    if (!part.ran && ran.has(part.file) && (part.fresh || !touched.has(key))) continue;
+    if (!part.ran && ran.has(part.file)) continue;
     const held = nearest.get(key);
     if (held === undefined || rank(part) > rank(held) || (rank(part) === rank(held) && part.region.cases > held.region.cases)) nearest.set(key, part);
   }
@@ -194,12 +198,12 @@ function origin(read: readonly { readonly suite?: string; readonly review: Revie
   return `Read from the runs on this change for ${[named.slice(0, -1).join(', '), named.at(-1)].filter(Boolean).join(' and ')}, and from the record before it for the rest.`;
 }
 
-function crumbLine({ file, name, worst, reached }: Crumb, tagged: boolean): string {
+function crumbLine({ file, name, worst, reached }: Crumb, tagged: boolean, mixed: boolean): string {
   const tag = tagged ? tagOf(worst) : '';
   const where = `${name === TOP_LEVEL ? name : `\`${name}\``} in \`${file}\``;
   // Every part reached: the furthest one is the one to read.
-  if (isReached(worst)) return `- ${MARK[worst.region.reach]} ${where} — ${reachedBy(worst, false)}${tag}`;
-  const reach = reached === undefined ? '' : reachedBy(reached, tagged && reached.suite !== worst.suite);
+  if (isReached(worst)) return `- ${MARK[worst.region.reach]} ${where} — ${reachedBy(worst, false, mixed)}${tag}`;
+  const reach = reached === undefined ? '' : reachedBy(reached, tagged && reached.suite !== worst.suite, mixed);
   const gap = worst.fresh
     ? (reached === undefined ? 'new, not run yet' : 'a new part not run yet')
     : worst.ran ? (reached === undefined ? 'no case' : 'a part no case ran') : reached === undefined ? 'no case in the record' : 'a part the record holds no case for';
@@ -207,9 +211,9 @@ function crumbLine({ file, name, worst, reached }: Crumb, tagged: boolean): stri
 }
 
 /** How many cases reached a part, from how far, and the first test file to open. */
-function reachedBy({ region, suite }: Part, tagged: boolean): string {
+function reachedBy({ region, suite, ran }: Part, tagged: boolean, mixed: boolean): string {
   const [first, ...others] = region.tests;
-  const cases = region.cases === 0 ? '' : `${region.cases} case${region.cases === 1 ? '' : 's'}, `;
+  const cases = region.cases === 0 ? '' : `${region.cases} case${region.cases === 1 ? '' : 's'}${ran || !mixed ? '' : ' in the record'}, `;
   const open = first === undefined ? '' : `: \`${first}\`${others.length === 0 ? '' : ` and ${others.length} more`}`;
   return `${cases}${REACH_WORD[region.reach]}${open}${tagged && suite !== undefined ? ` (\`${suite}\`)` : ''}`;
 }
@@ -218,10 +222,10 @@ function tagOf({ suite }: Part): string {
   return suite === undefined ? '' : ` (\`${suite}\`)`;
 }
 
-function remainder(rest: readonly Crumb[], after: boolean): string {
+function remainder(rest: readonly Crumb[], after: boolean, mixed: boolean): string {
   const counts = new Map<string, number>();
   for (const { worst } of rest) {
-    const label = isReached(worst) ? COUNTED[worst.region.reach] : gapOf(worst);
+    const label = !isReached(worst) ? gapOf(worst) : worst.ran || !mixed ? COUNTED[worst.region.reach] : `${COUNTED[worst.region.reach]} ${BEFORE}`;
     counts.set(label, (counts.get(label) ?? 0) + 1);
   }
   const reached = rest.every(({ worst }) => isReached(worst)) ? 'every one reached by a case' : '';
