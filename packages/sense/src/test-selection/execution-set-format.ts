@@ -242,20 +242,22 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
  * with one is refused rather than flattened.
  */
 export function encodeAsSetExecutionIndex(index: ExecutionIndex): Buffer {
-  return encodeOwnedSetExecutionIndex(index, new Map());
+  return encodeOwnedSetExecutionIndex(index, []);
 }
 
 /**
- * {@link encodeAsSetExecutionIndex}, with the region around each region of the
- * modules `owners` names by file, as positions among that module's blocks. An
- * `ExecutionIndex` is a plain object a foreign producer writes and a reshaper
- * spreads, and a position does not survive either, so the owners travel beside
- * it from the cut that recorded them.
+ * {@link encodeAsSetExecutionIndex}, with the region around each region:
+ * `owners[at]` holds those of `index.modules[at]`, as positions among its
+ * blocks, and a module past its end names none. An `ExecutionIndex` is a plain
+ * object a foreign producer writes and a reshaper spreads, and a position does
+ * not survive either, so the owners travel beside it from the cut that
+ * recorded them. They are matched by place, not by file: two cuts of one file
+ * can reach one run.
  */
-export function encodeOwnedSetExecutionIndex(index: ExecutionIndex, owners: ReadonlyMap<string, Uint32Array>): Buffer {
+export function encodeOwnedSetExecutionIndex(index: ExecutionIndex, owners: readonly (Uint32Array | undefined)[]): Buffer {
   const sets = new CrossingSets(index.tests.length);
   sets.intern([]);
-  const modules = index.modules.map((module): SetExecutionModule => {
+  const modules = index.modules.map((module, place): SetExecutionModule => {
     const called = new Uint32Array(module.blocks.length);
     const loaded = new Uint8Array(module.blocks.length);
     const blocks = module.blocks.map(({ crossings, loaded: load, ...block }, at) => {
@@ -271,7 +273,7 @@ export function encodeOwnedSetExecutionIndex(index: ExecutionIndex, owners: Read
       called[at] = sets.intern(cases);
       return block;
     });
-    const owner = owners.get(module.file);
+    const owner = owners[place];
     return { file: module.file, blocks, called, loaded, ...(owner === undefined ? {} : { owner }) };
   });
   return encodeSetExecutionIndex({ tests: index.tests, modules, sets: sets.pool() });

@@ -5,7 +5,7 @@ import {
   type CaseJournal,
   countCrossings,
   executionIndexFrom,
-  ownersOf,
+  ownedExecutionIndexFrom,
   packCase,
   packFrames,
   settledAcross,
@@ -13,7 +13,8 @@ import {
   unpackFrames,
 } from './cases.js';
 import { layerCaseIndex } from './case-layer.js';
-import { decodeSetExecutionIndex, encodeOwnedSetExecutionIndex } from './execution-set-format.js';
+import { decodeSetExecutionIndex, encodeOwnedSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
+import { NO_OWNER } from './format-layout.js';
 import type { CapturedModule } from './instrumented-modules.js';
 import { coveringTests } from './reverse.js';
 
@@ -212,15 +213,33 @@ describe('folding case frames into an execution index', () => {
       }]]);
     const held = cut([['module', '', [1, 9]], ['function', 'decide', [2, 8], 0]]);
     const recorded = cut([['module', '', [1, 9]], ['function', 'decide', [2, 8], 0], ['branch', 'decide/then', [3, 4], 1]]);
-    const record = encodeOwnedSetExecutionIndex(executionIndexFrom([journal('a.test.ts', 'alpha', '1', [1])], held), ownersOf(held));
+    const owned = (journals: CaseJournal[], cuts: ReadonlyMap<ModuleId, CapturedModule>): Uint8Array => {
+      const { index, owners } = ownedExecutionIndexFrom(journals, cuts);
+      return encodeOwnedSetExecutionIndex(index, owners);
+    };
+    const record = owned([journal('a.test.ts', 'alpha', '1', [1])], held);
     // The bytes a browser driver hands the record (`journal.ts`).
-    const run = encodeOwnedSetExecutionIndex(executionIndexFrom([journal('b.test.ts', 'beta', '2', [0])], recorded), ownersOf(recorded));
+    const run = owned([journal('b.test.ts', 'beta', '2', [0])], recorded);
 
     const { merged } = layerCaseIndex(record, run, { ran: new Set(['b.test.ts']), finished: new Set(['b.test.ts']), present: () => true });
 
     const laid = decodeSetExecutionIndex(merged);
     expect(Object.fromEntries(laid.modules[0]!.blocks.map((block) => [block.name, block.crossings.map(({ test }) => laid.tests[test]!.name)])))
       .toEqual({ '': ['beta'], decide: ['alpha'], 'decide/then': ['alpha'] });
+  });
+  it('names the owners of each cut of a file apart, where a source and its build both reached the run', () => {
+    const cut = (id: ModuleId, owners: readonly (number | undefined)[]): CapturedModule => ({
+      ...captured('src/decide.ts', id, owners.map((_, at) => [1 + at, 9 - at])),
+      blocks: captured('src/decide.ts', id, owners.map((_, at) => [1 + at, 9 - at])).blocks
+        .map((block, at) => ({ ...block, ...(owners[at] === undefined ? {} : { owner: owners[at] }) })),
+    });
+    const byId = new Map<ModuleId, CapturedModule>([[7, cut(7, [undefined, 0, 1])], [8, cut(8, [undefined, 0])]]);
+    const run: CaseJournal = { file: 'a.test.ts', name: 'alpha', id: '1', modules: [{ id: 7, hits: [2], shared: [] }, { id: 8, hits: [1], shared: [] }] };
+
+    const { index, owners } = ownedExecutionIndexFrom([run], byId);
+    const opened = openSetExecutionIndex(encodeOwnedSetExecutionIndex(index, owners));
+
+    expect(opened?.modules.map((module) => [...(module.owner ?? [])])).toEqual([[NO_OWNER, 0, 1], [NO_OWNER, 0]]);
   });
 });
 

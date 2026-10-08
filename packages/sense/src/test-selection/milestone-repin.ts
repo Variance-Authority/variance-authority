@@ -174,8 +174,6 @@ function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array | unde
   const opened = own === undefined ? undefined : openSetExecutionIndex(own);
   if (own === undefined || opened === undefined || tests.size === 0) return milestone;
   const index = decodeSetExecutionIndex(own);
-  // Each module keeps its regions in place, so the owners it recorded still hold.
-  const owners = new Map(opened.modules.flatMap((module) => (module.owner === undefined ? [] : [[module.file, module.owner] as const])));
   // Crossings name a case by its position, so the kept cases are renumbered.
   const at = new Map<number, number>();
   const cases = index.tests.filter((test, position) => {
@@ -183,20 +181,20 @@ function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array | unde
     at.set(position, at.size);
     return true;
   });
-  const fresh = encodeOwnedSetExecutionIndex({
-    tests: cases,
-    // A module no kept case entered keeps the milestone's layout of it.
-    modules: index.modules.flatMap((module) => {
-      const blocks = module.blocks.map((block) => ({
-        ...block,
-        crossings: block.crossings.flatMap((crossing) => {
-          const test = at.get(crossing.test);
-          return test === undefined ? [] : [{ ...crossing, test }];
-        }),
-      }));
-      return blocks.some((block) => block.crossings.length > 0) ? [{ ...module, blocks }] : [];
-    }),
-  }, owners);
+  // A module no kept case entered keeps the milestone's layout of it. One that
+  // is kept keeps its regions in place, so the owners it recorded still hold;
+  // they are carried by place, as two cuts of one file can stand side by side.
+  const kept = index.modules.flatMap((module, place) => {
+    const blocks = module.blocks.map((block) => ({
+      ...block,
+      crossings: block.crossings.flatMap((crossing) => {
+        const test = at.get(crossing.test);
+        return test === undefined ? [] : [{ ...crossing, test }];
+      }),
+    }));
+    return blocks.some((block) => block.crossings.length > 0) ? [{ module: { ...module, blocks }, owner: opened.modules[place]?.owner }] : [];
+  });
+  const fresh = encodeOwnedSetExecutionIndex({ tests: cases, modules: kept.map(({ module }) => module) }, kept.map(({ owner }) => owner));
   return layerCaseIndex(milestone, fresh, { ran: tests, finished: tests, present: () => true }).merged;
 }
 

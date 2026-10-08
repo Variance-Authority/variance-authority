@@ -110,6 +110,41 @@ describe('the journey set spelling', () => {
     expect(openSetExecutionIndex(index(module('src/m.ts', Uint32Array.of(NO_OWNER, 0)), module('src/n.ts')))!.modules
       .map((held) => held.owner)).toEqual([Uint32Array.of(NO_OWNER, 0), Uint32Array.of(NO_OWNER, NO_OWNER)]);
     expect(openSetExecutionIndex(index(module('src/m.ts')))!.modules[0]!.owner).toBeUndefined();
-    expect(() => openSetExecutionIndex(index(module('src/m.ts', Uint32Array.of(1, NO_OWNER))))).toThrow();
+    expect(() => index(module('src/m.ts', Uint32Array.of(1, NO_OWNER)))).toThrow('src/m.ts names a region around one that does not come before it');
+  });
+
+  it('refuses a file whose owner column names a region that does not come first, or does not cover every region', () => {
+    // Written by hand, as a producer that skips the encoder's check would.
+    const strings = ['src/m.ts', 'function', 'total'];
+    const encoded = strings.map((value) => Buffer.from(value, 'utf8'));
+    const offsets = new Uint32Array(strings.length + 1);
+    encoded.forEach((value, at) => { offsets[at + 1] = offsets[at]! + value.length; });
+    const sets = new CrossingSets(0);
+    const empty = sets.intern([]);
+    const pool = sets.pool();
+    const owned = (owner: Uint32Array): Uint8Array => sections({
+      'strings.blob': blob(Buffer.concat(encoded), offsets),
+      'strings.off': column(offsets),
+      'tests.id': column(new Uint32Array(0)),
+      'tests.file': column(new Uint32Array(0)),
+      'tests.name': column(new Uint32Array(0)),
+      'modules.file': column(Uint32Array.of(0)),
+      'modules.blocks': column(Uint32Array.of(0, 2)),
+      'blocks.kind': column(Uint32Array.of(1, 1)),
+      'blocks.name': column(Uint32Array.of(2, 2)),
+      'blocks.path': column(Uint32Array.of(2, 2)),
+      'blocks.start': column(Uint32Array.of(1, 2)),
+      'blocks.end': column(Uint32Array.of(9, 3)),
+      'blocks.source': column(Uint8Array.of(1, 1)),
+      'blocks.calledSet': column(Uint32Array.of(empty, empty)),
+      'blocks.loaded': column(Uint8Array.of(0, 0)),
+      'blocks.owner': column(owner),
+      'sets.blob': blob(pool.bytes, pool.offsets),
+      'sets.off': column(pool.offsets),
+    }, 3);
+
+    expect(openSetExecutionIndex(owned(Uint32Array.of(NO_OWNER, 0)))!.modules[0]!.owner).toEqual(Uint32Array.of(NO_OWNER, 0));
+    expect(() => openSetExecutionIndex(owned(Uint32Array.of(NO_OWNER, 1)))).toThrow('not a variance-authority execution index');
+    expect(() => openSetExecutionIndex(owned(Uint32Array.of(NO_OWNER)))).toThrow('not a variance-authority execution index');
   });
 });

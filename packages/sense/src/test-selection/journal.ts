@@ -45,7 +45,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
-import { executionIndexFrom, ownersOf } from './cases.js';
+import { ownedExecutionIndexFrom } from './cases.js';
 import { eyesOfCases } from './eyes-record.js';
 import { encodeOwnedSetExecutionIndex } from './execution-set-format.js';
 import {
@@ -374,11 +374,12 @@ export async function recordExecution(
   // laid over by id and never replaced by file.
   const observed = options.cases ?? [];
   const eyes = eyesOfCases(observed);
+  const owned = observed.length === 0 ? undefined : ownedExecutionIndexFrom(caseJournals(observed), byId);
   const cases =
-    observed.length === 0
+    owned === undefined
       ? undefined
       : {
-          fresh: encodeOwnedSetExecutionIndex(executionIndexFrom(caseJournals(observed), byId), ownersOf(byId)),
+          fresh: encodeOwnedSetExecutionIndex(owned.index, owned.owners),
           run: { tests, ...(commit === undefined ? {} : { commit }) },
           ...(eyes === undefined ? {} : { eyes }),
         };

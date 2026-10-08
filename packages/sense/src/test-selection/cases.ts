@@ -281,6 +281,20 @@ export function executionIndexFrom(
   modules: ReadonlyMap<ModuleId, CapturedModule>,
   durations: CaseDurations = UNTIMED,
 ): ExecutionIndex {
+  return ownedExecutionIndexFrom(journals, modules, durations).index;
+}
+
+/**
+ * {@link executionIndexFrom}, with the owners of each module it keeps, in the
+ * order of `index.modules`: what `encodeOwnedSetExecutionIndex` writes beside
+ * it. Two ids can share a file, a source and the build its map projects onto
+ * it, so a module's owners are found by its place, not its file.
+ */
+export function ownedExecutionIndexFrom(
+  journals: readonly CaseJournal[],
+  modules: ReadonlyMap<ModuleId, CapturedModule>,
+  durations: CaseDurations = UNTIMED,
+): { readonly index: ExecutionIndex; readonly owners: readonly Uint32Array[] } {
   const ambient = new Map<string, CaseJournal[]>();
   // A case is written when it settles, so work that outlived it arrives as a
   // second frame under the same coordinate: one case, joined here.
@@ -348,10 +362,10 @@ export function executionIndexFrom(
     .filter(([id]) => crossings.has(id) || loaded.has(id))
     .sort(([left], [right]) => codeUnitOrder(left, right));
 
-  return {
-    tests,
-    modules: rows
-      .map(([id, module]) => ({
+  const kept = rows
+    .map(([id, module]) => ({
+      owner: keptOwners(module.blocks),
+      module: {
         file: module.file,
         // An index is read by place: every reader asks it for a line or prints
         // one. A region the transform wrote without an origin has no place, so
@@ -368,17 +382,10 @@ export function executionIndexFrom(
             .sort((left, right) => left - right)
             .map((test): ExecutionCrossing => ({ test, distance: 0 })),
         })),
-      }))
-      .sort((left, right) => codeUnitOrder(left.file, right.file)),
-  };
-}
-
-/**
- * The owners of the regions {@link executionIndexFrom} keeps, by file: what
- * `encodeOwnedSetExecutionIndex` writes beside the index it builds.
- */
-export function ownersOf(modules: ReadonlyMap<ModuleId, CapturedModule>): ReadonlyMap<string, Uint32Array> {
-  return new Map([...modules.values()].map((module) => [module.file, keptOwners(module.blocks)]));
+      },
+    }))
+    .sort((left, right) => codeUnitOrder(left.module.file, right.module.file));
+  return { index: { tests, modules: kept.map(({ module }) => module) }, owners: kept.map(({ owner }) => owner) };
 }
 
 /**
