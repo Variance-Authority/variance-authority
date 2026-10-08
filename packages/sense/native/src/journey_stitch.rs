@@ -10,7 +10,7 @@ use crate::journey_columns;
 use crate::journey_format::{self, EncodedModule, Gaps, SetPool};
 use crate::journey_journal::{self, Test};
 use crate::journey_output;
-use crate::journey_record::{self, Block, Module};
+use crate::journey_record::{self, Block, Module, NO_OWNER};
 use crate::order;
 
 #[napi(object)]
@@ -356,21 +356,7 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inventory>>) -
             }))
             .collect::<Result<_, String>>()?;
         let owned = owners.as_ref().map(|column| column[first..last].to_vec());
-        let held = inventories.entry(file.clone()).or_default();
-        // One cut names one set of owners, so a shard that carries them fills
-        // in for one written before they were.
-        let inventory = match held.iter().position(|known| known.blocks == blocks) {
-            Some(inventory) => {
-                if held[inventory].owners.is_none() {
-                    held[inventory].owners = owned;
-                }
-                inventory
-            }
-            None => {
-                held.push(Inventory { blocks, owners: owned });
-                held.len() - 1
-            }
-        };
+        let inventory = held_inventory(inventories.entry(file.clone()).or_default(), &file, blocks, owned)?;
         modules.push(ShardModule {
             file,
             inventory,
@@ -386,6 +372,34 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inventory>>) -
         local_to_global: Vec::new(),
         gaps: journey_format::read_gaps(&decoded, &strings)?,
     })
+}
+
+/// Where `blocks` stands among the cuts of `file` read so far, with the owners
+/// a shard named for it. An owner is a region before its own, so one that is
+/// not is refused before a walk up the owners could follow it. One cut names
+/// one set of owners: a shard that carries them fills in for one written
+/// before they were, and two shards naming different owners for one cut are
+/// refused rather than one picked.
+fn held_inventory(held: &mut Vec<Inventory>, file: &str, blocks: Vec<Block>, owned: Option<Vec<u32>>) -> Result<usize, String> {
+    if owned.as_ref().is_some_and(|owners| owners.iter().enumerate().any(|(at, owner)| *owner != NO_OWNER && *owner as usize >= at)) {
+        return Err(format!("{file} names an owner after its region in {}", journey_format::OWNER));
+    }
+    match held.iter().position(|known| known.blocks == blocks) {
+        Some(inventory) => {
+            match (&held[inventory].owners, &owned) {
+                (Some(known), Some(named)) if known != named => {
+                    return Err(format!("two shards name different owners for one cut of {file} in {}", journey_format::OWNER));
+                }
+                (None, Some(_)) => held[inventory].owners = owned,
+                _ => {}
+            }
+            Ok(inventory)
+        }
+        None => {
+            held.push(Inventory { blocks, owners: owned });
+            Ok(held.len() - 1)
+        }
+    }
 }
 
 pub(crate) fn strings(decoded: &journey_columns::Decoded) -> Result<Vec<String>, String> {
@@ -474,3 +488,7 @@ pub(crate) fn decode_set(bytes: &[u8], tests: usize) -> Result<Vec<u32>, String>
     }
     Ok(members)
 }
+
+#[cfg(test)]
+#[path = "journey_stitch_tests.rs"]
+mod tests;
