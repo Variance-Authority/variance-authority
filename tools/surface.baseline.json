@@ -95,6 +95,7 @@
         "SuiteBaseOptions": "interface",
         "SuiteReading": "interface",
         "SuiteRequest": "interface",
+        "TimesRequest": "interface",
         "Watching": "interface",
         "Withheld": "interface",
         "accept": "function",
@@ -140,6 +141,7 @@
         "settle": "function",
         "storeFor": "function",
         "suiteBase": "function",
+        "suiteTimes": "function",
         "takes": "function",
         "watch": "function",
         "watching": "function",
@@ -194,6 +196,10 @@
         "./plan": {
           "types": "./dist/plan/index.d.ts",
           "default": "./dist/plan/index.js"
+        },
+        "./shard": {
+          "types": "./dist/shard/index.d.ts",
+          "default": "./dist/shard/index.js"
         }
       },
       "files": [
@@ -668,6 +674,19 @@
         "planForTier": "function",
         "planIdentity": "function",
         "validatePlan": "function"
+      },
+      "./shard": {
+        "MATRIX_LIMIT": "const",
+        "Placeable": "interface",
+        "Placement": "interface",
+        "ShardCount": "interface",
+        "ShardCountOptions": "interface",
+        "ShardCountReason": "type",
+        "durationText": "function",
+        "longestFirst": "function",
+        "place": "function",
+        "priced": "function",
+        "shardCount": "function"
       }
     }
   },
@@ -2560,6 +2579,7 @@
         "encodeSearch": "function",
         "enrichSources": "function",
         "exportedDigest": "function",
+        "fileCases": "function",
         "fileSizes": "function",
         "forksBetween": "function",
         "gitDigests": "function",
@@ -2599,6 +2619,7 @@
         "recordedCases": "function",
         "recordedDurations": "function",
         "recordedPaths": "function",
+        "recordedTimes": "function",
         "refreshDependencyLexiconNative": "function",
         "relationBetween": "function",
         "restrictedChains": "function",
@@ -2803,6 +2824,7 @@
         "SuiteCount": "interface",
         "SuiteKind": "type",
         "SuiteSelection": "interface",
+        "SuiteTimes": "type",
         "SuitesError": "class",
         "TestCoverage": "interface",
         "TestDeviation": "interface",

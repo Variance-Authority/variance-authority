@@ -151,6 +151,68 @@ describe('the sequencer that drops what a selection may skip', () => {
   });
 });
 
+describe('the sequencer under --shard', () => {
+  const times = async () => ({
+    recording: '/cache/unit.bin',
+    commit: 'f'.repeat(40),
+    times: new Map([['a.test.ts', 9000], ['b.test.ts', 4000], ['c.test.ts', 3000], ['d.test.ts', 2000]]),
+  });
+  const files = ['a.test.ts', 'b.test.ts', 'c.test.ts', 'd.test.ts'];
+
+  it('places files by the times recorded, rather than by the runner\'s count', async () => {
+    const lines: string[] = [];
+    const Sequencer = selectingSequencer(Reversing, { root, configRoot: root, times, say: (line) => lines.push(line) });
+
+    const first = await new Sequencer(context({ shard: { index: 1, count: 2 } })).shard(files.map(spec));
+    const second = await new Sequencer(context({ shard: { index: 2, count: 2 } })).shard(files.map(spec));
+
+    expect(names(first)).toEqual(['a.test.ts']);
+    expect(names(second)).toEqual(['b.test.ts', 'c.test.ts', 'd.test.ts']);
+    expect(lines[0]).toBe('variance-authority: shard 1/2 by the times recorded at ffffffffffff: 1 of 4 files, 9.0 s (shards 9.0 s to 9.0 s)');
+  });
+
+  it('places what the selection kept, so the shards split what runs', async () => {
+    const Sequencer = selectingSequencer(Reversing, {
+      root,
+      configRoot: root,
+      selection: async () => selection(['a.test.ts']),
+      times,
+      say: () => {},
+    });
+
+    const first = await new Sequencer(context({ shard: { index: 1, count: 2 } })).shard(files.map(spec));
+
+    expect(names(first)).toEqual(['b.test.ts']);
+  });
+
+  it('hands the split to the project\'s sequencer when nothing is timed, and says so', async () => {
+    const lines: string[] = [];
+    const Sequencer = selectingSequencer(Reversing, {
+      root,
+      configRoot: root,
+      times: async () => ({ unread: 'nothing is recorded there', recording: '/cache/unit.bin' }),
+      say: (line) => lines.push(line),
+    });
+
+    const part = await new Sequencer(context({ shard: { index: 1, count: 2 } })).shard(files.map(spec));
+
+    expect(names(part)).toEqual(['a.test.ts', 'b.test.ts']);
+    expect(lines).toEqual(['variance-authority: shard 1/2 split by the runner, by count: no times at /cache/unit.bin: nothing is recorded there']);
+  });
+
+  it('reads no times and says nothing when no shard is asked for and nothing is selected', async () => {
+    const read = vi.fn(times);
+    const lines: string[] = [];
+    const Sequencer = selectingSequencer(Reversing, { root, configRoot: root, times: read, say: (line) => lines.push(line) });
+
+    const sorted = await new Sequencer(context()).sort(files.map(spec));
+
+    expect(names(sorted)).toEqual(['d.test.ts', 'c.test.ts', 'b.test.ts', 'a.test.ts']);
+    expect(read).not.toHaveBeenCalled();
+    expect(lines).toEqual([]);
+  });
+});
+
 describe('a configuration handed a selection', () => {
   const sequencerOf = (config: ReturnType<typeof withTestSelection>) =>
     (config.test?.sequence as { sequencer?: unknown } | undefined)?.sequencer;
@@ -178,7 +240,7 @@ describe('a configuration handed a selection', () => {
     expect(await configured({ test: { projects: ['a'] } as never }, true)).toBeTypeOf('function');
   });
 
-  it('leaves the sequencer alone when no selection is handed in', async () => {
-    expect(await configured({ test: {} }, false)).toBeUndefined();
+  it('sets it with no selection asked for too, so a `--shard` run is placed by time', async () => {
+    expect(await configured({ test: {} }, false)).toBeTypeOf('function');
   });
 });

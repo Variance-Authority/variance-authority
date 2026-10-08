@@ -105,6 +105,11 @@ export const NAVIGATION = [
         cluster: "Run less of the suite",
       },
       {
+        href: "/docs/sharding",
+        label: "Split a suite across CI jobs",
+        cluster: "Run less of the suite",
+      },
+      {
         href: "/docs/changes-before-and-beyond",
         label: "Changes before and beyond",
         cluster: "Run less of the suite",

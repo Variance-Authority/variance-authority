@@ -32,7 +32,7 @@ import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import type { SuiteSelection } from './suite-selection.js';
-import { selectionFrom } from './selection-environment.js';
+import { selectionFrom, timesFrom } from './selection-environment.js';
 import { selectingSequencer, type SequencerClass } from './vitest-sequencer.js';
 
 export interface TestSelectionOptions {
@@ -182,7 +182,7 @@ export function withTestSelection(
         name: 'variance-authority:test-selection-config',
         configResolved: declareConfig(run, declared, [setupId, runnerId]),
       } satisfies ConfigPlugin],
-      test: { ...config.test, ...selecting(config, root, configRoot, options), reporters: [...reporters, reporter] },
+      test: { ...config.test, ...selecting(config, root, configRoot, options, coverageFile), reporters: [...reporters, reporter] },
     };
   }
 
@@ -196,7 +196,7 @@ export function withTestSelection(
     plugins: [...array(config.plugins), plugin],
     test: {
       ...config.test,
-      ...selecting(config, root, configRoot, options),
+      ...selecting(config, root, configRoot, options, coverageFile),
       // First, so what a setup file of the project's loads is logged into the
       // file's own bucket: before the shim opens it, a probe in a realm that
       // already ran a file writes into the idle one, and under a runner of the
@@ -236,19 +236,24 @@ export function withTestSelection(
   };
 }
 
-/** The sequencer that drops what the selection skips; nothing when none is asked for. */
+/** The sequencer that drops what the selection skips and places a `--shard` by recorded time. */
 function selecting(
   config: UserConfig,
   root: string,
   configRoot: string,
   options: TestSelectionOptions,
+  coverageFile: string,
 ): Pick<NonNullable<UserConfig['test']>, 'sequence'> {
   const suite = options.suite === undefined ? {} : { suite: options.suite };
   const selection = options.selection ?? selectionFrom(process.env, { root, from: configRoot, ...suite });
-  if (selection === undefined) return {};
   const sequence = config.test?.sequence;
   const own = sequence?.sequencer as unknown as SequencerClass | undefined;
-  const sequencer = selectingSequencer(own, { root, configRoot, selection, shuffle: sequence?.shuffle });
+  // A record named by file is the one this run lands in, so its times are read
+  // there; a suite's are read where `variance select` reads its record.
+  const times = timesFrom({ root, from: configRoot, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) });
+  const sequencer = selectingSequencer(own, {
+    root, configRoot, ...(selection === undefined ? {} : { selection }), times, shuffle: sequence?.shuffle,
+  });
   type Sequence = NonNullable<NonNullable<UserConfig['test']>['sequence']>;
   return { sequence: { ...sequence, sequencer: sequencer as unknown as NonNullable<Sequence['sequencer']> } };
 }

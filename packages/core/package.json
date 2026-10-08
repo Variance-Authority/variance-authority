@@ -62,6 +62,10 @@
     "./plan": {
       "types": "./dist/plan/index.d.ts",
       "default": "./dist/plan/index.js"
+    },
+    "./shard": {
+      "types": "./dist/shard/index.d.ts",
+      "default": "./dist/shard/index.js"
     }
   },
   "main": "./dist/index.js",

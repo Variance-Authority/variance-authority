@@ -37,6 +37,12 @@ depend on.
 <p>Set one variable and the Vitest or Jest run you already call leaves out every test file that never executed the code you changed.</p>
 <em>Focus the next run →</em>
 </a>
+<a class="doc-link-card doc-link-card--compact" href="sharding.md">
+<span>Sharding</span>
+<strong>Split the suite across CI jobs</strong>
+<p>Give each shard of a Vitest or Jest run its files by the time they took last run, so the shards finish together, and start only as many as are worth their setup.</p>
+<em>Split the suite →</em>
+</a>
 <a class="doc-link-card doc-link-card--compact" href="test-level-coverage.md">
 <span>Coverage</span>
 <strong>Know which test covers this line</strong>

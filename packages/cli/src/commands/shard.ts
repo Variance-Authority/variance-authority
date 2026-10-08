@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { longestFirst, place } from '@variance-authority/core/shard';
 import { matchesGlob, type PlannedSubject } from './collector.js';
 import type { Shard } from '../shard-args.js';
 import { shardFilterBecause, shardOwnedBecause, type NotObserved } from './run-report.js';
@@ -12,16 +12,13 @@ import { shardFilterBecause, shardOwnedBecause, type NotObserved } from './run-r
  *   CSF file and every width of one route load the same module graph; split
  *   across machines, each machine pays for it. `declaredIn` is the key, and a
  *   subject with none is its own group.
- * - **Without costs, a checksum decides.** Rendezvous hashing — each group goes
- *   to the shard whose `sha256(group, shard)` is highest — depends on the group
- *   and the shard count and on nothing else, so adding a story moves no other
- *   file and two machines that discovered different plans still agree on every
- *   group they share.
- * - **With costs, the recorded time decides.** A previous report carries
- *   `costMs` per subject; groups are placed longest first on the least-loaded
- *   shard (LPT). That placement is a function of the *whole* plan, so shards
- *   must plan the same suite — when they do not, `merge` sees the overlap or
- *   the gap and refuses, rather than a subject going unwatched.
+ * - **Where each group goes is `place` in `@variance-authority/core/shard`**,
+ *   the rule a test runner's seam places test files by: the recorded time
+ *   when a previous report carries `costMs`, longest first on the
+ *   least-loaded shard, and a checksum otherwise. A placement by time is a
+ *   function of the *whole* plan, so shards must plan the same suite — when
+ *   they do not, `merge` sees the overlap or the gap and refuses, rather than
+ *   a subject going unwatched.
  */
 
 /** Subject id to milliseconds, read from a previous report's `costMs`. */
@@ -31,61 +28,16 @@ export function groupOf(planned: PlannedSubject): string {
   return planned.declaredIn ?? planned.subject.id;
 }
 
-interface Group {
-  readonly key: string;
-  /** Plan indices, in plan order. */
-  readonly members: number[];
-  /** Estimated milliseconds; `undefined` when no subject in the run has a cost. */
-  cost?: number;
-}
-
 /** Plan indices grouped by declaring file, groups in order of first appearance. */
-function groupsOf(subjects: readonly PlannedSubject[], costs: Costs | undefined): Group[] {
-  const byKey = new Map<string, Group>();
+function groupsOf(subjects: readonly PlannedSubject[]): { readonly key: string; readonly members: number[] }[] {
+  const byKey = new Map<string, { key: string; members: number[] }>();
   subjects.forEach((planned, index) => {
     const key = groupOf(planned);
     const group = byKey.get(key) ?? { key, members: [] };
     group.members.push(index);
     byKey.set(key, group);
   });
-  const groups = [...byKey.values()];
-
-  // An unrecorded subject is estimated at the median of the recorded ones: a new
-  // story is a story, and pricing it at zero would stack every new file on one
-  // shard. No recorded subject at all is no estimate, and the checksum decides.
-  const known = subjects.flatMap((planned) => {
-    const cost = costs?.get(planned.subject.id);
-    return cost === undefined ? [] : [cost];
-  });
-  if (known.length === 0) return groups;
-  const median = [...known].sort((a, b) => a - b)[Math.floor(known.length / 2)] ?? 0;
-  for (const group of groups) {
-    group.cost = group.members.reduce(
-      (sum, index) => sum + (costs?.get(subjects[index]?.subject.id ?? '') ?? median),
-      0,
-    );
-  }
-  return groups;
-}
-
-/** Longest first; ties by key in code-unit order, so the order is a function of the plan. */
-function byCostDescending(a: Group, b: Group): number {
-  const difference = (b.cost ?? 0) - (a.cost ?? 0);
-  if (difference !== 0) return difference;
-  return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
-}
-
-function rendezvous(key: string, total: number): number {
-  let best = 1;
-  let bestScore = '';
-  for (let shard = 1; shard <= total; shard++) {
-    const score = createHash('sha256').update(`${key}\0${shard}`).digest('hex');
-    if (score > bestScore) {
-      best = shard;
-      bestScore = score;
-    }
-  }
-  return best;
+  return [...byKey.values()];
 }
 
 export interface Assignment {
@@ -108,34 +60,23 @@ export function assign(
   shard: Shard | undefined,
   costs: Costs | undefined,
 ): Assignment {
-  const groups = groupsOf(subjects, costs);
-  const costed = groups.some((group) => group.cost !== undefined);
-  const total = shard?.total ?? 1;
-  const owner = new Map<Group, number>();
-
-  if (costed) {
-    const load = Array.from({ length: total }, () => 0);
-    for (const group of [...groups].sort(byCostDescending)) {
-      let least = 0;
-      for (let k = 1; k < total; k++) if ((load[k] ?? 0) < (load[least] ?? 0)) least = k;
-      load[least] = (load[least] ?? 0) + (group.cost ?? 0);
-      owner.set(group, least + 1);
-    }
-  } else {
-    for (const group of groups) owner.set(group, total === 1 ? 1 : rendezvous(group.key, total));
-  }
-
-  const mine = groups.filter((group) => owner.get(group) === (shard?.index ?? 1));
+  const groups = groupsOf(subjects);
+  const placement = place(
+    groups.map(({ key, members }) => ({ key, costs: members.map((index) => costs?.get(subjects[index]?.subject.id ?? '')) })),
+    shard?.total ?? 1,
+  );
+  const here = shard?.index ?? 1;
   const elsewhere = new Map<number, number>();
-  for (const group of groups) {
-    const k = owner.get(group) ?? 1;
-    if (k !== (shard?.index ?? 1)) for (const index of group.members) elsewhere.set(index, k);
-  }
-
+  groups.forEach((group, at) => {
+    const owner = placement.owner[at]!;
+    if (owner !== here) for (const index of group.members) elsewhere.set(index, owner);
+  });
+  const mine = (order: readonly number[]) => order.filter((at) => placement.owner[at] === here).map((at) => groups[at]!.members);
+  const inPlan = groups.map((_, at) => at);
   return {
-    queue: (costed ? [...mine].sort(byCostDescending) : mine).map((group) => group.members),
+    queue: mine(placement.cost === undefined ? inPlan : longestFirst(groups.map((group) => group.key), placement.cost)),
     elsewhere,
-    by: costed ? 'recorded cost' : 'checksum',
+    by: placement.by,
   };
 }
 

@@ -69,6 +69,7 @@ import changesBeforeAndBeyond from "../../../docs/changes-before-and-beyond.md?r
 import selecting from "../../../docs/selecting.md?raw";
 import selectionTanstackQuery from "../../../docs/selection-tanstack-query.md?raw";
 import selectionZod from "../../../docs/selection-zod.md?raw";
+import sharding from "../../../docs/sharding.md?raw";
 import sharing from "../../../docs/sharing.md?raw";
 import sourceIndex from "../../../docs/source-index.md?raw";
 import sourceStructures from "../../../docs/source-structures.md?raw";
@@ -202,6 +203,7 @@ const documents = [
   ["metrics", metrics, "docs/metrics.md"],
   ["native-code", nativeCode, "docs/native-code.md"],
   ["performance", performance, "docs/performance.md"],
+  ["sharding", sharding, "docs/sharding.md"],
   ["sharing", sharing, "docs/sharing.md"],
   ["cache", cache, "docs/cache.md"],
   ["on-dependencies", onDependencies, "docs/on-dependencies.md"],

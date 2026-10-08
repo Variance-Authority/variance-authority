@@ -19,6 +19,12 @@
  * Vitest checks for "no test files" before it calls the sequencer, so a run
  * whose every file was skipped exits as a run that passed. That is the
  * answer, and the line before it says `selected none of M`.
+ *
+ * Under `--shard k/n` the files left are placed by the time the suite's record
+ * holds for each, rather than cut by count: every shard places every file and
+ * keeps its own part (`shard-placement.ts`), and stderr says which part and
+ * what it is expected to take. With no time recorded for any of them the
+ * project's sequencer cuts the shard, and the line says that instead.
  */
 
 // compass: variance-authority.reach
@@ -27,7 +33,8 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { projectPath } from './instrumented-modules.js';
-import { selectedLines, type SuiteSelection } from './suite-selection.js';
+import { shardOf, type ShardAsked } from './shard-placement.js';
+import { selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
 
 /** Marks a sequencer that already selects, so a second wrap is the first one. */
 const SELECTING = Symbol.for('variance-authority:selecting-sequencer');
@@ -61,8 +68,10 @@ export interface SelectingOptions {
   readonly root: string;
   /** Where the project's Vitest resolves from, for the sequencer it would have used. */
   readonly configRoot: string;
-  /** Read once, the first time a run asks. */
-  readonly selection: () => Promise<SuiteSelection>;
+  /** Read once, the first time a run asks; absent, every file runs. */
+  readonly selection?: () => Promise<SuiteSelection>;
+  /** The suite's recorded times, read once, and only by a run under `--shard`. */
+  readonly times?: () => Promise<SuiteTimes>;
   /** Where the count goes; stderr unless a test says otherwise. */
   readonly say?: (line: string) => void;
   /**
@@ -74,14 +83,17 @@ export interface SelectingOptions {
 }
 
 /**
- * A sequencer class that drops `selection().skip` and hands the rest to `own`,
- * or to the sequencer Vitest would have picked when the project named none.
+ * A sequencer class that drops `selection().skip`, places the rest by `times()`
+ * under `--shard`, and hands what is left to `own`, or to the sequencer Vitest
+ * would have picked when the project named none.
  */
 export function selectingSequencer(own: SequencerClass | undefined, options: SelectingOptions): SequencerClass {
   if (own !== undefined && (own as unknown as Record<symbol, unknown>)[SELECTING] === true) return own;
   const say = options.say ?? ((line: string) => process.stderr.write(`${line}\n`));
   let asked: Promise<SuiteSelection> | undefined;
+  let timed: Promise<SuiteTimes> | undefined;
   let said = false;
+  let placed = false;
 
   class Selecting implements Sequencer {
     static readonly [SELECTING] = true;
@@ -94,7 +106,14 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
 
     async shard<T extends Spec>(files: T[]): Promise<T[]> {
       const kept = await this.#kept(files);
-      return (await this.#sequencer()).shard(kept);
+      const shard = shardAsked(this.#ctx.config.shard);
+      if (shard === undefined || options.times === undefined) return (await this.#sequencer()).shard(kept);
+      timed ??= options.times();
+      const part = shardOf(kept.map((file) => projectPath(options.root, moduleOf(file))), shard, await timed);
+      if (!placed) say(part.line);
+      placed = true;
+      if (part.take === undefined) return (await this.#sequencer()).shard(kept);
+      return part.take.map((at) => kept[at]!);
     }
 
     async sort<T extends Spec>(files: T[]): Promise<T[]> {
@@ -110,6 +129,7 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
     }
 
     async #kept<T extends Spec>(files: T[]): Promise<T[]> {
+      if (options.selection === undefined) return files;
       if (this.#ctx.config.watch === true) {
         if (!said) say('variance-authority: watch mode does not select');
         said = true;
@@ -127,6 +147,13 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
     }
   }
   return Selecting;
+}
+
+/** `config.shard` as Vitest resolves `--shard k/n`, or `undefined` when no shard was asked for. */
+function shardAsked(shard: unknown): ShardAsked | undefined {
+  if (typeof shard !== 'object' || shard === null) return undefined;
+  const { index, count } = shard as { index?: unknown; count?: unknown };
+  return typeof index === 'number' && typeof count === 'number' ? { index, count } : undefined;
 }
 
 function moduleOf(spec: Spec): string {

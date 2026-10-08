@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { decodeTestCoverage } from './format.js';
+import { writeTestCoverage } from './index.js';
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -68,5 +69,28 @@ describe('a Jest run handed a selection', () => {
 
     expect(stdout).not.toContain('alpha.case.ts');
     expect(stdout).toContain('beta.case.ts');
+  }, 60_000);
+});
+
+describe('a Jest run under --shard, with the times a record holds', () => {
+  it('places each file by its recorded time, and says what each shard takes', async () => {
+    // Alpha is recorded as the slow one, so on two shards it is alone on the first.
+    const timed = (k: number) => writeTestCoverage(resolve(directory, `timed-${k}.bin`), {
+      version: 3,
+      instrumentation: 'fixture',
+      tests: FOUND.map((file) => ({ file, complete: true, preconditions: [], duration: file.includes('alpha') ? 9000 : 100 })),
+      modules: [],
+    });
+    await Promise.all([timed(1), timed(2)]);
+
+    const first = await run('timed-1', [], '--shard', '1/2');
+    const second = await run('timed-2', [], '--shard', '2/2');
+
+    expect(first.stderr).toContain('variance-authority: shard 1/2 by the times recorded at');
+    expect(first.stderr).toContain('1 of 5 files, 9.0 s (shards 400 ms to 9.0 s)');
+    expect(first.stderr).toMatch(/PASS .*alpha\.case\.ts/);
+    expect(first.stderr).not.toMatch(/PASS .*beta\.case\.ts/);
+    for (const name of ['beta', 'delta', 'each', 'gamma']) expect(second.stderr).toMatch(new RegExp(`PASS .*${name}\\.case\\.ts`));
+    expect(second.stderr).not.toMatch(/PASS .*alpha\.case\.ts/);
   }, 60_000);
 });

@@ -87,8 +87,9 @@ stderr shows one line: `selected 12 of 340`, `selected none of 340`, or
 every file runs. A test file the snapshot has never seen runs.
 
 The files are removed in a `sequence.sequencer` that wraps the one your
-configuration names, before it shards and sorts, so `--shard` divides the
-same list in every shard. Watch mode does not select.
+configuration names, before it shards and sorts, so every shard divides the
+same list. `--shard` places that list by the time each file took on the last
+recorded run, as [sharding](../../docs/sharding.md) shows. Watch mode does not select.
 `@variance-authority/cli` has to be installed in the project; when the checkout cannot resolve it, the run fails and the message
 names the package.
 

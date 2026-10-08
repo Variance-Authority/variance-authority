@@ -1,9 +1,9 @@
-import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { selectionFrom } from './selection-environment.js';
+import { selectionFrom, timesFrom } from './selection-environment.js';
 
 /** The cli this checkout builds, linked into a scratch checkout as an install would. */
 const CLI = fileURLToPath(new URL('../../../cli', import.meta.url));
@@ -70,4 +70,20 @@ describe('the selection the environment asks for', () => {
       await rm(root, { recursive: true, force: true });
     }
   }, 30_000);
+});
+
+describe('the times a shard is placed by', () => {
+  it('are a reason, not a failure, when the installed cli throws as it loads', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-times-broken-cli-'));
+    try {
+      const cli = resolve(root, 'node_modules', '@variance-authority', 'cli');
+      await mkdir(cli, { recursive: true });
+      await writeFile(resolve(cli, 'package.json'), JSON.stringify({ name: '@variance-authority/cli', type: 'module', main: 'index.js' }));
+      await writeFile(resolve(cli, 'index.js'), "throw new Error('a broken install');");
+
+      await expect(timesFrom({ root })()).resolves.toEqual({ unread: 'a broken install' });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

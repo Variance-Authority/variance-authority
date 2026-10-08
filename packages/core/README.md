@@ -158,12 +158,14 @@ specifier exports only the capture artifact.
 | `core/relate` | what rests on what: a file graph in adjacency form, the components a change reaches, and a closure digest over each one |
 | `core/segment` | columnar bytes: named columns, interned strings, and the validation a decode performs before it believes a file |
 | `core/share` | leaving those bytes where another machine finds them, as the latest of a mainline or a branch |
+| `core/shard` | which shard runs which group of a suite, by recorded time, and how many shards it is worth: `shardCount` weighs each shard's `setup` against the time it saves, within a `budget` or up to a `max`, with `workers` running a shard's groups at once |
 
 Five of those are the order an answer travels through: `format`, `rules`,
 `compare`, `attribute`, `judge`. `plan` and `relate` run before anything
 is captured — one decides which baselines a run can use, the other which
 subjects are worth reading. `segment` and `share` are how a derived answer
-is written down and handed to another machine.
+is written down and handed to another machine. `shard` splits one run across
+several.
 
 ## The four words the output uses
 
