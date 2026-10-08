@@ -10,8 +10,8 @@ to both regions. `variance covering --line` read only the branch, so it named
 the cases that took the branch and said they were the only ones that could
 have reached the line, while every case that evaluated the condition and went
 the other way was selected by the edit. `covering` now reads a line by the
-rule `select` charges it by, so the two agree: a line that opens a branch, or
-closes a function, also answers with the region around it. The brace that
+rule `select` charges it by, so the two agree: a line that opens a branch or
+a function, or closes a function, also answers with the region around it. The brace that
 closes a branch also names the cases that took the `else` nobody wrote, which
 the recording places on that line. A line inside a branch answers with the
 branch alone. `coveringTests`, `coveringTestsInFile` and `testsReaching` answer
