@@ -70,7 +70,7 @@ describe('where to look, for a comment', () => {
       '| R | `trim` | modified | `src/caps.ts:22-25` | 4 | 1 | `a.test.ts`, `b.test.ts`, `c.test.ts` and 1 more |',
       '| G | `spill` | moved from `src/old.ts` | `src/caps.ts:30-35` | 1 | 1 | `a.test.ts` |',
       '',
-      'A case entered a function when it called into it, and ran a changed line when it entered the innermost region holding one. Case titles are in the review\'s JSON.',
+      'A case entered a function when it called into it, and ran a changed line when `variance covering --line` names it for one. Case titles are in the review\'s JSON.',
       '',
       '</details>',
     ].join('\n'));
@@ -90,6 +90,8 @@ describe('where to look, for a comment', () => {
     const linked = { ...review([region('function', 'cap', 3, 20, 'near', ['a.test.ts']), region('function', 'spill', 22, 22, 'unwalked')]), head: { commit: 'e7720ded', parents: [], blob: 'https://github.com/o/r/blob/e7720ded' } } as Review;
     expect(functionsMarkdown(linked, mark).join('\n')).toContain('| [`src/caps.ts:3-20`](https://github.com/o/r/blob/e7720ded/src/caps.ts#L3-L20) |');
     expect(uncoveredMarkdown(linked, mark).join('\n')).toContain('- [`src/caps.ts:22`](https://github.com/o/r/blob/e7720ded/src/caps.ts#L22) function `spill` (new)');
+    const spaced = { ...linked, files: [{ file: 'src/a b#1.ts', regions: linked.files[0]!.regions }] } as Review;
+    expect(functionsMarkdown(spaced, mark).join('\n')).toContain('(https://github.com/o/r/blob/e7720ded/src/a%20b%231.ts#L3-L20)');
   });
 
   it('lists a hundred functions and counts the rest', () => {

@@ -133,8 +133,8 @@ async function runLineOf(mainlines: Mainlines, env: Env, cwd: string): Promise<R
       if (fromFork(pull)) return { none: 'a pull request from a fork publishes nothing; its token is read-only' };
       const name = env['GITHUB_HEAD_REF'];
       if (name === undefined || name === '') return { none: 'the pull request names no head branch' };
-      const head = pull?.head?.sha;
-      return { line: { kind: 'branch', name }, ...(typeof head === 'string' ? { head } : {}) };
+      const head = pullHeadIn(pull);
+      return { line: { kind: 'branch', name }, ...(head === undefined ? {} : { head }) };
     }
     const name = env['GITHUB_REF_TYPE'] === 'branch' ? env['GITHUB_REF_NAME'] : undefined;
     if (name === undefined || name === '') return { none: 'this run is not on a branch' };
@@ -383,6 +383,23 @@ interface GitHubEvent {
 /** Whether a pull request's head is in another repository than its base. An event that names no head repository is not a fork. */
 function fromFork(pull: GitHubEvent['pull_request']): boolean {
   return pull?.head?.repo?.full_name !== undefined && pull.head.repo.full_name !== pull.base?.repo?.full_name;
+}
+
+/**
+ * The head commit of the pull request this CI run is for, as the event names
+ * it, or absent on any other run. CI checks out a merge of it that nobody
+ * pushed, so the head is read from the event, never guessed from the merge.
+ */
+export async function pullRequestHead(env: Env = process.env): Promise<string | undefined> {
+  if (env['GITHUB_ACTIONS'] !== 'true') return undefined;
+  const event = env['GITHUB_EVENT_NAME'];
+  if (event !== 'pull_request' && event !== 'pull_request_target') return undefined;
+  return pullHeadIn((await eventOf(env))?.pull_request);
+}
+
+function pullHeadIn(pull: GitHubEvent['pull_request']): string | undefined {
+  const head = pull?.head?.sha;
+  return typeof head === 'string' ? head : undefined;
 }
 
 async function eventOf(env: Env): Promise<GitHubEvent | undefined> {

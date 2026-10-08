@@ -111,7 +111,7 @@ export function functionsMarkdown(review: Review, mark: (region: ReviewRegion) =
   return [
     ...lines,
     '',
-    'A case entered a function when it called into it, and ran a changed line when it entered the innermost region holding one. Case titles are in the review\'s JSON.',
+    'A case entered a function when it called into it, and ran a changed line when `variance covering --line` names it for one. Case titles are in the review\'s JSON.',
     '',
     '</details>',
   ];
@@ -205,7 +205,7 @@ function place(review: Review, file: string, region: ReviewRegion): string {
   const blob = review.head?.blob;
   if (blob === undefined) return at;
   const anchor = region.startLine === region.endLine ? `L${region.startLine}` : `L${region.startLine}-L${region.endLine}`;
-  return `[${at}](${blob}/${file}#${anchor})`;
+  return `[${at}](${blob}/${file.split('/').map(encodeURIComponent).join('/')}#${anchor})`;
 }
 
 function escape(value: string): string {

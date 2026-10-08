@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { basename, dirname, join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { updateSourceIndex } from '@variance-authority/sense';
 import {
@@ -45,7 +45,12 @@ function parse(argv: readonly string[]) {
 
 describe('a review of what a change did, after the run that recorded it', () => {
   const cwd = process.cwd();
-  afterEach(() => process.chdir(cwd));
+  // A review reads the pull request it runs for from CI's event, so these tests run as if outside CI.
+  beforeEach(() => vi.stubEnv('GITHUB_ACTIONS', ''));
+  afterEach(() => {
+    process.chdir(cwd);
+    vi.unstubAllEnvs();
+  });
 
   /** `main` at the base, the change in the working tree, and the run after it recorded. */
   async function changed(options: { readonly gone?: boolean; readonly suites?: readonly string[] } = {}): Promise<{ root: string; first: string; against: string }> {
@@ -181,12 +186,22 @@ describe('a review of what a change did, after the run that recorded it', () => 
     git(root, ['merge', '--quiet', '--no-ff', '-m', 'merge', 'topic']);
     const merge = git(root, ['rev-parse', 'HEAD']);
     git(root, ['remote', 'add', 'origin', 'git@github.com:o/r.git']);
+    const short = (commit: string) => `\`${commit.slice(0, 12)}\``;
 
+    // A merge no pull request event names, such as one landing on main, is a commit like any other.
+    const landed = formatReview(await review(parse(['--since', first, '--against', against, '--root', root])), 'markdown');
+    expect(landed).toContain(`Reviewed ${short(merge)}. Changes since`);
+    expect(landed).not.toContain('merged into');
+
+    const event = join(root, '..', `${basename(root)}-event.json`);
+    await writeFile(event, JSON.stringify({ pull_request: { head: { sha: head } } }));
+    vi.stubEnv('GITHUB_ACTIONS', 'true');
+    vi.stubEnv('GITHUB_EVENT_NAME', 'pull_request');
+    vi.stubEnv('GITHUB_EVENT_PATH', event);
     const answer = await review(parse(['--since', first, '--against', against, '--root', root]));
 
-    expect(answer.head).toEqual({ commit: merge, parents: [first, head], blob: `https://github.com/o/r/blob/${merge}` });
+    expect(answer.head).toEqual({ commit: merge, parents: [first, head], pull: head, blob: `https://github.com/o/r/blob/${merge}` });
     const markdown = formatReview(answer, 'markdown');
-    const short = (commit: string) => `\`${commit.slice(0, 12)}\``;
     expect(markdown).toContain(
       `Reviewed ${short(head)} (merged into ${short(first)} as ${short(merge)} for this run). Changes since ${short(first)}.`,
     );

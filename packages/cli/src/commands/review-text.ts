@@ -63,7 +63,7 @@ function text(review: Review): string {
   const detail = review.files.flatMap((file) =>
     outermost(file).filter(worthNaming).map((region) => `  ${file.file}:${region.startLine}-${region.endLine} ${
       region.name === '' ? region.kind : `${region.kind} ${region.name}`
-    } — ${REACH_TEXT[region.reach]} (${editText(region)})`));
+    } — ${REACH_TEXT[region.reach]} (${editText(file.file, region)})`));
   if (detail.length > 0) lines.push('', 'Regions not covered by a test one import away:', ...detail);
   for (const reading of review.coverage ?? []) {
     lines.push('', 'missed' in reading ? `${reading.suite ?? 'the record'}: coverage unavailable: ${reading.missed}` : formatCoverage(reading, 'text').trimEnd());
@@ -72,8 +72,8 @@ function text(review: Review): string {
 }
 
 /** A region's edit, as the text format says it. */
-function editText(region: ReviewRegion): string {
-  return region.edit === 'moved' ? `moved from ${region.movedFrom ?? 'the same file'}` : region.edit;
+function editText(file: string, region: ReviewRegion): string {
+  return region.edit !== 'moved' ? region.edit : region.movedFrom === undefined || region.movedFrom === file ? 'moved within the file' : `moved from ${region.movedFrom}`;
 }
 
 /**
@@ -100,8 +100,8 @@ const LEGEND = '🟢 a test importing the file ran it · 🟡 only tests further
  * The comment, disclosed a level at a time. The first screen is the verdict:
  * which changed functions hold code no case ran, what the change cost against
  * the base, and how much of the suite ran. Everything a reader or an agent
- * would dig for — each location, the cases that ran each function by title,
- * the cases added — is one fold down, and what is rarely read is two. Before
+ * would dig for — each location, how many cases ran each function, the cases
+ * added — is one fold down, and what is rarely read is two. Before
  * the change has run, the same answers say what it might move.
  *
  * The comment is posted as it is written, so it is cut to GitHub's limit here,
@@ -291,7 +291,7 @@ function header(review: Review, code: (value: string) => string = (value) => val
 function markdownHeader(review: Review, code: (value: string) => string): string {
   const short = (commit: string): string => code(commit.slice(0, 12));
   const head = review.head;
-  const merged = head !== undefined && head.dirty !== true && head.parents.length === 2 ? head.parents[1]! : undefined;
+  const merged = head !== undefined && head.dirty !== true && head.pull !== undefined && head.parents[1] === head.pull ? head.pull : undefined;
   const reviewed = head === undefined
     ? []
     : head.dirty === true

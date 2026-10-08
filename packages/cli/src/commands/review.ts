@@ -26,6 +26,7 @@ import {
   askCoverageFile,
   changedLines,
   coveringChange,
+  coveringTestsInFile,
   readCommitRuns,
   readJourneyChange,
   testsGovernedBy,
@@ -43,7 +44,7 @@ import { motionAgainst, motionOfRuns, runsWrote, type CoveringMotion } from './c
 import { readExecutionFor, readExecutionIndex, recordedExecutionFile, replacedCases } from './execution-input.js';
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
-import { headOf } from './review-head.js';
+import { reviewedCommit } from './review-head.js';
 import { nearTests, regionsOf, removedText, treeLines } from './review-region.js';
 import { packagesReached, type PackageReach } from './review-install.js';
 import { diffPoint, diffSince } from './since.js';
@@ -85,9 +86,9 @@ export interface ReviewRegion {
   /** How many cases called into it. */
   readonly cases: number;
   /**
-   * How many cases ran a line of it the change wrote: entered the innermost
-   * changed region holding that line. A case can enter a function and take
-   * the branch the change left alone.
+   * How many cases ran a line of it the change wrote, as `variance covering
+   * --line` names them for each such line. A case can enter a function and
+   * take the branch the change left alone.
    */
   readonly changedLineCases: number;
   /** The test files those cases are declared in, in code-unit order. */
@@ -130,15 +131,17 @@ export interface BeforeReach {
 
 export interface Review {
   /**
-   * The checkout's commit and its parents, as git lists them: on a pull
-   * request in CI, the merge GitHub made, whose second parent is the pull
-   * request's head. `dirty` when the tree had edits on top of it, and `blob`,
+   * The checkout's commit and its parents, as git lists them, and `pull`, the
+   * pull request's head when the CI event names one: on a pull request, CI
+   * checks out the merge GitHub made, whose second parent is that head.
+   * `dirty` when the tree had edits or new files on top of it, and `blob`,
    * where the host shows the files at it, only when it did not. Absent when
    * git could not say.
    */
   readonly head?: {
     readonly commit: string;
     readonly parents: readonly string[];
+    readonly pull?: string;
     readonly dirty?: true;
     readonly blob?: string;
   };
@@ -272,7 +275,7 @@ export async function review(request: ParsedReview): Promise<Review> {
       ...(created ? { created: true } : read === undefined ? {} : readingOf(read)),
       ...(change === undefined ? {} : {
         recorded: change.recorded,
-        regions: regionsOf(change.regions, near.get(file), ranges, await treeLines(root, file), file, removed),
+        regions: regionsOf(change.regions, near.get(file), ranges, await treeLines(root, file), file, removed, coveringTestsInFile(index, file)),
       }),
       ...(cases === undefined ? {} : { cases }),
     });
@@ -288,7 +291,7 @@ export async function review(request: ParsedReview): Promise<Review> {
       : await motionOfRuns(full, from, wrote, root, ref);
 
   const record = await ranAsTree(recorded.file, root, files.filter((file) => file.recorded === true).map((file) => file.file));
-  const head = await headOf(point.repository);
+  const head = await reviewedCommit(point.repository, root);
   return {
     ...(head === undefined ? {} : { head }),
     from: point.base,
