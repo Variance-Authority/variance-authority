@@ -220,10 +220,10 @@ describe('what the seam refuses to instrument', () => {
     try {
       const configured = withTestSelection({}, { root, coverageFile });
       const plugin = (configured.plugins as unknown as Array<{
-        transform(code: string, id: string): { code: string } | null;
+        transform: { handler(code: string, id: string): { code: string } | null };
       }>)[0]!;
 
-      expect(plugin.transform('export default {};', resolve(root, 'vitest.config.ts'))).toBeNull();
+      expect(plugin.transform.handler('export default {};', resolve(root, 'vitest.config.ts'))).toBeNull();
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -237,13 +237,13 @@ describe('coverage generations', () => {
     try {
       const configured = withTestSelection({}, { root, coverageFile, include: () => true });
       const plugin = (configured.plugins as unknown as Array<{
-        transform(code: string, id: string): unknown;
+        transform: { handler(code: string, id: string): unknown };
       }>)[0]!;
       const reporter = (configured.test!.reporters as unknown as Array<{
         onFinished(files: readonly []): Promise<void>;
       }>)[1]!;
 
-      expect(plugin.transform('const =', resolve(root, 'broken.ts'))).toBeNull();
+      expect(plugin.transform.handler('const =', resolve(root, 'broken.ts'))).toBeNull();
       await reporter.onFinished([]);
 
       expect(decodeTestCoverage(await readFile(coverageFile)).modules).toEqual([{
@@ -310,13 +310,13 @@ describe('coverage generations', () => {
     try {
       const configured = withTestSelection({}, { root, coverageFile, include: () => true, mode: 'entries' });
       const plugin = (configured.plugins as unknown as Array<{
-        transform(code: string, id: string): { code: string } | null;
+        transform: { handler(code: string, id: string): { code: string } | null };
       }>)[0]!;
       const reporter = (configured.test!.reporters as unknown as Array<{
         onFinished(files: readonly []): Promise<void>;
       }>)[1]!;
 
-      const placed = plugin.transform('export function f(x) { if (x) { return 1; } return 2; }', resolve(root, 'f.ts'));
+      const placed = plugin.transform.handler('export function f(x) { if (x) { return 1; } return 2; }', resolve(root, 'f.ts'));
       await reporter.onFinished([]);
 
       // One probe for the function and none for the branch; the header marks

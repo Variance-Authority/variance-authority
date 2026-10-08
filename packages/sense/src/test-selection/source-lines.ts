@@ -252,9 +252,9 @@ const NODE_MODULES = /[/\\]node_modules[/\\]/;
 
 /**
  * The file on disk, outside `node_modules`. {@link rawFrame} takes it as the
- * text handed over when that is the file as it is, or with the comment blanked
- * in place, which is what a Vite dev server hands a plugin once it has read the
- * map itself.
+ * text handed over when that is the file as it is, or with its map comments
+ * blanked in place, which is what a Vite dev server hands a plugin once it has
+ * read the map itself.
  */
 function onDisk(file: string, original: (path: string) => string): string | undefined {
   if (NODE_MODULES.test(file)) return undefined;
@@ -279,16 +279,19 @@ function builtMap(disk: string, file: string, original: (path: string) => string
 
 /**
  * The texts a host hands a transform for a file whose contents are `disk`: the
- * file as it is, and, when it ends in a `sourceMappingURL` comment, the file
- * with that comment blanked in place, which is what a Vite dev server hands a
- * plugin once it has read the map itself.
+ * file as it is, and the file with its `sourceMappingURL` comments blanked in
+ * place, which is what a Vite dev server hands a plugin once it has read the
+ * map itself. Vite blanks every comment its map reader matches, inline maps
+ * and block comments too.
  */
 export function handedTexts(disk: string): readonly string[] {
-  const pointer = SOURCE_MAPPING_URL.exec(disk);
-  if (pointer === null) return [disk];
-  const end = pointer.index + pointer[0].length;
-  return [disk, `${disk.slice(0, pointer.index)}${' '.repeat(pointer[0].length)}${disk.slice(end)}`];
+  const blanked = disk.replace(MAP_COMMENTS, (comment) => ' '.repeat(comment.length));
+  return blanked === disk ? [disk] : [disk, blanked];
 }
+
+/** The comments Vite blanks: `convert-source-map`'s `mapFileCommentRegex`, as Vite's load applies it. */
+const MAP_COMMENTS =
+  /(?:\/\/[@#][ \t]+?sourceMappingURL=([^\s'"`]+?)[ \t]*?$)|(?:\/\*[@#][ \t]+sourceMappingURL=([^*]+?)[ \t]*?(?:\*\/){1}[ \t]*?$)/gm;
 
 /** The frame of a module whose transformed text is empty: the file, every line of it. */
 function wholeFile(file: string, original: (path: string) => string): RecordedFrame | undefined {

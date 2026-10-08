@@ -26,7 +26,7 @@ export interface Captured {
   readonly module: CapturedModule;
   /** `undefined` when the instrumenter could not read the text: it runs as it is. */
   readonly code: string | undefined;
-  /** The text is not the file on disk, and nothing maps one onto the other: see {@link rawFrame}. */
+  /** The file is on disk, and the text handed over is not it, nor it with its map comments blanked: see {@link rawFrame}. */
   readonly changed?: true;
 }
 

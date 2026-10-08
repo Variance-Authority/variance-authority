@@ -15,7 +15,7 @@ type Hook = (...args: unknown[]) => void;
 interface Seam {
   readonly plugin: {
     config(config: { test: { browser: { enabled: boolean }; runner?: string } }): void;
-    transform(code: string, id: string): { code: string } | null;
+    transform: { handler(code: string, id: string): { code: string } | null };
   };
   readonly reporter: { onTestRunEnd(modules: readonly ReportedModule[]): Promise<void> };
   readonly setup: string;
@@ -69,7 +69,7 @@ describe('a test file that runs in a page', () => {
     try {
       const { plugin, setup } = seam(root);
       plugin.config({ test: { browser: { enabled: true } } });
-      const instrumented = plugin.transform(PRICE, resolve(root, 'src/price.ts'))!.code;
+      const instrumented = plugin.transform.handler(PRICE, resolve(root, 'src/price.ts'))!.code;
       const run = page(await readFile(setup, 'utf8'), instrumented, 'price(20);');
       const file = { type: 'suite', filepath: resolve(root, 'src/premium.test.ts') } as { meta?: object };
 
@@ -95,7 +95,7 @@ describe('a test file that runs in a page', () => {
     try {
       const { plugin, setup } = seam(root);
       plugin.config({ test: { browser: { enabled: true } } });
-      const instrumented = plugin.transform(PRICE, resolve(root, 'src/price.ts'))!.code;
+      const instrumented = plugin.transform.handler(PRICE, resolve(root, 'src/price.ts'))!.code;
       const run = page(await readFile(setup, 'utf8'), instrumented, 'price(5);');
       const file = { type: 'suite', filepath: resolve(root, 'src/plain.test.ts') } as { meta?: object };
 
@@ -113,7 +113,7 @@ describe('a test file that runs in a page', () => {
     try {
       const { plugin, reporter, setup } = seam(root);
       plugin.config({ test: { browser: { enabled: true } } });
-      const instrumented = plugin.transform(PRICE, resolve(root, 'src/price.ts'))!.code;
+      const instrumented = plugin.transform.handler(PRICE, resolve(root, 'src/price.ts'))!.code;
       const shim = await readFile(setup, 'utf8');
       await mkdir(resolve(root, 'src'));
       const finished = async (name: string, test: string): Promise<ReportedModule> => {

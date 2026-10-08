@@ -113,7 +113,10 @@ interface TestConfig {
 interface VitePlugin extends ConfigPlugin {
   readonly enforce: 'pre';
   readonly config: (config: TestConfig) => void;
-  readonly transform: (code: string, id: string) => { code: string; map: null } | null;
+  readonly transform: {
+    readonly order: 'pre';
+    readonly handler: (code: string, id: string) => { code: string; map: null } | null;
+  };
   readonly closeBundle: () => Promise<void>;
   readonly watchChange: (id: string) => void;
 }
@@ -193,9 +196,7 @@ export function withTestSelection(
   const story = askedForStories(coverageFile);
   return {
     ...config,
-    // Ahead of the project's own: Vite runs the `enforce: 'pre'` plugins in the
-    // order of the array, and the seam reads each file as it is on disk.
-    plugins: [plugin, ...array(config.plugins)],
+    plugins: [...array(config.plugins), plugin],
     test: {
       ...config.test,
       ...selecting(config, root, configRoot, options, coverageFile),
@@ -359,7 +360,11 @@ function selectionPlugin(
         if (pathOf(moduleId) === changed || module.file === changed) modules.delete(moduleId);
       }
     },
-    transform(code, id) {
+    // Ahead of every transform that does not ask to be first, whatever its
+    // `enforce` and wherever it sits: a project's compiler at `enforce: 'pre'`,
+    // such as `vite-plugin-solid`, would otherwise hand the seam its output, and
+    // so would a root config's plugins, which `extends` puts ahead of a project's.
+    transform: { order: 'pre', handler(code, id) {
       // The setup module installs the probe log; instrumented, its own header
       // would ask for the log's root before the module has installed it.
       // The runner module is this seam's too, and both sit under the root the
@@ -376,11 +381,11 @@ function selectionPlugin(
       // this process, so the modules stay in this map.
       const captured = captureModule(root, file, code, include, mode);
       if (captured === undefined) return null;
-      // Only the file itself: a query such as `?raw` asks for a module built from it.
+      // Only the file itself: any query, such as `?raw`, asks for a module built from it.
       if (captured.changed === true && id === file) throw changedAhead(projectPath(root, file));
       modules.set(captured.module.id, captured.module);
       return captured.code === undefined ? null : { code: captured.code, map: null };
-    },
+    } },
   };
 }
 
