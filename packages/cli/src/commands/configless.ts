@@ -11,7 +11,7 @@
  * narrative one. `constantAnswer` covers three *arguments* — `comment --marker`,
  * an `ask` with no question, and an `ask` whose question is about the source —
  * whose commands otherwise go on to load a config like any other.
- * `withoutConfig` covers nine whole commands, and narrows them out of the
+ * `withoutConfig` covers thirteen whole commands, and narrows them out of the
  * union so that what is left in `dispatch` is exactly the set that has a
  * `--config` to read. `usage.ts` states the same fact from
  * the other side: `CONFIGLESS` is what keeps the flag off them, so a command
@@ -24,10 +24,10 @@ import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
 import type { Detach } from './index-follow-ups.js';
 
-/** The nine commands that read no project configuration at all. */
+/** The thirteen commands that read no project configuration at all. */
 export type Configless = Extract<
   Parsed,
-  { command: 'watch' | 'distill' | 'covering' | 'coverage' | 'layers' | 'restrictions' | 'review' | 'story' | 'index' | 'select' | 'reach' | 'prune' }
+  { command: 'watch' | 'distill' | 'covering' | 'coverage' | 'layers' | 'restrictions' | 'review' | 'story' | 'index' | 'select' | 'shards' | 'reach' | 'prune' }
 >;
 
 export function withoutConfig(parsed: Parsed): parsed is Configless {
@@ -42,6 +42,7 @@ export function withoutConfig(parsed: Parsed): parsed is Configless {
     || parsed.command === 'story'
     || parsed.command === 'index'
     || parsed.command === 'select'
+    || parsed.command === 'shards'
     || parsed.command === 'reach'
     || parsed.command === 'prune'
   );
@@ -240,6 +241,25 @@ export async function answerConfigless(
       });
       streams.err(said.err);
       streams.out(said.out);
+      return EXIT_CLEAN;
+    }
+
+    // `select`'s reason: asked by a CI job planning the shards a seam's runner
+    // splits by, in a repository that may configure this tool for nothing else.
+    case 'shards': {
+      const { shardsOutput } = await import('./shards-command.js');
+      const { suite, since, setup, budget, max, workers, unrecorded, format } = parsed;
+      streams.out(await shardsOutput({
+        cwd: process.cwd(),
+        setup,
+        format,
+        ...(suite === undefined ? {} : { suite }),
+        ...(since === undefined ? {} : { since }),
+        ...(budget === undefined ? {} : { budget }),
+        ...(max === undefined ? {} : { max }),
+        ...(workers === undefined ? {} : { workers }),
+        ...(unrecorded === undefined ? {} : { unrecorded }),
+      }));
       return EXIT_CLEAN;
     }
 

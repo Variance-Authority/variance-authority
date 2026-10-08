@@ -95,13 +95,19 @@ export interface ShardCountOptions {
   readonly budget?: number;
   /** The most shards to start. */
   readonly max?: number;
+  /**
+   * How many groups one shard runs at once, its runner's workers: a shard is
+   * done when its share, divided among them, is, and never before its longest
+   * group. One when absent, a shard that runs its groups in turn.
+   */
+  readonly workers?: number;
 }
 
 export interface ShardCount {
   readonly shards: number;
   /** Milliseconds of groups each shard runs, shard 1 first, as {@link place} would place them. */
   readonly load: readonly number[];
-  /** Milliseconds until the last shard finishes: the setup and the longest share. */
+  /** Milliseconds until the last shard finishes: the setup and the longest share, divided among its workers. */
   readonly wall: number;
   readonly why: ShardCountReason;
   /** What one more shard would finish in, when the setup it spends is why it was not added. */
@@ -118,33 +124,51 @@ export const MATRIX_LIMIT = 256;
  * How many shards to split groups priced at `costs` milliseconds across.
  *
  * Every shard pays `setup` before it runs a group, so the wait is the setup
- * plus the longest share, and each shard added spends one more setup to
- * shorten that share. With a budget, the count is the fewest shards whose wait
- * fits it. Without one, a shard is added while it saves more waiting than the
- * setup it spends. Either way the count stops where the longest share is the
- * slowest group, because past that no shard finishes sooner.
+ * plus the longest share. With a budget, the count is the fewest shards whose
+ * wait fits it. Without one, each shard is charged one setup, and the count is
+ * the one whose wait and setups come to least, the fewer of two that tie: a
+ * shard is worth starting when it shortens the wait by more than it spends.
+ * Every count is weighed, not only the next, because whole groups split
+ * unevenly: a third shard can save nothing where a fourth saves a lot. Either
+ * way the count stops where the longest share is the slowest group, because
+ * past that no shard finishes sooner.
  */
 export function shardCount(costs: readonly number[], options: ShardCountOptions): ShardCount {
   if (costs.length === 0) return { shards: 0, load: [], wall: 0, why: 'nothing to run' };
   const sorted = [...costs].sort((a, b) => b - a);
   const slowest = sorted[0]!;
+  const total = sorted.reduce((sum, cost) => sum + cost, 0);
   const limit = Math.max(1, Math.min(options.max ?? MATRIX_LIMIT, sorted.length));
+  const workers = options.workers ?? 1;
   const at = (shards: number) => {
-    const { load } = packed(sorted, shards);
-    return { shards, load, wall: options.setup + Math.max(...load) };
+    const { load, first } = packed(sorted, shards);
+    const share = Math.max(...load.map((part, shard) => Math.max(part / workers, first[shard]!)));
+    return { shards, load, wall: options.setup + share };
   };
   const counted = (shards: ReturnType<typeof at>, why: ShardCountReason, next?: ReturnType<typeof at>): ShardCount =>
     ({ ...shards, why, ...(next === undefined ? {} : { next: { wall: next.wall } }) });
+  const reached = (shards: ReturnType<typeof at>) => shards.wall - options.setup <= slowest;
 
-  let here = at(1);
-  for (;;) {
-    if (options.budget !== undefined && here.wall <= options.budget) return counted(here, 'within budget');
-    if (here.wall - options.setup <= slowest) return counted(here, 'slowest group');
-    if (here.shards === limit) return counted(here, 'max');
-    const next = at(here.shards + 1);
-    if (options.budget === undefined && here.wall - next.wall < options.setup) return counted(here, 'setup', next);
-    here = next;
+  if (options.budget !== undefined) {
+    for (let here = at(1); ; here = at(here.shards + 1)) {
+      if (here.wall <= options.budget) return counted(here, 'within budget');
+      if (reached(here)) return counted(here, 'slowest group');
+      if (here.shards === limit) return counted(here, 'max');
+    }
   }
+
+  const spent = (shards: ReturnType<typeof at>) => shards.wall + options.setup * shards.shards;
+  let best = at(1);
+  for (let shards = 2; shards <= limit && !reached(best); shards++) {
+    // No split of `shards` waits less than the slowest group or an even share,
+    // and every count past this one spends more setup, so none can do better.
+    if (options.setup + Math.max(slowest, total / shards / workers) + options.setup * shards >= spent(best)) break;
+    const here = at(shards);
+    if (spent(here) < spent(best)) best = here;
+  }
+  if (reached(best)) return counted(best, 'slowest group');
+  if (best.shards === limit) return counted(best, 'max');
+  return counted(best, 'setup', at(best.shards + 1));
 }
 
 /** Milliseconds as a person reads them in a shard's line: `340 ms`, `9.0 s`. */
@@ -154,16 +178,19 @@ export function durationText(milliseconds: number): string {
 
 /**
  * LPT over costs already sorted longest first: each to the shard with the
- * least so far, the lowest-numbered of equals.
+ * least so far, the lowest-numbered of equals. `first` is each shard's
+ * longest group, the first it was given.
  */
-function packed(sorted: readonly number[], total: number): { owner: number[]; load: number[] } {
+function packed(sorted: readonly number[], total: number): { owner: number[]; load: number[]; first: number[] } {
   const load = new Array<number>(total).fill(0);
+  const first = new Array<number>(total).fill(0);
   // A binary heap of shard indices by (load, index), so a suite of tens of
   // thousands of files is placed in n log k rather than n·k.
   const heap = Array.from({ length: total }, (_, index) => index);
   const before = (a: number, b: number) => load[a]! < load[b]! || (load[a] === load[b] && a < b);
   const owner = sorted.map((cost) => {
     const least = heap[0]!;
+    if (load[least] === 0) first[least] = cost;
     load[least] = load[least]! + cost;
     for (let at = 0; ; ) {
       const left = 2 * at + 1;
@@ -177,7 +204,7 @@ function packed(sorted: readonly number[], total: number): { owner: number[]; lo
     }
     return least + 1;
   });
-  return { owner, load };
+  return { owner, load, first };
 }
 
 function rendezvous(key: string, total: number): number {

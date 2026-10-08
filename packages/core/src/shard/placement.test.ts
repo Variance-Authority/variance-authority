@@ -58,6 +58,17 @@ describe('shardCount', () => {
     expect(count.next).toEqual({ wall: 160_000 });
   });
 
+  it('looks past a count that saves nothing to one that saves more than its setup', () => {
+    // Four 60 s files: a third shard leaves one with two files and saves nothing; a fourth saves 60 s.
+    const count = shardCount(files(60, 60, 60, 60), { setup: 10_000 });
+    expect(count).toMatchObject({ shards: 4, why: 'slowest group', wall: 70_000 });
+  });
+
+  it('takes the fewer of two counts that cost the same', () => {
+    // With 30 s of setup, 2 shards (150 s, 2 setups) and 4 (90 s, 4 setups) both come to 210 s.
+    expect(shardCount(files(60, 60, 60, 60), { setup: 30_000 })).toMatchObject({ shards: 2, why: 'setup', wall: 150_000 });
+  });
+
   it('keeps one shard when the whole suite is shorter than one more setup', () => {
     expect(shardCount(files(1, 2, 1), { setup: 90_000 })).toMatchObject({ shards: 1, why: 'setup' });
   });
@@ -76,6 +87,16 @@ describe('shardCount', () => {
   it('says a budget the slowest group outlasts cannot be met, at the shards that reach it', () => {
     const count = shardCount(files(100, 10, 10, 10), { setup: 30_000, budget: 60_000 });
     expect(count).toMatchObject({ shards: 2, why: 'slowest group', wall: 130_000 });
+  });
+
+  it('counts a shard that runs files on several workers as done when its share is, divided among them', () => {
+    // 300 s of even work on 4 workers is 75 s a shard; a second shard saves 37.5 s, less than 60 s of setup.
+    const count = shardCount(files(...Array.from({ length: 30 }, () => 10)), { setup: 60_000, workers: 4 });
+    expect(count).toMatchObject({ shards: 1, why: 'setup', wall: 135_000 });
+  });
+
+  it('finishes no shard before its longest file, however many workers it has', () => {
+    expect(shardCount(files(100, 10, 10), { setup: 0, workers: 8 })).toMatchObject({ shards: 1, why: 'slowest group', wall: 100_000 });
   });
 
   it('stops at the most it is allowed', () => {

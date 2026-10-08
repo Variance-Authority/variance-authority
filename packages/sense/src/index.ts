@@ -103,6 +103,7 @@ export {
   type RecordedCases,
 } from './orient.js';
 export {
+  fileCases,
   recordedDurations,
   recordedPaths,
   recordedTimes,

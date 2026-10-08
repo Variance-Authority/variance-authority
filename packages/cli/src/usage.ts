@@ -18,6 +18,7 @@ export const COMMANDS = [
   'run',
   'index',
   'select',
+  'shards',
   'reach',
   'covering',
   'coverage',
@@ -65,6 +66,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   collect: ['--subjects', '--shard', '--workers', '--out'],
   index: ['--no-git', '--wait', '--follow-ups'],
   select: ['--since', '--execution', '--diff', '--suite', '--at-distance', '--format', '--no-git'],
+  shards: ['--setup', '--budget', '--max', '--workers', '--since', '--suite', '--unrecorded', '--format'],
   reach: ['--since', '--format', '--whole-files', '--no-git'],
   covering: [
     '--file',
@@ -143,6 +145,7 @@ export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]',
   'variance index   [--no-git] [--wait | --follow-ups]',
   'variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]',
+  'variance shards  --setup <seconds> [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref>] [--suite <name>] [--unrecorded <n>] [--format text|json]',
   'variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]',
   'variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]',
   'variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]',
@@ -175,16 +178,16 @@ export const USAGE = [
  * The flags a command accepts, the configuration ones included where they apply.
  *
  * `watch`, `distill`, `covering`, `coverage`, `review`, `story`, `index`,
- * `select` and `reach` do not read project configuration. One holds a live
+ * `select`, `shards` and `reach` do not read project configuration. One holds a live
  * listener; the next five read evidence a run left behind, named on the command line or found
- * where a run puts it; the last three are asked by a repository whose tests another runner runs, and
+ * where a run puts it; the last four are asked by a repository whose tests another runner runs, and
  * which may have configured this tool for nothing else. `prune` reads the
  * repository's cache, which the root config or `VARIANCE_AUTHORITY_CACHE` names
  * whether or not a project is configured. `carry` is on the list
  * for the same reason and names `--config` itself: the suites it carries are
  * the repository root's, and a project is read only when one is named.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'reach', 'prune', 'carry'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'prune', 'carry'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)

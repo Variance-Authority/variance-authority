@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { recordedDurations, recordedPaths, recordedTimes } from './recorded-durations.js';
+import { fileCases, recordedDurations, recordedPaths, recordedTimes } from './recorded-durations.js';
 import { withCaseSections } from './test-selection/case-record.js';
 import { encodeExecutionIndex } from './test-selection/execution-format.js';
 import { encodeTestCoverage } from './test-selection/format.js';
@@ -210,5 +210,19 @@ describe('the times a shard places its files by', () => {
 
   it('says why when nothing is recorded there, rather than handing an empty map', () => {
     expect(recordedTimes(testCoverageFile(root))).toEqual({ recording: testCoverageFile(root), unread: 'nothing is recorded there' });
+  });
+});
+
+describe('the slowest cases of one file', () => {
+  it('ranks the cases one file declares, and none of another', () => {
+    const at = twoModules();
+
+    expect(fileCases(at, 'test/b.test.ts', 1)).toEqual([{ file: 'test/b.test.ts', name: 'reads > once', duration: 480 }]);
+  });
+
+  it('is absent when no run kept its cases, rather than a file with none', () => {
+    const at = record(coverage([['test/a.test.ts', 40]]));
+
+    expect(fileCases(at, 'test/a.test.ts', 3)).toBeUndefined();
   });
 });

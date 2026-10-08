@@ -9,6 +9,7 @@ import { parseCoveringArgs, type ParsedCovering } from './covering-args.js';
 import { parseDistill, type ParsedDistill } from './distill-args.js';
 import { parseStory, type ParsedStory } from './story-args.js';
 import { parseSelectArgs, type ParsedSelect } from './select-args.js';
+import { parseShardsArgs, type ParsedShards } from './shards-args.js';
 import { oneRecord } from './commands/suite-record.js';
 import { parseIndexArgs, type ParsedIndex } from './index-args.js';
 import { parseReachArgs, type ParsedReach } from './reach-args.js';
@@ -116,7 +117,7 @@ export type Parsed =
       readonly reports: readonly string[];
     }
   | ParsedAsk
-  | ParsedDistill | ParsedStory | ParsedCovering | ParsedCoverage | ParsedLayers | ParsedRestrictions | ParsedReview | ParsedIndex | ParsedSelect | ParsedReach | ParsedShare | ParsedCarry | ParsedCollect
+  | ParsedDistill | ParsedStory | ParsedCovering | ParsedCoverage | ParsedLayers | ParsedRestrictions | ParsedReview | ParsedIndex | ParsedSelect | ParsedShards | ParsedReach | ParsedShare | ParsedCarry | ParsedCollect
   | {
       readonly command: 'accept';
       readonly config: string;
@@ -309,9 +310,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
         reports: flags.positionals.map((path) => resolve(path)),
       };
     }
-
     case 'ask': return parseAskArgs(flags, config);
-
     case 'distill': return parseDistill(flags);
     case 'story': return parseStory(flags);
     case 'review': return parseReviewArgs(flags);
@@ -321,6 +320,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
     case 'restrictions': return parseRestrictionsArgs(flags);
     case 'index': return parseIndexArgs(flags);
     case 'select': return parseSelectArgs(flags);
+    case 'shards': return parseShardsArgs(flags);
     case 'reach': return parseReachArgs(flags);
     case 'share': return parseShareArgs(flags, config);
     case 'collect': return parseCollectArgs(flags, config);

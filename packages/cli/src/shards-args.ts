@@ -1,0 +1,72 @@
+import { countOf, noPositionals, type Flags } from './args.js';
+import { OperatorError } from './exit.js';
+import type { ShardsFormat } from './commands/shards.js';
+
+export interface ParsedShards {
+  readonly command: 'shards';
+  readonly suite?: string;
+  /** `--since <ref>`: the change whose skipped files ask for no shard. */
+  readonly since?: string;
+  /** `--setup <seconds>`, in milliseconds: what each shard spends before its first test. */
+  readonly setup: number;
+  /** `--budget <seconds>`, in milliseconds: what one shard may take, setup included. */
+  readonly budget?: number;
+  readonly max?: number;
+  /** `--workers <n>`: how many test files one shard's runner runs at once. */
+  readonly workers?: number;
+  /** `--unrecorded <n>`: the count to answer while nothing is recorded. */
+  readonly unrecorded?: number;
+  readonly format: ShardsFormat;
+}
+
+/**
+ * Parse `variance shards`, which reads a record and no project, like `select`.
+ *
+ * `--setup` has no default. What a shard spends before its first test is the
+ * checkout, the install and the build of one CI, and a number chosen here
+ * would be somebody else's pipeline: too low asks for shards that only set
+ * up, too high runs a suite on one machine that four would finish sooner.
+ */
+export function parseShardsArgs(flags: Flags): ParsedShards {
+  noPositionals(flags.positionals, 'shards');
+  const format = flags.values.get('--format') ?? 'text';
+  if (format !== 'text' && format !== 'json') {
+    throw new OperatorError(`--format must be text or json, not \`${format}\``);
+  }
+  const setup = secondsOf(flags.values.get('--setup'), '--setup', 'what each shard spends before its first test');
+  if (setup === undefined) {
+    throw new OperatorError(
+      '`variance shards` needs `--setup <seconds>`: what each shard spends before its first test — ' +
+        'checkout, install and build — which decides when one more shard stops paying for itself',
+    );
+  }
+  const budget = secondsOf(flags.values.get('--budget'), '--budget', 'one shard may take, setup included');
+  if (budget === 0) throw new OperatorError('--budget is what one shard may take, and no shard finishes in 0 s');
+  const max = countOf(flags.values.get('--max'), 'shards to start', '--max');
+  const workers = countOf(flags.values.get('--workers'), 'test files one shard runs at once', '--workers');
+  const unrecorded = flags.values.get('--unrecorded');
+  if (unrecorded !== undefined && !/^(0|[1-9][0-9]*)$/.test(unrecorded)) {
+    throw new OperatorError(`--unrecorded is how many shards to start while nothing is recorded, a whole number, not \`${unrecorded}\``);
+  }
+  const suite = flags.values.get('--suite');
+  const since = flags.values.get('--since');
+  return {
+    command: 'shards',
+    ...(suite === undefined ? {} : { suite }),
+    ...(since === undefined ? {} : { since }),
+    setup,
+    ...(budget === undefined ? {} : { budget }),
+    ...(max === undefined ? {} : { max }),
+    ...(workers === undefined ? {} : { workers }),
+    ...(unrecorded === undefined ? {} : { unrecorded: Number(unrecorded) }),
+    format,
+  };
+}
+
+function secondsOf(value: string | undefined, flag: string, what: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (!/^[0-9]+(\.[0-9]+)?$/.test(value)) {
+    throw new OperatorError(`${flag} is ${what}, in seconds, not \`${value}\``);
+  }
+  return Math.round(Number(value) * 1000);
+}
