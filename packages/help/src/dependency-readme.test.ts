@@ -21,8 +21,21 @@ beforeAll(async () => {
     ...(readme === undefined ? {} : { [`node_modules/${name}/README.md`]: readme }),
   });
   for (const [path, value] of Object.entries({
-    'package.json': JSON.stringify({ name: 'fixture', dependencies: { 'bare-kit': '2.0.0', 'mute-kit': '2.0.0' } }),
+    'package.json': JSON.stringify({ name: 'fixture', dependencies: { 'bare-kit': '2.0.0', 'door-kit': '3.0.0', 'mute-kit': '2.0.0' } }),
     'src/page.ts': "import { spin } from 'bare-kit';\nimport { hush } from 'mute-kit';\nexport const page = [spin, hush];\n",
+    'src/boot.ts': "import { wake } from 'door-kit';\nwake();\n",
+    // A typed main entry beside subpaths that declare nothing: `./boot` and its
+    // `.js` twin share one empty declaration file, `./cli` has none at all.
+    'node_modules/door-kit/package.json': JSON.stringify({
+      name: 'door-kit', version: '3.0.0',
+      exports: { '.': { types: './index.d.ts', default: './index.js' }, './boot': './boot.js', './boot.js': './boot.js', './cli': './cli.js' },
+    }),
+    'node_modules/door-kit/index.js': 'exports.wake = () => {};\n',
+    'node_modules/door-kit/index.d.ts': '/** Wakes the kit before anything else runs. */\nexport declare function wake(): void;\n',
+    'node_modules/door-kit/boot.js': "require('./index.js').wake();\n",
+    'node_modules/door-kit/boot.d.ts': 'export {};\n',
+    'node_modules/door-kit/cli.js': 'module.exports = {};\n',
+    'node_modules/door-kit/README.md': '# door-kit\n\nCall `wake` first, or import `door-kit/boot`.\n',
     ...untyped('bare-kit', '# bare-kit\n\nSmall helpers.\n\nCall `spin` to turn the wheel once.\nIt returns nothing.\n'),
     ...untyped('mute-kit'),
   })) {
@@ -68,6 +81,24 @@ it('labels the passage as the package README and never as a doc comment', () => 
 
 it('says a package with no README ships none, when asked about it by name', () => {
   expect(ask({ name: 'hush', package: 'mute-kit' })).toContain('It ships no README.md beside its manifest.');
+});
+
+it('answers a declared name from its declaration alone, not from the doors of the same package that declare nothing', () => {
+  for (const args of [{ name: 'wake', package: 'door-kit' }, { name: 'wake' }]) {
+    const text = ask(args);
+    expect(text.startsWith('door-kit · wake [function] · door-kit@3.0.0')).toBe(true);
+    expect(text).toContain('Wakes the kit before anything else runs.');
+    expect(text).not.toMatch(/door-kit\/(boot|cli)/);
+    expect(text).not.toContain('README');
+  }
+});
+
+it('prints a silent package README once, under every door that falls back to it', () => {
+  const text = ask({ name: 'sleep', package: 'door-kit' });
+  expect(text.split('README: node_modules/door-kit/README.md').length - 1).toBe(1);
+  expect(text).toContain('door-kit/boot · door-kit@3.0.0 — the declarations for `door-kit/boot` publish no names');
+  expect(text).toContain('door-kit/boot.js · door-kit@3.0.0');
+  expect(text).toContain('door-kit/cli · door-kit@3.0.0 — the project resolver found no declarations for `door-kit/cli`');
 });
 
 it('answers a lexicon written before READMEs were recorded as it did, and says nothing about one', () => {

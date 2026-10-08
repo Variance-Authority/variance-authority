@@ -4,7 +4,7 @@ import type { Help } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
 import { entriesNamed, isPackage, specifierOf, unfound } from './find.js';
 import { block } from './format.js';
-import { queryDependencyLexicon, type LexiconMatches, type ThirdPartyMatch } from '../dependency-lexicon.js';
+import { queryDependencyLexicon, type LexiconMatches, type SilentPackage, type ThirdPartyMatch } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { provenance } from './third-party.js';
 
@@ -69,7 +69,12 @@ export const symbol: Tool<Help> = {
       const everywhere = queryDependencyLexicon(invocation.root, name, undefined, true, wanted, 100);
       if (everywhere === undefined) throw new Error(`the dependency lexicon is not published; run \`variance index\` before asking about \`${name}\``);
       const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, 100);
-      const silent = silentBlocks(invocation.root, name, (here ?? everywhere).silent ?? [], wanted !== undefined);
+      const shown = here ?? everywhere;
+      // A door that declares nothing is a fallback for a package silent about
+      // the name; one whose package declares the name elsewhere has answered it.
+      const answered = (one: SilentPackage): boolean =>
+        shown.shown.some((match) => match.package === one.package && match.version === one.version);
+      const silent = silentBlocks(invocation.root, name, (shown.silent ?? []).filter((one) => !answered(one)), wanted !== undefined);
       const described = (entry: ThirdPartyMatch): string =>
         `${entry.specifier} · ${entry.name} [${entry.kind}] · ${entry.package}${entry.version === undefined ? '' : `@${entry.version}`}` +
         `${entry.declarationProvider === undefined ? '' : ` · declarations: ${entry.declarationProvider}`}` +
@@ -86,8 +91,7 @@ export const symbol: Tool<Help> = {
           ...cut(everywhere),
         ].join('\n\n');
       }
-      const shown = here ?? everywhere;
-      if (shown.total > 0 || silent.length > 0) return [...silent, ...shown.shown.map(described), ...cut(shown)].join('\n\n');
+      if (shown.total > 0 || silent.length > 0) return [...shown.shown.map(described), ...cut(shown), ...silent].join('\n\n');
     }
     if (found.length === 0) throw new Error(unfound(help, name, wanted));
 
