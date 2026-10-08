@@ -328,9 +328,10 @@ plugin keep it in `renders/` inside
 same cache and the same bound:
 
 ```js
+import { cacheRootFor } from '@variance-authority/sense/cache-root';
 import { createDurableStore, renderCacheIn, sweepRenderCache } from '@variance-authority/store/durable';
 
-const renders = renderCacheIn('node_modules/.cache/variance-authority');
+const renders = renderCacheIn(cacheRootFor(process.cwd()));
 const store = createDurableStore('.variance/baselines', { cacheRoot: renders });
 
 console.log(await sweepRenderCache(renders, { maxAgeMs: 14 * 24 * 60 * 60 * 1000, ceilingBytes: 512 * 1024 * 1024 }));

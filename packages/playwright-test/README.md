@@ -599,7 +599,7 @@ message reads *preconditions unmeasured* rather than *no preconditions recorded*
 | --- | --- | --- |
 | `varianceBaselines` | Directory of durable baselines. | `.variance/baselines` |
 | `varianceRenderer` | Renderer shared by one Playwright worker. | A Playwright renderer created and closed by the fixture. |
-| `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`, whose render cache is `renders/` in [the cache](https://variance-authority.dev/docs/cache), pruned when the worker tears down. |
+| `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`, whose render cache is `renders/` in [the cache](https://variance-authority.dev/docs/cache), pruned once in each worker. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
 | `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, cacheRoot, suite, coverageFile, heads, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
 | `varianceEvents` | Whether services behind the page announce, and where the driver leaves its return address. | `{}`. Accepts `heads` (the services that report for themselves, described below) and `origin`. The browser half needs neither. |

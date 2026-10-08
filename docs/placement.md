@@ -334,8 +334,9 @@ renders: 214.6 MiB cached in <cache>/renders, freed 91.2 MiB
 ```
 
 The test-runner integrations sweep it by the same rules and print nothing: the
-Playwright fixture when each worker tears down, a `createVariance` session when
-it closes, once per process, and the Vitest plugin when the run closes.
+Playwright fixture once in each worker, when its store tears down or a
+`createVariance` session closes, whichever comes first, and the Vitest plugin
+when the run closes.
 
 An entry survives on two conditions. It must have been requested in the last
 fortnight — a hit refreshes its timestamp, so this is time since something

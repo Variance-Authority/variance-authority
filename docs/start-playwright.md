@@ -120,7 +120,7 @@ its contents rather than the directory so git still descends into it:
 
 The images a run paints to compare are not baselines, and the fixture keeps them
 out of this directory: they go to `renders/` in [your cache](cache.md), which
-the fixture prunes when each worker finishes.
+the fixture prunes once in each worker.
 
 A run that cannot read what the last run wrote does not fail — it reports every
 subject `new`. [Baseline placement](placement.md) covers Git LFS and remote
