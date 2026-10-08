@@ -61,7 +61,7 @@ export function place(groups: readonly Placeable[], total: number): Placement {
   }
   const order = longestFirst(groups.map((group) => group.key), cost);
   const { owner, load } = packed(order.map((index) => cost[index]!), total);
-  const byGroup: number[] = new Array<number>(groups.length);
+  const byGroup: number[] = Array.from({ length: groups.length }, () => 0);
   order.forEach((index, at) => (byGroup[index] = owner[at]!));
   return { owner: byGroup, by: 'recorded cost', cost, load };
 }
@@ -182,8 +182,8 @@ export function durationText(milliseconds: number): string {
  * longest group, the first it was given.
  */
 function packed(sorted: readonly number[], total: number): { owner: number[]; load: number[]; first: number[] } {
-  const load = new Array<number>(total).fill(0);
-  const first = new Array<number>(total).fill(0);
+  const load: number[] = Array.from({ length: total }, () => 0);
+  const first: number[] = Array.from({ length: total }, () => 0);
   // A binary heap of shard indices by (load, index), so a suite of tens of
   // thousands of files is placed in n log k rather than n·k.
   const heap = Array.from({ length: total }, (_, index) => index);

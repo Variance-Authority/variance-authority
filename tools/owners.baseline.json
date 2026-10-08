@@ -105,16 +105,6 @@
     "count": 1
   },
   {
-    "idiom": "code-unit-order",
-    "at": "packages/cli/src/commands/shard.ts",
-    "count": 1
-  },
-  {
-    "idiom": "digest",
-    "at": "packages/cli/src/commands/shard.ts",
-    "count": 1
-  },
-  {
     "idiom": "atomic-write",
     "at": "packages/cli/src/settle.ts",
     "count": 1

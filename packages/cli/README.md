@@ -146,6 +146,7 @@ ids are the safe default after initial setup.
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]
 variance index   [--no-git] [--wait | --follow-ups]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]
+variance shards  --setup <seconds> [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
@@ -176,6 +177,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `run` | produces the **verdict** — the per-subject outcome (`unchanged`, `changed`, `new`, `incomparable` or `ignored`) that decides the exit code |
 | `index` | publishes the file graph that `select`, `reach`, `covering` and `run --since` read |
 | `select` | names the test files a foreign runner may skip for this diff, for `vitest`, `jest` or a shell |
+| `shards` | prints how many shards a recorded suite is worth, and the `k/n` of each for a CI matrix, from what each shard spends before its first test |
 | `reach` | names every file a diff reaches, in any language it reads, for whatever you pipe it into |
 | `covering` | names the tests that covered one source file, line or function, nearest first |
 | `review` | prints what a change did, after the suite ran it: the edits, the changed code no case covered, the cases added, and what changed outside any import |
@@ -1775,6 +1777,55 @@ A path neither the journey nor the import graph has keeps no
 test in the run and is named on stderr. The whole reading happens in the native
 addon, so a stitched file with hundreds of millions of crossings is answered in
 milliseconds without expanding it in JavaScript.
+
+### `shards`: how many CI jobs a suite is worth
+
+A Vitest or Jest config wrapped by `withTestSelection` places the files of
+`--shard k/n` by the time each took on the last recorded run, so the shards
+finish close together; [sharding](../../docs/sharding.md) shows a build that
+does it. `variance shards` says what `n` to start, from the same record and
+what one shard spends before its first test:
+
+```bash
+variance shards --suite unit --setup 90 --workers 8
+```
+
+```text
+2 shards, the last done 335.2 s in: 90.0 s of setup and up to 1749.9 s of tests each, about 245.2 s on 8 workers.
+From 664 test files, 3499.7 s in all, recorded at 8e3b0f0e9028.
+More shards finish no sooner: packages/sense/src/test-selection/journey-trace.integration.test.ts alone takes 245.2 s.
+```
+
+Every shard is charged its `--setup`, and the count is the one whose wait and
+setups come to least, so a shard is added only when it shortens the wait by more
+than it spends. `--budget <seconds>` asks instead for the fewest shards whose last
+one finishes within it. Either way the count stops at the slowest test file,
+which no shard can finish before; the answer names it, and its slowest cases when
+the run kept them. `--workers` is how many files one shard's runner runs at once.
+
+`--since <ref>` leaves out the files that change lets the run skip, as the seam
+does under `VARIANCE_AUTHORITY_SINCE`, so a change that reaches no test answers
+`0 shards`. Test files the record has not seen are not counted. With nothing
+recorded the command refuses, rather than guess, unless `--unrecorded <n>` names
+the count to start until it is. `--format json` prints the count, a `matrix` of
+`k/n` strings, each shard's load, and why:
+
+```yaml
+plan:
+  outputs:
+    shards: ${{ steps.count.outputs.shards }}
+  steps:
+    - id: count
+      run: echo "shards=$(npx variance shards --suite unit --setup 90 --since origin/main --format json | jq -c .matrix)" >> "$GITHUB_OUTPUT"
+test:
+  needs: plan
+  if: needs.plan.outputs.shards != '[]'
+  strategy:
+    matrix:
+      shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+  steps:
+    - run: VARIANCE_AUTHORITY_SINCE=origin/main npx vitest run --shard ${{ matrix.shard }}
+```
 
 ### `reach`: what a diff reaches, for a pipe
 
