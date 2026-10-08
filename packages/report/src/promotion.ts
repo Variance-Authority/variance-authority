@@ -57,7 +57,10 @@ export type Promotion =
  * got two answers — and answering "already the baseline" there hides the
  * diagnostic that makes this refusable at all.
  */
-export function promotionOf(observation: ObservationRecord): Promotion {
+export function promotionOf(
+  observation: ObservationRecord,
+  options: PromotionOptions = {},
+): Promotion {
   if (observation.unstable !== undefined && observation.unstable.absorbed === undefined) {
     return {
       kind: 'refused',
@@ -92,7 +95,66 @@ export function promotionOf(observation: ObservationRecord): Promotion {
     return { kind: 'refused', because: noImage(observation) };
   }
 
+  if (options.bulk === true && bulkSkips(observation)) {
+    const signals = observation.signals;
+    const document =
+      signals?.document === 'changed'
+        ? 'its document is not the one the baseline was painted from'
+        : signals?.document === undefined
+          ? 'the report does not say whether its document is the one the baseline was painted from'
+          : signals.identity === 'machine'
+            ? 'its image differs from the baseline in more than the recipe, so another machine painted one of them'
+            : 'the report does not say whether only the recipe moved between its image and the baseline';
+    return {
+      kind: 'refused',
+      because:
+        `it is incomparable, so no verdict says what changed, and ${document}; ` +
+        'a bulk accept skips it. Review the image, then ' +
+        `\`variance accept ${observation.subject}\``,
+    };
+  }
+
   return { kind: 'promotable', from };
+}
+
+/**
+ * Whether an acceptance that sweeps a whole run skips this subject.
+ *
+ * True for every `incomparable` subject but one whose `signals.document` says
+ * `unchanged` and whose `signals.identity` says `recipe`. Nothing compared an
+ * incomparable image with anything, so the only thing a sweep can stand on is
+ * that the page is the one the baseline was painted from and only the recipe
+ * re-painted it. A moved document has a change nobody read; another machine's
+ * image differs in fonts, engine or scale nobody read; and a missing signal is
+ * not evidence of either: a report written before the signal was carried says
+ * nothing. A changed subject's diff was in the report a sweep followed; these
+ * have none, and only a reviewer naming one can stand in for it.
+ *
+ * `variance accept --all` and `@variance-authority/playwright-test` under
+ * `--update-snapshots=changed` are both sweeps and both ask this, so the two
+ * cannot adopt different images.
+ */
+export function bulkSkips(observation: {
+  readonly verdict: ObservationRecord['verdict'];
+  readonly signals?: {
+    readonly document?: 'unchanged' | 'changed';
+    readonly identity?: 'recipe' | 'machine';
+  };
+}): boolean {
+  if (observation.verdict !== 'incomparable') return false;
+  return observation.signals?.document !== 'unchanged' || observation.signals.identity !== 'recipe';
+}
+
+/** How a promotion was asked for. */
+export interface PromotionOptions {
+  /**
+   * Whether the subject was swept in by `--all` rather than named.
+   *
+   * A name is a reviewer's decision about one subject; `--all` is a decision
+   * about the report. The one case that differs is an `incomparable` subject
+   * not shown to have kept its document, which `--all` skips and a name adopts.
+   */
+  readonly bulk?: boolean;
 }
 
 /**
@@ -162,16 +224,22 @@ export function whyNotWhole(observation: ObservationRecord): string {
  *
  * The two causes are opposite and a single message would serve neither. A
  * settlement means nothing was rendered *because nothing needed to be*; an
- * incomparable baseline means the comparison was refused, and the fix is a
- * decision about machines rather than about this subject.
+ * incomparable baseline without an image means the comparison was refused, and
+ * the fix is a decision about machines rather than about this subject.
+ *
+ * Only a machine refusal arrives here. A baseline this machine painted under an
+ * older recipe of this tool is painted over, so it carries the image that
+ * re-baselines it and is promotable; what reaches this sentence is another
+ * machine's baseline, or one whose recipe was not recorded and so cannot be
+ * shown to be this machine's.
  */
 function noImage(observation: ObservationRecord): string {
   if (observation.verdict === 'incomparable') {
     return (
-      'its baseline belongs to another machine, so the run refused to compare and produced ' +
-      'no image. Delete that baseline and re-run here to record one for this machine, or ' +
-      'run where the baseline was written — accepting across identities is the failure the ' +
-      'partition exists to prevent'
+      "it was compared against another machine's baseline, or one that cannot be shown to be " +
+      "this machine's, so the run refused to compare and produced no image. Run where the " +
+      'baseline was written, or delete that baseline and re-run here to record one for this ' +
+      'machine — accepting across machines is the failure the partition exists to prevent'
     );
   }
   return (

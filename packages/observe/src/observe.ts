@@ -10,13 +10,15 @@ import type {
   Diagnostic,
   Raster,
   RenderDocument,
+  RenderIdentity,
   SemanticSnapshot,
 } from '@variance-authority/core/format';
 import type { Level } from '@variance-authority/core/judge';
 import { identityDigest } from '@variance-authority/core/format';
 import type { PngDecoder } from '@variance-authority/png';
 import {
-  describeIdentity,
+  incomparableBecause,
+  recipeOnly,
   type BaselineKey,
   type CompareOptions,
   type RasterComparison,
@@ -85,9 +87,22 @@ export interface Observation {
   /** Fonts the document declared and the renderer did not have. */
   readonly missingFonts: readonly string[];
 
-  /** The three independently observed boundaries and the retained ARIA diff. */
+  /**
+   * The three independently observed boundaries and the retained ARIA diff.
+   *
+   * A missing member was not measured. An `incomparable` subject carries
+   * `document` and `identity`: no pixels were compared, and only an image of
+   * the same document whose recipe alone moved may be adopted by a bulk
+   * acceptance (`promotionOf`).
+   */
   readonly signals?: {
     readonly document: 'unchanged' | 'changed';
+    /**
+     * Set on an `incomparable` subject: `recipe` when the two identities differ
+     * in the recipe digests alone (`recipeOnly`), `machine` for any other
+     * difference, including one nobody recorded.
+     */
+    readonly identity?: 'recipe' | 'machine';
     /**
      * `unobservable` when the subject occupies no pixels — a wrapper whose only
      * child went to a portal, a mount with no children. Distinct from
@@ -95,7 +110,7 @@ export interface Observation {
      * was nothing to measure, and a reader that saw `unchanged` would take the
      * image as evidence it never was.
      */
-    readonly pixels: 'unchanged' | 'changed' | 'unobservable';
+    readonly pixels?: 'unchanged' | 'changed' | 'unobservable';
     readonly accessibility?: {
       readonly verdict: 'unchanged' | 'changed' | 'incomparable';
       readonly before?: AccessibilitySnapshot;
@@ -314,13 +329,17 @@ export async function observeRasters(
     return {
       subject,
       verdict: 'incomparable',
-      because:
-        `\`${subject}\` was given two images from different painters: ` +
-        `${describeIdentity(before.identity)} and ${describeIdentity(after.identity)}; ` +
-        'pixels are machine-bound, so the two are not comparable',
+      because: incomparableBecause(before, after, {
+        stored: 'the before image',
+        current: 'the after image',
+      }),
       regions: [],
       rendered: false,
       missingFonts: [],
+      signals: {
+        document: documentMoved(before, after),
+        identity: identityMoved(before.identity, after.identity),
+      },
     };
   }
 
@@ -404,16 +423,36 @@ export async function observeAgainstBaseline(
     return {
       subject: document.subject.id,
       verdict: 'incomparable',
-      because:
-        'a baseline exists but was rendered by ' +
-        `${describeIdentity(found.storedUnder)}, and this run is ${describeIdentity(identity)}; ` +
-        'pixels are machine-bound, so the two are not comparable',
+      because: incomparableBecause(
+        { identity: found.storedUnder, documentDigest: found.raster.documentDigest },
+        { identity, documentDigest: fresh.raster.documentDigest },
+      ),
       regions: [],
       rendered: fresh.rendered,
       missingFonts: fresh.raster.missingFonts,
+      signals: {
+        document: documentMoved(found.raster, fresh.raster),
+        identity: identityMoved(found.storedUnder, identity),
+      },
       ...declaredField,
     };
   }
 
   return await decideRasters(document.subject.id, found.raster, fresh.raster, fresh.rendered, options);
+}
+
+/**
+ * Whether two rasters were painted from different documents, as the signal an
+ * incomparable observation carries in place of a pixel comparison.
+ */
+export function documentMoved(
+  before: Pick<Raster, 'documentDigest'>,
+  after: Pick<Raster, 'documentDigest'>,
+): 'unchanged' | 'changed' {
+  return before.documentDigest === after.documentDigest ? 'unchanged' : 'changed';
+}
+
+/** Which part of the render identity differs between two incomparable images. */
+export function identityMoved(stored: RenderIdentity, current: RenderIdentity): 'recipe' | 'machine' {
+  return recipeOnly(stored, current) ? 'recipe' : 'machine';
 }

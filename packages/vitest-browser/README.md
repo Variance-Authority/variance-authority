@@ -188,8 +188,12 @@ afterwards does not turn that verdict into a pass. Open the PNG it wrote under
 `.variance/baselines` before you commit it — that review is the approval. Run the
 suite again and the subject reports `unchanged`.
 
-Set `accept: false` on the plugin to keep baselines out of `--update`
-altogether, or `accept: true` for a job whose whole purpose is to write them.
+`--update` reaches every selected test, so it skips the `incomparable` subjects
+`variance accept --all` skips: an image another machine painted, and a
+re-painted recipe whose document moved. Nothing compared either one with
+anything. Set `accept: false` on
+the plugin to keep baselines out of `--update` altogether, or `accept: true` for
+a job whose whole purpose is to write them, which adopts every image it painted.
 
 ### Commit the baselines
 
@@ -259,7 +263,7 @@ There are five verdicts, and `assertUnchanged` throws on all four that are not
 | `unchanged` | the two images were comparable and no pixels differ |
 | `changed` | pixels differ; `regions` names what drew them |
 | `new` | no baseline exists for this subject under this renderer identity. Not a pass and not a failure |
-| `incomparable` | a baseline exists but a different machine painted it, so the comparison is refused. Never read it as zero difference |
+| `incomparable` | a baseline exists but was painted under a different identity, so the comparison is refused. The reason names the fields that differ, and whether they are the machine or only this tool's recipe. Never read it as zero difference |
 | `ignored` | pixels differ and every one of them fell inside something you excluded |
 
 The observation reports these fields:

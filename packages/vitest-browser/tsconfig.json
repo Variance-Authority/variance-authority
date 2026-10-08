@@ -40,6 +40,9 @@
       "path": "../react"
     },
     {
+      "path": "../report"
+    },
+    {
       "path": "../store"
     },
     {

@@ -58,7 +58,7 @@ describe('settle', () => {
       missingFonts: [],
     };
 
-    expect(settle(digest, found)).toEqual({
+    expect(settle(digest, found, IDENTITY)).toEqual({
       kind: 'settled',
       verdict: 'unchanged',
       because: expect.stringContaining('byte-identical'),
@@ -75,10 +75,109 @@ describe('settle', () => {
       missingFonts: [],
     };
 
-    const settlement = settle(digest, found);
+    const settlement = settle(digest, found, IDENTITY);
     expect(settlement.kind).toBe('settled');
     expect(settlement).toMatchObject({ verdict: 'incomparable' });
-    expect(settlement.because).toContain('darwin/arm64');
+    // The one field that moved, both sides of it, and nothing the two share: a
+    // reader handed two full descriptions has to diff them by eye, and on a
+    // seven-field identity that is where the field that moved gets missed.
+    expect(settlement.because).toContain('platform darwin/arm64 → linux/x64');
+    expect(settlement.because).not.toContain('chromium@131');
+    expect(settlement.because).toContain('nothing here was compared');
+    expect(settlement.because).not.toMatch(/machine-bound|not comparable/);
+  });
+
+  // An upgrade of this tool moved the rasterization key and nothing about the
+  // machine (3fdec678 changed what the rasterization digest covers, and no
+  // pixel moved with it). Refusing to paint left a run with no
+  // candidate, so nothing could be accepted and the only route back was
+  // deleting a directory by hand. The recipe is ours, so the run paints.
+  const OLD_RECIPE: RenderIdentity = { ...IDENTITY, rasterization: 'v1:8040e1a2e35d148b301ebd30e5ed66c6' };
+  const NEW_RECIPE: RenderIdentity = { ...IDENTITY, rasterization: 'v1:54323cded938fde38b41cdd3865368fe' };
+
+  it('renders against this machine under an older recipe of the same document, and says only the recipe moved', () => {
+    const found: Described = {
+      documentDigest: documentDigest(document),
+      comparable: false,
+      storedUnder: OLD_RECIPE,
+      missingFonts: [],
+    };
+
+    const settlement = settle(digest, found, NEW_RECIPE);
+    expect(settlement.kind).toBe('render');
+    expect(settlement.because).toContain('rasterization e5ed66c6 → 865368fe');
+    // The document digest is the evidence: the same bytes were sent to the
+    // renderer on both sides, so what moved is the recipe and nothing else.
+    expect(settlement.because).toContain('the document is the one the baseline was painted from');
+    expect(settlement.because).toContain('only the recipe moved');
+    expect(settlement.because).toContain('`variance accept --all`');
+    expect(settlement.because).not.toContain('machine-bound');
+  });
+
+  it('renders against an older recipe of a different document, and does not call the image reviewed', () => {
+    // The recipe moved *and* the document did. The new image carries a change
+    // nobody has looked at, and a sentence calling it a re-baseline would have
+    // `accept --all` adopt that change unread.
+    const found: Described = {
+      documentDigest: documentDigest(documentFor('fixture:a', '<div data-va-path="0">y</div>')),
+      comparable: false,
+      storedUnder: OLD_RECIPE,
+      missingFonts: [],
+    };
+
+    const settlement = settle(digest, found, NEW_RECIPE);
+    expect(settlement.kind).toBe('render');
+    expect(settlement.because).toContain('rasterization e5ed66c6 → 865368fe');
+    expect(settlement.because).toContain('the document changed too');
+    expect(settlement.because).toContain('unreviewed');
+    expect(settlement.because).not.toContain('only the recipe moved');
+    expect(settlement.because).not.toContain('regression');
+    expect(settlement.because).not.toContain('--all');
+    // Vitest's `--update` is a sweep and skips this subject, so it is no route.
+    expect(settlement.because).toContain('`variance accept <subject>`');
+    expect(settlement.because).not.toContain('Vitest');
+  });
+
+  it('refuses a side that did not record its recipe, since an unrecorded recipe is not a value', () => {
+    // Absent means the renderer did not say what it did (`RenderIdentity`), so
+    // `recorded → not recorded` is an unknown on one side, not a recipe that
+    // moved. Nothing shows the machine is the same, so the refusal stands.
+    const found: Described = {
+      documentDigest: documentDigest(document),
+      comparable: false,
+      storedUnder: OLD_RECIPE,
+      missingFonts: [],
+    };
+
+    const settlement = settle(digest, found, IDENTITY);
+    expect(settlement).toMatchObject({ kind: 'settled', verdict: 'incomparable' });
+    expect(settlement.because).toContain('rasterization e5ed66c6 → not recorded');
+    expect(settlement.because).toContain('nothing here was compared');
+    expect(settlement.because).not.toMatch(/machine-bound|not comparable/);
+    expect(settlement.because).not.toContain('accept');
+  });
+
+  it('refuses a recipe re-baseline when the caller did not say what this run paints under', () => {
+    // `mine` is optional, as it was before the recipe was told apart: a caller
+    // that does not pass it has not said its machine is the baseline's, so the
+    // stored image's recipe moving is no evidence of anything and the refusal
+    // stands.
+    const found: Described = {
+      documentDigest: documentDigest(document),
+      comparable: false,
+      storedUnder: OLD_RECIPE,
+      missingFonts: [],
+    };
+
+    const settlement = settle(digest, found);
+    expect(settlement).toMatchObject({ kind: 'settled', verdict: 'incomparable' });
+    expect(settlement.because).toContain('rasterization');
+    expect(settlement.because).toContain('no image was produced');
+    // No image was painted, so there is no second one to call one of two.
+    expect(settlement.because).toContain('nothing here was compared');
+    expect(settlement.because).not.toMatch(/these two|two images/);
+    expect(settlement.because).not.toMatch(/machine-bound|not comparable/);
+    expect(settlement.because).not.toContain('accept');
   });
 
   it('keeps the fonts the baseline was painted without when the digest settles it', () => {
@@ -94,7 +193,7 @@ describe('settle', () => {
       missingFonts: ['Inter'],
     };
 
-    const settlement = settle(digest, found);
+    const settlement = settle(digest, found, IDENTITY);
     expect(settlement).toMatchObject({ kind: 'settled', missingFonts: ['Inter'] });
     expect(settlement.because).toContain('substituted font');
   });
@@ -106,13 +205,13 @@ describe('settle', () => {
       storedUnder: IDENTITY,
       missingFonts: [],
     };
-    expect(settle(digest, found).kind).toBe('render');
+    expect(settle(digest, found, IDENTITY).kind).toBe('render');
   });
 
   it('renders when there is no baseline, so the subject can be accepted at all', () => {
     // The verdict `new` needs no image; `accept` does, and `accept` may never
     // re-render. This is the one render this function knowingly pays for.
-    expect(settle(digest, null)).toEqual({
+    expect(settle(digest, null, IDENTITY)).toEqual({
       kind: 'render',
       because: expect.stringContaining('no baseline'),
     });

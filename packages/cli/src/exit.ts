@@ -189,9 +189,11 @@ const GREEN: readonly string[] = ['unchanged', 'ignored'];
  * gets wrong:
  *
  * - `changed` — the obvious one.
- * - `incomparable` — a baseline exists on another machine. The comparison was
- *   *refused*, so nothing is known, and an unobservable difference is never
- *   reported as no difference.
+ * - `incomparable` — a baseline exists under another identity: another
+ *   machine's, or this machine's under an older recipe of this tool. The
+ *   comparison was *refused*, so nothing is known, and an unobservable
+ *   difference is never reported as no difference — a recipe re-baseline holds
+ *   the run open too, until `accept` adopts its images.
  * - a `failed` entry in {@link ReviewableReport.notObserved} — the run meant to
  *   look and could not. This is the rule ADR-0017 states, in one
  *   line: a subject that cannot be observed does not silently pass.

@@ -2,13 +2,15 @@ import type { CaptureArtifact } from '@variance-authority/core';
 import { hashComponents } from '@variance-authority/core/attribute';
 import type { Raster } from '@variance-authority/core/format';
 import {
-  describeIdentity,
+  incomparableBecause,
   type BaselineKey,
   type RasterStore,
   type Renderer,
 } from '@variance-authority/raster';
 import { declaredIgnores } from './decide.js';
 import {
+  documentMoved,
+  identityMoved,
   observeAgainstBaseline,
   observeRasters,
   type CompareInputs,
@@ -98,13 +100,17 @@ export async function observeCaptureAgainstBaseline(
     return {
       subject: artifact.subject.id,
       verdict: 'incomparable',
-      because:
-        'a baseline exists but was rendered by ' +
-        `${describeIdentity(found.storedUnder)}, and this run is ` +
-        `${describeIdentity(candidate.identity)}; pixels are machine-bound, so the two are not comparable`,
+      because: incomparableBecause(
+        { identity: found.storedUnder, documentDigest: found.raster.documentDigest },
+        candidate,
+      ),
       regions: [],
       rendered: false,
       missingFonts: candidate.missingFonts,
+      signals: {
+        document: documentMoved(found.raster, candidate),
+        identity: identityMoved(found.storedUnder, candidate.identity),
+      },
       ...declaredField,
     };
   }

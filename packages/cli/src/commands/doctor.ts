@@ -439,6 +439,14 @@ async function baselines(
     };
   }
 
+  // FIXME: a store whose baselines differ from this machine only in the recipe
+  // digests (stabilization, rasterization), as every baseline does after an
+  // upgrade that moves them, gets this finding: "not painted by a machine like
+  // this one", and two ways out that are both wrong for it. The run paints those
+  // subjects (`recipeOnly` in packages/raster/src/renderer.ts), `accept --all`
+  // re-baselines those whose document did not move, and `accept <subject>` the
+  // rest; this compares the whole digest and cannot say so. The partition directory names a digest, not the identity behind it, so
+  // telling the two apart here needs a sidecar read per partition.
   return {
     kind: store.kind,
     // The finding this command was worth writing for. Everything else here is a

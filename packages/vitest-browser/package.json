@@ -51,6 +51,7 @@
     "@variance-authority/playwright": "workspace:^",
     "@variance-authority/raster": "workspace:^",
     "@variance-authority/react": "workspace:^",
+    "@variance-authority/report": "workspace:^",
     "@variance-authority/store": "workspace:^",
     "@variance-authority/unit-test": "workspace:^"
   },

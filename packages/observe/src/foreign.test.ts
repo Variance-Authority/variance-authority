@@ -73,6 +73,29 @@ describe('two images from a painter this process never ran', () => {
     );
 
     expect(observation.verdict).toBe('incomparable');
+    // A declared painter is its renderer, engine and platform at once, so the
+    // three fields name one pair of painters, once.
+    expect(observation.because).toContain(
+      'renderer, engine, platform declared:ios-simulator-17.4 → declared:figma-export',
+    );
+  });
+
+  it('names a recipe difference between two handed-in images without a command that has nothing to adopt', async () => {
+    // No baseline and no candidate here: two images from outside. `accept`
+    // promotes a run's candidate over a baseline, so naming it would send the
+    // reader to a command with nothing to act on.
+    const before = foreignRaster(PLAIN, IOS);
+    const after = foreignRaster(PLAIN, IOS);
+    const observation = await observeRasters(
+      'ios:checkout',
+      { ...before, identity: { ...before.identity, rasterization: 'v1:8040e1a2e35d148b301ebd30e5ed66c6' } },
+      { ...after, identity: { ...after.identity, rasterization: 'v1:54323cded938fde38b41cdd3865368fe' } },
+    );
+
+    expect(observation.verdict).toBe('incomparable');
+    expect(observation.because).toContain('the before image and the after image');
+    expect(observation.because).toContain('rasterization e5ed66c6 → 865368fe');
+    expect(observation.because).not.toContain('accept');
   });
 
   it('names no component, because an image carries none', async () => {

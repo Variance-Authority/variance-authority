@@ -29,7 +29,7 @@ export const explain: Tool = {
   name: 'variance_explain_verdict',
   description:
     'Why a subject was not compared. `incomparable` means a baseline exists but another ' +
-    'machine rendered it; `new` means none exists; a subject in the coverage list was never ' +
+    'machine, or an older recipe of this tool, rendered it; `new` means none exists; a subject in the coverage list was never ' +
     'observed at all. None is a code problem — call this before attempting a fix.',
   inputSchema: {
     type: 'object',
@@ -56,7 +56,8 @@ export const explain: Tool = {
         return [
           observation.because,
           '',
-          'This is not a code change and cannot be fixed in code. Either run on the machine ' +
+          'This is not a code change and cannot be fixed in code. Where the reason above names ' +
+            'only the recipe, adopt the new images as it says. Otherwise run on the machine ' +
             'that wrote the baseline, re-record the baseline on this one, or use an ephemeral ' +
             'comparison, which renders both sides here and needs no stored image at all.',
         ].join('\n');

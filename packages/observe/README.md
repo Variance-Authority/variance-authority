@@ -1,4 +1,4 @@
-<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
+| The two sides were painted under different machine identities — <p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/observe
 
@@ -62,8 +62,8 @@ import { readFileSync } from 'node:fs';
 import { observeRasters, summarizeObservation } from '@variance-authority/observe';
 import { foreignRaster } from '@variance-authority/png';
 
-// Pixels are machine-bound, so you name what painted them. Any string, as long
-// as it is the same string for images that are comparable.
+// Two images are compared only when one identity painted both, so you name
+// what painted them. Any string, as long as it is the same for both images.
 const painter = { painter: 'ios-simulator-17.4' };
 
 const observation = await observeRasters(
@@ -114,15 +114,22 @@ geometry alone. To get components and file lines instead of coordinates, take
 the baseline path below and supply a snapshot.
 
 Change one of the two painter strings and the same call returns `incomparable`
-rather than a large diff blamed on the wrong thing:
+rather than a diff across two painters:
 
 ```
-ios:checkout: incomparable — `ios:checkout` was given two images from different
-painters: declared:ios-simulator-17.4 (…, 1x, no fonts declared, no
-stabilization recorded, no rasterization recipe recorded) and
-declared:figma-export (…); pixels are machine-bound, so the two are not
-comparable
+ios:checkout: incomparable — the before image and the after image differ in the
+machine that painted them (renderer, engine, platform
+declared:ios-simulator-17.4 → declared:figma-export); images are compared only
+within one identity, so nothing here was compared; another machine may paint
+the same pixels or different ones, and nothing measured which
 ```
+
+The reason names only the fields that differ. When those are only the recipe —
+the stabilization or rasterization digest, which an upgrade of this package or a
+changed renderer option moves on an unchanged machine — it says so, and says
+whether the document is the one the other side was painted from. A side that
+recorded no recipe digest is refused as a recipe one side did not record, since
+nothing shows the machine is the same.
 
 ## Compare against an approved baseline
 
@@ -227,7 +234,8 @@ this package.
 | `unchanged` | Comparable images, no changed pixels. | Continue without review. |
 | `changed` | A comparable image differs. `regions` gives as much attribution as the snapshot and source you supplied allow. | Present the evidence and require review. |
 | `new` | No baseline exists for this key and this renderer. | Review and explicitly approve or reject. Not green. |
-| `incomparable` | The two sides were painted under incompatible identities — a baseline from another renderer, or two rasters from two declared painters. | Align the renderer inputs or keep a separate baseline. Do not accept the noise as a component change. |
+| `incomparable`, machine | The two sides were painted by different machines — a baseline from another renderer, engine, platform, scale or font set, or two rasters from two declared painters (images handed in with the name of the tool that made them). | Nothing was compared, so the verdict says nothing about the pixels: the other machine may paint the same image or a different one. Compare where the baseline was painted, or keep a separate baseline for this machine. |
+| `incomparable`, recipe | One machine, and only variance-authority's recipe digest moved, as an upgrade does. The reason says whether the document is the one the baseline was painted from. | Same document: review the new images and adopt them with `variance accept --all`. Changed document: review it as a change, then accept it by name; `variance accept --all` skips it. |
 | `ignored` | Pixels changed, and every one fell inside a declared exclusion or sensitivity. | Continue, and record that the green result rested on a rule. |
 
 `unchanged` is never available for `incomparable`: a difference that could not

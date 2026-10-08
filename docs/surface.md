@@ -494,7 +494,7 @@ Four flags:
 
 | Flag | What it does |
 | --- | --- |
-| `--all` | Promotes every changed candidate in the report. Keep it for a first run and for deliberate re-baselines: it cannot distinguish a candidate somebody reviewed from one nobody opened. |
+| `--all` | Promotes every candidate in the report: `new`, `changed`, and `incomparable` where only the recipe moved on an unchanged document. A subject whose document moved with the recipe, or whose image another machine painted, is skipped and named; accept it by its id. Keep it for a first run and for deliberate re-baselines: it cannot distinguish a candidate somebody reviewed from one nobody opened. |
 | `--shape <fingerprint>[,…]` | Promotes one category of difference wherever it accounts for the *whole* change, and refuses by name any subject where something else also changed. Copy a fingerprint out of a report; every region has its own. |
 | `--message-file <path>` | Writes a commit message for the baseline update to that path, for `git commit -F`. It commits nothing itself. |
 | `--message <text>` | The subject line of that message. Only meaningful with `--message-file`. |
@@ -517,7 +517,9 @@ Baselines are partitioned by renderer identity: engine, platform, scale, fonts,
 stabilization, and rasterization recipe. Chromium rendering defaults to
 `--disable-lcd-text` and `--font-render-hinting=none`; changing the ordered
 launch recipe changes identity, so a font rasterization difference comes back as
-a refused comparison rather than as a component regression. Choose between a
+a refused comparison rather than as a component regression. The refusal names
+the recipe as what moved and whether the document moved with it, and the run
+still paints the subject, so `accept` has a candidate to adopt. Choose between a
 committed directory, Git LFS and a remote store in
 [where baselines live](placement.md), which also covers what each costs.
 

@@ -1,4 +1,9 @@
-import type { Raster, RenderDocument, RenderIdentity } from '@variance-authority/core/format';
+import {
+  identityDigest,
+  type Raster,
+  type RenderDocument,
+  type RenderIdentity,
+} from '@variance-authority/core/format';
 
 /**
  * Rendering — phase two, and the only phase that is allowed to be expensive.
@@ -109,6 +114,244 @@ export function describeIdentity(identity: RenderIdentity): string {
     `${identity.renderer} (${identity.engine}, ${identity.platform}, ` +
     `${identity.deviceScaleFactor}x, ${fonts}, ${recipe}, ${rasterization})`
   );
+}
+
+/**
+ * What to call the two sides of a refusal.
+ *
+ * The baseline and this run, almost always; two images handed in from outside,
+ * for `observeRasters`. Named rather than built into the sentence so that every
+ * refusal is the same sentence about whichever two things were compared.
+ */
+export interface IncomparableSides {
+  readonly stored: string;
+  readonly current: string;
+  /**
+   * Whether `current` is a candidate that can replace `stored`, so the sentence
+   * may end at the command that does. True between a baseline and this run;
+   * absent between two images handed in, where there is no baseline to replace.
+   */
+  readonly replaceable?: boolean;
+}
+
+const BASELINE_AND_RUN: IncomparableSides = {
+  stored: 'the baseline',
+  current: 'this run',
+  replaceable: true,
+};
+
+/**
+ * Whether two identities differ by the machine or only by this tool's recipe.
+ *
+ * `renderer`, `engine`, `platform`, scale and fonts are the machine: what is
+ * installed and how it is configured to paint. `stabilization` and
+ * `rasterization` are the recipe: what this tool does to a page before and while
+ * it is photographed, which moves when variance-authority is upgraded or a
+ * renderer option changes, on a machine that did not. The two need opposite
+ * actions — compare where the baseline was painted, or adopt this run's images
+ * — so a difference is classified before it is described.
+ *
+ * A recipe digest one side did not record is neither. Absent means the renderer
+ * did not say what it did (`RenderIdentity.rasterization`), so `e5ed66c6 → not
+ * recorded` is an unknown, and nothing shows the machine is the same; it is
+ * refused with the machine differences rather than adopted with the recipe ones.
+ *
+ * Each entry is a field that differs, with both values, stored side first. A
+ * field the two share is not listed: a reader handed two full descriptions has
+ * to find the one that moved by diffing seven fields by eye.
+ *
+ * It shapes the sentence, and `recipeOnly` asks it two things: whether a recipe
+ * digest moved, and whether one went unrecorded. Whether anything else moved is
+ * asked of `identityDigest`, which partitions baselines, so a field the digest
+ * gains before this list does is still a difference.
+ */
+function identityDifference(
+  stored: RenderIdentity,
+  current: RenderIdentity,
+): {
+  readonly machine: readonly string[];
+  readonly recipe: readonly string[];
+  readonly unrecorded: readonly string[];
+} {
+  const machine = moves([
+    ['renderer', stored.renderer, current.renderer],
+    ['engine', stored.engine, current.engine],
+    ['platform', stored.platform, current.platform],
+    ['scale', `${stored.deviceScaleFactor}x`, `${current.deviceScaleFactor}x`],
+  ]);
+  const fonts = fontsMoved(stored.fonts, current.fonts);
+  if (fonts !== undefined) machine.push(fonts);
+
+  const digests = [
+    ['stabilization', stored.stabilization, current.stabilization],
+    ['rasterization', stored.rasterization, current.rasterization],
+  ] as const;
+  const recipe = moves(
+    digests
+      .filter(([, from, to]) => from !== undefined && to !== undefined)
+      .map(([name, from, to]) => [name, short(from!), short(to!)] as const),
+  );
+  const unrecorded = moves(
+    digests
+      .filter(([, from, to]) => (from === undefined) !== (to === undefined))
+      .map(([name, from, to]) => [name, recorded(from), recorded(to)] as const),
+  );
+
+  return { machine, recipe, unrecorded };
+}
+
+/**
+ * The fields that moved, as `field a → b`. Fields that moved between the same
+ * two values share one entry — a declared painter is its renderer, engine and
+ * platform at once, and three copies of one pair of names bury nothing but the
+ * sentence.
+ */
+function moves(fields: readonly (readonly [string, string, string])[]): string[] {
+  const merged: { names: string[]; from: string; to: string }[] = [];
+  for (const [name, from, to] of fields) {
+    if (from === to) continue;
+    const same = merged.find((entry) => entry.from === from && entry.to === to);
+    if (same === undefined) merged.push({ names: [name], from, to });
+    else same.names.push(name);
+  }
+  return merged.map((entry) => `${entry.names.join(', ')} ${entry.from} → ${entry.to}`);
+}
+
+/**
+ * One side of a refusal: the identity it was painted under, and the document it
+ * was painted from. A `Raster` is one; a sidecar supplies both fields too.
+ */
+type Painted = Pick<Raster, 'identity' | 'documentDigest'>;
+
+/**
+ * What every refusal says in place of a law about pixels. Two machines can paint
+ * the same image or different ones. Comparing only within one identity is this
+ * tool's rule, not a measurement of any image, and the sentence says so. It
+ * names no second image, because `settle` refuses before one is painted.
+ */
+export const NOT_COMPARED =
+  'images are compared only within one identity, so nothing here was compared; another machine ' +
+  'may paint the same pixels or different ones, and nothing measured which';
+
+/**
+ * The reason a stored image and this run's cannot be compared, for every caller
+ * that refuses: the settlement, a baseline lookup, and two rasters handed in.
+ *
+ * One function so the classification cannot differ between the path that
+ * settles without painting and the path that paints and then looks up. A machine
+ * difference keeps the sentence it always had, naming only what moved.
+ *
+ * A recipe difference is said to be one, and the document digest decides how
+ * much more can be said. Equal, the renderer was sent the same bytes on both
+ * sides, so only the recipe moved and the new image is the baseline's subject
+ * repainted. Different, the document moved too, and the new image carries a
+ * change nobody has reviewed — so it is never called a re-baseline, and
+ * `accept --all`, which would adopt it unread, is not named.
+ *
+ * The remedy is a command only between a baseline and this run. Between two
+ * images handed in from outside there is no candidate to promote and no
+ * baseline to replace, so the sentence ends at what moved.
+ */
+export function incomparableBecause(
+  stored: Painted,
+  current: Painted,
+  sides: IncomparableSides = BASELINE_AND_RUN,
+): string {
+  const { machine, recipe, unrecorded } = identityDifference(stored.identity, current.identity);
+  const both = `${sides.stored} and ${sides.current}`;
+
+  if (recipeOnly(stored.identity, current.identity)) {
+    const sameDocument = stored.documentDigest === current.documentDigest;
+    const replaceable = sides.replaceable === true;
+    return (
+      `${both} were painted on the same machine under different recipes ` +
+      `(${recipe.join(', ')}). The recipe is variance-authority's, not the machine's — ` +
+      'an upgrade or a changed renderer option moves it' +
+      (sameDocument
+        ? `; the document is the one ${sides.stored} was painted from, so only the recipe moved` +
+          (replaceable
+            ? ': review the new images and adopt them with `variance accept --all`, or your ' +
+              "test runner's update flag (`--update-snapshots` in Playwright, `--update` in Vitest)"
+            : '')
+        : `; the document changed too, so the change ${sides.current} carries is unreviewed` +
+          (replaceable
+            ? ': review its image as a change, then adopt it alone with `variance accept <subject>`, ' +
+              'or that one test under `--update-snapshots=all` in Playwright'
+            : ''))
+    );
+  }
+
+  // No field this function names differs, a recipe aside, and the digest still
+  // disagreed: the identity grew a field the wording has not learned. Without a
+  // recipe move both descriptions go in full, since there is no narrower true
+  // sentence; with one, the recipe is named and the rest is the unknown it is.
+  const unnamed = machine.length === 0 && unrecorded.length === 0;
+  if (unnamed && recipe.length === 0) {
+    return (
+      `${sides.stored} was painted by ${describeIdentity(stored.identity)}, and ${sides.current} by ` +
+      `${describeIdentity(current.identity)}; ${NOT_COMPARED}`
+    );
+  }
+
+  const clauses = [
+    ...(machine.length === 0 ? [] : [`in the machine that painted them (${machine.join(', ')})`]),
+    ...(unrecorded.length === 0
+      ? []
+      : [`in a recipe one side did not record (${unrecorded.join(', ')})`]),
+    ...(recipe.length === 0 ? [] : [`under different recipes (${recipe.join(', ')})`]),
+    ...(unnamed ? ['in a field of the render identity this version does not name'] : []),
+  ];
+  return (
+    `${both} differ ${clauses.join(', and ')}; ` +
+    (machine.length > 0
+      ? ''
+      : unnamed
+        ? 'that field may be the machine; '
+        : 'a recipe nobody recorded cannot show the machine is the same; ') +
+    NOT_COMPARED
+  );
+}
+
+/**
+ * Whether a difference between two identities is the recipe's alone.
+ *
+ * Asked of `identityDigest`, the owner of what partitions baselines: the stored
+ * identity under this run's recipe digests is this run's identity, so nothing
+ * else the digest covers moved — including a field added to it after this was
+ * written, which a list of machine fields here would wave through. And both
+ * sides recorded every recipe digest, since an unrecorded one is an unknown,
+ * not a recipe of its own.
+ */
+export function recipeOnly(stored: RenderIdentity, current: RenderIdentity): boolean {
+  const { recipe, unrecorded } = identityDifference(stored, current);
+  if (unrecorded.length > 0 || recipe.length === 0) return false;
+  const { stabilization: _s, rasterization: _r, ...machine } = stored;
+  return (
+    identityDigest({
+      ...machine,
+      ...(current.stabilization === undefined ? {} : { stabilization: current.stabilization }),
+      ...(current.rasterization === undefined ? {} : { rasterization: current.rasterization }),
+    }) === identityDigest(current)
+  );
+}
+
+/** A recipe digest as printed, or the fact that none was recorded. */
+function recorded(digest: string | undefined): string {
+  return digest === undefined ? 'not recorded' : short(digest);
+}
+
+/**
+ * The fonts that one side declared and the other did not, or `undefined` when
+ * the lists are equal. A list printed whole buries the one font that moved.
+ */
+function fontsMoved(stored: readonly string[], current: readonly string[]): string | undefined {
+  if (stored.length === current.length && stored.every((font, i) => font === current[i])) {
+    return undefined;
+  }
+  const gone = stored.filter((font) => !current.includes(font));
+  const added = current.filter((font) => !stored.includes(font));
+  if (gone.length === 0 && added.length === 0) return 'fonts declared in a different order';
+  return `fonts ${[...gone.map((font) => `-${font}`), ...added.map((font) => `+${font}`)].join(' ')}`;
 }
 
 /** Last eight characters of a `v1:`-prefixed digest, or of whatever was given. */

@@ -3,7 +3,7 @@ import type {
   Digest,
   RenderIdentity,
 } from '@variance-authority/core/format';
-import { describeIdentity } from './renderer.js';
+import { describeIdentity, incomparableBecause, NOT_COMPARED, recipeOnly } from './renderer.js';
 import type { Described } from './store.js';
 
 /**
@@ -77,7 +77,9 @@ export type Settlement =
  * **The baseline is another machine's.** Refused rather than rendered. Producing
  * the image would buy a diff nobody is permitted to read, since pixels are
  * machine-bound and the difference would be attributed to whichever component
- * happens to sit under it (ADR-0011).
+ * happens to sit under it (ADR-0011). A baseline this machine painted under an
+ * older recipe of this tool is not another machine's: it renders, so the run
+ * leaves the image that re-baselines it.
  *
  * **Anything else renders.** Including `new`, where the *verdict* is already
  * settled — there is no baseline, and no image changes that. It renders anyway,
@@ -115,11 +117,11 @@ export function settle(
   /**
    * The identity this run would paint under.
    *
-   * Required so the refusal can name *both* sides. A sentence that says a
-   * baseline is not comparable while describing only the baseline gives the
-   * reader one machine and asks them to guess what the other one is — and when
-   * the difference is in a field the description omits, the two sides read
-   * identically. See `describeIdentity`.
+   * What lets the refusal name what differs between the two sides, and a
+   * difference in this tool's recipe alone be told from a different machine
+   * (see `incomparableBecause`). Absent, the caller has not said what it paints
+   * under, so nothing shows its machine is the baseline's: the refusal names
+   * the stored side alone and nothing is painted.
    */
   mine?: RenderIdentity,
   accessibility?: AccessibilitySnapshot,
@@ -132,13 +134,37 @@ export function settle(
   }
 
   if (!found.comparable) {
+    if (mine === undefined) {
+      return {
+        kind: 'settled',
+        verdict: 'incomparable',
+        because:
+          `a baseline exists but was rendered by ${describeIdentity(found.storedUnder)}, and ` +
+          `this run did not say what it paints under, so no image was produced; ${NOT_COMPARED}`,
+      };
+    }
+
+    const stored = { identity: found.storedUnder, documentDigest: found.documentDigest };
+    const current = { identity: mine, documentDigest: digest };
+    // Painted, because this run's image is the candidate. The machine is the
+    // same and only this tool's recipe moved, so there is no other machine's image to
+    // protect; refusing here left a run with no candidate, nothing `accept` could
+    // promote, and a directory to delete by hand. Painted whether or not the
+    // document moved too: the sentence says which, and only an unmoved document
+    // is called a re-baseline or adopted in bulk. The verdict stays
+    // `incomparable` — the lookup after the render reaches it with the same
+    // sentence — and the image is what makes it acceptable.
+    if (recipeOnly(found.storedUnder, mine)) {
+      // FIXME: the image is painted and not compared, so a recipe change that
+      // moved no pixels and one that moved half the page read alike, and a
+      // moved document reaches review with no regions. Comparing the two images
+      // here, with the verdict still `incomparable`, would show both.
+      return { kind: 'render', because: incomparableBecause(stored, current) };
+    }
     return {
       kind: 'settled',
       verdict: 'incomparable',
-      because:
-        `a baseline exists but was rendered by ${describeIdentity(found.storedUnder)}` +
-        (mine === undefined ? '' : `, and this run is ${describeIdentity(mine)}`) +
-        '; pixels are machine-bound, so the two are not comparable and no image was produced',
+      because: `${incomparableBecause(stored, current)} and no image was produced`,
     };
   }
 
