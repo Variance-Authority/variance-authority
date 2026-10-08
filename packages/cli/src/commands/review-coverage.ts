@@ -3,9 +3,9 @@ import type { Coverage } from './coverage.js';
 import { coverageBreakdown } from './coverage-text.js';
 import { coverageRows } from './coverage-summary.js';
 import { code } from './comment-text.js';
+import type { MissedSuite } from './review-suites.js';
 
-/** A suite that cannot be read remains visible beside the suites that can. */
-export type ReviewCoverage = Coverage | { readonly suite?: string; readonly missed: string; readonly unrecorded?: true };
+export type ReviewCoverage = Coverage | MissedSuite;
 
 export function reviewCoverageSummary(readings: readonly ReviewCoverage[]): readonly string[] {
   return ['', '| Suite | Change in execution |', '|---|---|', ...readings.flatMap((reading) =>

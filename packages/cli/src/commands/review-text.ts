@@ -34,6 +34,17 @@ const EDITS = [
   ['load', 'what the module loads'],
 ] as const;
 
+/** Each answer in a few words, for a line that names a place: the handover's breadcrumbs. */
+export const REACH_WORD: Readonly<Record<Reach, string>> = {
+  near: 'near',
+  far: 'far',
+  unplaced: 'distance not measured',
+  loaded: 'ran only while its module loaded',
+  hole: 'no case',
+  unwalked: 'no case',
+  unknown: 'no case',
+};
+
 const REACH_TEXT: Readonly<Record<Reach, string>> = {
   near: 'covered by a test that imports the file, or is the file',
   far: 'covered only by tests further than one import away',
@@ -81,9 +92,9 @@ function editText(file: string, region: ReviewRegion): string {
  * One mark per answer, so a row in the table and a count in the per-file fold
  * read the same way: red is changed code no case covered, yellow and orange are
  * covered from further away than the file's own importers, green is covered
- * from one import away.
+ * from one import away, white ran only while its module loaded.
  */
-const MARK: Readonly<Record<Reach, string>> = {
+export const MARK: Readonly<Record<Reach, string>> = {
   near: '🟢',
   far: '🟡',
   unplaced: '🟠',
@@ -96,6 +107,9 @@ const MARK: Readonly<Record<Reach, string>> = {
 /** What each mark says, once, above the first place it is used. */
 const LEGEND = '🟢 a test importing the file ran it · 🟡 only tests further away ran it · 🟠 tests outside the import graph ran it · ' +
   '⚪ ran only while its module loaded · 🔴 no case ran it';
+
+/** Code this change wrote that no run has reached yet: read before it ran, so no case was expected. */
+export const FRESH_MARK = '🔵';
 
 /**
  * The comment, disclosed a level at a time. The first screen is the verdict:

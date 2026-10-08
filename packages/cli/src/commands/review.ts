@@ -191,9 +191,10 @@ export interface Review {
   readonly motion?: CoveringMotion;
 }
 
-export async function review(request: ParsedReview): Promise<Review> {
+/** `motion: false` leaves out the cases moved against the base, for a reading made before CI that reports none. */
+export async function review(request: ParsedReview, { motion: moves = true } = {}): Promise<Review> {
   const { root } = request;
-  // TODO: a repository that declares several suites is read suite by suite when none is named, grouped by kind, with a suite that has no record reported as unrecorded; until then this reads one record and refuses to guess which.
+  // TODO: a repository that declares several suites is read suite by suite when none is named, grouped by kind, with a suite that has no record reported as unrecorded, as `eachSuite` already reads them for `--coverage` and the handover; until then this reads one record and refuses to guess which.
   const recorded = await recordedSuite(root, request.suite);
   // The runs are always this checkout's own: a base it did not record, the mainline's or the
   // primary's, describes another change, and a record seeded from it (`runs: 0`) lists none.
@@ -284,7 +285,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   const suite = await preconditionsOf(recorded.file, [...changed.keys()].map(named));
   const beyond = await installDiff(point, [...changed.keys()]);
   const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
-  const motion = against !== undefined
+  const motion = !moves ? undefined : against !== undefined
     ? await motionAgainst(from, against, ref, root)
     : wrote === undefined
       ? undefined

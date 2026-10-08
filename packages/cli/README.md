@@ -152,7 +152,7 @@ variance covering --file <path> [--line <n>] [--function <name>] [--at-distance 
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
-variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json]
+variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json]
@@ -697,6 +697,33 @@ The diff is measured from the commit the record was written at rather than from
 the merge base with `<ref>`, since the index's line ranges are in that commit's
 coordinates and nothing else's. Record before you read: an index behind the tree
 answers fluently about regions that have moved.
+
+### Handing the coverage to a reviewer before CI runs
+
+```bash
+variance review --since origin/main --format handover
+```
+
+prints breadcrumbs to the coverage of the changed area as one folded
+`<details>` block for the pull request body. A review bot reads the body when
+the pull request opens, before any check has finished. A changed function gets
+a line when there is something to look at: 🔴 when part of it ran under no
+case, or has none in a record from before the change, 🔵 when the change wrote it and no case has run it yet; otherwise the
+review comment's mark for its furthest reached part: 🟡 far, 🟠 a distance not
+measured, ⚪ only while its module loaded. A reached line names how many cases and the first test file to open.
+A function every case reached from a test file that imports it is only
+counted. Absences come first; past twelve lines the rest are counted, and the
+block ends with the `variance covering` command that reads one file in full.
+Every declared suite is read and each line names its suite; a suite whose
+record cannot be read is named with the reason, and one named with `--suite`
+fails instead. A suite run on the change is the word on what in a file it read is new.
+The block sits between `<!-- variance-authority: handover -->` and its
+closing marker, so a later run replaces it in place.
+
+It reads this checkout's record as `covering` does. `--from-run`, `--out`,
+`--coverage` and `--against` read or compare what a run made, so a handover
+refuses them, and it leaves out the cases local runs moved: CI's comment
+reports those.
 
 #### What a change moved
 

@@ -3,7 +3,7 @@ import { noPositionals, type Flags } from './args.js';
 import { REVIEW_ARTIFACT } from './commands/review-from-run.js';
 import { OperatorError } from './exit.js';
 
-export type ReviewFormat = 'text' | 'markdown' | 'json';
+export type ReviewFormat = 'text' | 'markdown' | 'json' | 'handover';
 
 export interface ParsedReview {
   readonly command: 'review';
@@ -28,8 +28,12 @@ export interface ParsedReview {
 export function parseReviewArgs(flags: Flags): ParsedReview {
   noPositionals(flags.positionals, 'review');
   const format = flags.values.get('--format') ?? 'text';
-  if (format !== 'text' && format !== 'markdown' && format !== 'json') {
-    throw new OperatorError(`--format must be text, markdown or json, not \`${format}\``);
+  if (format !== 'text' && format !== 'markdown' && format !== 'json' && format !== 'handover') {
+    throw new OperatorError(`--format must be text, markdown, json or handover, not \`${format}\``);
+  }
+  if (format === 'handover') {
+    const ci = (['--from-run', '--out', '--coverage', '--against'] as const).filter((flag) => flags.values.get(flag) !== undefined || flags.present.has(flag));
+    if (ci.length > 0) throw new OperatorError(`--format handover reads this checkout before CI runs, so ${ci.join(' and ')} ${ci.length === 1 ? 'has' : 'have'} nothing to add to it`);
   }
   const since = flags.values.get('--since');
   const against = flags.values.get('--against');
