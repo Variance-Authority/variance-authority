@@ -5,10 +5,9 @@
  * diff, and hands back a set to skip. This asks the same columns a question
  * whose input is a *point* — a file, a line, a declaration, a branch inside one
  * — and hands back the tests that were observed there. The two are not variants
- * of one query. A selection is a decision about work, is allowed to be wider
- * than the truth, and is read by a runner; a point query is a statement about
- * evidence, is worth nothing if it is wider than the truth, and is read by
- * somebody about to edit the line.
+ * of one query. A selection is a decision about work and is read by a runner;
+ * a point query is a statement about evidence and is read by somebody about to
+ * edit the line, who needs it to name every test that edit would run.
  *
  * ## A line is answered as an edit to it is charged
  *
@@ -19,7 +18,9 @@
  * selects them. Answered with the branch alone, *who goes to this line* would
  * name fewer tests than a change to it runs, and the person about to edit it
  * would read a skip list the selection does not keep. A line inside a region
- * charges that region alone.
+ * charges that region alone, and a brace that closes a branch charges the
+ * branch and the unwritten `else` placed on it. To ask who *took* a branch, ask
+ * by its path: that answer is the branch's own crossings and nothing else.
  *
  * What a point query does not share is the fallback. A line no recorded region
  * holds is reported as unrecorded rather than widened to the module: a

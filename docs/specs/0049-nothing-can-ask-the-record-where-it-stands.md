@@ -173,11 +173,15 @@ moved rather than answering from stale lines.
 
 ## What it forecloses
 
-**A point is not a one-line diff.** `blocksAround` charges outwards from a line
-onto the regions around it, which is correct for deciding what to run and wrong
-for saying who goes somewhere: it returns every test that rendered the component
-and never took the branch, with nothing in the result to tell them apart.
-Selection over-includes on purpose. An answer may not.
+**A line is answered as an edit to it is charged; a branch is answered exactly.**
+A line that opens a branch holds the condition the region around it evaluates,
+so the tests that evaluated it and never took the branch went to that line, and
+an edit there selects them. A line point is therefore charged by the rule
+selection charges a changed line by, `chargeLine`, and *who goes to this line*
+never names fewer tests than a change to it runs. *Who takes this branch* is a
+different question, and the branch path answers it with the branch's own
+crossings and nothing around them. What a line point does not inherit is the
+module fallback: a line no recorded region holds is unrecorded, not widened.
 
 **No number is invented to rank an answer.** A depth nothing measured would sort
 the answer by nothing, and a hop count with no graph is `unmeasured` rather than

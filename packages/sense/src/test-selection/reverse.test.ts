@@ -209,6 +209,9 @@ describe('a line that opens a branch inside another', () => {
         { kind: 'function', name: 'fetchQuery', path: 'entry', startLine: 1, endLine: 8, source: true, crossings: [{ test: 0, distance: 0 }, { test: 1, distance: 0 }, { test: 2, distance: 0 }] },
         { kind: 'branch', name: 'fetchQuery', path: 'if#0/then', startLine: 2, endLine: 7, source: true, crossings: [{ test: 0, distance: 0 }, { test: 1, distance: 0 }] },
         { kind: 'branch', name: 'fetchQuery', path: 'if#0/then/if#0/then', startLine: 4, endLine: 6, source: true, crossings: [{ test: 0, distance: 0 }] },
+        // The `else` nobody wrote, placed at the brace that closes its `if`.
+        { kind: 'branch', name: 'fetchQuery', path: 'if#0/then/if#0/else', startLine: 6, endLine: 6, source: false, crossings: [{ test: 1, distance: 0 }] },
+        { kind: 'branch', name: 'fetchQuery', path: 'if#0/else', startLine: 7, endLine: 7, source: false, crossings: [{ test: 2, distance: 0 }] },
       ],
     }],
   };
@@ -220,8 +223,11 @@ describe('a line that opens a branch inside another', () => {
     expect(at(5)).toEqual(['from-observer']);
   });
 
-  it('leaves the brace that closes a branch to the cases that took it', () => {
-    expect(at(6)).toEqual(['from-observer']);
+  it('gives the brace that closes a branch to the cases that took either side of it', () => {
+    // An edit there is charged to the branch and to the unwritten `else` on
+    // that line, and to nothing around them.
+    expect(at(6)).toEqual(['missing', 'from-observer']);
+    expect(at(7)).toEqual(['missing', 'from-observer', 'given']);
   });
 
   it('answers the line in the file listing as it answers the line alone', () => {
@@ -230,9 +236,9 @@ describe('a line that opens a branch inside another', () => {
     expect(ranges.map((range) => [range.startLine, range.endLine, range.tests.map((test) => test.id)])).toEqual([
       [1, 2, ['missing', 'from-observer', 'given']],
       [3, 4, ['missing', 'from-observer']],
-      [5, 6, ['from-observer']],
-      [7, 7, ['missing', 'from-observer']],
-      [8, 8, ['missing', 'from-observer', 'given']],
+      [5, 5, ['from-observer']],
+      [6, 6, ['missing', 'from-observer']],
+      [7, 8, ['missing', 'from-observer', 'given']],
     ]);
   });
 });

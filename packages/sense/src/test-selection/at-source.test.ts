@@ -113,6 +113,16 @@ describe('asking one place in the source who goes there', () => {
     ]);
   });
 
+  it('answers the line that declares a function with the module around it', () => {
+    // Line 5 opens `cart` and is the module's text: every test that loaded the
+    // file ran it, and an edit there selects them.
+    const answer = testsReachingFromView(view(shaped), { file: 'src/cart.ts', line: 5 });
+    expect(answer.regions.map((region) => [region.name, region.path])).toEqual([
+      ['cart', 'entry'],
+      ['', 'module'],
+    ]);
+  });
+
   it('answers a line inside a branch with the branch alone', () => {
     const answer = testsReachingFromView(view(shaped), { file: 'src/cart.ts', line: 12 });
     expect(answer.regions.map((region) => region.path)).toEqual(['if#0/then']);
