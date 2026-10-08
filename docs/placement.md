@@ -278,9 +278,12 @@ Three things this needs from the repository:
   secrets and a read-only token, so its label run cannot push. Its baselines are
   committed by hand.
 - **git-lfs in the job, for `lfs`.** The Playwright image has none, so install
-  it. Leave LFS objects out of the checkout: the run reads a baseline image only
-  for a subject whose document changed, and fetches that one image with `git lfs
-  pull`. Without git-lfs, the run stops with exit 2 on the first image it needs.
+  it. Leave LFS objects out of the checkout, which `actions/checkout` does unless
+  you set `lfs: true`: the run reads a baseline image only for a subject whose
+  document changed, and fetches that one image with `git lfs pull`. A checkout
+  that fetches them works too, and downloads every baseline on every run.
+  Without git-lfs, the run stops with exit 2, an error and not a difference, on
+  the first image it needs.
 
 ### A review service
 
