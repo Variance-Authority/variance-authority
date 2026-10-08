@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { InstrumentMode } from '../instrument/index.js';
 import { native, nativeRefusal, type NativeJourneyModule, type NativeScanner } from '../native.js';
+import { NO_OWNER } from './format-layout.js';
 import { NO_LINE } from './written-lines.js';
 import { deriveModules } from './captured-modules.js';
 import type { CapturedModule } from './instrumented-modules.js';
@@ -99,11 +100,6 @@ export async function finalizeJestJourneys(journeyFile: string): Promise<Journey
   }
   const parts = [...manifest.parts ?? []];
   const modules = await deriveModules(manifest.root, ids(cases, manifest.root, parts), manifest.mode);
-  // FIXME: the native fold, and the stitch below, write no `blocks.owner`,
-  // where the JavaScript fold (`foldCaseRun`, through `keptOwners`) writes
-  // one. An index they write names no region around any: laid as a case
-  // index over one cut without a region, that region takes none of its
-  // owner's cases.
   const result = foldTo(cases, manifest.root, [...modules.values()].map(nativeModule), output, undefined, parts);
   await rm(pending, { recursive: true, force: true });
   return result;
@@ -127,6 +123,7 @@ export async function stitchJourneyArtifacts(
 
 /** A module cut again from the checkout, as the native fold reads it. */
 export function nativeModule(module: CapturedModule): NativeJourneyModule {
+  const place = new Map(module.blocks.map((block, at) => [block.ordinal, at]));
   return {
     id: module.id,
     file: module.file,
@@ -138,6 +135,7 @@ export function nativeModule(module: CapturedModule): NativeJourneyModule {
       endLine: block.endLine ?? NO_LINE,
       source: block.source,
     })),
+    owners: module.blocks.map((block) => (block.owner === undefined ? NO_OWNER : place.get(block.owner) ?? NO_OWNER)),
   };
 }
 

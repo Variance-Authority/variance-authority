@@ -4,7 +4,7 @@ use crate::case_id;
 use crate::case_preconditions;
 use crate::journey_columns::{self, Column};
 use crate::journey_journal::Test;
-use crate::journey_record::Module;
+use crate::journey_record::{Module, NO_OWNER};
 use crate::order;
 
 /// Version 3 carries load time as one flag per region rather than as the set of
@@ -142,6 +142,9 @@ pub struct Gaps {
     pub silent: Option<Vec<String>>,
 }
 
+/// Each region's owner among its module's regions, as `encodeSetExecutionIndex` writes it.
+pub const OWNER: &str = "blocks.owner";
+
 const UNRECORDED: &str = "gaps.unrecorded";
 const UNCLAIMED: &str = "gaps.unclaimed";
 const HEADS: &str = "gaps.heads";
@@ -222,9 +225,26 @@ pub fn encode(
     let mut block_source = Vec::new();
     let mut block_called = Vec::new();
     let mut block_loaded = Vec::new();
+    // Written when any module knows its owners; a module that does not names none.
+    let mut block_owner = modules.iter().any(|held| held.module.owners.is_some()).then(Vec::new);
     for held in modules {
         module_file.push(id(&held.module.file));
         module_blocks.push(block_kind.len() as u32);
+        if let Some(column) = block_owner.as_mut() {
+            let count = held.module.blocks.len();
+            match &held.module.owners {
+                Some(owners) => {
+                    if owners.len() != count {
+                        return Err(format!("{} names {} owners for {count} regions", held.module.file, owners.len()));
+                    }
+                    if owners.iter().enumerate().any(|(at, owner)| *owner != NO_OWNER && *owner as usize >= at) {
+                        return Err(format!("{} names an owner after its region", held.module.file));
+                    }
+                    column.extend_from_slice(owners);
+                }
+                None => column.extend(std::iter::repeat_n(NO_OWNER, count)),
+            }
+        }
         for (at, block) in held.module.blocks.iter().enumerate() {
             block_kind.push(id(&block.kind));
             block_name.push(id(&block.name));
@@ -258,6 +278,9 @@ pub fn encode(
         Column::Blob("sets.blob", sets.bytes().to_vec(), sets.offsets().to_vec()),
         Column::Words("sets.off", sets.offsets().to_vec()),
     ];
+    if let Some(owners) = block_owner {
+        columns.push(Column::Words(OWNER, owners));
+    }
     if let Some(runners) = runners.filter(|runners| !runners.is_empty()) {
         columns.push(Column::Words(case_id::COLUMN, runners.into_iter().map(id).collect()));
     }

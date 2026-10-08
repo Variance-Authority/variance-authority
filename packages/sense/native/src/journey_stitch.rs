@@ -65,6 +65,12 @@ struct ShardModule {
     loaded: Vec<bool>,
 }
 
+/// One way a file was cut, with the owners that cut named where known.
+struct Inventory {
+    blocks: Vec<Block>,
+    owners: Option<Vec<u32>>,
+}
+
 struct Stitched {
     bytes: Vec<u8>,
     tests: u32,
@@ -80,7 +86,7 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
         return Err("no journey artifacts were named".to_owned());
     }
     let mut shards = Vec::with_capacity(files.len());
-    let mut inventories: HashMap<String, Vec<Vec<Block>>> = HashMap::new();
+    let mut inventories: HashMap<String, Vec<Inventory>> = HashMap::new();
     for file in files {
         let bytes = fs::read(file).map_err(|error| format!("cannot read {file}: {error}"))?;
         let shard = read_shard(&bytes, &mut inventories)
@@ -140,24 +146,30 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
         shard.local_to_global = shard.tests.iter().map(|test| test_at[&key(test)]).collect();
     }
 
-    let mut shapes: Vec<(String, Vec<Vec<Block>>)> = inventories.into_iter().collect();
+    let mut shapes: Vec<(String, Vec<Inventory>)> = inventories.into_iter().collect();
     shapes.sort_by(|left, right| order::code_unit(&left.0, &right.0));
     let mut modules = Vec::with_capacity(shapes.len());
     let mut landings: Vec<Vec<Vec<u32>>> = Vec::with_capacity(shapes.len());
     let mut renumbered = Vec::new();
     for (file, mut held) in shapes {
-        let (blocks, lands) = if held.len() == 1 {
-            (held.pop().unwrap_or_default(), Vec::new())
-        } else {
-            let cut: Vec<&[Block]> = held.iter().map(Vec::as_slice).collect();
-            let reconciled = journey_record::reconcile(&cut);
-            renumbered.push(file.clone());
-            (reconciled.blocks, reconciled.lands)
+        // Owners are positions among the module's own regions, so one cut
+        // carries them as they are and a reconciled one reads them again.
+        let (blocks, owners, lands) = match held.pop() {
+            Some(only) if held.is_empty() => (only.blocks, only.owners, Vec::new()),
+            last => {
+                held.extend(last);
+                let cut: Vec<&[Block]> = held.iter().map(|inventory| inventory.blocks.as_slice()).collect();
+                let owned: Vec<Option<&[u32]>> = held.iter().map(|inventory| inventory.owners.as_deref()).collect();
+                let reconciled = journey_record::reconcile(&cut, &owned);
+                renumbered.push(file.clone());
+                (reconciled.blocks, reconciled.owners, reconciled.lands)
+            }
         };
         modules.push(Module {
             id: file.clone(),
             file,
             blocks,
+            owners,
         });
         landings.push(lands);
     }
@@ -270,7 +282,7 @@ pub fn stitch_journeys_to(files: Vec<String>, output: String) -> napi::Result<Jo
     })
 }
 
-fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) -> Result<Shard, String> {
+fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inventory>>) -> Result<Shard, String> {
     let decoded = journey_columns::decode(bytes, journey_format::FORMAT)?;
     let strings = strings(&decoded)?;
     let ids = decoded.words("tests.id")?;
@@ -313,11 +325,14 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
     let starts = decoded.words("blocks.start")?;
     let ends = decoded.words("blocks.end")?;
     let sources = decoded.bytes("blocks.source")?;
+    // A shard written before regions named their owners has no owner column.
+    let owners = if decoded.has(journey_format::OWNER) { Some(decoded.words(journey_format::OWNER)?) } else { None };
     if module_blocks.len() != module_files.len() + 1 || called.len() != loaded.len() {
         return Err("module columns disagree".to_owned());
     }
     if [block_names.len(), paths.len(), starts.len(), ends.len(), sources.len(), called.len()]
         .into_iter()
+        .chain(owners.as_ref().map(Vec::len))
         .any(|length| length != kinds.len())
     {
         return Err("block columns disagree".to_owned());
@@ -340,11 +355,19 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
                 source: sources[block] == 1,
             }))
             .collect::<Result<_, String>>()?;
+        let owned = owners.as_ref().map(|column| column[first..last].to_vec());
         let held = inventories.entry(file.clone()).or_default();
-        let inventory = match held.iter().position(|known| *known == blocks) {
-            Some(inventory) => inventory,
+        // One cut names one set of owners, so a shard that carries them fills
+        // in for one written before they were.
+        let inventory = match held.iter().position(|known| known.blocks == blocks) {
+            Some(inventory) => {
+                if held[inventory].owners.is_none() {
+                    held[inventory].owners = owned;
+                }
+                inventory
+            }
             None => {
-                held.push(blocks);
+                held.push(Inventory { blocks, owners: owned });
                 held.len() - 1
             }
         };
