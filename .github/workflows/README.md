@@ -32,11 +32,11 @@ The other two files here, [`check.yml`](check.yml) and
 neither is a recipe. On a pull request, `check.yml` runs only the tests the
 change reached, selected by the `withTestSelection` each slice's config is
 wrapped in from the recording `main` saved, and a push to `main` runs the whole
-suite. A merge group runs one job, `queue`: lint, `yarn check` and the tests
-within two imports of what the group changed. It then posts two comments on the
-pull request, each under its own marker so neither overwrites the gate's:
-`variance review` over the suite's recording, and `variance coverage` against
-the record `main` saved.
+suite. It then posts two comments on the pull request, each under its own
+marker so neither overwrites the gate's: `variance review` over the suite's
+recording, and `variance coverage` against the record `main` saved. A merge
+group runs one job, `queue`: lint, `yarn check` and the tests within two
+imports of what the group changed, and it posts nothing.
 
 Here, the gate runs on every pull request and on every push to `main`, the sweep
 nightly, and the shards on demand only — sharding fourteen subjects across two

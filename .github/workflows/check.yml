@@ -468,32 +468,7 @@ jobs:
         shell: bash
         env:
           SUITE: ${{ matrix.suite }}
-        run: |
-          recording=$(node --input-type=module -e "
-            const cli = await import('@variance-authority/cli');
-            const { testCoverageFile } = await import('@variance-authority/sense/test-selection');
-            const suite = process.env.SUITE;
-            const base = await cli.suiteBase(process.cwd(), { suite });
-            if (base.from === 'mainline') {
-              await cli.layMainline(process.cwd(), base.mainline);
-              console.error(cli.mainlineRead(base.mainline));
-            } else if ('missed' in base && base.missed !== undefined) {
-              console.error(cli.mainlineMissed(base.missed));
-            }
-            process.stdout.write(testCoverageFile(process.cwd(), { suite }));
-          ")
-          cased=$(RECORDING="$recording" node --input-type=module -e "
-            const { keepsCases } = await import('@variance-authority/sense/test-selection');
-            process.stdout.write(String(keepsCases(process.env.RECORDING)));
-          ")
-          if [ "$cased" = true ]; then
-            echo "based=true" >> "$GITHUB_OUTPUT"
-          elif [ -f "$recording" ]; then
-            echo "::notice::The $SUITE base record was read without its case index, so $SUITE has nothing to select from or compare with: it runs whole, and its coverage is printed without a comparison."
-          else
-            echo "::notice::The mainline's $SUITE record was not read, so $SUITE has no base: it runs whole, and its coverage is printed without a comparison."
-          fi
-          echo "record=$(dirname "$recording")" >> "$GITHUB_OUTPUT"
+        run: node tools/keep-base.mjs "$SUITE"
 
       # A pull request runs what its change reached, and nothing else: this
       # repository ships test selection, so its own pull requests are selected
@@ -514,10 +489,9 @@ jobs:
       # selection is a smaller claim than, and on a push it is what the record
       # `main` publishes is cut from: every file observed at `main`'s own
       # commit, so the next pull request selects from rows no older than its
-      # base. A shard of it records
-      # into `shard-record/`, a cache of its own named by
-      # `VARIANCE_AUTHORITY_CACHE`, so its record holds its own run alone and
-      # `record` below can fold the shards over the base.
+      # base. A shard of it records into `shard-record/`, a cache of its own
+      # named by `VARIANCE_AUTHORITY_CACHE`, so its record holds its own run
+      # alone and `record` below can fold the shards over the base.
       - name: test
         id: test
         if: ${{ github.event_name != 'pull_request' || steps.base.outputs.based != 'true' || !matrix.shard || startsWith(matrix.shard, '1/') }}
@@ -1014,7 +988,7 @@ jobs:
     # A merge group's gate, and the only job a group runs: lint, the
     # repository's rules, then the tests within two imports of what the group
     # changes, the wave `verify:near` runs on a laptop. The whole gate took
-    # thirteen minutes a group, four of them `base` building before any test
+    # thirteen minutes a group, three and a half of them `base` building before any test
     # started, and it answered again what each pull request in the group had
     # already answered on its own base.
     #
@@ -1076,22 +1050,7 @@ jobs:
       # Each shared suite's mainline record, laid as `suite` lays one slice's.
       - name: keep the base records
         shell: bash
-        run: |
-          node --input-type=module -e "
-            const cli = await import('@variance-authority/cli');
-            const selection = await import('@variance-authority/sense/test-selection');
-            const root = process.cwd();
-            for (const { name, carry } of selection.declaredSuites(root) ?? []) {
-              if (carry !== 'share') continue;
-              const base = await cli.suiteBase(root, { suite: name });
-              if (base.from === 'mainline') {
-                await cli.layMainline(root, base.mainline);
-                console.error(cli.mainlineRead(base.mainline));
-              } else if ('missed' in base && base.missed !== undefined) {
-                console.error(cli.mainlineMissed(base.missed));
-              }
-            }
-          "
+        run: node tools/keep-base.mjs
 
       - name: near tests
         shell: bash
@@ -1100,8 +1059,8 @@ jobs:
           VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn test
 
   # The one check a branch rule names, and the one line that combines the
-  # harnesses its event runs: `queue` for a merge group, the other five for
-  # everything else. `needs` alone would skip this job when one of them failed,
+  # harnesses its event runs: `queue` for a merge group, and `rules`, `measure`,
+  # `base`, `suite` and `record` for everything else. `needs` alone would skip this job when one of them failed,
   # and a skipped job counts as passing to a branch rule — so it runs
   # `always()` and turns every harness's result into its own colour. Anything
   # but `success` is red, `cancelled` and `skipped` included: a harness that did
@@ -1123,6 +1082,11 @@ jobs:
             gate='["queue"]'
           else
             gate='["rules","measure","base","suite","record"]'
+          fi
+          missing=$(echo "$RESULTS" | jq -r --argjson gate "$gate" '$gate - keys | join(", ")')
+          if [ -n "$missing" ]; then
+            echo "::error::check reads $missing, which it does not need"
+            exit 1
           fi
           read=$(echo "$RESULTS" | jq -c --argjson gate "$gate" 'with_entries(select(.key as $k | $gate | index($k)))')
           failed=$(echo "$read" | jq -r 'to_entries[] | select(.value.result != "success") | "\(.key): \(.value.result)"')
