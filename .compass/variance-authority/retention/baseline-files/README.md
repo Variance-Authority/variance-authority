@@ -84,8 +84,10 @@ subject against it would be comparing a subject against a text file.
 
 `packages/store/src/durable.ts` — `createDurableStore`, `BaselineLayout`, and
 the identity-partitioned path; `packages/store/src/lfs.ts` — `createLfsStore`,
-the tracking check, the pointer refusal, and the injectable command runner that
-separates *this is not a repository* from *this machine has no such tool*;
+the pointer refusal, and the injectable command runner that separates *this is
+not a repository* from *this machine has no such tool*;
+`packages/store/src/lfs-tracking.ts` — what git resolves for a tracked path, and
+whether git-lfs is installed and set up to run;
 `packages/store/src/lfs-fetch.ts` — the reader that fetches a pointer's image,
 one pull at a time; `packages/store/src/pair.ts` — the image and its record,
 read together or refused.

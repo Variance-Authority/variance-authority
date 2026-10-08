@@ -1,3 +1,4 @@
+// compass: variance-authority.retention
 import { readFile, realpath } from 'node:fs/promises';
 import { relative, sep } from 'node:path';
 import { messageOf, RasterStoreError, REFUSAL } from '@variance-authority/raster';
