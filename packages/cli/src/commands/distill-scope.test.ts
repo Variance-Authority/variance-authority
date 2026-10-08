@@ -213,4 +213,13 @@ describe('distill over a scope of test files', () => {
       expect(answer.err).toContain('`--format jsonl` writes one line for each test file of a scope');
     }
   });
+
+  it('names jsonl among the formats when it refuses one it does not write', async () => {
+    await checkout();
+
+    const answer = await run(['distill', '--format', 'yaml']);
+
+    expect(answer.code).toBe(EXIT_OPERATOR);
+    expect(answer.err).toContain('--format must be text, json or jsonl, not `yaml`');
+  });
 });
