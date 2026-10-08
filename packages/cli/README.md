@@ -1812,9 +1812,8 @@ seen, and a file on the list it has not is priced at the median of the timed
 ones. `--at-distance <hops>` counts one leg of that selection, as `select
 --at-distance` cuts it: a near wave under `VARIANCE_AUTHORITY_AT_DISTANCE=0-2`
 is counted with `--at-distance 0-2`. Without `--since`, only the recorded files
-are counted. With nothing
-recorded the command refuses, rather than guess, unless `--unrecorded <n>` names
-the count to start until it is. `--format json` prints the count, a `matrix` of
+are counted. With nothing recorded the command refuses, rather than guess,
+unless `--unrecorded <n>` names the count to start until it is. `--format json` prints the count, a `matrix` of
 `k/n` strings, each shard's load, and why. A pull request's build can start its
 matrix from it; the push to your mainline runs without `--since`, so its shards'
 records fold into the one the next build is placed by, as
