@@ -146,7 +146,7 @@ ids are the safe default after initial setup.
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]
 variance index   [--no-git] [--wait | --follow-ups]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]
-variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>] [--at-distance <hops>]] [--suite <name>] [--unrecorded <n>] [--format text|json]
+variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
@@ -1816,7 +1816,8 @@ ones. Without the list, only recorded files are counted, the answer says so in
 `notes`, and a change that skips every one of them answers `1 shard`, with `why`
 set to `unlisted`, for whatever it adds. `--at-distance <hops>` counts one leg of that selection, as `select
 --at-distance` cuts it: a near wave under `VARIANCE_AUTHORITY_AT_DISTANCE=0-2`
-is counted with `--at-distance 0-2`. Without `--since`, only the recorded files
+is counted with `--at-distance 0-2`; without `--since` it cuts nothing, and the
+answer counts the whole suite and says so. Without `--since`, only the recorded files
 are counted. With nothing recorded the answer is `1 shard` and says so, unless
 `--unrecorded <n>` names the count to start until it is. `--format json` prints the count, a `matrix` of
 `k/n` strings, each shard's load, and why, with `notes` naming anything the
@@ -1833,8 +1834,10 @@ plan:
   steps:
     - id: count
       run: |
+        set -o pipefail
         npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
-        echo "shards=$(npx variance shards --suite unit --setup 90 --since origin/main --collected "$RUNNER_TEMP/collected.txt" --format json | jq -c .matrix)" >> "$GITHUB_OUTPUT"
+        shards=$(npx variance shards --suite unit --setup 90 --since origin/main --collected "$RUNNER_TEMP/collected.txt" --format json | jq -c .matrix)
+        echo "shards=$shards" >> "$GITHUB_OUTPUT"
 test:
   needs: plan
   if: needs.plan.outputs.shards != '[]'

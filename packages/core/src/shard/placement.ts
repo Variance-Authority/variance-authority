@@ -156,7 +156,8 @@ export function shardCount(costs: readonly number[], options: ShardCountOptions)
   const reached = (shards: ReturnType<typeof at>) => shards.wall - options.setup <= slowest;
 
   if (options.budget !== undefined) {
-    const unmet = options.budget <= options.setup;
+    // With no setup, the slowest group is what no count gets under, not the setup.
+    const unmet = options.setup > 0 && options.budget <= options.setup;
     for (let here = at(1); ; here = at(here.shards + 1)) {
       if (here.wall <= options.budget) return counted(here, 'within budget');
       if (reached(here)) return counted(here, unmet ? 'setup over budget' : 'slowest group');

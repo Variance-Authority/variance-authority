@@ -28,7 +28,8 @@ export interface ParsedShards {
  * Parse `variance shards`, which reads a record and no project, like `select`.
  *
  * Only a value that is not one refuses. A missing `--setup`, a budget no
- * shard can meet or `--since` with no `--collected` is answered, and the
+ * shard can meet, `--since` with no `--collected` or `--at-distance` with no
+ * `--since` is answered, and the
  * answer names what it could not weigh. `--setup` has no default: what a
  * shard spends before its first test is the checkout, the install and the
  * build of one CI, and a number chosen here would be somebody else's
@@ -52,9 +53,6 @@ export function parseShardsArgs(flags: Flags): ParsedShards {
   const since = flags.values.get('--since');
   const collected = flags.values.get('--collected');
   const atDistance = parseAtDistance(flags);
-  if (atDistance !== undefined && since === undefined) {
-    throw new OperatorError('`variance shards --at-distance` cuts the selection of a change, and none is named: pass `--since <ref>`');
-  }
   return {
     command: 'shards',
     ...(suite === undefined ? {} : { suite }),

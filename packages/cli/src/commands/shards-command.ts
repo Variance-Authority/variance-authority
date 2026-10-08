@@ -52,6 +52,7 @@ export async function shardsOutput(request: ShardsRequest): Promise<string> {
     ...counting,
     ...(skipped === undefined ? {} : { skipped }),
     ...(collected === undefined ? {} : { collected }),
+    ...(atDistance !== undefined && since === undefined ? { uncutDistance: true } : {}),
   };
   const answer = shardsAnswer(input);
   if (answer.by === 'recorded' && answer.slowest !== undefined) {

@@ -95,6 +95,8 @@ describe('shardCount', () => {
       .toMatchObject({ shards: 2, why: 'setup over budget', wall: 130_000 });
     expect(shardCount(files(60, 60, 60, 60), { setup: 20_000, budget: 5_000, max: 3 }))
       .toMatchObject({ shards: 3, why: 'setup over budget', wall: 140_000 });
+    // No setup spends nothing, so a budget of 0 is out of reach by the slowest group.
+    expect(shardCount(files(100, 10, 10, 10), { setup: 0, budget: 0 })).toMatchObject({ shards: 2, why: 'slowest group' });
   });
 
   it('counts a shard that runs files on several workers as done when its share is, divided among them', () => {

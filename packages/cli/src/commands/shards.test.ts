@@ -104,10 +104,29 @@ describe('variance shards', () => {
 
   it('counts with no setup given, and says the count does not weigh it', () => {
     const answer = shardsAnswer({ times: timed(even) });
-    expect(answer).toMatchObject({ shards: 30, setup: 0, why: 'slowest group' });
+    expect(answer).toMatchObject({ shards: 30, why: 'slowest group' });
+    expect(answer).not.toHaveProperty('setup');
     const note = '`--setup` was not given, so the count does not weigh what each shard spends before its first test.';
     expect(answer).toMatchObject({ notes: [note] });
     expect(formatShards(answer, 'text').split('\n')[3]).toBe(note);
+  });
+
+  it('names the slowest file, not a setup nobody gave, for a budget of 0 with no setup', () => {
+    const answer = shardsAnswer({ times: timed({ 'heavy.test.ts': 100_000, 'a.test.ts': 10_000 }), budget: 0 });
+    expect(answer).toMatchObject({ shards: 2, why: 'slowest group', slowest: { file: 'heavy.test.ts' } });
+    expect(formatShards(answer, 'text')).toContain('The 0 ms budget is out of reach until that file is split.');
+  });
+
+  it('says what the count could not weigh when nothing is left to run', () => {
+    const answer = shardsAnswer({
+      times: timed({ 'a.test.ts': 100 }),
+      collected: new Set(['a.test.ts']),
+      skipped: { since: 'origin/main', files: new Set(['a.test.ts']) },
+    });
+    expect(formatShards(answer, 'text')).toBe(
+      '0 shards: the change since origin/main skips every recorded test file, 1 in all.\n' +
+        '`--setup` was not given, so the count does not weigh what each shard spends before its first test.\n',
+    );
   });
 
   it('names the setup, not a file, when the budget is no longer than the setup', () => {
@@ -125,8 +144,15 @@ describe('variance shards', () => {
       setup: 60_000,
       skipped: { since: 'origin/main', files: new Set(['a.test.ts']) },
     });
-    const note = 'Test files the record has not seen are not counted: `--collected <file>` lists them.';
+    const note = 'Without `--collected <file>`, only the test files the record has seen are counted.';
     expect(answer).toMatchObject({ shards: 1, files: 1, skipped: 1, notes: [note] });
+    expect(formatShards(answer, 'text').split('\n')[3]).toBe(note);
+  });
+
+  it('counts the whole suite for --at-distance without --since, and says the leg cut nothing', () => {
+    const answer = shardsAnswer({ times: timed(even), setup: 60_000, uncutDistance: true });
+    const note = '`--at-distance` cuts nothing without `--since`, so the count is of the whole suite.';
+    expect(answer).toMatchObject({ shards: 2, files: 30, notes: [note] });
     expect(formatShards(answer, 'text').split('\n')[3]).toBe(note);
   });
 
@@ -141,7 +167,7 @@ describe('variance shards', () => {
     expect(answer).toMatchObject({ shards: 1, matrix: ['1/1'], why: 'unlisted', files: 0, skipped: 1, wall: 60_000 });
     expect(formatShards(answer, 'text')).toBe(
       '1 shard: the change since origin/main skips every recorded test file, 1 in all, and one shard runs whatever it adds.\n' +
-        'Test files the record has not seen are not counted: `--collected <file>` lists them.\n',
+        'Without `--collected <file>`, only the test files the record has seen are counted.\n',
     );
   });
 

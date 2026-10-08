@@ -40,8 +40,9 @@ It always answers, and names what it could not weigh, in `notes` under
 longer than the setup is out of reach at any count, and the answer is the count
 that finishes soonest, with `why` set to `setup over budget`. `--since` without
 `--collected` counts only recorded files and never answers fewer than one
-shard. With nothing recorded it answers one shard until `--unrecorded <n>`
-names the count to start.
+shard, and `--at-distance` without `--since` counts the whole suite. With
+nothing recorded it answers one shard until `--unrecorded <n>` names the count
+to start.
 
 `@variance-authority/core/shard` is the placement and the count, which
 `variance run --shard` places stories and routes by too.

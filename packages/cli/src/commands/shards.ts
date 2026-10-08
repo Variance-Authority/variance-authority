@@ -38,6 +38,8 @@ export interface ShardsInput {
    * seen is priced at the median of the recorded ones, as every shard prices it.
    */
   readonly collected?: ReadonlySet<string>;
+  /** `--at-distance` was passed with no `--since`, so it cut nothing and the answer says so. */
+  readonly uncutDistance?: boolean;
   /** The slowest recorded cases of the slowest file, slowest first, when a run kept cases. */
   readonly cases?: readonly { readonly name: string; readonly duration: number }[];
 }
@@ -57,7 +59,8 @@ export type ShardsAnswer =
       /** The recorded files the change skips; absent when no change was asked about. */
       readonly skipped?: number;
       readonly since?: string;
-      readonly setup: number;
+      /** Absent when no `--setup` was given, and the count weighed none. */
+      readonly setup?: number;
       readonly budget?: number;
       readonly max?: number;
       readonly workers?: number;
@@ -91,7 +94,8 @@ export type ShardsAnswer =
 
 const UNRECORDED_NOTE = '`--unrecorded <n>` sets the count until the suite is recorded.';
 const SETUP_NOTE = '`--setup` was not given, so the count does not weigh what each shard spends before its first test.';
-const UNLISTED_NOTE = 'Test files the record has not seen are not counted: `--collected <file>` lists them.';
+const UNLISTED_NOTE = 'Without `--collected <file>`, only the test files the record has seen are counted.';
+const UNCUT_NOTE = '`--at-distance` cuts nothing without `--since`, so the count is of the whole suite.';
 
 export function shardsAnswer(input: ShardsInput): ShardsAnswer {
   const { times } = input;
@@ -114,7 +118,11 @@ export function shardsAnswer(input: ShardsInput): ShardsAnswer {
 
   const setup = input.setup ?? 0;
   const unlisted = input.skipped !== undefined && input.collected === undefined;
-  const notes = [...(input.setup === undefined ? [SETUP_NOTE] : []), ...(unlisted ? [UNLISTED_NOTE] : [])];
+  const notes = [
+    ...(input.setup === undefined ? [SETUP_NOTE] : []),
+    ...(unlisted ? [UNLISTED_NOTE] : []),
+    ...(input.uncutDistance === true ? [UNCUT_NOTE] : []),
+  ];
   const files = [...(input.collected ?? times.times.keys())].filter((file) => !(input.skipped?.files.has(file) ?? false));
   // Priced as the shards price what they keep. With none of it timed, they
   // fall back to the runner's split, and the record's median is the guess.
@@ -128,11 +136,11 @@ export function shardsAnswer(input: ShardsInput): ShardsAnswer {
   const count = unlisted && files.length === 0
     ? { shards: 1, load: [0], wall: setup, why: 'unlisted' as const }
     : shardCount(costs, {
-    setup,
-    ...(input.budget === undefined ? {} : { budget: input.budget }),
-    ...(input.max === undefined ? {} : { max: input.max }),
-    ...(input.workers === undefined ? {} : { workers: input.workers }),
-    });
+        setup,
+        ...(input.budget === undefined ? {} : { budget: input.budget }),
+        ...(input.max === undefined ? {} : { max: input.max }),
+        ...(input.workers === undefined ? {} : { workers: input.workers }),
+      });
   const slowest = running.reduce<(typeof running)[number] | undefined>(
     (best, entry) => (best === undefined || entry[1] > best[1] || (entry[1] === best[1] && entry[0] < best[0]) ? entry : best),
     undefined,
@@ -146,7 +154,7 @@ export function shardsAnswer(input: ShardsInput): ShardsAnswer {
     files: running.length,
     ...(untimed === 0 ? {} : { untimed }),
     ...(input.skipped === undefined ? {} : { skipped: input.skipped.files.size, since: input.skipped.since }),
-    setup,
+    ...(input.setup === undefined ? {} : { setup: input.setup }),
     ...(input.budget === undefined ? {} : { budget: input.budget }),
     ...(input.max === undefined ? {} : { max: input.max }),
     ...(input.workers === undefined ? {} : { workers: input.workers }),
@@ -198,10 +206,10 @@ export function formatShards(answer: ShardsAnswer, format: ShardsFormat): string
   const untimed = answer.untimed === undefined ? '' : `; ${answer.untimed} not in the record, priced at the median`;
   return [
     `${many(answer.shards, 'shard')}, the last done ${durationText(answer.wall)} in: ` +
-      `${durationText(answer.setup)} of setup and up to ${durationText(longest)} of tests each` +
+      `${durationText(answer.setup ?? 0)} of setup and up to ${durationText(longest)} of tests each` +
       (answer.workers === undefined || answer.workers === 1
         ? '.'
-        : `, about ${durationText(answer.wall - answer.setup)} on ${answer.workers} workers.`),
+        : `, about ${durationText(answer.wall - (answer.setup ?? 0))} on ${answer.workers} workers.`),
     `From ${many(answer.files, 'test file')}, ${durationText(total)} in all, recorded at ${at}${skipped}${untimed}.`,
     reasonOf(answer),
     ...notes,
@@ -217,7 +225,7 @@ function reasonOf(answer: Extract<ShardsAnswer, { by: 'recorded' }>): string {
     case 'setup': {
       const next = answer.next!.wall;
       return `One more would finish ${durationText(next)} in: ${durationText(answer.wall - next)} sooner, ` +
-        `for ${durationText(answer.setup)} more of setup.`;
+        `for ${durationText(answer.setup ?? 0)} more of setup.`;
     }
     case 'within budget':
       return `The fewest whose last finishes within the ${durationText(answer.budget!)} budget.`;
@@ -235,7 +243,7 @@ function reasonOf(answer: Extract<ShardsAnswer, { by: 'recorded' }>): string {
     }
     case 'setup over budget':
       return `The ${durationText(answer.budget!)} budget is out of reach: each shard spends ` +
-        `${durationText(answer.setup)} of setup alone before its first test.`;
+        `${durationText(answer.setup ?? 0)} of setup alone before its first test.`;
     case 'max':
       return answer.max === undefined
         ? `The most one GitHub Actions matrix starts, ${MATRIX_LIMIT}.`

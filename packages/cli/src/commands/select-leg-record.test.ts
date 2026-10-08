@@ -97,7 +97,6 @@ describe('a leg read from a real record and a real graph', () => {
   it('carries `--at-distance` from the command line to the count', () => {
     expect(parseArgs(['shards', '--setup', '1', '--since', 'main', '--collected', 'files.txt', '--at-distance', '0-2']))
       .toMatchObject({ atDistance: { from: 0, to: 2 } });
-    expect(() => parseArgs(['shards', '--setup', '1', '--at-distance', '0-2'])).toThrow(/none is named: pass `--since <ref>`/);
   });
 
   // A test the record holds incomplete ran cases the record did not see, and

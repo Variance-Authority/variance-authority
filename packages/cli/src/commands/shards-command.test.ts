@@ -83,6 +83,10 @@ describe('parsing variance shards', () => {
       .toMatchObject({ since: 'origin/main', collected: 'files.txt' });
   });
 
+  it('takes --at-distance without --since, which the answer says cuts nothing', () => {
+    expect(parseArgs(['shards', '--setup', '1', '--at-distance', '0-2'])).toMatchObject({ atDistance: { from: 0, to: 2 } });
+  });
+
   it('takes no --config, because it reads a record and no project', () => {
     expect(() => parseArgs(['shards', '--setup', '1', '--config', 'x.json'])).toThrow(/--config/);
   });
