@@ -10,7 +10,8 @@
   "dependencies": {
     "@variance-authority/core": "workspace:^",
     "@variance-authority/dom": "workspace:^",
-    "@variance-authority/playwright": "workspace:^"
+    "@variance-authority/playwright": "workspace:^",
+    "@variance-authority/sense": "workspace:^"
   },
   "devDependencies": {
     "@variance-authority/cli": "workspace:^",

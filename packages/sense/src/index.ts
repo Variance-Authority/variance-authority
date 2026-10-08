@@ -36,6 +36,12 @@ export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependenc
  */
 export { LANGUAGES, READABLE, languageOf, grainOf, type LanguageId } from './language.js';
 
+/**
+ * One module's component index, read off its tree: where each component it
+ * declares is declared, for attribution to name `file:line`.
+ */
+export { indexDeclarations } from './declarations.js';
+
 export {
   memoryParseCache,
   openParseCache,

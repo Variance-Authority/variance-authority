@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { indexSource } from '@variance-authority/core/attribute';
-import type { AttributedRegion } from '@variance-authority/core/attribute';
+import type { AttributedRegion, SourceIndex } from '@variance-authority/core/attribute';
 import type { Observation } from '@variance-authority/observe';
 import { describeObservation } from './docket.js';
 
@@ -32,7 +31,9 @@ function observation(overrides: Partial<Observation> = {}): Observation {
   };
 }
 
-const SOURCE = indexSource('src/ds/components.tsx', 'export function Toggle() {\n  return null;\n}\n');
+const SOURCE: SourceIndex = {
+  Toggle: [{ file: 'src/ds/components.tsx', line: 1, via: 'function' }],
+};
 
 describe('describeObservation', () => {
   it('says the subject and the verdict, with no regions to show', () => {

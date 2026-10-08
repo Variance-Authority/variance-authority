@@ -55,7 +55,7 @@ project already applies must apply here too: what cannot be read is *named as
 unread*, and a component whose renders could not be enumerated is treated as
 rendering anything its file imports.
 
-**2. Where the name comes from.** `indexSource` attributes a component to a file
+**2. Where the name comes from.** `indexDeclarations` attributes a component to a file
 by declaration. A JSX element's name is a local binding, so `<Btn />` after
 `import { Button as Btn }` has to resolve through the import to the declaring
 file, or the graph gains a node for a name nobody exports. This is the half that

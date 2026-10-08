@@ -2,12 +2,12 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
-import { indexSource } from '@variance-authority/core/attribute';
 import { diffSnapshots } from '@variance-authority/core/compare';
 import { adjudicate, buildDocket, summarizeAdjudication } from '@variance-authority/core/judge';
 import { normalize } from '@variance-authority/core/rules';
 import { createHarness } from '@variance-authority/playwright';
 import { comparePngs, diffImage } from '@variance-authority/png';
+import { indexDeclarations } from '@variance-authority/sense';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const PACKAGE_ROOT = join(HERE, '..');
@@ -60,7 +60,7 @@ export async function runReadmeCase() {
     const after = normalize(afterCapture);
     const semantic = diffSnapshots(before, after);
     const sourcePath = relative(REPOSITORY_ROOT, BUTTON_SOURCE);
-    const source = indexSource(sourcePath, await readFile(BUTTON_SOURCE, 'utf8'));
+    const source = indexDeclarations(sourcePath, await readFile(BUTTON_SOURCE, 'utf8'));
     const report = summarizeAdjudication(
       adjudicate(buildDocket([semantic]), { claims: [] }),
       { source },

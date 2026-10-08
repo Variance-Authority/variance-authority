@@ -13,6 +13,7 @@
     "@variance-authority/png": "workspace:^"
   },
   "devDependencies": {
+    "@variance-authority/sense": "workspace:^",
     "esbuild": "^0.25.0",
     "playwright": "^1.49.0",
     "vitest": "^2.1.8"

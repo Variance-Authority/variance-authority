@@ -259,6 +259,20 @@ describe('reading a module', () => {
 
     expect(read.unknown).toContain('parse error');
   });
+
+  it('declares the components its code declares, and none its comments or strings spell', () => {
+    const read = readModule('Button.tsx', [
+      '/*',
+      'export function Retired() { return null; }',
+      '*/',
+      'const snippet = `',
+      'class Emitted {}',
+      '`;',
+      'export function Button() { return null; }',
+    ].join('\n'));
+
+    expect(read.declares).toEqual(['Button']);
+  });
 });
 
 describe('reading a stylesheet', () => {

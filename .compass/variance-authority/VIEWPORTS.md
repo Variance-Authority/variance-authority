@@ -162,11 +162,12 @@ sequenceDiagram
   rather than a plausible position. Frames never reach a **digest** or a
   **baseline**.
 
-- Component → declaring file. `indexSource(file, contents): SourceIndex` and
+- Component → declaring file. `indexDeclarations(file, contents): SourceIndex`
+  in `packages/sense/src/declarations.ts` reads it off the parse, and
   `resolveSource(name, index): Resolution | null` in
-  `packages/core/src/attribute/source.ts`, formatted by `formatSource`. A name
-  declared in several files carries the ambiguity into the answer rather than
-  picking one.
+  `packages/core/src/attribute/source.ts` answers it, formatted by
+  `formatSource`. A name declared in several files carries the ambiguity into
+  the answer rather than picking one.
 
 - Region → record. `regionRecordOf(region, source)` in
   `packages/cli/src/commands/record.ts` is the one place the two location

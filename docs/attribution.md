@@ -259,12 +259,16 @@ on another engine the reader answers nothing and the scan stands as it did.
 
 ### The fallback nobody configures
 
-`indexSource` reads a file and returns a map from component name to where it is
-declared, recognised as a function, a `const`, a class or a declaration, with
-*how* it was recognised noted so a bad match is debuggable. It is what a
-repository that has configured nothing still gets, and it answers with a
-declaration, which is coarser than a call site and enough to open the right
-file.
+The fallback is a map from component name to where it is declared, with *how*
+it was recognised noted so a bad match is debuggable. `variance run` and
+`variance collect` build it from the directories `source.dirs` names, and the
+Storybook and route collectors from the ones they are given, each from every
+module's parse with `indexDeclarations` in [Sense](../packages/sense): a
+function, a class or a `const` or `let` binding among the module's own
+top-level statements, named with a capital, at the line of its statement. A
+declaration a comment or a string spells is not one, and neither is a name
+bound inside a function. A declaration is coarser than a call site, and
+enough to open the right file.
 
 A name may map to several files, and that is not an error to be resolved by
 picking one. Two components genuinely can share a name, and silently choosing the

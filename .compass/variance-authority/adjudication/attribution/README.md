@@ -95,8 +95,10 @@ movement is [`composition`](../composition/README.md)'s ladder.
 - `packages/core/src/attribute/locate.ts` — `locate`; landmark, region, list
   position
 - `packages/core/src/attribute/call-site.ts`, `stack.ts`, `source-map.ts`,
-  `source.ts` — `locateSites`, `parseStackFrames`, `resolveSource`,
-  `indexSource`
+  `source.ts` — `locateSites`, `parseStackFrames`, `resolveSource`
+- `packages/sense/src/declarations.ts` — `indexDeclarations`, the component
+  index read off each module's parse, which the CLI and the Storybook and route
+  collectors build
 - `packages/core/src/format/provenance.ts` — author before enclosure
 - `packages/observe/src/attribution.ts` — the composition of the hops in one run
 

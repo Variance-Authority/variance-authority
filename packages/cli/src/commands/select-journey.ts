@@ -65,10 +65,7 @@ export async function journeyReading(request: SuiteRequest & { readonly executio
   if (installed !== undefined && 'whole' in installed) {
     return suiteOf({ at: request.execution, given: true, ground: { kind: 'no-install', whole: installed.whole } }, request.atDistance);
   }
-  const relations = await relationsFor(request.root, ['.'], [], [], {
-    why: 'a whole-file change is answered by the file graph',
-    fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
-  }, request.noGit);
+  const relations = await relationsFor(request.root, ['.'], [], [], request.noGit);
   // A bump or a moved manifest is the files it changed, changed whole.
   const beyond = beyondOf(relations, installed);
   const changed = selection.changedLines(withWhole(text, beyond.files));

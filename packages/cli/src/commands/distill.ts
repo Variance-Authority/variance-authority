@@ -153,10 +153,7 @@ async function mocksIn(root: string, file: string): Promise<boolean> {
 }
 
 function fileGraph(root: string): Promise<Relations> {
-  return relationsFor(root, ['.'], [], [], {
-    why: 'a file reading names the import that brought in each module no case entered, and holds its mocks against what it loads, from the file graph',
-    fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
-  });
+  return relationsFor(root, ['.'], [], []);
 }
 
 /** The edges a runtime evaluates a module through on load: a dynamic import evaluates later, if at all. */

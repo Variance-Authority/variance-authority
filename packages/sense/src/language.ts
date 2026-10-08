@@ -106,9 +106,10 @@ export function languageOf(suffix: string): LanguageId | undefined {
 /**
  * Whether declarations in this language are indexed as component declarations.
  *
- * Only `module`. The component index reads JSX and the conventions around it
- * ([`core/attribute`](../../core/src/attribute)), and a Python class is not a
- * component in any sense that index means.
+ * Only `module`. The component index keeps the names a React component is
+ * written under — a capitalised function, class or binding of the module's own
+ * statements ([`declarations.rs`](../native/src/declarations.rs)) — and a Python
+ * class is not a component in any sense that index means.
  */
 export function indexesComponents(id: LanguageId): boolean {
   return id === 'module';

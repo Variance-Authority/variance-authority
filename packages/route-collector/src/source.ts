@@ -1,22 +1,21 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import {
-  indexSource,
-  mergeSourceIndexes,
-  type SourceIndex,
-} from '@variance-authority/core/attribute';
+import { mergeSourceIndexes, type SourceIndex } from '@variance-authority/core/attribute';
+import { indexDeclarations } from '@variance-authority/sense';
 
 import { operatorError } from './operator.js';
 
 /**
  * Component to `file:line`, by scanning the project's own source.
  *
- * A regex scan rather than a plugin, and the reason is the same one the whole
- * project keeps arriving at: an index built from the source that shipped is a
- * fact about the repository, while an index built by a build step is a fact
- * about a build somebody has to keep configured. `resolveSource` is the last hop
- * of attribution, so getting it from the cheapest possible place is what makes
- * `file:line` free rather than a feature.
+ * Read off each file's parse rather than by a plugin, and the reason is the
+ * same one the whole project keeps arriving at: an index built from the source
+ * that shipped is a fact about the repository, while an index built by a build
+ * step is a fact about a build somebody has to keep configured. `resolveSource`
+ * is the last hop of attribution, so getting it from the cheapest possible place
+ * is what makes `file:line` free rather than a feature. The names are the ones
+ * `sense` reads as declared ([`indexDeclarations`](../../sense/src/declarations.ts)),
+ * so a declaration a comment spells is not one.
  *
  * **Directories, not globs.** A glob syntax is a small language with its own
  * bugs, and the question here is only *which files hold components* — which a
@@ -24,7 +23,8 @@ import { operatorError } from './operator.js';
  *
  * **The same forty lines are in `@variance-authority/storybook-collector`, and
  * that is deliberate.** The *rule* — how a file becomes an index — is
- * `indexSource` in `core` and has exactly one owner. What is duplicated is a
+ * `indexDeclarations` in `sense` and has exactly one owner, so one
+ * `source: { dirs }` gives both collectors one index. What is duplicated is a
  * directory walk, and the alternative was a surface package importing another
  * surface package so an adopter's dependency tree could carry a collector they
  * did not ask for. ADR-0024 makes the adopter's import list the thing to protect;
@@ -82,6 +82,6 @@ export function scanSource(root: string, scan: SourceScan): SourceIndex {
   }
 
   return mergeSourceIndexes(
-    files.map((file) => indexSource(relative(root, file), readFileSync(file, 'utf8'))),
+    files.map((file) => indexDeclarations(relative(root, file), readFileSync(file, 'utf8'))),
   );
 }

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { indexSource } from '@variance-authority/core/attribute';
-import type { AttributedRegion } from '@variance-authority/core/attribute';
+import type { AttributedRegion, SourceIndex } from '@variance-authority/core/attribute';
 import type { Observation } from '@variance-authority/observe';
 import { assertUnchanged, toBeUnchanged, varianceMatchers } from './matcher.js';
 
@@ -30,7 +29,9 @@ const REGION: AttributedRegion = {
   component: 'Toggle',
 };
 
-const SOURCE = indexSource('src/ds/components.tsx', 'export function Toggle() {\n  return null;\n}\n');
+const SOURCE: SourceIndex = {
+  Toggle: [{ file: 'src/ds/components.tsx', line: 1, via: 'function' }],
+};
 
 describe('toBeUnchanged', () => {
   it('passes on exactly the one verdict that means nothing moved', () => {

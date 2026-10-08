@@ -150,6 +150,11 @@ describe('browserless capture archive', () => {
     await writeFile(sourcePath, JSON.stringify(malformedSource), 'utf8');
     await expect(readCapture(sourcePath)).rejects.toThrow('invalid source index');
 
+    const unknownVia = { ...artifact, source: { Button: [{ file: 'src/Button.tsx', line: 1, via: 'declared' }] } };
+    const viaPath = join(directory, 'via.va-capture.json');
+    await writeFile(viaPath, JSON.stringify(unknownVia), 'utf8');
+    await expect(readCapture(viaPath)).rejects.toThrow('invalid source index');
+
     const malformedAttempt = { ...artifact, attempt: { retry: 0, repeat: -1 } };
     const attemptPath = join(directory, 'attempt.va-capture.json');
     await writeFile(attemptPath, JSON.stringify(malformedAttempt), 'utf8');

@@ -6,7 +6,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   attributeRegions,
   formatSource,
-  indexSource,
   isolateRegions,
   mergeSourceIndexes,
   rankRegions,
@@ -17,6 +16,7 @@ import { diffSnapshots } from '@variance-authority/core/compare';
 import { buildDocket } from '@variance-authority/core/judge';
 import { normalize } from '@variance-authority/core/rules';
 import { comparePngs } from '@variance-authority/png';
+import { indexDeclarations } from '@variance-authority/sense';
 // @ts-expect-error — a plain .mjs script, deliberately not part of the TS build.
 import { stale } from '../scripts/bundle.mjs';
 import { createHarness, type Harness } from '@variance-authority/playwright';
@@ -78,7 +78,7 @@ function buildSourceIndex(): SourceIndex {
     readdirSync(directory)
       .filter((name) => /\.tsx?$/.test(name) && !name.includes('.test.') && !name.includes('.spec.'))
       .map((name) =>
-        indexSource(
+        indexDeclarations(
           relative(PACKAGE_ROOT, join(directory, name)),
           readFileSync(join(directory, name), 'utf8'),
         ),

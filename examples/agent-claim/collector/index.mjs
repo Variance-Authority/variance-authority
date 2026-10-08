@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { causesBetween, hashComponents, indexSource } from '@variance-authority/core/attribute';
+import { causesBetween, hashComponents } from '@variance-authority/core/attribute';
 import { normalize } from '@variance-authority/core/rules';
 import { createHarness } from '@variance-authority/playwright';
+import { indexDeclarations } from '@variance-authority/sense';
 import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 import { SUBJECTS } from '../src/system.js';
 
@@ -69,7 +70,7 @@ export default async function agentClaimCollector(context) {
   });
 
   // Component to file, so a change names an edit rather than an identifier.
-  const source = indexSource(
+  const source = indexDeclarations(
     relative(REPOSITORY_ROOT, SYSTEM_SOURCE),
     await readFile(SYSTEM_SOURCE, 'utf8'),
   );

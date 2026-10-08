@@ -50,7 +50,7 @@ function fencedCode(text: string): string {
  * file absent from here is held to the rule outright, and a file in here may only
  * ever lose entries.
  *
- * One entry, and it records a gap rather than an excuse. The CLI's collector path
+ * The first entry records a gap rather than an excuse. The CLI's collector path
  * has four surfaces — Playwright Test, unit captures, Storybook, routes — and
  * none of them is *fixtures you render yourself*. `examples/agent-claim` is the
  * first example to take that path, and it renders both revisions of its own
@@ -60,10 +60,15 @@ function fencedCode(text: string): string {
  * agent, not a re-export bolted onto a box named for a test runner the example
  * does not use.
  *
+ * The same gap is why it names `@variance-authority/sense`: it indexes its own
+ * source with `indexDeclarations`, the walk the Storybook and route collectors
+ * do behind their `source` option, because no surface offers that walk to a
+ * collector that renders its own fixtures.
+ *
  * Delete the entry when that surface exists, or when the example moves onto one.
  */
 const REACH_THROUGH_DEBT: Readonly<Record<string, readonly string[]>> = {
-  'examples/agent-claim/collector/index.mjs': ['@variance-authority/playwright'],
+  'examples/agent-claim/collector/index.mjs': ['@variance-authority/playwright', '@variance-authority/sense'],
   // `provenanceOf`, `wiringOf` and `holdingOf` are optional capture callbacks
   // that only a React adopter passes, and `unit-test` declares no React
   // dependency. Re-exporting them would mean depending on `react` to forward

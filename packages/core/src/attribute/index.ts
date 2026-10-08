@@ -33,7 +33,6 @@ export type { AttributedRegion, AttributionOptions, RankedRegion } from './regio
 export {
   resolveSource,
   formatSource,
-  indexSource,
   mergeSourceIndexes,
   overlaySourceIndex,
 } from './source.js';
