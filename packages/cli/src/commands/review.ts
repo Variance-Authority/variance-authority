@@ -291,7 +291,7 @@ export async function review(request: ParsedReview): Promise<Review> {
       : await motionOfRuns(full, from, wrote, root, ref);
 
   const record = await ranAsTree(recorded.file, root, files.filter((file) => file.recorded === true).map((file) => file.file));
-  const head = await reviewedCommit(point.repository, root);
+  const head = await reviewedCommit(point.repository);
   return {
     ...(head === undefined ? {} : { head }),
     from: point.base,

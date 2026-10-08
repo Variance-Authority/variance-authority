@@ -900,9 +900,10 @@ on. Each changed place links to its lines at that commit.
 Changed functions are listed in one table: how the edit wrote each (new,
 modified, or moved and from where), the cases that entered it, and the cases
 that ran a changed line in it. A case entered a function when it called into
-it, and ran a changed line when `variance covering --line` names it for one, so
-a test that calls the function and takes the branch the change left alone is
-counted in the first and not the second. The cases added and removed come
+it, and ran a changed line when it entered the function and `variance covering
+--line` names it for a changed line in it, so a test that calls the function and
+takes the branch the change left alone is counted in the first and not the
+second. The cases added and removed come
 first, the legend for the marks above the table, and the table's 100 rows name
 the first three test files of each function; the cases by title are in
 `review.json`. Files not in the record, cases moved against the base and each

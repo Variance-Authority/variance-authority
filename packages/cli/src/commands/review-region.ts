@@ -5,9 +5,11 @@
  *
  * A function a case entered is not a function whose changed lines ran: a test
  * can call `cap` and take the branch the change left alone. So the count a
- * reviewer acts on is the cases `variance covering --line` names for each
- * changed line, and the count of cases that entered the function stays beside
- * it.
+ * reviewer acts on is the cases that entered the function and that `variance
+ * covering --line` names for a changed line in it, and the count of cases that
+ * entered the function stays beside it. A function's first and last lines also
+ * name the cases of the block around it, which never called the function, so
+ * only cases that entered it are counted.
  *
  * The kind of edit is read from the diff's own text. A region every line of
  * words of which the change wrote is new, unless those lines are text the diff
@@ -135,6 +137,7 @@ export function regionsOf(
           : state === 'loaded' || state === 'hole' || state === 'unwalked'
             ? state
             : 'unknown';
+    const entered = new Set(called.map((test) => test.id));
     const changedLines = new Set<string>();
     for (const range of ranges) {
       const first = Math.max(range.start, region.startLine);
@@ -142,7 +145,7 @@ export function regionsOf(
       if (first > last) continue;
       for (const covering of ran) {
         if (covering.endLine < first || covering.startLine > last) continue;
-        for (const test of covering.tests) if (test.loaded !== true) changedLines.add(test.id);
+        for (const test of covering.tests) if (entered.has(test.id)) changedLines.add(test.id);
       }
     }
     return {

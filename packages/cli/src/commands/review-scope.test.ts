@@ -70,7 +70,7 @@ describe('where to look, for a comment', () => {
       '| R | `trim` | modified | `src/caps.ts:22-25` | 4 | 1 | `a.test.ts`, `b.test.ts`, `c.test.ts` and 1 more |',
       '| G | `spill` | moved from `src/old.ts` | `src/caps.ts:30-35` | 1 | 1 | `a.test.ts` |',
       '',
-      'A case entered a function when it called into it, and ran a changed line when `variance covering --line` names it for one. Case titles are in the review\'s JSON.',
+      'A case entered a function when it called into it, and ran a changed line when it entered the function and `variance covering --line` names it for a changed line in it. Case titles are in the review\'s JSON.',
       '',
       '</details>',
     ].join('\n'));

@@ -19,15 +19,16 @@ import type { Review } from './review.js';
 const run = promisify(execFile);
 
 /**
- * `HEAD` in `repository`, or absent when git cannot say. `here` is the
- * directory the review's file names are relative to.
+ * `HEAD` in `repository`, or absent when git cannot say. A link starts at the
+ * working directory, where `diffSince` names the review's files from, not at
+ * `--root`.
  *
  * The tree is dirty when `workingTreeChanges` names any path: an edit, or a
  * file git does not ignore and does not track. The review reads those as part
  * of the change. When git cannot say, the commit is named with no link, and
  * no claim either way.
  */
-export async function reviewedCommit(repository: string, here = process.cwd(), env: Env = process.env): Promise<Review['head'] | undefined> {
+export async function reviewedCommit(repository: string, env: Env = process.env): Promise<Review['head'] | undefined> {
   try {
     const { stdout } = await run('git', ['rev-list', '--parents', '-n1', 'HEAD'], { cwd: repository });
     const [commit, ...parents] = stdout.trim().split(/\s+/u);
@@ -37,7 +38,7 @@ export async function reviewedCommit(repository: string, here = process.cwd(), e
     const changes = await workingTreeChanges(repository, '');
     if (changes === undefined) return named;
     if (changes.changed.length > 0 || changes.gone.length > 0) return { ...named, dirty: true };
-    const blob = await blobOf(commit, here);
+    const blob = await blobOf(commit, process.cwd());
     return { ...named, ...(blob === undefined ? {} : { blob }) };
   } catch {
     return undefined;

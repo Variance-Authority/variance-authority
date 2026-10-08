@@ -107,6 +107,21 @@ describe('the cases that ran a changed line', () => {
       .toBe(coveringTests(nested, { file: 'src/caps.ts', line: 5 }).length);
   });
 
+  it('counts only cases that entered the region, though its first and last lines also name the cases around it', () => {
+    // `spill` is new on lines 12-15; `covering --line 12` also names b and c, which ran `cap` and never called `spill`.
+    const around: ExecutionIndex = {
+      tests: cases,
+      modules: [{ file: 'src/caps.ts', blocks: [block('function', 'cap', 1, 20, [0, 1, 2]), block('function', 'spill', 12, 15, [0])] }],
+    };
+    const changed = [{ start: 12, end: 15 }];
+    const [regions] = coveringChange(around, new Map([['src/caps.ts', changed]]));
+    const spill = regionsOf(regions!.regions, undefined, changed, undefined, 'src/caps.ts', removedText(''), coveringTestsInFile(around, 'src/caps.ts'))
+      .find((region) => region.name === 'spill');
+
+    expect(coveringTests(around, { file: 'src/caps.ts', line: 12 })).toHaveLength(3);
+    expect(spill).toMatchObject({ cases: 1, changedLineCases: 1 });
+  });
+
   it('leaves out a case named only because its file loaded the module', () => {
     const loaded = [{ startLine: 1, endLine: 10, tests: [test('a'), test('l', true)] }];
     const [cap] = regionsOf(file!.regions, undefined, [{ start: 4, end: 4 }], undefined, 'src/caps.ts', removedText(''), loaded);
