@@ -42,11 +42,13 @@ fn scalar(first: &str, rest: &[&str]) -> String {
     text
 }
 
-/// `name` and `description` from the front matter between the opening `---` and the next.
+/// `name` and `description` from the front matter between the opening `---` and the next; none when it never closes.
 fn front(text: &str) -> (Option<String>, Option<String>) {
     let mut lines = text.trim_start_matches('\u{feff}').lines();
     if lines.next().map(str::trim_end) != Some("---") { return (None, None); }
-    let block: Vec<&str> = lines.take_while(|line| line.trim_end() != "---").collect();
+    let lines: Vec<&str> = lines.collect();
+    let Some(end) = lines.iter().position(|line| line.trim_end() == "---") else { return (None, None) };
+    let block = &lines[..end];
     let value = |key: &str| {
         let start = block.iter().position(|line| line.strip_prefix(key).is_some_and(|rest| rest.starts_with(':')))?;
         let first = &block[start][key.len() + 1..];
@@ -101,5 +103,6 @@ mod tests {
         assert_eq!(front("# Title\nname: x\n"), (None, None));
         assert_eq!(front("---\nlicense: MIT\n---\nname: x\n"), (None, None));
         assert_eq!(front("---\nmetadata:\n  name: nested\n---\n"), (None, None));
+        assert_eq!(front("---\nname: open\ndescription: never closed\n# Body\n"), (None, None));
     }
 }

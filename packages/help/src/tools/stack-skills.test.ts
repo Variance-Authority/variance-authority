@@ -102,6 +102,14 @@ it('reads a skill added to a package that already shipped skills', async () => {
   expect(answer).toContain('    skill added: node_modules/env-kit/skills/added/SKILL.md — Arrived after the first refresh.');
 });
 
+it('reads a SKILL.md written into a skill folder that held none', async () => {
+  const root = await workspace();
+  writeFileSync(join(root, 'node_modules/env-kit/skills/empty/SKILL.md'), '---\nname: filled\ndescription: Written after the folder was read.\n---\n');
+  await refreshDependencyLexicon(root);
+  const answer = stack.run(readHelp(root), { from: 'src/index.ts' }, { root });
+  expect(answer).toContain('    skill filled: node_modules/env-kit/skills/empty/SKILL.md — Written after the folder was read.');
+});
+
 it('says skills were not read when the lexicon was written before they were recorded', async () => {
   const root = await workspace();
   const { path } = readDependencyLexicon(root);
