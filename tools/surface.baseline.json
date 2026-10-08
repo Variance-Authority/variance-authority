@@ -3276,6 +3276,7 @@
       "./durable": {
         "BaselineLayout": "type",
         "DurableStoreOptions": "interface",
+        "ImageReader": "type",
         "RenderCacheBound": "interface",
         "RenderCacheSwept": "interface",
         "createDurableStore": "function",

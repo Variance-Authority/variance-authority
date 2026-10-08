@@ -229,14 +229,15 @@ factor and fonts — so it names a directory per rendering machine. A baseline
 written by one machine cannot be silently picked up by another: it is not in the
 directory the other machine reads.
 
-`createDurableStore(root, options)` takes three options, and `createLfsStore`
-passes all three through:
+`createDurableStore(root, options)` takes four options, and `createLfsStore`
+passes the first three through:
 
 | option | default | what it decides |
 |---|---|---|
 | `layout` | `flat` | `flat` puts every image for the root in one directory per identity, with the subject id percent-encoded into the file name. `beside` puts each image in the directory where its code lives — `components/Button/<identityDigest>/primary__wide.png` — so baselines arrive with the checkout and move when the component's own files move. The directory comes from the key's `path` when the plan named one, and otherwise from the subject id read as a path. Either way a `..` or an empty segment is refused rather than resolved. A `path` from the plan keeps the whole subject id in the file name; an id split into directories spends its own slashes. |
 | `cacheRoot` | `root` | where the render cache goes; a durable store doubles as one, so entries are written under `root` unless this points elsewhere. |
 | `recordRoot` | `root` | where the `.json` sidecars go. A sidecar changes whenever the document does — a class name, a build id, a font that resolved elsewhere — so sidecars beside their images put a tracked diff on every edit, including the edits that moved no pixel. Point this at an ignored directory or a CI cache and `root` ends up with images and nothing else. |
+| `readImage` | `readFile` | how `find` reads a baseline's image, given its path. An `ENOENT` means no image; anything else it throws reaches the caller. `describe` and the render cache never call it. The LFS store passes one that fetches a pointer's image first. |
 
 Splitting the roots moves the sidecar's directory; it does not make the sidecar
 optional. Both halves are still written and both are still read, so one half
