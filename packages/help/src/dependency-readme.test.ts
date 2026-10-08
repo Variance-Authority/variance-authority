@@ -21,7 +21,7 @@ beforeAll(async () => {
     ...(readme === undefined ? {} : { [`node_modules/${name}/README.md`]: readme }),
   });
   for (const [path, value] of Object.entries({
-    'package.json': JSON.stringify({ name: 'fixture', dependencies: { 'bare-kit': '2.0.0', 'door-kit': '3.0.0', 'mute-kit': '2.0.0' } }),
+    'package.json': JSON.stringify({ name: 'fixture', dependencies: { 'bare-kit': '2.0.0', 'door-kit': '3.0.0', 'mute-kit': '2.0.0', 'note-kit': '2.0.0' } }),
     'src/page.ts': "import { spin } from 'bare-kit';\nimport { hush } from 'mute-kit';\nexport const page = [spin, hush];\n",
     'src/boot.ts': "import { wake } from 'door-kit';\nwake();\n",
     // A typed main entry beside subpaths that declare nothing: `./boot` and its
@@ -38,6 +38,7 @@ beforeAll(async () => {
     'node_modules/door-kit/README.md': '# door-kit\n\nCall `wake` first, or import `door-kit/boot`.\n',
     ...untyped('bare-kit', '# bare-kit\n\nSmall helpers.\n\nCall `spin` to turn the wheel once.\nIt returns nothing.\n'),
     ...untyped('mute-kit'),
+    ...untyped('note-kit', '# note-kit\n\nRun it once `wake` has returned.\n'),
   })) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), value);
@@ -84,13 +85,19 @@ it('says a package with no README ships none, when asked about it by name', () =
 });
 
 it('answers a declared name from its declaration alone, not from the doors of the same package that declare nothing', () => {
-  for (const args of [{ name: 'wake', package: 'door-kit' }, { name: 'wake' }]) {
-    const text = ask(args);
-    expect(text.startsWith('door-kit · wake [function] · door-kit@3.0.0')).toBe(true);
-    expect(text).toContain('Wakes the kit before anything else runs.');
-    expect(text).not.toMatch(/door-kit\/(boot|cli)/);
-    expect(text).not.toContain('README');
-  }
+  const text = ask({ name: 'wake', package: 'door-kit' });
+  expect(text.startsWith('door-kit · wake [function] · door-kit@3.0.0')).toBe(true);
+  expect(text).toContain('Wakes the kit before anything else runs.');
+  expect(text).not.toMatch(/door-kit\/(boot|cli)/);
+  expect(text).not.toContain('README');
+});
+
+it('puts a declared match before another package that falls back to its README', () => {
+  const text = ask({ name: 'wake' });
+  expect(text.startsWith('door-kit · wake [function] · door-kit@3.0.0')).toBe(true);
+  expect(text).toContain('note-kit · note-kit@2.0.0 — the project resolver found no declarations for `note-kit`');
+  expect(text).toContain('node_modules/note-kit/README.md:3 names `wake`:');
+  expect(text).not.toMatch(/door-kit\/(boot|cli)/);
 });
 
 it('prints a silent package README once, under every door that falls back to it', () => {
