@@ -1848,9 +1848,11 @@ practice it comes from a recording — see below, or from an editor's test runne
 a debugger, or a language server. `@variance-authority/mcp` puts the same query
 in front of an agent over MCP and answers exactly this for its caller.
 
-A line resolves to the innermost real source region containing it, so tests that
-only covered an enclosing function do not leak into a branch-line answer. A
-function lookup matches its exact indexed name. Repeated observations of one
+A line resolves to the regions a change to it would select. A line inside a
+branch is the branch's alone, so tests that only covered the enclosing function
+do not leak into it. A line that opens a branch, such as `if (observer) {`, also
+holds the condition the enclosing region evaluates, so it answers with the
+tests of both. A function lookup matches its exact indexed name. Repeated observations of one
 test collapse to the minimum distance. `id` distinguishes tests with the same
 file and name. The bulk result groups adjacent lines with identical tests and
 distances into inclusive ranges; an indexed but unreached range has an empty

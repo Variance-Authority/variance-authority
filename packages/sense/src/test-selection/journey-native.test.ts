@@ -209,6 +209,10 @@ describe('selecting off a journey file in the addon', () => {
     expect(await at('src/http.ts', 2)).toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
   });
 
+  it.todo(
+    'charges a line that opens a region to the region around it too, as `variance covering --line` names it — needs `blocksChargedAt` in `narrowByJourneys` and its Rust port in journey_select.rs',
+  );
+
   it('lets a mock cut only what ran while the module evaluated, which the graph answers', async () => {
     const loadTime = new Map([['src/api.ts', lines(1)]]);
     expect((await selectJourneyFile(FILE, loadTime, { relations: mocked }))?.entered).toEqual(['test/plain.test.ts']);

@@ -119,6 +119,10 @@ export function narrowByJourneys(
     let loaded = false;
     for (const range of ranges) {
       for (let line = range.start; line <= range.end; line += 1) {
+        // FIXME: charges a changed line to the innermost region alone, while
+        // `variance covering --line` names the regions `blocksChargedAt` charges,
+        // so a line that opens a branch selects fewer cases here than covering
+        // names for it. The Rust port in journey_select.rs moves with this.
         for (const block of innermostAt(module.blocks, line)) {
           if (read === 'bodies' && block.kind === 'module') continue;
           if (block.loaded === true) loaded = true;

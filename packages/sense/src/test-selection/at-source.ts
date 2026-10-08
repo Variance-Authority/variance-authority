@@ -5,28 +5,31 @@
  * diff, and hands back a set to skip. This asks the same columns a question
  * whose input is a *point* — a file, a line, a declaration, a branch inside one
  * — and hands back the tests that were observed there. The two are not variants
- * of one query. A selection is a decision about work, is allowed to be wider
- * than the truth, and is read by a runner; a point query is a statement about
- * evidence, is worth nothing if it is wider than the truth, and is read by
- * somebody about to edit the line.
+ * of one query. A selection is a decision about work and is read by a runner;
+ * a point query is a statement about evidence and is read by somebody about to
+ * edit the line, who needs it to name every test that edit would run.
  *
- * ## It is not a diff with one hunk
+ * ## A line is answered as an edit to it is charged
  *
- * The temptation is to synthesize a one-line diff and call `narrowByExecution`.
- * That answers a different question and answers it wrong in the direction that
- * matters here. `blocksAround` charges outwards from a line onto the regions
- * around it — deliberately, because a line that opens a handler is also the
- * component's text and a selection that missed those tests would skip work it
- * should have run. Charged into an answer to *who enters this branch*, the same
- * rule returns every test that rendered the component and never took the
- * branch, and there is nothing in the result to tell the two apart. Selection
- * over-includes on purpose. An answer may not.
+ * A point query and a selection over the coverage snapshot read a line by one
+ * rule, `chargeLine`. The journey selector (`narrowByJourneys`, `select
+ * --execution`) does not yet: it charges the innermost region alone and can
+ * select fewer tests than this names (the `FIXME` in
+ * [`execution-select.ts`](./execution-select.ts)). A line that opens a region — `if (ready) {`, `const onClick = () => {` — carries
+ * the enclosing region's text as well, so the tests that evaluated the
+ * condition and never took the branch go to that line, and an edit there
+ * selects them. Answered with the branch alone, *who goes to this line* would
+ * name fewer tests than a change to it runs, and the person about to edit it
+ * would read a skip list the selection does not keep. A line inside a region
+ * charges that region alone, and a brace that closes a branch charges the
+ * branch and the unwritten `else` placed on it. To ask who *took* a branch, ask
+ * by its path: that answer is the branch's own crossings and nothing else.
  *
- * So the resolution here is innermost and exact: the narrowest recorded regions
- * with source that hold the line, the region a declaration name addresses, the
- * region a branch path addresses. Nothing is charged outwards, and a point the
- * snapshot has no region for is reported as unrecorded rather than widened to
- * the module.
+ * What a point query does not share is the fallback. A line no recorded region
+ * holds is reported as unrecorded rather than widened to the module: a
+ * selection widens because the file may have grown past the snapshot, and a
+ * point is asked of the text the snapshot recorded. A declaration name and a
+ * branch path address their region exactly.
  *
  * ## The direction is the one the file is stored in
  *
@@ -66,6 +69,7 @@
 import type { BlockKind } from '../instrument/index.js';
 import { KINDS } from './format-layout.js';
 import type { TestCoverageView } from './format-view.js';
+import { chargeLine, rowsOf } from './blocks-around.js';
 import { askCoverageFile } from './coverage-file.js';
 import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
 import { findModules } from './lookup.js';
@@ -76,9 +80,9 @@ import { NO_LINE } from './written-lines.js';
  * Where to ask.
  *
  * `file` alone is the whole module: every region it holds, and therefore every
- * test that entered any of it. The other three narrow it, and at most one of
- * `line` and `branch` may be given — they address a region two different ways
- * and a caller that means both means neither.
+ * test that entered any of it. The other three narrow it, and `line` is given
+ * alone: beside `branch` or `function` it addresses a region two different
+ * ways, and a caller that means both means neither.
  *
  * `function` is a declaration name path as the journal writes it —
  * `Cart/render`, `applyTier/reduce.arg0` — and matches the region of that
@@ -182,6 +186,9 @@ export function testsReachingFromView(
   if (point.line !== undefined && point.branch !== undefined) {
     throw new Error('`line` and `branch` address a region two ways; give one');
   }
+  if (point.line !== undefined && point.function !== undefined) {
+    throw new Error('`line` and `function` address a region two ways; give one');
+  }
   if (point.line !== undefined && (!Number.isInteger(point.line) || point.line < 1)) {
     throw new Error('`line` must be a positive integer');
   }
@@ -259,17 +266,10 @@ export function testsReachingFromView(
 /**
  * The regions of one module row the point addresses.
  *
- * Innermost for a line, and innermost is measured over regions that have
- * source: a synthesized region — the `else` nobody wrote — spans zero lines and
- * would be the narrowest thing on its line every time, so it is not a candidate
- * for *where is this line*. That is the same exclusion `blocksAround` makes and
- * it is made here for the opposite reason: there it stops a zero-span region
- * from deciding how far an edit reaches, here it stops one from standing in for
- * a line somebody can point at.
- *
- * A region that strictly contains another matching one is dropped. Two regions
- * of exactly the same extent are both kept — they are the same lines, and
- * picking one of them would be picking by a tiebreak nothing recorded.
+ * A line is charged by `chargeLine`, the rule a selection charges a changed
+ * line by, so the answer to *who goes to this line* is the set an edit to it
+ * would select. A declaration and a branch are the region their name and path
+ * address, exactly.
  */
 function resolve(
   coverage: TestCoverageView,
@@ -311,23 +311,10 @@ function resolve(
     return found;
   }
 
-  const line = point.line;
-  const holding: number[] = [];
-  for (let block = first; block < end; block += 1) {
-    if (coverage.blockSource.at(block) !== 1) continue;
-    if (point.function !== undefined && nameOf(block) !== point.function) continue;
-    const from = coverage.blockStart.at(block);
-    const to = Math.max(from, coverage.blockEnd.at(block));
-    if (from <= line && line <= to) holding.push(block);
-  }
-  return holding.filter((block) =>
-    !holding.some((other) =>
-      other !== block &&
-      coverage.blockStart.at(block) <= coverage.blockStart.at(other) &&
-      coverage.blockEnd.at(block) >= coverage.blockEnd.at(other) &&
-      span(coverage, other) < span(coverage, block),
-    ),
-  );
+  // A line is answered with the regions an edit to it would select.
+  const found = new Set<number>();
+  if (!chargeLine(rowsOf(coverage), first, end, point.line, found)) return [];
+  return [...found];
 }
 
 /** The structural path the walker opens a declaration's own region under. */
@@ -347,7 +334,7 @@ function codeUnitOrder(left: string, right: string): number {
  * The question a selection cannot be asked: not *what should run because
  * something changed*, but *who goes here*, about a file, a line, a declaration
  * or a branch that nobody has touched. See
- * the file docblock above for why it is not a one-line diff.
+ * the file docblock above for how a line is read.
  *
  * Opens the snapshot rather than decoding it. The answer costs a binary search
  * for the path, the regions of that one module, and one pool run per region the

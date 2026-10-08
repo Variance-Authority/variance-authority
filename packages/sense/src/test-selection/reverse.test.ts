@@ -101,6 +101,10 @@ describe('coveringTests', () => {
     expect(coveringTests(index, { file: 'src/cart/total.ts', line: 20 })).toEqual([]);
     expect(coveringTests(index, { file: 'src/cart/total.ts', function: 'missing' })).toEqual([]);
   });
+
+  it.each([0, -1, 1.5])('names no case for line %s, which is no line of a file', (line) => {
+    expect(coveringTests(index, { file: 'src/cart/total.ts', line })).toEqual([]);
+  });
 });
 
 describe('coveringTestsInFile', () => {
@@ -108,8 +112,9 @@ describe('coveringTestsInFile', () => {
     const ranges = coveringTestsInFile(index, 'src/cart/total.ts');
     expect(ranges).toEqual([
       {
+        // Line 3 opens the branch, and its condition is `priceOf`'s text.
         startLine: 1,
-        endLine: 2,
+        endLine: 3,
         tests: [
           {
             id: 'staff',
@@ -132,7 +137,7 @@ describe('coveringTestsInFile', () => {
         ],
       },
       {
-        startLine: 3,
+        startLine: 4,
         endLine: 5,
         tests: [{
           id: 'staff',
@@ -179,6 +184,66 @@ describe('coveringTestsInFile', () => {
 
   it('returns no claim for a file absent from the index', () => {
     expect(coveringTestsInFile(index, 'src/missing.ts')).toEqual([]);
+  });
+});
+
+/**
+ * A line that opens a branch holds the condition, and the region around the
+ * branch evaluates it: an edit there is selected for every case that reached
+ * the line, so `covering` names every one of them.
+ */
+describe('a line that opens a branch inside another', () => {
+  // 1 function fetchQuery(options) {
+  // 2   if (!options.queryFn) {
+  // 3     const observer = observers.find(hasQueryFn)
+  // 4     if (observer) {
+  // 5       setOptions(observer.options)
+  // 6     }
+  // 7   }
+  // 8 }
+  const nested: ExecutionIndex = {
+    tests: [
+      { id: 'from-observer', file: 'test/query.test.ts', name: 'uses queryFn from an observer' },
+      { id: 'missing', file: 'test/query.test.ts', name: 'throws when no queryFn is defined' },
+      { id: 'given', file: 'test/query.test.ts', name: 'uses the queryFn it was given' },
+    ],
+    modules: [{
+      file: 'src/query.ts',
+      blocks: [
+        { kind: 'function', name: 'fetchQuery', path: 'entry', startLine: 1, endLine: 8, source: true, crossings: [{ test: 0, distance: 0 }, { test: 1, distance: 0 }, { test: 2, distance: 0 }] },
+        { kind: 'branch', name: 'fetchQuery', path: 'if#0/then', startLine: 2, endLine: 7, source: true, crossings: [{ test: 0, distance: 0 }, { test: 1, distance: 0 }] },
+        { kind: 'branch', name: 'fetchQuery', path: 'if#0/then/if#0/then', startLine: 4, endLine: 6, source: true, crossings: [{ test: 0, distance: 0 }] },
+        // The `else` nobody wrote, placed at the brace that closes its `if`.
+        { kind: 'branch', name: 'fetchQuery', path: 'if#0/then/if#0/else', startLine: 6, endLine: 6, source: false, crossings: [{ test: 1, distance: 0 }] },
+        { kind: 'branch', name: 'fetchQuery', path: 'if#0/else', startLine: 7, endLine: 7, source: false, crossings: [{ test: 2, distance: 0 }] },
+      ],
+    }],
+  };
+  const at = (line: number) => coveringTests(nested, { file: 'src/query.ts', line }).map((test) => test.id);
+
+  it('names every case that evaluated the condition, not only the cases that took the branch', () => {
+    expect(at(3)).toEqual(['missing', 'from-observer']);
+    expect(at(4)).toEqual(['missing', 'from-observer']);
+    expect(at(5)).toEqual(['from-observer']);
+  });
+
+  it('gives the brace that closes a branch to the cases that took either side of it', () => {
+    // An edit there is charged to the branch and to the unwritten `else` on
+    // that line, and to nothing around them.
+    expect(at(6)).toEqual(['missing', 'from-observer']);
+    expect(at(7)).toEqual(['missing', 'from-observer', 'given']);
+  });
+
+  it('answers the line in the file listing as it answers the line alone', () => {
+    const ranges = coveringTestsInFile(nested, 'src/query.ts');
+
+    expect(ranges.map((range) => [range.startLine, range.endLine, range.tests.map((test) => test.id)])).toEqual([
+      [1, 2, ['missing', 'from-observer', 'given']],
+      [3, 4, ['missing', 'from-observer']],
+      [5, 5, ['from-observer']],
+      [6, 6, ['missing', 'from-observer']],
+      [7, 8, ['missing', 'from-observer', 'given']],
+    ]);
   });
 });
 

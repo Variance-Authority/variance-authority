@@ -91,8 +91,9 @@ describe('variance_source_tests', () => {
     const text = sourceTests.run(INDEX, { file: 'src/cart/total.ts' });
 
     expect(text).toContain('4 source range(s), 2 named test(s)');
-    expect(text).toContain('lines 1-2');
-    expect(text).toContain('lines 3-4');
+    // Line 3 opens the branch and holds `priceOf`'s condition, so it is both.
+    expect(text).toContain('lines 1-3');
+    expect(text).toContain('line 4\n  applies the staff discount');
     expect(text).toContain('lines 5-8');
     expect(text).toContain('line 10\n  no named test reached this range');
   });

@@ -62,7 +62,7 @@ describe('a file answered in the text somebody holds', () => {
 
     expect(answer.frame).toBe('recorded');
     expect(answer.ranges?.slice(0, 2).map((range) => [range.startLine, range.endLine, range.state]))
-      .toEqual([[1, 1, 'walked'], [2, 4, 'alone']]);
+      .toEqual([[1, 1, 'walked'], [2, 2, 'walked']]);
   });
 
   it('carries every range to where it stands in an edited text', async () => {
@@ -70,7 +70,7 @@ describe('a file answered in the text somebody holds', () => {
 
     expect(answer.frame).toBe('mapped');
     expect(answer.ranges?.slice(0, 2).map((range) => [range.startLine, range.endLine, range.state]))
-      .toEqual([[3, 3, 'walked'], [4, 6, 'alone']]);
+      .toEqual([[3, 3, 'walked'], [4, 4, 'walked']]);
     expect(formatCovering(answer, 'text')).toContain('placed in the text as it is now');
   });
 
@@ -78,7 +78,8 @@ describe('a file answered in the text somebody holds', () => {
     const held = await edited();
     const answer = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '7']));
 
-    expect(answer.tests?.map((test) => test.name)).toEqual(['decide > takes the gamma branch']);
+    // Held line 7 is `if (value === 'gamma') {`: the case that fell through evaluated it too.
+    expect(answer.tests?.map((test) => test.name)).toEqual(['decide > falls through to B', 'decide > takes the gamma branch']);
     expect(answer.target).toEqual({ line: 7 });
     await expect(covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1'])))
       .rejects.toThrow(/written since the recording/);

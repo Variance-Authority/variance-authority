@@ -1,4 +1,5 @@
 import { affectedBy, type Relations } from '@variance-authority/core/relate';
+import { blocksChargedAt } from './blocks-around.js';
 import { shadowedFor, type ShadowedFor } from './shadowed.js';
 import { outside, sameCases, stoppedIn } from './stopped.js';
 import type { CasePrecondition } from './case-precondition-column.js';
@@ -178,7 +179,7 @@ export function stoppedBefore(
 
 function blocksAt(module: ExecutionModule, target: SourceTestTarget): readonly ExecutionBlock[] {
   return 'line' in target
-    ? innermostAt(module.blocks, target.line)
+    ? blocksChargedAt(module.blocks, target.line)
     : module.blocks.filter((block) =>
       block.source && block.kind === 'function' && block.name === target.function,
     );
@@ -197,9 +198,9 @@ export function coveringTestsInFile(
 
   const boundaries = new Set<number>();
   for (const block of module.blocks) {
-    if (!block.source) continue;
-    boundaries.add(block.startLine);
-    boundaries.add(block.endLine + 1);
+    // A first or last line can charge the region around it, so each is a range of its own.
+    const last = Math.max(block.startLine, block.endLine);
+    if (block.startLine >= 1) for (const line of [block.startLine, block.startLine + 1, last, last + 1]) boundaries.add(line);
   }
 
   const lines = [...boundaries].sort((left, right) => left - right);
@@ -207,7 +208,7 @@ export function coveringTestsInFile(
   for (let at = 0; at < lines.length - 1; at += 1) {
     const startLine = lines[at]!;
     const endLine = lines[at + 1]! - 1;
-    const blocks = innermostAt(module.blocks, startLine);
+    const blocks = blocksChargedAt(module.blocks, startLine);
     if (blocks.length === 0) continue;
     const tests = withLoaders(testsForBlocks(index, blocks), blocks, loaders);
     const loaded = blocks.some((block) => block.loaded === true);
