@@ -137,7 +137,8 @@ export type Seeded =
  * says where each of its tests last ran: see {@link seedCommitRuns}.
  *
  * Does nothing at all when the caller named its own file. Returns what it laid,
- * or `undefined` when it laid nothing.
+ * or `undefined` when it laid nothing. A run that {@link recordsAlone} does not
+ * ask.
  */
 export async function seedTestCoverage(
   file: string,
@@ -181,6 +182,22 @@ export async function seedTestCoverage(
   // fetch moves it. Its tests are not this checkout's.
   await writeOwnLayer(file, { ran: [] });
   return { from: 'primary', file: resolve(layers.base, inside), ...(shared === undefined ? {} : { shared }) };
+}
+
+/**
+ * Whether a run records the files it ran and nothing else, on no base: one
+ * shard of a run that selects nothing.
+ *
+ * Such a shard is a part of one whole run, and the fan-in folds the parts over
+ * the base, refusing a test file two parts both hold. A shard placed by
+ * recorded time has read the suite's times, and that read can fetch the
+ * mainline's record into the shard's cache, where {@link seedTestCoverage}
+ * would lay it under the shard's run. Every part would then carry every row of
+ * the base. A selected shard is not a part of a whole: it records over the
+ * base its selection was cut from, and its record is not folded with another's.
+ */
+export function recordsAlone(sharded: boolean, selected: boolean): boolean {
+  return sharded && !selected;
 }
 
 /**

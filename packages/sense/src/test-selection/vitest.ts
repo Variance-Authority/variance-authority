@@ -1,34 +1,17 @@
 import { existsSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
-import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
 import type { InstrumentMode } from '../instrument/index.js';
 import { captureModule, pathOf } from './captured-modules.js';
 import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
-import {
-  carriedJournal,
-  readFinished,
-  reportedDuration,
-  reportedComplete,
-  runnerSkipped,
-  taskComplete,
-  type FinishedFile,
-  type ReportedModule,
-  type RunnerTask,
-} from './finished-files.js';
+import { readFinished, type FinishedFile } from './finished-files.js';
 import { browserSetupSource, caseRunnerSource, setupSource } from './worker-source.js';
 import { foldRun } from './selection-fold.js';
-import { reportedCases, taskCases } from './case-durations.js';
-import {
-  declareConfig,
-  noteRunner,
-  projectConfig,
-  type ResolvedViteConfig,
-  type RunnerContext,
-} from './governing-config.js';
-import { removeSeamModules, reopenRun, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
-import { recordFileFor } from './record-location.js';
+import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
+import { removeSeamModules, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
+import { recordFileFor, recordsAlone } from './record-location.js';
+import { selectionReporter } from './vitest-reporter.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import type { SuiteSelection } from './suite-selection.js';
@@ -165,6 +148,8 @@ export function withTestSelection(
   // governs, which for the one that describes the run is every test.
   const declared = (options.preconditions ?? []).map((file) => resolve(configRoot, file));
 
+  const suite = options.suite === undefined ? {} : { suite: options.suite };
+  const selection = options.selection ?? selectionFrom(process.env, { root, from: configRoot, ...suite });
   const settle = foldRun(run, { coverageFile, shims: [setupId, runnerId] });
   const reporter = selectionReporter(run, settle);
   const reporters = config.test?.reporters === undefined ? ['default'] : array(config.test.reporters);
@@ -185,7 +170,7 @@ export function withTestSelection(
         name: 'variance-authority:test-selection-config',
         configResolved: declareConfig(run, declared, [setupId, runnerId]),
       } satisfies ConfigPlugin],
-      test: { ...config.test, ...selecting(config, root, configRoot, options, coverageFile), reporters: [...reporters, reporter] },
+      test: { ...config.test, ...selecting(config, root, configRoot, options, coverageFile, selection, run), reporters: [...reporters, reporter] },
     };
   }
 
@@ -199,7 +184,7 @@ export function withTestSelection(
     plugins: [...array(config.plugins), plugin],
     test: {
       ...config.test,
-      ...selecting(config, root, configRoot, options, coverageFile),
+      ...selecting(config, root, configRoot, options, coverageFile, selection, run),
       // First, so what a setup file of the project's loads is logged into the
       // file's own bucket: before the shim opens it, a probe in a realm that
       // already ran a file writes into the idle one, and under a runner of the
@@ -246,9 +231,10 @@ function selecting(
   configRoot: string,
   options: TestSelectionOptions,
   coverageFile: string,
+  selection: (() => Promise<SuiteSelection>) | undefined,
+  run: SelectionRun,
 ): Pick<NonNullable<UserConfig['test']>, 'sequence'> {
   const suite = options.suite === undefined ? {} : { suite: options.suite };
-  const selection = options.selection ?? selectionFrom(process.env, { root, from: configRoot, ...suite });
   const sequence = config.test?.sequence;
   const own = sequence?.sequencer as unknown as SequencerClass | undefined;
   // A record named by file is the one this run lands in, so its times are read
@@ -256,6 +242,7 @@ function selecting(
   const times = timesFrom({ root, from: configRoot, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) });
   const sequencer = selectingSequencer(own, {
     root, configRoot, ...(selection === undefined ? {} : { selection }), times, shuffle: sequence?.shuffle,
+    sharded: (asked) => { run.alone = recordsAlone(asked, selection !== undefined); },
   });
   type Sequence = NonNullable<NonNullable<UserConfig['test']>['sequence']>;
   return { sequence: { ...sequence, sequencer: sequencer as unknown as NonNullable<Sequence['sequencer']> } };
@@ -434,62 +421,6 @@ async function foldUnfolded(
   );
   rmSync(run.runDirectory, { recursive: true, force: true });
   rmSync(run.caseDirectory, { recursive: true, force: true });
-}
-
-function selectionReporter(
-  run: SelectionRun,
-  settle: (files: readonly FinishedFile[]) => Promise<void>,
-): Reporter {
-  // Vitest 2 announces the end of a run as `onFinished(files)`, where a file is
-  // a runner task. Vitest 3 replaced that with `onTestRunEnd(testModules)` over
-  // a reported-task API, and Vitest 4 stopped calling `onFinished` on reporters
-  // altogether — silently, because a reporter with no hook a runner recognises
-  // is a reporter that never objects. A suite would go green and write no
-  // snapshot. Both hooks are declared, both narrow to the same two facts, and
-  // whichever the runner calls first is the one that counts.
-  //
-  // Each file also carries the configuration it ran under, as the runner
-  // resolved it: Vitest 3 and 4 hand the project over, and Vitest 2 hands its
-  // name, which `onInit` has already mapped to the project.
-  let byName = new Map<string, string>();
-  // Held, not copied: a name filter and a cancel are both set on the runner
-  // after `onInit`, and each run's end asks it afresh.
-  let runner: RunnerContext | undefined;
-  const configsOf = (config: string | undefined) => (config === undefined ? {} : { configs: [config] });
-  // A rerun starts as `onWatcherRerun` in every major and as `onTestRunStart`
-  // from Vitest 3, both after the last run's end was awaited: the fold reopens
-  // there, and the rerun's end folds the files the rerun ran.
-  return {
-    onInit: (context: RunnerContext) => {
-      runner = context;
-      byName = noteRunner(run, context);
-      run.watching = context.config?.watch === true;
-    },
-    onWatcherRerun: () => reopenRun(run),
-    onTestRunStart: () => reopenRun(run),
-    onFinished: (files: readonly RunnerTask[]) => settle(
-      files.flatMap((file) => file.filepath === undefined
-        ? []
-        : [{
-          filepath: file.filepath,
-          complete: taskComplete(file, runnerSkipped(runner)),
-          ...reportedDuration(file.result?.duration),
-          ...taskCases(file),
-          ...carriedJournal(file.filepath, file.meta),
-          ...configsOf(byName.get(file.projectName ?? '')),
-        }]),
-    ),
-    onTestRunEnd: (reported: readonly ReportedModule[], _errors?: unknown, reason?: string) => settle(
-      reported.map((module) => ({
-        filepath: module.moduleId,
-        complete: reportedComplete(module, runnerSkipped(runner, reason)),
-        ...reportedDuration(module.diagnostic?.()?.duration),
-        ...reportedCases(module),
-        ...carriedJournal(module.moduleId, module.meta?.()),
-        ...configsOf(projectConfig(module.project)),
-      })),
-    ),
-  } as Reporter;
 }
 
 function array<T>(value: T | readonly T[] | undefined): T[] {
