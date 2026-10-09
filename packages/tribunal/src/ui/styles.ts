@@ -43,6 +43,7 @@
 import { DOCKET_STYLES } from './styles-docket.js';
 import { FINDING_STYLES } from './styles-findings.js';
 import { JOURNEY_STYLES } from './styles-journeys.js';
+import { SAME_IMAGE_STYLES } from './styles-same-image.js';
 import { STAGE_STYLES } from './styles-stage.js';
 
 /**
@@ -303,6 +304,7 @@ export const REVIEW_STYLES = `
 .va-journeys .va-band { border-left: 2px solid var(--va-line-firm); margin-top: 1.1rem; padding-left: 0.85rem; }
 .va-journeys .va-band h3 { font-family: var(--va-mono); letter-spacing: 0; text-transform: none; }
 ${JOURNEY_STYLES}
+${SAME_IMAGE_STYLES}
 .va-reach .va-band.va-inert { border-left-color: var(--va-warn); }
 .va-reach .va-band h3 { font-size: 0.95rem; margin-bottom: 0.25rem; }
 .va-reach .va-stability, .va-reach .va-churn { margin: 0.2rem 0 0; }
