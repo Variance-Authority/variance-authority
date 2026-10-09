@@ -120,25 +120,21 @@ describe('the suite as one graph', () => {
       'ds/button--danger',
     ]);
 
-    // Twenty-one chips across seven subjects and not one subject whose shallowest
-    // boundary is a `Chip`. Empty is a real answer, and it is the gap a reviewer
-    // looks for — this component is only ever seen through something else.
+    // Twenty-one chips across seven subjects, and only the chip story exists to
+    // show one: the pages hold chips beside everything else they hold.
     expect(entry('Chip')?.instances).toBe(21);
-    expect(entry('Chip')?.examples).toEqual([]);
+    expect(entry('Chip')?.examples).toEqual(['ds/chip--group']);
   });
 
-  it('gives a wrapped story to the wrapper, which is what the story is an example of', () => {
+  it('descends past a wrapper most of the suite mounts, to the thing the story exists to show', () => {
     // Three design-system stories open with a `Stack` laying out the thing they
-    // exist to show. The shallowest boundary is the wrapper, so that is whose
-    // example they are — and `Chip`, `Text` and `Toggle` each have none.
-    expect(entry('Stack')?.examples).toEqual([
-      'ds/text--scale',
-      'ds/toggle--states',
-      'ds/chip--group',
-    ]);
-    for (const name of ['Chip', 'Text', 'Toggle']) {
-      expect(entry(name)?.examples).toEqual([]);
-    }
+    // exist to show. Most of the suite mounts a `Stack`, so the chip and toggle
+    // stories are examples of the chip and the toggle. Most of the suite mounts
+    // a `Text` too, so the text story has nothing below the wrapper that is not
+    // structure, and stays the wrapper's.
+    expect(entry('Stack')?.examples).toEqual(['ds/text--scale']);
+    expect(entry('Toggle')?.examples).toEqual(['ds/toggle--states']);
+    expect(entry('Text')?.examples).toEqual([]);
   });
 
   it('records the graph downwards as edges between boundaries', () => {

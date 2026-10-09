@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { capture, node } from '../rules/normalize/fixture.js';
 import { normalize } from '../rules/normalize/index.js';
-import { composeSubjects, type SubjectComposition } from './composition.js';
+import { composeSubjects, structuralComponents, type SubjectComposition } from './composition.js';
 import { SUITE, chip, instance } from './composition-fixture.js';
 import { componentInstances } from './instances.js';
 import { attributeMovement } from './movement.js';
@@ -69,6 +69,18 @@ describe('the narrow example, under an application\'s worth of wrappers', () => 
       'story:badge--default',
       'story:badge--dot',
     ]);
+  });
+
+  it('counts a component once per subject, however many times one subject mounts it', () => {
+    // A list story mounts its row five times. Five mounts in a suite of five is
+    // more than half by instances and one subject in five by subjects; the row
+    // is what that story is about, not the frame around everything.
+    const list: SubjectComposition = {
+      subject: 'story:list--long',
+      instances: [0, 1, 2, 3, 4].map((at) => instance({ component: 'Row', path: `0/${at}` })),
+    };
+
+    expect([...structuralComponents([...suite, list])].sort()).toEqual(['ThemeProvider', 'Wrapper']);
   });
 
   it('answers as the shallowest rule would when every depth is structure', () => {
