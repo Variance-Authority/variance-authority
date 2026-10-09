@@ -4,12 +4,12 @@
 configuration. Questions about the code read the checkout and need nothing
 else: with no run yet, start with `variance ask packages`, which lists what each
 package publishes and how much of it other packages import. Questions about a
-run read the report it wrote, or the report CI published for your branch when
-none is on disk: start with `variance ask summary`. Other questions read a
-suite that is still running, or how long each part of the suite took on the main
-branch's last build, and `variance distill` reads one finished test's
-[Eyes](eyes.md) and [Sense](../packages/sense) evidence. Each command calls the
-same analyzer its MCP counterpart calls.
+run read the report it wrote, or the report CI published for your branch or
+mainline when none is on disk: start with `variance ask summary`. Other
+questions read a suite that is still running, or how long each part of the suite
+took on the mainline's last build, and `variance distill` reads one finished
+test's [Eyes](eyes.md) and [Sense](../packages/sense) evidence. Each command
+calls the same analyzer its MCP counterpart calls.
 
 ## Find out what may be asked
 
