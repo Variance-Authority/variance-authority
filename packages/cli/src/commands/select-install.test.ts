@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -10,10 +10,10 @@ import {
   readCommitRuns,
   testCoverageFile,
   writeTestCoverage,
-  type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { selectOutput } from './select-command.js';
 import { indexOutput } from './index-command.js';
+import { checkout, npmLock, snapshot } from './select-install-fixture.js';
 
 /**
  * `variance select` over a diff that moved the install and no source line.
@@ -333,45 +333,6 @@ describe('the install a recording ran on', () => {
   });
 });
 
-const PAD = [
-  "import leftPad from 'left-pad';",
-  '',
-  'export function pad(text: string): string {',
-  '  return leftPad(text, 4);',
-  '}',
-  '',
-].join('\n');
-
-/** `left-pad` at `version`, and `pad-core` beneath it when `core` is given. */
-function npmLock(version: string, core?: string): string {
-  return JSON.stringify(
-    {
-      name: 'fixture',
-      lockfileVersion: 3,
-      packages: {
-        '': { name: 'fixture', dependencies: { 'left-pad': '^1.0.0' } },
-        'node_modules/left-pad': {
-          version,
-          resolved: `https://registry.npmjs.org/left-pad/-/left-pad-${version}.tgz`,
-          integrity: `sha512-${version}==`,
-          ...(core === undefined ? {} : { dependencies: { 'pad-core': '^2.0.0' } }),
-        },
-        ...(core === undefined
-          ? {}
-          : {
-              'node_modules/pad-core': {
-                version: core,
-                resolved: `https://registry.npmjs.org/pad-core/-/pad-core-${core}.tgz`,
-                integrity: `sha512-${core}==`,
-              },
-            }),
-      },
-    },
-    null,
-    2,
-  );
-}
-
 /** Two documents: the pinned package manager, then the install. */
 function pnpmLock(version: string): string {
   return [
@@ -417,56 +378,4 @@ function pnpmLock(version: string): string {
     `  left-pad@${version}: {}`,
     '',
   ].join('\n');
-}
-
-/** A checkout holding exactly the text the snapshot below is recorded against. */
-function checkout(files: Readonly<Record<string, string>> = {}): { root: string; head: string } {
-  const root = mkdtempSync(join(tmpdir(), 'va-select-install-'));
-  const git = (args: readonly string[]): string =>
-    execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
-  git(['init', '--quiet', '--initial-branch', 'main']);
-  git(['config', 'user.email', 'fixture@example.test']);
-  git(['config', 'user.name', 'Fixture']);
-  mkdirSync(join(root, 'src'), { recursive: true });
-  mkdirSync(join(root, 'test'), { recursive: true });
-  writeFileSync(join(root, 'src/pad.ts'), PAD);
-  for (const [file, text] of Object.entries(files)) writeFileSync(join(root, file), text);
-  git(['add', '-A']);
-  git(['commit', '--quiet', '-m', 'the text these line numbers are coordinates in']);
-
-  return { root, head: git(['rev-parse', 'HEAD']) };
-}
-
-/** One module importing one package, entered by one of three tests. */
-function snapshot(commit: string): TestCoverage {
-  return {
-    version: 3,
-    instrumentation: 'fixture',
-    commit,
-    tests: [
-      { file: 'test/alpha.test.ts', complete: true, preconditions: [] },
-      { file: 'test/beta.test.ts', complete: true, preconditions: [] },
-      { file: 'test/gamma.test.ts', complete: true, preconditions: [] },
-    ],
-    modules: [
-      {
-        file: 'src/pad.ts',
-        sourceDigest: digestString(PAD),
-        instrumented: true,
-        blocks: [
-          {
-            ordinal: 0,
-            kind: 'module',
-            digest: digestString('module'),
-            name: 'pad.ts',
-            path: 'module',
-            startLine: 1,
-            endLine: 6,
-            source: true,
-            testFiles: ['test/beta.test.ts'],
-          },
-        ],
-      },
-    ],
-  };
 }

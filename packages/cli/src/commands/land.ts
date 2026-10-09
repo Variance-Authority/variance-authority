@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { rename, rm } from 'node:fs/promises';
+import type { CommitRuns } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { said } from '../here.js';
 import type { LandedJourneys } from './journeys.js';
@@ -94,6 +95,20 @@ export async function landJourneys(
     );
   }
 
+  // Each shard's own landing kept the install it ran on in the runs record
+  // beside its snapshot, where that shard ran, and the fold ran on it only when
+  // every shard names the same one. A record that cannot be read names none.
+  // FIXME: the texts a shard's install names are kept in the cache of the
+  // machine it ran on, and nothing carries them here, so a shard that ran over
+  // an uncommitted install elsewhere is compared from its commit after all.
+  const installed = folded === undefined
+    ? undefined
+    : selection.shardsInstall(
+        await Promise.all(
+          measured.map(async ({ path, coverage }) => ({ tests: coverage, runs: await shardRuns(path) })),
+        ),
+      );
+
   // A checkout's first landing starts from the base its first `yarn test`
   // would: the mainline's record as last fetched here, else the primary
   // checkout's. Without the copy the fold would land over nothing and stand for
@@ -143,10 +158,7 @@ export async function landJourneys(
     // and land again, which writes the same record.
     const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
     const landed = folded === undefined ? previous : selection.mergeCoverage(previous, folded);
-    // FIXME: no install is passed, so a shard landing keeps none and its tests
-    // compare from the commit. Shards run over an uncommitted install read
-    // the bump they ran on as moved; each shard would have to keep its own.
-    const runs = folded === undefined ? undefined : selection.commitRunsAfter(previous, held, folded);
+    const runs = folded === undefined ? undefined : selection.commitRunsAfter(previous, held, folded, installed);
     // The index beside the snapshot was cut from the texts the snapshot names.
     const { landing: cases, sections } = selection.landCases(
       at,
@@ -194,6 +206,21 @@ export async function landJourneys(
     modules: landed?.modules.length ?? 0,
     cases,
   };
+}
+
+/**
+ * The runs record beside the shard at `path`, or `undefined` when it has none
+ * or none this can read, which is said on stderr: the landing then keeps no
+ * install, and a later selection compares from the commit.
+ */
+async function shardRuns(path: string): Promise<CommitRuns | undefined> {
+  const selection = await import('@variance-authority/sense/test-selection');
+  try {
+    return await selection.readCommitRuns(path);
+  } catch (error) {
+    process.stderr.write(`variance: ${messageOf(error)}; the landing keeps no install the shards ran on.\n`);
+    return undefined;
+  }
 }
 
 /**
