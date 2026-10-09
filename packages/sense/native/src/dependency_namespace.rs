@@ -2,8 +2,6 @@
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{Expression, Program, Statement, TSModuleReference, TSNamespaceDeclarationBody};
-use oxc_parser::Parser;
-use oxc_span::SourceType;
 
 use crate::harvest::{SourceSymbol, TextSpan};
 use crate::read::read_module;
@@ -53,13 +51,6 @@ fn assigned<'p, 'a>(program: &'p Program<'a>) -> Option<(String, Vec<&'p [Statem
     })
 }
 
-/// A declaration file's tree, in the dialect its extension names: `.d.ts`,
-/// `.d.mts` or `.d.cts`.
-pub(crate) fn parse<'a>(file: &str, source: &'a str, allocator: &'a Allocator) -> Program<'a> {
-    let dialect = SourceType::from_path(file).unwrap_or_else(|_| SourceType::ts());
-    Parser::new(allocator, source, dialect).parse().program
-}
-
 /// The members of the namespace `program` assigns to its export, and the
 /// namespace's own declarations among the file's `symbols`.
 pub(crate) fn exported_namespace(file: &str, source: &str, program: &Program, symbols: &[SourceSymbol]) -> Vec<NamespaceSymbol> {
@@ -71,6 +62,8 @@ pub(crate) fn exported_namespace(file: &str, source: &str, program: &Program, sy
         let TSNamespaceDeclarationBody::TSModuleBlock(block) = &declaration.body else { continue };
         let Some(inner) = source.get(block.span.start as usize + 1..block.span.end as usize - 1) else { continue };
         let line_offset = source[..block.span.start as usize + 1].bytes().filter(|byte| *byte == b'\n').count() as u32;
+        // FIXME: the block's members are read by parsing its text again, a second
+        // parse of these lines, where the tree in hand already holds them.
         let read = read_module(file, inner, &Allocator::default(), true);
         let utf16: Vec<u16> = inner.encode_utf16().collect();
         for symbol in read.symbols {
@@ -102,19 +95,18 @@ pub(crate) fn exported_import(program: &Program) -> Vec<String> {
 mod tests {
     use oxc_allocator::Allocator;
 
-    use super::{exported_import, exported_namespace, parse};
-    use crate::read::read_module;
+    use super::{exported_import, exported_namespace};
+    use crate::read::read_module_and_tree;
 
     fn imported(source: &str) -> Vec<String> {
         let allocator = Allocator::default();
-        exported_import(&parse("index.d.ts", source, &allocator))
+        exported_import(&read_module_and_tree("index.d.ts", source, &allocator, true).1)
     }
 
     fn published(source: &str) -> Vec<String> {
-        let symbols = read_module("index.d.ts", source, &Allocator::default(), true).symbols;
         let allocator = Allocator::default();
-        let program = parse("index.d.ts", source, &allocator);
-        exported_namespace("index.d.ts", source, &program, &symbols).into_iter().map(|symbol| symbol.name).collect()
+        let (read, program) = read_module_and_tree("index.d.ts", source, &allocator, true);
+        exported_namespace("index.d.ts", source, &program, &read.symbols).into_iter().map(|symbol| symbol.name).collect()
     }
 
     #[test]

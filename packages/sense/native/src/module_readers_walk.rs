@@ -8,6 +8,7 @@ use oxc_ast::ast::*;
 use oxc_ast_visit::{walk, Visit};
 use oxc_syntax::scope::ScopeFlags;
 
+use crate::loads::requires;
 use crate::module_shape::{plain_class, pure, Lines};
 
 use super::{declared, Import, Read, Reading, Reexport, Where};
@@ -304,7 +305,7 @@ impl<'a> Visit<'a> for Walker<'_> {
     }
 
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
-        if matches!(&it.callee, Expression::Identifier(callee) if callee.name == "require") {
+        if requires(&it.callee) {
             self.reading.untraced = true;
         }
         walk::walk_call_expression(self, it);

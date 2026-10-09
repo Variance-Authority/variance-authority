@@ -149,4 +149,6 @@ it('reads a namespace a declaration assigns to its export however the statement 
   await refreshDependencyLexicon(root);
   const names = readDependencyLexicon(root).lexicon?.entries.flatMap((entry) => entry.api.names?.map((name) => name.name) ?? []).sort();
   expect(names).toEqual(['Loose', 'Tight', 'relax', 'squeeze']);
+  const squeeze = readDependencyLexicon(root).lexicon?.entries.flatMap((entry) => entry.api.names ?? []).find((name) => name.name === 'squeeze');
+  expect(squeeze).toMatchObject({ kind: 'function', line: 3, signature: 'function squeeze(): boolean;' });
 });

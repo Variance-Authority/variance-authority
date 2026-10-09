@@ -80,8 +80,9 @@ impl<'l> Loads<'l> {
     }
 }
 
-/// `require` itself, or `module.require`.
-fn requires(callee: &Expression) -> bool {
+/// Whether a call's callee loads a module: `require` itself, or `module.require`.
+/// Every reader that asks what a require is asks this.
+pub(crate) fn requires(callee: &Expression) -> bool {
     match callee {
         Expression::Identifier(it) => it.name == "require",
         Expression::StaticMemberExpression(member) => {

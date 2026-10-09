@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use oxc_allocator::Allocator;
+use oxc_ast::ast::Program;
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 use oxc_syntax::module_record::{ExportExportName, ExportImportName, ImportImportName};
@@ -142,6 +143,12 @@ pub fn dialect(file: &str) -> Option<SourceType> {
 
 /// One module's `Parsed` value, from OXC's native module record.
 pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: bool) -> Read {
+    read_module_and_tree(file, source, allocator, symbols).0
+}
+
+/// [`read_module`]'s value and the tree it was read from, for a caller that asks
+/// the tree what the module record does not hold, so the file is parsed once.
+pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &'a Allocator, symbols: bool) -> (Read, Program<'a>) {
     let source_type = dialect(file).unwrap_or_else(SourceType::tsx);
     let parsed = Parser::new(allocator, source, source_type).parse();
     let record = &parsed.module_record;
@@ -302,7 +309,7 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
 
     let clean = !parsed.panicked && parsed.diagnostics.is_empty();
     let size = size_of(source, &parsed.program, source_type.is_typescript(), clean);
-    Read {
+    let read = Read {
         requests,
         exports,
         symbols: harvest.symbols,
@@ -312,7 +319,8 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         members,
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
         size: Some(size),
-    }
+    };
+    (read, parsed.program)
 }
 
 fn is_false(value: &bool) -> bool {
