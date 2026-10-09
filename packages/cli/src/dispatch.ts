@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import type { Config } from './config.js';
 import { loadConfig } from './config-load.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW, OperatorError, exitFor, type ExitCode } from './exit.js';
@@ -212,12 +212,13 @@ export async function dispatch(
       // so a shell that has one exported asks a live question with no flag — and
       // one that has not is told, by the question itself, what is missing.
       const at = parsed.at ?? process.env[VANTAGE_VARIABLE];
+      const reports = parsed.reports.map((path) => resolve(path));
       streams.out(
         await ask({
           ...parsed,
           ...(at === undefined ? {} : { at }),
           report: config.report,
-          read: () => reportsFor(parsed.reports, config), costs: () => costsSubject(config, parsed.reports),
+          read: () => reportsFor(reports, config), costs: () => costsSubject(config, reports),
         }),
       );
       // A reading is not a verdict. `report` and `adjudicate` are where a run is

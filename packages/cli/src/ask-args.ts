@@ -118,7 +118,12 @@ export interface ParsedAsk {
    * shape to give; `text` is the default and is never carried.
    */
   readonly format?: 'json';
-  /** Reports to read instead of the configured one. More than one is merged. */
+  /**
+   * The words after the question, as typed: reports to read instead of the
+   * configured one, more than one merged. Kept as typed so a question that
+   * reads no report can refuse the word somebody wrote; `dispatch` resolves
+   * them where it reads them.
+   */
   readonly reports: readonly string[];
 }
 
@@ -196,6 +201,6 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(offset !== undefined ? { offset } : {}),
     ...(at !== undefined ? { at } : {}),
     ...(format === 'json' ? { format } : {}),
-    reports: reports.map((path) => resolve(path)),
+    reports,
   };
 }
