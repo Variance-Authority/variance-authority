@@ -52,6 +52,11 @@ describe('a test composition as text', () => {
     ]);
   });
 
+  it('says when its pieces ran every region of its footprint', () => {
+    const covered = { ...composition, explained: 5, own: [], reached: [] };
+    expect(formatTestComposition(covered).split('\n').slice(-2)).toEqual(['', 'Its pieces ran all 5 regions: nothing is its alone.']);
+  });
+
   it('stops at the count when everything the test entered is structure', () => {
     const shared = { ...composition, test: test(5, 's.test.ts', 'setup one', 0), structure: 3, pieces: [], wholes: [], explained: 0, own: [], reached: [] };
     expect(formatTestComposition(shared)).toBe(

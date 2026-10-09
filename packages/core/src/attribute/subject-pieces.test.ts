@@ -59,6 +59,11 @@ describe('a subject read as the narrower subjects inside it', () => {
     expect([footer?.explained, footer?.own, footer?.inContext]).toEqual([1, [{ component: 'Footer', renderings: 1 }], []]);
   });
 
+  it('names subjects alike in the order the suite planned them, not by name', () => {
+    const third: SubjectComposition = { ...suite()[0]!, subject: 'chip third' };
+    expect(piecesOf([third, ...suite()]).get('chip')?.alike).toEqual(['chip third', 'chip again']);
+  });
+
   it('gives a subject that mounts only structure no footprint and nothing beside it', () => {
     const blank = piecesOf(suite()).get('blank');
     expect(blank).toEqual({ footprint: 0, structure: 1, alike: [], pieces: [], wholes: [], explained: 0, own: [], inContext: [] });
