@@ -62,3 +62,12 @@ it('names a case the same whether the run took every project or one', async () =
 
   expect(answer.tests?.map((covered) => covered.id)).toEqual([`|plain| ${test} > greets by name`]);
 }, 60_000);
+
+it('names a case by its project when another reporter replaced the seam\'s', async () => {
+  const answer = await coveringAfter(['--reporter', 'dot']);
+
+  expect(answer.tests?.map((covered) => covered.id).sort()).toEqual([
+    `|compiled| ${test} > greets by name`,
+    `|plain| ${test} > greets by name`,
+  ]);
+}, 60_000);

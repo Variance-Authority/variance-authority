@@ -15,7 +15,8 @@ run does. A repeated name inside one project is still numbered.
 
 When you upgrade: every case of a named Vitest project changes id once, on the
 first record after upgrading, and history joined by id restarts for those
-cases. Vitest names every project of a workspace or a `projects` list, from its
-`test.name`, its `package.json` name or its directory, and a single root config
-when it sets `test.name`. Only a single root config without `test.name` keeps
-its ids.
+cases. Vitest names each project of a workspace or a `projects` list from its
+`test.name`, its `package.json` name or its directory, and an inline project
+without one by its place in the list, so reordering such a list renames its
+cases. A root config is named only when it sets `test.name`; without it, its
+cases keep their ids.

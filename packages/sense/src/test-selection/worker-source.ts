@@ -334,7 +334,14 @@ export default class extends VitestTestRunner {
     const runnerSkipped = Boolean(this.config?.testNamePattern) || this.cancelRun === true;
     await writeFile(
       finished + '/' + process.pid + '-' + randomUUID() + '.json',
-      JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, ...tree(file) }))),
+      // The project the file ran under, which names its cases when no reporter
+      // of this seam's is there to hand it over.
+      JSON.stringify(files.map((file) => ({
+        filepath: file.filepath,
+        runnerSkipped,
+        ...(file.projectName ? { projectName: file.projectName } : {}),
+        ...tree(file),
+      }))),
     );
   }
 

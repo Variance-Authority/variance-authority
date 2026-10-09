@@ -1928,11 +1928,12 @@ positional id, which changes the moment a case is inserted above it. Two cases
 in one file may share a coordinate; the repeat is numbered, so the second reads
 `<coordinate>#1`. A case run by a named Vitest project carries the name, the
 way Vitest prints it: `|compiled| test/checkout.test.tsx > checkout > submits`.
-Vitest names every project of a workspace or a `projects` list, from its
-`test.name`, its `package.json` name or its directory, so a file two projects
-both match is two cases, and a run filtered with `--project` or split into
-shards names each the same as a full run. Only a single root project without
-`test.name` keeps the plain coordinate. Any other producer of an
+Vitest names each project of a workspace or a `projects` list from its
+`test.name`, its `package.json` name or its directory, and an inline project
+without one by its place in the list. So a file two projects both match is two
+cases, and a run filtered with `--project` or split into shards names each the
+same as a full run. A root config without `test.name` has no name and keeps
+the plain coordinate. Any other producer of an
 `ExecutionIndex` — and anything joining against one, such as an Eyes journal
 read by `variance distill` — has to key the same test by the same string.
 
