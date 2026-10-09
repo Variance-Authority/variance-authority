@@ -238,14 +238,15 @@ export function inCaseOrder<Case extends CaseCoordinate>(cases: Iterable<Case>):
  * index, and everything that joins a case by its id, numbers through here; the
  * native fold numbers with `CaseIds` in `case_id.rs`, in the same words.
  *
- * A case run by a named project carries that name, the one the configuration
- * wrote, as the runner prints it — `|compiled| test/a.test.ts > pays` — so a
- * file two projects both run is two cases, not a repeat. The name is the case's
- * own, never read from which other projects the run took: a run filtered to one
+ * A case run by a named project carries that name, as the runner prints it:
+ * `|compiled| test/a.test.ts > pays`. Vitest names every project of a
+ * workspace, from its config, its manifest or its directory, so a file two
+ * projects both run is two cases, not a repeat. The name is the case's own,
+ * never read from which other projects the run took: a run filtered to one
  * project, or a shard holding one copy, gives the copy the id a full run gives
- * it. A project the configuration left unnamed adds nothing. The number is left
- * for the repeats inside one project. The native fold is handed no project and
- * numbers such copies.
+ * it. A lone root config the runner names no project for adds nothing. The
+ * number is left for the repeats inside one project. The native fold is handed
+ * no project and numbers such copies.
  *
  * A suite whose second `pays` would take the id of a case named `pays#1` is
  * refused: one id cannot hold two cases' journeys.

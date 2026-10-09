@@ -13,7 +13,9 @@ reported for each case and spells the case by it, as Vitest prints it:
 so a run filtered with `--project`, or a shard, gives a case the same id a full
 run does. A repeated name inside one project is still numbered.
 
-When you upgrade: every case of a Vitest project your config names, including
-a single project with `test.name` set, changes id once, on the first record
-after upgrading, and history joined by id restarts for those cases. Cases of
-unnamed projects keep their ids.
+When you upgrade: every case of a named Vitest project changes id once, on the
+first record after upgrading, and history joined by id restarts for those
+cases. Vitest names every project of a workspace or a `projects` list, from its
+`test.name`, its `package.json` name or its directory, and a single root config
+when it sets `test.name`. Only a single root config without `test.name` keeps
+its ids.

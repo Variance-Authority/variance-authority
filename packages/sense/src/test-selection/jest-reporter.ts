@@ -225,6 +225,8 @@ class JestCoverageReporter {
     // In the record, with the coverage, in one write. A run that recorded no
     // case and finished no file has none to lay, and the record's cases stay
     // as they were.
+    // FIXME: no project is passed, so a file two Jest projects both run numbers
+    // its second copy `#1`, where a Vitest project's case carries `|project|`.
     const cases = caseDirectory === undefined
       ? undefined
       : await freshCases(caseDirectory, root, modules, {
