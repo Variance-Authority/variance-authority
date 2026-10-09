@@ -261,7 +261,7 @@ be requested anonymously.
 | `POST /review/builds/{id}/subjects/{subject}/decision` | review | `{"decision":"approved"\|"rejected","by":"…","note":"…"}` |
 | `GET /review/builds/{id}/subjects/{subject}/{before\|after\|diff}.png` | review | one image, immutable and cacheable |
 | `GET /review/changelog[?component&subject&since&limit]` | review or share | every approval, grouped by shape |
-| `GET /review/decisions[?build&subject&limit]` | review or share | every decision, newest first, reversals included: `{"decisions":[{"build","subject","decision","by","at","note"}]}`. `limit` defaults to 200 |
+| `GET /review/decisions[?build&subject&limit]` | review or share | every decision, newest first, reversals included: `{"decisions":[{"build","subject","decision","by","at","note"}]}`. Names `build`, `subject` or both; `limit` defaults to 200 and goes no higher |
 | `POST /review/sweep[?days=N]` | review | retention, below |
 | `GET /share/<mainline\|branch>/<line>/manifest.json` | ingest or share | the line's manifest, with its version as the `ETag`. 404 when nothing was published |
 | `PUT /share/<mainline\|branch>/<line>/manifest.json` | ingest | replace the manifest. With `If-Match: <ETag>` it replaces only that version, and with `If-None-Match: *` only when there is none. A stale version answers 412, and a write with neither header answers 428 |
@@ -399,7 +399,9 @@ query parameters, and answers the review token and the share token.
 
 `decisions` is the history under the approvals: every decision recorded,
 rejections and reversals included, newest first. It takes `build`, `subject` and
-`limit` (default 200), and `GET /review/decisions` takes the same three.
+`limit` (default 200), and `GET /review/decisions` takes the same three. The route
+refuses a reading that names neither a build nor a subject, and a `limit` above
+200, with 400.
 
 **One row is written per approval, and its columns are copies, not a join.** The
 regions, the commit, the intent and the reviewer are frozen at the moment of

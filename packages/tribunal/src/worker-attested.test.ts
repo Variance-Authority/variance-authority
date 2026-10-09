@@ -138,15 +138,26 @@ describe('the share token reads what review settled', () => {
         .decisions.map((entry) => `${entry.build} ${entry.subject}`);
     expect(await read('build=ci-1')).toEqual(['ci-1 story:b', 'ci-1 story:a', 'ci-1 story:a']);
     expect(await read('build=ci-1&subject=story:b')).toEqual(['ci-1 story:b']);
-    expect(await read('limit=2')).toEqual(['ci-2 story:a', 'ci-1 story:b']);
+    expect(await read('subject=story:a&limit=2')).toEqual(['ci-2 story:a', 'ci-1 story:a']);
     expect(await read('subject=story:none')).toEqual([]);
+  });
+
+  it('refuses a history that names neither a build nor a subject, and a count past the most it reads', async () => {
+    variancePrecondition({ token: 'share' });
+    await decided();
+    const unnarrowed = await call('/review/decisions?limit=2', SHARE);
+    expect(unnarrowed.status).toBe(400);
+    expect(await unnarrowed.text()).toMatch(/names a `build`, a `subject` or both/);
+    const unbounded = await call('/review/decisions?subject=story:a&limit=201', SHARE);
+    expect(unbounded.status).toBe(400);
+    expect(await unbounded.text()).toMatch(/reads at most 200 decisions/);
   });
 
   it('is served the same history the review token reads', async () => {
     variancePrecondition({ token: 'review' });
     await decided();
-    const shared = await (await call('/review/decisions', SHARE)).json();
-    const reviewed = await call('/review/decisions', REVIEW);
+    const shared = await (await call('/review/decisions?subject=story:a', SHARE)).json();
+    const reviewed = await call('/review/decisions?subject=story:a', REVIEW);
     expect(reviewed.status).toBe(200);
     expect(await reviewed.json()).toEqual(shared);
   });

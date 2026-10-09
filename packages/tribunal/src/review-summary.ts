@@ -244,7 +244,8 @@ function decisionOf(row: Row): DecisionRecord {
   };
 }
 
-const DECISIONS_LIMIT = 200;
+/** How many decisions one reading returns unless it asks for fewer, and the most it may ask for. */
+export const DECISIONS_LIMIT = 200;
 
 /**
  * Every decision the query names, newest first, reversals included.

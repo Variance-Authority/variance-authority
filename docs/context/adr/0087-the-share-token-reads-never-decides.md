@@ -36,6 +36,9 @@ the token a developer's machine reads a share with.
   and nothing that writes.
 - A route that writes a decision or a concern keeps `requires(granted,
   'review')`, so the share token reaching it is a 403, as before.
+- `GET /review/decisions` names a build, a subject or both, and reads at most
+  200 decisions. A token that sits on laptops and in agents does not page
+  through a project's whole review history with one request.
 - The read routes check the token before the method, so a share token sending a
   `POST` to them gets 405: the path is one it may read, and the method is one no
   token may use there.
@@ -64,7 +67,11 @@ against a deployment at 3 gets a 403 or a 404 and has to say why.
   to loopback, which grants `review` to a request with no token: an agent on that
   machine decides by sending none, as it could before.
 - A share token handed out before API 4 reads reviewer names and notes once the
-  deployment is redeployed. Whoever runs it decides whether that holder should.
+  deployment is redeployed. There is no setting to withhold it; an operator who
+  does not want an existing holder to read them rotates the share token first.
+- Only a share stored at the deployment supplies the token that reads it. A
+  project whose share is kept in S3 or on disk, with its baselines on a
+  Tribunal, reads nothing here until it moves its share to the deployment.
 - `variance changelog --since` takes an instant against a remote store, and a
   revision against a git store, because a deployment records when, not which
   commit.

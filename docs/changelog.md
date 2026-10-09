@@ -221,8 +221,8 @@ note: read from https://variance.example.com, which recorded these approvals whe
 Each change prints its [shape](#in-a-repository-the-commit-message) — the
 fingerprint that groups one change across many subjects — the component and its
 file, how many subjects it approved, when, in which builds and by whom, then the intent and the note the
-reviewer wrote. `--component`, `--subject` and `--limit` work as they do on a
-repository. `--since` takes an instant rather than a revision, because the
+reviewer wrote. `--component` and `--subject` narrow it as they do on a
+repository, and `--limit` caps how many approvals are read rather than commits. `--since` takes an instant rather than a revision, because the
 deployment records when a subject was approved, not at which commit.
 
 `GET /review/changelog` answers the share token and the review token. It

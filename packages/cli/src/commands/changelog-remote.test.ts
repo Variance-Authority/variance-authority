@@ -44,7 +44,6 @@ const CHANGELOG: RemoteChangelog = {
       commit: 'abc123def4567890',
       by: 'anton',
       at: '2026-06-01T10:00:00.000Z',
-      regions: [],
     },
   ],
 };
