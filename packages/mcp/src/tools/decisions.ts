@@ -48,6 +48,9 @@ export interface DecisionsQuery {
 
 const DEFAULT_LIMIT = 20;
 
+/** The most decisions a deployment reads in one request; it refuses a larger `limit`. */
+const MAX_LIMIT = 200;
+
 /**
  * The call's input, read once: the host fetches the window this names, and the
  * answer narrows to the same window, so the two cannot disagree about what was
@@ -66,8 +69,13 @@ export function decisionsQuery(input: Readonly<Record<string, unknown>>): Decisi
     );
   }
   const limit = input['limit'];
-  if (limit !== undefined && (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1)) {
-    throw new Error('`limit` must be a whole number of at least 1');
+  if (
+    limit !== undefined &&
+    (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > MAX_LIMIT)
+  ) {
+    throw new Error(
+      `\`limit\` must be a whole number from 1 to ${String(MAX_LIMIT)}: a deployment reads no more at once; narrow by \`subject\` and \`build\` instead`,
+    );
   }
   return {
     ...(subject === undefined ? {} : { subject }),
@@ -92,7 +100,8 @@ export const decisions: Tool<ReviewSubject> = {
       limit: {
         type: 'integer',
         minimum: 1,
-        description: `Optional. How many decisions to list, newest first; ${String(DEFAULT_LIMIT)} by default.`,
+        maximum: MAX_LIMIT,
+        description: `Optional. How many decisions to list, newest first; ${String(DEFAULT_LIMIT)} by default, ${String(MAX_LIMIT)} at most.`,
       },
     },
     additionalProperties: false,
@@ -123,7 +132,11 @@ export const decisions: Tool<ReviewSubject> = {
       );
     }
     if (read.length === query.limit) {
-      lines.push(`  the newest ${String(query.limit)} are listed and the history may hold more; \`limit\` reads further back`);
+      lines.push(
+        query.limit < MAX_LIMIT
+          ? `  the newest ${String(query.limit)} are listed and the history may hold more; \`limit\` reads further back`
+          : `  the newest ${String(query.limit)} are listed and the history may hold more; \`subject\` and \`build\` narrow it`,
+      );
     }
     return lines.join('\n');
   },

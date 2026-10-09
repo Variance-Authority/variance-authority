@@ -79,7 +79,14 @@ describe('variance_decisions', () => {
       build: 'ci-1',
       limit: 3,
     });
-    expect(() => decisionsQuery({ build: 'ci-1', limit: 0 })).toThrow(/at least 1/);
+    expect(() => decisionsQuery({ build: 'ci-1', limit: 0 })).toThrow(/from 1 to 200/);
     expect(() => decisionsQuery({ subject: 7 })).toThrow(/subject/);
+  });
+
+  it('refuses a limit past the 200 a deployment reads at once, before asking it', () => {
+    expect(() => decisionsQuery({ build: 'ci-1', limit: 201 })).toThrow(
+      /from 1 to 200: a deployment reads no more at once; narrow by `subject` and `build`/,
+    );
+    expect(decisions.inputSchema['properties']).toMatchObject({ limit: { minimum: 1, maximum: 200 } });
   });
 });

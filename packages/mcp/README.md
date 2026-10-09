@@ -378,7 +378,7 @@ console.log(costs.run({
 `variance_decisions` answers from the review deployment's record: every
 approval and rejection, newest first, with the build, the subject, who decided
 and the note they left. A call names a `subject`, a `build` or both, and one
-that names neither is refused; `limit` is 20 unless you set it. A subject rejected and then approved is two rows, because
+that names neither is refused; `limit` is 20 unless you set it, and 200 at most. A subject rejected and then approved is two rows, because
 the rejection's note is often the only place the reason is written; the earlier
 row for the same build and subject is marked `(replaced)`, so the first row for
 a pair is the one that stands. `REVIEW_TOOLS` holds it, and its subject is a
