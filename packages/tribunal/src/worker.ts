@@ -50,7 +50,13 @@ import {
   asRecordRequest,
   windowOf,
 } from './worker-input.js';
-import { CHANGELOG_PATH, createAttestedRoutes, type AttestedRoute } from './worker-attested.js';
+import {
+  ATTESTED_PATHS,
+  CHANGELOG_PATH,
+  DECISIONS_PATH,
+  createAttestedRoutes,
+  type AttestedRoute,
+} from './worker-attested.js';
 import { SHARE_PREFIX, createShareRoutes, type ShareRoute } from './worker-share.js';
 
 /**
@@ -79,9 +85,11 @@ import { SHARE_PREFIX, createShareRoutes, type ShareRoute } from './worker-share
  * and one secret doing both means anything that can read a CI log can approve a
  * regression.
  *
- * `share` is optional and reads the share and nothing else: it is for a reader
- * that should have a run's derived record and no more, such as a developer's
- * machine, and would otherwise be handed the ingest token to get it.
+ * `share` is optional, reads, and never decides: the share, and what review
+ * settled — the changelog and the decision history. It is for a reader that
+ * should have a run's derived record and the verdicts on it and no more, such as
+ * a developer's machine or an agent, and would otherwise be handed a token that
+ * can write or approve to get them.
  *
  * No two may be equal, and construction refuses it. A deployment that set two to
  * the same value would satisfy every check in this file while having one secret
@@ -103,7 +111,8 @@ import { SHARE_PREFIX, createShareRoutes, type ShareRoute } from './worker-share
  *
  * The token comparison and the capability rule are in
  * [`worker-auth.ts`](./worker-auth.ts), the share in
- * [`worker-share.ts`](./worker-share.ts); the refusals and the readers every route
+ * [`worker-share.ts`](./worker-share.ts), the reads of what review settled in
+ * [`worker-attested.ts`](./worker-attested.ts); the refusals and the readers every route
  * validates in are in [`worker-http.ts`](./worker-http.ts) and
  * [`worker-input.ts`](./worker-input.ts). What is left here is the composition and
  * the routing table, which is the part an operator has to read.
@@ -117,8 +126,9 @@ export interface TribunalOptions extends TribunalBindings {
   /** Held by people. Reads the review surface and decides. At least 16 characters. */
   readonly reviewToken: string;
   /**
-   * Handed to machines that only read the share under `/share/`. At least 16
-   * characters when set; unset, only the ingest token opens the share.
+   * Handed to machines that only read: the share under `/share/`, the changelog
+   * and the decision history. It never decides. At least 16 characters when set;
+   * unset, only the ingest token opens the share.
    */
   readonly shareToken?: string;
   /**
@@ -407,7 +417,7 @@ async function route(
     return json(200, { builds: await surfaces.review.builds(limit === undefined ? undefined : count(limit)) });
   }
 
-  if (path === CHANGELOG_PATH) return surfaces.attested(granted, url, request);
+  if (ATTESTED_PATHS.has(path)) return surfaces.attested(granted, url, request);
 
   if (path === '/review/sweep') {
     requires(granted, 'review', path);
@@ -473,7 +483,8 @@ async function route(
       `${CACHE_FIND_PATH}, ${CACHE_PUT_PATH}), the history routes (${OBSERVATIONS_PATH}, ` +
       `${APPROVALS_PATH}, ${CURRENT_PATH}, ${LAST_CHANGED_PATH}, ${CHURN_PATH}, ` +
       `${FLAKINESS_PATH}, ${VALUE_JOURNEY_PATH}, ${REACH_PATH}), /review/builds, /review/have, ` +
-      `${CHANGELOG_PATH} and the share under ${SHARE_PREFIX}. ${VERSION_PATH} says which API ` +
+      `${CHANGELOG_PATH}, ${DECISIONS_PATH} and the share under ${SHARE_PREFIX}. ` +
+      `${VERSION_PATH} says which API ` +
       'version this is: a path from a different one is a client and a service that disagree ' +
       'about a recorded shape',
   });

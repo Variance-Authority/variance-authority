@@ -109,7 +109,7 @@ add `baselines` beside it:
 | `VARIANCE_TRIBUNAL_PROJECT` | required | scopes every row and every object key, so one deployment serves several repositories without their `story:card` colliding. There is no default: an invented one puts two projects' baselines in one namespace and the first symptom is a mass `changed` |
 | `VARIANCE_TRIBUNAL_INGEST_TOKEN` | required | written into CI. Writes builds, baselines and history. 16 characters or more |
 | `VARIANCE_TRIBUNAL_REVIEW_TOKEN` | required | given to people. Reads the review surface and decides. 16 characters or more, and not the ingest token |
-| `VARIANCE_TRIBUNAL_SHARE_TOKEN` | unset | given to machines that read the share and write nothing. 16 characters or more, and neither of the other two. Unset, only the ingest token opens the share |
+| `VARIANCE_TRIBUNAL_SHARE_TOKEN` | unset | given to machines that read and never decide: the share, the changelog and the decision history. 16 characters or more, and neither of the other two. Unset, only the ingest token opens the share |
 | `VARIANCE_TRIBUNAL_PORT` | `7789` | a whole number from 0 to 65535, or the process refuses to start |
 | `VARIANCE_TRIBUNAL_HOST` | `127.0.0.1` | the bind address. Any address other machines can connect to also needs `VARIANCE_TRIBUNAL_TRUST_NETWORK` |
 | `VARIANCE_TRIBUNAL_DB` | `variance-tribunal.db` | the SQLite file. Created and migrated on start; the startup line prints its absolute path and its schema version |
@@ -217,7 +217,7 @@ reads four names plus three optional ones:
 | `BUCKET` | binding | R2. Baseline and candidate bytes, and the share; never a row |
 | `INGEST_TOKEN` | secret | written into CI. Writes builds, baselines and history. 16 characters or more |
 | `REVIEW_TOKEN` | secret | given to people. Reads the review surface and decides. 16 characters or more |
-| `SHARE_TOKEN` | secret, optional | given to machines that read the share and write nothing. 16 characters or more |
+| `SHARE_TOKEN` | secret, optional | given to machines that read and never decide: the share, the changelog and the decision history. 16 characters or more |
 | `PROJECT` | var, default `default` | scopes every row and object |
 | `RETENTION_DAYS` | var, default `30` | days of builds `POST /review/sweep` keeps. A value that is not a positive finite number falls back instead of sweeping everything |
 
@@ -241,7 +241,7 @@ be requested anonymously.
 
 | method and path | token | what it does |
 |---|---|---|
-| `GET /version` | any | `{"service":"variance-authority-tribunal","api":3,"schema":18}` |
+| `GET /version` | any | `{"service":"variance-authority-tribunal","api":4,"schema":18}` |
 | `POST /baseline/find` | ingest | the approved image for a key, bytes and all |
 | `POST /baseline/describe` | ingest | the same lookup without moving the image |
 | `POST /baseline/put` | ingest | store an approved image |
@@ -260,7 +260,8 @@ be requested anonymously.
 | `GET /review/builds/{id}` | review | one build: its subjects, their verdicts, their regions, the docket |
 | `POST /review/builds/{id}/subjects/{subject}/decision` | review | `{"decision":"approved"\|"rejected","by":"…","note":"…"}` |
 | `GET /review/builds/{id}/subjects/{subject}/{before\|after\|diff}.png` | review | one image, immutable and cacheable |
-| `GET /review/changelog[?component&subject&since&limit]` | review | every approval, grouped by shape |
+| `GET /review/changelog[?component&subject&since&limit]` | review or share | every approval, grouped by shape |
+| `GET /review/decisions[?build&subject&limit]` | review or share | every decision, newest first, reversals included: `{"decisions":[{"build","subject","decision","by","at","note"}]}`. `limit` defaults to 200 |
 | `POST /review/sweep[?days=N]` | review | retention, below |
 | `GET /share/<mainline\|branch>/<line>/manifest.json` | ingest or share | the line's manifest, with its version as the `ETag`. 404 when nothing was published |
 | `PUT /share/<mainline\|branch>/<line>/manifest.json` | ingest | replace the manifest. With `If-Match: <ETag>` it replaces only that version, and with `If-None-Match: *` only when there is none. A stale version answers 412, and a write with neither header answers 428 |
@@ -299,15 +300,22 @@ configuration serves every machine and only the variable's value differs:
 - **On a machine that only reads what CI published**, such as a laptop running
   `variance ask` or `variance serve`, set it to the share token: the value of
   `VARIANCE_TRIBUNAL_SHARE_TOKEN` on the Node deployment, or of `SHARE_TOKEN`
-  on Cloudflare. With the share token a machine reads `/share/`, and
-  `GET /version` answers it as it answers every token. Every other route
-  answers 403 before it checks the method, so the machine cannot push a build
-  or decide one. A path this deployment does not serve answers 404, as it does
+  on Cloudflare. With the share token a machine reads `/share/`,
+  `GET /review/changelog` and `GET /review/decisions`, and `GET /version`
+  answers it as it answers every token. Every other route answers 403 before
+  it checks the method, so the machine cannot push a build or decide one. A path this deployment does not serve answers 404, as it does
   for every token. A path under `/share/` that is not a line's manifest, one
   of its entries or an image answers 400 and names the three it could be.
 
 The review token is refused under `/share/`, because it is held by people and by
 the browser drawing the review page.
+
+**What review settled is read with the review or the share token, never the
+ingest token.** The changelog and the decision history are what an agent or a
+developer's machine asks after the fact: was this subject approved, by whom, and
+why. Give that reader the share token, which reads them and cannot decide. The
+ingest token is refused both, because CI holds it, and a build log has no reason
+to read reviews.
 
 Two writers publishing to one line do not lose each other's entries. Each writes
 the manifest against the version it read, the one that lost answers 412, and
@@ -387,7 +395,11 @@ changes[0]?.builds;    // where the approvals came from
 
 `changelog` takes `component` (substring, case-insensitive), `subject` (exact),
 `since` (ISO 8601) and `limit` (default 500). The route takes the same four as
-query parameters.
+query parameters, and answers the review token and the share token.
+
+`decisions` is the history under the approvals: every decision recorded,
+rejections and reversals included, newest first. It takes `build`, `subject` and
+`limit` (default 200), and `GET /review/decisions` takes the same three.
 
 **One row is written per approval, and its columns are copies, not a join.** The
 regions, the commit, the intent and the reviewer are frozen at the moment of
@@ -458,7 +470,7 @@ export default {
 | `project` | required | scopes every row and every object key. There is no default, for the reason given above |
 | `ingestToken` | required | written into CI. Writes builds, baselines and history. 16 characters or more |
 | `reviewToken` | required | given to people. Reads the review surface and decides. 16 characters or more, and not the same string as `ingestToken` |
-| `shareToken` | unset | given to machines that read the share and write nothing. 16 characters or more, and neither of the other two. Unset, only `ingestToken` opens `/share/` |
+| `shareToken` | unset | given to machines that read and never decide: the share, the changelog and the decision history. 16 characters or more, and neither of the other two. Unset, only `ingestToken` opens `/share/` |
 | `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied on request, not on a timer — a Worker has no timer, and this package will not invent a cron you did not ask for. Wire it to a scheduled trigger, call it from a CI job, or never |
 | `now` | the wall clock | supplies every recorded `at`; override it when the deployment has its own clock source |
 
@@ -616,8 +628,8 @@ looked, `[]` means inspected and clean. The same distinction applies to findings
 
 **Two tokens, and they may not be equal.** The ingest token lives in CI
 configuration and writes builds, baselines, history and the share; the review
-token belongs to people and decides. An optional share token only reads the
-share. Construction refuses a token under 16 characters and refuses any two that
+token belongs to people and decides. An optional share token reads the share,
+the changelog and the decision history, and never decides. Construction refuses a token under 16 characters and refuses any two that
 are identical.
 
 **Which token a route requires is only revealed to a caller who already has

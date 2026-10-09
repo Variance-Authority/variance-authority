@@ -40,13 +40,16 @@ import { SCHEMA_VERSION } from './schema.js';
  *   the digest a later run asks for.
  * - **3** — the share under `/share/`, so an `http` share may use a deployment as
  *   its store, and the optional share token that only reads it.
+ * - **4** — `GET /review/decisions`, the decision history, newest first; the
+ *   share token reads it and `GET /review/changelog`, and the ingest token reads
+ *   neither.
  *
  * A client that speaks 2 against a service that speaks 1 works, slowly and with
  * that identity caveat. A client that speaks 1 against a service that speaks 2
  * works, and sends more than it needs to. Neither is an error; both are worth a
  * line on the way past.
  */
-export const TRIBUNAL_API = 3;
+export const TRIBUNAL_API = 4;
 
 export const VERSION_PATH = '/version';
 

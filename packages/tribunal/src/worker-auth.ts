@@ -123,8 +123,9 @@ export function refuseWeakTokens(secrets: Secrets): void {
 
 /** Why the share token was refused, whatever else the route wanted. */
 const SHARE_ONLY =
-  'The share token reads the lines under /share/ and nothing else, so a machine that only ' +
-  'reads a shared record cannot write to this deployment or decide on a build';
+  'The share token reads the lines under /share/ and what review settled — the changelog and ' +
+  'the decision history — and never decides, so a machine that only reads cannot write to ' +
+  'this deployment or decide on a build';
 
 export function requires(granted: Granted, needed: Granted, path: string): void {
   if (granted === needed) return;
@@ -155,6 +156,26 @@ export function requires(granted: Granted, needed: Granted, path: string): void 
  */
 export function readable(granted: Granted, path: string): void {
   if (granted !== 'ingest') requires(granted, 'review', path);
+}
+
+/**
+ * Who may read what review settled: the review token and the share token.
+ *
+ * The record of decisions is what an agent or a developer's machine asks after
+ * the fact — was this subject approved, by whom, and why — and those readers
+ * hold the share token, which cannot decide. The review token reads it because
+ * it wrote it. The ingest token is refused: CI holds it, and a build log is not
+ * a reader of reviews, so the token most likely to leak gains nothing here.
+ *
+ * Only reads pass through this rule. A route that writes a decision or a concern
+ * keeps {@link requires} with `review`, so the share token still never decides.
+ */
+export function attested(granted: Granted, path: string): void {
+  if (granted === 'review' || granted === 'share') return;
+  throw new Forbidden(
+    `${path} is read with the review token or the share token, and this request presented the ` +
+      'ingest one. CI holds the ingest token, and what reviewers decided is not for a build log to read',
+  );
 }
 
 /**

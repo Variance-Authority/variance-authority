@@ -14,7 +14,7 @@ import type { Capability } from '../next.js';
  * `variance-authority-tribunal` — the thing the operator runs.
  *
  * A process, a port, a file, a directory and two tokens, or three when something
- * only reads the share. The same review
+ * only reads — the share and what review settled. The same review
  * service a Cloudflare deployment serves, with SQLite where D1 was and a
  * directory where R2 was; every route, every refusal and every status code is
  * the same code.
@@ -71,7 +71,10 @@ export interface TribunalConfig {
   readonly project: string;
   readonly ingestToken: string;
   readonly reviewToken: string;
-  /** Reads the share and nothing else. Absent when the variable is unset. */
+  /**
+   * Reads the share, the changelog and the decision history, and never decides.
+   * Absent when the variable is unset.
+   */
   readonly shareToken?: string;
   readonly retentionDays?: number;
   readonly reviewer: string;
@@ -164,8 +167,8 @@ export function readConfig(env: Readonly<Record<string, string | undefined>>): T
  * Three rules, in order:
  *
  * 1. **A caller holding a token gets what the token is for.** CI posts with the
- *    ingest token from wherever CI runs, and a machine that only reads the share
- *    presents the share token. The mount replaces the header before the
+ *    ingest token from wherever CI runs, and a machine that only reads — the
+ *    share, the changelog, the decision history — presents the share token. The mount replaces the header before the
  *    Worker sees it, so this is the only place the caller's own bearer is read.
  * 2. **On a loopback bind, a caller with no token reviews.** The socket is the
  *    gate: only this machine can reach it, and the person at this machine is the
@@ -255,7 +258,7 @@ export async function start(
           : `not served: ${HOST_VARIABLE} is a network address. The JSON API is up and wants a bearer token`
       }\n` +
       `  auth:     bearer tokens from ${INGEST_TOKEN_VARIABLE} and ${REVIEW_TOKEN_VARIABLE}` +
-      (config.shareToken === undefined ? '' : `, and a share reader's from ${SHARE_TOKEN_VARIABLE}`) +
+      (config.shareToken === undefined ? '' : `, and a reader's from ${SHARE_TOKEN_VARIABLE}`) +
       '\n',
   );
 
@@ -339,7 +342,7 @@ const VARIABLES: readonly (readonly [string, string])[] = [
   [PROJECT_VARIABLE, 'required — scopes every row and every object key'],
   [INGEST_TOKEN_VARIABLE, 'required — what CI pushes with'],
   [REVIEW_TOKEN_VARIABLE, 'required — what a person decides with'],
-  [SHARE_TOKEN_VARIABLE, 'optional — what a machine reads the share with'],
+  [SHARE_TOKEN_VARIABLE, 'optional — what a machine reads the share, the changelog and the decisions with; it never decides'],
   [DATABASE_VARIABLE, `the SQLite file (default ${DEFAULT_DATABASE})`],
   [STORAGE_VARIABLE, `where images are kept (default ${DEFAULT_STORAGE})`],
   [PORT_VARIABLE, `default ${DEFAULT_PORT}`],
