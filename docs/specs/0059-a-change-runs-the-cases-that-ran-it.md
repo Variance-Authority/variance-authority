@@ -118,8 +118,11 @@ export function withLogging(fn, label) {
 // src/greet.ts
 function greet(name) { return `hi ${name}`; }
 export const loudGreet = withLogging(greet, 'greet');
-// test/greet.case.ts: `greets first` and `greets again` call loudGreet;
-// `greets nobody` does not.
+// test/greet.case.ts
+import { loudGreet } from '../src/greet';    // inline: a lazy require, run at the first read of loudGreet
+it('greets first', () => { expect(loudGreet('a')).toBe('[greet] hi a'); });
+it('greets again', () => { expect(loudGreet('b')).toBe('[greet] hi b'); });
+it('greets nobody', () => { expect(true).toBe(true); });
 ```
 
 Under inline requires, `greets first` is where both modules evaluate:
@@ -138,23 +141,23 @@ sequenceDiagram
     K->>L: open the case's bucket and switch to it
     K->>C: run the body
     C->>G: reads loudGreet, so the lazy require evaluates greet.ts
-    G->>L: e(), depth 1; greet.ts root logged evaluating
+    G->>L: e() to depth 1, then greet.ts root logged evaluating
     G->>W: reads withLogging, so with-logging.ts evaluates
-    W->>L: e(), depth 2; with-logging.ts root logged evaluating
-    W->>L: x(), depth 1
+    W->>L: e() to depth 2, then with-logging.ts root logged evaluating
+    W->>L: x() to depth 1
     G->>W: withLogging(greet, 'greet')
     W->>L: withLogging logged evaluating
-    G->>L: x(), depth 0
+    G->>L: x() to depth 0
     C->>W: loudGreet('a') calls the arrow
-    W->>L: with-logging.ts root logged again, plain; the arrow, plain
+    W->>L: with-logging.ts root logged again plain, then the arrow plain
     W->>G: the arrow calls greet
-    G->>L: greet.ts root logged again, plain; greet, plain
+    G->>L: greet.ts root logged again plain, then greet plain
     K->>L: the body settles: close and read the bucket out
     L-->>R: a frame: per module, row 1, and row 2 if any ordinal went both ways
-    Note over L,R: row 1: every ordinal; those entered evaluating are marked shared<br/>row 2: the ordinals also entered plain, none shared
+    Note over L,R: row 1: every ordinal, those entered evaluating marked shared<br/>row 2: the ordinals also entered plain, none shared
     R->>X: shared ordinals mark their regions loaded and credit no case
     R->>X: every other ordinal credits greets first
-    Note over X: after every case closed<br/>with-logging.ts root: loaded; greets first, greets again<br/>withLogging: loaded; no case<br/>the arrow: greets first, greets again
+    Note over X: after every case closed<br/>with-logging.ts root: loaded, greets first, greets again<br/>withLogging: loaded, no case<br/>the arrow: greets first, greets again
 ```
 
 Under an eager load, the requires are hoisted, so both modules evaluate in the
