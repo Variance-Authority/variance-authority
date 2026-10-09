@@ -44,6 +44,7 @@ export {
   type Route,
 } from './route.js';
 export { DeclarationsPanel } from './declarations.js';
+export { ConcernTallyLine, ConcernTrail, Concerns, useConcernTally } from './concerns.js';
 export { Settled, needsReview } from './settled.js';
 export {
   ReviewRequestError,
