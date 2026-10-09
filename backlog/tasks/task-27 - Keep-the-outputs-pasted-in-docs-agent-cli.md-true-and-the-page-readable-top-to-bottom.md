@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-09 08:41'
+updated_date: '2026-10-09 08:48'
 labels:
   - docs
 dependencies: []
@@ -23,5 +24,5 @@ ordinal: 56000
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 A check fails when an output block pasted in docs/agent-cli.md no longer matches what the CLI prints for examples/agent-claim
-- [ ] #2 A cold content-flow read of the whole page, as an engineer with a finished run asking how to go from the summary to adjudicating a claim, reaches adjudicate without stalling
+- [ ] #2 The content-flow reviewer, given the whole page cold with the reader "an engineer with a finished run" and the question "how do I go from the summary to adjudicating a claim", answers with the summary, claims-file and adjudicate steps in order and names no point where it lost the thread
 <!-- AC:END -->
