@@ -49,7 +49,7 @@ stderr line counts the cut: `selected 2 of 3, skipping 3 cases in 2 of them`.
 
 **The grain is chosen, and the gate keeps the file.** File grain is the
 default. `VARIANCE_AUTHORITY_GRAIN=case` asks for cases, and any value other
-than `file` or `case` fails the run. `yarn verify` sets the file grain.
+than `file` or `case` fails the run. The verify waves set the file grain.
 
 ## What would discharge it
 
@@ -85,6 +85,12 @@ ran.
 **Parameterized cases.** `it.each` cases have their names formatted before
 they run. Each formatted name is recorded as its own case and is selected by
 that name. Nothing reconstructs the table.
+
+**Cases that depend on each other.** The cut reads each case's own reach. A
+case that reads state an earlier case left, a memoized result or a variable
+its `describe` shares, never entered the changed region and is skipped. The
+case record cannot see such a dependency, and the file grain is the answer for
+a file whose cases depend on their order.
 
 **Cases that overlap in time.** Concurrent cases are attributed through async
 context. A continuation that outlives its case is the case the record refuses to

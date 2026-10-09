@@ -129,7 +129,14 @@ runs whole when the record cannot say which of its cases your edit reached:
   the test file, which every case of the file waits on.
 
 Within a file that is cut, a case that shares its full name with a case your
-edit reached runs too, because the runner skips by name. Playwright and Rstest
+edit reached runs too, because the runner skips by name.
+
+The cut reads each case's own reach, so it trusts the cases of a file not to
+depend on each other. A case that reads what an earlier case left, such as a
+memoized result or a variable its `describe` shares, is skipped when it entered
+nothing your edit changed, though the value it reads did change. Skipping a
+case that sets up a later one fails the later one instead. Where the cases of
+a file depend on their order, run it at file grain. Playwright and Rstest
 run every selected file whole, and watch mode does not select at either grain.
 File grain is the default, and `VARIANCE_AUTHORITY_GRAIN=file` names it.
 

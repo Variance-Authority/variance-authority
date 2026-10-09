@@ -140,6 +140,15 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
   before you call the change done.
 - **Do not put paths on the command line.** The configuration drops the files
   itself; `variance select --format vitest|jest` is deprecated.
+- **Skip cases, too, under Jest and Vitest.** `VARIANCE_AUTHORITY_GRAIN=case`
+  also skips the cases of each selected file that entered none of the changed
+  regions; the first stderr line then ends `skipping N cases in K of them`. A
+  file runs whole whenever the record cannot say which cases the edit reached,
+  and a cut file runs whole on the next run. A case that reads state an earlier
+  case of its file left, such as a memoized result or a variable its `describe`
+  shares, is skipped when it entered nothing changed itself: where cases depend
+  on each other's order, keep the default, `VARIANCE_AUTHORITY_GRAIN=file`,
+  before you call the edit verified.
 
 ## Use the repository's own entry point if it has one
 
