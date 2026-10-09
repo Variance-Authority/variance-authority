@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { BuildDetail, SubjectView } from '../review-types.js';
 import { ChangePanel } from './change.js';
 import { createReviewClient } from './client.js';
+import { BuildPage } from './docket.js';
 import { originsOf } from './grouping.js';
 import { SubjectPanel } from './subject.js';
 
@@ -98,9 +99,9 @@ function render(view: SubjectView): void {
   });
 }
 
-/** The change page for a build holding this one subject. */
-function renderChange(view: SubjectView): void {
-  const detail = {
+/** A build holding this one subject. */
+function detailOf(view: SubjectView): BuildDetail {
+  return {
     project: 'snkr-shop',
     build: 'ci-1',
     commit: 'abc1234',
@@ -119,7 +120,14 @@ function renderChange(view: SubjectView): void {
     causes: [],
     variations: [],
     reach: null,
+    journeys: null,
+    previous: null,
   } as unknown as BuildDetail;
+}
+
+/** The change page for a build holding this one subject. */
+function renderChange(view: SubjectView): void {
+  const detail = detailOf(view);
   const origin = originsOf(detail).origins[0];
   if (origin === undefined) throw new Error('this build holds no change to draw');
 
@@ -227,6 +235,41 @@ describe('a decision about a baseline that moved, taken on the subject panel', (
 
     await act(async () => reloaded());
     expect(button('Approve').disabled).toBe(false);
+  });
+
+  it('leaves a reload that could not read the build to the page, with its retry', async () => {
+    // The page's own reload reports a failure and never rejects: the build page
+    // says it and offers a retry in place of the panel, so no button is left
+    // holding the version that was refused.
+    let reads = 0;
+    const client = createReviewClient({
+      endpoint: '/api',
+      fetch: async (input, init) => {
+        const url = String(input);
+        if (url.endsWith('/decision')) return fetchThat(input, init);
+        if (!url.endsWith('/review/builds/ci-1')) return pending;
+        reads += 1;
+        return reads === 1 ? new Response(JSON.stringify(detailOf(subject()))) : new Response('down', { status: 502 });
+      },
+    });
+    await act(async () => {
+      root.render(
+        <BuildPage
+          client={client}
+          reviewer="marina"
+          route={{ page: 'subject', build: 'ci-1', subject: 'story:card' }}
+          go={() => undefined}
+        />,
+      );
+    });
+
+    await act(async () => button('Approve').click());
+    await act(async () => button('Reload this subject').click());
+
+    expect(reads).toBe(2);
+    expect(said()).toContain('answered 502');
+    expect(button('retry').disabled).toBe(false);
+    expect([...host.querySelectorAll('button')].map((each) => each.textContent)).not.toContain('Approve');
   });
 
   it('takes no second decision until a landed one has been read back', async () => {

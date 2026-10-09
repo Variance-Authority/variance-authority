@@ -81,6 +81,11 @@ export function ChangePanel({
   /** Every component with a change page on this build, so a link goes somewhere. */
   readonly changes: ReadonlySet<string>;
   readonly go: (route: Route) => void;
+  /**
+   * Reads the build again; a row or bar takes no decision until it has. It
+   * reports its own failure and never rejects: a build that cannot be read again
+   * is the page's to say, with its own retry, and the rows go with it.
+   */
   readonly onDecided: () => void | Promise<void>;
 }): ReactElement {
   const sourced = build.causes.some((cause) => cause.file !== undefined);

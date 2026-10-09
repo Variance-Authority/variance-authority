@@ -50,7 +50,11 @@ export function SubjectPanel({
   readonly far?: Ruler | undefined;
   /** Whether the run resolved any source file — see {@link RegionTable}. */
   readonly sourced?: boolean | undefined;
-  /** Reads the build again; the panel takes no decision until it has. */
+  /**
+   * Reads the build again; the panel takes no decision until it has. It reports
+   * its own failure and never rejects: a build that cannot be read again is the
+   * page's to say, with its own retry, and the panel it replaces goes with it.
+   */
   readonly onDecided: () => void | Promise<void>;
 }): ReactElement {
   const [busy, setBusy] = useState(false);
