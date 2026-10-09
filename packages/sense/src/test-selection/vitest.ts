@@ -5,6 +5,7 @@ import type { UserConfig } from 'vitest/config';
 import type { InstrumentMode } from '../instrument/index.js';
 import { captureModule, pathOf } from './captured-modules.js';
 import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
+import { writeCut } from './case-cut.js';
 import { readFinished, type FinishedFile } from './finished-files.js';
 import { browserSetupSource, caseRunnerSource, setupSource } from './worker-source.js';
 import { foldRun } from './selection-fold.js';
@@ -216,6 +217,7 @@ export function withTestSelection(
             module: runnerImport(configRoot, runnerId, '@vitest/runner'),
             utils: runnerImport(configRoot, runnerId, '@vitest/runner/utils'),
             finished: run.finishedDirectory,
+            cut: run.cutFile,
             recording: { continuations, story: story !== undefined },
           })),
         }
@@ -243,6 +245,10 @@ function selecting(
   const sequencer = selectingSequencer(own, {
     root, configRoot, ...(selection === undefined ? {} : { selection }), times, shuffle: sequence?.shuffle,
     sharded: (asked) => { run.alone = recordsAlone(asked, selection !== undefined); },
+    cut: (cases) => {
+      for (const [file, names] of cases) run.cut.set(file, names);
+      writeCut(run.cutFile, run.cut);
+    },
   });
   type Sequence = NonNullable<NonNullable<UserConfig['test']>['sequence']>;
   return { sequence: { ...sequence, sequencer: sequencer as unknown as NonNullable<Sequence['sequencer']> } };

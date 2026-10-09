@@ -21,6 +21,7 @@ import { dirname, isAbsolute, resolve, sep } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { askedForStories } from '../story/directory.js';
+import { CUT_VARIABLE, cutFiles, removeCut } from './case-cut.js';
 import { freshCases } from './case-fold.js';
 import { caseDurations, finishedCase } from './case-durations.js';
 import { stageJestJourneys } from './jest-journey-artifact.js';
@@ -157,6 +158,12 @@ class JestCoverageReporter {
     delete process.env[CONTINUATIONS_VARIABLE];
     delete process.env[STORY_DIRECTORY_VARIABLE];
     delete process.env[ROOT_VARIABLE];
+    // The files the selection ran in part, which the filter named before the
+    // run began; each is recorded incomplete. See `case-cut.ts`.
+    const cutFile = process.env[CUT_VARIABLE];
+    const cut = cutFiles(cutFile);
+    removeCut(cutFile);
+    delete process.env[CUT_VARIABLE];
     this.#runDirectory = undefined;
     this.#caseDirectory = undefined;
 
@@ -197,6 +204,7 @@ class JestCoverageReporter {
     const tests = await Promise.all(
       results.testResults.map((result) => coverageTest(
         result,
+        cut.has(result.testFilePath),
         selection,
         [...(selection.declared ?? []), ...(this.#governing.get(result.testFilePath) ?? selection.preconditions)],
         journals,
@@ -261,6 +269,8 @@ class JestCoverageReporter {
  */
 async function coverageTest(
   result: JestRunResults['testResults'][number],
+  /** Whether the selection skipped some of the file's cases, whose reach the run then did not record. */
+  cut: boolean,
   config: SelectionReporterConfig,
   governing: readonly string[],
   journals: readonly ReadJournal[],
@@ -301,6 +311,7 @@ async function coverageTest(
   // already select it. A failure or an error is a different thing and still
   // spoils the file — it recorded only as far as it got.
   const complete =
+    !cut &&
     placed &&
     recorded &&
     result.testExecError === undefined &&

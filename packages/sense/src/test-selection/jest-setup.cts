@@ -59,6 +59,7 @@ beforeAll(() => {
 });
 
 if (collector.scoped) openCaseScopes();
+skipTheCut();
 
 afterAll(() => {
   const runDirectory = process.env['VARIANCE_AUTHORITY_TEST_SELECTION_RUN'];
@@ -133,6 +134,58 @@ const bracketed = new WeakSet<CaseBody>();
 interface CircusBlock {
   readonly name: string;
   readonly parent?: CircusBlock | undefined;
+}
+
+/** A block of jest-circus's tree as `run_start` hands it, before any case runs. */
+interface CircusNode {
+  readonly type: string;
+  readonly name: string;
+  mode?: string | undefined;
+  readonly children?: readonly CircusNode[];
+}
+
+/**
+ * Mark skipped the cases the selection cut from this file, as `it.skip` would
+ * have, before the first of them runs.
+ *
+ * The filter wrote the cut in the process that read the selection, and named
+ * the file in the environment every worker forks with; see `case-cut.ts`. A
+ * case is named here as the record names it, `currentTestName`: its describes
+ * and its own name, by spaces. One the file skips already, or leaves out under
+ * `only`, keeps the mode it has. The tree is the one the handler is handed:
+ * `getState` from the sandbox's `jest-circus` reads a state of its own.
+ */
+function skipTheCut(): void {
+  const cutFile = process.env['VARIANCE_AUTHORITY_TEST_SELECTION_CUT'];
+  if (cutFile === undefined) return;
+  let circus: { addEventHandler?: unknown };
+  try {
+    circus = require('jest-circus') as { addEventHandler?: unknown };
+  } catch {
+    return;
+  }
+  const register = circus.addEventHandler;
+  if (typeof register !== 'function') return;
+  (register as (handler: (event: CircusEvent, state: { rootDescribeBlock?: CircusNode }) => void) => void)(
+    (event, state): void => {
+      if (event.name !== 'run_start' || state.rootDescribeBlock === undefined) return;
+      const testFile = expect.getState().testPath;
+      const names = testFile === undefined
+        ? undefined
+        : (JSON.parse(fs.readFileSync(cutFile, 'utf8')) as Record<string, readonly string[]>)[testFile];
+      if (names === undefined) return;
+      const cut = new Set(names);
+      const walk = (block: CircusNode, path: readonly string[]): void => {
+        for (const child of block.children ?? []) {
+          const at = [...path, child.name];
+          if (child.type === 'test') {
+            if (child.mode === undefined && cut.has(at.join(' '))) child.mode = 'skip';
+          } else walk(child, at);
+        }
+      };
+      walk(state.rootDescribeBlock, []);
+    },
+  );
 }
 
 /** What jest-circus hands a handler: the case, with the body about to be called. */

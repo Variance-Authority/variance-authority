@@ -100,6 +100,34 @@ another leg. The first leg is feedback, not a verdict;
 [distance](distance.md) is the page about what a hop count tells you and what
 it does not.
 
+## Skip the cases your edit did not reach
+
+A selected file runs every case it declares, though the record knows which of
+them entered the code you changed. Under Jest and Vitest,
+`VARIANCE_AUTHORITY_GRAIN=case` skips the rest:
+
+```bash
+VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_GRAIN=case npx vitest run
+```
+
+The skipped cases show as skipped, as `it.skip` would show them, and the stderr
+line counts them: `selected 2 of 340, skipping 31 cases in 2 of them`. A file
+runs whole when the record cannot say which cases your edit reached:
+
+- you changed the test file itself, or it was selected through a
+  precondition, a reader or an import path;
+- the changed code ran while its module loaded, which every case of the file
+  waits on;
+- no recorded case entered it.
+
+A case that shares its full name with a case your edit reached runs too,
+because the runner skips by name.
+
+A file run in part is recorded incomplete, because the cases it skipped
+recorded nothing, so the next selection runs that file whole. Playwright and
+Rstest run every selected file whole. File grain is the default, and
+`VARIANCE_AUTHORITY_GRAIN=file` names it.
+
 ## Each run moves the starting point
 
 A selected run lands in the record like a full one. The tests it ran are

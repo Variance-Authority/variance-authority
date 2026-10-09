@@ -227,6 +227,7 @@ export function caseRunnerSource(
     readonly module?: string;
     readonly utils?: string;
     readonly finished?: string;
+    readonly cut?: string;
     readonly recording?: { readonly continuations: boolean; readonly story: boolean };
   } = {},
 ): string {
@@ -239,6 +240,7 @@ export function caseRunnerSource(
 import * as vitest from 'vitest';
 import { getFn, getHooks } from ${JSON.stringify(runner.module ?? '@vitest/runner')};
 import { getNames } from ${JSON.stringify(runner.utils ?? '@vitest/runner/utils')};
+import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -304,7 +306,35 @@ const hookAt = (kind, depth, args) => {
     : { kind: 'each', depth, case: caseKey(test) };
 };
 
+// The cases the selection skips, by the absolute path of their file, as the
+// sequencer wrote them before any worker started. Read at each file's
+// collection rather than once, because a worker outlives one run under watch.
+// A test it names is marked skipped, as \`it.skip\` would have; one the file
+// already skips, or runs alone under \`only\`, keeps the mode it has.
+const cutFile = ${JSON.stringify(runner.cut ?? null)};
+const cutOf = (filepath) => {
+  if (cutFile === null) return undefined;
+  try {
+    return JSON.parse(readFileSync(cutFile, 'utf8'))[filepath];
+  } catch (error) {
+    if (error?.code === 'ENOENT') return undefined;
+    throw error;
+  }
+};
+const skipCut = (task, names) => {
+  if (task.type === 'test' && task.mode === 'run' && names.has(getNames(task).slice(1).join(' > '))) task.mode = 'skip';
+  for (const child of task.tasks ?? []) skipCut(child, names);
+};
+
 export default class extends VitestTestRunner {
+  async onCollected(files) {
+    await super.onCollected?.(files);
+    for (const file of files) {
+      const names = cutOf(file.filepath);
+      if (names !== undefined) skipCut(file, new Set(names));
+    }
+  }
+
   async onBeforeRunSuite(suite) {
     await super.onBeforeRunSuite?.(suite);
     const scope = caseScope();

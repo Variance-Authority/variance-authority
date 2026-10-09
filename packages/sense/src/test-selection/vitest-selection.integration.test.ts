@@ -89,6 +89,34 @@ describe('a Vitest run over two projects, handed a selection', () => {
   }, 30_000);
 });
 
+describe('a Vitest run handed the cases to skip in a file it runs', () => {
+  it('runs the other cases of that file, and records the file incomplete', async () => {
+    const name = 'cut';
+    const report = resolve(directory, `${name}.json`);
+    await execute(process.execPath, [
+      vitest, 'run', '--config', 'vitest.config.ts', '--reporter', 'json', '--outputFile', report,
+    ], {
+      cwd: fixture,
+      env: environment(name, {
+        FIXTURE_SKIP: JSON.stringify([at('dom/dom.case.ts')]),
+        FIXTURE_CASES: JSON.stringify({ [at('unit/unit.case.ts')]: ['adds nothing under the unit project'] }),
+      }),
+    });
+    const { testResults } = JSON.parse(await readFile(report, 'utf8')) as {
+      testResults: { assertionResults: { title: string; status: string }[] }[];
+    };
+    const recorded = decodeTestCoverage(await readFile(resolve(directory, `${name}.bin`))).tests;
+
+    expect(testResults.flatMap((file) => file.assertionResults.map(({ title, status }) => [title, status]))).toEqual([
+      ['adds under the unit project', 'passed'],
+      ['adds nothing under the unit project', 'pending'],
+    ]);
+    expect(recorded.map(({ file, complete }) => ({ file, complete }))).toEqual([
+      { file: at('unit/unit.case.ts'), complete: false },
+    ]);
+  }, 30_000);
+});
+
 describe('a Vitest run under --shard, with the times a record holds', () => {
   /** Shard `k` of 2, each with a record of its own, as a CI job is, that times the unit file as the slow one. */
   async function shard(k: number) {
