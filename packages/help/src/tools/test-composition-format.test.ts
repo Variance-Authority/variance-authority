@@ -20,7 +20,7 @@ const composition: TestComposition = {
 describe('a test composition as text', () => {
   it('states the footprint against the suite, then its pieces, wholes, and the residue split in two', () => {
     expect(formatTestComposition(composition).split('\n')).toEqual([
-      'b.test.ts  b uses a: 5 regions of its own; 1 more is structure, entered by more than half of the 8 recorded tests.',
+      'b.test.ts  b uses a: a footprint of 5 regions; 1 more is structure, run by more than half of the 8 recorded tests.',
       '',
       'Pieces, smaller tests inside it, most shared first:',
       '  a.test.ts  a unit  (2 of its 2 regions inside it)',
@@ -28,11 +28,11 @@ describe('a test composition as text', () => {
       'Wholes, larger tests holding it, smallest first:',
       '  e2e.test.ts  end to end  (6 regions, 5 of the 5 inside it)',
       '',
-      'Pieces entered 2 of its 5 regions. The other 3 no piece entered:',
-      'Its own layer, in modules no piece entered:',
+      'Pieces ran 2 of its 5 regions. The other 3 no piece ran:',
+      'Its own layer, in modules no piece ran:',
       '  src/b.ts:1-9  function b',
       '  src/b.ts:3-4  branch in b',
-      'Paths of a piece\'s modules only it takes; a test nearer that code reaches them more cheaply:',
+      'Paths of a piece\'s modules only it takes; a test nearer that code would run them more cheaply:',
       '  src/a.ts:6-7  branch in a',
     ]);
   });
@@ -40,13 +40,13 @@ describe('a test composition as text', () => {
   it('says a test with no pieces is all its own, and names the tests alike rather than listing them as pieces', () => {
     const alone = { ...composition, alike: 2, pieces: [], wholes: [], explained: 0, reached: [] };
     expect(formatTestComposition(alone).split('\n')).toEqual([
-      'b.test.ts  b uses a: 5 regions of its own; 1 more is structure, entered by more than half of the 8 recorded tests.',
-      '2 other tests entered exactly the same regions.',
+      'b.test.ts  b uses a: a footprint of 5 regions; 1 more is structure, run by more than half of the 8 recorded tests.',
+      '2 other tests ran exactly the same regions.',
       '',
       'No smaller test sits inside it and no larger test holds it.',
       '',
-      'No piece entered any of its 5 regions:',
-      'Its own layer, in modules no piece entered:',
+      'No piece ran any of its 5 regions:',
+      'Its own layer, in modules no piece ran:',
       '  src/b.ts:1-9  function b',
       '  src/b.ts:3-4  branch in b',
     ]);
@@ -55,7 +55,7 @@ describe('a test composition as text', () => {
   it('stops at the count when everything the test entered is structure', () => {
     const shared = { ...composition, test: test(5, 's.test.ts', 'setup one', 0), structure: 3, pieces: [], wholes: [], explained: 0, own: [], reached: [] };
     expect(formatTestComposition(shared)).toBe(
-      's.test.ts  setup one: no regions of its own; all 3 it entered are structure, entered by more than half of the 8 recorded tests.',
+      's.test.ts  setup one: an empty footprint; all 3 regions it ran are structure, run by more than half of the 8 recorded tests.',
     );
   });
 

@@ -42,13 +42,13 @@ describe('variance ask test-composition', () => {
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
     expect(answered.out.split('\n')).toEqual([
-      'test/order.test.ts  pays for an order: 2 regions of its own.',
+      'test/order.test.ts  pays for an order: a footprint of 2 regions.',
       '',
       'Pieces, smaller tests inside it, most shared first:',
       '  test/price.test.ts  prices  (1 of its 1 region inside it)',
       '',
-      'Pieces entered 1 of its 2 regions. The other 1 no piece entered:',
-      'Its own layer, in modules no piece entered:',
+      'Pieces ran 1 of its 2 regions. The other 1 no piece ran:',
+      'Its own layer, in modules no piece ran:',
       '  src/order.ts:1-5  function',
       '',
     ]);

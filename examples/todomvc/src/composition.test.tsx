@@ -4,6 +4,7 @@ import {
   attributeMovement,
   composeSubjects,
   componentInstances,
+  piecesOf,
   type SubjectComposition,
 } from '@variance-authority/core/attribute';
 import type { SemanticSnapshot, Viewport } from '@variance-authority/core/format';
@@ -268,6 +269,41 @@ describe('the echoes — the same rendering in two subjects', () => {
     expect(
       buttons[0]?.sites.every((site) => site.subject.startsWith('page/')),
     ).toBe(true);
+  });
+});
+
+describe('one subject, as the narrower subjects inside it', () => {
+  const PIECES = piecesOf(SUITE);
+
+  it('reads the populated page as the stories inside it, and what only it watches', () => {
+    // Five stories sit inside the populated page and render eleven of its
+    // fourteen renderings. The other three are components those stories mount
+    // and the page renders otherwise: a list that holds items, where the empty
+    // page's list holds none, and two toggles the done item does not show.
+    const page = PIECES.get('page/todos--populated');
+    expect(page?.pieces.map((piece) => [piece.subject, piece.shared, piece.footprint])).toEqual([
+      ['page/todos--empty', 9, 10],
+      ['page/footer--counts', 4, 4],
+      ['ds/chip--group', 3, 3],
+      ['ds/field--empty', 2, 2],
+      ['page/item--done', 2, 2],
+    ]);
+    expect([page?.footprint, page?.structure, page?.explained]).toEqual([14, 3, 11]);
+    expect(page?.own).toEqual([]);
+    expect(page?.inContext).toEqual([
+      { component: 'TodoList', renderings: 1, pieces: ['page/todos--empty'] },
+      { component: 'Toggle', renderings: 2, pieces: ['page/item--done'] },
+    ]);
+  });
+
+  it('reads the active filter as nearly all its own, because no chip story shows its chips', () => {
+    const page = PIECES.get('page/todos--active-filter');
+    expect(page?.pieces.map((piece) => piece.subject)).toEqual(['ds/field--empty']);
+    expect(page?.own.map((row) => row.component)).toContain('Chip');
+  });
+
+  it('has nothing to compare for a button story, whose only component is structure', () => {
+    expect(PIECES.get('ds/button--default')).toMatchObject({ footprint: 0, structure: 1, pieces: [] });
   });
 });
 

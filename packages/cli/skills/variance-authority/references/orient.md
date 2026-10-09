@@ -11,6 +11,7 @@ the answer. Run them from the checkout you are asking about.
 | nothing yet, in a repository you do not know | `orient`, then `orient --area <id>` |
 | files from a stack trace, a ticket, your editor or a search | `orient --files <path>[:<line>][,...]` |
 | one file, and the words of a task | `journey-map --file <path> --query <words>` |
+| one test, and the question of what only it checks | `test-composition --file <test> --name <words>` |
 | a place, and the question of what it may import | `stack --from <path>` |
 | a suite that is slow | `slowest-tests`, scoped with `--from` or `--to` |
 
@@ -60,6 +61,18 @@ it, which of them your task words keep, the paths through each of its
 functions, and the code outside it that most kept tests ran. Pass the words of
 the task as `--query`. A test is kept when its file or its name contains one of
 them. Without `--query`, every test that ran the file is kept.
+
+## `test-composition`
+
+One test read as the smaller tests inside it. Its footprint is the regions it
+entered, less structure: regions more than half the suite entered. A piece is a
+smaller test with nine tenths of its footprint inside this one's, a whole a
+larger test holding nine tenths of this one's. What no piece entered is listed
+region by region: `own` is a module no piece entered, `reached` is a path
+through a piece's module that only this test takes. A test with no `own` rows
+and a piece for every `reached` module checks nothing a nearer test does not,
+except how the pieces are put together. It reads execution: a mocked module is
+entered by nobody, so a test that mocks its pieces lists none.
 
 ## `stack`
 

@@ -1,5 +1,6 @@
 import { structuralComponents, type SubjectComposition } from './composition.js';
 import { attributed } from './instances.js';
+import { codeUnitOrder } from '../segment/index.js';
 
 /**
  * Each subject read as the narrower subjects inside it.
@@ -132,7 +133,7 @@ export function piecesOf(subjects: readonly SubjectComposition[]): ReadonlyMap<s
     }
     const own: Residue[] = [];
     const inContext: Residue[] = [];
-    for (const component of [...left.keys()].sort(byCodeUnit)) {
+    for (const component of [...left.keys()].sort(codeUnitOrder)) {
       const renderings = left.get(component) ?? 0;
       const by = pieces.map((piece) => piece.subject).filter((piece) => mounted.get(piece)?.has(component) === true);
       if (by.length === 0) own.push({ component, renderings });
@@ -150,9 +151,4 @@ function keyOf(component: string, rendering: string): string {
 
 function componentOf(key: string): string {
   return key.slice(0, key.indexOf('\u0000'));
-}
-
-/** Code-unit order, never `localeCompare`, as `composition.ts` sorts. */
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }

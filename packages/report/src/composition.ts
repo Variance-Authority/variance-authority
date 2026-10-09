@@ -282,6 +282,7 @@ export interface SubjectPiecesRecord {
   readonly inContext: readonly ResidueRecord[];
 }
 
+/** Another subject one subject shares renderings with: a piece inside it, or a whole holding it. */
 export interface SubjectShareRecord {
   readonly subject: string;
   readonly footprint: number;

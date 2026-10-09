@@ -22,7 +22,7 @@ const page: SubjectPiecesRecord = {
 describe('one subject, as the narrower subjects inside it', () => {
   it('names its pieces, then splits what they leave into its own components and components in context', () => {
     expect(recallPieces(page).split('\n')).toEqual([
-      '6 renderings of its own; 1 structural component, mounted by more than half the suite, is left out.',
+      'a footprint of 6 renderings; 1 structural component, mounted by more than half the suite, is left out.',
       'pieces, smaller subjects inside it, most shared first:',
       '  story:footer  (2 of its 2 renderings inside it)',
       '  story:chip  (1 of its 1 rendering inside it)',
@@ -47,7 +47,7 @@ describe('one subject, as the narrower subjects inside it', () => {
       inContext: [],
     };
     expect(recallPieces(chip).split('\n')).toEqual([
-      '1 rendering of its own; 1 structural component, mounted by more than half the suite, is left out.',
+      'a footprint of 1 rendering; 1 structural component, mounted by more than half the suite, is left out.',
       '1 other subject renders exactly the same: story:chip again',
       'wholes, larger subjects holding it, smallest first:',
       '  story:footer  (2 renderings, 1 of the 1 inside it)',
@@ -62,7 +62,7 @@ describe('one subject, as the narrower subjects inside it', () => {
 
   it('says a subject made only of structure has no footprint to compare', () => {
     const blank: SubjectPiecesRecord = { footprint: 0, structure: 2, alike: [], pieces: [], wholes: [], explained: 0, own: [], inContext: [] };
-    expect(recallPieces(blank)).toBe('nothing of its own: all 2 components it mounts are structure, mounted by more than half the suite.');
+    expect(recallPieces(blank)).toBe('an empty footprint: all 2 components it mounts are structure, mounted by more than half the suite.');
   });
 
   it('follows the tree and the shared renderings in the recall, and stays out of a report written before it', () => {
@@ -76,9 +76,9 @@ describe('one subject, as the narrower subjects inside it', () => {
     };
     const report = {} as RunReport;
     const answer = recall(report, composed, 'story:page');
-    expect(answer).toContain('  Layout\n\n6 renderings of its own');
+    expect(answer).toContain('  Layout\n\na footprint of 6 renderings');
 
     const before = { ...composed, structure: [{ subject: 'story:page', rows: [{ component: 'Layout', depth: 0, count: 1, variants: 1 }] }] };
-    expect(recall(report, before, 'story:page')).not.toContain('renderings of its own');
+    expect(recall(report, before, 'story:page')).not.toContain('a footprint of');
   });
 });

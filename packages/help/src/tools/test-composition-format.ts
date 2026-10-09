@@ -11,6 +11,7 @@
 
 // compass: variance-authority.report.agent-surface
 
+import { cappedRows } from '@variance-authority/mcp/tools';
 import type { JourneyBlock, JourneyPiece, TestComposition } from '@variance-authority/sense';
 
 /** Rows listed per part when the part is longer. */
@@ -20,14 +21,14 @@ const ROWS = 12;
 export function formatTestComposition(composition: TestComposition): string {
   const { suite, structure } = composition;
   const test = composition.test ?? { file: '', name: '', blocks: 0 };
-  const majority = `entered by more than half of the ${suite} recorded tests`;
+  const majority = `run by more than half of the ${suite} recorded tests`;
   if (test.blocks === 0) {
-    return `${test.file}  ${test.name}: no regions of its own; all ${structure} it entered are structure, ${majority}.`;
+    return `${test.file}  ${test.name}: an empty footprint; all ${structure} regions it ran are structure, ${majority}.`;
   }
-  const head = `${test.file}  ${test.name}: ${regions(test.blocks)} of its own`;
+  const head = `${test.file}  ${test.name}: a footprint of ${regions(test.blocks)}`;
   const lines = [structure === 0 ? `${head}.` : `${head}; ${structure} more ${structure === 1 ? 'is' : 'are'} structure, ${majority}.`];
   if (composition.alike > 0) {
-    lines.push(`${composition.alike === 1 ? '1 other test' : `${composition.alike} other tests`} entered exactly the same regions.`);
+    lines.push(`${composition.alike === 1 ? '1 other test' : `${composition.alike} other tests`} ran exactly the same regions.`);
   }
   if (composition.pieces.length === 0 && composition.wholes.length === 0) {
     lines.push('', 'No smaller test sits inside it and no larger test holds it.');
@@ -42,21 +43,21 @@ export function formatTestComposition(composition: TestComposition): string {
   }
   const left = composition.own.length + composition.reached.length;
   if (left === 0) {
-    lines.push('', `Its pieces entered all ${regions(test.blocks)}: nothing is its alone.`);
+    lines.push('', `Its pieces ran all ${regions(test.blocks)}: nothing is its alone.`);
     return lines.join('\n');
   }
   lines.push(
     '',
     composition.explained === 0
-      ? `No piece entered any of its ${regions(test.blocks)}:`
-      : `Pieces entered ${composition.explained} of its ${regions(test.blocks)}. The other ${left} no piece entered:`,
+      ? `No piece ran any of its ${regions(test.blocks)}:`
+      : `Pieces ran ${composition.explained} of its ${regions(test.blocks)}. The other ${left} no piece ran:`,
   );
   if (composition.own.length > 0) {
-    lines.push('Its own layer, in modules no piece entered:');
+    lines.push('Its own layer, in modules no piece ran:');
     listed(lines, composition.own, region);
   }
   if (composition.reached.length > 0) {
-    lines.push('Paths of a piece\'s modules only it takes; a test nearer that code reaches them more cheaply:');
+    lines.push('Paths of a piece\'s modules only it takes; a test nearer that code would run them more cheaply:');
     listed(lines, composition.reached, region);
   }
   return lines.join('\n');
@@ -80,6 +81,5 @@ function regions(count: number): string {
 }
 
 function listed<T>(lines: string[], rows: readonly T[], row: (value: T) => string): void {
-  lines.push(...rows.slice(0, ROWS).map(row));
-  if (rows.length > ROWS) lines.push(`  and ${rows.length - ROWS} more`);
+  lines.push(...cappedRows(rows, row, ROWS));
 }

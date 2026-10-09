@@ -1,5 +1,7 @@
 import type { ResidueRecord, SubjectPiecesRecord, SubjectShareRecord } from '@variance-authority/report';
 
+import { cappedRows } from './capped.js';
+
 /**
  * One subject read as the narrower subjects inside it, as text.
  *
@@ -17,9 +19,9 @@ export function recallPieces(record: SubjectPiecesRecord): string {
   const { footprint, structure } = record;
   const majority = 'mounted by more than half the suite';
   if (footprint === 0) {
-    return `nothing of its own: all ${components(structure)} it mounts ${structure === 1 ? 'is' : 'are'} structure, ${majority}.`;
+    return `an empty footprint: all ${components(structure)} it mounts ${structure === 1 ? 'is' : 'are'} structure, ${majority}.`;
   }
-  const head = `${renderings(footprint)} of its own`;
+  const head = `a footprint of ${renderings(footprint)}`;
   const lines = [
     structure === 0 ? `${head}.` : `${head}; ${structural(structure)}, ${majority}, ${structure === 1 ? 'is' : 'are'} left out.`,
   ];
@@ -75,6 +77,5 @@ function structural(count: number): string {
 }
 
 function listed<T>(lines: string[], rows: readonly T[], row: (value: T) => string): void {
-  lines.push(...rows.slice(0, ROWS).map(row));
-  if (rows.length > ROWS) lines.push(`  and ${rows.length - ROWS} more`);
+  lines.push(...cappedRows(rows, row, ROWS));
 }
