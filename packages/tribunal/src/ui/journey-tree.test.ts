@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { treeOf } from './journey-tree.js';
-import type { JourneyCell, JourneyColumn, JourneyFamily, JourneyRow } from './journeys.js';
+import type { FamilyColumn } from '../family.js';
+import type { JourneyCell, JourneyFamily, JourneyRow } from './journeys.js';
 
 /**
  * The tree, held to what a reader takes from the picture: the trunk is the
@@ -23,11 +24,11 @@ function row(name: string, line: number, cells: JourneyRow['cells'], kind = 'bra
   };
 }
 
-function family(rows: readonly JourneyRow[], columns: readonly JourneyColumn[] = [CONTROL, DARK, SALE]): JourneyFamily {
+function family(rows: readonly JourneyRow[], columns: readonly FamilyColumn[] = [CONTROL, DARK, SALE]): JourneyFamily {
   return { name: 'story:product-card', columns, rows };
 }
 
-const members = (branch: { readonly stories: readonly JourneyColumn[] }): readonly string[] =>
+const members = (branch: { readonly stories: readonly FamilyColumn[] }): readonly string[] =>
   branch.stories.map((story) => story.member);
 
 describe('the tree', () => {
