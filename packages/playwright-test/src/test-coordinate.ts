@@ -27,6 +27,9 @@ export interface ObservedTest {
  */
 export function testOf(testInfo: TestInfo): ObservedTest {
   const path = [...testInfo.titlePath];
+  // FIXME: the project is dropped here and not carried beside the case, so a spec
+  // two projects both run is recorded as `file > name` and `file > name#1`, where
+  // the Vitest seam spells each copy `|project| file > name` (`caseIds` in sense).
   if (path[0] === testInfo.project.name) path.shift();
   if (path[0] !== undefined && testInfo.file.endsWith(path[0])) path.shift();
   return { name: path.join(' > '), id: testInfo.testId };

@@ -34,6 +34,9 @@ impl CaseIds {
     /// The next case's id, or the refusal when a case named `pays#1` and the
     /// second case named `pays` would share one: a runner reports such a suite
     /// as it is, and one id cannot hold two cases' journeys.
+    // FIXME: no project reaches this fold, so a Jest file two projects both run
+    // numbers its second copy `#1`, where `caseIds` in `cases.ts` names each copy
+    // `|project| file > name` once the runner reported the project.
     pub fn next(&mut self, file: &str, name: &str) -> Result<String, String> {
         let named = format!("{file} > {name}");
         let repeat = self.repeated.entry(named.clone()).or_default();
