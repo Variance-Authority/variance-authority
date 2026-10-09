@@ -83,6 +83,15 @@ describe('the narrow example, under an application\'s worth of wrappers', () => 
     expect([...structuralComponents([...suite, list])].sort()).toEqual(['ThemeProvider', 'Wrapper']);
   });
 
+  it('makes a component structure once more than half the subjects mount it', () => {
+    const subjects: SubjectComposition[] = [0, 1, 2, 3, 4].map((at) => ({
+      subject: `story:row--${at}`,
+      instances: at < 3 ? [instance({ component: 'Row', path: '0' })] : [],
+    }));
+
+    expect([...structuralComponents(subjects)]).toEqual(['Row']);
+  });
+
   it('answers as the shallowest rule would when every depth is structure', () => {
     // Two subjects made of the same two components: everything is mounted by
     // the whole suite, so nothing is distinguishing and the descent finds

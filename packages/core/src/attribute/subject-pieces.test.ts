@@ -64,6 +64,23 @@ describe('a subject read as the narrower subjects inside it', () => {
     expect(piecesOf([third, ...suite()]).get('chip')?.alike).toEqual(['chip third', 'chip again']);
   });
 
+  it('holds a subject nine tenths inside another as a piece, and eight tenths as neither', () => {
+    const subject = (name: string, ...renderings: readonly string[]): SubjectComposition => ({
+      subject: name,
+      instances: renderings.map((rendering, at) => instance({ component: 'Grid', rendering, path: `${at}` })),
+    });
+    const tenths = ['0', '1', '2', '3', '4', '5', '6', '7'];
+    const pieces = piecesOf([
+      ...suite(),
+      subject('grid', ...tenths, '8', '9', '10'),
+      subject('nine tenths', ...tenths, '8', 'x'),
+      subject('eight tenths', ...tenths, 'y', 'z'),
+    ]);
+    expect(shares(pieces.get('grid')?.pieces ?? [])).toEqual([['nine tenths', 10, 9]]);
+    expect(shares(pieces.get('nine tenths')?.wholes ?? [])).toEqual([['grid', 11, 9]]);
+    expect([pieces.get('eight tenths')?.pieces, pieces.get('eight tenths')?.wholes]).toEqual([[], []]);
+  });
+
   it('gives a subject that mounts only structure no footprint and nothing beside it', () => {
     const blank = piecesOf(suite()).get('blank');
     expect(blank).toEqual({ footprint: 0, structure: 1, alike: [], pieces: [], wholes: [], explained: 0, own: [], inContext: [] });

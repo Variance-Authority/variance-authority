@@ -10,42 +10,54 @@ use crate::journey_record::{Block, Module};
 /// cases run setup alone.
 fn recorded() -> JourneyMasks {
     let names = ["a unit", "b uses a", "c unit", "a again", "end to end", "setup one", "setup two", "setup three"];
-    let tests: Vec<Test> = names
-        .iter()
-        .enumerate()
-        .map(|(case, name)| Test {
-            id: format!("t{case}"),
-            file: if case == 3 { "a.test.ts".to_owned() } else { format!("t{case}.test.ts") },
-            name: (*name).to_owned(),
-            runner: None,
-            settled: FINISHED,
-            preconditions: None,
-        })
-        .collect();
-    let block = |kind: &str, name: &str, start: u32, end: u32| Block {
-        kind: kind.to_owned(),
-        name: name.to_owned(),
-        path: String::new(),
-        start_line: start,
-        end_line: end,
-        source: true,
-    };
-    let module = |file: &str, blocks: Vec<Block>| Module { id: file.to_owned(), file: file.to_owned(), blocks, owners: None };
     let modules = [
         module("src/a.ts", vec![block("module", "", 1, 20), block("function", "a", 1, 10), block("branch", "", 3, 4), block("branch", "", 6, 7)]),
         module("src/b.ts", vec![block("module", "", 1, 9), block("function", "b", 1, 9), block("branch", "", 3, 4)]),
         module("src/c.ts", vec![block("module", "", 1, 5), block("function", "c", 1, 5)]),
         module("src/setup.ts", vec![block("module", "", 1, 4), block("function", "setup", 1, 4)]),
     ];
-    let mut sets = SetPool::new(tests.len());
-    let mut set = |members: &[u32]| sets.intern(members);
-    let called = [
-        vec![set(&[]), set(&[0, 1, 3, 4]), set(&[0, 1, 3, 4]), set(&[1, 4])],
-        vec![set(&[]), set(&[1, 4]), set(&[1, 4])],
-        vec![set(&[]), set(&[2, 4])],
-        vec![set(&[]), set(&[0, 1, 2, 3, 4, 5, 6, 7])],
+    let entered: [&[&[u32]]; 4] = [
+        &[&[], &[0, 1, 3, 4], &[0, 1, 3, 4], &[1, 4]],
+        &[&[], &[1, 4], &[1, 4]],
+        &[&[], &[2, 4]],
+        &[&[], &[0, 1, 2, 3, 4, 5, 6, 7]],
     ];
-    let loaded = [vec![false; 4], vec![false; 3], vec![false; 2], vec![false; 2]];
+    masks_of(&names, |case| if case == 3 { "a.test.ts".to_owned() } else { format!("t{case}.test.ts") }, &modules, &entered)
+}
+
+/// Ten cases over one module of fourteen functions, none of them structure: a
+/// whole of eleven regions, a case of ten sharing nine of them (exactly nine
+/// tenths), a case of ten sharing eight, and seven cases that run nothing.
+fn at_the_threshold() -> JourneyMasks {
+    let names = ["whole", "nine tenths", "eight tenths", "idle 1", "idle 2", "idle 3", "idle 4", "idle 5", "idle 6", "idle 7"];
+    let mut blocks = vec![block("module", "", 1, 14)];
+    blocks.extend((0..14).map(|at| block("function", &format!("f{at}"), at + 1, at + 1)));
+    let modules = [module("src/w.ts", blocks)];
+    let all: &[u32] = &[0, 1, 2];
+    let mut called: Vec<&[u32]> = vec![&[]];
+    called.extend([all, all, all, all, all, all, all, all, &[0, 1], &[0], &[0], &[1], &[2], &[2]]);
+    masks_of(&names, |case| format!("w{case}.test.ts"), &modules, &[&called])
+}
+
+fn block(kind: &str, name: &str, start: u32, end: u32) -> Block {
+    Block { kind: kind.to_owned(), name: name.to_owned(), path: String::new(), start_line: start, end_line: end, source: true }
+}
+
+fn module(file: &str, blocks: Vec<Block>) -> Module {
+    Module { id: file.to_owned(), file: file.to_owned(), blocks, owners: None }
+}
+
+/// A recording of `names`, each case in the file `file` names, where
+/// `entered[m][b]` lists the cases that entered block `b` of module `m`.
+fn masks_of(names: &[&str], file: impl Fn(usize) -> String, modules: &[Module], entered: &[&[&[u32]]]) -> JourneyMasks {
+    let tests: Vec<Test> = names
+        .iter()
+        .enumerate()
+        .map(|(case, name)| Test { id: format!("t{case}"), file: file(case), name: (*name).to_owned(), runner: None, settled: FINISHED, preconditions: None })
+        .collect();
+    let mut sets = SetPool::new(tests.len());
+    let called: Vec<Vec<_>> = entered.iter().map(|blocks| blocks.iter().map(|members| sets.intern(members)).collect()).collect();
+    let loaded: Vec<Vec<bool>> = modules.iter().map(|module| vec![false; module.blocks.len()]).collect();
     let encoded: Vec<EncodedModule<'_>> = modules
         .iter()
         .enumerate()
@@ -138,4 +150,16 @@ fn several_tests_in_a_file_are_named_rather_than_chosen() {
         compose(&mut masks, "x.test.ts", None).unwrap().not_recorded.unwrap(),
         "x.test.ts declares 2 recorded tests; name one of them:\n  first\n  second"
     );
+}
+
+#[test]
+fn nine_tenths_inside_is_a_piece_and_eight_tenths_is_not() {
+    let mut masks = at_the_threshold();
+    let whole = compose(&mut masks, "w0.test.ts", None).unwrap();
+    assert_eq!((whole.test.unwrap().blocks, whole.structure), (11, 0));
+    assert_eq!(cases(&whole.pieces), vec![(1, 10, 9)]);
+    let nine = compose(&mut masks, "w1.test.ts", None).unwrap();
+    assert_eq!(cases(&nine.wholes), vec![(0, 11, 9)]);
+    let eight = compose(&mut masks, "w2.test.ts", None).unwrap();
+    assert!(eight.pieces.is_empty() && eight.wholes.is_empty());
 }
