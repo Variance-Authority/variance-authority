@@ -76,9 +76,9 @@ Point 2 rests on the record keeping what ran while a module evaluated apart from
 what a case called. Inline requires move the first of the two into a case.
 The option belongs to the transform — React Native's Babel preset, SWC's `lazy`
 — not to Jest, and it turns an import into a lazy `require`, so a module evaluates
-inside the first case that reads one of its bindings. Everything its top level
-runs then runs inside that case: a higher-order function wrapping a component,
-or a factory building a selector. The cases after it read the cached exports.
+inside the first case that reads one of its bindings. The module's top-level
+code then runs inside that case, and so does whatever that code calls: a
+higher-order function wrapping a component, or a factory building a selector. The cases after it read the cached exports.
 
 The record does not follow the runner. What ran while a module evaluated is
 `loaded` and belongs to the file. The case that evaluated the module keeps what
