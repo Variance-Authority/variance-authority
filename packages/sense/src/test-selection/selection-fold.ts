@@ -28,6 +28,7 @@ import { coverageModule } from './coverage-rows.js';
 import { joinedJournals, joinReadings } from './readings.js';
 import { freshCases } from './case-fold.js';
 import { caseDurations } from './case-durations.js';
+import { caseProjects } from './case-projects.js';
 import {
   coverageTest,
   noteAnEmptyRecord,
@@ -153,6 +154,7 @@ export function foldRun(
           tests,
           ...(commit === undefined ? {} : { commit }),
           durations: caseDurations(files, root),
+          projects: caseProjects(files, root),
         }, joined.readings)
       : undefined;
     const merged = await withIndexLock(coverageFile, async () => {

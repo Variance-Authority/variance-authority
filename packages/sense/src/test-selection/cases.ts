@@ -208,6 +208,8 @@ export interface CaseCoordinate {
   readonly file: string;
   readonly name: string;
   readonly id: string;
+  /** The name the runner reported for the project that ran the case; absent when it reported none. */
+  readonly project?: string;
 }
 
 /** One key per case of a run, for a map from a coordinate to anything. */
@@ -236,25 +238,40 @@ export function inCaseOrder<Case extends CaseCoordinate>(cases: Iterable<Case>):
  * index, and everything that joins a case by its id, numbers through here; the
  * native fold numbers with `CaseIds` in `case_id.rs`, in the same words.
  *
+ * A case that more than one project ran is not a repeat: each copy is told
+ * apart by the name of the project that ran it, the one the configuration
+ * wrote, as the runner prints it — `|compiled| test/a.test.ts > pays`. The
+ * number is left for the repeats inside one project. The native fold is handed
+ * no project and numbers such copies.
+ *
  * A suite whose second `pays` would take the id of a case named `pays#1` is
  * refused: one id cannot hold two cases' journeys.
  */
 export function caseIds(cases: Iterable<CaseCoordinate>): ReadonlyMap<string, string> {
+  const ordered = inCaseOrder(cases);
+  // The projects that ran each `file > name`; more than one names every copy by its own.
+  const projects = new Map<string, Set<string | undefined>>();
+  for (const { file, name, project } of ordered) {
+    const named = `${file} > ${name}`;
+    projects.set(named, (projects.get(named) ?? new Set()).add(project));
+  }
   const seen = new Map<string, number>();
   const ids = new Map<string, string>();
   // The name of the case holding each id handed out.
   const held = new Map<string, string>();
-  for (const coordinate of inCaseOrder(cases)) {
+  for (const coordinate of ordered) {
     const key = caseKey(coordinate);
     if (ids.has(key)) continue;
-    const { file, name } = coordinate;
-    const named = `${file} > ${name}`;
+    const { file, name, project } = coordinate;
+    const told = project !== undefined && projects.get(`${file} > ${name}`)!.size > 1;
+    const prefix = told ? `|${project}| ${file} > ` : `${file} > `;
+    const named = `${prefix}${name}`;
     const repeat = seen.get(named) ?? 0;
     seen.set(named, repeat + 1);
     const id = repeat === 0 ? named : `${named}#${repeat}`;
     const holder = held.get(id);
     if (holder !== undefined) {
-      const literal = id.slice(file.length + 3);
+      const literal = id.slice(prefix.length);
       const numbered = holder === literal ? name : holder;
       throw new Error(`cannot number the cases of ${file}: "${literal}" is the name of one case and the number of a repeated "${numbered}". Rename one of them.`);
     }
