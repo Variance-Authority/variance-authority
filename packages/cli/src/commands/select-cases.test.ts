@@ -76,6 +76,28 @@ describe('the cases a selected file may skip', () => {
     expect(casesToSkip(index([{ test: 0, distance: 0 }], { tests }), narrowing())).toEqual(new Map());
   });
 
+  it('reads every row of a file, as a source and the build mapped onto it each give one', () => {
+    const twice: ExecutionIndex = {
+      tests: cases,
+      modules: [
+        { file: 'src/widget.ts', blocks: [block('widget', 1, 3, [{ test: 1, distance: 0 }])] },
+        { file: 'src/widget.ts', blocks: [block('widget', 1, 3, [{ test: 0, distance: 0 }]), block('other', 5, 7, [{ test: 1, distance: 0 }])] },
+      ],
+    };
+    expect(casesToSkip(twice, narrowing())).toEqual(new Map());
+  });
+
+  it('runs the file whole when one row of the region ran while its module loaded', () => {
+    const twice: ExecutionIndex = {
+      tests: cases,
+      modules: [
+        { file: 'src/widget.ts', blocks: [block('widget', 1, 3, [], true)] },
+        { file: 'src/widget.ts', blocks: [block('widget', 1, 3, [{ test: 0, distance: 0 }])] },
+      ],
+    };
+    expect(casesToSkip(twice, narrowing())).toEqual(new Map());
+  });
+
   it('runs the file whole when no case of it entered', () => {
     expect(casesToSkip(index([]), narrowing())).toEqual(new Map());
   });

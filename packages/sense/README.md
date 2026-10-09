@@ -99,8 +99,9 @@ names to one file before any worker starts, and the case runner marks them
 skipped in `onCollected`, as `it.skip` would; under Jest, a `jest-circus`
 `run_start` handler does the same. Nothing reaches argv. A file runs whole
 whenever the record cannot say which cases the change reached, and a file run
-in part is recorded incomplete, so the next selection runs it whole. File grain
-is the default; any value other than `file` or `case` fails the run.
+in part is recorded incomplete, so the next selection runs it whole, and while
+some test last ran at an earlier commit than the latest run, every file runs
+whole. File grain is the default; any value other than `file` or `case` fails the run.
 
 ### Ask for the skip list yourself
 

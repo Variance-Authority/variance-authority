@@ -109,7 +109,7 @@ describe('a Vitest run handed the cases to skip in a file it runs', () => {
 
     expect(testResults.flatMap((file) => file.assertionResults.map(({ title, status }) => [title, status]))).toEqual([
       ['adds under the unit project', 'passed'],
-      ['adds nothing under the unit project', 'pending'],
+      ['adds nothing under the unit project', 'skipped'],
     ]);
     expect(recorded.map(({ file, complete }) => ({ file, complete }))).toEqual([
       { file: at('unit/unit.case.ts'), complete: false },

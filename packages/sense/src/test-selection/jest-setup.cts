@@ -170,9 +170,7 @@ function skipTheCut(): void {
     (event, state): void => {
       if (event.name !== 'run_start' || state.rootDescribeBlock === undefined) return;
       const testFile = expect.getState().testPath;
-      const names = testFile === undefined
-        ? undefined
-        : (JSON.parse(fs.readFileSync(cutFile, 'utf8')) as Record<string, readonly string[]>)[testFile];
+      const names = testFile === undefined ? undefined : cutIn(cutFile)[testFile];
       if (names === undefined) return;
       const cut = new Set(names);
       const walk = (block: CircusNode, path: readonly string[]): void => {
@@ -186,6 +184,19 @@ function skipTheCut(): void {
       walk(state.rootDescribeBlock, []);
     },
   );
+}
+
+/**
+ * The cut at `file`, or none when it is gone: a Jest a test starts inherits the
+ * variable, and the run that wrote the cut removes it when that run completes.
+ */
+function cutIn(file: string): Record<string, readonly string[]> {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, readonly string[]>;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {};
+    throw error;
+  }
 }
 
 /** What jest-circus hands a handler: the case, with the body about to be called. */

@@ -16,7 +16,9 @@ A file runs whole whenever the record cannot say which cases a change reached:
 the test file changed, a reason other than a region selected it, the region ran
 while its module loaded, or no recorded case entered it. A case that shares its
 full name with a reached case runs too. A file run in part is recorded
-incomplete, so the next selection runs it whole. File grain stays the default,
+incomplete, so the next selection runs it whole. A selection in which some test
+last ran at an earlier commit than the latest run, as one does after a commit
+between runs, runs every file whole. File grain stays the default,
 and any value other than `file` or `case` fails the run.
 
 `SuiteSelection` gains `cases`, each test file run in part to the names of the

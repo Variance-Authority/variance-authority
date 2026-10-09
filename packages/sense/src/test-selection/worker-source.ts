@@ -307,10 +307,13 @@ const hookAt = (kind, depth, args) => {
 };
 
 // The cases the selection skips, by the absolute path of their file, as the
-// sequencer wrote them before any worker started. Read at each file's
-// collection rather than once, because a worker outlives one run under watch.
-// A test it names is marked skipped, as \`it.skip\` would have; one the file
-// already skips, or runs alone under \`only\`, keeps the mode it has.
+// sequencer wrote them before any worker started. A worker runs many files,
+// so the cut is read at each file's collection. A test it names is marked
+// skipped, as \`it.skip\` would have; one the file already skips, or leaves
+// out under \`only\`, keeps the mode it has. Vitest 2 calls a test \`run\` here
+// and Vitest 3 \`queued\`. The main process heard of the file before this hook
+// and Vitest 2 reports nothing for a test it does not run, so the skip is sent
+// as a result through the runner's own update.
 const cutFile = ${JSON.stringify(runner.cut ?? null)};
 const cutOf = (filepath) => {
   if (cutFile === null) return undefined;
@@ -321,18 +324,24 @@ const cutOf = (filepath) => {
     throw error;
   }
 };
-const skipCut = (task, names) => {
-  if (task.type === 'test' && task.mode === 'run' && names.has(getNames(task).slice(1).join(' > '))) task.mode = 'skip';
-  for (const child of task.tasks ?? []) skipCut(child, names);
+const skipCut = (task, names, skipped) => {
+  if (task.type === 'test' && (task.mode === 'run' || task.mode === 'queued') && names.has(getNames(task).slice(1).join(' > '))) {
+    task.mode = 'skip';
+    task.result = { state: 'skip' };
+    skipped.push([task.id, task.result, task.meta]);
+  }
+  for (const child of task.tasks ?? []) skipCut(child, names, skipped);
 };
 
 export default class extends VitestTestRunner {
   async onCollected(files) {
     await super.onCollected?.(files);
+    const skipped = [];
     for (const file of files) {
       const names = cutOf(file.filepath);
-      if (names !== undefined) skipCut(file, new Set(names));
+      if (names !== undefined) skipCut(file, new Set(names), skipped);
     }
+    if (skipped.length > 0) await this.onTaskUpdate?.(skipped, []);
   }
 
   async onBeforeRunSuite(suite) {

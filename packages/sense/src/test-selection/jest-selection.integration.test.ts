@@ -105,6 +105,19 @@ describe('a Jest run handed the cases to skip in a file it runs', () => {
   }, 60_000);
 });
 
+describe('a Jest run whose cut is gone', () => {
+  // A Jest started by a test inherits the variable, and the run that wrote the
+  // cut removes the file when it completes.
+  it('runs every case, as a run with no cut does', async () => {
+    const { ran } = await runWith('gone', {
+      FIXTURE_SKIP: JSON.stringify([]),
+      VARIANCE_AUTHORITY_TEST_SELECTION_CUT: resolve(directory, 'no-such-cut.json'),
+    });
+
+    expect(ran).toEqual(FOUND);
+  }, 60_000);
+});
+
 describe('a Jest run under --shard, with the times a record holds', () => {
   it('places each file by its recorded time, and says what each shard takes', async () => {
     // Alpha is recorded as the slow one, so on two shards it is alone on the first.

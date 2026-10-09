@@ -144,7 +144,9 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
   also skips the cases of each selected file that entered none of the changed
   regions; the first stderr line then ends `skipping N cases in K of them`. A
   file runs whole whenever the record cannot say which cases the edit reached,
-  and a cut file runs whole on the next run. A case that reads state an earlier
+  and a cut file runs whole on the next run. A commit between runs turns the
+  cut off: until one run takes the whole suite to that commit, every selected
+  file runs whole, so commit after the loop, not inside it. A case that reads state an earlier
   case of its file left, such as a memoized result or a variable its `describe`
   shares, is skipped when it entered nothing changed itself: where cases depend
   on each other's order, keep the default, `VARIANCE_AUTHORITY_GRAIN=file`,

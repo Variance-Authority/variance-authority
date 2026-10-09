@@ -61,7 +61,10 @@ run before, and a file whose every case is accounted for would read as complete.
 
 **2. A stand is cut against its own diff.** A stand's tests are read against
 the diff since that stand. The cut reads the journal's diff alone, so a
-selection with stands runs its files whole.
+selection with stands runs its files whole. A commit between two runs leaves
+every test the second one skipped standing at the first commit until one run
+takes the suite to a single commit, so a loop that commits as it goes loses
+the cut after its first commit.
 
 **3. Playwright and Rstest cut.** Playwright through its test list, Rstest
 through its runner's task modes, as Vitest does.

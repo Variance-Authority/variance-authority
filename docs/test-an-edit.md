@@ -126,7 +126,13 @@ runs whole when the record cannot say which of its cases your edit reached:
   changed file the record holds no lines for, charged to the tests that ran
   what imports it;
 - the changed code ran while a module loaded, such as an import at the top of
-  the test file, which every case of the file waits on.
+  the test file, which every case of the file waits on;
+- the record holds the file as running the changed code, but none of its cases
+  entering it;
+- a test of the suite last ran at an earlier commit than the latest run. Once
+  you commit between runs, the tests a selected run left out keep the commit
+  they last ran at, and every selected file runs whole until one run takes the
+  suite to a single commit.
 
 Within a file that is cut, a case that shares its full name with a case your
 edit reached runs too, because the runner skips by name.

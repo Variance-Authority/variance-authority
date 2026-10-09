@@ -45,9 +45,16 @@ export function casesToSkip(
   narrowing: Pick<ExecutionNarrowing, 'whole' | 'because'>,
 ): ReadonlyMap<string, readonly string[]> {
   const whole = new Set(narrowing.whole);
-  const blocks = new Map<string, ExecutionBlock>();
+  // Two rows can share a file, a source and the build its map projects onto
+  // it, so a region is every block of that file it names.
+  const blocks = new Map<string, ExecutionBlock[]>();
   for (const module of index.modules) {
-    for (const block of module.blocks) blocks.set(regionKey(module.file, block), block);
+    for (const block of module.blocks) {
+      const key = regionKey(module.file, block);
+      const already = blocks.get(key);
+      if (already === undefined) blocks.set(key, [block]);
+      else already.push(block);
+    }
   }
   const declared = new Map<string, number[]>();
   index.tests.forEach((test, ordinal) => {
@@ -78,20 +85,23 @@ export function casesToSkip(
 function reachedIn(
   file: string,
   via: readonly SelectionReason[],
-  blocks: ReadonlyMap<string, ExecutionBlock>,
+  blocks: ReadonlyMap<string, readonly ExecutionBlock[]>,
   index: ExecutionIndex,
 ): Set<number> | undefined {
   const reached = new Set<number>();
   for (const reason of via) {
     if (reason.kind !== 'region') return undefined;
-    const block = blocks.get(regionKey(reason.file, reason));
-    // Which cases loaded the module is not recorded: an import order stands in for it.
-    if (block === undefined || block.loaded === true) return undefined;
-    for (const crossing of block.crossings) {
-      if (index.tests[crossing.test]?.file !== file) continue;
-      // Evaluated while the file loaded, which every case of it waits on.
-      if (crossing.loaded === true) return undefined;
-      reached.add(crossing.test);
+    const found = blocks.get(regionKey(reason.file, reason));
+    if (found === undefined) return undefined;
+    for (const block of found) {
+      // Which cases loaded the module is not recorded: an import order stands in for it.
+      if (block.loaded === true) return undefined;
+      for (const crossing of block.crossings) {
+        if (index.tests[crossing.test]?.file !== file) continue;
+        // Evaluated while the file loaded, which every case of it waits on.
+        if (crossing.loaded === true) return undefined;
+        reached.add(crossing.test);
+      }
     }
   }
   return reached;
