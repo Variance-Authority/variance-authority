@@ -127,13 +127,36 @@ API](agent-workspace-api.md).
 
 ## Ask a finished run, from the summary outward
 
+The examples below are one run of three subjects, `card/summary`,
+`card/compact` and `badge/standalone`, after an edit meant to give `Button`,
+`Badge` and the `Tooltip` arrow a new accent colour and to tighten `Card`.
+
+### Read the summary
+
 ```bash
 variance ask summary
 ```
 
-Start here. The summary accounts for planned subjects that were not observed as
-well as the observations that produced a verdict, so silence cannot be mistaken
-for a clean run. Every other question takes an identifier it prints.
+```text
+3 subject(s) observed, ephemeral run at 2026-10-09T07:22:06.033Z
+rendered by playwright-chromium (chromium@151.0.7922.34, darwin/arm64, 1x)
+3 changed
+names of 3 subject(s) written down over 8 field(s); `variance_locate {query}` finds a subject from a description
+
+[changed] card/summary — Button: 3,402 pixels differ across 2 regions in Button, Avatar
+[changed] card/compact — Button: 2,825 pixels differ across 1 region in Button
+[changed] badge/standalone — Badge: 1,017 pixels differ across 1 region in Badge
+
+coverage: every planned subject was observed.
+findings: none in 3 inspected subject(s).
+```
+
+Start here. The summary counts planned subjects that were not observed as well
+as the observations that produced a verdict, so silence cannot be mistaken for
+a clean run. Each line in brackets is one subject: its verdict, then its id.
+The id is whatever your stories or collector named the subject, and you pass it
+whole to every question that takes a subject: `--subject card/summary`. The
+component names after the id are what `--component` takes.
 
 The report is the configured one unless report paths follow the question, in
 which case those are read and merged — the same selection `variance report`
@@ -142,18 +165,77 @@ takes, for the same sharded runs. When the configured report is not on disk,
 the answer opens with the line and commit it read; the CLI's page says
 [which record that is](../packages/cli/README.md#a-checkout-with-no-run-of-its-own).
 
+### Check the run against what you meant to change
+
+If you made the edit, you write the claims file yourself, from what you meant
+to change, ideally before the edit. No command writes it: it records your
+intent, and the run cannot know that. A file built from the component names the
+run printed scores the run against itself. The file for
+the edit above names each component it meant to change, as your source names
+it, and bounds `Button` to one subject:
+
+```json
+{
+  "claims": [
+    { "root": "component:Button", "reason": "new brand accent on the primary action", "maxSubjects": 1 },
+    { "root": "component:Badge", "reason": "new brand accent on the status pill" },
+    { "root": "component:Card", "reason": "tighten the gap between the avatar and the action" },
+    { "root": "component:Tooltip", "reason": "arrow follows the new accent" }
+  ]
+}
+```
+
+```bash
+variance ask adjudicate --claims claims.json
+```
+
+```text
+An edit you declared did not take. Fix that before reading anything else.
+4 claim(s): 1 delivered, 1 undelivered, 1 overreached, 1 unobservable. 1 unclaimed change(s).
+
+  [undelivered] component:Card
+      declared (tighten the gap between the avatar and the action) and `Card` rendered in 2 subject(s) — card/summary, card/compact — and did not change. The edit did not take: wrong file, a dead branch, a rule something else overrides, or a stale build.
+
+  [unobservable] component:Tooltip
+      declared (arrow follows the new accent) and this run never rendered `Tooltip` in any subject, so nothing here is evidence about it either way. Check the subject selection, or whether provenance names this component.
+
+  [overreached] component:Button
+      declared (new brand accent on the primary action) and delivered, but reached 2 subject(s) against the 1 declared — the change is the intended one, its reach is not.
+      examples/agent-claim/src/system.js:28
+
+  [delivered] component:Badge
+      declared (new brand accent on the status pill) and delivered: component:Badge changed in 1 subject(s): badge/standalone.
+      examples/agent-claim/src/system.js:38
+
+  [unclaimed] Avatar
+      Avatar moved and no claim covers it — 1 subject(s), 577 pixel(s), nothing it can settle on its own
+      examples/agent-claim/src/system.js:48
+```
+
+`Card` is the answer no comparison of images gives: you declared it, it
+rendered in two subjects, and it did not change, so the edit to it never
+landed. Fix that first and run the suite again. `variance adjudicate` runs the
+same check and exits `1` when something needs review. The four claim
+verdicts, `delivered`, `overreached`, `undelivered` and `unobservable`, are
+defined in [verdicts](information.md#verdicts). An `unclaimed` line is a change
+no claim names. The claims file's other forms are in
+the `variance-authority` skill the CLI ships, described
+[below](#point-an-agent-at-it).
+
+### Group what changed, then narrow
+
 If the summary names changes, ask `changes` before opening an individual
 subject: it groups subjects under the distinct changes behind them, so a token
-edit that reached forty stories is one decision rather than forty.
-
-If you made the edit, declare what you meant to change and ask `adjudicate`
-before reading the diff. Its third answer — declared, and did not happen — is
-how an edit that never landed is found, and no comparison of images produces it.
+edit that reached forty stories is one decision rather than forty. Each change
+names its component and file where the run resolved them, a pixel-shape group
+where it did not, and, where one exists, the `variance accept --shape` digest
+that settles it.
 
 Narrow to `describe`, `explain-verdict`, `trace-component`, `findings`,
-`composition` or `variations` once a subject or a component is in question. Ask
-`changelog` last, before proposing an `accept`: it previews what acceptance
-would write into the baseline record.
+`composition` or `variations` once a subject or a component is in question, for
+example `variance ask describe --subject card/summary`. Ask `changelog` last,
+before proposing an `accept`: it takes the same `--shape` digest and previews
+what acceptance would write into the baseline record.
 
 ## Compare a run with the one before it
 

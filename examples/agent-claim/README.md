@@ -96,7 +96,7 @@ output and decides what to edit next. Abridged, the second step prints:
 $ variance adjudicate --config variance.config.json --claims claims.json
 
 An edit you declared did not take. Fix that before reading anything else.
-4 claim(s): 1 delivered, 1 undelivered, 1 over-reaching, 1 unchecked. 1 unclaimed change(s).
+4 claim(s): 1 delivered, 1 undelivered, 1 overreached, 1 unobservable. 1 unclaimed change(s).
 
   [undelivered] component:Card
       declared (tighten the gap between the avatar and the action) and `Card` rendered in 2 subject(s) — card/summary, card/compact — and did not change. The edit did not take: wrong file, a dead branch, a rule something else overrides, or a stale build.

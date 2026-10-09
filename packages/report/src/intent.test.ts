@@ -227,6 +227,17 @@ describe('the sentence an agent reads first', () => {
 
     expect(text).toContain('1 subject(s) were not looked at');
   });
+
+  it('counts each claim by the verdict word its line prints', () => {
+    const text = describeAdjudication(
+      adjudicateRun(report([], [component('Button', ['story:a'])]), [
+        { root: 'component:Tooltip', reason: 'arrow follows the accent' },
+      ]),
+    );
+
+    expect(text).toContain('[unobservable] component:Tooltip');
+    expect(text).toContain('1 claim(s): 0 delivered, 0 undelivered, 0 overreached, 1 unobservable.');
+  });
 });
 
 describe('what a claim is about', () => {
