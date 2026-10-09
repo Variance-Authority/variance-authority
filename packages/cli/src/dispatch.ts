@@ -23,6 +23,7 @@ import {
 import { renderCacheLine, sweepRenders } from './commands/renders.js';
 import { pruneWhenDueLines } from './commands/prune-cache.js';
 import { ask, costsSubject } from './commands/ask.js';
+import { decisionsSubject } from './commands/ask-decisions.js';
 import { said } from './here.js';
 import { formatReport } from './commands/report.js';
 import {
@@ -36,7 +37,8 @@ import { reportsFor } from './commands/report-read.js';
 import { costsToPlace, publishedCostsLine } from './commands/costs.js';
 import { accept, formatAcceptance, readCandidate, reportToPromoteFrom } from './commands/accept.js';
 import { writeAcceptMessage } from './commands/accept-message.js';
-import { changelog, formatChangelog } from './commands/changelog.js';
+import { changelog, changelogStoreFor, formatChangelog } from './commands/changelog.js';
+import { formatRemoteChangelog, readRemoteChangelog } from './commands/changelog-remote.js';
 import { runJourneys } from './commands/journeys-command.js';
 import { refiningRecord, selectingRecord } from './commands/suite-record.js';
 import { runJourneyArtifactCommand } from './commands/journey-artifact-command.js';
@@ -219,6 +221,7 @@ export async function dispatch(
           ...(at === undefined ? {} : { at }),
           report: config.report,
           read: () => reportsFor(reports, config), costs: () => costsSubject(config, reports),
+          decisions: (input) => decisionsSubject(config, input),
         }),
       );
       // A reading is not a verdict. `report` and `adjudicate` are where a run is
@@ -281,18 +284,35 @@ export async function dispatch(
     }
 
     case 'changelog': {
+      const view = {
+        ...(parsed.component !== undefined ? { component: parsed.component } : {}),
+        ...(parsed.subject !== undefined ? { subject: parsed.subject } : {}),
+      };
+      const store = changelogStoreFor(config);
+      if ('deployment' in store) {
+        const read = await readRemoteChangelog({
+          config,
+          deployment: store.deployment,
+          ...view,
+          ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
+          ...(parsed.since !== undefined ? { since: parsed.since } : {}),
+        });
+        streams.out(
+          `${formatRemoteChangelog(read, store.deployment, {
+            ...view,
+            ...(parsed.since !== undefined ? { since: parsed.since } : {}),
+          })}\n`,
+        );
+        return EXIT_CLEAN;
+      }
+
       const result = await changelog({
-        config,
+        root: store.root,
         ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
         ...(parsed.since !== undefined ? { since: parsed.since } : {}),
       });
 
-      streams.out(
-        `${formatChangelog(result, {
-          ...(parsed.component !== undefined ? { component: parsed.component } : {}),
-          ...(parsed.subject !== undefined ? { subject: parsed.subject } : {}),
-        })}\n`,
-      );
+      streams.out(`${formatChangelog(result, view)}\n`);
 
       // Reading a record is never a verdict about the project. This exits 0 even
       // when it found nothing, because "no baseline was explained" is an answer

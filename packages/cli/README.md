@@ -160,7 +160,7 @@ variance story   [--file <text>] [--name <text>] [--label <label>] [--in <packag
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
-variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]
+variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev|instant>]
 variance journeys [--config <path> | --suite <name>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
@@ -1294,6 +1294,15 @@ one prints no such line.
 `--subject` narrows to one subject id, `--since <rev>` reads forward from a tag
 or a SHA, `--limit` caps how many commits are read.
 
+A `remote` store's baselines are not commits, so its history is the record the
+deployment made when a reviewer approved them. `variance changelog` reads it
+from the deployment with your share token, which reads what review settled and
+never decides; declare the share as
+`{ "kind": "http", "endpoint": "<deployment>/share", "token": { "env": "VARIANCE_SHARE_TOKEN" } }`.
+The same filters narrow it, `--since` takes an instant there rather than a
+revision, and `--limit` caps how many approvals are read. Each change reads in
+the columns above, with the builds that carried it and who approved it.
+
 Three failure modes are handled explicitly:
 
 - **git missing, no repository, or an unresolvable revision** each exit `2`
@@ -1301,10 +1310,9 @@ Three failure modes are handled explicitly:
   "nothing has changed since the last baseline."
 - **A shallow clone bounds what can be read.** CI checkouts at depth 1 see one
   commit; the output prints a `note:` saying what it could not see.
-- **Stores whose baselines are not commits are refused by name.** Under
-  `ephemeral` retention there is no baseline to explain; behind a `remote`
-  store the explanation lives in that service's record instead, and this
-  command reads only the log of a checkout.
+- **A project that keeps no baselines is refused by name.** Under `ephemeral`
+  retention there is no baseline to explain, and an empty history would read
+  as a broken writer.
 
 ### Journeys: which part of a module two subjects took differently
 

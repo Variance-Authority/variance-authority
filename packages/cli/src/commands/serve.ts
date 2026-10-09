@@ -1,6 +1,14 @@
 import { serve as serveTools } from '@variance-authority/mcp';
 import { REPORTS } from '@variance-authority/mcp/protocol';
-import { COSTS_TOOLS, type CostsSubject, type Served, type Tool, type Tree } from '@variance-authority/mcp/tools';
+import {
+  COSTS_TOOLS,
+  REVIEW_TOOLS,
+  type CostsSubject,
+  type ReviewSubject,
+  type Served,
+  type Tool,
+  type Tree,
+} from '@variance-authority/mcp/tools';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport } from '@variance-authority/report/file';
 import { readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
@@ -8,6 +16,7 @@ import { HELP, HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Config } from '../config.js';
 import { costsSubject } from './ask-costs.js';
+import { decisionsSubject } from './ask-decisions.js';
 import { reportSource } from './report-source.js';
 
 /**
@@ -56,6 +65,10 @@ interface Bench {
   readonly costs?: CostsSubject;
   /** Why they could not be read, in the sentence `variance ask costs` prints. */
   readonly costsRefused?: string;
+  /** The decisions one `variance_decisions` call asked for, read for that call and at no other time. */
+  readonly review?: ReviewSubject;
+  /** Why they could not be read, in the sentence `variance ask decisions` prints. */
+  readonly reviewRefused?: string;
   /** The line and commit the report was read from, when it came from the share. */
   readonly says?: string;
   /** `<kind> <name> at <commit>`: the line the report was read from, when it came from the share. */
@@ -116,6 +129,8 @@ const BENCH: Served<Bench> = {
     })),
     // The mainline's times, as `variance ask costs` reads them with no report named.
     ...over(COSTS_TOOLS, (bench) => bench.costs, (bench) => bench.costsRefused ?? 'no subject costs were read'),
+    // What reviewers decided, as `variance ask decisions` reads it: with the share token.
+    ...over(REVIEW_TOOLS, (bench) => bench.review, (bench) => bench.reviewRefused ?? 'no decisions were read'),
     ...over(
       HELP.tools,
       (bench) => bench.help,
@@ -130,7 +145,8 @@ const BENCH: Served<Bench> = {
     'which third-party packages a location can use, which code the recorded tests ran around a file, ' +
     'and which recorded test files took longest — read from the checkout, ' +
     'with no run required. `variance_costs` says which files and subjects the suite spends its time on, ' +
-    'from the times the mainline\'s last build published.',
+    'from the times the mainline\'s last build published. `variance_decisions` lists what reviewers ' +
+    'approved and rejected on the review surface, read with the share token, which never decides.',
 };
 
 export interface ServeOptions {
@@ -177,7 +193,7 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
     // reports; cloning a whole workspace reading on every successful call would
     // buy that comparison nothing.
     remember: (bench) => ({ report: structuredClone(bench.report), ...(bench.from === undefined ? {} : { from: bench.from }) }),
-    subject: async (asked) => {
+    subject: async (asked, input) => {
       if (says !== undefined) {
         // A line's record does not change under its digest. The checkout's own
         // run does, and the first one written replaces it for every request after.
@@ -229,10 +245,18 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
           (refused: unknown) => ({ costsRefused: refused instanceof Error ? refused.message : String(refused) }),
         )
         : {};
+      // Read for the window this call names, so a reversal made a minute ago is in it.
+      const review = asked === REVIEW_TOOLS[0].name
+        ? await decisionsSubject(config, input ?? {}).then(
+          (read) => ({ review: read }),
+          (refused: unknown) => ({ reviewRefused: refused instanceof Error ? refused.message : String(refused) }),
+        )
+        : {};
       return {
         report,
         ...(help === undefined ? {} : { help }),
         ...costs,
+        ...review,
         ...(says === undefined ? {} : { says }),
         ...(from === undefined ? {} : { from }),
       };

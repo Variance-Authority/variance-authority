@@ -28,7 +28,7 @@ import type { ShareConfig } from './config-share.js';
  * number is the contract, and the contract is the thing a deployment can be
  * older than.
  */
-export const NEEDS_API = 3;
+export const NEEDS_API = 4;
 
 const require = createRequire(import.meta.url);
 
@@ -94,9 +94,9 @@ export async function reach(
 }
 
 /**
- * What each API level added that a push from this CLI uses, said as the symptom
- * an operator sees on a deployment older than it. `share` marks the one that
- * matters only to a project whose share is stored at that deployment.
+ * What each API level added that this CLI uses, said as the symptom an operator
+ * sees on a deployment older than it. `share` marks what matters only to a
+ * project whose share is stored at that deployment.
  */
 const ADDED: readonly { readonly api: number; readonly share: boolean; readonly symptom: string }[] = [
   {
@@ -116,6 +116,13 @@ const ADDED: readonly { readonly api: number; readonly share: boolean; readonly 
     share: true,
     symptom: 'The deployment answers 404 under /share/, so the share this project stores there holds nothing',
   },
+  {
+    api: 4,
+    share: true,
+    symptom:
+      'The deployment refuses the share token at /review/changelog and has no /review/decisions, so ' +
+      '`variance changelog` and `variance ask decisions` cannot read what review settled there',
+  },
 ];
 
 /** Every symptom of a deployment at `api`, or of one that did not say, for this project. */
@@ -128,7 +135,7 @@ function missing(api: number | undefined, share: boolean): string {
 /**
  * Whether `share` is an `http` share stored at the deployment `endpoint` names,
  * which is the one case where a deployment older than API 3 costs this project
- * its share. Scheme and host are compared as `URL` spells them, and trailing
+ * its share, and one older than API 4 costs it reading what review settled. Scheme and host are compared as `URL` spells them, and trailing
  * slashes are ignored.
  */
 export function shareAt(share: ShareConfig | undefined, endpoint: string): boolean {

@@ -63,6 +63,8 @@ export interface ParsedAsk {
   /** `--test <id>`: which test, for the questions about a suite still running. */
   readonly test?: string;
   readonly state?: string;
+  /** `--build <id>`: a review build, for the question about what reviewers decided. */
+  readonly build?: string;
   readonly file?: string;
   /** `--files <path>[,...]`: the files `orient` reads the graph around, as paths from the root. */
   readonly files?: readonly string[];
@@ -145,6 +147,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
   const claims = flags.values.get('--claims');
   const test = flags.values.get('--test');
   const state = flags.values.get('--state');
+  const build = flags.values.get('--build');
   const file = flags.values.get('--file');
   const files = (flags.values.get('--files') ?? '')
     .split(',')
@@ -184,6 +187,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(claims !== undefined ? { claims: resolve(claims) } : {}),
     ...(test !== undefined ? { test } : {}),
     ...(state !== undefined ? { state } : {}),
+    ...(build !== undefined ? { build } : {}),
     ...(file !== undefined ? { file } : {}),
     ...(files.length > 0 ? { files } : {}),
     ...(area !== undefined ? { area } : {}),

@@ -2,9 +2,11 @@ import { didYouMean } from '@variance-authority/core';
 import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import {
   COSTS_TOOLS,
+  REVIEW_TOOLS,
   TOOLS,
   VANTAGE_TOOLS,
   type CostsSubject,
+  type ReviewSubject,
   type Tool,
 } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
@@ -81,6 +83,8 @@ export interface Question {
   readonly source?: Tool<Help>;
   /** Asked of the times a run recorded, or absent when it is not a question about cost. */
   readonly costs?: Tool<CostsSubject>;
+  /** Asked of what reviewers decided, or absent when it is not a question about review. */
+  readonly review?: Tool<ReviewSubject>;
 }
 
 /** Every question, each knowing which subjects it answers about. */
@@ -96,6 +100,7 @@ function questionsOf(): readonly Question[] {
   }
   for (const tool of HELP_TOOLS) found.set(tool.name, { tool, source: tool });
   for (const tool of COSTS_TOOLS) found.set(tool.name, { tool, costs: tool });
+  for (const tool of REVIEW_TOOLS) found.set(tool.name, { tool, review: tool });
 
   return [...found.values()];
 }
@@ -138,6 +143,7 @@ const PLACEHOLDER: Readonly<Record<string, string>> = {
   claims: '<path>',
   test: '<id>',
   state: '<state>',
+  build: '<id>',
   file: '<text>',
   files: '<path>[,...]',
   name: '<name>',
