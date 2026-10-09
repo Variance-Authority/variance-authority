@@ -1929,9 +1929,9 @@ in one file may share a coordinate; the repeat is numbered, so the second reads
 `<coordinate>#1`. A file two Vitest projects both match runs once under each,
 and each copy is told apart by the project name your config gave it, the way
 Vitest prints it: `|compiled| test/checkout.test.tsx > checkout > submits`. A
-case only one project ran keeps the plain coordinate. Any other producer of an `ExecutionIndex` — and anything
-joining against one, such as an Eyes journal read by `variance distill` — has to
-key the same test by the same string.
+case only one project ran keeps the plain coordinate. Any other producer of an
+`ExecutionIndex` — and anything joining against one, such as an Eyes journal
+read by `variance distill` — has to key the same test by the same string.
 
 A case owns a crossing when the probe fired while that case was the one
 running, not inside a start-and-stop bracket around it. A suite runs its cases
