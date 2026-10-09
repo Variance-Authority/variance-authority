@@ -359,6 +359,16 @@ journal covers is drawn even when nothing parted: no partings among five subject
 is agreement, and among one it is nothing at all. A build with no journal draws
 no panel.
 
+**Stories of one component that render the same image** are named on the
+docket, though no diff shows them: both are `new` or both `unchanged`, and both
+are green. A story whose candidate is byte for byte its sibling's is an arm
+whose flag reaches no pixel, or one state under two names (`dark-narrow` and
+`narrow-dark`). The build already stores every candidate under the SHA-256 of
+its PNG, so the grouping reads the keys it holds and asks the run for nothing
+more. Stories are grouped only within their component, the part of the id
+before the first `--`. A subject page lays its component's stories side by side
+and marks the ones that are one picture.
+
 The `Changelog` tab is the same evidence at project scale.
 
 ## The changelog

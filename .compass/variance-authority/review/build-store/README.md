@@ -68,6 +68,9 @@ damage rather than as a run that kept nothing.
   current decision is the highest sequence, never the newest timestamp),
   `docket`, `toSubjectView`, and the
   readers for reach, composition, movements and declarations
+- `packages/tribunal/src/same-image.ts` — the stories of one component whose
+  candidates are stored under one key, so one image under several names, read
+  from the keys already held and never from a new upload
 - `packages/tribunal/src/review-types.ts` — the shapes, kept free of a database
   binding so the router and the surface can both name them
 - `packages/tribunal/src/schema.ts`, `migrations.ts`, `migration-steps.ts`,
