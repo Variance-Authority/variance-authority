@@ -150,17 +150,15 @@ describe('the Jest integration', () => {
     await stitchJourneyArtifacts([...journeyFiles].reverse(), reversed);
     await expect(readFile(reversed)).resolves.toEqual(await readFile(assembled));
     const index = decodeExecutionIndex(await readFile(assembled));
-    // Every case that entered a region, by the name the runner resolved. Two of
-    // `alpha.case.ts`'s three are absent for different reasons: the skipped one
-    // is never handed to the runner, so it opens no scope at all, and the one
-    // that only reads a global crossed nothing — the same rule the Vitest seam
-    // applies, since a case with an empty bucket adds a row nobody can select
-    // on.
+    // Every case that ran, by the name the runner resolved, the one that only
+    // reads a global among them though it crossed nothing. The skipped one is
+    // absent: it is never handed to the runner, so it opens no scope at all.
     // `delta.case.ts` among them, which is the placement a search of the realm
     // cannot reach: it imported `it` from `@jest/globals`, so the binding it
     // declared with was never the one on `globalThis`. The runner announces it
     // like any other case and the seam takes its enclosure from the event.
     expect(index.tests.map((test) => test.id)).toEqual([
+      at("test/alpha.case.ts > ran after the project's own setup file"),
       at('test/alpha.case.ts > takes the alpha path'),
       at('test/beta.case.ts > takes the beta path'),
       at('test/delta.case.ts > takes the delta path with registrars it imported'),

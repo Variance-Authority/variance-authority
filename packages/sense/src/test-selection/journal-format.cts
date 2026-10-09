@@ -126,7 +126,8 @@ function gaps(out: Writer, ordinals: Uint32Array, count: number): void {
 /**
  * A probe log's read-out: which rows, in order, and where each row's entries
  * sit in `sorted`. Each entry is an ordinal shifted left one, with the
- * evaluating bit below it. `instrument/probe-log.cts` makes these.
+ * evaluating bit below it, and an ordinal entered both ways is two entries,
+ * the clear one first. `instrument/probe-log.cts` makes these.
  */
 interface LogRows {
   readonly rows: readonly number[];
@@ -137,46 +138,54 @@ interface LogRows {
 }
 
 /**
- * {@link encodeJournal} of a case's bucket, read from the probe log directly.
+ * A case's bucket as a frame, read from the probe log directly.
  *
- * The bytes are the ones `encodeJournal(name, counters)` writes for the same
- * bucket: modules in the order the bucket first entered them, ordinals rising,
- * and no `loaded` list, because a case frame has none. Writing from the log
- * skips building a counter array per module per case only to scan it for the
- * few entries that are set.
+ * Modules in the order the bucket first entered them, ordinals rising, and no
+ * `loaded` list, because a case frame has none. A module the case entered both
+ * while a module evaluated and after — the one its inline require evaluated,
+ * then called — gets a second row of those ordinals as entered after, which a
+ * reader folds as it folds any row. Writing from the log skips a counter array.
  */
 function encodeLog(name: string, log: LogRows): Buffer {
   const out = new Writer();
   for (const byte of MAGIC) out.byte(byte);
   out.text(name);
-  out.number(log.rows.length);
   const { start, end, sorted } = log;
-  for (const row of log.rows) {
+  // Whether an entry is the evaluating half of an ordinal entered both ways.
+  const again = (at: number, from: number): boolean => at > from && sorted[at - 1] === (sorted[at]! ^ 1);
+  // Entered once or the first of two (`ONCE`), while evaluating (`EARLY`), or the second (`AGAIN`).
+  const takes = (at: number, from: number, kind: number): boolean =>
+    kind === EARLY ? (sorted[at]! & 1) === 1 : again(at, from) === (kind === AGAIN);
+  const ordinals = (from: number, to: number, kind: number): void => {
+    let count = 0;
+    for (let at = from; at < to; at += 1) if (takes(at, from, kind)) count += 1;
+    out.number(count);
+    let last = 0;
+    for (let at = from; at < to; at += 1) {
+      if (!takes(at, from, kind)) continue;
+      out.number((sorted[at]! >>> 1) - last);
+      last = sorted[at]! >>> 1;
+    }
+  };
+  const twice = log.rows.map((row) => sorted.subarray(start[row]!, end[row]!).some((_, at) => again(start[row]! + at, start[row]!)));
+  out.number(log.rows.length + twice.filter(Boolean).length);
+  log.rows.forEach((row, index) => {
     out.byte(NAMED);
     out.text(log.ids[row]!);
-    const from = start[row]!;
-    const to = end[row]!;
-    out.number(to - from);
-    let last = 0;
-    let early = 0;
-    for (let at = from; at < to; at += 1) {
-      const ordinal = sorted[at]! >>> 1;
-      out.number(ordinal - last);
-      last = ordinal;
-      early += sorted[at]! & 1;
-    }
-    out.number(early);
-    last = 0;
-    for (let at = from; at < to; at += 1) {
-      if ((sorted[at]! & 1) === 0) continue;
-      const ordinal = sorted[at]! >>> 1;
-      out.number(ordinal - last);
-      last = ordinal;
-    }
+    ordinals(start[row]!, end[row]!, ONCE);
+    ordinals(start[row]!, end[row]!, EARLY);
     out.number(0);
-  }
+    if (!twice[index]) return;
+    out.byte(NAMED);
+    out.text(log.ids[row]!);
+    ordinals(start[row]!, end[row]!, AGAIN);
+    out.number(0);
+    out.number(0);
+  });
   return out.done();
 }
+
+const [ONCE, EARLY, AGAIN] = [0, 1, 2];
 
 /** A frame back as rows. Throws on anything that does not end where it says. */
 function decodeJournal(raw: Uint8Array): ReadJournal {

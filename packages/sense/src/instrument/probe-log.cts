@@ -43,20 +43,19 @@
  *
  * A bucket switched through thousands of times re-logs what it touches after
  * each switch, so its log holds repeats. A log that has to grow is compacted
- * first when half of it would be repeats: each region kept once, where it was
- * first logged, with the evaluating bit of every entry for it. A byte per
- * region, zero between compactions, marks what has been kept, so a compaction
- * is two passes over the log and none over the rows. That bounds a long-lived
- * bucket — the ambient remainder, a flat file's, a page between drains — by the
- * regions it entered.
+ * first when half of it would be repeats: each region kept once for each way
+ * it was entered, where it was first logged that way. A byte per region, zero
+ * between compactions, marks what has been kept, so a compaction is two passes
+ * over the log and none over the rows. That bounds a long-lived bucket — the
+ * ambient remainder, a flat file's, a page between drains — by the regions it
+ * entered.
  *
  * ## What a close reads out
  *
  * Rows in the order the bucket first touched them, each row's ordinals
- * ascending and deduplicated, the evaluating bit an or over its entries. That
- * is the order and content `test-selection/journal-format.cts` encodes a map of
- * rows in, so it writes the frame straight from this view and the bytes are the
- * ones a map would give.
+ * ascending, once each way an ordinal was entered — with the evaluating bit
+ * and without — so a case keeps what it entered after its inline require
+ * evaluated. `test-selection/journal-format.cts` writes frames from this view.
  *
  * A module whose text changed under a running realm — same id, another block
  * count — gets a new row, and the old row is dropped from every read: its
@@ -259,18 +258,17 @@ function createEngine(scoped: boolean) {
       let kept = from;
       for (let at = from; at < to; at += 1) {
         const value = sorted[at]!;
-        if (kept > from && sorted[kept - 1]! >>> 1 === value >>> 1) sorted[kept - 1] = sorted[kept - 1]! | (value & 1);
-        else sorted[kept++] = value;
+        if (kept === from || sorted[kept - 1] !== value) sorted[kept++] = value;
       }
       rowEnd[row] = kept;
     }
   };
 
   /**
-   * Write a bucket's log back without its repeats, each region where it was
-   * first logged, with the evaluating bit of every entry for it. Two passes
-   * over the log and none over the rows, so a log compacted while it grows
-   * is not also sorted.
+   * Write a bucket's log back without its repeats: each region once each way
+   * it was entered, where it was first logged that way, `seen` holding a bit
+   * per way. Two passes over the log and none over the rows, so a log
+   * compacted while it grows is not also sorted.
    */
   const compact = (bucket: Bucket): void => {
     const live = bucket === current;
@@ -280,15 +278,17 @@ function createEngine(scoped: boolean) {
     for (let at = 0; at < end; at += 1) {
       const entry = log[at]!;
       const index = entry & INDEX;
-      seen[index] = seen[index]! | (entry < 0 ? 3 : 1);
+      seen[index] = seen[index]! | (entry < 0 ? 2 : 1);
     }
     let written = 0;
     for (let at = 0; at < end; at += 1) {
-      const index = log[at]! & INDEX;
+      const entry = log[at]!;
+      const index = entry & INDEX;
+      const way = entry < 0 ? 2 : 1;
       const mark = seen[index]!;
-      if (mark === 0) continue;
-      seen[index] = 0;
-      if (rowLive[rowOf[index]!] === 1) log[written++] = mark === 3 ? index | EVALUATING : index;
+      if ((mark & way) === 0) continue;
+      seen[index] = mark & ~way;
+      if (rowLive[rowOf[index]!] === 1) log[written++] = entry;
     }
     bucket.n = written;
     bucket.dense = written;
@@ -461,21 +461,24 @@ function createEngine(scoped: boolean) {
       return out;
     },
     /**
-     * A read-out as rows of ordinals. `byRow` orders them by when the realm
-     * first registered each module rather than by when this bucket first
-     * touched it, so a page drained several times reports one order.
+     * A read-out as rows of ordinals: `shared` entered while a module
+     * evaluated, `again` those also entered while none did. `byRow` orders by
+     * the realm's registration rather than this bucket's first touch, so a page
+     * drained several times reports one order.
      */
-    lists(out: typeof view, byRow: boolean): { id: ModuleId; hits: number[]; shared: number[] }[] {
+    lists(out: typeof view, byRow: boolean): { id: ModuleId; hits: number[]; shared: number[]; again: number[] }[] {
       const order = byRow ? [...out.rows].sort((left, right) => left - right) : out.rows;
       return order.map((row) => {
         const hits: number[] = [];
         const shared: number[] = [];
+        const again: number[] = [];
         for (let at = out.start[row]!; at < out.end[row]!; at += 1) {
-          const value = out.sorted[at]!;
-          hits.push(value >>> 1);
-          if (value & 1) shared.push(value >>> 1);
+          const ordinal = out.sorted[at]! >>> 1;
+          if (hits[hits.length - 1] === ordinal) again.push(ordinal);
+          else hits.push(ordinal);
+          if (out.sorted[at]! & 1) shared.push(ordinal);
         }
-        return { id: out.ids[row]!, hits, shared };
+        return { id: out.ids[row]!, hits, shared, again };
       });
     },
   };

@@ -102,8 +102,11 @@ describe.each(Object.entries(targets))('a journey across a service boundary, wri
     // never charged to the other file's cases, whose requests went to another
     // process, nor to the silent file's, whose process served no journey.
     expect(walking("return '$9.99'")).toEqual([at('test/refund.case.ts > refunds a small amount')]);
-    // A case that never crossed the fence has nothing on the far side.
-    expect(index.tests.map((test) => test.id)).not.toContain(at('test/quote.case.ts > never calls the service'));
+    // A case that never crossed the fence ran, so the index names it, and
+    // nothing on the far side is charged to it.
+    const silent = index.tests.findIndex((test) => test.id === at('test/quote.case.ts > never calls the service'));
+    expect(silent).toBeGreaterThanOrEqual(0);
+    expect(pricing!.blocks.some((block) => block.crossings.some((crossing) => crossing.test === silent))).toBe(false);
 
     const change = (text: string) => new Map([[at('service/pricing.mjs'), [{ start: lineOf(text), end: lineOf(text) }]]]);
     expect((await selectJourneyFile(journeyFile, change("return '9,00 €'")))?.entered).toEqual([at('test/quote.case.ts')]);

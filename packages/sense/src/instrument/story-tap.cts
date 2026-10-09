@@ -136,6 +136,8 @@ function createTap(engine: Engine, limit: number): Tap {
   let seen = -1;
   let notes: [number, string, string][] = [];
   let unnoted = 0;
+  // Whether the next write is the module's own probe, which follows `e`.
+  let rooting = false;
 
   const record = (entry: number): void => {
     const activation = inner.a;
@@ -169,11 +171,11 @@ function createTap(engine: Engine, limit: number): Tap {
     l: 0,
     L: empty,
     g(entry: number): void {
-      // A row's base with no evaluating bit is no visit: it is the probe
-      // logging the module's root on its first hit after a switch, so the
-      // bucket it switched to holds the module. The module's root is visited
-      // once, while it evaluates, and that entry carries the bit.
-      if (!known.has(entry)) record(entry);
+      // A row's base is a visit only from the module's own probe, which writes
+      // it just after raising the depth. Any other is a probe logging its
+      // module's root into a bucket that has not held it that way yet.
+      if (rooting || !known.has(entry & 0x7fffffff)) record(entry);
+      rooting = false;
       inner.g(entry);
     },
     r(id: ModuleId, count: number) {
@@ -188,6 +190,7 @@ function createTap(engine: Engine, limit: number): Tap {
     },
     e(): void {
       inner.e();
+      rooting = true;
     },
     x(): void {
       inner.x();
