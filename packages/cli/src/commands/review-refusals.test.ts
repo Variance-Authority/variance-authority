@@ -33,6 +33,6 @@ describe('a review that cannot be made', () => {
   });
 
   it('refuses a format it does not write', () => {
-    expect(() => parse(['--format', 'html'])).toThrow(/--format must be text, markdown or json/);
+    expect(() => parse(['--format', 'html'])).toThrow(/--format must be text, markdown, json or handover/);
   });
 });

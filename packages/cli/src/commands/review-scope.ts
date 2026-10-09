@@ -44,7 +44,7 @@ export function outermost(file: ReviewFile): readonly ReviewRegion[] {
 }
 
 /** The function a region sits in: a branch or a closure is its enclosing function's, and a module's own code is its top level. */
-function functionOf(region: ReviewRegion): string {
+export function functionOf(region: ReviewRegion): string {
   return region.kind === 'module' || region.name === '' ? 'the top level' : region.name.split('/')[0]!;
 }
 

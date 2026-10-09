@@ -181,6 +181,11 @@ export async function answerConfigless(
         streams.out(formatReview(await reviewFromRun({ run: parsed.fromRun, artifact: parsed.artifact ?? REVIEW_ARTIFACT, root: parsed.root }), parsed.format));
         return EXIT_CLEAN;
       }
+      if (parsed.format === 'handover') {
+        const { formatHandover, handover } = await import('./review-handover.js');
+        streams.out(formatHandover(await handover(parsed)));
+        return EXIT_CLEAN;
+      }
       const answer = await reviewWithCoverage(parsed);
       if (parsed.out !== undefined) {
         await mkdir(parsed.out, { recursive: true });
