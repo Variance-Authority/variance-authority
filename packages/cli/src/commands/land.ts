@@ -98,6 +98,9 @@ export async function landJourneys(
   // Each shard's own landing kept the install it ran on in the runs record
   // beside its snapshot, where that shard ran, and the fold ran on it only when
   // every shard names the same one. A record that cannot be read names none.
+  // FIXME: the texts a shard's install names are kept in the cache of the
+  // machine it ran on, and nothing carries them here, so a shard that ran over
+  // an uncommitted install elsewhere is compared from its commit after all.
   const installed = folded === undefined
     ? undefined
     : selection.shardsInstall(

@@ -150,7 +150,9 @@ describe('the install a fold of shards ran on', () => {
   });
 
   it('is the one every shard\'s record names, whatever order its paths were written in', () => {
-    expect(shardsInstall([shard(['a.test.ts'], {}), shard(['b.test.ts'], { installed: { ...bumped } })])).toEqual(bumped);
+    const two = { 'package.json': 'digest:root', 'yarn.lock': 'digest:bumped' };
+    const reordered = { 'yarn.lock': 'digest:bumped', 'package.json': 'digest:root' };
+    expect(shardsInstall([shard(['a.test.ts'], { installed: two }), shard(['b.test.ts'], { installed: reordered })])).toEqual(two);
     expect(shardsInstall([shard(['a.test.ts'], { installed: {} })])).toEqual({});
   });
 

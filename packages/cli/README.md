@@ -1518,8 +1518,9 @@ variance journeys stitch \
 The execution journal shards the same way the report does. A suite split
 across CI jobs records one snapshot per job — each runner's seam takes a
 `coverageFile`, and the job uploads it as an artifact with the runs record the
-seam writes beside it, `coverage.runs.json` beside `coverage.bin` — and every question
-anybody asks is about the suite. Name them all and `journeys` folds them into
+seam writes beside it, `coverage.runs.json` beside `coverage.bin`, which names
+the install the shard ran on — and every question anybody asks is about the
+suite. Name them all and `journeys` folds them into
 one snapshot, lands it, and reads it:
 
 ```bash
@@ -1762,8 +1763,11 @@ commit and run only the selected tests: it is compared from what it last ran
 on. Shards landed with `variance journeys <shard>...` ran on the install every
 shard's runs record names. Where a shard came without its runs record, or the
 shards ran on different installs, no install was kept. Where no install was
-kept, tests are compared from the commit they last ran at. Where the kept texts are not in this cache, they are compared from that
-commit too, and stderr names each such commit. A suite that ran with its
+kept, tests are compared from the commit they last ran at. Where the kept texts
+are not in this cache, they are compared from that commit too, and stderr names
+each such commit: a shard keeps the texts of its install in the cache of the
+machine it ran on, so shards that ran over an uncommitted install elsewhere are
+compared from their commit. A suite that ran with its
 lockfile deleted has no install to compare, and stderr says it ran without one.
 Every package the lockfile resolves differently is walked back through the
 packages that depend on it to the files that import them, and those files are
