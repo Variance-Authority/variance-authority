@@ -30,6 +30,16 @@ describe('the copies of a case two projects ran, told apart by project', () => {
     ]);
   });
 
+  it('refuses a repeat inside one project numbered onto a case literally named so', () => {
+    expect(() => caseIds([
+      { file: 'test/a.test.ts', name: 'pays', id: 'h1', project: 'plain' },
+      { file: 'test/a.test.ts', name: 'pays', id: 'h2', project: 'plain' },
+      { file: 'test/a.test.ts', name: 'pays', id: 'h3', project: 'compiled' },
+      { file: 'test/a.test.ts', name: 'pays#1', id: 'h4', project: 'plain' },
+      { file: 'test/a.test.ts', name: 'pays#1', id: 'h5', project: 'compiled' },
+    ])).toThrow('"pays#1" is the name of one case and the number of a repeated "pays"');
+  });
+
   it('numbers copies when the runner named no project', () => {
     expect(idsOf([
       { file: 'test/a.test.ts', name: 'pays', id: 'h1' },

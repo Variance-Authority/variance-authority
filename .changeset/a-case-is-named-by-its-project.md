@@ -11,3 +11,4 @@ which project the `#1` was. The index now carries the project name Vitest
 reported for each case and spells every copy by it, as Vitest prints it:
 `|compiled| test/greet.case.ts > greets by name`. A case only one project ran
 keeps its plain id, and a repeated name inside one project is still numbered.
+The ids of such cases change once, on the first record after upgrading.
