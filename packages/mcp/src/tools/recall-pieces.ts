@@ -31,11 +31,11 @@ export function recallPieces(record: SubjectPiecesRecord): string {
   }
   if (record.pieces.length > 0) {
     lines.push('pieces, smaller subjects inside it, most shared first:');
-    listed(lines, record.pieces, (piece) => `  ${piece.subject}  (${piece.shared} of its ${renderings(piece.footprint)} inside it)`);
+    lines.push(...cappedRows(record.pieces, (piece) => `  ${piece.subject}  (${piece.shared} of its ${renderings(piece.footprint)} inside it)`, ROWS));
   }
   if (record.wholes.length > 0) {
     lines.push('wholes, larger subjects holding it, smallest first:');
-    listed(lines, record.wholes, (whole: SubjectShareRecord) => `  ${whole.subject}  (${renderings(whole.footprint)}, ${whole.shared} of the ${footprint} inside it)`);
+    lines.push(...cappedRows(record.wholes, (whole: SubjectShareRecord) => `  ${whole.subject}  (${renderings(whole.footprint)}, ${whole.shared} of the ${footprint} inside it)`, ROWS));
   }
   const left = footprint - record.explained;
   if (left === 0) {
@@ -49,11 +49,11 @@ export function recallPieces(record: SubjectPiecesRecord): string {
   );
   if (record.own.length > 0) {
     lines.push('  its own, in components no piece mounts:');
-    listed(lines, record.own, (row) => `    ${row.component}  (${renderings(row.renderings)})`);
+    lines.push(...cappedRows(record.own, (row) => `    ${row.component}  (${renderings(row.renderings)})`, ROWS));
   }
   if (record.inContext.length > 0) {
     lines.push('  in context, components a piece renders another way:');
-    listed(lines, record.inContext, inContext);
+    lines.push(...cappedRows(record.inContext, inContext, ROWS));
   }
   return lines.join('\n');
 }
@@ -74,8 +74,4 @@ function components(count: number): string {
 
 function structural(count: number): string {
   return `${count} structural ${count === 1 ? 'component' : 'components'}`;
-}
-
-function listed<T>(lines: string[], rows: readonly T[], row: (value: T) => string): void {
-  lines.push(...cappedRows(rows, row, ROWS));
 }

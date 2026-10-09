@@ -35,11 +35,11 @@ export function formatTestComposition(composition: TestComposition): string {
   }
   if (composition.pieces.length > 0) {
     lines.push('', 'Pieces, smaller tests inside it, most shared first:');
-    listed(lines, composition.pieces, (piece) => `  ${named(piece)}  (${piece.shared} of its ${regions(piece.case.blocks)} inside it)`);
+    lines.push(...cappedRows(composition.pieces, (piece) => `  ${named(piece)}  (${piece.shared} of its ${regions(piece.case.blocks)} inside it)`, ROWS));
   }
   if (composition.wholes.length > 0) {
     lines.push('', 'Wholes, larger tests holding it, smallest first:');
-    listed(lines, composition.wholes, (whole) => `  ${named(whole)}  (${regions(whole.case.blocks)}, ${whole.shared} of the ${test.blocks} inside it)`);
+    lines.push(...cappedRows(composition.wholes, (whole) => `  ${named(whole)}  (${regions(whole.case.blocks)}, ${whole.shared} of the ${test.blocks} inside it)`, ROWS));
   }
   const left = composition.own.length + composition.reached.length;
   if (left === 0) {
@@ -54,11 +54,11 @@ export function formatTestComposition(composition: TestComposition): string {
   );
   if (composition.own.length > 0) {
     lines.push('Its own layer, in modules no piece ran:');
-    listed(lines, composition.own, region);
+    lines.push(...cappedRows(composition.own, region, ROWS));
   }
   if (composition.reached.length > 0) {
     lines.push('Paths of a piece\'s modules only it takes; a test nearer that code would run them more cheaply:');
-    listed(lines, composition.reached, region);
+    lines.push(...cappedRows(composition.reached, region, ROWS));
   }
   return lines.join('\n');
 }
@@ -78,8 +78,4 @@ function region(block: JourneyBlock): string {
 
 function regions(count: number): string {
   return `${count} ${count === 1 ? 'region' : 'regions'}`;
-}
-
-function listed<T>(lines: string[], rows: readonly T[], row: (value: T) => string): void {
-  lines.push(...cappedRows(rows, row, ROWS));
 }

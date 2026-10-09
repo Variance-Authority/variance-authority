@@ -517,22 +517,34 @@ populated one with one rendering to spare: its list, which has no items.
 
 What no piece renders splits by component:
 
-- **Its own** is a component no piece mounts. Only this subject shows that
-  component, so only it catches a change there.
+- **Its own** is a component no piece mounts. A larger subject, or one that
+  is not a piece, may still show it; nothing narrower inside this subject does,
+  so this subject is the narrowest that catches a change there.
 - **In context** is a component a piece mounts and this subject renders another
   way. The populated page's list has items and the empty page's does not; two of
   its toggle renderings are states the done item does not show. A change to
   either is the populated page's to catch.
 
-`page/todos--active-filter` is at the other end. Its chips render a selection no
-chip story shows, so its only piece is `ds/field--empty`, and nearly all of it
-is its own.
+`page/todos--active-filter` is at the other end. `ds/chip--group` mounts the
+same `Chip`, but its chips render a selection the filter page's do not, so less
+than nine tenths of it is inside the page and it is not a piece. The page's only
+piece is `ds/field--empty`, and nearly all of it is its own.
 
 The run computes this once over every composed subject and writes it on each
 subject's record in the report's `structure` section, as `pieces`, because the
-echo list is capped and a reader without the snapshots could not rebuild it. To
-read every page at once, read that field across the section; the tool answers
-one subject. A subject whose pieces render all of it is not therefore
+echo list is capped and a reader without the snapshots could not rebuild it.
+The tool answers one subject. To read every page at once, walk the field in the
+parsed report:
+
+```ts
+for (const { subject, pieces } of report.composition?.structure ?? []) {
+  if (pieces === undefined || pieces.footprint === 0) continue;
+  const left = pieces.footprint - pieces.explained;
+  console.log(`${subject}: ${left} of ${pieces.footprint} renderings no piece renders`);
+}
+```
+
+A page with nothing left is one its pieces render entirely. A subject whose pieces render all of it is not therefore
 redundant: the arrangement between the pieces is not a rendering of any one
 component.
 

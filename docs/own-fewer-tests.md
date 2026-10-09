@@ -107,9 +107,9 @@ A flow test that checks out a cart also prices it, applies the coupon and
 renders the summary, and each of those has a narrower test of its own. What the
 flow test adds is what is left when you take its narrower tests away. That
 subtraction only works region by region. Two coverage totals subtract to a
-number, and a number cannot name the code only the flow test runs.
-[Distill](distill.md) reads one test against what it loaded; this reads one test
-against the narrower tests inside it.
+number, and a number cannot name the code only the flow test runs. The
+command reads the same per-case index `withTestSelection` writes, from
+[the section above](#ask-which-tests-cover-a-line):
 
 ```bash
 npx variance ask test-composition --file src/cart/flow.test.tsx --name 'checks out'
@@ -155,9 +155,19 @@ parts in is not a region of any one part.
 
 To settle it, break the code and see who fails. Change one line the pieces ran —
 [`covering`](#ask-which-tests-cover-a-line) names the tests that ran it — and
-run only the pieces. A piece that fails catches what the flow test catches
-there, at a cheaper boundary. A break that only the flow test catches is one
-the reading cannot see, and the flow test keeps it.
+run the pieces and the flow test against the same break:
+
+- **A piece fails too.** The flow test is a second witness for that line, at a
+  slower boundary.
+- **Only the flow test fails.** It checks something there no piece checks, and
+  it keeps its place.
+
+A flow test with no own layer, where every break you try fails a piece too,
+checks only how its parts are put together. Keep it if that order of calls is a
+risk you act on. Otherwise it is the test to retire, or to cut down to the one
+assertion about the order. For one candidate test read on its own rather than
+against its pieces, [Distill](distill.md) separates what it loaded, covered and
+addressed.
 
 ## Do you need a test?
 
