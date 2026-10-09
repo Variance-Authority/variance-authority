@@ -116,6 +116,27 @@ describe('the changelog of a remote store', () => {
     await expect(refused).rejects.toThrow(/API 4/);
   });
 
+  it('says why a read was not made, and never answers it with an empty history', async () => {
+    const { asked, fetch } = answering(200, CHANGELOG);
+    const tokenless = config({ kind: 'http', endpoint: `${DEPLOYMENT}/share` } as Config['share']);
+    await expect(readRemoteChangelog({ config: tokenless, deployment: DEPLOYMENT, fetch })).rejects.toThrow(
+      /declares none\. Add `"token": \{ "env": "VARIANCE_SHARE_TOKEN" \}`/,
+    );
+    expect(asked).toEqual([]);
+
+    const unreachable = (async () => {
+      throw new Error('connect ECONNREFUSED');
+    }) as typeof globalThis.fetch;
+    await expect(readRemoteChangelog({ config: config(), deployment: DEPLOYMENT, fetch: unreachable })).rejects.toThrow(
+      /could not be reached: connect ECONNREFUSED/,
+    );
+
+    const broken = (async () => new Response('upstream timed out', { status: 502 })) as typeof globalThis.fetch;
+    await expect(readRemoteChangelog({ config: config(), deployment: DEPLOYMENT, fetch: broken })).rejects.toThrow(
+      /answered 502: upstream timed out\. The deployment refused the reading; its answer above says why/,
+    );
+  });
+
   it('names an older deployment by its 404', async () => {
     const { fetch } = answering(404, { error: 'no route' });
     await expect(readRemoteChangelog({ config: config(), deployment: DEPLOYMENT, fetch })).rejects.toThrow(

@@ -74,4 +74,15 @@ describe('the decisions a deployment recorded', () => {
     expect(answer).toBe(`${decisions.run({ from: DEPLOYMENT, decisions: HISTORY.decisions as never }, { subject: 'story:a', build: 'ci-2' })}\n`);
     expect(answer).toContain('2026-06-03T10:00:00.000Z  rejected  story:a  ci-2  marina');
   });
+
+  it('are refused without a config, which names the deployment and the token', async () => {
+    await expect(
+      ask({
+        question: 'decisions',
+        subject: 'story:a',
+        report: 'unused.json',
+        read: () => Promise.reject(new Error('a decision is not read from a report')),
+      }),
+    ).rejects.toThrow(/`decisions` needs a config: it names the deployment and the share token/);
+  });
 });
