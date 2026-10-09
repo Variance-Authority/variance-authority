@@ -9,8 +9,9 @@ stays the same loop, only shorter.
 `vitest --changed` and `jest --onlyChanged` run every test that imports a file
 you changed. Edit one function in a module half the suite imports, and half the
 suite runs. A recorded run knows which of those tests executed that function,
-and only those run. Each run then updates the record, so your next edit is
-measured from what ran last rather than from your branch point.
+and only those run. Under Jest and Vitest it can also skip the cases inside a
+file that did not execute it. Each run then updates the record, so your next
+edit is measured from what ran last rather than from your branch point.
 
 Wrap the runner configuration once and run the suite once. That run writes the
 [record](execution-record.md): which test file executed which lines of which
@@ -112,21 +113,25 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_GRAIN=case npx vitest run
 
 The skipped cases show as skipped, as `it.skip` would show them, and the stderr
 line counts them: `selected 2 of 340, skipping 31 cases in 2 of them`. A file
-runs whole when the record cannot say which cases your edit reached:
+runs whole when the record cannot say which of its cases your edit reached:
 
-- you changed the test file itself, or it was selected through a
-  precondition, a reader or an import path;
-- the changed code ran while its module loaded, which every case of the file
-  waits on;
-- no recorded case entered it.
+- the last run of the file was cut. A file run in part is recorded
+  incomplete, because the cases it skipped recorded nothing, and a test that
+  did not pass whole runs again. So the next selection runs it whole, whatever
+  that edit touched, which records it complete again: over a loop of edits to
+  the same code, every other run of the file is cut;
+- you changed the test file itself;
+- the file was selected for a change the record does not split by case: a
+  fixture it declares as a precondition, a file it reads from disk, or a
+  changed file the record holds no lines for, charged to the tests that ran
+  what imports it;
+- the changed code ran while a module loaded, such as an import at the top of
+  the test file, which every case of the file waits on.
 
-A case that shares its full name with a case your edit reached runs too,
-because the runner skips by name.
-
-A file run in part is recorded incomplete, because the cases it skipped
-recorded nothing, so the next selection runs that file whole. Playwright and
-Rstest run every selected file whole. File grain is the default, and
-`VARIANCE_AUTHORITY_GRAIN=file` names it.
+Within a file that is cut, a case that shares its full name with a case your
+edit reached runs too, because the runner skips by name. Playwright and Rstest
+run every selected file whole, and watch mode does not select at either grain.
+File grain is the default, and `VARIANCE_AUTHORITY_GRAIN=file` names it.
 
 ## Each run moves the starting point
 
