@@ -148,6 +148,32 @@ describe('one leg of the selection', () => {
     expect(err).not.toContain('for a later leg');
   });
 
+  // The earlier leg landed its run, and this reading is the one after it: what
+  // that leg ran is at HEAD, and the rest is read from where it last ran.
+  it('runs in the open leg the nearer tests a run landed at HEAD left standing, placed or not', () => {
+    const input = read([
+      { test: NEAR, bearing: 'direct', hops: 0 },
+      { test: MID, bearing: 'transitive', hops: 1 },
+      { test: FAR, bearing: 'transitive', hops: 2 },
+      { test: GHOST, bearing: 'unexplained' },
+    ]);
+    const after: SelectInput = input.ground.kind === 'read' ? { ...input, ground: { ...input.ground, unrunAtHead: [GHOST, MID] } } : input;
+    const end = inLeg(skippableTests(after), after, { from: 3, to: Number.MAX_SAFE_INTEGER });
+
+    expect(end.skip).toEqual([FAR, IDLE, NEAR]);
+    expect(end.left).toEqual([FAR, NEAR]);
+    expect(selectionNotes(end)).toContain(
+      '2 selected test files nearer than 3 hops run in this leg: they last ran before HEAD, and the run that landed at HEAD did not run them',
+    );
+  });
+
+  it('leaves the tests standing before HEAD to the leg that starts at 0 hops', () => {
+    const input = read();
+    const after: SelectInput = input.ground.kind === 'read' ? { ...input, ground: { ...input.ground, unrunAtHead: [FAR, MID] } } : input;
+
+    expect(inLeg(skippableTests(after), after, { from: 0, to: 2 }).skip).toEqual([FAR, GHOST, IDLE]);
+  });
+
   it('runs an entered test with no distance in the open leg when no hop was measured', () => {
     const input = read([]);
     const near = inLeg(skippableTests(input), input, { from: 0, to: 2 });

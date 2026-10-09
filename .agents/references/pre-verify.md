@@ -191,7 +191,8 @@ is five hops out answers it with nothing, which is the true answer. Start at
 The near and far waves are a partition: `0-2` then `3-`. The tests with no
 measurable distance run in the leg that holds the furthest measured hop, or in
 the leg open at the top when nothing was measured, so the two legs run every
-selected file once. `variance select --at-distance` prints how many selected
+selected file once. The far wave reads the record the near wave just saved, and
+runs any test nearer than three hops that the near wave did not. `variance select --at-distance` prints how many selected
 files a leg leaves behind, and the range that runs them.
 
 A distance narrows a reading; it cannot narrow a widening. When the reading
