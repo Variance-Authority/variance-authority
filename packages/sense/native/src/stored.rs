@@ -74,8 +74,15 @@ impl<'a> Stored<'a> {
         let text = std::str::from_utf8(header).map_err(|_| "a header that is not UTF-8")?;
         let header: Header =
             serde_json::from_str(text.trim_end_matches('\0')).map_err(|error| format!("a header that does not parse: {error}"))?;
-        if header.format != FORMAT || header.version != u32::from(VERSION) {
+        if header.format != FORMAT {
             return Err(format!("{} version {}, not {FORMAT} version {VERSION}", header.format, header.version));
+        }
+        // Another release wrote it: told apart from bytes that do not read, as the TypeScript reader tells them.
+        if header.version != u32::from(VERSION) {
+            return Err(format!(
+                "a {FORMAT} written in format version {}, and this release reads version {VERSION}; `variance index` rebuilds it",
+                header.version
+            ));
         }
         let base = 4 + length;
         let body = bytes.len() - base;

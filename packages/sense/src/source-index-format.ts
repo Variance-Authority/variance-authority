@@ -32,7 +32,9 @@ import { packageOf } from './specifier.js';
  * that recorded no exports against one that was never asked for them.
  */
 const FORMAT = 'variance-authority-source-index';
-const VERSION = 18;
+/** The format version this reader reads and the addon writes (`VERSION` in `native/src/segment.rs`). */
+export const SOURCE_INDEX_VERSION = 18;
+const VERSION = SOURCE_INDEX_VERSION;
 const WHAT = 'source index';
 /** Rows per document: a few megabytes of JSON, far under any string limit. */
 const ROWS = 4096;
