@@ -288,29 +288,21 @@ export async function dispatch(
         ...(parsed.component !== undefined ? { component: parsed.component } : {}),
         ...(parsed.subject !== undefined ? { subject: parsed.subject } : {}),
       };
+      const since = parsed.since !== undefined ? { since: parsed.since } : {};
+      const bounds = { ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}), ...since };
       const store = changelogStoreFor(config);
       if ('deployment' in store) {
         const read = await readRemoteChangelog({
           config,
           deployment: store.deployment,
           ...view,
-          ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
-          ...(parsed.since !== undefined ? { since: parsed.since } : {}),
+          ...bounds,
         });
-        streams.out(
-          `${formatRemoteChangelog(read, store.deployment, {
-            ...view,
-            ...(parsed.since !== undefined ? { since: parsed.since } : {}),
-          })}\n`,
-        );
+        streams.out(`${formatRemoteChangelog(read, store.deployment, { ...view, ...since })}\n`);
         return EXIT_CLEAN;
       }
 
-      const result = await changelog({
-        root: store.root,
-        ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
-        ...(parsed.since !== undefined ? { since: parsed.since } : {}),
-      });
+      const result = await changelog({ root: store.root, ...bounds });
 
       streams.out(`${formatChangelog(result, view)}\n`);
 

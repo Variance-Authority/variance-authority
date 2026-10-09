@@ -170,7 +170,7 @@ describe('the share token reads what review settled', () => {
     expect((await call('/review/changelog', SHARE, {})).status).toBe(405);
   });
 
-  it.todo('reads the concerns raised on a build, and cannot raise or move one');
+  it.todo('reads the concerns raised on a build, and cannot raise or move one — needs the concerns route, which #267 adds');
 });
 
 describe('the ingest token reads none of it', () => {

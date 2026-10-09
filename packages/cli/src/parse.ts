@@ -144,10 +144,7 @@ export type Parsed =
       /** `--subject <id>`: exact, because a subject id is exact. */
       readonly subject?: string;
       readonly limit?: number;
-      /**
-       * `--since <rev|instant>`: read forward from this revision, exclusive, or,
-       * for a `remote` store, from this instant.
-       */
+      /** `--since <rev|instant>`: after this revision, or a `remote` store's instant. */
       readonly since?: string;
     }
   | {
