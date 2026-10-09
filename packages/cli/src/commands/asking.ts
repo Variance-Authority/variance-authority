@@ -234,7 +234,7 @@ export function inputFor(
     const argument = accepted.find((entry) => entry.property === property);
     if (argument === undefined) {
       const flags = accepted.map((entry) => entry.flag);
-      throw new OperatorError(`${notTaken(tool, `--${property}`)}${didYouMean(`--${property}`, flags)}`);
+      throw new OperatorError(`${notTaken(tool, `--${property}`)}.${didYouMean(`--${property}`, flags)}`);
     }
     // A list a tool declares is typed once, comma-separated, like `--files`.
     input[property] = argument.kind === 'list' && typeof value === 'string'

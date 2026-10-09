@@ -37,8 +37,8 @@ describe('a word a question about the code does not take', () => {
     const word = await run(['ask', 'packages', '@kbn/does-not-exist']);
 
     expect(word.code).toBe(flag.code);
-    expect(flag.err).toContain('it takes none');
-    expect(word.err).toContain('it takes none');
+    expect(flag.err).toContain('`--package` is not an argument `variance ask packages` takes; it takes none.');
+    expect(word.err).toContain('`@kbn/does-not-exist` is not an argument `variance ask packages` takes; it takes none.');
   });
 
   it('is refused after a flag value that ran on past one word, naming what the question takes', async () => {
