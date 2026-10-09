@@ -3530,9 +3530,18 @@
         "Cause": "interface",
         "ChangelogChange": "interface",
         "ChangelogRow": "interface",
+        "Concern": "interface",
+        "ConcernEvent": "interface",
+        "ConcernQuery": "interface",
+        "ConcernRegion": "interface",
+        "ConcernState": "type",
+        "ConcernStore": "interface",
+        "ConcernTally": "type",
         "Coverage": "interface",
         "Decision": "type",
         "DecisionRecord": "interface",
+        "MoveConcern": "interface",
+        "RaiseConcern": "interface",
         "ReviewError": "class",
         "ReviewOptions": "interface",
         "ReviewStore": "interface",
@@ -3541,6 +3550,7 @@
         "SweepReport": "interface",
         "TribunalChangelog": "interface",
         "TribunalChangelogQuery": "interface",
+        "createConcernStore": "function",
         "createReviewStore": "function"
       },
       "./worker": {
@@ -3580,6 +3590,9 @@
         "ChangelogEntries": "function",
         "ChangelogPage": "function",
         "ChurnLine": "function",
+        "ConcernTallyLine": "function",
+        "ConcernTrail": "function",
+        "Concerns": "function",
         "CoverageLine": "function",
         "DeclarationsPanel": "function",
         "Order": "type",
@@ -3608,7 +3621,8 @@
         "modesFor": "function",
         "needsReview": "function",
         "originsOf": "function",
-        "parseRoute": "function"
+        "parseRoute": "function",
+        "useConcernTally": "function"
       },
       "./next": {
         "Capability": "type",
