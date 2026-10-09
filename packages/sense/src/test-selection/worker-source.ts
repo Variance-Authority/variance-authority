@@ -13,6 +13,7 @@
  * implementation rather than a copy each.
  */
 
+import { vitestCutSource } from './case-cut.js';
 import { CASE_SCOPE } from './cases.js';
 import { scopeGlobalsSource } from './precondition-source.js';
 import { EXECUTION_GLOBAL, executionCollectorSource } from './probes.js';
@@ -306,33 +307,7 @@ const hookAt = (kind, depth, args) => {
     : { kind: 'each', depth, case: caseKey(test) };
 };
 
-// The cases the selection skips, by the absolute path of their file, as the
-// sequencer wrote them before any worker started. A worker runs many files,
-// so the cut is read at each file's collection. A test it names is marked
-// skipped, as \`it.skip\` would have; one the file already skips, or leaves
-// out under \`only\`, keeps the mode it has. Vitest 2 calls a test \`run\` here
-// and Vitest 3 \`queued\`. The main process heard of the file before this hook
-// and Vitest 2 reports nothing for a test it does not run, so the skip is sent
-// as a result through the runner's own update.
-const cutFile = ${JSON.stringify(runner.cut ?? null)};
-const cutOf = (filepath) => {
-  if (cutFile === null) return undefined;
-  try {
-    return JSON.parse(readFileSync(cutFile, 'utf8'))[filepath];
-  } catch (error) {
-    if (error?.code === 'ENOENT') return undefined;
-    throw error;
-  }
-};
-const skipCut = (task, names, skipped) => {
-  if (task.type === 'test' && (task.mode === 'run' || task.mode === 'queued') && names.has(getNames(task).slice(1).join(' > '))) {
-    task.mode = 'skip';
-    task.result = { state: 'skip' };
-    skipped.push([task.id, task.result, task.meta]);
-  }
-  for (const child of task.tasks ?? []) skipCut(child, names, skipped);
-};
-
+${vitestCutSource(runner.cut)}
 export default class extends VitestTestRunner {
   async onCollected(files) {
     await super.onCollected?.(files);

@@ -62,3 +62,39 @@ export function cutFiles(file: string | undefined): ReadonlySet<string> {
 export function removeCut(file: string | undefined): void {
   if (file !== undefined) rmSync(file, { force: true });
 }
+
+/**
+ * The part of the Vitest case runner that reads the cut at `cutFile` and marks
+ * its cases skipped: `cutOf(filepath)` and `skipCut(task, names, skipped)`,
+ * for the runner's `onCollected`. It expects `readFileSync` and `getNames`
+ * imported where it lands.
+ *
+ * A worker runs many files, so the cut is read at each file's collection. A
+ * test it names is marked skipped, as `it.skip` would have; one the file
+ * already skips, or leaves out under `only`, keeps the mode it has. Vitest 2
+ * calls a test `run` there and Vitest 3 `queued`. The main process heard of
+ * the file before that hook, and Vitest 2 reports nothing for a test it does
+ * not run, so the runner sends each skip as a result through its own update.
+ */
+export function vitestCutSource(cutFile: string | undefined): string {
+  return `
+const cutFile = ${JSON.stringify(cutFile ?? null)};
+const cutOf = (filepath) => {
+  if (cutFile === null) return undefined;
+  try {
+    return JSON.parse(readFileSync(cutFile, 'utf8'))[filepath];
+  } catch (error) {
+    if (error?.code === 'ENOENT') return undefined;
+    throw error;
+  }
+};
+const skipCut = (task, names, skipped) => {
+  if (task.type === 'test' && (task.mode === 'run' || task.mode === 'queued') && names.has(getNames(task).slice(1).join(' > '))) {
+    task.mode = 'skip';
+    task.result = { state: 'skip' };
+    skipped.push([task.id, task.result, task.meta]);
+  }
+  for (const child of task.tasks ?? []) skipCut(child, names, skipped);
+};
+`;
+}
