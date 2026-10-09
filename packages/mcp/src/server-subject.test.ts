@@ -35,6 +35,18 @@ describe('what the server tells its host', () => {
     }
   });
 
+  it('hands the host the arguments a call names, so a host that fetches reads only that window', async () => {
+    const given: (Readonly<Record<string, unknown>> | undefined)[] = [];
+    const harness = start(() => ({ value: 'one' }), [], given);
+    try {
+      await harness.call({ since: 'a' });
+      await harness.list();
+      expect(given).toEqual([{ since: 'a' }, undefined]);
+    } finally {
+      harness.stop();
+    }
+  });
+
   it('keeps what the host says to keep, rather than the whole subject', async () => {
     const harness = start((asked) => ({
       value: 'before',
@@ -54,8 +66,9 @@ describe('what the server tells its host', () => {
 function start(
   subject: (asked?: string) => State,
   asked: (string | undefined)[] = [],
+  given: (Readonly<Record<string, unknown>> | undefined)[] = [],
 ): {
-  readonly call: () => Promise<string>;
+  readonly call: (args?: Readonly<Record<string, unknown>>) => Promise<string>;
   readonly list: () => Promise<void>;
   readonly stop: () => void;
 } {
@@ -67,8 +80,9 @@ function start(
     input,
     output,
     served,
-    subject: (name) => {
+    subject: (name, input) => {
       asked.push(name);
+      given.push(input);
       return subject(name);
     },
     remember: (state) => ({ value: state.value }),
@@ -81,8 +95,10 @@ function start(
   };
 
   return {
-    call: async () => {
-      const response = JSON.parse(await send('tools/call', { name: 'variance_diff' })) as {
+    call: async (args) => {
+      const response = JSON.parse(
+        await send('tools/call', { name: 'variance_diff', ...(args === undefined ? {} : { arguments: args }) }),
+      ) as {
         readonly result: { readonly content: readonly { readonly text: string }[] };
       };
       return response.result.content[0]!.text;
