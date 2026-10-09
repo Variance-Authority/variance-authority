@@ -350,7 +350,7 @@ export const NAVIGATION = [
       { href: "/docs/test-stories", label: "Read what one test ran" },
       {
         href: "/agents/cli",
-        label: "Ask a run from the command line",
+        label: "Ask about the code and its runs from the command line",
         alternative: true,
       },
       {
