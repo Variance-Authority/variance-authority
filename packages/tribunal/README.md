@@ -362,8 +362,8 @@ open, investigating and resolved, each step with a name on it. It stays on the
 subject, shown with its trail on every later build that reports it; resolving it
 closes it without removing it. Its region is a place on the image of the build
 it was raised in, so it names a place nobody can see once that build is swept;
-the component the run attributed it to, `Button · 24×18 at 154,85`, still says
-what was there. A concern and a decision never settle each other: approving does not resolve
+the component it carries still says what was there, as `Button · 24×18 at
+154,85`. A concern and a decision never settle each other: approving does not resolve
 a concern, and resolving one approves nothing. The build's header counts the
 concerns its subjects carry, and says so when it could not read them rather than
 showing none.
