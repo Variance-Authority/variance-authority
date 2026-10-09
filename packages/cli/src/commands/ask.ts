@@ -207,6 +207,10 @@ export async function ask(request: AskRequest): Promise<string> {
     throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\``);
   }
 
+  // A question only a watcher answers reads no report, with a watcher or
+  // without one, so the word is refused before the missing watcher is.
+  if (question.report === undefined) refuseWords(question.tool, request.reports);
+
   const input = await inputFrom(question, request);
   if (request.at !== undefined && question.live !== undefined) unread(question, request.at, request.reports);
 
@@ -374,14 +378,13 @@ function noWatcher(question: Question): OperatorError {
 }
 
 /**
- * Refuse a word typed after a question a watcher answers. A question that also
- * reads a finished run, `diff`, would read the word as a report without the
- * watcher, so the refusal says the watcher is why it went unread.
+ * Refuse a report typed after a question a watcher answers, when the question
+ * also reads a finished run — `diff`, which would read the word as a report
+ * without the watcher — so the refusal says the watcher is why it went unread.
  */
 function unread(question: Question, at: string, reports: readonly string[] | undefined): void {
   const word = reports?.[0];
   if (word === undefined) return;
-  if (question.report === undefined) refuseWords(question.tool, reports);
   throw new OperatorError(
     `\`${word}\` is a report, and \`variance ask ${questionOf(question.tool)}\` was asked of the ` +
       `watcher at \`${at}\`, which reads none. Ask without \`--at\`, and without ` +

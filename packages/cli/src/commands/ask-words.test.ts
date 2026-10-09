@@ -1,3 +1,7 @@
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import { describe, expect, it } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_OPERATOR } from '../exit.js';
@@ -47,5 +51,36 @@ describe('a word a question about the code does not take', () => {
     expect(code).toBe(EXIT_OPERATOR);
     expect(err).toContain('`executor` is not an argument `variance ask search` takes; it takes --query');
     expect(err).toContain('A value of more than one word is one argument, in quotes.');
+  });
+});
+
+describe('a word a question about a running suite does not take', () => {
+  it('is refused before the missing watcher, which a corrected question is still told about', async () => {
+    // Only a watcher answers `run-signals`, and a watcher reads no report.
+    // Named first, because it is wrong whether or not a watcher is running.
+    const root = await mkdtemp(join(tmpdir(), 'va-ask-words-'));
+    const config = join(root, 'variance.config.json');
+    await writeFile(config, JSON.stringify({
+      project: 'ask-words',
+      profile: 'chromium',
+      viewport: { width: 1280, height: 800 },
+      retention: 'ephemeral',
+      subjects: { kind: 'list', ids: ['cart/empty'], collector: './collector.mjs' },
+      fonts: [],
+      report: '.variance/report.json',
+    }), 'utf8');
+    const exported = process.env[VANTAGE_VARIABLE];
+    delete process.env[VANTAGE_VARIABLE];
+    try {
+      const word = await run(['ask', 'run-signals', 'bogus', '--config', config]);
+      const corrected = await run(['ask', 'run-signals', '--config', config]);
+
+      expect(word.code).toBe(EXIT_OPERATOR);
+      expect(word.err).toContain('`bogus` is not an argument `variance ask run-signals` takes; it takes');
+      expect(corrected.code).toBe(EXIT_OPERATOR);
+      expect(corrected.err).toContain('needs a watcher to ask');
+    } finally {
+      if (exported !== undefined) process.env[VANTAGE_VARIABLE] = exported;
+    }
   });
 });
