@@ -2,7 +2,7 @@
 '@variance-authority/cli': patch
 ---
 
-`3-` runs the near tests `0-2` did not run, so the two legs run every selected file
+`3-` runs the near tests the run `0-2` saved did not run
 
 `0-2` saves its run before `3-` is cut, so `3-` reads another record: the tests
 `0-2` ran are at HEAD, and every other test is read from where it last ran. That

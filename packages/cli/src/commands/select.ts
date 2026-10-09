@@ -101,7 +101,7 @@ export type SelectGround =
       readonly distances?: readonly TestDistance[];
       /**
        * The tests that last ran before the journal's commit, when that commit
-       * is HEAD: a run landed here without them, so no earlier leg ran them.
+       * is HEAD: no run that landed at HEAD ran them.
        * Asked only for a leg that starts past 0 hops.
        */
       readonly unrunAtHead?: readonly string[];
