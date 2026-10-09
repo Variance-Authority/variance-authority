@@ -81,18 +81,31 @@ describe('stories of one component that render one image are grouped', () => {
     expect((await review.build('ci-1001'))?.sameImage).toEqual([]);
   });
 
-  it('does not count a story with no candidate as matching one', async () => {
+  it('orders members of one length by code unit, so a Worker and Node give one answer', async () => {
+    await review.ingest(rendered({ 'story:badge--a': RED, 'story:badge--B': RED }));
+
+    expect((await review.build('ci-1001'))?.sameImage.map((group) => group.subjects)).toEqual([
+      ['story:badge--B', 'story:badge--a'],
+    ]);
+  });
+
+  it('does not count stories with no candidate as matching each other or one that has', async () => {
     await review.ingest(
-      rendered({ 'story:product-card--control': RED, 'story:product-card--sale': undefined }),
+      rendered({
+        'story:product-card--control': RED,
+        'story:product-card--sale': undefined,
+        'story:product-card--sold-out': undefined,
+      }),
     );
 
     expect((await review.build('ci-1001'))?.sameImage).toEqual([]);
   });
 
   // A story that settled on its baseline's document digest uploads no candidate,
-  // so a pair is named on the build that introduced or changed it and not on the
-  // green builds after. Its picture is the baseline it settled on, but the build
-  // does not record which baseline that was, and the current one may have moved.
+  // so a pair is named only on a build where both kept one: both new, or both
+  // changed. A new arm beside a base that settled is not named. The settled
+  // story's picture is its baseline, but the build does not record which one,
+  // and the current one may have moved.
   it.todo(
     'groups a story that settled on its baseline with a sibling whose candidate is that image — needs the build to record the baseline each settled story matched',
   );

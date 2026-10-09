@@ -7,10 +7,11 @@
  *
  * The id is the record. `story:cart-card--item` is what the collector wrote for
  * the story `item` of `Cart Card`, and the report carries no title beside it, so
- * the family is the part before the first `--`. An id with no `--` — a route, a
- * test — is a family of one.
+ * the family is the part before the first `--`. An id with no `--` is a family
+ * of one. A route or test id that happens to hold a `--` is cut there too.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { VariationRecord } from '@variance-authority/report';
 
 /** One subject of a family, named by the part of its id after the family. */
@@ -49,7 +50,7 @@ export function columnsOf(
     }
   }
   const byRank = (a: { readonly member: string }, b: { readonly member: string }): number =>
-    a.member.length - b.member.length || a.member.localeCompare(b.member);
+    a.member.length - b.member.length || codeUnitOrder(a.member, b.member);
   const armsOf = (parent: string | undefined): readonly FamilyColumn[] =>
     members
       .filter((member) => parents.get(member.subject) === parent)

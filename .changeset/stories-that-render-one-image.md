@@ -12,8 +12,11 @@ component whose candidates are stored under one key, read from the keys the
 build already holds. The run uploads nothing new. A component is the part of
 the subject id before the first `--`, and no group crosses one. A story that
 settled on its baseline's digest kept no candidate and is in no group, so a
-pair is named on the build that introduced or changed it.
+pair is named only on a build where both are new or both changed.
 
 The docket counts these variations and links each group. A subject page lays its
 component's stories side by side, in the order the journeys panel draws them, and
 marks the ones that are one picture.
+
+The journeys panel now orders two stories with names of one length by code unit
+rather than by locale, so the panel and the docket list a group in one order.

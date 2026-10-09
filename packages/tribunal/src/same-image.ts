@@ -42,8 +42,9 @@ export function sameImage(
   for (const { subject, after } of candidates) {
     // FIXME: a story that settled on its baseline's digest kept no candidate and
     // is skipped here, though its picture is that baseline's. The build does not
-    // record which baseline it settled on, so a pair is named only on the build
-    // that introduced or changed it.
+    // record which baseline it settled on, so a pair is named only on a build
+    // where both kept a candidate: both new, or both changed. A new arm beside a
+    // base that settled is not named.
     if (after === undefined) continue;
     const { family, member } = familyOf(subject);
     families.set(family, [...(families.get(family) ?? []), { subject, member }]);

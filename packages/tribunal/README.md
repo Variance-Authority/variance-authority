@@ -366,10 +366,10 @@ whose flag reaches no pixel, or one state under two names (`dark-narrow` and
 `narrow-dark`). The build already stores every candidate under the SHA-256 of
 its PNG, so the grouping reads the keys it holds and asks the run for nothing
 more. Stories are grouped only within their component, the part of the id
-before the first `--`, so a route or a test, which has no `--`, is never
-compared. Only stories whose candidate the build kept are compared. A story
-that settled on its baseline's digest kept none, so a pair is named on the
-build that introduced or changed it, not on the green builds after. A subject
+before the first `--`; an id with no `--` is a component of one. Only stories
+whose candidate the build kept are compared. A story that settled on its
+baseline's digest kept none, so a pair is named only on a build where both are
+`new` or both changed, and a new arm beside a base that settled is not. A subject
 page lays its component's stories side by side and marks the ones that are one
 picture.
 
