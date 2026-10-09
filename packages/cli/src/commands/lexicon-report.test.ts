@@ -104,7 +104,8 @@ describe('compositionOf — the rows a subject is made of', () => {
       observations: [],
     });
 
-    expect(report?.structure).toEqual([{ subject: 'story:bare', rows: [] }]);
+    expect(report?.structure?.map(({ subject, rows }) => ({ subject, rows }))).toEqual([{ subject: 'story:bare', rows: [] }]);
+    expect(report?.structure?.[0]?.pieces?.footprint).toBe(0);
   });
 });
 
