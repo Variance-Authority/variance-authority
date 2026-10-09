@@ -126,8 +126,6 @@ export class ReviewRequestError extends Error {
   constructor(
     message: string,
     readonly status: number,
-    /** The service's own sentence, when the body was the `{ error }` it answers with. */
-    readonly said?: string,
     /** What moved, when the refusal was a baseline that moved under the decision. */
     readonly moved?: MovedBaseline,
   ) {
@@ -153,11 +151,10 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
     const response = await send(`${base}${path}`, { ...init, headers });
     if (!response.ok) {
       const body = await read(response);
-      const { said, moved } = refusal(body);
+      const moved = movedIn(body);
       throw new ReviewRequestError(
         `${init?.method ?? 'GET'} ${path} answered ${response.status}: ${quote(body)}`,
         response.status,
-        said,
         moved,
       );
     }
@@ -261,25 +258,22 @@ function search(parameters: Record<string, string | number | undefined>): string
 }
 
 /**
- * The service's refusal, read from the whole body.
+ * What moved, when the body is the 409 a decision about a moved baseline gets.
  *
- * The whole body rather than the quoted excerpt: a sentence naming a long
- * subject runs past the excerpt, and a cut body parses as nothing.
+ * Read from the whole body rather than the quoted excerpt: a sentence naming a
+ * long subject runs past the excerpt, and a cut body parses as nothing.
  */
-function refusal(body: string): { said?: string; moved?: MovedBaseline } {
+function movedIn(body: string): MovedBaseline | undefined {
   let parsed: unknown;
   try {
     parsed = JSON.parse(body);
   } catch {
-    // A body that is not JSON carries no sentence of its own; the message has it.
-    return {};
+    // A body that is not JSON names nothing that moved; the message quotes it.
+    return undefined;
   }
-  if (typeof parsed !== 'object' || parsed === null) return {};
-  const { error, read, current } = parsed as Record<string, unknown>;
-  return {
-    ...(typeof error === 'string' ? { said: error } : {}),
-    ...(digestOrNone(read) && digestOrNone(current) ? { moved: { read, current } } : {}),
-  };
+  if (typeof parsed !== 'object' || parsed === null) return undefined;
+  const { read, current } = parsed as Record<string, unknown>;
+  return digestOrNone(read) && digestOrNone(current) ? { read, current } : undefined;
 }
 
 function digestOrNone(value: unknown): value is string | null {

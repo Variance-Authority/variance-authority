@@ -80,5 +80,9 @@ function Facts({ moved: { read, current } }: { readonly moved: MovedBaseline }):
  * names one, and eight characters of the hash.
  */
 function Digest({ value }: { readonly value: string }): ReactElement {
-  return <code title={value}>{value.slice(0, value.indexOf(':') + 9)}</code>;
+  return (
+    <code className="va-commit" title={value}>
+      {value.slice(0, value.indexOf(':') + 9)}
+    </code>
+  );
 }

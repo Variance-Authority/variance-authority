@@ -271,7 +271,7 @@ function Where({
     setFailed(undefined);
     try {
       await client.decide(build, subject.subject, decision, reviewer, undefined, subject.baselineVersion);
-      onDecided();
+      await onDecided();
     } catch (error) {
       setFailed(movedOf(error) ?? messageOf(error));
     } finally {
@@ -402,7 +402,7 @@ function Batch({
           subject.baselineVersion,
         );
       }
-      onDecided();
+      await onDecided();
     } catch (error) {
       // Reported rather than swallowed, and the ones already written stay
       // written: a batch that rolled itself back would undo decisions a reviewer

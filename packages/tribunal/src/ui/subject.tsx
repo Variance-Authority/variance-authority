@@ -79,7 +79,7 @@ export function SubjectPanel({
     setMoved(null);
     try {
       await client.decide(build, subject.subject, decision, reviewer, undefined, subject.baselineVersion);
-      onDecided();
+      await onDecided();
     } catch (error) {
       // Kept on the page rather than swallowed. A decision that silently did not
       // land is a reviewer who believes a baseline was promoted and a next run

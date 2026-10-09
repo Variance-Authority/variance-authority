@@ -37,6 +37,8 @@ let host: HTMLDivElement;
 let root: Root;
 let sent: Sent[];
 let reloads: number;
+/** What the service answers a decision with; a refusal unless a test says otherwise. */
+let answer: () => Response;
 
 beforeEach(() => {
   // jsdom lays nothing out, so it has no scrolling either, and the panel scrolls
@@ -47,6 +49,7 @@ beforeEach(() => {
   root = createRoot(host);
   sent = [];
   reloads = 0;
+  answer = () => new Response(JSON.stringify({ error: MOVED, read: null, current: CURRENT }), { status: 409 });
 });
 
 afterEach(() => {
@@ -60,7 +63,7 @@ async function fetchThat(input: RequestInfo | URL, init?: RequestInit): Promise<
   const url = String(input);
   if (!url.endsWith('/decision')) return pending;
   sent.push({ url, body: JSON.parse(String(init?.body)) as Record<string, unknown> });
-  return new Response(JSON.stringify({ error: MOVED, read: null, current: CURRENT }), { status: 409 });
+  return answer();
 }
 
 function subject(overrides: Partial<SubjectView> = {}): SubjectView {
@@ -224,6 +227,41 @@ describe('a decision about a baseline that moved, taken on the subject panel', (
 
     await act(async () => reloaded());
     expect(button('Approve').disabled).toBe(false);
+  });
+
+  it('takes no second decision until a landed one has been read back', async () => {
+    // A decision that lands moves the baseline itself, so a second press before
+    // the build answers again would send the old version and be refused.
+    answer = () => new Response(JSON.stringify({ decision: 'approved' }), { status: 201 });
+    let reloaded: () => void = () => undefined;
+    const client = createReviewClient({ endpoint: '/api', fetch: fetchThat });
+    act(() => {
+      root.render(
+        <SubjectPanel
+          client={client}
+          reviewer="marina"
+          build="ci-1"
+          subject={subject()}
+          onDecided={() => new Promise<void>((resolve) => (reloaded = resolve))}
+        />,
+      );
+    });
+
+    await act(async () => button('Approve').click());
+    expect(button('Reject').disabled).toBe(true);
+
+    await act(async () => reloaded());
+    expect(button('Reject').disabled).toBe(false);
+  });
+
+  it('reads what moved from a refusal longer than the message quotes', async () => {
+    answer = () =>
+      new Response(JSON.stringify({ error: MOVED.padEnd(600, '.'), read: null, current: CURRENT }), { status: 409 });
+    render(subject());
+
+    await act(async () => button('Approve').click());
+
+    expectReadable();
   });
 });
 
