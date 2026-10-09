@@ -50,6 +50,7 @@ import {
   asRecordRequest,
   windowOf,
 } from './worker-input.js';
+import { CHANGELOG_PATH, createAttestedRoutes, type AttestedRoute } from './worker-attested.js';
 import { SHARE_PREFIX, createShareRoutes, type ShareRoute } from './worker-share.js';
 
 /**
@@ -179,6 +180,7 @@ export function createTribunal(options: TribunalOptions): Tribunal {
   const history = createD1Backend(options.db);
   const review = createReviewStore(options);
   const share = createShareRoutes(options);
+  const attested = createAttestedRoutes(review);
   const retentionDays = options.retentionDays ?? 30;
 
   return {
@@ -196,7 +198,7 @@ export function createTribunal(options: TribunalOptions): Tribunal {
       }
 
       try {
-        return await route({ baselines, history, review, share, retentionDays }, granted, url, request);
+        return await route({ baselines, history, review, attested, share, retentionDays }, granted, url, request);
       } catch (error) {
         if (error instanceof BadRequest) return json(400, { error: error.message });
         if (error instanceof Forbidden) return json(403, { error: error.message });
@@ -217,6 +219,7 @@ interface Surfaces {
   readonly baselines: ReturnType<typeof createBucketStore>;
   readonly history: ReturnType<typeof createD1Backend>;
   readonly review: ReturnType<typeof createReviewStore>;
+  readonly attested: AttestedRoute;
   readonly share: ShareRoute;
   readonly retentionDays: number;
 }
@@ -404,22 +407,7 @@ async function route(
     return json(200, { builds: await surfaces.review.builds(limit === undefined ? undefined : count(limit)) });
   }
 
-  if (path === '/review/changelog') {
-    requires(granted, 'review', path);
-    requireMethod(request, 'GET');
-    const limit = optional(url, 'limit');
-    return json(
-      200,
-      await surfaces.review.changelog({
-        ...(optional(url, 'component') !== undefined
-          ? { component: required(url, 'component') }
-          : {}),
-        ...(optional(url, 'subject') !== undefined ? { subject: required(url, 'subject') } : {}),
-        ...(optional(url, 'since') !== undefined ? { since: required(url, 'since') } : {}),
-        ...(limit !== undefined ? { limit: count(limit) } : {}),
-      }),
-    );
-  }
+  if (path === CHANGELOG_PATH) return surfaces.attested(granted, url, request);
 
   if (path === '/review/sweep') {
     requires(granted, 'review', path);
@@ -485,7 +473,7 @@ async function route(
       `${CACHE_FIND_PATH}, ${CACHE_PUT_PATH}), the history routes (${OBSERVATIONS_PATH}, ` +
       `${APPROVALS_PATH}, ${CURRENT_PATH}, ${LAST_CHANGED_PATH}, ${CHURN_PATH}, ` +
       `${FLAKINESS_PATH}, ${VALUE_JOURNEY_PATH}, ${REACH_PATH}), /review/builds, /review/have, ` +
-      `/review/changelog and the share under ${SHARE_PREFIX}. ${VERSION_PATH} says which API ` +
+      `${CHANGELOG_PATH} and the share under ${SHARE_PREFIX}. ${VERSION_PATH} says which API ` +
       'version this is: a path from a different one is a client and a service that disagree ' +
       'about a recorded shape',
   });
