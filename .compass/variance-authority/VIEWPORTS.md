@@ -788,9 +788,9 @@ flowchart TB
   never trusted. Absent configuration returns `null`, which means the surface is
   not drawn; there is no anonymous view to fall back to.
 - Credential to `Granted`. `grant` in `packages/tribunal/src/worker-auth.ts`
-  digests the presented bearer and both secrets to a fixed 32 bytes and always
-  compares both, so *which token is this* costs the same either way; the answer
-  is `'ingest' | 'review' | null`. `refuseWeakTokens` refuses at construction
+  digests the presented bearer and every secret to a fixed 32 bytes and always
+  compares each, so *which token is this* costs the same either way; the answer
+  is `'ingest' | 'review' | 'share' | null`. `refuseWeakTokens` refuses at construction
   under sixteen characters or two equal values. `createTribunal` in
   `packages/tribunal/src/worker.ts` calls `grant` before the URL is even parsed,
   and `UNAUTHENTICATED` is one identical sentence for a wrong token, a missing

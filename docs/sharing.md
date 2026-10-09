@@ -867,7 +867,9 @@ deployment's own tokens:**
 - **On a machine that only reads**, such as a laptop running `variance ask`, the
   share token: `VARIANCE_TRIBUNAL_SHARE_TOKEN`, `SHARE_TOKEN` or `shareToken`.
   It reads `/share/` and `GET /version`, and a publish with it answers 403
-  before any byte is stored.
+  before any byte is stored. From `"api": 4` it also reads what review
+  settled — the changelog of approved baselines and every decision — for
+  `variance changelog` and `variance ask decisions`, and it never decides.
 - **The review token is refused under `/share/`** with 403.
 
 Share objects are stored under `<project>/share/` in the deployment's bucket,

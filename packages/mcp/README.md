@@ -373,6 +373,39 @@ console.log(costs.run({
 }, { limit: 5, from: ['src'] }));
 ```
 
+## Say what review decided
+
+`variance_decisions` answers from the review deployment's record: every
+approval and rejection, newest first, with the build, the subject, who decided
+and the note they left. `subject`, `build` and `limit` narrow it, and `limit` is
+20 unless you set it. A subject rejected and then approved is two rows, because
+the rejection's note is often the only place the reason is written; the earlier
+row for the same build and subject is marked `(replaced)`, so the first row for
+a pair is the one that stands. `REVIEW_TOOLS` holds it, and its subject is a
+`ReviewSubject` — the deployment it was read from, and a `ReviewDecisionEntry`
+per decision.
+
+It is a subject of its own because a decision is a fact about a deployment, not
+about a run. `variance serve` fetches the window a call names with the share
+token, which reads what review settled and never decides, so an agent holding
+this connection cannot approve or reject anything. Keep the token in an
+environment variable that the share declaration names:
+`"token": { "env": "VARIANCE_SHARE_TOKEN" }`. `variance ask decisions` calls the
+same tool from a shell; see [the CLI](../cli/README.md).
+
+```js
+import { REVIEW_TOOLS } from '@variance-authority/mcp/tools';
+
+const [decisions] = REVIEW_TOOLS;
+console.log(decisions.run({
+  from: 'https://variance.example.com',
+  decisions: [
+    { build: 'ci-42', subject: 'story:card', decision: 'approved', by: 'reviewer', at: '2026-08-21T10:14:02Z', note: 'padding is intended' },
+    { build: 'ci-42', subject: 'story:card', decision: 'rejected', by: 'reviewer', at: '2026-08-21T09:50:11Z' },
+  ],
+}, { subject: 'story:card' }));
+```
+
 ## Watch a suite that has not finished
 
 Every tool above answers about a run that is over. `--watch` answers about one

@@ -29,7 +29,7 @@ It reads no config and no run, so it is the whole install check.
 
 | Command | `variance.config.json` | Other input |
 |---|---|---|
-| `ask` about a run (`summary`, `changes`, `composition`, `locate`, `describe`, …), `ask costs`, `adjudicate`, `report`, `changelog`, `accept` | required | the report a finished run left; for `costs`, the mainline's published costs unless you name a report |
+| `ask` about a run (`summary`, `changes`, `composition`, `locate`, `describe`, …), `ask costs`, `ask decisions`, `adjudicate`, `report`, `changelog`, `accept` | required | the report a finished run left; for `costs`, the mainline's published costs unless you name a report; for `decisions`, and `changelog` on a `remote` store, the review deployment, read with the share token |
 | `ask` about a running suite (`self`, `run-signals`, `waiting`, `test-signals`, `diff --at`) | required, though never read | a watcher's address |
 | `ask` about the source (`packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `gaps`, `orient`, `journey-map`, `stack`, `slowest-tests`) | none | the checkout |
 | `watch`, `distill`, `reach` | none | see the reference that owns it |
@@ -56,7 +56,7 @@ when its condition holds, not before.
 
 | Question | Read | Then, only if |
 |---|---|---|
-| What did the last run find, and what changed? | [ask a run](references/ask-a-run.md) | you have a description, not a subject id: [locate](references/locate.md) |
+| What did the last run find, and what changed? What did review decide on a subject? | [ask a run](references/ask-a-run.md) | you have a description, not a subject id: [locate](references/locate.md) |
 | I changed UI code. Did the edit land, what else moved, and which declaration moved it? | [check an edit](references/check-an-edit.md) | |
 | What is a suite that has not finished doing? | [live run](references/live-run.md) | nothing arrives: [producers](references/producers.md) |
 | A reading, a field or a domain is unavailable | [producers](references/producers.md) | |

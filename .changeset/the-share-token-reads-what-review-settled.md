@@ -1,0 +1,18 @@
+---
+'@variance-authority/tribunal': minor
+'@variance-authority/cli': minor
+'@variance-authority/mcp': minor
+---
+
+The share token reads what review settled, and never decides
+
+A Tribunal deployment now serves `GET /review/changelog` and the new
+`GET /review/decisions` to the share token as well as the review token, and
+refuses the ingest token there with 403. Every route that decides still wants
+the review token. The deployment's API is 4.
+
+`variance changelog` on a `remote` store reads the deployment's changelog with
+the share token instead of refusing; `--since` takes an instant there.
+`variance ask decisions` and the MCP tool `variance_decisions` on
+`variance serve` list every approval and rejection, newest first, with who made
+it and their note. Declare the share token as `{ "env": "VARIANCE_SHARE_TOKEN" }`.

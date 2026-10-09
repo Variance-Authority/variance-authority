@@ -39,7 +39,7 @@ baseline is a record that survives the baseline being replaced.
 | Baselines live in | The explanation lives in | Read back with |
 |---|---|---|
 | the repository, plain or git-LFS | the commit message that came with them | `npx variance changelog` |
-| the [review service](https://variance-authority.dev/reference/packages/tribunal) | its own append-only table | `GET /review/changelog` |
+| the [review service](https://variance-authority.dev/reference/packages/tribunal) | its own append-only table | `npx variance changelog`, with the share token |
 
 Retention is the config key `"retention"`, and it has two values: `durable`
 compares against an image an earlier run stored, and `ephemeral` renders both
@@ -167,6 +167,36 @@ Nothing is written for a **rejection**. It is a decision, and it is recorded as
 one, but no baseline changed — and a changelog with rejections in it answers
 *why does this baseline look like this* with entries about baselines that are
 not there.
+
+`npx variance changelog` reads the table back from the deployment, and so does
+`GET /review/changelog`. Your machine reads it with the share token, which reads
+what review settled and cannot approve or reject anything. Declare the share
+with the token in an environment variable, never as a literal in a committed
+file:
+
+```json
+{
+  "share": {
+    "kind": "http",
+    "endpoint": "https://variance.example.com/share",
+    "token": { "env": "VARIANCE_SHARE_TOKEN" }
+  }
+}
+```
+
+```bash
+npx variance changelog --component Card --since 2026-08-01T00:00:00Z
+```
+
+Against the review service, `--since` takes an instant rather than a revision,
+because the deployment records when a subject was approved, not at which commit.
+The ingest token is refused there with 403: CI holds it, and a build log is not
+a reader of reviews.
+
+**The rejections are in the decision history.** `npx variance ask decisions
+--subject story:checkout--empty` lists every approval and rejection on that
+subject, newest first, with who made it and the note they left. An agent asks
+the same question through the `variance_decisions` tool of `variance serve`.
 
 ## Two rules worth knowing before you trust an answer
 
