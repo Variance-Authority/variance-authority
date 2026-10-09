@@ -330,10 +330,15 @@ it: the layout belongs to the version that wrote it, and the reader refuses
 anything it does not recognise. To read the graph, call `readPublishedSources`,
 which returns the published records and opens nothing but the index. To build
 it, call `updateSourceIndex`, which runs [`scanRelations`](source.md) over the
-index. To fix an index, delete it. An index another release wrote is named as
-such rather than as damaged: `variance index` rebuilds it, a reader on your
-workstation rebuilds it and says so, and a reader in CI refuses it and names
-`variance index` as the step to run first.
+index. To fix an index, delete it.
+
+An index another release wrote is named as such rather than as damaged, and
+`variance index` rebuilds it. `select`, `review` and the other commands that
+read the graph through `publishedSources` rebuild it on your workstation and say
+so, and refuse it in CI, naming `variance index` as the step to run first.
+`readPublishedSources` rebuilds nothing: it returns the index with
+`state: 'other-version'` and the version that wrote it in `written`.
+`ask orient --files` refuses it, naming both versions and `variance index`.
 
 `openSourceIndex` returns the parse cache, the record cache and a `save`
 operation together. Point reads query segments newest to oldest and stop at the

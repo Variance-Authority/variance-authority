@@ -37,9 +37,11 @@ last caller is right for one reader at a time. A reader filters and never
 updates on the way past, so it answers from the last publish.
 
 A missing or damaged generation, or one written in another format version, is
-refused in CI as an operator error naming the step, and updated once anywhere
-else with a line saying which of them it found. Another format version is told
-apart from damage, because every release upgrade meets it. Everything held is derived
+refused by `publishedSources` in CI as an operator error naming the step, and
+updated once anywhere else with a line saying which of them it found.
+`readPublishedSources` and the native readers report the state and update
+nothing. Another format version is told apart from damage, because every
+release upgrade meets it. Everything held is derived
 from the checkout: parses keyed by content digest, records also by layout and
 resolution settings, never by where the checkout sits. A lost generation costs
 an update and cannot change what the update finds.
