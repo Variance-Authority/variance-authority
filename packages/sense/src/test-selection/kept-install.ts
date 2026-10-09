@@ -96,6 +96,36 @@ export function installAfter(
 }
 
 /**
+ * The install a fold of `shards` ran on, read off the runs record each shard's
+ * own landing left beside its snapshot, which {@link keepRecordedInstall} kept
+ * where that shard ran.
+ *
+ * A shard's install speaks for the fold's tests from that shard only when its
+ * record names the commit the shard's snapshot stands at, lists a run there
+ * that observed every test the snapshot holds, and names an install. When
+ * every shard's does and all of them name one install, that is the fold's.
+ * Otherwise the fold ran on an install nobody can name, as runs at one commit
+ * over two installs did ({@link installAfter}): `undefined`, which a reader
+ * compares from the commit.
+ */
+export function shardsInstall(
+  shards: readonly {
+    readonly tests: { readonly commit?: string; readonly tests: readonly { readonly file: string }[] };
+    readonly runs: { readonly commit?: string; readonly runs: number; readonly files: readonly string[]; readonly installed?: KeptInstall } | undefined;
+  }[],
+): KeptInstall | undefined {
+  let install: KeptInstall | undefined;
+  for (const { tests, runs } of shards) {
+    if (runs?.installed === undefined || runs.runs === 0 || tests.commit === undefined || runs.commit !== tests.commit) return undefined;
+    const ran = new Set(runs.files);
+    if (!tests.tests.every((test) => ran.has(test.file))) return undefined;
+    if (install !== undefined && !sameInstall(install, runs.installed)) return undefined;
+    install = runs.installed;
+  }
+  return install;
+}
+
+/**
  * `value` as an install, read off a runs record: an object naming each path
  * with a digest or `null`. Anything else is `undefined`, which a reader takes
  * for an install it does not know and compares from the commit.

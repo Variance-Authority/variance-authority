@@ -2963,6 +2963,7 @@
         "selectJourneyFile": "function",
         "selectTestFiles": "function",
         "selectedLines": "function",
+        "shardsInstall": "function",
         "sharedPreconditions": "function",
         "sharedRecord": "function",
         "sourceCut": "function",

@@ -107,8 +107,8 @@ export interface CommitRuns {
    * each lockfile and manifest the runs found edited, by the digest of the
    * text kept for it, or `null` for one they found deleted (`kept-install.ts`).
    * Empty when they ran on the commit's own. Absent when that is not known: a
-   * record written before installs were kept, a landing of shards, or runs at
-   * this commit over two installs. A reader compares from `commit` then.
+   * record written before installs were kept, a landing of shards that did not
+   * all name one install, or runs at this commit over two installs. A reader compares from `commit` then.
    */
   readonly installed?: KeptInstall;
 }
@@ -249,7 +249,8 @@ async function coveredRecord(coverageFile: string): Promise<Buffer | undefined> 
  * has already read the snapshot to merge over it, and passes that.
  *
  * `installed` is the install `current` ran on, which {@link landRun} keeps; a
- * landing of shards ran nowhere this process can see, and passes none.
+ * landing of shards passes the one their own landings kept, when they agree
+ * (`shardsInstall`).
  */
 export function commitRunsAfter(
   before: RecordedTests | undefined,

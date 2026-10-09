@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { commitRunsAfter, commitRunsFile, readCommitRuns, type RecordedTests } from './commit-runs.js';
-import { installAfter, installKey, keepRecordedInstall, sameInstall } from './kept-install.js';
+import { installAfter, installKey, keepRecordedInstall, sameInstall, shardsInstall } from './kept-install.js';
 import { keptTexts, landedTree } from './kept-texts.js';
 
 /**
@@ -138,6 +138,33 @@ describe('the install the runs at one commit ran on', () => {
       expect((await readCommitRuns(coverage))?.installed).toEqual({ 'yarn.lock': null });
     } finally {
       await rm(scratch, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the install a fold of shards ran on', () => {
+  const bumped = { 'yarn.lock': 'digest:bumped' };
+  const shard = (files: readonly string[], runs: { commit?: string; runs?: number; files?: readonly string[]; installed?: typeof bumped }) => ({
+    tests: { commit: 'head', tests: files.map((file) => ({ file })) },
+    runs: { commit: 'head', runs: 1, files, installed: bumped, ...runs },
+  });
+
+  it('is the one every shard\'s record names, whatever order its paths were written in', () => {
+    expect(shardsInstall([shard(['a.test.ts'], {}), shard(['b.test.ts'], { installed: { ...bumped } })])).toEqual(bumped);
+    expect(shardsInstall([shard(['a.test.ts'], { installed: {} })])).toEqual({});
+  });
+
+  it('is unknown when a shard\'s record does not speak for every test its snapshot holds, at its commit', () => {
+    const fine = shard(['a.test.ts'], {});
+    for (const other of [
+      shard(['b.test.ts'], { commit: 'base' }),
+      shard(['b.test.ts'], { runs: 0 }),
+      shard(['b.test.ts', 'c.test.ts'], { files: ['b.test.ts'] }),
+      shard(['b.test.ts'], { installed: {} }),
+      shard(['b.test.ts'], { installed: undefined }),
+      { ...shard(['b.test.ts'], {}), runs: undefined },
+    ]) {
+      expect(shardsInstall([fine, other])).toBeUndefined();
     }
   });
 });
