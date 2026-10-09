@@ -30,7 +30,9 @@ Every other question about the code needs something to ask about: a word, a
 name or a specifier. `packages` is the one that needs nothing, so ask it first
 when you have none of those. It reads the checkout under the working directory
 and nothing else: no report has to exist and `variance.config.json` is not
-opened. It counts and lists no import site. An answer looks like this, abridged:
+opened. For each specifier, it counts the names that at least one other package
+imports. It does not list where those imports are written: `uses` gives the file
+and line of each. An answer looks like this, abridged:
 
 ```text
 @acme/ui — 12 names, 9 imported elsewhere, 7 documented
@@ -113,14 +115,14 @@ start point returns `refused` with no sections. Only `search` answers in JSON.
 
 These questions read the checkout the same way `packages` does. `--from` and
 `--to` are a path in the source tree, answered from what it reaches or what
-reaches it; `locate`, which finds a subject by the names a run saw, takes them
-with the same meaning. Carry the path into `search` when the
-ticket, editor or stack trace already supplied one: the words find candidate
-names and the import graph removes candidates outside that relation. Then ask
-`symbol` and `uses` only for the name that remains. The graph is at file and
-module level; it does not record function calls. The reading, its caches and
-what an answer does and does not show are one boundary, whichever transport
-carries the question: [inspect the workspace public
+reaches it. `locate` is the run question that finds a subject by the names the
+run saw, and its `--from` and `--to` mean the same thing. Carry the path into
+`search` when the ticket, editor or stack trace already supplied one: the words
+find candidate names and the import graph removes candidates outside that
+relation. Then ask `symbol` and `uses` only for the name that remains. The graph
+is at file and module level; it does not record function calls. The reading,
+its caches and what an answer does and does not show are one boundary,
+whichever transport carries the question: [inspect the workspace public
 API](agent-workspace-api.md).
 
 ## Ask a finished run, from the summary outward
