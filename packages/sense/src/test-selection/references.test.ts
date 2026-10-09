@@ -92,6 +92,16 @@ describe.runIf(nativeAvailable())('the references of what a file imports', () =>
     });
   });
 
+  // A require is the one the module reader loads: `require` or `module.require`,
+  // never another object's method of that name.
+  it.each([
+    ['a bare `require`', "export const late = () => require('./c');", true],
+    ['`module.require`', "export const late = () => module.require('./c');", true],
+    ['another object\'s `require`', "export const late = () => loader.require('./c');", false],
+  ])('says whether %s is a load no name traces', (_, line, untraced) => {
+    expect(referencesOf('src/index.ts', `${line}\n`)?.untraced).toBe(untraced);
+  });
+
   it('lands each source on a file of the checkout, and leaves out one it cannot find', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-authority-references-'));
     try {
