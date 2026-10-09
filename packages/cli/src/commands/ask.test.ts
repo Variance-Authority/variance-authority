@@ -387,6 +387,17 @@ describe('a question about a suite that is still running', () => {
     );
   });
 
+  it('refuses a report named beside a watcher, because the watcher is what answers', async () => {
+    // `diff` reads a report when no watcher is named, so the word is a report
+    // here, and answering from the watcher would leave it unread without a word.
+    await expect(ask(about('diff', { state: RUNNING }, { reports: ['shard-a.json'] }))).rejects.toThrow(
+      '`shard-a.json` is a report, and `variance ask diff` was asked of the watcher at `http://127.0.0.1:4100`',
+    );
+    await expect(ask(about('run-signals', { state: RUNNING }, { reports: ['bogus'] }))).rejects.toThrow(
+      '`bogus` is not an argument `variance ask run-signals` takes',
+    );
+  });
+
   it('records nothing, because a watcher is not a run that finished', async () => {
     // `ASKED` is the report path's state. Writing it here would leave the next
     // report `diff` comparing against a suite that was still running.

@@ -6,7 +6,7 @@ import type { VantageReading } from '@variance-authority/vantage/attach';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
-import { inputFor, questionFor, questionOf, type Question } from './asking.js';
+import { inputFor, questionFor, questionOf, refuseWords, type Question } from './asking.js';
 import { grep, journeyMapTool, orient, search, slowestTests, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
@@ -135,6 +135,12 @@ export interface AskRequest {
   readonly at?: string;
   /** `--format json`: the answer as data. Only `search` answers in it. */
   readonly format?: 'json';
+  /**
+   * The words typed after the question, as typed. A question about a finished
+   * run or about costs reads them as reports, through `read` and `costs`; a
+   * question that reads no report refuses them.
+   */
+  readonly reports?: readonly string[];
   /** The configured report. Names the directory the previous subject is kept in, or, when a line is read in its place, the kept copy does. */
   readonly report: string;
   /** The report to answer from — the configured one, or the shards the operator named. */
@@ -164,7 +170,7 @@ type Flagged = Pick<
  * `--subject` typed at `search` is refused by name like it is everywhere else,
  * instead of being dropped on the way in and answered around.
  */
-export type SourceRequest = Flagged & Pick<AskRequest, 'source' | 'changedFile' | 'taintFile' | 'format'> & {
+export type SourceRequest = Flagged & Pick<AskRequest, 'source' | 'changedFile' | 'taintFile' | 'format' | 'reports'> & {
   readonly question: string;
   readonly justAnswer?: boolean;
 };
@@ -202,6 +208,7 @@ export async function ask(request: AskRequest): Promise<string> {
   }
 
   const input = await inputFrom(question, request);
+  if (request.at !== undefined && question.live !== undefined) unread(question, request.at, request.reports);
 
   const answer =
     request.at !== undefined && question.live !== undefined
@@ -222,6 +229,7 @@ export async function askSource(request: SourceRequest): Promise<string> {
   if (tool === undefined) {
     throw new OperatorError(`\`${request.question}\` is about a run, not the source; ask it of a report`);
   }
+  refuseWords(tool, request.reports);
 
   // Refused before anything is read: a question that has no shape to give
   // would otherwise answer in prose to a caller about to parse it.
@@ -362,6 +370,22 @@ function noWatcher(question: Question): OperatorError {
       'watcher to ask. Start one with `variance watch`, start the suite with the ' +
       `\`${VANTAGE_VARIABLE}\` line it prints, then ask again — with \`--at <address>\`, or ` +
       `with \`${VANTAGE_VARIABLE}\` set in this shell too.`,
+  );
+}
+
+/**
+ * Refuse a word typed after a question a watcher answers. A question that also
+ * reads a finished run, `diff`, would read the word as a report without the
+ * watcher, so the refusal says the watcher is why it went unread.
+ */
+function unread(question: Question, at: string, reports: readonly string[] | undefined): void {
+  const word = reports?.[0];
+  if (word === undefined) return;
+  if (question.report === undefined) refuseWords(question.tool, reports);
+  throw new OperatorError(
+    `\`${word}\` is a report, and \`variance ask ${questionOf(question.tool)}\` was asked of the ` +
+      `watcher at \`${at}\`, which reads none. Ask without \`--at\`, and without ` +
+      `\`${VANTAGE_VARIABLE}\` set, to read the report.`,
   );
 }
 
