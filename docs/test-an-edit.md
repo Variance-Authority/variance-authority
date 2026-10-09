@@ -89,14 +89,14 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 `0-2` runs the tests within two imports of the edit, including a test whose own
 source you changed, which is zero. `3-` runs the rest. Every selected file runs
 in one of the two: a test the record cannot place runs in the one that holds
-the furthest hop measured, or in `3-` when none was. `0-2` saves its run
-before `3-` is cut, and `3-` also runs any selected file within two imports
-that `0-2` did not run, which the saved run can bring into reach. A test
-recorded incomplete, such as one a partial run over your edit left, runs in the
-leg of the shortest import path it ran to a changed file it loaded, or only in
-`3-` when it ran none, so a near edit still needs `3-` while the record holds
-one. A new test runs in both. A value that is not a range fails the run rather than
-running another leg. The first leg is feedback, not a verdict;
+the furthest hop measured, or in `3-` when none was. When a run was saved at
+the commit you are on, as `0-2` saves its own, `3-` also runs any selected file
+within two imports that still last ran before it. A test recorded incomplete,
+such as one a partial run over your edit left, runs in the leg of the shortest
+import path it ran to a changed file it loaded, or only in `3-` when it ran
+none, so a near edit still needs `3-` while the record holds one. A new test
+runs in both. A value that is not a range fails the run rather than running
+another leg. The first leg is feedback, not a verdict;
 [distance](distance.md) is the page about what a hop count tells you and what
 it does not.
 

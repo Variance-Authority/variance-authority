@@ -163,7 +163,7 @@ describe('one leg of the selection', () => {
     expect(end.skip).toEqual([FAR, IDLE, NEAR]);
     expect(end.left).toEqual([FAR, NEAR]);
     expect(selectionNotes(end)).toContain(
-      '2 selected test files nearer than 3 hops run in this leg: they last ran before HEAD, and the run that landed at HEAD did not run them',
+      '2 selected test files of an earlier leg run in this leg: they last ran before HEAD, and the run that landed at HEAD did not run them',
     );
   });
 

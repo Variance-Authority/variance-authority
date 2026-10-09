@@ -54,15 +54,7 @@ describe('a leg cut after an earlier leg landed', () => {
     const near = await leg(0, 2);
     const nearRan = WHOLE.filter((test) => !near.skip.includes(test));
     // The near leg runs, and its run lands at `HEAD` over the edited text.
-    const ran = recorded(head, EDITED);
-    await landRun(testCoverageFile(root), {
-      ...ran,
-      tests: ran.tests.filter((test) => nearRan.includes(test.file)),
-      modules: ran.modules.map((module) => ({
-        ...module,
-        blocks: module.blocks.map((block) => ({ ...block, testFiles: block.testFiles.filter((test) => nearRan.includes(test)) })),
-      })),
-    }, root);
+    await landRun(testCoverageFile(root), partialRun(recorded(head, EDITED), nearRan), root);
     await indexOutput({ cwd: root });
     const far = await leg(3, Number.MAX_SAFE_INTEGER);
     const farRan = WHOLE.filter((test) => !far.skip.includes(test));
@@ -72,9 +64,34 @@ describe('a leg cut after an earlier leg landed', () => {
     expect(far.distances).toContainEqual(expect.objectContaining({ test: LOADER, hops: 1 }));
     expect(farRan).toEqual([FAR, LOADER]);
     expect(far.notes).toContain(
-      '1 selected test file nearer than 3 hops runs in this leg: it last ran before HEAD, and the run that landed at HEAD did not run it',
+      '1 selected test file of an earlier leg runs in this leg: it last ran before HEAD, and the run that landed at HEAD did not run it',
     );
     expect([...nearRan, ...farRan].sort()).toEqual([FAR, LOADER, MID, NEAR]);
+  });
+
+  it('cuts both legs by hops alone when the last run landed before `HEAD`', async () => {
+    const { root, git } = checkout();
+    await landRun(testCoverageFile(root), recorded(git(['rev-parse', 'HEAD']), WIDGET), root);
+    writeFileSync(join(root, 'src/widget.ts'), EDITED);
+    git(['commit', '--quiet', '-am', 'the edit a partial run landed over']);
+    await landRun(testCoverageFile(root), partialRun(recorded(git(['rev-parse', 'HEAD']), EDITED), [MID, NEAR]), root);
+    // A commit after the run: the record is one commit behind HEAD, with tests standing before it.
+    writeFileSync(join(root, 'notes.md'), 'nothing a test loads\n');
+    git(['add', 'notes.md']);
+    git(['commit', '--quiet', '-m', 'a commit after the run']);
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    const ranIn = async (from: number, to: number) => {
+      const { skip } = JSON.parse((await selectOutput({ cwd: root, format: 'json', atDistance: { from, to } })).out);
+      return WHOLE.filter((test) => !skip.includes(test));
+    };
+    const nearRan = await ranIn(0, 2);
+    const farRan = await ranIn(3, Number.MAX_SAFE_INTEGER);
+
+    expect(nearRan).toContain(LOADER);
+    expect(farRan).not.toContain(LOADER);
+    expect(new Set([...nearRan, ...farRan]).size).toBe(nearRan.length + farRan.length);
   });
 
   it('cuts `3-` by hops alone when no leg has landed at `HEAD`', async () => {
@@ -173,6 +190,18 @@ function recorded(commit: string, widget: string): TestCoverage {
       moduleOf('src/caller.ts', CALLER, [FAR, MID]),
       moduleOf('src/outer.ts', OUTER, [FAR]),
     ],
+  };
+}
+
+/** The same run, over only the tests in `ran`: what a leg lands. */
+function partialRun(whole: TestCoverage, ran: readonly string[]): TestCoverage {
+  return {
+    ...whole,
+    tests: whole.tests.filter((test) => ran.includes(test.file)),
+    modules: whole.modules.map((module) => ({
+      ...module,
+      blocks: module.blocks.map((block) => ({ ...block, testFiles: block.testFiles.filter((test) => ran.includes(test)) })),
+    })),
   };
 }
 

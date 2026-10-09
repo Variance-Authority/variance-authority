@@ -118,7 +118,7 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
   const overdue = elsewhere.filter((test) => before.has(test) && unrun.has(test));
   const taking = new Set(overdue);
   const cut = elsewhere.filter((test) => !taking.has(test));
-  const leaving = new Set(elsewhere);
+  const leaving = new Set(cut);
   const placedHere = hopped.filter(({ test }) => !leaving.has(test)).length;
   const placedPartial = new Set(hopped.map(({ test }) => test));
   const unseen = leg.to === Number.MAX_SAFE_INTEGER ? [] : partial.filter((test) => !placedPartial.has(test));
@@ -146,7 +146,7 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
       ...leftNote(further, 'for a later leg', `${leg.to + 1}-`),
       ...unseenNote(unseen.length, `${leg.to + 1}-`),
       ...leftNote(nearer.length, `for an earlier leg, nearer than ${many(leg.from, 'hop')}`, spelled({ from: 0, to: leg.from - 1 })),
-      ...overdueNote(overdue.length, leg.from),
+      ...overdueNote(overdue.length),
       ...selection.notes,
     ],
   };
@@ -212,11 +212,11 @@ function unseenNote(count: number, range: string): readonly string[] {
   ];
 }
 
-/** How many nearer tests this leg runs because the run landed at HEAD left them standing. */
-function overdueNote(count: number, from: number): readonly string[] {
+/** How many tests an earlier leg holds this leg runs, because the run landed at HEAD left them standing. */
+function overdueNote(count: number): readonly string[] {
   if (count === 0) return [];
   return [
-    `${many(count, 'selected test file')} nearer than ${many(from, 'hop')} ${count === 1 ? 'runs' : 'run'} in this leg: ` +
+    `${many(count, 'selected test file')} of an earlier leg ${count === 1 ? 'runs' : 'run'} in this leg: ` +
       `${count === 1 ? 'it' : 'they'} last ran before HEAD, and the run that landed at HEAD did not run ${count === 1 ? 'it' : 'them'}`,
   ];
 }
