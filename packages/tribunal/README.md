@@ -241,7 +241,7 @@ be requested anonymously.
 
 | method and path | token | what it does |
 |---|---|---|
-| `GET /version` | any | `{"service":"variance-authority-tribunal","api":3,"schema":18}` |
+| `GET /version` | any | `{"service":"variance-authority-tribunal","api":4,"schema":19}` |
 | `POST /baseline/find` | ingest | the approved image for a key, bytes and all |
 | `POST /baseline/describe` | ingest | the same lookup without moving the image |
 | `POST /baseline/put` | ingest | store an approved image |
@@ -262,6 +262,9 @@ be requested anonymously.
 | `GET /review/builds/{id}/subjects/{subject}/{before\|after\|diff}.png` | review | one image, immutable and cacheable |
 | `GET /review/changelog[?component&subject&since&limit]` | review | every approval, grouped by shape |
 | `POST /review/sweep[?days=N]` | review | retention, below |
+| `GET /review/concerns[?build&subject&state]` | ingest or review | the concerns on a subject, or on every subject a build showed, with the build's `tally` per state |
+| `POST /review/concerns` | review | `{"build","subject","title","by","note","hypothesis","region":{x,y,width,height},"evidence":["…"],"state"}`. 201 |
+| `POST /review/concerns/{id}` | review | `{"state":"open"\|"investigating"\|"resolved","by","note","hypothesis"}`: the next step of its trail |
 | `GET /share/<mainline\|branch>/<line>/manifest.json` | ingest or share | the line's manifest, with its version as the `ETag`. 404 when nothing was published |
 | `PUT /share/<mainline\|branch>/<line>/manifest.json` | ingest | replace the manifest. With `If-Match: <ETag>` it replaces only that version, and with `If-None-Match: *` only when there is none. A stale version answers 412, and a write with neither header answers 428 |
 | `GET /share/<mainline\|branch>/<line>/entries/<sha256>` | ingest or share | one entry's bytes, immutable and cacheable |
@@ -271,9 +274,11 @@ be requested anonymously.
 The four `/v1` reads take `since`, `until` and `limit` to bound the window, and
 `project` where one deployment is queried for another's rows.
 
-**The review token reads the record and never writes it.** The five reads answer
-the ingest and review tokens because they derive from rows already recorded, and the browser
-drawing a review page sends the review token. `/v1/observations` and
+**The review token reads the record and never writes it.** The five reads, and
+the concerns read, answer the ingest and review tokens because they derive from rows already recorded, and the browser
+drawing a review page sends the review token. A run, or an agent holding CI's
+token, reads concerns to learn that a subject it is about to move is already
+under suspicion; raising and moving one is the review token's. `/v1/observations` and
 `/v1/approvals` are the ingest token's because they write; `/v1/current` is the
 ingest token's because its caller is a run deciding what to write.
 
@@ -320,7 +325,8 @@ client may send or expect changes. `variance push` queries the API version
 before it uploads and prints both numbers. A CLI newer than its deployment is
 not an error: it works, and what the older deployment lacks shows up somewhere
 else — before API 2 as upload it could have skipped and as an approved subject
-that stays `new`, and before API 3 as a share that is always empty. Until
+that stays `new`, before API 3 as a share that is always empty, and before API 4
+as a review page that answers 404 when you flag a concern. Until
 something prints both numbers, neither looks like a version mismatch.
 
 ## What a reviewer sees
@@ -628,7 +634,7 @@ not a webhook, not telemetry — the pipeline reports to the service, and the
 service reports to nobody.
 
 **The record is append-only, and the database enforces it.** Runs, observations,
-token values and decisions all have `UPDATE` and `DELETE` triggers, so a direct
+token values, decisions and concerns all have `UPDATE` and `DELETE` triggers, so a direct
 `wrangler d1 execute` against the database is refused too.
 
 ## Retention
@@ -638,7 +644,7 @@ rows, their coverage rows, and every image they kept. It **reports counts** for
 everything it removed — `builds`, `subjects`, `objects`.
 
 What it does not remove: **promoted baselines** (what the next run compares
-against), **decisions**, and the **changelog**. The fourth count,
+against), **decisions**, **concerns**, and the **changelog**. The fourth count,
 `decisionsKept`, is how many approvals outlived the builds this call removed, not
 a fourth removal.
 
