@@ -324,7 +324,7 @@ function createEngine(scoped: boolean) {
     }
   };
 
-  /** The probe's slow write: the log is full, or this is a re-activation's root. */
+  /** The probe's slow write: the log is full, or this is a module's root, once a way a segment. */
   const push = (entry: number): void => {
     let end = root.n;
     if (end >= root.l) {
@@ -396,13 +396,13 @@ function createEngine(scoped: boolean) {
     }
   };
 
-  // The probe's side of this object, and nothing else: `a` the activation, a
-  // number `use` moves on every switch; `s` the scope check, null unless the
-  // bucket follows an async scope; `v` the evaluating bit; `n`/`l`/`L` the log;
-  // `g` the slow write; `r` registration; `e`/`x` the evaluating depth. Built
-  // with every field in place, so its shape never changes under the probes
-  // that read it. `a` is a number and `s` a separate field, because an
-  // accessor on `a` is not inlined and added about 6 ns to every scoped hit.
+  // What the probes and a tap read, and nothing else: `a` the activation, a
+  // number `use` moves on every switch, which the story tap reads; `s` the
+  // scope check, null unless the bucket follows an async scope; `v` the
+  // evaluating bit; `n`/`l`/`L` the log; `g` the slow write; `r`
+  // registration; `e`/`x` the evaluating depth. Built with every field in
+  // place, so its shape never changes under the probes that read it. `s` is a
+  // field of its own because an accessor is not inlined: it cost 6 ns a hit.
   const root = {
     a: activation,
     s: null as (() => void) | null,
