@@ -168,17 +168,19 @@ the answer opens with the line and commit it read; the CLI's page says
 ### Check the run against what you meant to change
 
 If you made the edit, you write the claims file yourself, from what you meant
-to change. No command writes it: it records your intent, and the run cannot
-know that. Write it from your intent, not from the summary: a file built from
-the component names the run printed scores the run against itself. The file for
-the edit above names each component it meant to change, as your source names it:
+to change, and best before the edit. No command writes it: it records your
+intent, and the run cannot know that. A file built from the component names the
+run printed scores the run against itself. The file for
+the edit above names each component it meant to change, as your source names
+it, and bounds `Button` to one subject:
 
 ```json
 {
   "claims": [
-    { "root": "component:Button", "reason": "new brand accent on the primary action", "maxSubjects": 2 },
+    { "root": "component:Button", "reason": "new brand accent on the primary action", "maxSubjects": 1 },
     { "root": "component:Badge", "reason": "new brand accent on the status pill" },
-    { "root": "component:Card", "reason": "tighten the gap between the avatar and the action" }
+    { "root": "component:Card", "reason": "tighten the gap between the avatar and the action" },
+    { "root": "component:Tooltip", "reason": "arrow follows the new accent" }
   ]
 }
 ```
@@ -189,13 +191,16 @@ variance ask adjudicate --claims claims.json
 
 ```text
 An edit you declared did not take. Fix that before reading anything else.
-3 claim(s): 2 delivered, 1 undelivered, 0 over-reaching, 0 unchecked. 1 unclaimed change(s).
+4 claim(s): 1 delivered, 1 undelivered, 1 over-reaching, 1 unchecked. 1 unclaimed change(s).
 
   [undelivered] component:Card
       declared (tighten the gap between the avatar and the action) and `Card` rendered in 2 subject(s) — card/summary, card/compact — and did not change. The edit did not take: wrong file, a dead branch, a rule something else overrides, or a stale build.
 
-  [delivered] component:Button
-      declared (new brand accent on the primary action) and delivered: component:Button changed in 2 subject(s): card/summary, card/compact.
+  [unobservable] component:Tooltip
+      declared (arrow follows the new accent) and this run never rendered `Tooltip` in any subject, so nothing here is evidence about it either way. Check the subject selection, or whether provenance names this component.
+
+  [overreached] component:Button
+      declared (new brand accent on the primary action) and delivered, but reached 2 subject(s) against the 1 declared — the change is the intended one, its reach is not.
       examples/agent-claim/src/system.js:28
 
   [delivered] component:Badge
@@ -210,8 +215,10 @@ An edit you declared did not take. Fix that before reading anything else.
 `Card` is the answer no comparison of images gives: you declared it, it
 rendered in two subjects, and it did not change, so the edit to it never
 landed. Fix that first and run the suite again. `variance adjudicate` runs the
-same check and exits `1` when something needs review. Each claim word is defined in
-[verdicts](information.md#verdicts), and the claims file's other forms are in
+same check and exits `1` when something needs review. The four claim
+verdicts, `delivered`, `overreached`, `undelivered` and `unobservable`, are
+defined in [verdicts](information.md#verdicts). An `unclaimed` line is a change
+no claim names. The claims file's other forms are in
 the `variance-authority` skill the CLI ships, described
 [below](#point-an-agent-at-it).
 
@@ -219,7 +226,7 @@ the `variance-authority` skill the CLI ships, described
 
 If the summary names changes, ask `changes` before opening an individual
 subject: it groups subjects under the distinct changes behind them, so a token
-edit that touched forty stories is one decision rather than forty. Each change
+edit that reached forty stories is one decision rather than forty. Each change
 names its component, the `file:line` that declares it, and, where one exists,
 the `variance accept --shape` digest that settles it.
 
