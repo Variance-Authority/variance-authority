@@ -405,8 +405,8 @@ export function describeAdjudication(result: RunAdjudication): string {
 function headline(result: RunAdjudication, counts: Record<ClaimVerdict, number>): string {
   const claims =
     `${result.claims.length} claim(s): ${counts.delivered} delivered, ` +
-    `${counts.undelivered} undelivered, ${counts.overreached} over-reaching, ` +
-    `${counts.unobservable} unchecked.`;
+    `${counts.undelivered} undelivered, ${counts.overreached} overreached, ` +
+    `${counts.unobservable} unobservable.`;
 
   const lead =
     result.verdict === 'unmet'

@@ -276,7 +276,7 @@ On the same run:
 
 ```
 Every declared edit landed; something you did not declare also moved.
-1 claim(s): 1 delivered, 0 undelivered, 0 over-reaching, 0 unchecked. 1 unclaimed change(s).
+1 claim(s): 1 delivered, 0 undelivered, 0 overreached, 0 unobservable. 1 unclaimed change(s).
 
   [delivered] component:Button
       declared (new brand accent) and delivered: component:Button changed in 3 subject(s): component:Button/primary, component:Button/disabled, route:/checkout. Not checked here: viewport.
