@@ -23,6 +23,7 @@ export function formatTestComposition(composition: TestComposition): string {
   const test = composition.test ?? { file: '', name: '', blocks: 0 };
   const majority = `run by more than half of the ${suite} recorded tests`;
   if (test.blocks === 0) {
+    if (structure === 0) return `${test.file}  ${test.name}: an empty footprint; it ran no recorded region.`;
     return `${test.file}  ${test.name}: an empty footprint; all ${structure} regions it ran are structure, ${majority}.`;
   }
   const head = `${test.file}  ${test.name}: a footprint of ${regions(test.blocks)}`;

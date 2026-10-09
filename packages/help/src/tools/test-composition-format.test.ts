@@ -57,6 +57,7 @@ describe('a test composition as text', () => {
     expect(formatTestComposition(shared)).toBe(
       's.test.ts  setup one: an empty footprint; all 3 regions it ran are structure, run by more than half of the 8 recorded tests.',
     );
+    expect(formatTestComposition({ ...shared, structure: 0 })).toBe('s.test.ts  setup one: an empty footprint; it ran no recorded region.');
   });
 
   it('lists twelve rows of a part and counts the rest', () => {

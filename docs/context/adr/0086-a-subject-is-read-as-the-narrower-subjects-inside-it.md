@@ -58,7 +58,10 @@ no piece covers is listed place by place.**
   test-composition`). The story side is computed once per run over every
   composed subject, by `piecesOf`, and carried per subject in the report's
   structure section beside its rows, read back by `variance_composition
-  {subject}`.
+  {subject}`. The rule is written twice because the two footprints live in
+  different places: the test side runs over the recording's bitmasks in Rust,
+  and core, which composes stories, does not load the addon. A change to one
+  `HOLDS` constant is a change to both.
 
 ## Alternatives
 
@@ -74,6 +77,12 @@ no piece covers is listed place by place.**
 - **Structure counted per mount.** A component mounted twenty times in four
   subjects of nine became structure, and the chip story stopped being an
   example of the chip. Counting subjects is what *most of the suite* means.
+- **Test-suite minimization.** Harrold, Gupta and Soffa (1993) and the work
+  after it pick a smallest subset of tests that keeps every requirement
+  covered, and drop the rest as subsumed. That answers which tests a suite can
+  lose; it does not say what one test adds over the tests inside it, and exact
+  subsumption over coverage sets hides a piece behind one helper region. The
+  tolerance and the `own` / `reached` split are what this adds.
 - **Derive pieces from the echo list at read time.** The list is capped and
   what it left out is counted, not kept, so a reader would compute pieces over
   a sample.
@@ -89,3 +98,8 @@ The algebra reads execution. A test that mocks a module enters none of it, so a
 mocking test lists no piece for what it mocked and its residue holds only its
 own code. Whether that is acceptable is a question about the mock, not the
 recording, and is [spec 0099](../../specs/0099-a-mock-is-a-declared-subtraction.md).
+
+The journey map's structure is functions at least half the tests enter; the
+test composition's is regions more than half enter, matching the story side.
+A region exactly half an even suite enters is structure in one answer and
+footprint in the other.

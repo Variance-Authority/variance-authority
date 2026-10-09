@@ -63,6 +63,13 @@ describe('one subject, as the narrower subjects inside it', () => {
   it('says a subject made only of structure has no footprint to compare', () => {
     const blank: SubjectPiecesRecord = { footprint: 0, structure: 2, alike: [], pieces: [], wholes: [], explained: 0, own: [], inContext: [] };
     expect(recallPieces(blank)).toBe('an empty footprint: all 2 components it mounts are structure, mounted by more than half the suite.');
+    expect(recallPieces({ ...blank, structure: 0 })).toBe('an empty footprint: it mounts no component the composition attributed.');
+  });
+
+  it('names twelve subjects alike and counts the rest', () => {
+    const alike = Array.from({ length: 14 }, (_, at) => `story:twin-${String(at).padStart(2, '0')}`);
+    const twins: SubjectPiecesRecord = { footprint: 1, structure: 0, alike, pieces: [], wholes: [], explained: 1, own: [], inContext: [] };
+    expect(recallPieces(twins).split('\n')[1]).toBe(`14 other subjects render exactly the same: ${alike.slice(0, 12).join(', ')}, and 2 more`);
   });
 
   it('follows the tree and the shared renderings in the recall, and stays out of a report written before it', () => {

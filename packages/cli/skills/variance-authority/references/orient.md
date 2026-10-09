@@ -69,9 +69,9 @@ entered, less structure: regions more than half the suite entered. A piece is a
 smaller test with nine tenths of its footprint inside this one's, a whole a
 larger test holding nine tenths of this one's. What no piece entered is listed
 region by region: `own` is a module no piece entered, `reached` is a path
-through a piece's module that only this test takes. A test with no `own` rows
-and a piece for every `reached` module checks nothing a nearer test does not,
-except how the pieces are put together. It reads execution: a mocked module is
+through a piece's module that only this test takes. A test with neither runs
+nothing a nearer test does not run, and can check only how the pieces are put
+together. It reads execution: a mocked module is
 entered by nobody, so a test that mocks its pieces lists none.
 
 ## `stack`

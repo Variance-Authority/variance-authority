@@ -19,6 +19,7 @@ export function recallPieces(record: SubjectPiecesRecord): string {
   const { footprint, structure } = record;
   const majority = 'mounted by more than half the suite';
   if (footprint === 0) {
+    if (structure === 0) return 'an empty footprint: it mounts no component the composition attributed.';
     return `an empty footprint: all ${components(structure)} it mounts ${structure === 1 ? 'is' : 'are'} structure, ${majority}.`;
   }
   const head = `a footprint of ${renderings(footprint)}`;
@@ -27,7 +28,8 @@ export function recallPieces(record: SubjectPiecesRecord): string {
   ];
   if (record.alike.length > 0) {
     const others = record.alike.length === 1 ? '1 other subject renders' : `${record.alike.length} other subjects render`;
-    lines.push(`${others} exactly the same: ${record.alike.join(', ')}`);
+    const named = record.alike.slice(0, ROWS).join(', ');
+    lines.push(`${others} exactly the same: ${record.alike.length > ROWS ? `${named}, and ${record.alike.length - ROWS} more` : named}`);
   }
   if (record.pieces.length > 0) {
     lines.push('pieces, smaller subjects inside it, most shared first:');
