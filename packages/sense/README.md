@@ -1926,14 +1926,22 @@ test/checkout.test.tsx > checkout > submits
 A name is the coordinate, so the identity is the name and not the runner's
 positional id, which changes the moment a case is inserted above it. Two cases
 in one file may share a coordinate; the repeat is numbered, so the second reads
-`<coordinate>#1`. A case run by a named Vitest project carries the name, the
-way Vitest prints it: `|compiled| test/checkout.test.tsx > checkout > submits`.
-Vitest names each project of a workspace or a `projects` list from its
-`test.name`, its `package.json` name or its directory, and an inline project
-without one by its place in the list. So a file two projects both match is two
-cases, and a run filtered with `--project` or split into shards names each the
-same as a full run. A root config without `test.name` has no name and keeps
-the plain coordinate. Any other producer of an
+`<coordinate>#1`. A case run by a named project carries the project's name in
+front, the way Vitest prints it:
+`|compiled| test/checkout.test.tsx > checkout > submits`. The name is the one
+the runner gives the project:
+
+| Runner | The project's name |
+| --- | --- |
+| Vitest | `test.name`, else its `package.json` name or directory; an inline project without one is named by its place in the list |
+| Jest | `displayName`, a string or its `name` |
+| Playwright | `name` |
+
+So a file two projects both run is two cases, and a run filtered to one project
+(`--project`, `--selectProjects`) or split into shards names each case the same
+as a full run. A project without a name keeps the plain coordinate, and so does
+every Rstest case: its case context does not name the project. Any other
+producer of an
 `ExecutionIndex` — and anything joining against one, such as an Eyes journal
 read by `variance distill` — has to key the same test by the same string.
 

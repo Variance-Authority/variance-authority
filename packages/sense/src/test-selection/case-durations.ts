@@ -27,8 +27,6 @@ export interface FinishedCase {
   readonly id?: string;
   /** Milliseconds the runner reported for the case; absent when it reported none. */
   readonly duration?: number;
-  /** The name of the project that ran it, as the configuration wrote it; absent when the runner named none. */
-  readonly project?: string;
 }
 
 /** The runner's duration for one recorded case, or `undefined` when no runner timed it. */
@@ -90,12 +88,11 @@ function timed(duration: number | undefined): number | null {
  */
 export function taskCases(file: RunnerTask): Pick<{ cases?: readonly FinishedCase[] }, 'cases'> {
   const cases: FinishedCase[] = [];
-  const project = named(file.projectName);
   const walk = (task: RunnerTask, names: readonly string[]): void => {
     for (const child of task.tasks ?? []) {
       const path = [...names, child.name ?? ''];
       if (child.tasks !== undefined) walk(child, path);
-      else cases.push(finishedCase(path.join(' > '), child.id, child.result?.duration, project));
+      else cases.push(finishedCase(path.join(' > '), child.id, child.result?.duration));
     }
   };
   walk(file, []);
@@ -104,23 +101,16 @@ export function taskCases(file: RunnerTask): Pick<{ cases?: readonly FinishedCas
 
 /** The cases of a module Vitest 3 or 4 reported, by the id its task carried. */
 export function reportedCases(module: ReportedModule): Pick<{ cases?: readonly FinishedCase[] }, 'cases'> {
-  const project = named(module.project?.name ?? module.project?.getName?.());
   return {
     cases: [...module.children.allTests()].map((test) =>
-      finishedCase(test.fullName ?? '', test.id, test.diagnostic?.()?.duration, project)),
+      finishedCase(test.fullName ?? '', test.id, test.diagnostic?.()?.duration)),
   };
 }
 
-export function finishedCase(name: string, id: string | undefined, duration: unknown, project?: string): FinishedCase {
+export function finishedCase(name: string, id: string | undefined, duration: unknown): FinishedCase {
   return {
     name,
     ...(id === undefined ? {} : { id }),
     ...(typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 ? { duration } : {}),
-    ...(project === undefined ? {} : { project }),
   };
-}
-
-/** A project's name, or nothing for the one a configuration left unnamed. */
-function named(project: string | undefined): string | undefined {
-  return project === undefined || project === '' ? undefined : project;
 }

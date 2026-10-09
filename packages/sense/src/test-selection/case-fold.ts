@@ -11,9 +11,18 @@ import {
   projectPath,
   type CapturedModule,
 } from './instrumented-modules.js';
-import { AMBIENT, caseIds, caseKey, inCaseOrder, keptOwners, settledAcross, unpackCase, unpackFrames } from './cases.js';
+import {
+  AMBIENT,
+  caseIds,
+  caseKey,
+  inCaseOrder,
+  keptOwners,
+  settledAcross,
+  unpackCase,
+  unpackFrames,
+  type CaseCoordinate,
+} from './cases.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
-import { UNNAMED, type CaseProjects } from './case-projects.js';
 import eyesFrames from './eyes-frame.cjs';
 import type { EyesSection, RecordedEyes } from './eyes-record.js';
 import { heardAcross, preconditionsHeard, type Said } from './case-precondition-column.js';
@@ -45,12 +54,7 @@ export interface CaseFold {
   readonly crossings: number;
 }
 
-interface Coordinate {
-  readonly file: string;
-  readonly name: string;
-  readonly id: string;
-  /** The project the runner said ran the case; absent when it named none. */
-  readonly project?: string;
+interface Coordinate extends CaseCoordinate {
   /** How the case settled across its frames, by `settledAcross`. */
   stopped?: boolean;
   /** What the case said it arranged, across its frames; absent where no frame listened. */
@@ -70,7 +74,6 @@ export async function inspectCaseRun(
   directory: string,
   root: string,
   durations: CaseDurations = UNTIMED,
-  projects: CaseProjects = UNNAMED,
 ): Promise<CaseRun> {
   let names: readonly string[];
   try {
@@ -90,12 +93,10 @@ export async function inspectCaseRun(
       const eyes = eyesFrames.decodeEyesFrame(bytes);
       if (eyes !== undefined) {
         const coordinate = unpackCase(eyes.case);
-        const file = projectPath(root, coordinate.file);
-        const key = `${file}\0${coordinate.name}\0${coordinate.id}`;
+        const located = { ...coordinate, file: projectPath(root, coordinate.file) };
+        const key = caseKey(located);
         // A case that watched is a case, whether or not it crossed anything.
-        if (!coordinates.has(key)) {
-          coordinates.set(key, { file, name: coordinate.name, id: coordinate.id, ...projectOf(projects, file, coordinate.id), frames: [] });
-        }
+        if (!coordinates.has(key)) coordinates.set(key, { ...caseOf(located), frames: [] });
         const rows = looked.get(key) ?? [];
         if (eyes.journal !== undefined) rows.push({ attempt: eyes.attempt, journal: eyes.journal });
         looked.set(key, rows);
@@ -107,16 +108,13 @@ export async function inspectCaseRun(
           if (coordinate.name !== AMBIENT || coordinate.id !== AMBIENT) {
             // A case is written when it settles, so work that outlived it
             // arrives as a second frame under the same coordinate: one case.
-            const file = projectPath(root, coordinate.file);
-            const key = `${file}\0${coordinate.name}\0${coordinate.id}`;
+            const located = { ...coordinate, file: projectPath(root, coordinate.file) };
+            const key = caseKey(located);
             const held = coordinates.get(key);
             const said = preconditions.saidOf(packed);
             if (held === undefined) {
               coordinates.set(key, {
-                file,
-                name: coordinate.name,
-                id: coordinate.id,
-                ...projectOf(projects, file, coordinate.id),
+                ...caseOf(located),
                 ...settledAcross(coordinate.stopped, undefined),
                 ...(said === undefined ? {} : { said }),
                 frames: [frame],
@@ -169,9 +167,9 @@ export async function inspectCaseRun(
   return { root, paths, tests, frameTests, moduleIds: [...moduleIds], testsByFile, ...(eyes === undefined ? {} : { eyes }) };
 }
 
-function projectOf(projects: CaseProjects, file: string, id: string): { readonly project?: string } {
-  const project = projects(file, id);
-  return project === undefined ? {} : { project };
+/** A frame's case coordinate, without how this frame settled. */
+function caseOf({ file, name, id, project }: CaseCoordinate): CaseCoordinate {
+  return { file, name, id, ...(project === undefined ? {} : { project }) };
 }
 
 const DEFAULT_BUDGET = 128 * 1_048_576;
@@ -212,7 +210,7 @@ export async function freshCases(
   readings: ReadonlyMap<ModuleId, Reading> = new Map(),
 ): Promise<FreshCases | undefined> {
   const finished = run.tests.some((test) => test.complete);
-  const inspected = await inspectCaseRun(directory, root, run.durations, run.projects);
+  const inspected = await inspectCaseRun(directory, root, run.durations);
   if (inspected.tests.length === 0 && !finished) return undefined;
   const fresh = (await foldCaseRun(inspected, modules, DEFAULT_BUDGET, readings)).bytes;
   return {
@@ -226,8 +224,6 @@ export async function freshCases(
 export interface CaseRunTests extends LaidRun {
   /** Each case's duration as the runner reported it; absent, no case is timed. */
   readonly durations?: CaseDurations;
-  /** The project the runner said ran each case; absent, no case is told apart by one. */
-  readonly projects?: CaseProjects;
 }
 
 /**

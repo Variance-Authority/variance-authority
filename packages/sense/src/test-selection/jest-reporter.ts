@@ -194,7 +194,7 @@ class JestCoverageReporter {
     const observed = crossingsOf(rows);
     const early = loadedOf(rows);
 
-    const tests = await Promise.all(
+    const tests = oneTestPerFile(await Promise.all(
       results.testResults.map((result) => coverageTest(
         result,
         selection,
@@ -202,7 +202,7 @@ class JestCoverageReporter {
         journals,
         modules,
       )),
-    );
+    ));
     const commit = await commitOf(root);
     const current: TestCoverage = {
       version: 3,
@@ -225,8 +225,6 @@ class JestCoverageReporter {
     // In the record, with the coverage, in one write. A run that recorded no
     // case and finished no file has none to lay, and the record's cases stay
     // as they were.
-    // FIXME: no project is passed, so a file two Jest projects both run numbers
-    // its second copy `#1`, where a Vitest project's case carries `|project|`.
     const cases = caseDirectory === undefined
       ? undefined
       : await freshCases(caseDirectory, root, modules, {
@@ -311,6 +309,35 @@ async function coverageTest(
       (assertion) => assertion.status === 'passed' || assertion.status === 'pending' || assertion.status === 'todo',
     );
   return { file, complete, preconditions, ...reportedDuration(result.perfStats?.runtime) };
+}
+
+/**
+ * One row per test file, however many projects ran it, as `oneRowPerFile` folds
+ * Vitest's: the record's unit is a path, so a file is whole only where every
+ * project that ran it was, its preconditions are each project's, and its cost is
+ * the sum, unknown when any project did not say.
+ */
+function oneTestPerFile(tests: readonly CoverageTest[]): CoverageTest[] {
+  const byFile = new Map<string, CoverageTest>();
+  for (const test of tests) {
+    const seen = byFile.get(test.file);
+    if (seen === undefined) {
+      byFile.set(test.file, test);
+      continue;
+    }
+    const preconditions = new Map(seen.preconditions.map((precondition) => [precondition.name, precondition]));
+    for (const precondition of test.preconditions) {
+      if (!preconditions.has(precondition.name)) preconditions.set(precondition.name, precondition);
+    }
+    const duration = seen.duration === undefined || test.duration === undefined ? undefined : seen.duration + test.duration;
+    byFile.set(test.file, {
+      file: test.file,
+      complete: seen.complete && test.complete,
+      preconditions: [...preconditions.values()],
+      ...(duration === undefined ? {} : { duration }),
+    });
+  }
+  return [...byFile.values()];
 }
 
 /**

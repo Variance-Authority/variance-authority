@@ -210,6 +210,8 @@ describe('withTestSelection for Jest', () => {
         displayName: 'node',
         rootDir: '/repo/packages/node',
         transform: { '\\.[jt]sx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: 'babel-jest' }] },
+        // The sandbox learns its project's name from here, for the case ids.
+        globals: { 'variance-authority.project': 'node' },
         setupFiles: [SELECTION_GLOBALS, '<rootDir>/setup.js'],
         setupFilesAfterEnv: [SELECTION_SETUP],
       },
@@ -218,6 +220,7 @@ describe('withTestSelection for Jest', () => {
         testEnvironment: 'jsdom',
         rootDir: '/repo',
         transform: { '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest' }] },
+        globals: { 'variance-authority.project': 'dom' },
         setupFiles: [SELECTION_GLOBALS],
         setupFilesAfterEnv: [SELECTION_SETUP],
       },

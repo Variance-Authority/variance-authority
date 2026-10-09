@@ -351,7 +351,7 @@ export function createExecutionRecorder(
   function caseOf(owner: string, subject: ObservedTest): Accumulated {
     const key = `${owner}\u0000${subject.id}`;
     const held = cases.get(key) ?? {
-      of: { file: owner, name: subject.name, id: subject.id },
+      of: { file: owner, name: subject.name, id: subject.id, ...(subject.project === undefined ? {} : { project: subject.project }) },
       hits: accumulation(),
     };
     cases.set(key, held);

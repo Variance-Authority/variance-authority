@@ -161,6 +161,8 @@ export interface UnpackedCase {
   readonly name: string;
   /** Unique within the worker; empty for the ambient bucket. */
   readonly id: string;
+  /** The project that ran the case; absent when the run names none. */
+  readonly project?: string;
   /** Whether the case's body threw, rejected or never settled; absent when the frame does not say. */
   readonly stopped?: boolean;
 }
@@ -184,6 +186,8 @@ export interface CaseJournal {
   readonly file: string;
   readonly name: string;
   readonly id: string;
+  /** The project that ran the case; absent when the run names none. */
+  readonly project?: string;
   /** How this frame's case settled; see {@link ExecutionTest.stopped}. */
   readonly stopped?: boolean;
   /**
@@ -208,22 +212,28 @@ export interface CaseCoordinate {
   readonly file: string;
   readonly name: string;
   readonly id: string;
-  /** The name the runner reported for the project that ran the case; absent when it reported none. */
+  /**
+   * The project that ran the case: the runner's name for one configured run of
+   * the file — a Vitest or Jest project, a Playwright project. Absent when the
+   * run names none.
+   */
   readonly project?: string;
 }
 
 /** One key per case of a run, for a map from a coordinate to anything. */
 export function caseKey(coordinate: CaseCoordinate): string {
-  return `${coordinate.file}\0${coordinate.name}\0${coordinate.id}`;
+  const key = `${coordinate.file}\0${coordinate.name}\0${coordinate.id}`;
+  return coordinate.project === undefined ? key : `${key}\0${coordinate.project}`;
 }
 
-/** `cases` in the order the index numbers them: by file, then name, then the runner's id. */
+/** `cases` in the order the index numbers them: by file, then name, then project, then the runner's id. */
 export function inCaseOrder<Case extends CaseCoordinate>(cases: Iterable<Case>): Case[] {
   // Ordered before they are numbered, so the index reads the same whichever
   // worker finished first and whichever order the frames landed on disk.
   return [...cases].sort((left, right) =>
     codeUnitOrder(left.file, right.file) ||
     codeUnitOrder(left.name, right.name) ||
+    codeUnitOrder(left.project ?? '', right.project ?? '') ||
     codeUnitOrder(left.id, right.id),
   );
 }
@@ -238,15 +248,14 @@ export function inCaseOrder<Case extends CaseCoordinate>(cases: Iterable<Case>):
  * index, and everything that joins a case by its id, numbers through here; the
  * native fold numbers with `CaseIds` in `case_id.rs`, in the same words.
  *
- * A case run by a named project carries that name, as the runner prints it:
- * `|compiled| test/a.test.ts > pays`. Vitest names each project of a
- * workspace, from its config, its manifest, its directory or its place in the
- * list, so a file two projects both run is two cases, not a repeat. The name is the case's own,
- * never read from which other projects the run took: a run filtered to one
- * project, or a shard holding one copy, gives the copy the id a full run gives
- * it. A root config the runner names no project for adds nothing. The
- * number is left for the repeats inside one project. The native fold is handed
- * no project and numbers such copies.
+ * A case run by a named project carries that name, as the runners print it:
+ * `|compiled| test/a.test.ts > pays`. A project is one configured run of a
+ * file — Vitest's and Jest's `projects`, Playwright's `projects` — so a file
+ * two projects both run is two cases, not a repeat. The name is the case's own,
+ * carried on its frame by the seam that ran it, never read from which other
+ * projects the run took: a run filtered to one project, or a shard holding one
+ * copy, gives the copy the id a full run gives it. A run that names no project
+ * adds nothing, and the number is left for the repeats inside one project.
  *
  * A suite whose second `pays` would take the id of a case named `pays#1` is
  * refused: one id cannot hold two cases' journeys.
@@ -318,7 +327,7 @@ export function ownedExecutionIndexFrom(
       ambient.set(journal.file, [...(ambient.get(journal.file) ?? []), journal]);
       continue;
     }
-    const key = `${journal.file}\0${journal.name}\0${journal.id}`;
+    const key = caseKey(journal);
     const first = byCase.get(key);
     byCase.set(key, first === undefined ? journal : {
       ...first,

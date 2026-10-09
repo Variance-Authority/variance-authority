@@ -393,50 +393,78 @@ const AMBIENT = '';
  * this package generates for Vitest — and this is the one file of the seam they
  * can already reach.
  */
-function packCase(file: string, name: string, id: string): string {
-  return `${file}\u0000${name}\u0000${id}`;
+function packCase(file: string, name: string, id: string, project?: string): string {
+  const packed = `${file}\u0000${name}\u0000${id}`;
+  return project === undefined || project === '' ? packed : withField(packed, PROJECT, project);
+}
+
+/**
+ * The fields after the coordinate, by position.
+ *
+ * Each is set by its index, never appended, so a writer that knows only some
+ * of them leaves the others empty and every reader finds each where it looks.
+ * The JVM agent writes a part owner as `\0\0\0\0<journey>` and relies on it.
+ */
+const SETTLED = 3;
+const JOURNEY = 4;
+// Field 5 is what the case said, set by `case-preconditions.cts`.
+/**
+ * The project that ran the case — Vitest's, Jest's or Playwright's name for one
+ * configured run of a test file. Absent when the run names none, so a case of a
+ * single unnamed project packs as it always has.
+ */
+const PROJECT = 6;
+
+function withField(packed: string, at: number, value: string): string {
+  const fields = packed.split('\u0000');
+  while (fields.length <= at) fields.push('');
+  fields[at] = value;
+  return fields.join('\u0000');
 }
 
 /**
  * How a frame says whether its case's journey ended.
  *
- * A fourth field rather than a second coordinate: the case is the same case
- * whichever way it settled, so the three fields a reader joins frames on are
+ * A field of its own rather than a second coordinate: the case is the same case
+ * whichever way it settled, so the fields a reader joins frames on are
  * untouched. A frame written before the case settled, or by a writer that
- * cannot see settling, has no fourth field, and says nothing.
+ * cannot see settling, leaves it empty, and says nothing.
  */
 const FINISHED = 'finished';
 const STOPPED = 'stopped';
 
 function settledCase(packed: string, stopped: boolean): string {
-  return `${packed}\u0000${stopped ? STOPPED : FINISHED}`;
+  return withField(packed, SETTLED, stopped ? STOPPED : FINISHED);
 }
 
-function unpackCase(packed: string): { file: string; name: string; id: string; stopped?: boolean } {
+function unpackCase(packed: string): { file: string; name: string; id: string; project?: string; stopped?: boolean } {
   const parts = packed.split('\u0000');
-  const coordinate = { file: parts[0] ?? packed, name: parts[1] ?? AMBIENT, id: parts[2] ?? AMBIENT };
-  if (parts[3] === STOPPED) return { ...coordinate, stopped: true };
-  if (parts[3] === FINISHED) return { ...coordinate, stopped: false };
+  const project = parts[PROJECT];
+  const coordinate = {
+    file: parts[0] ?? packed,
+    name: parts[1] ?? AMBIENT,
+    id: parts[2] ?? AMBIENT,
+    ...(project === undefined || project === '' ? {} : { project }),
+  };
+  if (parts[SETTLED] === STOPPED) return { ...coordinate, stopped: true };
+  if (parts[SETTLED] === FINISHED) return { ...coordinate, stopped: false };
   return coordinate;
 }
 
 /**
- * A coordinate that handed out a journey id, as a fifth field.
+ * A coordinate that handed out a journey id.
  *
- * It follows the settling, which stays empty when the case has not settled, so
- * a reader that knows four fields reads the case and its settling unchanged.
- * The fold reads the fifth to join what ran beyond a fence under that id — a
- * part frame is owned by `\0\0\0\0<journey>`, no case of its own — back to
- * the case that sent it.
+ * The fold reads it to join what ran beyond a fence under that id — a part
+ * frame is owned by `\0\0\0\0<journey>`, no case of its own — back to the case
+ * that sent it.
  */
 function packJourney(packed: string, journey: string): string {
-  const fields = packed.split('\u0000').length;
-  return `${packed}${'\u0000'.repeat(Math.max(1, 5 - fields))}${journey}`;
+  return withField(packed, JOURNEY, journey);
 }
 
 /** The journey a frame owner carries; empty when it carries none. */
 function journeyOf(packed: string): string {
-  return packed.split('\u0000')[4] ?? '';
+  return packed.split('\u0000')[JOURNEY] ?? '';
 }
 
 /**

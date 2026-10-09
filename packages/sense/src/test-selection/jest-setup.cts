@@ -270,6 +270,12 @@ type CaseBody = (this: unknown, ...args: unknown[]) => unknown;
 // wrapper reached inside it is the same case, not concurrency.
 let enclosingCase = 0;
 
+// The project this sandbox runs the file for, from the `globals` that
+// `withTestSelection` gave it (`PROJECT_GLOBAL` in `jest.ts`): the same file
+// under two projects is the same path, and only this tells its cases apart.
+const named = (globalThis as Record<string, unknown>)['variance-authority.project'];
+const project = typeof named === 'string' ? named : undefined;
+
 /**
  * One case's body, run inside the scope its crossings belong to.
  *
@@ -300,7 +306,7 @@ function scopeCase(body: CaseBody, declared: unknown, nextId: () => string): Cas
       : String(declared);
     enclosingCase += 1;
     try {
-      return scope.enter(journals.packCase(testPath ?? '', name, id), () => body.apply(this, args));
+      return scope.enter(journals.packCase(testPath ?? '', name, id, project), () => body.apply(this, args));
     } finally {
       enclosingCase -= 1;
     }
