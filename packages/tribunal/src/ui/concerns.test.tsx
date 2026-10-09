@@ -36,7 +36,7 @@ const RAISED: Concern = {
   build: 'ci-1001',
   subject: SUBJECT.subject,
   title: 'Total moved below the fold',
-  region: { x: 10, y: 20, width: 30, height: 8 },
+  region: { x: 10, y: 20, width: 30, height: 8, component: 'CartSummary' },
   evidence: ['CartSummary'],
   by: 'marina',
   at: '2026-08-01T10:00:00.000Z',
@@ -66,13 +66,24 @@ describe('ConcernTrail', () => {
     );
     expect(html).toContain('Total moved below the fold');
     expect(html).toContain('investigating');
-    expect(html).toContain('CartSummary');
-    expect(html).toContain('30×8 at 10,20');
+    expect(html).toContain('CartSummary · 30×8 at 10,20');
     expect(html).toContain('The banner gained a margin');
     expect(html).toContain('anton');
     expect(html).toContain('Looking');
     expect(html).toContain('Resolve');
     expect(html).not.toContain('raised in');
+  });
+
+  it('names only the rectangle of a region raised with no component', () => {
+    const html = renderToStaticMarkup(
+      <ConcernTrail
+        concern={{ ...RAISED, region: { x: 10, y: 20, width: 30, height: 8 }, evidence: [] }}
+        build="ci-1001"
+        busy={false}
+        onMove={() => undefined}
+      />,
+    );
+    expect(html).toContain('<p class="va-note">30×8 at 10,20</p>');
   });
 
   it('names the build a concern was raised in when it is not this one', () => {
@@ -189,7 +200,7 @@ describe('Concerns', () => {
         title: 'Total moved below the fold',
         by: 'marina',
         note: 'Under the banner now',
-        region: { x: 10, y: 20, width: 30, height: 8 },
+        region: { x: 10, y: 20, width: 30, height: 8, component: 'CartSummary' },
         evidence: ['Banner'],
         state: 'open',
       },

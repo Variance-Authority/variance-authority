@@ -21,6 +21,12 @@ export interface ConcernRegion {
   readonly y: number;
   readonly width: number;
   readonly height: number;
+  /**
+   * The component the run attributed the rectangle to when it was raised.
+   * Absent when the region had none, or the caller sent a bare rectangle. It
+   * still names the place once that build's images are swept.
+   */
+  readonly component?: string;
 }
 
 /** One step in a concern's trail. The last one is its state. */

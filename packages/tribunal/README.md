@@ -263,7 +263,7 @@ be requested anonymously.
 | `GET /review/changelog[?component&subject&since&limit]` | review | every approval, grouped by shape |
 | `POST /review/sweep[?days=N]` | review | retention, below |
 | `GET /review/concerns[?build&subject&state]` | review | the concerns on a subject, or on every subject a build showed, with the build's `tally` per state |
-| `POST /review/concerns` | review | `{"build","subject","title","by","note","hypothesis","region":{x,y,width,height},"evidence":["…"],"state"}`. 201 |
+| `POST /review/concerns` | review | `{"build","subject","title","by","note","hypothesis","region":{x,y,width,height,component},"evidence":["…"],"state"}`. 201 |
 | `POST /review/concerns/{id}` | review | `{"state":"open"\|"investigating"\|"resolved","by","note","hypothesis"}`: the next step of its trail |
 | `GET /share/<mainline\|branch>/<line>/manifest.json` | ingest or share | the line's manifest, with its version as the `ETag`. 404 when nothing was published |
 | `PUT /share/<mainline\|branch>/<line>/manifest.json` | ingest | replace the manifest. With `If-Match: <ETag>` it replaces only that version, and with `If-None-Match: *` only when there is none. A stale version answers 412, and a write with neither header answers 428 |
@@ -361,7 +361,9 @@ baseline you are pointing at, a note and your hypothesis. It moves between
 open, investigating and resolved, each step with a name on it. It stays on the
 subject, shown with its trail on every later build that reports it; resolving it
 closes it without removing it. Its region is a place on the image of the build
-it was raised in, so it names a place nobody can see once that build is swept. A concern and a decision never settle each other: approving does not resolve
+it was raised in, so it names a place nobody can see once that build is swept;
+the component the run attributed it to, `Button · 24×18 at 154,85`, still says
+what was there. A concern and a decision never settle each other: approving does not resolve
 a concern, and resolving one approves nothing. The build's header counts the
 concerns its subjects carry, and says so when it could not read them rather than
 showing none.

@@ -30,7 +30,7 @@ describe('raising a concern', () => {
       title: 'Total moved below the fold',
       note: 'The order total sits under the promo banner now',
       hypothesis: 'The banner gained a margin',
-      region: { x: 0, y: 1, width: 2, height: 1 },
+      region: { x: 0, y: 1, width: 2, height: 1, component: 'CartSummary' },
       evidence: ['CartSummary.tsx:84', 'baseline'],
       by: 'marina',
     });
@@ -40,7 +40,7 @@ describe('raising a concern', () => {
       build: 'ci-1001',
       subject: SUBJECT,
       title: 'Total moved below the fold',
-      region: { x: 0, y: 1, width: 2, height: 1 },
+      region: { x: 0, y: 1, width: 2, height: 1, component: 'CartSummary' },
       evidence: ['CartSummary.tsx:84', 'baseline'],
       by: 'marina',
       at: POSTED,
@@ -102,6 +102,31 @@ describe('raising a concern', () => {
     await expect(
       concerns.raise({ build: 'ci-1001', subject: SUBJECT, title: '  ', by: 'marina' }),
     ).rejects.toThrow(/title/);
+  });
+
+  it('keeps a region with no component as a rectangle alone', async () => {
+    const raised = await concerns.raise({
+      build: 'ci-1001',
+      subject: SUBJECT,
+      title: 'Spacing',
+      region: { x: 0, y: 1, width: 2, height: 1 },
+      by: 'marina',
+    });
+    expect(raised.region).toEqual({ x: 0, y: 1, width: 2, height: 1 });
+  });
+
+  it('refuses a region whose component names nothing', async () => {
+    for (const component of ['', 42]) {
+      await expect(
+        concerns.raise({
+          build: 'ci-1001',
+          subject: SUBJECT,
+          title: 'x',
+          region: { x: 0, y: 0, width: 4, height: 4, component } as never,
+          by: 'marina',
+        }),
+      ).rejects.toThrow(/component/);
+    }
   });
 
   it('refuses a region with no area', async () => {

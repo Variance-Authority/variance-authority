@@ -5,7 +5,7 @@
 Reviewers can flag a render as suspicious without deciding it
 
 A subject page gains *Looks suspicious*, which raises a concern: a title, the
-region or the whole render, evidence — the components, files or baseline you
+region with the component it was attributed to, or the whole render, evidence — the components, files or baseline you
 point at — a note and a hypothesis. A concern moves between open,
 investigating and resolved with a name on each step, stays on the subject with
 its trail across builds, and survives the retention sweep. Approving never resolves a concern,

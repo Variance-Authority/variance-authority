@@ -228,7 +228,17 @@ export function regionOf(value: unknown): ConcernRegion {
   if (!whole || (width as number) === 0 || (height as number) === 0) {
     throw new ReviewError('a concern region is whole, non-negative x, y, width and height, with an area');
   }
-  return { x: x as number, y: y as number, width: width as number, height: height as number };
+  const { component } = record;
+  if (component !== undefined && (typeof component !== 'string' || component.trim() === '')) {
+    throw new ReviewError('a concern region names its component with a word, or leaves it out');
+  }
+  return {
+    x: x as number,
+    y: y as number,
+    width: width as number,
+    height: height as number,
+    ...(component !== undefined ? { component } : {}),
+  };
 }
 
 function evidenceOf(value: unknown): readonly string[] {

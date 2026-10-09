@@ -7,7 +7,7 @@
  */
 
 import { useState, type FormEvent, type ReactElement } from 'react';
-import { CONCERN_STATES, type ConcernState, type RaiseConcern } from '../concern-types.js';
+import { CONCERN_STATES, type ConcernRegion, type ConcernState, type RaiseConcern } from '../concern-types.js';
 import type { SubjectView } from '../review-types.js';
 import { number } from './text.js';
 
@@ -29,6 +29,16 @@ export function evidenceFor(subject: SubjectView): readonly string[] {
 /** One rectangle, as the trail and the scope picker both say it. */
 export function placed(region: { readonly x: number; readonly y: number; readonly width: number; readonly height: number }): string {
   return `${number(region.width)}×${number(region.height)} at ${number(region.x)},${number(region.y)}`;
+}
+
+/**
+ * One rectangle and the component it was attributed to, `Button · 24×18 at
+ * 154,85`, as the scope picker offers it and a saved concern names it. `unnamed`
+ * stands in for a missing component; without it the rectangle stands alone.
+ */
+export function named(region: ConcernRegion, unnamed?: string): string {
+  const component = region.component ?? unnamed;
+  return component === undefined ? placed(region) : `${component} · ${placed(region)}`;
 }
 
 export function ConcernForm({
@@ -69,7 +79,15 @@ export function ConcernForm({
       ...(hypothesis.trim() === '' ? {} : { hypothesis: hypothesis.trim() }),
       ...(region === undefined
         ? {}
-        : { region: { x: region.x, y: region.y, width: region.width, height: region.height } }),
+        : {
+            region: {
+              x: region.x,
+              y: region.y,
+              width: region.width,
+              height: region.height,
+              ...(region.component === undefined ? {} : { component: region.component }),
+            },
+          }),
       ...(chosen.length === 0 ? {} : { evidence: chosen }),
       state,
     });
@@ -98,7 +116,7 @@ export function ConcernForm({
             <option value="">The whole render</option>
             {subject.regions.map((region, index) => (
               <option key={index} value={String(index)}>
-                {region.component ?? 'unattributed'} · {placed(region)}
+                {named(region, 'unattributed')}
               </option>
             ))}
           </select>

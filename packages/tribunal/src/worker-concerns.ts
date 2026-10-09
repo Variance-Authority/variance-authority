@@ -113,7 +113,7 @@ function placed(value: unknown): { region?: ConcernRegion } {
   try {
     return { region: regionOf(value) };
   } catch (error) {
-    throw new BadRequest(`\`region\` must be {x, y, width, height}: ${(error as Error).message}; received ${describe(value)}`);
+    throw new BadRequest(`\`region\` must be {x, y, width, height, component?}: ${(error as Error).message}; received ${describe(value)}`);
   }
 }
 

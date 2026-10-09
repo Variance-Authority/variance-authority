@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from 'rea
 import type { Concern, ConcernState, ConcernTally, RaiseConcern } from '../concern-types.js';
 import type { SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
-import { ConcernForm, placed } from './concern-form.js';
+import { ConcernForm, named } from './concern-form.js';
 import { messageOf } from './shell.js';
 import { when } from './text.js';
 
@@ -177,7 +177,7 @@ export function ConcernTrail({
         <span className="va-concern-state">{concern.state}</span>
       </header>
       <p className="va-note">
-        {concern.region === undefined ? 'the whole render' : placed(concern.region)}
+        {concern.region === undefined ? 'the whole render' : named(concern.region)}
         {concern.build === build ? null : <> · raised in {concern.build}</>}
       </p>
       {concern.evidence.length === 0 ? null : (

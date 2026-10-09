@@ -76,6 +76,13 @@ describe('the concern routes', () => {
     expect((await call('/review/concerns/1', { token: INGEST, body: { state: 'resolved', by: 'ci' } })).status).toBe(403);
   });
 
+  it('keeps the component a region was raised on', async () => {
+    const region = { x: 0, y: 0, width: 1, height: 1, component: 'CartSummary' };
+    const raised = await call('/review/concerns', { token: REVIEW, body: { ...RAISE, region } });
+    expect(raised.status).toBe(201);
+    expect(((await raised.json()) as { concern: { region: unknown } }).concern.region).toEqual(region);
+  });
+
   it('reads a null region as the whole render', async () => {
     const raised = await call('/review/concerns', { token: REVIEW, body: { ...RAISE, region: null } });
     expect(raised.status).toBe(201);
@@ -91,6 +98,8 @@ describe('the concern routes', () => {
     expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, title: '   ' } })).status).toBe(400);
     expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, region: { x: 0 } } })).status).toBe(400);
     expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, region: 'all' } })).status).toBe(400);
+    const unnamed = { x: 0, y: 0, width: 1, height: 1, component: 7 };
+    expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, region: unnamed } })).status).toBe(400);
     expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, evidence: 'x' } })).status).toBe(400);
     expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, state: 'closed' } })).status).toBe(400);
     expect((await call('/review/concerns/abc', { token: REVIEW, body: { state: 'open', by: 'm' } })).status).toBe(404);
