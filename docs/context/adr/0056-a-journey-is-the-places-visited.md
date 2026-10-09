@@ -73,8 +73,13 @@ has mistaken the map for the trip.
 3. **The drain is per subject.** Each collector drains the page once its
    observation is complete and before another subject runs on it, so what a
    subject holds is what ran on the page between the previous drain and its
-   own. Selection reads the union of those sets against the innermost region of
-   each changed line. A subject the diff does not reach is *not run*, never
+   own. Selection reads the union of those sets against the regions an edit to
+   each changed line charges, by the one rule `chargeLine` that `variance
+   covering --line` answers by: the innermost region holding the line, and the
+   region around it when the line opens a region and carries its text, as
+   `if (ready) {` carries the condition (amended 2026-10-09: it read the
+   innermost region alone, so a change to a condition skipped the subjects that
+   evaluated it and never took the branch). A subject the diff does not reach is *not run*, never
    *unaffected* and never *covered*.
 
 4. **Anything more is a reader.** Joining the record to the component tree
