@@ -1,7 +1,7 @@
-import { CONCERN_STATES, type ConcernState } from './concern-types.js';
-import { createConcernStore, type ConcernStore } from './concerns.js';
+import { CONCERN_STATES, type ConcernRegion, type ConcernState } from './concern-types.js';
+import { createConcernStore, regionOf, type ConcernStore } from './concerns.js';
 import type { D1Like } from './bindings.js';
-import { readable, requires, type Granted } from './worker-auth.js';
+import { requires, type Granted } from './worker-auth.js';
 import { BadRequest, MethodNotAllowed, asRecordBody, describe, json, optional, string } from './worker-http.js';
 
 /**
@@ -14,13 +14,12 @@ import { BadRequest, MethodNotAllowed, asRecordBody, describe, json, optional, s
  * POST /review/concerns/<id>                     → { concern }
  * ```
  *
- * ## A run may read them
+ * ## The review token's, both ways
  *
  * Writing is the review token's, as deciding is: a concern is a person saying
- * "this looks wrong". Reading is `readable`, the history routes' rule, because a
- * concern changes nothing a run depends on and a run is exactly what should be
- * told that the subject it is about to move is already under suspicion — an
- * agent holding CI's token included.
+ * "this looks wrong". Reading is too, as the rest of the review surface is,
+ * because what a concern holds is what a person wrote, and the ingest token
+ * lives where a failing job prints its environment.
  */
 
 /** Every route in this file is this path or under it, and nothing else in the router is. */
@@ -39,7 +38,7 @@ export function createConcernRoutes(options: {
     const path = url.pathname;
 
     if (path === CONCERNS_PATH && request.method === 'GET') {
-      readable(granted, path);
+      requires(granted, 'review', path);
       const build = optional(url, 'build');
       const subject = optional(url, 'subject');
       const state = optional(url, 'state');
@@ -65,10 +64,10 @@ export function createConcernRoutes(options: {
       const concern = await concerns.raise({
         build: string(body, 'build', 'the concern'),
         subject: string(body, 'subject', 'the concern'),
-        title: string(body, 'title', 'the concern'),
+        title: titleOf(body),
         by: string(body, 'by', 'the concern'),
         ...words(body),
-        ...(body['region'] !== undefined ? { region: body['region'] as never } : {}),
+        ...placed(body['region']),
         ...(body['evidence'] !== undefined ? { evidence: evidenceOf(body['evidence']) } : {}),
         ...(body['state'] !== undefined ? { state: stateOf(body['state']) } : {}),
       });
@@ -100,6 +99,22 @@ function words(body: Readonly<Record<string, unknown>>): { note?: string; hypoth
     if (value.trim() !== '') out[key] = value;
   }
   return out;
+}
+
+function titleOf(body: Readonly<Record<string, unknown>>): string {
+  const title = string(body, 'title', 'the concern');
+  if (title.trim() === '') throw new BadRequest('the concern.title must say something; received only spaces');
+  return title;
+}
+
+/** No region, or `null`, is the whole render; anything else is a rectangle or a 400. */
+function placed(value: unknown): { region?: ConcernRegion } {
+  if (value === undefined || value === null) return {};
+  try {
+    return { region: regionOf(value) };
+  } catch (error) {
+    throw new BadRequest(`\`region\` must be {x, y, width, height}: ${(error as Error).message}; received ${describe(value)}`);
+  }
 }
 
 function stateOf(value: unknown): ConcernState {

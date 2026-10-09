@@ -1,4 +1,4 @@
-import type { D1Like } from './bindings.js';
+import type { D1Like, D1PreparedLike } from './bindings.js';
 import {
   CONCERN_STATES,
   type Concern,
@@ -49,23 +49,27 @@ export interface ConcernOptions {
 }
 
 export function createConcernStore({ db, project, now = () => new Date() }: ConcernOptions): ConcernStore {
-  async function append(id: number, input: MoveConcern, at: string): Promise<void> {
-    await db
+  /**
+   * One step of a trail. `concern` is the id, or `null` for the concern the
+   * statement before it in the same batch inserted — which is how raising writes
+   * a concern and its first step as one transaction.
+   */
+  function step(concern: number | null, input: MoveConcern, at: string): D1PreparedLike {
+    return db
       .prepare(
         `INSERT INTO concern_events (project, concern, state, note, hypothesis, moved_by, at, at_ms)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ${concern === null ? 'last_insert_rowid()' : '?'}, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         project,
-        id,
+        ...(concern === null ? [] : [concern]),
         stateOf(input.state),
         present(input.note) ?? null,
         present(input.hypothesis) ?? null,
         input.by,
         at,
         instant(at, 'a concern'),
-      )
-      .run();
+      );
   }
 
   /** `where` names columns of `concerns` as `c`, which both statements alias. */
@@ -117,34 +121,38 @@ export function createConcernStore({ db, project, now = () => new Date() }: Conc
       }
 
       const at = now().toISOString();
-      const row = await db
-        .prepare(
-          `INSERT INTO concerns (project, build, subject, title, region, evidence, raised_by, at, at_ms)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-        )
-        .bind(
-          project,
-          input.build,
-          input.subject,
-          title,
-          region === undefined ? null : JSON.stringify(region),
-          JSON.stringify(input.evidence ?? []),
-          input.by,
-          at,
-          instant(at, 'a concern'),
-        )
-        .first<Row>();
-      if (row === null) throw new ReviewError('the database recorded a concern and returned no id for it');
+      // Both rows or neither: a concern with no first step has no state, and the
+      // triggers would never let it be removed.
+      const [inserted] = await db.batch<Row>([
+        db
+          .prepare(
+            `INSERT INTO concerns (project, build, subject, title, region, evidence, raised_by, at, at_ms)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+          )
+          .bind(
+            project,
+            input.build,
+            input.subject,
+            title,
+            region === undefined ? null : JSON.stringify(region),
+            JSON.stringify(input.evidence ?? []),
+            input.by,
+            at,
+            instant(at, 'a concern'),
+          ),
+        step(null, { ...input, state }, at),
+      ]);
+      const row = inserted?.results[0];
+      if (row === undefined) throw new ReviewError('the database recorded a concern and returned no id for it');
       const id = number(row, 'id', 'a raised concern');
 
-      await append(id, { ...input, state }, at);
       return one(id);
     },
 
     async move(id, input): Promise<Concern> {
       stateOf(input.state);
       await one(id);
-      await append(id, input, now().toISOString());
+      await step(id, input, now().toISOString()).run();
       return one(id);
     },
 

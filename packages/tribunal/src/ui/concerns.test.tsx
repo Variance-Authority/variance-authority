@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { Concern, RaiseConcern } from '../concern-types.js';
+import type { Concern, ConcernTally, RaiseConcern } from '../concern-types.js';
 import type { SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
-import { ConcernTrail, Concerns, ConcernTallyLine, evidenceFor } from './concerns.js';
+import { ConcernTrail, Concerns, ConcernTallyLine, evidenceFor, useConcernTally } from './concerns.js';
 
 /**
  * "Looks suspicious", on the subject page: the form that raises a concern, the
@@ -224,5 +225,28 @@ describe('Concerns', () => {
     await mount(concernClient(() => Promise.reject(new Error('GET /review/concerns answered 503'))));
     expect(host.textContent).toContain('answered 503');
     expect(host.textContent).not.toContain('Nobody has flagged');
+  });
+});
+
+describe('useConcernTally', () => {
+  function Tally({ client, build }: { readonly client: ReviewClient; readonly build: string }): ReactElement {
+    return <ConcernTallyLine tally={useConcernTally(client, build).tally} />;
+  }
+
+  it('never draws the tally of a build the page has left', async () => {
+    // The first build answers last. A header that kept whichever answer came
+    // in last would count the wrong build's concerns under this one's name.
+    let late: (tally: ConcernTally) => void = () => undefined;
+    const answers: Record<string, Promise<{ concerns: readonly Concern[]; tally: ConcernTally }>> = {
+      '1': new Promise((resolve) => (late = (tally) => resolve({ concerns: [], tally }))),
+      '2': Promise.resolve({ concerns: [], tally: { open: 2, investigating: 0, resolved: 0 } }),
+    };
+    const client = { ...concernClient(async () => []), concerns: ({ seenIn }: { seenIn?: string }) => answers[seenIn!]! };
+
+    await act(async () => root.render(<Tally client={client} build="1" />));
+    await act(async () => root.render(<Tally client={client} build="2" />));
+    await act(async () => late({ open: 9, investigating: 0, resolved: 0 }));
+
+    expect(host.textContent).toContain('2 flagged');
   });
 });

@@ -45,10 +45,9 @@ shown on every later build that reports the subject until somebody resolves it,
 and the retention sweep does not remove it — a suspicion that expired with its
 build would be a suspicion nobody followed up.
 
-Raising and moving are the review credential's, as deciding is. Reading is
-either credential's, because a concern changes nothing a run depends on, and a
-run — or an agent holding CI's credential — is exactly what should be told that
-the subject it is about to change is already under suspicion.
+Raising, moving and reading are the review credential's, as deciding and the
+rest of the review surface are: a concern is what a person wrote, and the
+ingest credential lives where a failing job prints its environment.
 
 The trail is append-only. A concern's state is its latest step, and a reopened
 concern keeps the resolution it was reopened from.

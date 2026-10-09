@@ -61,19 +61,24 @@ describe('the concern routes', () => {
     expect(body.tally).toEqual({ open: 0, investigating: 0, resolved: 1 });
   });
 
-  it('lets a run read concerns, and never raise one', async () => {
-    // A concern writes nothing a run depends on, so the ingest token may read
-    // them — it is how a run, or an agent holding CI's token, learns that the
-    // subject it is about to change is already under suspicion. Raising one is a
-    // person's act, for the reason deciding is.
+  it('keeps concerns from the ingest token, read or written', async () => {
+    // A concern is what a person wrote on the review surface, and reading that
+    // surface is the review token's: the ingest token lives in CI, where anything
+    // that dumps its environment prints it.
     await call('/review/concerns', { token: REVIEW, body: RAISE });
 
-    const read = await call(`/review/concerns?subject=${encodeURIComponent(SUBJECT)}&state=open`, { token: INGEST });
-    expect(read.status).toBe(200);
+    const read = await call(`/review/concerns?subject=${encodeURIComponent(SUBJECT)}&state=open`, { token: REVIEW });
     expect(((await read.json()) as { concerns: unknown[] }).concerns).toHaveLength(1);
 
+    expect((await call(`/review/concerns?subject=${encodeURIComponent(SUBJECT)}`, { token: INGEST })).status).toBe(403);
     expect((await call('/review/concerns', { token: INGEST, body: RAISE })).status).toBe(403);
     expect((await call('/review/concerns/1', { token: INGEST, body: { state: 'resolved', by: 'ci' } })).status).toBe(403);
+  });
+
+  it('reads a null region as the whole render', async () => {
+    const raised = await call('/review/concerns', { token: REVIEW, body: { ...RAISE, region: null } });
+    expect(raised.status).toBe(201);
+    expect(((await raised.json()) as { concern: Record<string, unknown> }).concern).not.toHaveProperty('region');
   });
 
   it('answers a stranger as it answers every other path', async () => {
@@ -82,6 +87,9 @@ describe('the concern routes', () => {
 
   it('refuses a body it cannot read as a concern', async () => {
     expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, title: '' } })).status).toBe(400);
+    expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, title: '   ' } })).status).toBe(400);
+    expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, region: { x: 0 } } })).status).toBe(400);
+    expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, region: 'all' } })).status).toBe(400);
     expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, evidence: 'x' } })).status).toBe(400);
     expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, state: 'closed' } })).status).toBe(400);
     expect((await call('/review/concerns/abc', { token: REVIEW, body: { state: 'open', by: 'm' } })).status).toBe(404);
@@ -98,5 +106,8 @@ describe('the concern routes', () => {
 
   it('says on /version that this deployment keeps concerns', async () => {
     expect(TRIBUNAL_API).toBe(4);
+    const version = (await (await call('/version', { token: REVIEW })).json()) as { api: number; schema: number };
+    expect(version.api).toBe(4);
+    expect(version.schema).toBe(19);
   });
 });

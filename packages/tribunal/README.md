@@ -34,7 +34,7 @@ npx variance-authority-tribunal
 ```
 variance-authority tribunal listening on http://127.0.0.1:7789
   project:  todomvc
-  database: /home/you/variance-tribunal.db (schema version 18)
+  database: /home/you/variance-tribunal.db (schema version 19)
   objects:  /home/you/variance-tribunal-objects
   review:   served at http://127.0.0.1:7789 — this bind is reachable only from this machine
   auth:     bearer tokens from VARIANCE_TRIBUNAL_INGEST_TOKEN and VARIANCE_TRIBUNAL_REVIEW_TOKEN
@@ -262,7 +262,7 @@ be requested anonymously.
 | `GET /review/builds/{id}/subjects/{subject}/{before\|after\|diff}.png` | review | one image, immutable and cacheable |
 | `GET /review/changelog[?component&subject&since&limit]` | review | every approval, grouped by shape |
 | `POST /review/sweep[?days=N]` | review | retention, below |
-| `GET /review/concerns[?build&subject&state]` | ingest or review | the concerns on a subject, or on every subject a build showed, with the build's `tally` per state |
+| `GET /review/concerns[?build&subject&state]` | review | the concerns on a subject, or on every subject a build showed, with the build's `tally` per state |
 | `POST /review/concerns` | review | `{"build","subject","title","by","note","hypothesis","region":{x,y,width,height},"evidence":["…"],"state"}`. 201 |
 | `POST /review/concerns/{id}` | review | `{"state":"open"\|"investigating"\|"resolved","by","note","hypothesis"}`: the next step of its trail |
 | `GET /share/<mainline\|branch>/<line>/manifest.json` | ingest or share | the line's manifest, with its version as the `ETag`. 404 when nothing was published |
@@ -274,11 +274,10 @@ be requested anonymously.
 The four `/v1` reads take `since`, `until` and `limit` to bound the window, and
 `project` where one deployment is queried for another's rows.
 
-**The review token reads the record and never writes it.** The five reads, and
-the concerns read, answer the ingest and review tokens because they derive from rows already recorded, and the browser
-drawing a review page sends the review token. A run, or an agent holding CI's
-token, reads concerns to learn that a subject it is about to move is already
-under suspicion; raising and moving one is the review token's. `/v1/observations` and
+**The review token reads the record and never writes it.** The five reads
+answer the ingest and review tokens because they derive from rows already recorded, and the browser
+drawing a review page sends the review token. Concerns are not derived: a person
+wrote them, so reading them is the review token's, as raising and moving them is. `/v1/observations` and
 `/v1/approvals` are the ingest token's because they write; `/v1/current` is the
 ingest token's because its caller is a run deciding what to write.
 

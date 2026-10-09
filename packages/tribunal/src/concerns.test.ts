@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createConcernStore, type ConcernStore } from './concerns.js';
 import type { ReviewStore } from './review.js';
 import { ReviewError } from './review.js';
-import { POSTED, ingest, openReview } from './__fixtures__/review.js';
+import { POSTED, decideEverything, ingest, openReview } from './__fixtures__/review.js';
 import type { SqliteD1 } from './testing.js';
 
 const SUBJECT = 'story:todos--populated';
@@ -79,6 +79,23 @@ describe('raising a concern', () => {
     await expect(
       concerns.raise({ build: 'ci-1001', subject: 'story:nope', title: 'x', by: 'marina' }),
     ).rejects.toThrow(ReviewError);
+  });
+
+  it('leaves nothing behind when its first step could not be written', async () => {
+    // A concern with no trail has no state, and the store refuses to read one
+    // rather than invent `open`; the triggers refuse to delete it. So a raise is
+    // both rows or neither, or one failed write breaks the subject for good.
+    const failing = {
+      ...db,
+      prepare: (sql: string) =>
+        sql.includes('INSERT INTO concern_events')
+          ? db.prepare('INSERT INTO no_such_table VALUES (1)')
+          : db.prepare(sql),
+    };
+    const broken = createConcernStore({ db: failing, project: 'todomvc', now: () => clock });
+
+    await expect(broken.raise({ build: 'ci-1001', subject: SUBJECT, title: 'Spacing', by: 'marina' })).rejects.toThrow();
+    expect(await concerns.list({ subject: SUBJECT })).toEqual([]);
   });
 
   it('refuses an empty title', async () => {
@@ -164,6 +181,15 @@ describe('reading concerns', () => {
     await review.decide({ build: 'ci-1001', subject: SUBJECT, decision: 'approved', by: 'marina' });
 
     expect((await concerns.list({ subject: SUBJECT }))[0]?.state).toBe('open');
+  });
+
+  it('outlives the sweep that removes the build it was raised in', async () => {
+    await concerns.raise({ build: 'ci-1001', subject: SUBJECT, title: 'Spacing', by: 'marina' });
+    await decideEverything(review);
+
+    clock = new Date('2027-06-01T12:00:00.000Z');
+    expect((await review.sweep(30)).builds).toBe(1);
+    expect((await concerns.list({ subject: SUBJECT })).map((c) => c.title)).toEqual(['Spacing']);
   });
 
   it('cannot be rewritten or deleted under the store', async () => {

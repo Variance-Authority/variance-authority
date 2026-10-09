@@ -13,10 +13,9 @@ and resolving one approves nothing. The build header counts the concerns its
 subjects carry.
 
 The routes are `GET` and `POST /review/concerns` and `POST
-/review/concerns/<id>`. Either token reads them, so a run or an agent holding
-CI's token can learn that a subject is under suspicion; only the review token
-raises or moves one. `/version` reports API 4 and schema 19; apply migration
-`0017_concerns.sql` before deploying. `createConcernStore` and the concern types
-are exported from `@variance-authority/tribunal/review`, and `Concerns`,
+/review/concerns/<id>`, all three the review token's. `/version` reports API 4
+and schema 19; apply migration `0017_concerns.sql` before deploying.
+`createConcernStore` and the concern types are exported from
+`@variance-authority/tribunal/review`, and `Concerns`,
 `ConcernTrail`, `ConcernTallyLine` and `useConcernTally` from
 `@variance-authority/tribunal/ui`.

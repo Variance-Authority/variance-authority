@@ -8,7 +8,7 @@
  * across builds until somebody resolves it, and never touched by a decision.
  */
 
-import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import type { Concern, ConcernState, ConcernTally, RaiseConcern } from '../concern-types.js';
 import type { SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
@@ -204,13 +204,20 @@ export function useConcernTally(
   build: string,
 ): { readonly tally: ConcernTally | string | undefined; readonly refresh: () => void } {
   const [tally, setTally] = useState<ConcernTally | string | undefined>(undefined);
+  // The build each answer was asked for. One that arrives after the page moved
+  // to another build is dropped, so a slow answer never counts the wrong build.
+  const asked = useRef(build);
   const refresh = useCallback(() => {
     client.concerns({ seenIn: build }).then(
-      (answer) => setTally(answer.tally),
-      (error: unknown) => setTally(messageOf(error)),
+      (answer) => asked.current === build && setTally(answer.tally),
+      (error: unknown) => asked.current === build && setTally(messageOf(error)),
     );
   }, [client, build]);
-  useEffect(refresh, [refresh]);
+  useEffect(() => {
+    asked.current = build;
+    setTally(undefined);
+    refresh();
+  }, [build, refresh]);
   return { tally, refresh };
 }
 
