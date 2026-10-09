@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
+import { encodeSegment } from '@variance-authority/core/segment';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -235,5 +236,19 @@ describe('variance ask orient', () => {
         '',
       ].join('\n'),
     });
+  });
+
+  it('with files, says an index another release wrote in its own format version is of another version, and names the step that rebuilds it', async () => {
+    const root = checkout();
+    const at = sourceIndexPath(root);
+    mkdirSync(dirname(at), { recursive: true });
+    writeFileSync(at, encodeSegment('variance-authority-source-index', 15, {}));
+
+    const answered = await run(['ask', 'orient', '--files', 'packages/cart/src/price.ts']);
+    expect(answered.code).toBe(EXIT_OPERATOR);
+    expect(answered.err.split('\n')[0]).toBe(
+      `the source index at ${at} did not read: segment 0: a variance-authority-source-index written in format version 15, ` +
+        'and this release reads version 18; `variance index` rebuilds it',
+    );
   });
 });

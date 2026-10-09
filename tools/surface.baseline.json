@@ -357,6 +357,7 @@
         "Column": "type",
         "NONE": "const",
         "OpenSegment": "interface",
+        "OtherSegmentVersion": "class",
         "codeUnitOrder": "function",
         "encodeSegment": "function",
         "flagOf": "function",

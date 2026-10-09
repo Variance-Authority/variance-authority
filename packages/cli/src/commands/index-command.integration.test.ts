@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { encodeSegment } from '@variance-authority/core/segment';
 import { prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, onTestFailed, onTestFinished } from 'vitest';
@@ -128,6 +129,17 @@ describe('variance index', () => {
     expect(update.listing).toBeDefined();
     expect((await prepareCodeMap(root, update.path, update)).prepared).toMatchObject({ relisted: false, walked: false });
     expect((await prepareCodeMap(root, update.path)).prepared).toMatchObject({ relisted: true, walked: false });
+  });
+
+  it('says an index another release wrote in its own format version was rebuilt, not repaired', async () => {
+    const root = checkout();
+    const at = sourceIndexPath(root);
+    mkdirSync(dirname(at), { recursive: true });
+    writeFileSync(at, encodeSegment('variance-authority-source-index', 15, {}));
+
+    const { code, out } = await run(['index']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out.split('\n')[0]).toBe(`source index rebuilt over one written in format version 15: 2 files, 2 read again, at ${at}`);
   });
 
   it('reads from the working tree under `--no-git`, into the same index', async () => {

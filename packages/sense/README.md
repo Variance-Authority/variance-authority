@@ -1245,9 +1245,11 @@ again only the files whose blob changed. Its result names the state it found
 
 `readPublishedSources(path)` opens a published index and reads nothing from Git
 or the disk beyond it. `publishedSources(root, options)` is the reader with a
-policy for a missing or damaged index: with `ci: true` it throws
-`SourceIndexUnpublished`, whose message names `step`; otherwise it updates once,
-calls `announce` with a line that names the update, and reads. Pass your
+policy for an index that is missing, damaged, or written in another format
+version (`state: 'other-version'`, with the version in `written`): with
+`ci: true` it throws `SourceIndexUnpublished`, whose message names `step`;
+otherwise it updates once, calls `announce` with a line that says which of the
+three it found, and reads. Pass your
 runner's own answer for `ci` — the `ci-info` package is what Jest reads.
 `sourcesWithin` returns the records a scan seeded from `dirs` and `before` would
 have produced, so a reader with a narrower question gets the narrower graph
