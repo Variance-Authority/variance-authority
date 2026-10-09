@@ -3523,6 +3523,7 @@
         "createD1Backend": "function"
       },
       "./review": {
+        "BaselineMoved": "class",
         "BuildDetail": "interface",
         "BuildIngest": "interface",
         "BuildSummary": "interface",

@@ -10,7 +10,7 @@
 
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import type { Decision, SubjectView } from '../review-types.js';
-import type { ReviewClient } from './client.js';
+import { ReviewRequestError, type ReviewClient } from './client.js';
 import type { Ruler } from './distance.js';
 import { Findings } from './findings.js';
 import { glanceOf, type Blamed, type Glance } from './glance.js';
@@ -53,6 +53,10 @@ export function SubjectPanel({
 }): ReactElement {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  // The service's sentence when it refused a decision because the baseline
+  // moved under it. Apart from `failed` because it is not a failure to retry:
+  // the page is out of date, and the remedy is to read the subject again.
+  const [moved, setMoved] = useState<string | null>(null);
   const page = useRef<HTMLDivElement>(null);
 
   // This panel used to be remounted per subject, which threw away the comparison
@@ -63,20 +67,23 @@ export function SubjectPanel({
   useEffect(() => {
     setBusy(false);
     setFailed(null);
+    setMoved(null);
     page.current?.scrollTo({ top: 0 });
   }, [subject.subject]);
 
   const decide = async (decision: Decision): Promise<void> => {
     setBusy(true);
     setFailed(null);
+    setMoved(null);
     try {
-      await client.decide(build, subject.subject, decision, reviewer);
+      await client.decide(build, subject.subject, decision, reviewer, undefined, subject.baselineVersion);
       onDecided();
     } catch (error) {
       // Kept on the page rather than swallowed. A decision that silently did not
       // land is a reviewer who believes a baseline was promoted and a next run
       // that reports the same change again.
-      setFailed(messageOf(error));
+      if (error instanceof ReviewRequestError && error.status === 409) setMoved(error.said ?? error.message);
+      else setFailed(messageOf(error));
     } finally {
       setBusy(false);
     }
@@ -107,6 +114,26 @@ export function SubjectPanel({
             </p>
           )}
           {failed === null ? null : <p className="va-failure">{failed}</p>}
+          {moved === null ? null : (
+            <div className="va-failure">
+              <p>
+                <strong>The baseline changed while you were reviewing.</strong> {moved}
+              </p>
+              {/* Reading the build again is what a decision does too. It brings
+                  the version of the baseline standing now, and with it whether
+                  this subject is still undecided; the images stay the ones the
+                  run compared. */}
+              <button
+                type="button"
+                onClick={() => {
+                  setMoved(null);
+                  onDecided();
+                }}
+              >
+                Reload this subject
+              </button>
+            </div>
+          )}
           <p className="va-actions">
             <button
               type="button"

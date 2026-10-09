@@ -21,7 +21,7 @@ import {
 } from '@variance-authority/server';
 import type { TribunalBindings } from './bindings.js';
 import { createD1Backend } from './history.js';
-import { ReviewError, createReviewStore } from './review.js';
+import { BaselineMoved, ReviewError, createReviewStore } from './review.js';
 import { createBucketStore } from './store.js';
 import { VERSION_PATH, serviceVersion } from './version.js';
 import { UNAUTHENTICATED, grant, readable, refuseWeakTokens, requires, type Granted } from './worker-auth.js';
@@ -36,7 +36,6 @@ import {
   optional,
   requireMethod,
   required,
-  string,
 } from './worker-http.js';
 import {
   asApprovals,
@@ -44,7 +43,7 @@ import {
   asBuildIngest,
   asHaveRequest,
   asCurrentRequest,
-  asDecision,
+  asDecisionBody,
   asIdentity,
   asKey,
   asRecordRequest,
@@ -201,7 +200,7 @@ export function createTribunal(options: TribunalOptions): Tribunal {
         if (error instanceof BadRequest) return json(400, { error: error.message });
         if (error instanceof Forbidden) return json(403, { error: error.message });
         if (error instanceof MethodNotAllowed) return json(405, { error: error.message }, { allow: error.allow });
-        if (error instanceof HistoryWriteConflict) return json(409, { error: error.message });
+        if (error instanceof HistoryWriteConflict || error instanceof BaselineMoved) return json(409, { error: error.message });
         if (error instanceof ReviewError || error instanceof FoldedKey) return json(422, { error: error.message });
         // Reported as a failure and never as an empty answer. Every client in
         // this project turns a non-2xx into a thrown error precisely so that a
@@ -445,15 +444,12 @@ async function route(
   if (decision?.[1] !== undefined && decision[2] !== undefined) {
     requires(granted, 'review', path);
     requireMethod(request, 'POST');
-    const body = await asRecordBody(request);
     return json(
       200,
       await surfaces.review.decide({
         build: decodeURIComponent(decision[1]),
         subject: decodeURIComponent(decision[2]),
-        decision: asDecision(body['decision']),
-        by: string(body, 'by', 'the decision'),
-        ...(typeof body['note'] === 'string' && body['note'] !== '' ? { note: body['note'] } : {}),
+        ...asDecisionBody(await asRecordBody(request)),
       }),
     );
   }

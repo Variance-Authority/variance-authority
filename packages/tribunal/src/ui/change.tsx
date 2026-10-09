@@ -47,7 +47,7 @@ import {
 import { Because } from './because.js';
 import { causesOf, namesDeclaration, UnderRoot } from './root.js';
 import { AlsoCarries, carriedWith } from './carried.js';
-import type { ReviewClient } from './client.js';
+import { ReviewRequestError, type ReviewClient } from './client.js';
 import { Consumers, consumersOf } from './consumers.js';
 import { HeldStill, controlsFor } from './control.js';
 import type { Crossing } from './crossing.js';
@@ -269,10 +269,10 @@ function Where({
     setBusy(true);
     setFailed(undefined);
     try {
-      await client.decide(build, subject.subject, decision, reviewer);
+      await client.decide(build, subject.subject, decision, reviewer, undefined, subject.baselineVersion);
       onDecided();
     } catch (error) {
-      setFailed(messageOf(error));
+      setFailed(refusalOf(error));
     } finally {
       setBusy(false);
     }
@@ -385,6 +385,7 @@ function Batch({
           decision,
           reviewer,
           `${decision} as one change in ${origin.component}`,
+          subject.baselineVersion,
         );
       }
       onDecided();
@@ -392,7 +393,7 @@ function Batch({
       // Reported rather than swallowed, and the ones already written stay
       // written: a batch that rolled itself back would undo decisions a reviewer
       // made, to tidy up a network error.
-      setFailed(messageOf(error));
+      setFailed(refusalOf(error));
     } finally {
       setBusy(false);
     }
@@ -425,4 +426,17 @@ function Batch({
       {failed === undefined ? null : <p className="va-failure">{failed}</p>}
     </div>
   );
+}
+
+/**
+ * What a decision that did not land says on the row. A baseline that moved
+ * under it is answered 409 with a sentence naming both baselines and asking for
+ * a reload, and that sentence is shown as it is; anything else is the request
+ * that failed.
+ */
+function refusalOf(error: unknown): string {
+  if (error instanceof ReviewRequestError && error.status === 409 && error.said !== undefined) {
+    return `The baseline changed while you were reviewing: ${error.said}`;
+  }
+  return messageOf(error);
 }

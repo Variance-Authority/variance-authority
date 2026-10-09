@@ -83,12 +83,18 @@ export interface ReviewClient {
   flakiness(subject: string, window?: Window): Promise<Flakiness>;
   /** The most recent recorded reading of one component in one subject, or `null`. */
   lastChanged(subject: string, component: string): Promise<Observation | null>;
+  /**
+   * Record a decision. `baselineVersion` is the subject's
+   * `SubjectView.baselineVersion` as the page read it: given, the service
+   * answers 409 when the baseline has moved since; omitted, it checks nothing.
+   */
   decide(
     build: string,
     subject: string,
     decision: Decision,
     by: string,
     note?: string,
+    baselineVersion?: string | null,
   ): Promise<DecisionRecord>;
   sweep(days?: number): Promise<SweepReport>;
   /** The URL of one image, for an `<img src>`. Never fetched here. */
@@ -110,6 +116,8 @@ export class ReviewRequestError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** The service's own sentence, when the body was the `{ error }` it answers with. */
+    readonly said?: string,
   ) {
     super(message);
   }
@@ -132,9 +140,11 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
 
     const response = await send(`${base}${path}`, { ...init, headers });
     if (!response.ok) {
+      const body = await quote(response);
       throw new ReviewRequestError(
-        `${init?.method ?? 'GET'} ${path} answered ${response.status}: ${await quote(response)}`,
+        `${init?.method ?? 'GET'} ${path} answered ${response.status}: ${body}`,
         response.status,
+        ...said(body),
       );
     }
     return (await response.json()) as T;
@@ -180,10 +190,15 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
       return body.observation;
     },
 
-    decide: (build, subject, decision, by, note) =>
+    decide: (build, subject, decision, by, note, baselineVersion) =>
       call<DecisionRecord>(`/review/builds/${encode(build)}/subjects/${encode(subject)}/decision`, {
         method: 'POST',
-        body: JSON.stringify({ decision, by, ...(note === undefined ? {} : { note }) }),
+        body: JSON.stringify({
+          decision,
+          by,
+          ...(note === undefined ? {} : { note }),
+          ...(baselineVersion === undefined ? {} : { baselineVersion }),
+        }),
       }),
 
     sweep: (days) =>
@@ -229,6 +244,20 @@ function search(parameters: Record<string, string | number | undefined>): string
   }
   const text = query.toString();
   return text === '' ? '' : `?${text}`;
+}
+
+/** The `error` sentence of a service refusal, as the rest argument it is passed in. */
+function said(body: string): [] | [string] {
+  try {
+    const parsed = JSON.parse(body) as unknown;
+    if (typeof parsed === 'object' && parsed !== null && 'error' in parsed) {
+      const error = (parsed as { error: unknown }).error;
+      if (typeof error === 'string') return [error];
+    }
+  } catch {
+    // A body that is not JSON carries no sentence of its own; the message has it.
+  }
+  return [];
 }
 
 /** The server's own sentence, quoted, because it is the one worth reading. */

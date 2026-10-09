@@ -33,6 +33,7 @@ import type {
 } from './review-types.js';
 import { have as heldObjects } from './objects.js';
 import { promote } from './review-write.js';
+import { refuseMoved, standingStatement, standingVersions } from './review-baseline.js';
 import type { TribunalChangelog } from './changelog.js';
 import { createBucketStore } from './store.js';
 
@@ -97,7 +98,7 @@ export type {
   SubjectView,
   SweepReport,
 } from './review-types.js';
-export { ReviewError } from './review-rows.js';
+export { BaselineMoved, ReviewError } from './review-rows.js';
 export type {
   ChangelogChange,
   ChangelogRow,
@@ -231,6 +232,9 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
               ORDER BY at_ms DESC, rowid DESC LIMIT 1`,
           )
           .bind(project, project, id),
+        // The baseline an approval of each subject would replace, so the page
+        // can hand back the one it showed. See `review-baseline.ts`.
+        standing: standingStatement(db, project, id),
       };
 
       const names = Object.keys(reads) as (keyof typeof reads)[];
@@ -250,9 +254,11 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
       const previous = rows('previous')[0];
       const composition = rows('composition');
 
-      const subjects = rows('subjects').map((subject) =>
-        toSubjectView(subject, decisions.get(text(subject, 'subject', 'a build subject')) ?? null),
-      );
+      const versionOf = standingVersions(rows('standing'), summary.identity);
+      const subjects = rows('subjects').map((subject) => ({
+        ...toSubjectView(subject, decisions.get(text(subject, 'subject', 'a build subject')) ?? null),
+        ...versionOf(subject),
+      }));
 
       return {
         ...summary,
@@ -311,6 +317,10 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
           `build "${input.build}" has no subject "${input.subject}". Deciding about a subject a ` +
             'build never reported would record an approval nothing can be promoted for',
         );
+      }
+
+      if (input.baselineVersion !== undefined) {
+        await refuseMoved(baselines, db, project, input.build, row, input.baselineVersion);
       }
 
       const at = now().toISOString();
