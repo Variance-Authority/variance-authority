@@ -384,7 +384,12 @@ describe('two tokens, and what each one may do', () => {
     const stale = await decide('ci-1', { decision: 'approved', by: 'marina', baselineVersion: null });
 
     expect(stale.status).toBe(409);
-    expect(await stale.text()).toMatch(/story:a.*moved/);
+    const body = (await stale.json()) as Record<string, unknown>;
+    expect(body['error']).toMatch(/story:a.*moved/);
+    // The baseline the page read and the one standing now, as values a page
+    // can print in its own words.
+    expect(body['read']).toBeNull();
+    expect(body['current']).toEqual(expect.any(String));
   });
 
   it('refuses a baseline version that is neither a digest nor null', async () => {

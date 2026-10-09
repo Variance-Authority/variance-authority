@@ -97,5 +97,7 @@ export async function refuseMoved(
     `the baseline for "${name}" moved while you were reviewing: you read ${was}, and ${is}. ` +
       'Nothing was recorded. The images are still the ones the run compared; reload the subject to ' +
       'decide against the baseline standing now',
+    read,
+    current,
   );
 }

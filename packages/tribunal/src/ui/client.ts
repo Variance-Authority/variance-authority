@@ -111,6 +111,16 @@ export interface ReviewClient {
   imageBlob(build: string, subject: string, kind: 'before' | 'after' | 'diff'): Promise<Blob>;
 }
 
+/**
+ * The two baselines a refused decision was caught between: the one the page read
+ * and the one standing now, each the document it was painted from, `null` for
+ * none. The service's 409 carries them beside its sentence.
+ */
+export interface MovedBaseline {
+  readonly read: string | null;
+  readonly current: string | null;
+}
+
 export class ReviewRequestError extends Error {
   override readonly name = 'ReviewRequestError';
   constructor(
@@ -118,6 +128,8 @@ export class ReviewRequestError extends Error {
     readonly status: number,
     /** The service's own sentence, when the body was the `{ error }` it answers with. */
     readonly said?: string,
+    /** What moved, when the refusal was a baseline that moved under the decision. */
+    readonly moved?: MovedBaseline,
   ) {
     super(message);
   }
@@ -140,11 +152,13 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
 
     const response = await send(`${base}${path}`, { ...init, headers });
     if (!response.ok) {
-      const body = await quote(response);
+      const body = await read(response);
+      const { said, moved } = refusal(body);
       throw new ReviewRequestError(
-        `${init?.method ?? 'GET'} ${path} answered ${response.status}: ${body}`,
+        `${init?.method ?? 'GET'} ${path} answered ${response.status}: ${quote(body)}`,
         response.status,
-        ...said(body),
+        said,
+        moved,
       );
     }
     return (await response.json()) as T;
@@ -219,7 +233,7 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
       );
       if (!response.ok) {
         throw new ReviewRequestError(
-          `GET ${path} answered ${response.status}: ${await quote(response)}`,
+          `GET ${path} answered ${response.status}: ${quote(await read(response))}`,
           response.status,
         );
       }
@@ -246,26 +260,42 @@ function search(parameters: Record<string, string | number | undefined>): string
   return text === '' ? '' : `?${text}`;
 }
 
-/** The `error` sentence of a service refusal, as the rest argument it is passed in. */
-function said(body: string): [] | [string] {
+/**
+ * The service's refusal, read from the whole body.
+ *
+ * The whole body rather than the quoted excerpt: a sentence naming a long
+ * subject runs past the excerpt, and a cut body parses as nothing.
+ */
+function refusal(body: string): { said?: string; moved?: MovedBaseline } {
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(body) as unknown;
-    if (typeof parsed === 'object' && parsed !== null && 'error' in parsed) {
-      const error = (parsed as { error: unknown }).error;
-      if (typeof error === 'string') return [error];
-    }
+    parsed = JSON.parse(body);
   } catch {
     // A body that is not JSON carries no sentence of its own; the message has it.
+    return {};
   }
-  return [];
+  if (typeof parsed !== 'object' || parsed === null) return {};
+  const { error, read, current } = parsed as Record<string, unknown>;
+  return {
+    ...(typeof error === 'string' ? { said: error } : {}),
+    ...(digestOrNone(read) && digestOrNone(current) ? { moved: { read, current } } : {}),
+  };
 }
 
-/** The server's own sentence, quoted, because it is the one worth reading. */
-async function quote(response: Response): Promise<string> {
+function digestOrNone(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+/** The body, or a placeholder saying why there is none. */
+async function read(response: Response): Promise<string> {
   try {
-    const text = await response.text();
-    return text.trim() === '' ? '<no body>' : text.slice(0, 500);
+    return await response.text();
   } catch {
     return '<body could not be read>';
   }
+}
+
+/** The server's own sentence, quoted, because it is the one worth reading. */
+function quote(body: string): string {
+  return body.trim() === '' ? '<no body>' : body.slice(0, 500);
 }

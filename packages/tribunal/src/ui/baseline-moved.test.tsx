@@ -18,9 +18,13 @@ import { SubjectPanel } from './subject.js';
  * is rather than as a request that failed.
  */
 
+/** The document the baseline standing now was painted from, as the store writes one. */
+const CURRENT = 'v1:c7cab60fc975adfc7ac9550632677751';
+
 const MOVED =
   'the baseline for "story:card" moved while you were reviewing: you read no baseline, and it is ' +
-  'now the one painted from document feedface';
+  `now the one painted from document ${CURRENT}. Nothing was recorded. The images are still the ` +
+  'ones the run compared; reload the subject to decide against the baseline standing now';
 
 interface Sent {
   readonly url: string;
@@ -56,7 +60,7 @@ async function fetchThat(input: RequestInfo | URL, init?: RequestInit): Promise<
   const url = String(input);
   if (!url.endsWith('/decision')) return pending;
   sent.push({ url, body: JSON.parse(String(init?.body)) as Record<string, unknown> });
-  return new Response(JSON.stringify({ error: MOVED }), { status: 409 });
+  return new Response(JSON.stringify({ error: MOVED, read: null, current: CURRENT }), { status: 409 });
 }
 
 function subject(overrides: Partial<SubjectView> = {}): SubjectView {
@@ -83,7 +87,9 @@ function render(view: SubjectView): void {
         reviewer="marina"
         build="ci-1"
         subject={view}
-        onDecided={() => (reloads += 1)}
+        onDecided={() => {
+          reloads += 1;
+        }}
       />,
     );
   });
@@ -125,7 +131,9 @@ function renderChange(view: SubjectView): void {
         crossing={{ state: 'none' }}
         changes={new Set()}
         go={() => undefined}
-        onDecided={() => (reloads += 1)}
+        onDecided={() => {
+          reloads += 1;
+        }}
       />,
     );
   });
@@ -135,6 +143,25 @@ function button(name: string): HTMLButtonElement {
   const found = [...host.querySelectorAll('button')].find((each) => each.textContent?.trim() === name);
   if (found === undefined) throw new Error(`no "${name}" button on the panel`);
   return found;
+}
+
+/** What the panel says, as a reader sees it. */
+function said(): string {
+  return host.textContent ?? '';
+}
+
+/**
+ * Said once, in the page's words: the headline, both baselines with their
+ * digests as short as a commit, and that nothing landed. Not the service's
+ * sentence under it, which repeated the headline and spelled the digest out.
+ */
+function expectReadable(): void {
+  expect(said().split('changed while you were reviewing')).toHaveLength(2);
+  expect(said()).not.toContain('moved while you were reviewing');
+  expect(said()).toContain('You read none; the one standing now is painted from document v1:c7cab60f.');
+  expect(said()).not.toContain(CURRENT);
+  expect(host.querySelector(`code[title="${CURRENT}"]`)?.textContent).toBe('v1:c7cab60f');
+  expect(said()).not.toContain('answered 409');
 }
 
 describe('a decision about a baseline that moved, taken on the subject panel', () => {
@@ -162,9 +189,9 @@ describe('a decision about a baseline that moved, taken on the subject panel', (
 
     await act(async () => button('Approve').click());
 
-    expect(host.textContent).toContain('The baseline changed while you were reviewing');
-    expect(host.textContent).toContain('painted from document feedface');
-    expect(host.textContent).not.toContain('answered 409');
+    expect(said()).toContain('The baseline changed while you were reviewing.');
+    expectReadable();
+    expect(said()).toContain('Nothing was recorded.');
     expect(reloads).toBe(0);
 
     act(() => button('Reload this subject').click());
@@ -210,13 +237,29 @@ describe('a decision about a baseline that moved, taken on the change page', () 
     expect(sent.map((each) => each.body['baselineVersion'])).toEqual(['deadbeef', 'deadbeef']);
   });
 
-  it('shows the service\'s sentence rather than a request that failed', async () => {
+  it('says the baseline changed on the render\'s row, and offers to reload the subject', async () => {
+    renderChange(subject());
+
+    await act(async () => button('✓').click());
+
+    expect(said()).toContain('The baseline changed while you were reviewing.');
+    expectReadable();
+    expect(reloads).toBe(0);
+
+    await act(async () => button('Reload this subject').click());
+    expect(reloads).toBe(1);
+  });
+
+  it('names the render a whole-change decision stopped at, and offers to reload the change', async () => {
     renderChange(subject());
 
     await act(async () => button('Approve this change (1)').click());
 
-    expect(host.textContent).toContain('The baseline changed while you were reviewing');
-    expect(host.textContent).toContain('painted from document feedface');
-    expect(host.textContent).not.toContain('answered 409');
+    expect(said()).toContain('The baseline for story:card changed while you were reviewing.');
+    expectReadable();
+    expect(said()).toContain('No decision was recorded for it, nor for any render after it.');
+
+    await act(async () => button('Reload this change').click());
+    expect(reloads).toBe(1);
   });
 });

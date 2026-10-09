@@ -606,12 +606,14 @@ approved**.
 answers with carries `baselineVersion`: the document digest of the baseline an
 approval would replace, or `null` when there is none. Send it back with the
 decision. When that baseline has been replaced since, by an approval from
-another build or by a run's `/baseline/put`, the service answers 409 with a
-sentence naming the baseline you read and the one there now, and records
-nothing. The version is the baseline standing when you read the build, not the
-one its run compared against, so it guards the time the page is open. The
-review pages send it, and the subject panel offers to reload the subject. A
-decision without `baselineVersion` is not checked.
+another build or by a run's `/baseline/put`, the service records nothing and
+answers 409 with `{"error":"…","read":…,"current":…}`: a sentence naming the
+baseline you read and the one there now, and the same two document digests as
+values, `null` for none. The version is the baseline standing when you read the
+build, not the one its run compared against, so it guards the time the page is
+open. The review pages send it, and on a 409 both the subject panel and the
+change page offer to reload what you were deciding. A decision without
+`baselineVersion` is not checked.
 
 **A store failure is never a verdict.** Every D1 and R2 failure raises
 `RasterStoreError` instead of returning a value; `null` is reserved for *the

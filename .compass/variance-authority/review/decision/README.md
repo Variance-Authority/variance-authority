@@ -56,8 +56,9 @@ again with the reviewer's name already against it.
 A decision is taken against the baseline the reviewer read. When it carries a
 version and the baseline an approval would replace is no longer that one —
 another build's approval or a run's own write replaced it — the decision is
-refused before anything is promoted or recorded, with a sentence naming both. A
-decision without a version is not checked.
+refused before anything is promoted or recorded, with a sentence naming both and
+the two versions beside it, so a page can say them in its own words. A decision
+without a version is not checked.
 
 Nothing is written for a rejection. It is recorded as a decision, but no baseline
 changed, and a changelog carrying rejections would answer *why does this baseline

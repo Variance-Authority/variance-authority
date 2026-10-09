@@ -118,6 +118,9 @@ describe('a decision that echoes the version it read', () => {
     await expect(stale).rejects.toThrow(
       /story:todos--populated.*no baseline.*feedface.*reload/is,
     );
+    // The two versions travel as fields too, so a page can say them in its own
+    // words instead of reprinting the sentence under a headline of its own.
+    await expect(stale).rejects.toMatchObject({ read: null, current: 'feedface' });
   });
 
   it('is refused when a run wrote the baseline in between', async () => {
@@ -133,7 +136,24 @@ describe('a decision that echoes the version it read', () => {
         by: 'marina',
         baselineVersion: read ?? null,
       }),
-    ).rejects.toThrow(/no baseline.*cafebabe/s);
+    ).rejects.toMatchObject({ message: expect.stringMatching(/no baseline.*cafebabe/s), read: null, current: 'cafebabe' });
+  });
+
+  it('names a baseline that is gone as none standing', async () => {
+    await review.ingest(ingest());
+    await review.ingest(later('ci-1002', 'feedface'));
+    await review.decide({ build: 'ci-1002', subject: SUBJECT, decision: 'approved', by: 'anton' });
+    await db.prepare("DELETE FROM baselines WHERE subject = ?").bind(SUBJECT).run();
+
+    await expect(
+      review.decide({
+        build: 'ci-1001',
+        subject: SUBJECT,
+        decision: 'approved',
+        by: 'marina',
+        baselineVersion: 'feedface',
+      }),
+    ).rejects.toMatchObject({ read: 'feedface', current: null });
   });
 
   it('is checked under the painted identity, so a baseline under the run\'s does not refuse it', async () => {

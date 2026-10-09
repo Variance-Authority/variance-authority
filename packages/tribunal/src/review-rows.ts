@@ -30,9 +30,21 @@ export class ReviewError extends Error {
  * A `ReviewError` the caller can recover from by reading again, which is why the
  * Worker answers it 409 rather than 422. The request was well formed and would
  * have been right a moment earlier.
+ *
+ * The message is a whole sentence for a caller that prints it; `read` and
+ * `current` are the same two facts for a page that says them in its own words.
+ * Each is the document the baseline was painted from, `null` for none.
  */
 export class BaselineMoved extends ReviewError {
   override readonly name = 'BaselineMoved';
+
+  constructor(
+    message: string,
+    readonly read: string | null,
+    readonly current: string | null,
+  ) {
+    super(message);
+  }
 }
 
 export type Row = Record<string, unknown>;
