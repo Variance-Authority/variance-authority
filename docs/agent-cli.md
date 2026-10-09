@@ -128,8 +128,8 @@ API](agent-workspace-api.md).
 ## Ask a finished run, from the summary outward
 
 The examples below are one run of three subjects, `card/summary`,
-`card/compact` and `badge/standalone`, after an edit meant to give `Button` and
-`Badge` a new accent colour and to tighten `Card`.
+`card/compact` and `badge/standalone`, after an edit meant to give `Button`,
+`Badge` and the `Tooltip` arrow a new accent colour and to tighten `Card`.
 
 ### Read the summary
 
@@ -168,7 +168,7 @@ the answer opens with the line and commit it read; the CLI's page says
 ### Check the run against what you meant to change
 
 If you made the edit, you write the claims file yourself, from what you meant
-to change, and best before the edit. No command writes it: it records your
+to change, ideally before the edit. No command writes it: it records your
 intent, and the run cannot know that. A file built from the component names the
 run printed scores the run against itself. The file for
 the edit above names each component it meant to change, as your source names
