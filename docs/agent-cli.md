@@ -227,8 +227,9 @@ the `variance-authority` skill the CLI ships, described
 If the summary names changes, ask `changes` before opening an individual
 subject: it groups subjects under the distinct changes behind them, so a token
 edit that reached forty stories is one decision rather than forty. Each change
-names its component, the `file:line` that declares it, and, where one exists,
-the `variance accept --shape` digest that settles it.
+names its component and file where the run resolved them, a pixel-shape group
+where it did not, and, where one exists, the `variance accept --shape` digest
+that settles it.
 
 Narrow to `describe`, `explain-verdict`, `trace-component`, `findings`,
 `composition` or `variations` once a subject or a component is in question, for
