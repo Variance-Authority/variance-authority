@@ -13,8 +13,10 @@ import { count, json, optional, requireMethod, required } from './worker-http.js
  * {@link attested}, and a route that writes never belongs in this file: the
  * share token reads, and never decides.
  *
- * A route for the concerns raised on a build joins these with one more path
- * constant and one more branch, and nothing about who may read it changes.
+ * A route that both reads and writes on one path — concerns, listed with `GET`
+ * and raised with `POST` — does not move here, because every path here refuses
+ * any method but `GET`. Its own `GET` branch calls {@link attested} instead of
+ * `requires(granted, 'review')`, and its write keeps the review token.
  */
 
 /** The changelog of approved baselines, grouped by the change each one settled. */

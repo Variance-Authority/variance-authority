@@ -57,7 +57,7 @@ describe('the decisions a deployment recorded', () => {
   it('are refused, by name, where no share is stored at the deployment', async () => {
     const { asked, fetch } = answering(200, HISTORY);
     const alone = { ...CONFIG, share: { kind: 'directory', root: '/tmp/share' } } as unknown as Config;
-    await expect(decisionsSubject(alone, {}, fetch)).rejects.toThrow(/share token/);
+    await expect(decisionsSubject(alone, { subject: 'story:a' }, fetch)).rejects.toThrow(/share token/);
     expect(asked).toEqual([]);
   });
 

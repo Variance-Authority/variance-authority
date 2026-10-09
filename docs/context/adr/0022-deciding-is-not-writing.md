@@ -3,6 +3,7 @@
 **Status:** accepted
 **Date:** 2026-08-03
 **Extends:** ADR-0021 (approval promotes an image that already exists)
+**Extended by:** ADR-0087 (the share token reads what review settled)
 **Discharges:** spec 0010, access half
 
 ## Context

@@ -45,9 +45,9 @@ the token most likely to leak through a build log, and CI commonly sets
 `VARIANCE_SHARE_TOKEN` to it. Refusing it with a 403 that names the share token
 turns that misconfiguration into a sentence instead of a silent read.
 
-**The client reads the share token from the environment.** The CLI and the MCP
-server take it from the `share` declaration as `{ "env": "VARIANCE_SHARE_TOKEN" }`,
-and the documentation shows only that form. A literal in a committed config file
+**The documentation declares the share token through the environment.** The
+CLI and the MCP server take it from the `share` declaration, and every example
+shows `{ "env": "VARIANCE_SHARE_TOKEN" }`. A literal in a committed config file
 is a token in every clone.
 
 **The API version moves to 4**, because a CLI reading through these routes
@@ -55,11 +55,16 @@ against a deployment at 3 gets a 403 or a 404 and has to say why.
 
 ## Consequences
 
-- The concerns raised on a build join these routes when they land: one path
-  constant and one branch in `worker-attested.ts`, admitted by the same rule.
-  Whichever of the two changes lands second takes the next API number.
+- A route that reads and writes on one path, as concerns do, stays in its own
+  module: its `GET` branch calls `attested()` in place of `requires(granted,
+  'review')`, and its write keeps the review token. It does not join
+  `worker-attested.ts`, which refuses every method but `GET`.
 - An agent can be given read access to review without any path to approve, and
-  nothing about who may decide changed.
+  nothing about who may decide changed. The exception is a Node deployment bound
+  to loopback, which grants `review` to a request with no token: an agent on that
+  machine decides by sending none, as it could before.
+- A share token handed out before API 4 reads reviewer names and notes once the
+  deployment is redeployed. Whoever runs it decides whether that holder should.
 - `variance changelog --since` takes an instant against a remote store, and a
   revision against a git store, because a deployment records when, not which
   commit.

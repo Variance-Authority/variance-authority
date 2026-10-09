@@ -204,7 +204,7 @@ The command sends `GET /review/changelog` to `baselines.endpoint`, with the
 share token. It uses the `share` declaration only for that token, and only when
 its `endpoint` is under `baselines.endpoint`; otherwise it prints the `share`
 to declare. The baselines token is for reading and storing images, and the
-changelog does not need `VARIANCE_BASELINES_TOKEN` to be set.
+changelog never sends it.
 
 ```bash
 npx variance changelog --component Card --since 2026-08-01T00:00:00Z

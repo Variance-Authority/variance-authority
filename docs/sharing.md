@@ -897,11 +897,13 @@ the review token can do. The review token is the one a reviewer decides with,
 and your machine is not given it:
 
 ```bash
-npx variance ask decisions --limit 1
+npx variance ask decisions --subject story:checkout--empty
 ```
 
-The command reads the deployment your `share.endpoint` is under. It prints the
-newest decision, or why the deployment refused: a 403 that names the ingest
+Name any subject your project reviews. The command reads the deployment that
+your `review.endpoint` or your `remote` `baselines.endpoint` names, when your
+`share.endpoint` is under it. It prints the decisions on that subject, a line
+saying there are none, or why the deployment refused: a 403 that names the ingest
 token when the variable holds CI's token, or a 404 when the deployment serves an
 API older than 4.
 

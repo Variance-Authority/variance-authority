@@ -52,10 +52,19 @@ const DEFAULT_LIMIT = 20;
  * The call's input, read once: the host fetches the window this names, and the
  * answer narrows to the same window, so the two cannot disagree about what was
  * asked.
+ *
+ * A call names a subject or a build. The newest decisions of a whole project are
+ * a sample under a heading that reads as an answer, so a call that names
+ * neither is refused, with what to pass.
  */
 export function decisionsQuery(input: Readonly<Record<string, unknown>>): DecisionsQuery {
   const subject = textOf(input, 'subject');
   const build = textOf(input, 'build');
+  if (subject === undefined && build === undefined) {
+    throw new Error(
+      '`variance_decisions` needs a `subject` or a `build`: the subject id whose decisions you want, or the build they were made on',
+    );
+  }
   const limit = input['limit'];
   if (limit !== undefined && (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1)) {
     throw new Error('`limit` must be a whole number of at least 1');
@@ -78,8 +87,8 @@ export const decisions: Tool<ReviewSubject> = {
   inputSchema: {
     type: 'object',
     properties: {
-      subject: { type: 'string', description: 'Optional. Only the decisions on this subject id.' },
-      build: { type: 'string', description: 'Optional. Only the decisions on this build id.' },
+      subject: { type: 'string', description: 'The decisions on this subject id. Pass this, `build`, or both.' },
+      build: { type: 'string', description: 'The decisions on this build id. Pass this, `subject`, or both.' },
       limit: {
         type: 'integer',
         minimum: 1,

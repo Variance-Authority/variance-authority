@@ -170,7 +170,7 @@ describe('the share token reads what review settled', () => {
     expect((await call('/review/changelog', SHARE, {})).status).toBe(405);
   });
 
-  it.todo('reads the concerns raised on a build, and cannot raise or move one — needs the concerns route, which #267 adds');
+  it.todo('reads the concerns raised on a build, and cannot raise or move one — needs the concerns route');
 });
 
 describe('the ingest token reads none of it', () => {
@@ -179,7 +179,9 @@ describe('the ingest token reads none of it', () => {
     for (const path of ['/review/changelog', '/review/decisions']) {
       const response = await call(path, INGEST);
       expect([path, response.status]).toEqual([path, 403]);
-      expect(await response.text()).toMatch(/CI holds the ingest token/);
+      const text = await response.text();
+      expect(text).toMatch(/CI holds the ingest token/);
+      expect(text).toMatch(/the share token/);
     }
   });
 });

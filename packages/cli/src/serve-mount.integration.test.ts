@@ -207,7 +207,10 @@ describe('what reviewers decided, over `variance serve`', () => {
       ]);
 
       refuse = true;
-      const refused = await server.request<Answer & { readonly isError?: boolean }>('tools/call', { name: 'variance_decisions' });
+      const refused = await server.request<Answer & { readonly isError?: boolean }>('tools/call', {
+        name: 'variance_decisions',
+        arguments: { subject: 'story:a' },
+      });
       expect(refused.isError).toBe(true);
       expect(refused.content[0]!.text).toMatch(/answered 403: that token does not read here/);
       const after = await server.request<Answer>('tools/call', { name: 'variance_summary' });

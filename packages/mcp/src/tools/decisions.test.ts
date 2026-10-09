@@ -39,15 +39,19 @@ describe('variance_decisions', () => {
     expect(Object.keys(decisions.inputSchema['properties'] as object).sort()).toEqual(['build', 'limit', 'subject']);
   });
 
-  it('lists every decision newest first, and marks the one that was replaced', () => {
-    expect(decisions.run(SUBJECT, {}).split('\n')).toEqual([
-      'https://tribunal.example: 4 decisions, newest first.',
+  it('lists every decision on a subject newest first, and marks the one that was replaced', () => {
+    expect(decisions.run(SUBJECT, { subject: 'story:a' }).split('\n')).toEqual([
+      'https://tribunal.example: 3 decisions on story:a, newest first.',
       '',
       '  2026-06-03T10:00:00.000Z  rejected  story:a  ci-2  marina',
       '  2026-06-02T10:00:00.000Z  approved  story:a  ci-1  marina  "the border was the point"',
       '  2026-06-01T10:00:00.000Z  rejected  story:a  ci-1  anton  "the border is wrong"  (replaced)',
-      '  2026-06-01T09:00:00.000Z  approved  story:b  ci-1  anton',
     ]);
+  });
+
+  it('refuses a call that names neither a subject nor a build, rather than listing the project', () => {
+    expect(() => decisions.run(SUBJECT, {})).toThrow(/needs a `subject` or a `build`/);
+    expect(() => decisionsQuery({ limit: 5 })).toThrow(/needs a `subject` or a `build`/);
   });
 
   it('narrows to a subject and a build, and says which it read', () => {
@@ -63,19 +67,19 @@ describe('variance_decisions', () => {
   });
 
   it('stops at the limit and says the history may hold more', () => {
-    const answer = decisions.run(SUBJECT, { limit: 2 }).split('\n');
+    const answer = decisions.run(SUBJECT, { subject: 'story:a', limit: 2 }).split('\n');
     expect(answer).toHaveLength(5);
     expect(answer[4]).toBe('  the newest 2 are listed and the history may hold more; `limit` reads further back');
   });
 
   it('reads its input once, for the host that fetches and for the answer alike', () => {
-    expect(decisionsQuery({})).toEqual({ limit: 20 });
+    expect(decisionsQuery({ build: 'ci-1' })).toEqual({ build: 'ci-1', limit: 20 });
     expect(decisionsQuery({ subject: 'story:a', build: 'ci-1', limit: 3 })).toEqual({
       subject: 'story:a',
       build: 'ci-1',
       limit: 3,
     });
-    expect(() => decisionsQuery({ limit: 0 })).toThrow(/at least 1/);
+    expect(() => decisionsQuery({ build: 'ci-1', limit: 0 })).toThrow(/at least 1/);
     expect(() => decisionsQuery({ subject: 7 })).toThrow(/subject/);
   });
 });
