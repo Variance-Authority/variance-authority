@@ -39,7 +39,7 @@ baseline is a record that survives the baseline being replaced.
 | Baselines live in | The explanation lives in | Read back with |
 |---|---|---|
 | the repository, plain or git-LFS | the commit message that came with them | `npx variance changelog` |
-| the [review service](https://variance-authority.dev/reference/packages/tribunal) | its own append-only table | `npx variance changelog`, with the share token |
+| the [review service](https://variance-authority.dev/reference/packages/tribunal) | its own append-only table | `npx variance changelog`, [with the share token](#reading-it-back-from-your-machine) |
 
 Retention is the config key `"retention"`, and it has two values: `durable`
 compares against an image an earlier run stored, and `ephemeral` renders both
@@ -166,16 +166,32 @@ and `DELETE` on it.
 Nothing is written for a **rejection**. It is a decision, and it is recorded as
 one, but no baseline changed — and a changelog with rejections in it answers
 *why does this baseline look like this* with entries about baselines that are
-not there.
+not there. The decision history keeps rejections, and
+[`ask decisions`](#reading-it-back-from-your-machine) reads it.
 
-`npx variance changelog` reads the table back from the deployment, and so does
-`GET /review/changelog`. Your machine reads it with the share token, which reads
-what review settled and cannot approve or reject anything. Declare the share
-with the token in an environment variable, never as a literal in a committed
-file:
+### Reading it back from your machine
+
+When your `baselines` are `remote` — kept in the review service rather than in
+the repository — `npx variance changelog` reads this table from the deployment
+instead of running `git log`. The deployment has three tokens: CI uploads with
+the **ingest token**, a reviewer decides with the **review token**, and your
+machine reads with the **share token**, which reads what review settled and
+cannot approve or reject anything. Whoever runs the
+[Tribunal](../packages/tribunal) deployment sets the share token and gives it to
+you, and [sharing](sharing.md#a-tribunal-deployment) covers where it is set.
+
+Your `variance.config.json` already names the deployment's address in
+`baselines.endpoint`. Add a `share` whose `endpoint` is that address followed by
+`/share`, with its token in an environment variable and never as a literal in a
+committed file:
 
 ```json
 {
+  "baselines": {
+    "kind": "remote",
+    "endpoint": "https://variance.example.com",
+    "token": { "env": "VARIANCE_BASELINES_TOKEN" }
+  },
   "share": {
     "kind": "http",
     "endpoint": "https://variance.example.com/share",
@@ -184,19 +200,54 @@ file:
 }
 ```
 
+The command sends `GET /review/changelog` to `baselines.endpoint`, with the
+share token. It uses the `share` declaration only for that token, and only when
+its `endpoint` is under `baselines.endpoint`; otherwise it prints the `share`
+to declare. The baselines token is for reading and storing images, and the
+changelog does not need `VARIANCE_BASELINES_TOKEN` to be set.
+
 ```bash
 npx variance changelog --component Card --since 2026-08-01T00:00:00Z
 ```
 
-Against the review service, `--since` takes an instant rather than a revision,
-because the deployment records when a subject was approved, not at which commit.
-The ingest token is refused there with 403: CI holds it, and a build log is not
-a reader of reviews.
+```
+v1:2c4f9a1e0b7d3856a91c4e2f8b06d735 Card src/Card.tsx 11  2026-08-21T10:14:02.000Z  builds ci-4242  by reviewer
+  tighten the card
+  note: the border was the point
 
-**The rejections are in the decision history.** `npx variance ask decisions
---subject story:checkout--empty` lists every approval and rejection on that
-subject, newest first, with who made it and the note they left. An agent asks
-the same question through the `variance_decisions` tool of `variance serve`.
+note: read from https://variance.example.com, which recorded these approvals when a reviewer made them
+```
+
+Each change prints its [shape](#in-a-repository-the-commit-message) — the
+fingerprint that groups one change across many subjects — the component and its
+file, how many subjects it approved, when, in which builds and by whom, then the intent and the note the
+reviewer wrote. `--component`, `--subject` and `--limit` work as they do on a
+repository. `--since` takes an instant rather than a revision, because the
+deployment records when a subject was approved, not at which commit.
+
+`GET /review/changelog` answers the share token and the review token. It
+refuses the ingest token with a 403, because a build log is not a reader of
+reviews.
+
+**The rejections are in the decision history.** `npx variance ask decisions`
+reads it with the same share token, and `--subject` or `--build` narrows it.
+Every row keeps the note the reviewer left, so a rejection says why:
+
+```bash
+npx variance ask decisions --subject story:checkout--empty
+```
+
+```
+https://variance.example.com: 2 decisions on story:checkout--empty, newest first.
+
+  2026-08-21T10:14:02.000Z  approved  story:checkout--empty  ci-4242  reviewer  "padding is intended"
+  2026-08-21T09:50:11.000Z  rejected  story:checkout--empty  ci-4242  reviewer  "the padding doubled on mobile"  (replaced)
+```
+
+A decision a later one on the same build and subject replaced is marked
+`(replaced)`, so the first row for a pair is the one that stands. An agent asks
+the same question through the `variance_decisions` tool of
+[`variance serve`](../packages/mcp).
 
 ## Two rules worth knowing before you trust an answer
 

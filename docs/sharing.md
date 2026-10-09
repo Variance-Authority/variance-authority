@@ -840,37 +840,75 @@ long: `<url>: HTTP 422: <reason>`.
 
 ### A Tribunal deployment
 
-A Tribunal deployment serves a share at `<deployment>/share`. Set `endpoint` to
-that URL, for example `https://variance.example.com/share`.
+A Tribunal deployment serves a share at `<deployment>/share`. Declare it as an
+[HTTP endpoint](#an-http-endpoint) with that URL, and the token in an
+environment variable:
 
-**Check the deployment's API first.** The share needs `"api": 3` or higher:
+```json
+{
+  "share": {
+    "kind": "http",
+    "endpoint": "https://variance.example.com/share",
+    "token": { "env": "VARIANCE_SHARE_TOKEN" }
+  }
+}
+```
+
+**Set `VARIANCE_SHARE_TOKEN` to one of the deployment's own tokens.** Whoever
+runs the deployment sets each token when they start it, and gives you the one
+your machine needs. The names below are the deployment's settings, not yours:
+
+- **In CI, where a run publishes**, the ingest token. The deployment sets it as
+  `VARIANCE_TRIBUNAL_INGEST_TOKEN` on Node, the `INGEST_TOKEN` secret on
+  Cloudflare, or `ingestToken` in `createTribunal`. It publishes and reads.
+- **On a machine that only reads**, such as a laptop running `variance ask`, the
+  share token. The deployment sets it as `VARIANCE_TRIBUNAL_SHARE_TOKEN`,
+  `SHARE_TOKEN` or `shareToken`. It reads `/share/` and `GET /version`, and a
+  publish with it answers 403 before any byte is stored. It also reads what
+  review settled — the changelog of approved baselines and every decision — for
+  `variance changelog` and `variance ask decisions`, and it never decides.
+- **The review token is refused under `/share/`** with 403. It is the token a
+  reviewer approves and rejects with, and nothing that reads a share holds it.
+
+**Then check the deployment's API.** The share needs `"api": 3` or higher, and
+reading what review settled needs `"api": 4`:
 
 ```bash
 curl -s -H "Authorization: Bearer $VARIANCE_SHARE_TOKEN" https://variance.example.com/version
 ```
 
 ```text
-{"service":"variance-authority-tribunal","api":3,"schema":18}
+{"service":"variance-authority-tribunal","api":4,"schema":18}
 ```
+
+`/version` answers any of the deployment's tokens and refuses any other with
+401, so this answer also shows that your token is one the deployment knows.
+
+On a laptop, then read CI's latest run on your mainline, as
+[looking up mainline's record](#looking-up-mainlines-record) describes:
+
+```bash
+npx variance share
+```
+
+It prints `mainline <name> evaluated at <commit>…`, or a line that says why it
+found nothing. Then read what review settled, which only the share token and
+the review token can do. The review token is the one a reviewer decides with,
+and your machine is not given it:
+
+```bash
+npx variance ask decisions --limit 1
+```
+
+The command reads the deployment your `share.endpoint` is under. It prints the
+newest decision, or why the deployment refused: a 403 that names the ingest
+token when the variable holds CI's token, or a 404 when the deployment serves an
+API older than 4.
 
 An older deployment answers 404 under `/share/`. A lookup then prints *nothing
 is published there*, and a publish writes nothing. `variance push` to that
 deployment prints the API it serves and that you need to redeploy it, when your
 `share.endpoint` is under the deployment's address.
-
-**Set the environment variable your `token` setting names to one of the
-deployment's own tokens:**
-
-- **In CI, where a run publishes**, the ingest token: `VARIANCE_TRIBUNAL_INGEST_TOKEN`
-  on a Node deployment, the `INGEST_TOKEN` secret on Cloudflare, or
-  `ingestToken` in `createTribunal`. It publishes and reads.
-- **On a machine that only reads**, such as a laptop running `variance ask`, the
-  share token: `VARIANCE_TRIBUNAL_SHARE_TOKEN`, `SHARE_TOKEN` or `shareToken`.
-  It reads `/share/` and `GET /version`, and a publish with it answers 403
-  before any byte is stored. From `"api": 4` it also reads what review
-  settled — the changelog of approved baselines and every decision — for
-  `variance changelog` and `variance ask decisions`, and it never decides.
-- **The review token is refused under `/share/`** with 403.
 
 Share objects are stored under `<project>/share/` in the deployment's bucket,
 where `<project>` is the deployment's own: `VARIANCE_TRIBUNAL_PROJECT` on Node,
@@ -1108,7 +1146,9 @@ A lookup on your checkout needs only the config CI uses:
   `aws s3 sync` download step before you ask, or make `.variance-share` a link
   to a mount your team shares.
 - **With `kind: "http"`**, set the environment variable your `token` setting
-  names to a token that reads.
+  names to a token that reads: on a [Tribunal
+  deployment](#a-tribunal-deployment), the share token. The share token cannot
+  publish, so the publish below needs a store your machine may write to.
 
 `npx variance share --publish` from a branch writes that branch's line, and a
 colleague's `variance ask` on the same branch reads it when their checkout has
