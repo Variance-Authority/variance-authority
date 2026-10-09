@@ -212,8 +212,8 @@ npx variance ask search --query viewport --from packages/app/ --just-answer
 
 The flags are the tool arguments, spelled `--name`, `--package`, `--subpath`,
 `--query`, `--from`, `--to` and `--limit`; `--just-answer` selects the last published
-generation. [Ask a run from the command
-line](agent-cli.md#ask-the-code-when-the-name-is-not-in-the-run) shows each one.
+generation. [Ask about the code and its runs from the
+command line](agent-cli.md#find-a-name-in-the-source) shows each one.
 
 The source questions are also tools on `variance serve`, under the same names as below, so
 a workspace with the CLI declares one server for the run and the source
