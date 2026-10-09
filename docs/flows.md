@@ -161,8 +161,9 @@ images **without another browser render**.
 
 Tribunal combines a baseline store, a history store, a **build docket** — the
 browser page listing each build's subjects awaiting a decision — candidate
-images, region overlays, recorded decisions, and retention sweeps. A deployment
-uses a database and object storage, plus two different secrets:
+images, region overlays, recorded decisions, concerns a reviewer raises
+without deciding, and retention sweeps. A deployment uses a database and object
+storage, plus two different secrets:
 
 - the ingest token lets CI post builds, baselines, and history rows;
 - the review token lets a person read the review pages and decide.

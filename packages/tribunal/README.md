@@ -354,6 +354,17 @@ drifts in nineteen runs out of twenty. Two numbers are drawn as missing rather
 than as zero: a flake rate is **absent** until a run has read every subject
 twice, and a coverage that was never stated is unknown rather than clean.
 
+A render you would not approve and cannot yet call wrong has a third answer.
+*Looks suspicious*, under the decision on a subject page, raises a **concern**: a
+title, the region you mean or the whole render, the components, files or the
+baseline you are pointing at, a note and your hypothesis. It moves from open to
+investigating to resolved, each step with a name on it, and stays on the
+subject — shown on every later build that reports it — until somebody resolves
+it. A concern and a decision never settle each other: approving does not resolve
+a concern, and resolving one approves nothing. The build's header counts the
+concerns its subjects carry, and says so when it could not read them rather than
+showing none.
+
 The run page — *what this run read*, one link from the docket — shows **where
 the subjects parted**, when the build was instrumented with probes and so has
 a [journey](https://variance-authority.dev/docs/journeys) for each subject. The

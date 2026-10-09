@@ -34,6 +34,7 @@ run configured with a URL and a reviewer's browser reach one address.
 - [`build-store`](../build-store/README.md) — the build list, one build's
   **docket**, and the bytes behind an image address
 - [`decision`](../decision/README.md) — the one answer a subject route records
+- [`concern`](../concern/README.md) — the concern routes, raised, moved and read
 - [`retention-sweep`](../retention-sweep/README.md) — what the sweep path performs
 
 ## Used by
