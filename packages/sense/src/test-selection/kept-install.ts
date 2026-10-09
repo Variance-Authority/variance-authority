@@ -117,6 +117,8 @@ export function shardsInstall(
   let install: KeptInstall | undefined;
   for (const { tests, runs } of shards) {
     if (runs?.installed === undefined || runs.runs === 0 || tests.commit === undefined || runs.commit !== tests.commit) return undefined;
+    // A record read off disk is a JSON object, its fields as written: files that are not a list name no test.
+    if (!Array.isArray(runs.files)) return undefined;
     const ran = new Set(runs.files);
     if (!tests.tests.every((test) => ran.has(test.file))) return undefined;
     if (install !== undefined && !sameInstall(install, runs.installed)) return undefined;

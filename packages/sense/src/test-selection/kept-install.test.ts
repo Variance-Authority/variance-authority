@@ -165,6 +165,7 @@ describe('the install a fold of shards ran on', () => {
       shard(['b.test.ts'], { installed: {} }),
       shard(['b.test.ts'], { installed: undefined }),
       { ...shard(['b.test.ts'], {}), runs: undefined },
+      shard(['b.test.ts'], { files: {} as unknown as string[] }),
     ]) {
       expect(shardsInstall([fine, other])).toBeUndefined();
     }
