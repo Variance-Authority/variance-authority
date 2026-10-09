@@ -49,7 +49,8 @@ export function SubjectPanel({
   readonly far?: Ruler | undefined;
   /** Whether the run resolved any source file — see {@link RegionTable}. */
   readonly sourced?: boolean | undefined;
-  readonly onDecided: () => void;
+  /** Reads the build again; the panel takes no decision until it has. */
+  readonly onDecided: () => void | Promise<void>;
 }): ReactElement {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -84,6 +85,18 @@ export function SubjectPanel({
       // that reports the same change again.
       if (error instanceof ReviewRequestError && error.status === 409) setMoved(error.said ?? error.message);
       else setFailed(messageOf(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Until the build answers again the page still holds the version it read, and
+  // a decision taken in between would send it and be refused a second time.
+  const reload = async (): Promise<void> => {
+    setMoved(null);
+    setBusy(true);
+    try {
+      await onDecided();
     } finally {
       setBusy(false);
     }
@@ -125,10 +138,7 @@ export function SubjectPanel({
                   run compared. */}
               <button
                 type="button"
-                onClick={() => {
-                  setMoved(null);
-                  onDecided();
-                }}
+                onClick={() => void reload()}
               >
                 Reload this subject
               </button>

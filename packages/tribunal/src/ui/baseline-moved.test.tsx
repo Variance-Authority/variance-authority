@@ -171,6 +171,33 @@ describe('a decision about a baseline that moved, taken on the subject panel', (
     expect(reloads).toBe(1);
     expect(host.textContent).not.toContain('The baseline changed while you were reviewing');
   });
+
+  it('takes no decision until the reload has brought the version standing now', async () => {
+    // The page still holds the version it read until the build answers again, so
+    // a decision taken in between would send it and be refused a second time.
+    let reloaded: () => void = () => undefined;
+    const client = createReviewClient({ endpoint: '/api', fetch: fetchThat });
+    act(() => {
+      root.render(
+        <SubjectPanel
+          client={client}
+          reviewer="marina"
+          build="ci-1"
+          subject={subject()}
+          onDecided={() => new Promise<void>((resolve) => (reloaded = resolve))}
+        />,
+      );
+    });
+    await act(async () => button('Approve').click());
+    await act(async () => reloaded());
+
+    await act(async () => button('Reload this subject').click());
+    expect(button('Approve').disabled).toBe(true);
+    expect(button('Reject').disabled).toBe(true);
+
+    await act(async () => reloaded());
+    expect(button('Approve').disabled).toBe(false);
+  });
 });
 
 describe('a decision about a baseline that moved, taken on the change page', () => {
