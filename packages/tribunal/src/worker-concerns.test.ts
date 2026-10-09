@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { TRIBUNAL_API, createTribunal, type Tribunal } from './worker.js';
 import { ingest } from './__fixtures__/review.js';
 import { createMemoryR2, createSqliteD1 } from './testing.js';
+import { createReviewClient } from './ui/client.js';
 
 const INGEST = 'ingest-token-0123456789';
 const REVIEW = 'review-token-0123456789';
@@ -109,5 +110,23 @@ describe('the concern routes', () => {
     const version = (await (await call('/version', { token: REVIEW })).json()) as { api: number; schema: number };
     expect(version.api).toBe(4);
     expect(version.schema).toBe(19);
+  });
+
+  it('answers the review page’s own client, raise to move to list', async () => {
+    // The page and the routes agree on paths, methods and bodies only if one
+    // drives the other: each pinned against its own fake would agree with nothing.
+    const client = createReviewClient({
+      endpoint: 'https://variance.example.com',
+      token: REVIEW,
+      fetch: (url, init) => worker.fetch(new Request(url, init)),
+    });
+
+    const raised = await client.raise({ ...RAISE, region: { x: 1, y: 2, width: 3, height: 4 }, evidence: ['baseline'] });
+    const moved = await client.moveConcern(raised.id, { state: 'investigating', by: 'anton', note: 'Looking' });
+    const listed = await client.concerns({ seenIn: 'ci-1001', state: 'investigating' });
+
+    expect(moved.events.map((event) => event.state)).toEqual(['open', 'investigating']);
+    expect(listed.concerns.map((concern) => concern.id)).toEqual([raised.id]);
+    expect(listed.tally).toEqual({ open: 0, investigating: 1, resolved: 0 });
   });
 });

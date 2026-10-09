@@ -221,6 +221,20 @@ describe('Concerns', () => {
     expect(host.querySelector('.va-concern-state')?.textContent).toBe('resolved');
   });
 
+  it('keeps a concern that did not land on the page, with the form still open', async () => {
+    const client: ReviewClient = {
+      ...concernClient(async () => []),
+      raise: () => Promise.reject(new Error('POST /review/concerns answered 503')),
+    };
+    await mount(client);
+    await act(async () => host.querySelector<HTMLButtonElement>('.va-suspicious')!.click());
+    type(host.querySelector<HTMLInputElement>('input[name="title"]')!, 'Spacing');
+    await act(async () => host.querySelector<HTMLFormElement>('form.va-concern-form')!.requestSubmit());
+
+    expect(host.textContent).toContain('answered 503');
+    expect(host.querySelector<HTMLInputElement>('input[name="title"]')?.value).toBe('Spacing');
+  });
+
   it('reports concerns it could not load, and never as none', async () => {
     await mount(concernClient(() => Promise.reject(new Error('GET /review/concerns answered 503'))));
     expect(host.textContent).toContain('answered 503');
