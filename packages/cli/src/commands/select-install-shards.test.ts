@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   commitRunsFile,
   landRun,
@@ -31,6 +31,7 @@ describe('the install a landing of shards ran on', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     process.chdir(cwd);
     delete process.env['VARIANCE_AUTHORITY_CACHE'];
   });
@@ -115,5 +116,18 @@ describe('the install a landing of shards ran on', () => {
 
     expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
     expect(said.err).toContain(`package-lock.json resolves 1 package differently than at ${head.slice(0, 12)} (left-pad)`);
+  });
+
+  it('keeps no install, and says so, when a shard\'s runs record cannot be read', async () => {
+    const err: string[] = [];
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => (err.push(String(chunk)), true));
+    const { root } = await landedOver(['1.4.0', '1.4.0'], (shards) => writeFileSync(commitRunsFile(shards[1]!), 'not json'));
+    vi.restoreAllMocks();
+
+    expect(await readCommitRuns(testCoverageFile(root))).not.toHaveProperty('installed');
+    expect(err.join('')).toContain(
+      `the runs record at ${commitRunsFile(join(root, '.shards', 'shard-1', 'coverage.bin'))} is not JSON`,
+    );
+    expect(err.join('')).toContain('the landing keeps no install the shards ran on.');
   });
 });
