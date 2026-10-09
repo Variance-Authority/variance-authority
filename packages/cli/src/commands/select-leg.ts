@@ -35,6 +35,17 @@
  * list and runs in every leg. That is the safe side of a skip list: it costs a
  * file run twice, never a file run zero times.
  *
+ * ## A later leg runs what the earlier one could not see
+ *
+ * The legs run one after another, and each lands its run before the next is
+ * cut. The next leg then reads another record: the tests the earlier leg ran
+ * stand at HEAD, and every other test is read from where it last ran, from both
+ * texts. That reading can enter a test nearer than the leg's first hop that the
+ * earlier leg's reading did not enter, so no leg would run it. So when a run has
+ * landed at HEAD, a leg that starts past 0 hops also runs every entered test
+ * nearer than its first hop that still stands before HEAD. A test the earlier
+ * leg ran is at HEAD and not among them, so none runs twice.
+ *
  * ## The reading a leg was cut from is said with it
  *
  * A leg is chosen by hop counts, so the counts it was chosen from are given
@@ -98,16 +109,21 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
     return distance?.hops === undefined ? [] : [distance];
   });
   const measured = [...reading, ...hopped].sort((one, other) => codeUnitOrder(one.test, other.test));
-  const cut = remaining(measured, leg.from, leg.to);
+  // A test the leg left is nearer when the leg before it runs it: a placed one
+  // by its hops, an unplaced one when that leg is the end leg. One that a run
+  // landed at HEAD left standing was run by no earlier leg, so this one runs it.
+  const before = new Set(leg.from === 0 ? [] : atDistance(measured, 0, leg.from - 1));
+  const unrun = new Set(input.ground.unrunAtHead ?? []);
+  const elsewhere = remaining(measured, leg.from, leg.to);
+  const overdue = elsewhere.filter((test) => before.has(test) && unrun.has(test));
+  const taking = new Set(overdue);
+  const cut = elsewhere.filter((test) => !taking.has(test));
   const leaving = new Set(cut);
   const placedHere = hopped.filter(({ test }) => !leaving.has(test)).length;
   const placedPartial = new Set(hopped.map(({ test }) => test));
   const unseen = leg.to === Number.MAX_SAFE_INTEGER ? [] : partial.filter((test) => !placedPartial.has(test));
   const outside = [...cut, ...unseen].sort(codeUnitOrder);
   const skip = [...new Set([...selection.skip, ...outside])].sort(codeUnitOrder);
-  // A test the leg left is nearer when the leg before it runs it: a placed one
-  // by its hops, an unplaced one when that leg is the end leg.
-  const before = new Set(leg.from === 0 ? [] : atDistance(measured, 0, leg.from - 1));
   const nearer = cut.filter((test) => before.has(test));
   const further = cut.length - nearer.length;
   const whole = selection.recorded?.whole ?? 0;
@@ -130,6 +146,7 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
       ...leftNote(further, 'for a later leg', `${leg.to + 1}-`),
       ...unseenNote(unseen.length, `${leg.to + 1}-`),
       ...leftNote(nearer.length, `for an earlier leg, nearer than ${many(leg.from, 'hop')}`, spelled({ from: 0, to: leg.from - 1 })),
+      ...overdueNote(overdue.length),
       ...selection.notes,
     ],
   };
@@ -192,6 +209,15 @@ function unseenNote(count: number, range: string): readonly string[] {
     `${many(count, 'test file')} the record never saw whole and the change did not enter ` +
       `${count === 1 ? 'is' : 'are'} left for the open leg: ` +
       `the same command with \`--at-distance ${range}\` runs ${count === 1 ? 'it' : 'them'}`,
+  ];
+}
+
+/** How many tests an earlier leg holds this leg runs, because the run landed at HEAD left them standing. */
+function overdueNote(count: number): readonly string[] {
+  if (count === 0) return [];
+  return [
+    `${many(count, 'selected test file')} of an earlier leg ${count === 1 ? 'runs' : 'run'} in this leg: ` +
+      `${count === 1 ? 'it' : 'they'} last ran before HEAD, and the run that landed at HEAD did not run ${count === 1 ? 'it' : 'them'}`,
   ];
 }
 
