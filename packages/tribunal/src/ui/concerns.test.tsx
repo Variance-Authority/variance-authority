@@ -250,3 +250,28 @@ describe('useConcernTally', () => {
     expect(host.textContent).toContain('2 flagged');
   });
 });
+
+describe('Concerns, across subjects', () => {
+  it('never lands a write on the subject the reviewer moved to while it was in flight', async () => {
+    // The subject page keeps one panel for every subject, so a raise that answers
+    // after the reviewer moved on must not appear in the next subject's trail.
+    let land: (concern: Concern) => void = () => undefined;
+    const client: ReviewClient = {
+      ...concernClient(async () => []),
+      raise: () => new Promise<Concern>((resolve) => (land = resolve)),
+    };
+    const other: SubjectView = { ...SUBJECT, subject: 'story:cart--empty' };
+    const show = (subject: SubjectView): Promise<void> =>
+      act(async () => root.render(<Concerns client={client} reviewer="marina" build="ci-1001" subject={subject} />));
+
+    await show(SUBJECT);
+    await act(async () => host.querySelector<HTMLButtonElement>('.va-suspicious')!.click());
+    type(host.querySelector<HTMLInputElement>('input[name="title"]')!, 'Spacing');
+    await act(async () => host.querySelector<HTMLFormElement>('form.va-concern-form')!.requestSubmit());
+    await show(other);
+    await act(async () => land({ ...RAISED, title: 'Spacing' }));
+
+    expect(host.textContent).not.toContain('Spacing');
+    expect(host.textContent).toContain('Nobody has flagged this render');
+  });
+});

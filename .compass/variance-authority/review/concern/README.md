@@ -6,7 +6,7 @@
 
 Keeps what reviewers suspect about a **subject** — a title, a place on the
 render, the evidence they pointed at and a hypothesis — and every step it takes
-from open to investigating to resolved, apart from any **decision** on the same
+between open, investigating and resolved, apart from any **decision** on the same
 subject.
 
 ## Bounded context
@@ -41,9 +41,10 @@ of it has two answers, and folding them into one loses the doubt the moment the
 baseline moves.
 
 A concern is anchored to the subject, not to the build it was raised in. It is
-shown on every later build that reports the subject until somebody resolves it,
-and the retention sweep does not remove it — a suspicion that expired with its
-build would be a suspicion nobody followed up.
+shown with its trail on every later build that reports the subject, resolved or
+not, and the retention sweep does not remove it — a suspicion that expired with
+its build would be a suspicion nobody followed up. Its region does expire: it is
+a place on the image of the build it was raised in.
 
 Raising, moving and reading are the review credential's, as deciding and the
 rest of the review surface are: a concern is what a person wrote, and the

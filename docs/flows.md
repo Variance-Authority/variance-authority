@@ -169,7 +169,7 @@ other:
   candidate the baseline;
 - a **concern** says the render looks wrong, where, and why you think so. It
   blocks nothing and moves no baseline, and it stays on the subject across
-  builds until somebody resolves it.
+  builds, with every step somebody took on it.
 
 A retention sweep, run when you call it, removes builds older than 30 days by
 default and keeps baselines, decisions and concerns. A deployment uses a

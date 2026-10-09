@@ -274,10 +274,11 @@ be requested anonymously.
 The four `/v1` reads take `since`, `until` and `limit` to bound the window, and
 `project` where one deployment is queried for another's rows.
 
-**The review token reads the record and never writes it.** The five reads
-answer the ingest and review tokens because they derive from rows already recorded, and the browser
-drawing a review page sends the review token. Concerns are not derived: a person
-wrote them, so reading them is the review token's, as raising and moving them is. `/v1/observations` and
+**The review token reads what runs recorded and never writes it.** The five
+reads answer the ingest and review tokens because they derive from rows already
+recorded, and the browser drawing a review page sends the review token. Concerns
+are not derived: a person wrote them, so reading them is the review token's, as
+raising and moving them is. `/v1/observations` and
 `/v1/approvals` are the ingest token's because they write; `/v1/current` is the
 ingest token's because its caller is a run deciding what to write.
 
@@ -356,10 +357,11 @@ twice, and a coverage that was never stated is unknown rather than clean.
 A render you would not approve and cannot yet call wrong has a third answer.
 *Looks suspicious*, under the decision on a subject page, raises a **concern**: a
 title, the region you mean or the whole render, the components, files or the
-baseline you are pointing at, a note and your hypothesis. It moves from open to
-investigating to resolved, each step with a name on it, and stays on the
-subject — shown on every later build that reports it — until somebody resolves
-it. A concern and a decision never settle each other: approving does not resolve
+baseline you are pointing at, a note and your hypothesis. It moves between
+open, investigating and resolved, each step with a name on it. It stays on the
+subject, shown with its trail on every later build that reports it; resolving it
+closes it without removing it. Its region is a place on the image of the build
+it was raised in, so it names a place nobody can see once that build is swept. A concern and a decision never settle each other: approving does not resolve
 a concern, and resolving one approves nothing. The build's header counts the
 concerns its subjects carry, and says so when it could not read them rather than
 showing none.

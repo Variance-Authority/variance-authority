@@ -42,11 +42,17 @@ export function Concerns({
   const [writing, setWriting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  // The subject on screen. The page keeps this panel from subject to subject, so
+  // a write that answers after the reviewer moved on belongs to a trail that is
+  // no longer drawn, and is dropped rather than added to the next one's.
+  const shown = useRef(subject.subject);
 
   useEffect(() => {
     let live = true;
+    shown.current = subject.subject;
     setLoaded({ kind: 'loading' });
     setWriting(false);
+    setBusy(false);
     setFailed(null);
     client.concerns({ subject: subject.subject }).then(
       (answer) => live && setLoaded({ kind: 'ready', concerns: answer.concerns }),
@@ -57,31 +63,40 @@ export function Concerns({
     };
   }, [client, subject.subject]);
 
-  /** Put a written concern where the list had it, or at the end when it is new. */
+  /**
+   * Put a written concern where the list had it, or at the end when it is new.
+   * A list that never loaded stays unloaded: one concern drawn alone would read
+   * as the whole trail.
+   */
   const keep = (concern: Concern): void =>
     setLoaded((was) => {
-      const kept = was.kind === 'ready' ? was.concerns : [];
-      const known = kept.some((each) => each.id === concern.id);
+      if (was.kind !== 'ready') return was;
+      const known = was.concerns.some((each) => each.id === concern.id);
       return {
         kind: 'ready',
-        concerns: known ? kept.map((each) => (each.id === concern.id ? concern : each)) : [...kept, concern],
+        concerns: known
+          ? was.concerns.map((each) => (each.id === concern.id ? concern : each))
+          : [...was.concerns, concern],
       };
     });
 
   const write = async (action: () => Promise<Concern>): Promise<boolean> => {
+    const on = subject.subject;
     setBusy(true);
     setFailed(null);
     try {
-      keep(await action());
+      const concern = await action();
       onChanged?.();
+      if (shown.current !== on) return false;
+      keep(concern);
       return true;
     } catch (error) {
       // Kept on the page, as a failed decision is: a concern that silently did not
       // land is a reviewer who believes the next one will see it.
-      setFailed(messageOf(error));
+      if (shown.current === on) setFailed(messageOf(error));
       return false;
     } finally {
-      setBusy(false);
+      if (shown.current === on) setBusy(false);
     }
   };
 
@@ -204,20 +219,21 @@ export function useConcernTally(
   build: string,
 ): { readonly tally: ConcernTally | string | undefined; readonly refresh: () => void } {
   const [tally, setTally] = useState<ConcernTally | string | undefined>(undefined);
-  // The build each answer was asked for. One that arrives after the page moved
-  // to another build is dropped, so a slow answer never counts the wrong build.
-  const asked = useRef(build);
+  // Only the latest request draws. An answer overtaken by a later one — for
+  // another build, or for this one after another write — is dropped, so a slow
+  // answer never counts the wrong build or an older count of this one.
+  const latest = useRef(0);
   const refresh = useCallback(() => {
+    const asked = ++latest.current;
     client.concerns({ seenIn: build }).then(
-      (answer) => asked.current === build && setTally(answer.tally),
-      (error: unknown) => asked.current === build && setTally(messageOf(error)),
+      (answer) => asked === latest.current && setTally(answer.tally),
+      (error: unknown) => asked === latest.current && setTally(messageOf(error)),
     );
   }, [client, build]);
   useEffect(() => {
-    asked.current = build;
     setTally(undefined);
     refresh();
-  }, [build, refresh]);
+  }, [refresh]);
   return { tally, refresh };
 }
 
