@@ -242,7 +242,7 @@ to clear a threshold are the standard observation.
 **Mutation testing** is the field's answer, and it is the strong one. Inject a
 fault, see whether the suite notices; the mutation score covers execution *and*
 assertion where coverage covers only execution. **Petrović, Ivanković, Fraser &
-Just** (ICSE-SEIP 2021) is the industrial datapoint: Google runs it inside code
+Just** (TSE 2022) is the industrial datapoint: Google runs it inside code
 review, surfacing a selected sample of mutants in changed code as review
 findings rather than as a batch score, because the full analysis is too
 expensive to run whole. **Stryker** (JavaScript) and **PIT** (Java) are the
