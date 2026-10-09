@@ -264,14 +264,41 @@ selector this spec asks for widens to the whole file. Under
 inline requires a case was open when a `loaded` region ran, so that widening
 keys on `loaded`, not on "no case was open".
 
-### What does not read `again`
+### The other readers of `lists()`
 
-The file-grain union, which selects whole test files, reads the log directly
-and or-s both ways per region. It loses nothing, because the whole file is
-selected either way. The journey reader (`journey.ts`) and the page drain
-(`probes.ts`) receive `again` but read only `hits` and `shared`. Whether a
-request that is the first to evaluate a module loses its later entries there,
-the way `greets first` did, is unmeasured.
+Every reader of `lists()` outside the case frame reads step 7 as an eager load
+does, or charges nothing finer than a file.
+
+- **The file-grain union** (`recordExecution`, `crossing-fold.ts`) owes a
+  `shared` region to every file that loaded the module, the evaluating file
+  among them. A case that evaluates a module and calls into it selects its file
+  under either load. `journal-cases.test.ts` asserts it for a page case.
+- **The page drain** (`drain()` in `probes.ts`) carries `again` on
+  `ExecutedModule`. `caseJournals` hands it to the case fold as the second row
+  of part 3, which serves `@variance-authority/playwright-test`, the Storybook
+  collector and a staged run. `enterModules` joins the windows of one case per
+  way: a region is entered plainly when a window entered it outside an
+  evaluation or listed it in `again`, and the joined `again` is `shared`
+  intersected with what was entered plainly. A plain union of `hits` and
+  `shared` reads a region that one window evaluated and another called as
+  `loaded` only. `joinObservations` and `absorb` both join through it.
+  `journal-cases.test.ts` and `execution.test.ts` in `playwright-test` read a
+  case that evaluates the module in its own drain, and one that evaluated it in
+  an earlier drain of the same case, as they read the eager load.
+- **The journey stitch** (`journey.ts`, `stitch.ts`) gives a journey's `shared`
+  regions to every subject of the head, as it gives the hits no journey held.
+  A journey that evaluates a module is stitched as one that found it
+  evaluated, and `journey-evaluation.test.ts` compares the two loads.
+- **The part writer** (`journey-parts.ts`) writes a journey's log through
+  `encodeLog`, `again` row included, and moves the journey's `shared` regions
+  to the common frame, which the fold charges to every case the process
+  served. `journey-parts.integration.test.ts` has a service evaluate a script
+  in the first request that needs it and finds that request's case charged
+  with its later call.
+
+A stitched subject carries no `again`. Its own entry into a region that ran
+while the module evaluated is in `shared`, so at case grain it reads as
+`loaded`, under either load. File selection is unaffected.
 
 ## Out of scope
 
