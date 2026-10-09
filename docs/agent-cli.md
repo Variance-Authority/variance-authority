@@ -4,11 +4,12 @@
 configuration. Questions about the code read the checkout and need nothing
 else: with no run yet, start with `variance ask packages`, which lists what each
 package publishes and how much of it other packages import. Questions about a
-run read the report it wrote: with a finished run, start with `variance ask
-summary`. Other questions read a suite that is still running, or how long each
-part of the suite took on the main branch's last build, and `variance distill`
-reads one finished test's [Eyes](eyes.md) and [Sense](../packages/sense)
-evidence. Each command calls the same analyzer its MCP counterpart calls.
+run read the report it wrote, or the report CI published for your branch when
+none is on disk: start with `variance ask summary`. Other questions read a
+suite that is still running, or how long each part of the suite took on the main
+branch's last build, and `variance distill` reads one finished test's
+[Eyes](eyes.md) and [Sense](../packages/sense) evidence. Each command calls the
+same analyzer its MCP counterpart calls.
 
 ## Find out what may be asked
 
@@ -131,6 +132,13 @@ variance ask summary
 Start here. The summary accounts for planned subjects that were not observed as
 well as the observations that produced a verdict, so silence cannot be mistaken
 for a clean run. Every other question takes an identifier it prints.
+
+The report is the configured one unless report paths follow the question, in
+which case those are read and merged — the same selection `variance report`
+takes, for the same sharded runs. When the configured report is not on disk,
+`ask` answers from the report CI published for your branch or mainline, and
+the answer opens with the line and commit it read; the CLI's page says
+[which record that is](../packages/cli/README.md#a-checkout-with-no-run-of-its-own).
 
 If the summary names changes, ask `changes` before opening an individual
 subject: it groups subjects under the distinct changes behind them, so a token
@@ -259,13 +267,6 @@ variance ask changes --component Toggle
 variance ask findings --rule control-without-name
 variance ask changelog --shape v1:8f2c
 ```
-
-The report is the configured one unless report paths follow the question, in
-which case those are read and merged — the same selection `variance report`
-takes, for the same sharded runs. When the configured report is not on disk,
-`ask` answers from the report CI published for your branch or mainline, and
-the answer opens with the line and commit it read; the CLI's page says
-[which record that is](../packages/cli/README.md#a-checkout-with-no-run-of-its-own).
 
 ## An answer is not a verdict
 
