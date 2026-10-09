@@ -10,7 +10,8 @@
  * runner, and with `--at-distance` so are the files outside that leg, so a
  * change that reaches no test asks for no shard. The runner's list
  * (`--collected`) is what makes that 0 true: the record holds only the files it
- * has seen, and a test file the change adds runs on a shard all the same.
+ * has seen, and a test file the change adds runs on a shard all the same, so
+ * without the list the answer is never fewer than one.
  */
 
 import { fileCases } from '@variance-authority/sense';
@@ -30,7 +31,7 @@ export interface ShardsRequest {
   readonly collected?: string;
   /** The leg of the selection to count, as `select --at-distance` cuts it. */
   readonly atDistance?: { readonly from: number; readonly to: number };
-  readonly setup: number;
+  readonly setup?: number;
   readonly budget?: number;
   readonly max?: number;
   readonly workers?: number;
@@ -51,6 +52,7 @@ export async function shardsOutput(request: ShardsRequest): Promise<string> {
     ...counting,
     ...(skipped === undefined ? {} : { skipped }),
     ...(collected === undefined ? {} : { collected }),
+    ...(atDistance !== undefined && since === undefined ? { uncutDistance: true } : {}),
   };
   const answer = shardsAnswer(input);
   if (answer.by === 'recorded' && answer.slowest !== undefined) {
