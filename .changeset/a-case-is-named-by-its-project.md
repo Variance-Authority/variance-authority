@@ -20,7 +20,8 @@ The project's name is the one the runner gives it: Vitest's `test.name`, its
 `package.json` name or its directory, and an inline project without one by its
 place in the list; Jest's `displayName`; Playwright's project `name`. A Jest
 run whose projects share a test file also records that file once, rather than
-failing to write the record.
+failing to write the record, and records it partial when one of those projects
+skipped every test in it.
 
 When you upgrade: every case of a named project changes id once, on the first
 record after upgrading, and history joined by id restarts for those cases.

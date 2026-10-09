@@ -37,6 +37,7 @@ import globals = require('@jest/globals');
 import fs = require('node:fs');
 import crypto = require('node:crypto');
 import install = require('./jest-globals.cjs');
+import journalNames = require('./jest-journal-name.cjs');
 import journals = require('./journal-format.cjs');
 import type { ModuleId } from '../instrument/index.js';
 
@@ -45,6 +46,13 @@ const { afterAll, beforeAll, beforeEach, expect } = globals;
 // Installed by `setupFiles` already in a configuration `withTestSelection`
 // wrote; installed here for one that named this file alone.
 const collector = install();
+
+// The project this sandbox runs the file for, from the `globals` that
+// `withTestSelection` gave it (`PROJECT_GLOBAL` in `jest.ts`): the same file
+// under two projects is the same path, and only this tells its cases, and its
+// journal, apart from the other project's.
+const named = (globalThis as Record<string, unknown>)['variance-authority.project'];
+const project = typeof named === 'string' ? named : undefined;
 
 // What had run before the file's first test: Jest evaluates the file to
 // collect its tests, then runs the hooks, so every module the file imports has
@@ -73,7 +81,7 @@ afterAll(() => {
   const stamp = `${process.pid}-${crypto.randomUUID()}`;
   const { modules, frames } = collector.finish(testFile);
   fs.mkdirSync(runDirectory, { recursive: true });
-  fs.writeFileSync(`${runDirectory}/${stamp}.va`, journals.encodeJournal(testFile, modules, loaded));
+  fs.writeFileSync(`${runDirectory}/${journalNames.journalName(stamp, project)}`, journals.encodeJournal(testFile, modules, loaded));
 
   const outlived = collector.runaways();
   if (outlived.length > 0) {
@@ -269,12 +277,6 @@ type CaseBody = (this: unknown, ...args: unknown[]) => unknown;
 // wrappers synchronously. The outer, runner-named enclosure owns the case; a
 // wrapper reached inside it is the same case, not concurrency.
 let enclosingCase = 0;
-
-// The project this sandbox runs the file for, from the `globals` that
-// `withTestSelection` gave it (`PROJECT_GLOBAL` in `jest.ts`): the same file
-// under two projects is the same path, and only this tells its cases apart.
-const named = (globalThis as Record<string, unknown>)['variance-authority.project'];
-const project = typeof named === 'string' ? named : undefined;
 
 /**
  * One case's body, run inside the scope its crossings belong to.

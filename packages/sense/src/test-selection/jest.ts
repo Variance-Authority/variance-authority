@@ -28,6 +28,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
 import { placingSequencer } from './jest-placing.js';
+import { projectNamed } from './jest-projects.js';
 import { selectingFilter } from './jest-selection.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
@@ -430,7 +431,7 @@ function instrumented(
     ]),
   );
 
-  const project = projectName(config);
+  const project = projectNamed(config['displayName']);
   return {
     ...config,
     rootDir,
@@ -439,16 +440,6 @@ function instrumented(
     setupFiles: [SELECTION_GLOBALS, ...(config.setupFiles ?? [])],
     setupFilesAfterEnv: [...(config.setupFilesAfterEnv ?? []), SELECTION_SETUP],
   };
-}
-
-/**
- * The name a project's `displayName` gives it, a string or `{ name, color }`;
- * absent when it has none, which is the name a case of it carries.
- */
-function projectName(config: JestConfig): string | undefined {
-  const named = config['displayName'];
-  const name = typeof named === 'object' && named !== null ? (named as { name?: unknown }).name : named;
-  return typeof name === 'string' && name !== '' ? name : undefined;
 }
 
 /** A project's `rootDir`, absolute, with the top level's `<rootDir>` spelled out; the top level's own when it has none. */
