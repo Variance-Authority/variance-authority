@@ -140,6 +140,20 @@ describe('the subject page lays its component’s stories side by side', () => {
     expect(host.querySelector('.va-siblings')?.textContent).toContain('2 further stories not drawn');
   });
 
+  it('keeps the story on screen in the grid when the lattice puts it past the cap', async () => {
+    // A grid without the story the page is about cannot show which picture is
+    // its own, so it takes the last tile and the story it displaced is counted.
+    const many = Array.from({ length: 26 }, (_, index) => `${FAMILY}--state-${String(index).padStart(2, '0')}`);
+    const last = many[25] as string;
+    await show(detail(many.map((id) => story(id)), []), at(last));
+
+    const tiles = [...host.querySelectorAll('.va-siblings .va-sibling')];
+    expect(tiles).toHaveLength(24);
+    expect(tiles.at(-1)?.querySelector('img')?.getAttribute('alt')).toBe(last);
+    expect(host.querySelector('.va-sibling-here img')?.getAttribute('alt')).toBe(last);
+    expect(host.querySelector('.va-siblings')?.textContent).toContain('2 further stories not drawn');
+  });
+
   it('draws nothing for a subject that is the only story of its component', async () => {
     await show(detail([story('story:toolbar'), ...STORIES.map((id) => story(id))], [SAME]), at('story:toolbar'));
 

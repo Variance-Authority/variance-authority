@@ -99,6 +99,12 @@ export function Siblings({
   const same = new Set(groups.flatMap((group) => group.subjects));
   const own = groups.find((group) => group.subjects.includes(subject));
   const member = (id: string): string => familyOf(id).member;
+  // The story on screen keeps a tile even when the lattice puts it past the cap:
+  // a grid without it cannot show which picture is this page's. It takes the
+  // last tile, and the story it displaced is counted with the rest.
+  const mine = columns.find((column) => column.subject === subject);
+  const tiles = columns.slice(0, TILES);
+  if (mine !== undefined && !tiles.includes(mine)) tiles[TILES - 1] = mine;
 
   return (
     <section className="va-siblings">
@@ -113,7 +119,7 @@ export function Siblings({
         </p>
       ))}
       <ul className="va-sibling-grid">
-        {columns.slice(0, TILES).map((column) => {
+        {tiles.map((column) => {
           const here = column.subject === subject;
           const picture = (
             <>
