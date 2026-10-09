@@ -159,11 +159,21 @@ Tribunal owns review and retention, not rendering: `push` uploads the report and
 candidate images the run already produced, and approval promotes those exact
 images **without another browser render**.
 
-Tribunal combines a baseline store, a history store, a **build docket** — the
-browser page listing each build's subjects awaiting a decision — candidate
-images, region overlays, recorded decisions, concerns a reviewer raises
-without deciding, and retention sweeps. A deployment uses a database and object
-storage, plus two different secrets:
+Tribunal stores baselines, history, and each build's candidate images with the
+regions where they differ from their baselines. Your reviewers read a build on
+its **build docket**, the browser page listing the subjects that await a
+decision, and record two things about a subject, neither of which settles the
+other:
+
+- a **decision** approves or rejects the subject, and approving makes its
+  candidate the baseline;
+- a **concern** says the render looks wrong, where, and why you think so. It
+  blocks nothing and moves no baseline, and it stays on the subject across
+  builds until somebody resolves it.
+
+A retention sweep, run when you call it, removes builds older than 30 days by
+default and keeps baselines, decisions and concerns. A deployment uses a
+database and object storage, plus two different secrets:
 
 - the ingest token lets CI post builds, baselines, and history rows;
 - the review token lets a person read the review pages and decide.
