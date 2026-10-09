@@ -395,7 +395,8 @@ changes[0]?.builds;    // where the approvals came from
 
 `changelog` takes `component` (substring, case-insensitive), `subject` (exact),
 `since` (ISO 8601) and `limit` (default 500). The route takes the same four as
-query parameters, and answers the review token and the share token.
+query parameters, refuses a `limit` above 500 with 400, and answers the review
+token and the share token.
 
 `decisions` is the history under the approvals: every decision recorded,
 rejections and reversals included, newest first. It takes `build`, `subject` and

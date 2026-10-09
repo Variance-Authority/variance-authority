@@ -153,6 +153,15 @@ describe('the share token reads what review settled', () => {
     expect(await unbounded.text()).toMatch(/reads at most 200 decisions/);
   });
 
+  it('refuses a changelog count past the 500 it reads at once', async () => {
+    variancePrecondition({ token: 'share' });
+    await decided();
+    expect((await call('/review/changelog?limit=500', SHARE)).status).toBe(200);
+    const unbounded = await call('/review/changelog?limit=501', SHARE);
+    expect(unbounded.status).toBe(400);
+    expect(await unbounded.text()).toMatch(/reads at most 500 approvals/);
+  });
+
   it('is served the same history the review token reads', async () => {
     variancePrecondition({ token: 'review' });
     await decided();

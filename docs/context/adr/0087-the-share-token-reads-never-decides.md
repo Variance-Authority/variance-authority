@@ -37,8 +37,9 @@ the token a developer's machine reads a share with.
 - A route that writes a decision or a concern keeps `requires(granted,
   'review')`, so the share token reaching it is a 403, as before.
 - `GET /review/decisions` names a build, a subject or both, and reads at most
-  200 decisions. A token that sits on laptops and in agents does not page
-  through a project's whole review history with one request.
+  200 decisions; `GET /review/changelog` reads at most 500 approvals. A token
+  that sits on laptops and in agents does not page through a project's whole
+  review history with one request.
 - The read routes check the token before the method, so a share token sending a
   `POST` to them gets 405: the path is one it may read, and the method is one no
   token may use there.

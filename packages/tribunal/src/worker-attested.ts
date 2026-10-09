@@ -1,3 +1,4 @@
+import { CHANGELOG_LIMIT } from './changelog.js';
 import { DECISIONS_LIMIT } from './review-summary.js';
 import type { ReviewStore } from './review-types.js';
 import { attested, type Granted } from './worker-auth.js';
@@ -20,7 +21,7 @@ import { BadRequest, count, json, optional, requireMethod, required } from './wo
  * `requires(granted, 'review')`, and its write keeps the review token.
  */
 
-/** The changelog of approved baselines, grouped by the change each one settled. */
+/** The changelog of approved baselines, grouped by the change each one settled; `?limit=` takes fewer than {@link CHANGELOG_LIMIT}. */
 export const CHANGELOG_PATH = '/review/changelog';
 
 /**
@@ -65,6 +66,11 @@ export function createAttestedRoutes(review: ReviewStore): AttestedRoute {
       });
     }
 
+    if (narrowed.limit !== undefined && narrowed.limit > CHANGELOG_LIMIT) {
+      throw new BadRequest(
+        `${CHANGELOG_PATH} reads at most ${CHANGELOG_LIMIT} approvals at once; received limit=${narrowed.limit}. Narrow it by \`component\`, \`subject\` or \`since\` instead`,
+      );
+    }
     return json(
       200,
       await review.changelog({
