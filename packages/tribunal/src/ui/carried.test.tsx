@@ -49,6 +49,7 @@ function build(subjects: readonly SubjectView[]): BuildDetail {
     notObserved: [],
     causes: [],
     variations: [],
+    sameImage: [],
     declarations: { ignores: null, sensitivities: null },
     movements: [],
     composition: null,

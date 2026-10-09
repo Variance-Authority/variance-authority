@@ -82,6 +82,7 @@ function build(
     composition: null,
     causes: [],
     variations,
+    sameImage: [],
     reach: null,
     journeys: recorded,
   };

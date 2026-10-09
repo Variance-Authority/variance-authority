@@ -68,6 +68,7 @@ function build(id: string, subjects: readonly SubjectView[]): BuildDetail {
     composition: null,
     causes: [],
     variations: [],
+    sameImage: [],
     reach: null,
     journeys: null,
     // Builds 5 and 6 of the example repository, and 6 is the one with a run

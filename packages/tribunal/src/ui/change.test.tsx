@@ -66,6 +66,7 @@ function build(
     composition: extra.composition ?? null,
     causes: extra.causes ?? [],
     variations: [],
+    sameImage: [],
     reach: extra.reach ?? null,
   };
 }

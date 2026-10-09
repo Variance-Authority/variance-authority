@@ -40,6 +40,7 @@ function build(over: Partial<BuildDetail> = {}): BuildDetail {
     notObserved: [],
     causes: [],
     variations: [],
+    sameImage: [],
     declarations: { ignores: null, sensitivities: null },
     movements: [],
     composition: null,
