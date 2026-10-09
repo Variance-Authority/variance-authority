@@ -1818,8 +1818,11 @@ The change has to be a patch, because a journey file selects by changed lines.
 A list of paths from `git diff --name-only` is refused: it can only be answered
 by the import graph, and that is [`reach`](#reach-what-a-diff-reaches-for-a-pipe).
 
-- **A changed line.** It goes to the innermost function holding it, and only the
-  test files whose cases entered that function run.
+- **A changed line.** It goes to the innermost function or branch holding it,
+  and only the test files whose cases entered it run. A line that opens one, such
+  as `if (ready) {`, goes to the code around it as well, because every case that
+  evaluated the condition ran that line. These are the tests `variance covering
+  --line` names for it.
 - **A file the patch names and shows none of**, such as a binary or a rename, or a
   file the journey has no row for. Every test file that imports it runs, read off
   the import graph, together with every case the journey saw enter it.

@@ -12,13 +12,11 @@
  * ## A line is answered as an edit to it is charged
  *
  * A point query and a selection over the coverage snapshot read a line by one
- * rule, `chargeLine`. The journey selector (`narrowByJourneys`, `select
- * --execution`) does not yet: it charges the innermost region alone and can
- * select fewer tests than this names (the `FIXME` in
- * [`execution-select.ts`](./execution-select.ts)). A line that opens a region — `if (ready) {`, `const onClick = () => {` — carries
- * the enclosing region's text as well, so the tests that evaluated the
- * condition and never took the branch go to that line, and an edit there
- * selects them. Answered with the branch alone, *who goes to this line* would
+ * rule, `chargeLine`, and so does the journey selector (`narrowByJourneys`,
+ * `select --execution`). A line that opens a region — `if (ready) {`,
+ * `const onClick = () => {` — carries the enclosing region's text as well, so
+ * the tests that evaluated the condition and never took the branch go to that
+ * line, and an edit there selects them. Answered with the branch alone, *who goes to this line* would
  * name fewer tests than a change to it runs, and the person about to edit it
  * would read a skip list the selection does not keep. A line inside a region
  * charges that region alone, and a brace that closes a branch charges the

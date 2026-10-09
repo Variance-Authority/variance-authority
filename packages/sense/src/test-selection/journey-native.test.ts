@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { beyondReach, relationsOfFiles, type FileRecord, type Relations } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
+import { blocksChargedAt } from './blocks-around.js';
 import { CrossingSets } from './crossing-sets.js';
 import type { LineRange } from './diff-lines.js';
 import { decodeExecutionIndex } from './execution-format.js';
@@ -201,17 +203,71 @@ describe('selecting off a journey file in the addon', () => {
     expect((await selectJourneyFile(FILE, changed, { relations: plain, read }))?.entered).toEqual(['test/other.test.ts']);
   });
 
-  it('charges a line to the innermost region, and holds every case to what it entered, mocks or not', async () => {
+  it('charges a line to the regions an edit to it reaches, and holds every case to what it entered, mocks or not', async () => {
     const at = async (file: string, line: number) =>
       (await selectJourneyFile(FILE, new Map([[file, lines(line)]]), { relations: mocked }))?.entered;
-    expect(await at('src/api.ts', 4)).toEqual(['test/plain.test.ts']);
-    expect(await at('src/api.ts', 3)).toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
+    // `nested` is one line inside `get`, so the line is `get`'s text too.
+    expect(await at('src/api.ts', 4)).toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
+    expect(await at('src/api.ts', 5)).toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
     expect(await at('src/http.ts', 2)).toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
   });
 
-  it.todo(
-    'charges a line that opens a region to the region around it too, as `variance covering --line` names it — needs `blocksChargedAt` in `narrowByJourneys` and its Rust port in journey_select.rs',
-  );
+  describe('a line that opens a branch', () => {
+    // 1 function decide(ready, score) {
+    // 2   if (ready) {
+    // 3     go();
+    // 4   } else if (score > 1) {
+    // 5     bonus();
+    // 6   }                          ← the `else` nobody wrote
+    // 7   return done;
+    // 8 }
+    const cases = [
+      { id: 'ready > a', file: 'test/ready.test.ts', name: 'a' },
+      { id: 'score > a', file: 'test/score.test.ts', name: 'a' },
+      { id: 'neither > a', file: 'test/neither.test.ts', name: 'a' },
+    ];
+    const sets = new CrossingSets(cases.length);
+    const file = join(mkdtempSync(join(tmpdir(), 'journey-native-')), 'journeys.bin');
+    writeFileSync(file, encodeSetExecutionIndex({
+      tests: cases,
+      modules: [{
+        file: 'src/decide.ts',
+        blocks: [
+          region('module', '', 1, 8),
+          region('function', 'decide', 1, 8),
+          region('branch', 'decide/if.then', 2, 4),
+          region('branch', 'decide/if.else', 4, 6),
+          { ...region('branch', 'decide/if.else.else', 6, 6), source: false },
+        ],
+        called: Uint32Array.of(sets.intern([]), sets.intern([0, 1, 2]), sets.intern([0]), sets.intern([1]), sets.intern([2])),
+        loaded: Uint8Array.of(0, 0, 0, 0, 0),
+      }],
+      sets: sets.pool(),
+    }));
+    const index = decodeExecutionIndex(readFileSync(file));
+    const blocks = index.modules[0]!.blocks;
+    const at = (line: number) => new Map([['src/decide.ts', lines(line)]]);
+
+    it('selects the cases that evaluated its condition and never took it', async () => {
+      const everyCase = ['test/neither.test.ts', 'test/ready.test.ts', 'test/score.test.ts'];
+      expect((await selectJourneyFile(file, at(2)))?.entered).toEqual(everyCase);
+      expect(narrowByJourneys(index, at(2)).entered).toEqual(everyCase);
+      expect((await selectJourneyFile(file, at(4)))?.entered).toEqual(everyCase);
+      expect(narrowByJourneys(index, at(4)).entered).toEqual(everyCase);
+      expect((await selectJourneyFile(file, at(3)))?.entered).toEqual(['test/ready.test.ts']);
+      expect((await selectJourneyFile(file, at(6)))?.entered).toEqual(['test/neither.test.ts', 'test/score.test.ts']);
+    });
+
+    for (let line = 1; line <= 8; line += 1) {
+      it(`selects on line ${line} every case \`variance covering --line\` names, in the addon and without it`, async () => {
+        const named = blocksChargedAt(blocks, line)
+          .flatMap((block) => block.crossings.map((crossing) => index.tests[crossing.test]!.file));
+        const covering = [...new Set(named)].sort(codeUnitOrder);
+        expect(narrowByJourneys(index, at(line)).entered).toEqual(covering);
+        expect(await selectJourneyFile(file, at(line))).toEqual(narrowByJourneys(index, at(line)));
+      });
+    }
+  });
 
   it('lets a mock cut only what ran while the module evaluated, which the graph answers', async () => {
     const loadTime = new Map([['src/api.ts', lines(1)]]);

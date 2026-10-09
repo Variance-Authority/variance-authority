@@ -155,8 +155,8 @@ missing snapshot, a snapshot from another machine, and a first run all leave
   whole inside `entered`. It comes back empty unless you pass `sourceAt`,
   because nothing looked — which reads exactly like frames that agree.
 - `because` — one entry per selected test, in the order of `entered`, listing
-  every reason it is there: a `region` (file, name, path and lines of the
-  innermost recorded block a changed line fell in), a `precondition` by name, a
+  every reason it is there: a `region` (file, name, path and lines of a
+  recorded block a changed line charged), a `precondition` by name, a
   `reader` (a place in `reader` that reads the value `name`, declared in `file`,
   that the change altered), or an `importer` with the trail from the changed
   file to the file the test was found through. Print it beside each path a
@@ -422,11 +422,12 @@ yarn exec variance journeys stitch \
 do the same from code, pass the changed lines to `narrowByJourneys`, and pass
 `read` from `readJourneyChange(diff, before, { root, relations })`, where
 `before` returns the text the patch was written against. A journey file carries
-no source text, so without `read` a line is charged to the region it falls in,
-and a comment above a function falls in the module's own region, which every
-file that imports the module ran. With `read`, a file whose change runs nothing
-charges nothing, and a file whose load-time behaviour did not change charges
-only the functions its lines fall in.
+no source text, so without `read` a line is charged as `covering --line`
+charges it: to the region it falls in, and to the region around it when the
+line opens a branch or a function. A comment above a function falls in the
+module's own region, which every file that imports the module ran. With `read`,
+a file whose change runs nothing charges nothing, and a file whose load-time
+behaviour did not change charges only the functions its lines charge.
 
 ### Follow a Jest case into a service it calls
 

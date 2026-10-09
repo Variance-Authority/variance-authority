@@ -7,10 +7,13 @@
  * in the file's own coordinates — a diff from git, a diff from last week, a
  * diff nobody committed. Two shapes of change are read, by what they hold:
  *
- * - **Changed lines.** Each line is charged to the innermost region holding it,
- *   and the cases that entered that region are selected. That is the whole point
- *   of recording a journey: a branch one case took selects that case, not every
- *   case that imported the file.
+ * - **Changed lines.** Each line is charged by `chargeLine`, the rule
+ *   `variance covering --line` answers by: the innermost region holding it, and
+ *   the region around it too when the line opens a region and carries its text,
+ *   as `if (ready) {` carries the condition. The cases that entered a charged
+ *   region are selected. That is the whole point of recording a journey: a
+ *   branch one case took selects that case, not every case that imported the
+ *   file.
  * - **Changed files, no lines.** A path the diff names and shows nothing of is
  *   charged whole, and a whole file is answered by the file graph: every test
  *   file that imports it. So is a changed file with no row, and a region that
@@ -34,8 +37,9 @@
  */
 
 import { affectedBy, type Relations } from '@variance-authority/core/relate';
+import { blocksChargedAt } from './blocks-around.js';
 import type { LineRange } from './diff-lines.js';
-import { innermostAt, ownedIn, type ExecutionIndex, type ExecutionModule } from './reverse.js';
+import { ownedIn, type ExecutionIndex, type ExecutionModule } from './reverse.js';
 import type { ExecutionNarrowing } from './select.js';
 import { routeOf, type Unmeasured } from './route.js';
 import { shadowedFor } from './shadowed.js';
@@ -119,11 +123,7 @@ export function narrowByJourneys(
     let loaded = false;
     for (const range of ranges) {
       for (let line = range.start; line <= range.end; line += 1) {
-        // FIXME: charges a changed line to the innermost region alone, while
-        // `variance covering --line` names the regions `blocksChargedAt` charges,
-        // so a line that opens a branch selects fewer cases here than covering
-        // names for it. The Rust port in journey_select.rs moves with this.
-        for (const block of innermostAt(module.blocks, line)) {
+        for (const block of blocksChargedAt(module.blocks, line)) {
           if (read === 'bodies' && block.kind === 'module') continue;
           if (block.loaded === true) loaded = true;
           for (const crossing of block.crossings) {

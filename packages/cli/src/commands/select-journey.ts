@@ -18,8 +18,9 @@ import { relationsFor } from './source-graph.js';
  *
  * A journey file names no commit, so it never looks for its own change: it is
  * given one, as a patch, on stdin, or as whatever `--since` measures. Each
- * changed line goes to the innermost region holding it, and only the cases that
- * entered that region run. Each changed file is read first from both of its
+ * changed line goes to the regions `variance covering --line` names for it —
+ * the innermost holding it, and the one around it when the line opens a region
+ * — and only the cases that entered them run. Each changed file is read first from both of its
  * texts, the old one from the blob the patch names, so a comment or a new
  * function between two declarations is not charged to the module's importers.
  * A list of paths is refused: it carries no line, so
