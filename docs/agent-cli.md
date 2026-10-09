@@ -127,11 +127,9 @@ API](agent-workspace-api.md).
 
 ## Ask a finished run, from the summary outward
 
-A finished run answers in this order: the summary, then what you meant to
-change read back against the run, then the changes grouped, then one subject.
 The examples below are one run of three subjects, `card/summary`,
-`card/compact` and `badge/standalone`, after an edit that gave `Button` and
-`Badge` a new accent colour and was meant to tighten `Card`.
+`card/compact` and `badge/standalone`, after an edit meant to give `Button` and
+`Badge` a new accent colour and to tighten `Card`.
 
 ### Read the summary
 
@@ -158,8 +156,7 @@ as the observations that produced a verdict, so silence cannot be mistaken for
 a clean run. Each line in brackets is one subject: its verdict, then its id.
 The id is whatever your stories or collector named the subject, and you pass it
 whole to every question that takes a subject: `--subject card/summary`. The
-component names after the id, `Button` and `Badge`, are what `--component` and
-a claim take.
+component names after the id are what `--component` takes.
 
 The report is the configured one unless report paths follow the question, in
 which case those are read and merged — the same selection `variance report`
@@ -168,12 +165,13 @@ takes, for the same sharded runs. When the configured report is not on disk,
 the answer opens with the line and commit it read; the CLI's page says
 [which record that is](../packages/cli/README.md#a-checkout-with-no-run-of-its-own).
 
-### Write down what you meant to change
+### Check the run against what you meant to change
 
-If you made the edit, write a claims file before you read the changes. No
-command writes it: it records what you meant, and the run cannot know that.
-Each claim names one component as `component:<name>`, says why in your words,
-and may bound how many subjects the change should touch:
+If you made the edit, you write the claims file yourself, from what you meant
+to change. No command writes it: it records your intent, and the run cannot
+know that. Write it from your intent, not from the summary: a file built from
+the component names the run printed scores the run against itself. The file for
+the edit above names each component it meant to change, as your source names it:
 
 ```json
 {
@@ -184,14 +182,6 @@ and may bound how many subjects the change should touch:
   ]
 }
 ```
-
-Write the component names as your source writes them. A name the run never
-rendered comes back as `unobservable`, not as an error. A claims file copied
-from the run's own changes scores the run against itself. The other root forms
-and the file's rules are in the `variance-authority` skill the CLI ships,
-described [below](#point-an-agent-at-it).
-
-### Read the run back against it
 
 ```bash
 variance ask adjudicate --claims claims.json
@@ -217,37 +207,21 @@ An edit you declared did not take. Fix that before reading anything else.
       examples/agent-claim/src/system.js:48
 ```
 
-The answer has three parts:
-
-- **Delivered**: what you declared and the run shows changed.
-- **Unclaimed**: what changed that you did not declare, here `Avatar`.
-- **Undelivered**: what you declared and did not happen. `Card` rendered in two
-  subjects and did not change, so the edit to it never landed. No comparison of
-  images produces this answer.
-
-Fix an undelivered claim first, run the suite again, and adjudicate with the
-same file. `variance adjudicate --claims claims.json` gives the same answer with
-an exit code a CI job can gate on.
+`Card` is the answer no comparison of images gives: you declared it, it
+rendered in two subjects, and it did not change, so the edit to it never
+landed. Fix that first and run the suite again. `variance adjudicate` runs the
+same check and exits `1` when something needs review. Each claim word is defined in
+[verdicts](information.md#verdicts), and the claims file's other forms are in
+the `variance-authority` skill the CLI ships, described
+[below](#point-an-agent-at-it).
 
 ### Group what changed, then narrow
 
-```bash
-variance ask changes
-```
-
-`changes` groups subjects under the distinct changes behind them, so a token
+If the summary names changes, ask `changes` before opening an individual
+subject: it groups subjects under the distinct changes behind them, so a token
 edit that touched forty stories is one decision rather than forty. Each change
-names its component, the `file:line` that declares it, and the shape digest
-that settles it. The first of the three changes in this run:
-
-```text
-Button
-  examples/agent-claim/src/system.js:28
-  reaches 2 subject(s); it is the whole change in 1
-  in the other 1, something else also moved, so accepting this shape there would promote a difference nobody reviewed
-  5650 pixel(s): card/summary, card/compact
-  variance accept --shape v1:203640236f6a486afeca1e45f656e4dd
-```
+names its component, the `file:line` that declares it, and, where one exists,
+the `variance accept --shape` digest that settles it.
 
 Narrow to `describe`, `explain-verdict`, `trace-component`, `findings`,
 `composition` or `variations` once a subject or a component is in question, for
