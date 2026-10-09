@@ -23,8 +23,8 @@ import { count } from './text.js';
  *
  * Not a change and not counted among the changes. A story that paints what its
  * sibling paints is either an arm whose flag reaches no pixel or one state under
- * two names, and neither shows in a diff: both stories are `new` or both are
- * `unchanged`, and both are green.
+ * two names, and neither shows in a diff: both stories are `new`, or both
+ * changed the same way, and neither is red.
  */
 export function SameImageNote({
   build,

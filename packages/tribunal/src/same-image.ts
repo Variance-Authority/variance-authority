@@ -40,6 +40,10 @@ export function sameImage(
   const families = new Map<string, FamilyMember[]>();
   const keys = new Map<string, string>();
   for (const { subject, after } of candidates) {
+    // FIXME: a story that settled on its baseline's digest kept no candidate and
+    // is skipped here, though its picture is that baseline's. The build does not
+    // record which baseline it settled on, so a pair is named only on the build
+    // that introduced or changed it.
     if (after === undefined) continue;
     const { family, member } = familyOf(subject);
     families.set(family, [...(families.get(family) ?? []), { subject, member }]);

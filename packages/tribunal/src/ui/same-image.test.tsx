@@ -132,6 +132,14 @@ describe('the subject page lays its component’s stories side by side', () => {
     expect(host.querySelector('.va-siblings')?.textContent).toContain('1 story kept no candidate');
   });
 
+  it('draws the first 24 stories of a large component and counts the rest', async () => {
+    const many = Array.from({ length: 26 }, (_, index) => `${FAMILY}--state-${String(index).padStart(2, '0')}`);
+    await show(detail(many.map((id) => story(id)), []), at(many[0] as string));
+
+    expect(host.querySelectorAll('.va-siblings .va-sibling')).toHaveLength(24);
+    expect(host.querySelector('.va-siblings')?.textContent).toContain('2 further stories not drawn');
+  });
+
   it('draws nothing for a subject that is the only story of its component', async () => {
     await show(detail([story('story:toolbar'), ...STORIES.map((id) => story(id))], [SAME]), at('story:toolbar'));
 

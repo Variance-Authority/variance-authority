@@ -89,6 +89,12 @@ describe('stories of one component that render one image are grouped', () => {
     expect((await review.build('ci-1001'))?.sameImage).toEqual([]);
   });
 
+  // A story that settled on its baseline's document digest uploads no candidate,
+  // so a pair is named on the build that introduced or changed it and not on the
+  // green builds after. Its picture is the baseline it settled on, but the build
+  // does not record which baseline that was, and the current one may have moved.
+  it.todo('groups a story that settled on its baseline with a sibling whose candidate is that image');
+
   it('keeps two groups of one component apart', async () => {
     await review.ingest(
       rendered({
