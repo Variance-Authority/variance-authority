@@ -11,11 +11,14 @@ import {
   formatDistillation,
   formatFileDistillation,
   formatScopeDistillation,
+  scopeRows,
   type Distillation,
   type EyesAttempt,
   type FileDistillation,
+  type ScopeDistillInput,
   type ScopeDistillation,
   type ScopeRecord,
+  type ScopeRow,
 } from '@variance-authority/distill';
 import {
   declaredSuites,
@@ -98,6 +101,29 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
  * graph only once, when some file loaded a module no case of it entered.
  */
 async function distillRecords(options: DistillOptions): Promise<ScopeDistillation> {
+  const input = await scopeOf(options);
+  const flat = asOperator(() => distillScope(input));
+  if (flat.spills.length === 0) return flat;
+  const graph = await fileGraph(options.root);
+  return distillScope({ ...input, ...causesFrom(graph) });
+}
+
+/**
+ * A scope read across records as {@link distillFiles} reads it with no case and
+ * no file named, one row a test file; the suites that kept no record are named
+ * beside the rows. No row names an import, so the file graph is not read.
+ */
+export async function distillRows(options: Omit<DistillOptions, 'test' | 'file'>): Promise<{
+  readonly rows: readonly ScopeRow[];
+  readonly unrecorded?: readonly string[];
+}> {
+  const input = await scopeOf(options);
+  const rows = asOperator(() => [...scopeRows(input)]);
+  return { rows, ...(input.unrecorded === undefined ? {} : { unrecorded: input.unrecorded }) };
+}
+
+/** The records a scope is read from, and the declared suites that kept none. */
+async function scopeOf(options: Omit<DistillOptions, 'test' | 'file'>): Promise<ScopeDistillInput> {
   const named = options.execution !== undefined || options.suite !== undefined;
   const declared = named ? undefined : suitesOf(options.root);
   const records: ScopeRecord[] = [];
@@ -120,15 +146,11 @@ async function distillRecords(options: DistillOptions): Promise<ScopeDistillatio
     });
   }
   if (records.length === 0) throw nothingRecorded(options.root, unrecorded);
-  const input = {
+  return {
     ...(options.from === undefined ? {} : { within: options.from }),
     records,
     ...(unrecorded.length === 0 ? {} : { unrecorded }),
   };
-  const flat = asOperator(() => distillScope(input));
-  if (flat.spills.length === 0) return flat;
-  const graph = await fileGraph(options.root);
-  return distillScope({ ...input, ...causesFrom(graph) });
 }
 
 /** A record's bytes, or the operator's refusal when nothing is recorded there. */

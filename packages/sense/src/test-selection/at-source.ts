@@ -67,7 +67,7 @@
  */
 
 import type { BlockKind } from '../instrument/index.js';
-import { KINDS } from './format-layout.js';
+import { BLOCK_KINDS } from './format-layout.js';
 import type { TestCoverageView } from './format-view.js';
 import { chargeLine, rowsOf } from './blocks-around.js';
 import { askCoverageFile } from './coverage-file.js';
@@ -226,7 +226,7 @@ export function testsReachingFromView(
       loadedOnly.add(test);
     }
     regions.push({
-      kind: KINDS[coverage.blockKind.at(block)]!,
+      kind: BLOCK_KINDS[coverage.blockKind.at(block)]!,
       name: coverage.string(coverage.blockName.at(block)),
       path: coverage.string(coverage.blockPath.at(block)),
       startLine: coverage.blockStart.at(block),
@@ -277,7 +277,7 @@ function resolve(
   end: number,
   point: SourcePoint,
 ): readonly number[] {
-  const kindOf = (block: number): BlockKind => KINDS[coverage.blockKind.at(block)]!;
+  const kindOf = (block: number): BlockKind => BLOCK_KINDS[coverage.blockKind.at(block)]!;
   const nameOf = (block: number): string => coverage.string(coverage.blockName.at(block));
   const pathOf = (block: number): string => coverage.string(coverage.blockPath.at(block));
 

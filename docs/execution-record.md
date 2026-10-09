@@ -174,6 +174,12 @@ ask)` is the same open with that close already written for you. Opening costs a
 millisecond and half a megabyte resident, and answering a diff through the view
 is single-digit milliseconds.
 
+A region's `blockKind` in that view is a position in `BLOCK_KINDS`. The cases
+are a section of their own: `caseSectionsAt(file, ['index']).index` reads it,
+and `openSetColumns` opens it as columns — each case's file and how it settled,
+and for each region the set of cases that crossed it after its module loaded —
+with no string decoded until you ask for it.
+
 ## What you can import
 
 These names are the package's published surface. Import them, and the shapes
@@ -182,7 +188,7 @@ they return are the ones this page describes.
 | Import from | Names |
 |---|---|
 | `@variance-authority/sense/instrument` | `instrument`, `instrumentationId`, `instrumentModeOf`, `INSTRUMENTATION_ID`, `EVALUATING`; types `Block`, `BlockKind`, `Instrumented`, `InstrumentOptions`, `ModuleId` |
-| `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `selectTestFiles`, `narrowByExecution`, `mergeCoverage`, `foldTestCoverage`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `cacheRootFor`, `CACHE_CONFIG`, `repositoryLayers`, `layeredFiles`; types `CacheLayers`, `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CoverageShard`, `ExecutionIndex` |
+| `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `BLOCK_KINDS`, `caseSectionsAt`, `openSetColumns`, `selectTestFiles`, `narrowByExecution`, `mergeCoverage`, `foldTestCoverage`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `cacheRootFor`, `CACHE_CONFIG`, `repositoryLayers`, `layeredFiles`; types `CacheLayers`, `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CoverageShard`, `ExecutionIndex`, `SetColumns`, `TestColumns`, `StringTable` |
 | `@variance-authority/sense/journal` | `testSelectionProbes`, `drainExecution`, `recordExecution`, `joinObservations`, `moduleId`, `EXECUTION_GLOBAL`; types `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `ObservedSubject` |
 | `@variance-authority/sense/journey` | `collectJourneys`, `stitchJourneys`, `mintJourney`, `journeyOf`, `JOURNEY_COOKIE`, `JOURNEY_VARIABLE`, `JOURNEY_HEAD_VARIABLE`; types `JourneyAccount`, `JourneyReport`, `StitchedJourneys` |
 

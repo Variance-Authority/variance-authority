@@ -71,11 +71,11 @@ export {
 } from './execution-format.js';
 export { mergeExecutionIndexes } from './execution-merge.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
-export { encodeAsSetExecutionIndex, journeyGaps, type JourneyGaps } from './execution-set-format.js';
+export { encodeAsSetExecutionIndex, journeyGaps, openSetColumns, type JourneyGaps, type SetColumns, type StringTable, type TestColumns } from './execution-set-format.js';
 export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
 export { readingLines, type FileReading } from './reading-lines.js';
 export { atDistance, distanceRange, groupByDistance, remaining, type DistanceGroup } from './at-distance.js';
-export { distanceFromView, nearestFirst } from './distance.js';
+export { distanceFromView, nearestFirst, type Bearing, type DistanceOptions, type TestDistance } from './distance.js';
 export { testsReaching, testsReachingFromView, distanceToSource } from './at-source.js';
 export type { SourceAudience, SourceAudienceTest, SourcePoint, SourceRegion };
 // The file list a selection will ask about, and its hunks' text, so a caller names
@@ -92,10 +92,8 @@ export type { KeptInstall } from './kept-install.js';
 // landing that cuts the text again puts them.
 export { sourceCut } from './coverage-rows.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
-export type { Bearing, DistanceOptions, TestDistance } from './distance.js';
-export type { Face, Faces, ReachThrough } from './faces.js';
 export { selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
-export { eitherFace, indexFaces } from './faces.js';
+export { eitherFace, indexFaces, type Face, type Faces, type ReachThrough } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
 export { foldTestCoverage, journeyDivergences, mergeCoverage };
 export {
@@ -172,6 +170,7 @@ export { layerTestCoverage, layeredCoverage } from './format-layer.js';
 // file and not wanting the seventy megabytes the answers do not touch. The
 // file-taking queries below are this plus a `finally`.
 export { askCoverageFile, isTestCoverageFile, openCoverageFile, type CoverageFile } from './coverage-file.js';
+export { BLOCK_KINDS } from './format-layout.js';
 export { sharedPreconditions, testsGovernedBy } from './lookup.js';
 // The runs that wrote the case index and the snapshot, and what they were laid over.
 // The lock every writer of a record takes, for a caller that lands one.

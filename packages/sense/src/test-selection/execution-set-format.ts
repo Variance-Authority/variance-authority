@@ -23,6 +23,9 @@ import {
 } from './execution-set-columns.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
 
+/** What `openSetColumns` hands back, for a reader that walks every case of a large record without decoding it. */
+export type { SetColumns, StringTable, TestColumns } from './execution-set-columns.js';
+
 /**
  * A journey-only execution index: every crossing has measured distance zero.
  *
@@ -184,7 +187,8 @@ export function openSetExecutionIndex(bytes: Uint8Array): OpenedSetExecutionInde
 
 /**
  * The compact spelling as its columns, every one checked and no string
- * decoded; nothing for the row spelling.
+ * decoded; nothing for the row spelling. Takes a case index's own bytes, the
+ * `index` section `caseSectionsAt` reads out of a record.
  */
 export function openSetColumns(bytes: Uint8Array): SetColumns | undefined {
   const opened = sectionsOf(bytes);

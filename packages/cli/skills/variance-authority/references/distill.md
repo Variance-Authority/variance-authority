@@ -32,6 +32,56 @@ is the CLI's.
 variance distill --file checkout.test.tsx --test submits
 ```
 
+## How much each test file loads for nothing
+
+`--format jsonl` writes the scope reading one line a test file instead: its
+suite, its `cases`, what it `loaded` (modules that declare a function, other
+than itself, and their lines), and the part of that no case of it entered as
+`unentered`. A file whose cases cannot say what it did without has `withheld`
+with the reason instead of `unentered`. A suite that kept no record is named on
+stderr. `--test` and `--file` refuse it. Percentiles across a suite are a `jq`
+away; this one gives the share of what each file loaded that no case entered,
+by modules and by lines:
+
+```bash
+variance distill --format jsonl | jq -s '
+  def pct($p): .[(($p / 100) * length | ceil) - 1];
+  def share(f): map(select(.unentered and .loaded.modules > 0) | f) | sort
+    | {files: length, P50: pct(50), P75: pct(75), P90: pct(90), P99: pct(99)};
+  group_by(.suite) | map({suite: .[0].suite,
+    modules: share(.unentered.modules / .loaded.modules),
+    lines: share(if .loaded.lines == 0 then 0 else .unentered.lines / .loaded.lines end)})'
+```
+
+A module that declares no function is not counted: it ran all it has when it
+loaded, so no case could have done without it. `unentered` is the most that
+Jest's inline requires, or any lazy import, could stop a file paying.
+
+The CLI decodes each record whole, which costs about thirty times its file on
+the heap. When a record is too large for that, write the same rows from the
+record where it lies, through its own readers.
+`recordedExecutionFile(root, suite)` from `@variance-authority/cli` names the
+record the CLI reads. From `@variance-authority/sense/test-selection`:
+
+- `openCoverageFile(record)` gives each module's regions, numbered by
+  `BLOCK_KINDS`, and the test files that loaded its top level:
+  `blockLoadedSet` of its `module` region, and `testComplete` for whether each
+  test file's row is whole.
+- `openSetColumns(caseSectionsAt(record, ['index']).index)` gives each case's
+  file and how it settled (`testStopped`, `1` finished), and, by `blockCalled`,
+  the cases that crossed each region after its module loaded. An absent section,
+  or `undefined` from an index written in the older row spelling, means the
+  record keeps no cases you can read this way: stop and use the CLI.
+
+Count the rows the way distill does. A candidate is an instrumented module with
+a `function` region from source, loaded by the file and not the file itself. A
+module is entered when a case of the file crossed one of its regions other than
+`module`. A file is withheld when it has no case, its coverage row is not
+complete, or any case did not finish. Join the two readers on the test file's
+path, walk one module at a time, and hold a few counters a test file. Before
+trusting the script, check that it writes the rows
+`variance distill --from <dir> --format jsonl` writes for one directory.
+
 ## The record
 
 A Vitest, Jest, rstest or Playwright run wrapped in `withTestSelection` writes
