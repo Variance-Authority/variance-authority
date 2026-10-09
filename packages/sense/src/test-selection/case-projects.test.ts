@@ -16,17 +16,20 @@ describe('the copies of a case two projects ran, told apart by project', () => {
     ])).toEqual(['|plain| test/a.test.ts > pays', '|compiled| test/a.test.ts > pays']);
   });
 
-  it('numbers a repeat inside one project, and leaves a case one project ran bare', () => {
+  it('names a copy the same whether the run took its twin or not', () => {
+    expect(idsOf([{ file: 'test/a.test.ts', name: 'pays', id: 'h1', project: 'plain' }]))
+      .toEqual(['|plain| test/a.test.ts > pays']);
+  });
+
+  it('numbers a repeat inside one project', () => {
     expect(idsOf([
       { file: 'test/a.test.ts', name: 'pays', id: 'h1', project: 'plain' },
       { file: 'test/a.test.ts', name: 'pays', id: 'h2', project: 'plain' },
       { file: 'test/a.test.ts', name: 'pays', id: 'h3', project: 'compiled' },
-      { file: 'test/a.test.ts', name: 'owes', id: 'h4', project: 'plain' },
     ])).toEqual([
       '|plain| test/a.test.ts > pays',
       '|plain| test/a.test.ts > pays#1',
       '|compiled| test/a.test.ts > pays',
-      'test/a.test.ts > owes',
     ]);
   });
 
