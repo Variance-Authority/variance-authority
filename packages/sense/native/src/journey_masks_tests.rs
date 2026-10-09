@@ -19,7 +19,7 @@ fn recorded() -> JourneyMasks {
         end_line: end,
         source: true,
     };
-    let module = |file: &str, blocks: Vec<Block>| Module { id: file.to_owned(), file: file.to_owned(), blocks };
+    let module = |file: &str, blocks: Vec<Block>| Module { id: file.to_owned(), file: file.to_owned(), blocks, owners: None };
     let modules = [
         module(
             "src/route.ts",

@@ -11,7 +11,7 @@ import {
   projectPath,
   type CapturedModule,
 } from './instrumented-modules.js';
-import { AMBIENT, caseIds, caseKey, inCaseOrder, settledAcross, unpackCase, unpackFrames } from './cases.js';
+import { AMBIENT, caseIds, caseKey, inCaseOrder, keptOwners, settledAcross, unpackCase, unpackFrames } from './cases.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
 import eyesFrames from './eyes-frame.cjs';
 import type { EyesSection, RecordedEyes } from './eyes-record.js';
@@ -372,6 +372,7 @@ export async function foldCaseRun(
       })),
       called: Uint32Array.from(kept, (block) => calledSets[block]!),
       loaded: Uint8Array.from(kept, (block) => loaded[block]!),
+      owner: keptOwners(module.blocks),
     });
   }
   return {

@@ -8,6 +8,7 @@
  */
 
 import type { SetExecutionModule } from './execution-set-format.js';
+import { NO_OWNER } from './format-layout.js';
 import { addressKey, sameNumbering } from './merge-carry.js';
 
 /**
@@ -23,7 +24,8 @@ import { addressKey, sameNumbering } from './merge-carry.js';
  * rule the snapshot re-cut its rows to the newer text by. Then a held region
  * the recorded cut has no address for is left out: no line of the newer text
  * holds it, and kept at a line of the older one it would pair with whatever
- * region stands there now.
+ * region stands there now. A kept region's owner is the nearest region around
+ * it that is kept too, so a region born under one still takes its cases.
  */
 // FIXME: regions told apart only by occurrence carry no seat for
 // `sameNumbering` to compare, so a sibling taken out in front of them and
@@ -50,7 +52,18 @@ export function relined(held: SetExecutionModule, recorded: SetExecutionModule):
     })),
     called: Uint32Array.from(kept, (from) => held.called[from]!),
     loaded: Uint8Array.from(kept, (from) => held.loaded[from]!),
+    ...(held.owner === undefined ? {} : { owner: keptOwners(held.owner, kept) }),
   };
+}
+
+/** `owner` over the regions at `kept`, each walking out past the regions left out to the nearest kept one. */
+function keptOwners(owner: Uint32Array, kept: readonly number[]): Uint32Array {
+  const at = new Map(kept.map((from, position) => [from, position]));
+  return Uint32Array.from(kept, (from) => {
+    let around = owner[from]!;
+    while (around !== NO_OWNER && !at.has(around)) around = owner[around]!;
+    return around === NO_OWNER ? NO_OWNER : at.get(around)!;
+  });
 }
 
 /**

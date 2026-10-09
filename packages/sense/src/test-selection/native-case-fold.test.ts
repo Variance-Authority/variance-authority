@@ -8,6 +8,8 @@ import { native, nativeAvailable } from '../native.js';
 import { foldCaseRun, inspectCaseRun } from './case-fold.js';
 import { packCase, packFrames } from './cases.js';
 import { decodeExecutionIndex } from './execution-format.js';
+import { openSetExecutionIndex } from './execution-set-format.js';
+import { NO_OWNER } from './format-layout.js';
 import eyesFrames from './eyes-frame.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import preconditions from './case-preconditions.cjs';
@@ -195,5 +197,33 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
       { id: 'test/branch.test.ts > beta' },
     ]);
     expect(answered).toMatchObject({ tests: 2, modules: 1, crossings: 5 });
+  });
+  it('names the region around each region, as the object fold does, and a stitch keeps it', async () => {
+    const cases = await directory();
+    // The module holds a function, and the function two branches.
+    const captured = branchModule();
+    const module: CapturedModule = {
+      ...captured,
+      blocks: [
+        { ...captured.blocks[0]!, endLine: 9 },
+        { ...captured.blocks[1]!, kind: 'function', owner: 0, endLine: 8 },
+        { ...captured.blocks[2]!, owner: 1 },
+        { ...captured.blocks[2]!, ordinal: 3, digest: digestString('block-3'), name: 'branch-3', path: 'branch-3', startLine: 5, endLine: 5, owner: 1 },
+      ],
+    };
+    await writeFile(resolve(cases, 'worker.vac'), packFrames([
+      journalFormat.encodeJournal(packCase('/repo/test/branch.test.ts', 'alpha', '1'), new Map([['src/branch.ts', counters(4, [0, 2])]])),
+    ]));
+    const output = resolve(cases, '..', 'journeys.bin');
+
+    native()!.foldJourneyTo!(cases, '/repo', [nativeModule(module)], output);
+    const owners = (bytes: Uint8Array) => openSetExecutionIndex(bytes)!.modules.map((row) => [...row.owner ?? []]);
+    const oracle = await foldCaseRun(await inspectCaseRun(cases, '/repo'), new Map([['src/branch.ts', module]]), 64);
+
+    expect(owners(await readFile(output))).toEqual(owners(oracle.bytes));
+    expect(owners(await readFile(output))).toEqual([[NO_OWNER, 0, 1, 1]]);
+    const stitched = resolve(cases, '..', 'stitched.bin');
+    native()!.stitchJourneysTo!([output, output], stitched);
+    expect(owners(await readFile(stitched))).toEqual([[NO_OWNER, 0, 1, 1]]);
   });
 });

@@ -73,6 +73,11 @@ export interface NativeJourneyModule {
     readonly endLine: number;
     readonly source: boolean;
   }[];
+  /**
+   * Each region's owner, as its position among `blocks`, always before it, or
+   * `NO_OWNER`; absent where the cut named none.
+   */
+  readonly owners?: readonly number[];
 }
 
 export interface NativeJourneyFold {

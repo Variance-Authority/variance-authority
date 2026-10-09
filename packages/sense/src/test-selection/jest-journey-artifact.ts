@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { InstrumentMode } from '../instrument/index.js';
 import { native, nativeRefusal, type NativeJourneyModule, type NativeScanner } from '../native.js';
+import { NO_OWNER } from './format-layout.js';
 import { NO_LINE } from './written-lines.js';
 import { deriveModules } from './captured-modules.js';
 import type { CapturedModule } from './instrumented-modules.js';
@@ -122,6 +123,7 @@ export async function stitchJourneyArtifacts(
 
 /** A module cut again from the checkout, as the native fold reads it. */
 export function nativeModule(module: CapturedModule): NativeJourneyModule {
+  const place = new Map(module.blocks.map((block, at) => [block.ordinal, at]));
   return {
     id: module.id,
     file: module.file,
@@ -133,6 +135,7 @@ export function nativeModule(module: CapturedModule): NativeJourneyModule {
       endLine: block.endLine ?? NO_LINE,
       source: block.source,
     })),
+    owners: module.blocks.map((block) => (block.owner === undefined ? NO_OWNER : place.get(block.owner) ?? NO_OWNER)),
   };
 }
 

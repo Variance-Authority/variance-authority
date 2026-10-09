@@ -367,7 +367,13 @@ function indexRunOf(tests: readonly ExecutionTest[]): LaidRun {
   return { tests: [...new Set(tests.map((test) => test.file))].sort(codeUnitOrder).map((file) => ({ file, complete: true })) };
 }
 
-/** The shard's index spelled as sets, with its cases, when it has one this build can read. */
+/**
+ * The shard's index spelled as sets, with its cases, when it has one this build can read.
+ *
+ * FIXME: a shard whose index is spelled as rows, or as sets by a build before
+ * `blocks.owner`, is laid with no owners, so a region born in it takes none
+ * of its owner's cases.
+ */
 function layableIndex(bytes: Uint8Array | undefined): { readonly bytes: Uint8Array; readonly tests: readonly ExecutionTest[] } | undefined {
   if (bytes === undefined) return undefined;
   try {

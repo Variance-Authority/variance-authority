@@ -1,5 +1,5 @@
 import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.js';
-import { durationWord, NO_DURATION, validSections, type Header, type Section } from './format-layout.js';
+import { durationWord, NO_DURATION, NO_OWNER, validSections, type Header, type Section } from './format-layout.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import { PRECONDITIONS_COLUMN, UNHEARD } from './case-precondition-column.js';
 import type { ExecutionTest } from './reverse.js';
@@ -56,6 +56,12 @@ export interface SetColumns extends TestColumns {
   readonly blockCalled: Uint32Array;
   /** `1` where the region ran while its module loaded, whichever version stored it. */
   readonly blockLoaded: Uint8Array;
+  /**
+   * Where the region around each region stands among its module's regions,
+   * always before it, or {@link NO_OWNER}. Absent in an index written before
+   * regions carried their owner, and in one whose producer does not write it.
+   */
+  readonly blockOwner: Uint32Array | undefined;
   readonly sets: CrossingSetsView;
 }
 
@@ -117,6 +123,16 @@ export function setColumns(opened: OpenedSections): SetColumns {
   for (let module = 0; module < moduleFile.length; module += 1) {
     if (moduleBlocks[module + 1]! < moduleBlocks[module]! || moduleBlocks[module + 1]! > blockCount) throw invalid();
   }
+  // Written since a region carries its owner; a file without it names no region around any.
+  const blockOwner = opened.found.has('blocks.owner') ? words('blocks.owner') : undefined;
+  if (blockOwner !== undefined && blockOwner.length !== blockCount) throw invalid();
+  for (let module = 0; module < moduleFile.length && blockOwner !== undefined; module += 1) {
+    const first = moduleBlocks[module]!;
+    for (let block = first; block < moduleBlocks[module + 1]!; block += 1) {
+      const owner = blockOwner[block]!;
+      if (owner !== NO_OWNER && owner >= block - first) throw invalid();
+    }
+  }
 
   const setOffsets = words('sets.off');
   const sets = openCrossingSets({ bytes: columnBlob(opened, 'sets.blob', setOffsets), offsets: setOffsets, testCount });
@@ -129,7 +145,7 @@ export function setColumns(opened: OpenedSections): SetColumns {
     strings: table,
     ...tests,
     moduleFile, moduleBlocks,
-    blockKind, blockName, blockPath, blockStart, blockEnd, blockSource, blockCalled, blockLoaded,
+    blockKind, blockName, blockPath, blockStart, blockEnd, blockSource, blockCalled, blockLoaded, blockOwner,
     sets,
   };
 }

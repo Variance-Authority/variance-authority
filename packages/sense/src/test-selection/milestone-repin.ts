@@ -26,7 +26,7 @@ import { carriedSources } from './carried-sources.js';
 import { caseSectionsOf, withCaseSections } from './case-record.js';
 import { layerCaseIndex } from './case-layer.js';
 import { commitRunsFile, readCommitRuns, writeCommitRuns, type CommitRuns, type StandingEntry } from './commit-runs.js';
-import { decodeSetExecutionIndex, encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
+import { decodeSetExecutionIndex, encodeOwnedSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes } from './eyes-record.js';
 import { decodeTestCoverage } from './format.js';
 import { layerTestCoverage } from './format-layer.js';
@@ -170,8 +170,9 @@ function ownSubset(own: TestCoverage, tests: ReadonlySet<string>): TestCoverage 
  * record's own. Without either there is nothing this checkout's cases could
  * be laid on, and the record carries none.
  */
-function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array | undefined, tests: ReadonlySet<string>): Uint8Array | undefined {
-  if (own === undefined || openSetExecutionIndex(own) === undefined || tests.size === 0) return milestone;
+export function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array | undefined, tests: ReadonlySet<string>): Uint8Array | undefined {
+  const opened = own === undefined ? undefined : openSetExecutionIndex(own);
+  if (own === undefined || opened === undefined || tests.size === 0) return milestone;
   const index = decodeSetExecutionIndex(own);
   // Crossings name a case by its position, so the kept cases are renumbered.
   const at = new Map<number, number>();
@@ -180,20 +181,20 @@ function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array | unde
     at.set(position, at.size);
     return true;
   });
-  const fresh = encodeAsSetExecutionIndex({
-    tests: cases,
-    // A module no kept case entered keeps the milestone's layout of it.
-    modules: index.modules.flatMap((module) => {
-      const blocks = module.blocks.map((block) => ({
-        ...block,
-        crossings: block.crossings.flatMap((crossing) => {
-          const test = at.get(crossing.test);
-          return test === undefined ? [] : [{ ...crossing, test }];
-        }),
-      }));
-      return blocks.some((block) => block.crossings.length > 0) ? [{ ...module, blocks }] : [];
-    }),
+  // A module no kept case entered keeps the milestone's layout of it. One that
+  // is kept keeps its regions in place, so the owners it recorded still hold;
+  // they are carried by place, as two cuts of one file can stand side by side.
+  const kept = index.modules.flatMap((module, place) => {
+    const blocks = module.blocks.map((block) => ({
+      ...block,
+      crossings: block.crossings.flatMap((crossing) => {
+        const test = at.get(crossing.test);
+        return test === undefined ? [] : [{ ...crossing, test }];
+      }),
+    }));
+    return blocks.some((block) => block.crossings.length > 0) ? [{ module: { ...module, blocks }, owner: opened.modules[place]?.owner }] : [];
   });
+  const fresh = encodeOwnedSetExecutionIndex({ tests: cases, modules: kept.map(({ module }) => module) }, kept.map(({ owner }) => owner));
   return layerCaseIndex(milestone, fresh, { ran: tests, finished: tests, present: () => true }).merged;
 }
 
