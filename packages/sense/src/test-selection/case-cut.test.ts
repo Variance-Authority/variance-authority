@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -33,6 +33,13 @@ describe('the cases a run is handed to skip', () => {
 
     removeCut(file);
     expect(cutFiles(file)).toEqual(new Set());
+  });
+
+  it('refuses a cut it cannot read, rather than running every case', () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'va-cut-')), 'cut.json');
+    writeFileSync(file, '{');
+
+    expect(() => cutFiles(file)).toThrow(SyntaxError);
   });
 });
 

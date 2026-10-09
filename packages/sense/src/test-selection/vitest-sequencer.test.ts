@@ -62,6 +62,22 @@ describe('the sequencer that drops what a selection may skip', () => {
     expect(names(part)).toEqual(['c.test.ts']);
   });
 
+  it('hands on the cases the kept files skip, by the path the run knows each by', async () => {
+    const handed: unknown[] = [];
+    const cases = new Map([['a.test.ts', ['one']], ['c.test.ts', ['two']]]);
+    const Sequencer = selectingSequencer(Reversing, {
+      root,
+      configRoot: root,
+      selection: async () => selection(['c.test.ts'], { cases }),
+      cut: (cut) => handed.push(cut),
+      say: () => {},
+    });
+
+    await new Sequencer(context({}, ['a.test.ts', 'b.test.ts', 'c.test.ts'])).sort(['a.test.ts', 'b.test.ts', 'c.test.ts'].map(spec));
+
+    expect(handed).toEqual([new Map([[resolve(root, 'a.test.ts'), ['one']]])]);
+  });
+
   it('chains Vitest\'s own sequencer when the project names none', async () => {
     const Sequencer = selectingSequencer(undefined, {
       root,

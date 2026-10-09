@@ -139,6 +139,16 @@ describe('selecting at case grain', () => {
     expect(selected.cases).toBeUndefined();
   });
 
+  it('names none from a record that keeps no cases', async () => {
+    const root = await recorded({ cases: false });
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'a';", "return 'A';"));
+
+    const selected = await selectSuite({ root, grain: 'case' });
+
+    expect([...selected.skip]).toEqual(['test/beta.test.ts']);
+    expect(selected.cases).toEqual(new Map());
+  });
+
   it.todo(
     'cuts a file the last run ran in part again — needs the record to keep the skipped cases\' reach, so the file reads whole after a cut',
   );
@@ -170,7 +180,7 @@ const SOURCE = [
  * A checkout at the text below, recorded: `alpha` has a case that entered
  * `widget` and one that entered `other`; `beta` entered `other` alone.
  */
-async function recorded(): Promise<string> {
+async function recorded(options: { cases?: false } = {}): Promise<string> {
   const root = mkdtempSync(join(tmpdir(), 'va-cases-'));
   const git = (args: readonly string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   git(['init', '--quiet', '--initial-branch', 'main']);
@@ -215,7 +225,7 @@ async function recorded(): Promise<string> {
       ],
     }],
   };
-  await writeTestCoverage(testCoverageFile(root), record, { index: encodeExecutionIndex(cases) });
+  await writeTestCoverage(testCoverageFile(root), record, options.cases === false ? {} : { index: encodeExecutionIndex(cases) });
   process.chdir(root);
   await indexOutput({ cwd: root });
   return root;
