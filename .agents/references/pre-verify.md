@@ -161,7 +161,8 @@ the edit does. A module added since the recording is read the same way, with
 every export counted as changed, so it selects the tests that entered a function
 reading one. A page-side module that cannot take a probe is marked as loaded
 instead (`unprobed` in `vitest.config.mts`), so a change to it selects every test
-that loaded it. A changed file the recording has no row for, and that reading
+that loaded it. A source a page-agent bundle is built from runs the whole
+chromium slice, because that slice's `before` names each bundle's entry. A changed file the recording has no row for, and that reading
 cannot answer — a stylesheet — is asked of the import graph, and the nearest
 measured files that import it select their tests; a bumped package is answered
 the same way by its measured importers. A

@@ -20,5 +20,6 @@ A module the instrumenter cannot parse now runs with the same mark instead of
 unrecorded, so an edit to it selects the tests that loaded it rather than none.
 
 Code a test reads as text and runs elsewhere, such as a bundle injected into the
-page, is still not loaded through the runner and is still not selected by an
-edit to it.
+page, is not loaded through the runner, so no test records it. Declare the
+bundle's entry in the `before` of the suite that injects it: an edit to anything
+the bundle is built from then runs that whole suite.

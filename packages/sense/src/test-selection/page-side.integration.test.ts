@@ -93,12 +93,12 @@ describe('a module loaded but not probed', () => {
     expect(narrowing.entered).toEqual([named('test/collector.test.js')]);
   });
 
-  // FIXME: a module read as text and run in the page (tools/page-agents.mjs bundles) is never loaded through the
-  // runner, so nothing marks it and an edit to it selects nothing. Measuring it needs a record of which
-  // bundle a test read and what went into it — a record-format or spec decision, not taken here.
-  it.todo(
-    'selects the test that ran a bundle in the page for an edit to its source — needs a record of what the bundle was built from',
-  );
+  // A module read as text and run in the page (tools/page-agents.mjs bundles) is never loaded through the runner,
+  // so nothing here can mark it. It is declared instead: the chromium suite's `before` names each bundle's entry,
+  // and tools/page-agents.check.ts holds that an edit to anything a bundle is built from runs the whole suite.
+  // FIXME: that over-picks every chromium test. Selecting only the tests that injected a bundle needs a marked id
+  // per injected bundle input, emitted by eyes and presentation through the probe runtime and folded by every
+  // runner — the probe protocol in two packages that do not depend on sense.
 
   it('still charges a probed module by its lines', async () => {
     const narrowing = await select(await edit(plain, "'plain'", "'plainer'"));
