@@ -6,6 +6,8 @@
 '@variance-authority/route-collector': minor
 '@variance-authority/storybook-collector': minor
 '@variance-authority/cli': minor
+'@variance-authority/vitest-browser': patch
+'@variance-authority/unit-test': patch
 ---
 
 A page reads its clock in UTC and formats for en-US, not for the host

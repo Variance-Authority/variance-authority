@@ -188,6 +188,10 @@ describe('browserless capture archive', () => {
     await writeFile(nodePath, JSON.stringify(malformedNested), 'utf8');
     await expect(readCapture(nodePath)).rejects.toThrow('invalid semantic snapshot');
   });
+
+  it.todo(
+    'keys a capture by the timezone and locale jsdom formatted its text in — needs a declared pair the jsdom run is started in, since the Node process reads the host',
+  );
 });
 
 /**
