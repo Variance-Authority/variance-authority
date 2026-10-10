@@ -50,6 +50,7 @@ import { checkoutRead } from './checkout-read.js';
 import { mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
 import { many } from './prose-counts.js';
 import { restingOf } from './select-before.js';
+import { withCases } from './select-cases.js';
 import { handedDiff, journeyReading } from './select-journey.js';
 import type { Leg } from './select-leg.js';
 import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js';
@@ -315,7 +316,11 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
           },
         };
 
-  return said({ ...rested, ground });
+  const answer = said({ ...rested, ground });
+  // FIXME: a stand's tests were read against their own diff, and the case cut
+  // reads the journal's alone, so a selection with stands runs its files whole.
+  if (request.grain !== 'case' || ground.kind !== 'read' || stands.length > 0) return answer;
+  return await withCases(answer, at, ground.narrowing, selection.changedLines(diff));
 }
 
 /**

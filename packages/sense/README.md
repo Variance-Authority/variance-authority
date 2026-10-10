@@ -93,6 +93,16 @@ recorded run, as [sharding](../../docs/sharding.md) shows. Watch mode does not s
 `@variance-authority/cli` has to be installed in the project; when the checkout cannot resolve it, the run fails and the message
 names the package.
 
+`VARIANCE_AUTHORITY_GRAIN=case` also skips, inside each selected file, the
+cases that entered none of the changed regions. The sequencer writes their
+names to one file before any worker starts, and the case runner marks them
+skipped in `onCollected`, as `it.skip` would; under Jest, a `jest-circus`
+`run_start` handler does the same. Nothing reaches argv. A file runs whole
+whenever the record cannot say which cases the change reached, and a file run
+in part is recorded incomplete, so the next selection runs it whole, and while
+some test last ran at an earlier commit than the latest run, every file runs
+whole. File grain is the default; any value other than `file` or `case` fails the run.
+
 ### Ask for the skip list yourself
 
 A runner with no seam, or a program that decides for itself, reads the same

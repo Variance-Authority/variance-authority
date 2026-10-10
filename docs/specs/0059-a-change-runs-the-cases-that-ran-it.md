@@ -1,14 +1,16 @@
 # Spec 0059 — a change runs the cases that ran it
 
-**Missing:** a selection whose unit is the case. Every seam records which case
-entered which region (`<coverage file>.cases.bin`), and `narrowByJourneys`
-already reads that record. But it answers with test files, and so does
-`yarn test:since`. A branch that five of two hundred cases walked runs all two
-hundred. Nothing hands a runner the five.
+**Missing:** the case as the unit everywhere a selection runs. Under Jest and
+Vitest, `VARIANCE_AUTHORITY_GRAIN=case` skips the cases of a selected file that
+entered none of the changed regions. Playwright and Rstest still run every
+selected file whole. A file run in part is recorded incomplete, so the next
+selection runs it whole. A selection that reads a stand runs its files whole.
+A runner with no seam reads files alone from `variance select`.
 **Built on:** `cases.ts` (the per-case record, scoped by async context),
-`execution-select.ts` `narrowByJourneys` (the region-to-case join),
-[ADR-0072](../context/adr/0072-a-change-is-read-before-it-is-charged.md) (the
-regions a change is charged to).
+`select-cases.ts` `casesToSkip` (the region-to-case join for a selection),
+`case-cut.ts` (the cut, carried from the process that read the selection to its
+workers), [ADR-0072](../context/adr/0072-a-change-is-read-before-it-is-charged.md)
+(the regions a change is charged to).
 
 ## Purpose
 
@@ -17,58 +19,76 @@ file is the unit CI shards on. It is not the unit a person or an agent waits
 on in a local loop. The record already has the finer answer, and a file-grain
 selection throws it away at the last step.
 
+## What exists
+
+**The join answers cases.** `selectSuite` with `grain: 'case'` reads the case
+index the record carries and names, for each selected file, the cases that may
+be skipped: the ones whose crossings entered none of the regions the selection
+charged that file to. A file runs whole when any of these holds:
+
+- a reason other than a region selected it: the file changed, a precondition,
+  a reader, an import path;
+- the case index does not hold the region the selection named;
+- a charged region ran for the file rather than for a case: at collection
+  time, in a `beforeAll`, or while a module evaluated, whether or not a case
+  was open (see [A module evaluated inside a case](#a-module-evaluated-inside-a-case));
+- no case of the file entered the region.
+
+A case whose journey was cut short or not seen to end runs. So does a case
+that shares its full name with a case that entered.
+
+**Code outside every case is credited to every case.** A region that ran at
+collection time, in a `beforeAll`, or while a module evaluated ran for the file,
+not for one case. The record says so two ways. One that ran at collection time
+or in a `beforeAll` sits in the file's own frame, which credits it to every case
+of the file. One that ran while a module evaluated is marked `loaded`, and the
+evaluation is credited to no case. A case that enters the same region later, by
+a call, is credited with that call as usual. Charging either runs the whole
+file, never the first case that happened to load it.
+
+**The runner skips through its own task modes.** The process that read the
+selection writes the cut to one file, keyed by absolute test path. Each worker
+marks the named cases skipped after collecting the file and before running it:
+Vitest in the case runner's `onCollected`, Jest in a circus `run_start` handler.
+A case the file already skips, or leaves out under `only`, keeps its mode.
+Nothing reaches argv, so the selection holds at any number of cases. The
+stderr line counts the cut: `selected 2 of 3, skipping 3 cases in 2 of them`.
+
+**The grain is chosen, and the gate keeps the file.** File grain is the
+default. `VARIANCE_AUTHORITY_GRAIN=case` asks for cases, and any value other
+than `file` or `case` fails the run. The verify waves set the file grain.
+
 ## What would discharge it
 
-**1. The join answers cases.** A region charged by 0030 or by a reading selects the
-cases whose crossings entered it. `ExecutionNarrowing` carries the cases for each
-selected file, each with its `SelectionReason`. A file keeps the file-grain
-answer when any of the following is true: the file itself changed, the file has
-no case record, the file was charged whole (a `load` verdict, an import path),
-or a charged region ran for the file rather than for a case: at collection time,
-in a `beforeAll`, or while a module evaluated, whether or not a case was open
-(see [A module evaluated inside a case](#a-module-evaluated-inside-a-case)).
+**1. A cut file reads whole again.** A file run in part records the cases it
+ran and is marked incomplete, because the cases it skipped recorded nothing.
+The next selection runs that file whole, so a loop of edits alternates a cut
+run and a whole one. The record would keep the skipped cases' reach from the
+run before, and a file whose every case is accounted for would read as complete.
 
-**2. Code outside every case is credited to every case.** A region that ran at
-collection time, in a `beforeAll`, or while a module evaluated ran for the file,
-not for one case. So every case in the file depends on it. The record already
-says so, two ways. One that ran at collection time or in a `beforeAll` sits in
-the file's own frame, which credits it to every case of the file. One that ran
-while a module evaluated is marked `loaded`, and the evaluation is credited to
-no case: covering names every case of each file that loaded the module, through
-the file graph. A case that enters the same region later, by a call, is
-credited with that call as usual.
-Charging either selects the whole file, never the first case that happened to
-load it.
+**2. A stand is cut against its own diff.** A stand's tests are read against
+the diff since that stand. The cut reads the journal's diff alone, so a
+selection with stands runs its files whole. A commit between two runs leaves
+every test the second one skipped standing at the first commit until one run
+takes the suite to a single commit, so a loop that commits as it goes loses
+the cut after its first commit.
 
-**3. Each runner's own public filter, and nothing of ours.** The selected cases
-are passed through the filter the runner already documents:
+**3. Playwright and Rstest cut.** Playwright through its test list, Rstest
+through its runner's task modes, as Vitest does.
 
-| Runner | Filter |
-|---|---|
-| Vitest | `--testNamePattern` over the full name, anchored and escaped, one alternative per case |
-| Playwright | `--test-list`, a file of `path › title` lines |
-| Rstest | `--testNamePattern`, as for Vitest |
-
-No runner is patched and no reporter skips cases by itself. A person can paste
-the same command, and it runs the same cases.
-
-**4. A name is not an identity, and a collision widens.** `ExecutionTest.name`
-is not unique within a file. When two cases share a full name and only one of
-them was selected, the filter runs both, and `--dry-run` says so. When a
-runner's pattern cannot express the set, the whole file runs and the run says
-why.
-
-**5. `test:since` chooses the grain.** File grain stays the default for the
-gate. `--cases` asks for cases. `yarn verify` never narrows below the file.
+**4. A collision is reported.** When two cases share a full name and only one
+of them was reached, both run. The selection's notes would name the
+collision, so a person reading stderr sees why a case they expected skipped
+ran.
 
 **Acceptance, as scenarios:**
 
 - A change inside a branch that one case of a 200-case file enters runs that
-  one case under each of the three runners.
-- A change to a function that only a `beforeAll` calls runs the whole file.
+  one case under each of the four runners.
+- An edit, a run, and a second edit to the same function cut the file both
+  times.
 - Two cases named `renders` in one file, one of them selected: both run, and
-  the dry run names the collision.
-- A test file changed in the diff runs whole.
+  stderr names the collision.
 
 ## A module evaluated inside a case
 
@@ -259,8 +279,8 @@ part is missing, and `ranWhileLoading` says the list may be short.
 `passengers`. For a region that ran while loading, `passengers` is absent
 without a graph.
 
-Point 1 of [What would discharge it](#what-would-discharge-it) is where the
-selector this spec asks for widens to the whole file. Under
+[What exists](#what-exists) names where the case selector widens to the
+whole file. Under
 inline requires a case was open when a `loaded` region ran, so that widening
 keys on `loaded`, not on "no case was open".
 
@@ -305,6 +325,12 @@ while the module evaluated is in `shared`, so at case grain it reads as
 **Parameterized cases.** `it.each` cases have their names formatted before
 they run. Each formatted name is recorded as its own case and is selected by
 that name. Nothing reconstructs the table.
+
+**Cases that depend on each other.** The cut reads each case's own reach. A
+case that reads state an earlier case left, a memoized result or a variable
+its `describe` shares, never entered the changed region and is skipped. The
+case record cannot see such a dependency, and the file grain is the answer for
+a file whose cases depend on their order.
 
 **Cases that overlap in time.** Concurrent cases are attributed through async
 context. A continuation that outlives its case is the case the record refuses to

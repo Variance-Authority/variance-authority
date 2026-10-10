@@ -23,8 +23,9 @@
  *   a test-selection run still folds its file-level journals into its snapshot.
  */
 
+import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
 import { placingSequencer } from './jest-placing.js';
@@ -309,7 +310,9 @@ export function withTestSelection(
     ...(projects === undefined ? instrumented(config, root, rootDir, mode, declared) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
-    ...(selection === undefined ? {} : selectingFilter(config, { root, rootDir, selection })),
+    ...(selection === undefined ? {} : selectingFilter(config, {
+      root, rootDir, selection, cutFile: resolve(dirname(coverageFile), `.cut-${process.pid}-${randomUUID()}.json`),
+    })),
     ...placingSequencer(config, { root, rootDir, times }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, {
       ...reporter,

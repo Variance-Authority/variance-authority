@@ -13,6 +13,7 @@
  * implementation rather than a copy each.
  */
 
+import { vitestCutSource } from './case-cut.js';
 import { CASE_SCOPE } from './cases.js';
 import { scopeGlobalsSource } from './precondition-source.js';
 import { EXECUTION_GLOBAL, executionCollectorSource } from './probes.js';
@@ -227,6 +228,7 @@ export function caseRunnerSource(
     readonly module?: string;
     readonly utils?: string;
     readonly finished?: string;
+    readonly cut?: string;
     readonly recording?: { readonly continuations: boolean; readonly story: boolean };
   } = {},
 ): string {
@@ -239,6 +241,7 @@ export function caseRunnerSource(
 import * as vitest from 'vitest';
 import { getFn, getHooks } from ${JSON.stringify(runner.module ?? '@vitest/runner')};
 import { getNames } from ${JSON.stringify(runner.utils ?? '@vitest/runner/utils')};
+import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -310,7 +313,18 @@ const hookAt = (kind, depth, args) => {
     : { kind: 'each', depth, case: caseKey(test) };
 };
 
+${vitestCutSource(runner.cut)}
 export default class extends VitestTestRunner {
+  async onCollected(files) {
+    await super.onCollected?.(files);
+    const skipped = [];
+    for (const file of files) {
+      const names = cutOf(file.filepath);
+      if (names !== undefined) skipCut(file, new Set(names), skipped);
+    }
+    if (skipped.length > 0) await this.onTaskUpdate?.(skipped, []);
+  }
+
   async onBeforeRunSuite(suite) {
     await super.onBeforeRunSuite?.(suite);
     const scope = caseScope();
