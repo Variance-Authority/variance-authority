@@ -412,13 +412,16 @@ Not loaded by stories (visual): a run that never loaded the file has no answer a
 ```
 
 The answers come first, then any suite that has never run. A suite that never
-loaded the file costs one line at the end. When no suite loaded it, each suite
-says so in full, with the record it read and the nearest spelling that record
-holds.
+loaded the file costs one line at the end, unless its record holds the file's
+name under another path: that suite most likely ran the file from another root,
+and keeps its full refusal among the answers. When no suite loaded it, each
+suite says so in full, with the record it read and the nearest spelling that
+record holds.
 
 In JSON the answer is a `suites` list. Each entry is that suite's own answer
 with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`
-or to `unloaded`, for a file the suite never loaded. `--suite <name>` reads one
+or to `unloaded`, for a file the suite never loaded, with `spelled` listing the
+record's other spellings of it when there are any. `--suite <name>` reads one
 record alone, and answers in the shape a repository with one record does.
 
 `--format refs` is the same answer for an agent, which pays for every repeated

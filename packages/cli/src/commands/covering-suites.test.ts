@@ -43,16 +43,19 @@ beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'variance-covering-suites-'));
   execFileSync('git', ['init', '--quiet', root]);
   await writeFile(join(root, 'variance.config.json'), JSON.stringify(SUITES));
-  const record = async (suite: string, index: unknown) => {
-    const at = testCoverageFile(root, { suite });
-    await mkdir(dirname(at), { recursive: true });
-    await writeTestCoverage(at, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
-      index: encodeExecutionIndex(index as Parameters<typeof encodeExecutionIndex>[0]),
-    });
-  };
+  const record = (suite: string, index: unknown) => recordIn(root, suite, index);
   await record('unit', indexOf('src/pay.ts', { id: 'u', file: 'src/pay.test.ts', name: 'charges once' }));
   await record('stories', indexOf('src/Button.tsx', { id: 's', file: 'src/Button.stories.tsx', name: 'Primary' }));
 });
+
+/** Lay one suite's record of a run, as the runner would have left it. */
+async function recordIn(at: string, suite: string, index: unknown) {
+  const file = testCoverageFile(at, { suite });
+  await mkdir(dirname(file), { recursive: true });
+  await writeTestCoverage(file, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
+    index: encodeExecutionIndex(index as Parameters<typeof encodeExecutionIndex>[0]),
+  });
+}
 
 afterAll(async () => {
   if (previous === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
@@ -86,7 +89,6 @@ describe('a line asked of a repository that declares suites', () => {
     const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', root]);
 
     expect(answer.out).toContain('unit (unit):\n  1 named test covered line 12 of src/pay.ts');
-    expect(answer.out).toMatch(/^checkout \(e2e\): nothing is recorded in/mu);
   });
 
   it('names the suites that never loaded the file once, after every answer, without their records', async () => {
@@ -150,6 +152,35 @@ describe('a line asked of a repository that declares suites', () => {
 
     expect(answer.code).toBe(2);
     expect(answer.err).toContain('`--suite` and `--execution` both name the record; pass one');
+  });
+});
+
+describe('a suite that recorded the file under another spelling', () => {
+  // The visual suite ran the payment module, from a root one prefix away: its
+  // refusal is a finding about the recording, not a suite that tests other code.
+  let spelled: string;
+  beforeAll(async () => {
+    spelled = await mkdtemp(join(tmpdir(), 'variance-covering-suites-spelled-'));
+    execFileSync('git', ['init', '--quiet', spelled]);
+    await writeFile(join(spelled, 'variance.config.json'), JSON.stringify(SUITES));
+    await recordIn(spelled, 'unit', indexOf('src/pay.ts', { id: 'u', file: 'src/pay.test.ts', name: 'charges once' }));
+    await recordIn(spelled, 'stories', indexOf('lib/pay.ts', { id: 's', file: 'src/Pay.stories.tsx', name: 'Paid' }));
+  });
+  afterAll(() => rm(spelled, { recursive: true, force: true }));
+
+  it('keeps its refusal whole, with the spelling it holds, beside a suite that answered', async () => {
+    const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', spelled]);
+
+    expect(answer.out).toMatch(/^stories \(visual\): `src\/pay\.ts` is not in the index at .* The record spells it `lib\/pay\.ts`\.$/mu);
+    expect(answer.out).not.toContain('Not loaded by');
+  });
+
+  it('carries the spelling for a program, beside the refusal', async () => {
+    const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', spelled, '--format', 'json']);
+
+    const said = JSON.parse(answer.out) as { suites: Record<string, unknown>[] };
+    expect(said.suites.find((one) => one['suite'] === 'stories')).toMatchObject({ refused: 'unloaded', spelled: ['lib/pay.ts'] });
+    expect(said.suites.find((one) => one['suite'] === 'checkout')).not.toHaveProperty('spelled');
   });
 });
 

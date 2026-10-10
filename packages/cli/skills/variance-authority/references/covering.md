@@ -45,15 +45,18 @@ When the root config declares `suites`, the question is asked of each suite's
 record, and the answer is one block per suite, headed `<suite> (<kind>):`. The
 answers come first, then any suite with no recording yet. Suites that never
 loaded the file are named together on the last line, `Not loaded by <suite>
-(<kind>), …`: no answer from them, which is not *no test covers it*. When no
-suite loaded the file, each suite's block says so in full, with the record it
-read and the nearest spelling it holds, since a wrong path is the likely cause.
-`--format refs` answers the same way.
+(<kind>), …`: no answer from them, which is not *no test covers it*. A suite
+whose record holds the file's name under another path keeps its full block among
+the answers, with the spellings it holds: it most likely ran the file under
+another root. When no suite loaded the file, each suite's block says so in full,
+with the record it read and the nearest spelling it holds, since a wrong path is
+the likely cause. `--format refs` answers the same way.
 `--suite <name>` reads one suite's record alone, and is refused beside
-`--execution`. Under `--format json` the answer is `{"file": …, "suites": [...]}`,
-with `since` in place of `file` for a diff. Each entry is that suite's answer
-with `suite` and `kind` added, or `{suite, kind, refused, reason}` for a suite
-that could not answer.
+`--execution`. Under `--format json` the answer is `{"file": …, "suites":
+[...]}`, with `since` in place of `file` for a diff. Each entry is that suite's
+answer with `suite` and `kind` added, or `{suite, kind, refused, reason}` for a
+suite that could not answer, with `spelled` listing the record's other spellings
+of the file when it has any.
 
 ## Nothing recorded is refused, not empty
 
