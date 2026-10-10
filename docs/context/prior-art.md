@@ -38,9 +38,13 @@ computed separately.
 
 **SCOTCH+** (Qusef, Bavota, Oliveto, De Lucia, Binkley) replaces *last call
 before assert* with a **dynamic backward slice from the assertion statements**.
-It is the strictly better form of the same intuition, and it is the one within
-reach here: our probes already record how a block was reached, so the stack
-standing at an assertion is available rather than inferred from call order.
+It is the strictly better form of the same intuition, and it needs the stack
+standing at each assertion, which the recording does not hold: a journey keeps
+the places a case visited, not how it reached them
+([ADR-0056](adr/0056-a-journey-is-the-places-visited.md)).
+[Spec 0100](../specs/0100-a-case-ends-where-it-decides.md) proposes what the
+recording can carry instead: the rarest region a case reaches, and the test
+line that reached it.
 
 **Ghafari et al. (SCAM 2015)** named the *focal method* — the method under
 assertion — and that vocabulary is what the later corpora standardized on.
