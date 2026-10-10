@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
-import { instrument, markLoaded, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { instrument, probeRuntime, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { recordedBlocks } from './coverage-rows.js';
 import { isMissing, projectPath, type CapturedModule } from './instrumented-modules.js';
 import { handedTexts, rawFrame, type RawFrame } from './source-lines.js';
@@ -157,6 +157,26 @@ export function markedId(path: string, code: string): ModuleId {
 }
 
 const MARKED = '~';
+
+/**
+ * Mark a module as loaded without probing it.
+ *
+ * For a module no probe may sit in: one whose functions cross into another
+ * realm as text, where the first probe throws. The text is unchanged up to its
+ * end, and the runtime follows it there, at module scope, which no function
+ * carries with it when it crosses. It registers one region, the module's own,
+ * and logs it as {@link instrument}'s header does, so every test that loaded
+ * the module is in the record — which an edit to it then selects whole,
+ * because nothing says what in it ran.
+ *
+ * Private to this module, beside {@link markedId}: the reader cuts a module
+ * into regions unless its id says it was marked, so a mark placed under an id
+ * {@link planModule} did not choose is read back as probed, with only its own
+ * region run.
+ */
+function markLoaded(source: string, id: ModuleId): string {
+  return `${source}\n;${probeRuntime(id, 1)}__vaE();`;
+}
 
 /** The hex half of a text's digest: a digest has no `@` in it, so the last one in an id is the separator. */
 function digestOf(code: string): string {
