@@ -32,6 +32,18 @@ type Loaded =
   | { readonly kind: 'failed'; readonly message: string }
   | { readonly kind: 'ready'; readonly concerns: readonly Concern[] };
 
+/** Read one subject's trail into the card; the returned function drops an answer that comes too late. */
+function readTrail(client: ReviewClient, subject: string, setLoaded: (loaded: Loaded) => void): () => void {
+  let live = true;
+  client.concerns({ subject }).then(
+    (answer) => live && setLoaded({ kind: 'ready', concerns: answer.concerns }),
+    (error: unknown) => live && setLoaded({ kind: 'failed', message: messageOf(error) }),
+  );
+  return () => {
+    live = false;
+  };
+}
+
 /** The concerns card on a subject page: its trail, and the form that adds to it. */
 export function Concerns({
   client,
@@ -41,6 +53,7 @@ export function Concerns({
   asked,
   onWriting,
   onChanged,
+  read = 0,
 }: {
   readonly client: ReviewClient;
   readonly reviewer: string;
@@ -52,6 +65,8 @@ export function Concerns({
   readonly onWriting?: ((writing: boolean) => void) | undefined;
   /** Told after every concern that landed, so a count elsewhere can follow. */
   readonly onChanged?: (() => void) | undefined;
+  /** Moves when something other than this card may have written to the trail — a decision can. */
+  readonly read?: number;
 }): ReactElement {
   const [loaded, setLoaded] = useState<Loaded>({ kind: 'loading' });
   const [writing, setWriting] = useState(false);
@@ -65,20 +80,22 @@ export function Concerns({
   const shown = useRef(subject.subject);
 
   useEffect(() => {
-    let live = true;
     shown.current = subject.subject;
     setLoaded({ kind: 'loading' });
     setWriting(false);
     setBusy(false);
     setFailed(null);
-    client.concerns({ subject: subject.subject }).then(
-      (answer) => live && setLoaded({ kind: 'ready', concerns: answer.concerns }),
-      (error: unknown) => live && setLoaded({ kind: 'failed', message: messageOf(error) }),
-    );
-    return () => {
-      live = false;
-    };
+    return readTrail(client, subject.subject, setLoaded);
   }, [client, subject.subject]);
+
+  // A decision can add to the trail, and a draft open beside it is the
+  // reviewer's: the trail is read again and the form is left as it was.
+  const lastRead = useRef(read);
+  useEffect(() => {
+    if (lastRead.current === read) return;
+    lastRead.current = read;
+    return readTrail(client, subject.subject, setLoaded);
+  }, [client, subject.subject, read]);
 
   // Both before paint: a browser runs the next keydown as soon as the form is
   // drawn, and a J that reached the bar before it heard would leave the draft.

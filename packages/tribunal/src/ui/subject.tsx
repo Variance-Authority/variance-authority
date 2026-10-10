@@ -78,6 +78,7 @@ export function SubjectPanel({
   const [failed, setFailed] = useState<string | null>(null);
   const [asked, setAsked] = useState<Asked | undefined>(undefined);
   const [writing, setWriting] = useState(false);
+  const [decisions, setDecisions] = useState(0);
   const page = useRef<HTMLDivElement>(null);
 
   const suspect = (state: ConcernState): void => setAsked((was) => ({ state, seq: (was?.seq ?? 0) + 1 }));
@@ -98,6 +99,7 @@ export function SubjectPanel({
     setFailed(null);
     try {
       await client.decide(build, subject.subject, decision, reviewer);
+      setDecisions((was) => was + 1);
       onDecided();
     } catch (error) {
       // Kept on the page rather than swallowed. A decision that silently did not
@@ -152,6 +154,7 @@ export function SubjectPanel({
             asked={asked}
             onWriting={setWriting}
             onChanged={onConcerned}
+            read={decisions}
           />
         </section>
 
