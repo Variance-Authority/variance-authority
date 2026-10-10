@@ -8,7 +8,7 @@
  * across builds until somebody resolves it, and never touched by a decision.
  */
 
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
 import type { Concern, ConcernState, ConcernTally, RaiseConcern } from '../concern-types.js';
 import type { SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
@@ -80,11 +80,13 @@ export function Concerns({
     };
   }, [client, subject.subject]);
 
-  useEffect(() => onWriting?.(writing), [onWriting, writing]);
+  // Both before paint: a browser runs the next keydown as soon as the form is
+  // drawn, and a J that reached the bar before it heard would leave the draft.
+  useLayoutEffect(() => onWriting?.(writing), [onWriting, writing]);
 
   // Only a new request opens the form: the panel outlives the subject, and the
   // last request is still in its props when the reviewer moves to the next one.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (asked === undefined) return;
     setStartAs(asked.state);
     setWriting(true);

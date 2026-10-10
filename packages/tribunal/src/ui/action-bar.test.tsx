@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act } from 'react';
+import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Decision, SubjectView } from '../review-types.js';
@@ -216,6 +217,23 @@ describe('every move is a button and a key', () => {
     expect(button('Next').querySelector('kbd')).toBeNull();
     await act(async () => button('Next').click());
     expect(went).toEqual(['story:b']);
+  });
+
+  it('stands J down in the same commit that draws the form, before any effect after paint', async () => {
+    // A browser runs the next keydown as soon as the form is painted. Were the
+    // bar told only after paint, a quick J would leave the draft that just opened.
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    const key = (letter: string): boolean =>
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: letter, bubbles: true, cancelable: true }));
+    let drawn = false;
+    act(() => {
+      flushSync(() => key('f'));
+      drawn = host.querySelector('.va-concerns form') !== null;
+      key('j');
+    });
+
+    expect(drawn).toBe(true);
+    expect(went).toEqual([]);
   });
 
   it('leaves a press alone that something earlier handled, and a key held down', async () => {
