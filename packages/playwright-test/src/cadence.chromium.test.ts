@@ -77,4 +77,6 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright spec cut statement by statement'
     expect(await reachedAfter({})).toEqual({ open: line('opens'), choose: line('chooses'), pay: line('pays') });
     expect(await reachedAfter({ VARIANCE_AUTHORITY_CADENCE: 'off' })).toEqual({ open: undefined, choose: undefined, pay: undefined });
   }, 120_000);
+
+  it.todo('flags a region a beforeEach statement reached first as a hook’s, as every other seam does');
 });

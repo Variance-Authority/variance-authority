@@ -548,6 +548,7 @@ to an array of one.
 | `coverageFile` | The coverage index this run merges into. A relative path is read from `root`. | The repository-keyed file in the cache. |
 | `mode` | The probe recipe, matching the `mode` given to `testSelectionProbes()`. | `presence` |
 | `preconditions` | Files whose contents are a precondition of every observation this run records. | None. |
+| `cadence` | Whether each spec is cut statement by statement, so a case records which of its lines reached each region. Read by `withTestSelection`. | `true` |
 
 `mode` has to be the same answer everywhere one coverage index is written:
 a snapshot names the recipe its ordinals were cut by, and a merge discards a
@@ -562,6 +563,47 @@ Selection does not read it: a spec file is the smallest thing
 Playwright can be asked to run, and the file-level record already names that.
 What a declared head executed is joined to the test that sent the request, so a
 branch that only ever ran in a service still names its test.
+
+### Record which spec line reached each region
+
+A case's crossings name the regions its test reached, not the statement that
+reached each one. Under `withTestSelection` every case also records, for each
+region, the line of the spec whose statement first reached it: the
+[lines Sense records](../sense/README.md#record-which-test-line-reached-a-region)
+under every other runner, read by the same answers.
+
+`withTestSelection` adds a Babel plugin to the `babelPlugins` Playwright
+compiles every spec with. The plugin puts an awaited call in front of each
+statement of an async test or hook body, and the call drains every frame of
+every page the test opened before the statement runs. What a drain finds is
+charged to the statement before it, and what the teardown drain finds to the
+last one. The page runs on its own clock, so a region it enters while a later
+statement runs is charged to that later statement: a request `click` started
+and the page answered during the next `expect` lands on the `expect`. A body
+declared in another file, such as a page object's method, is not cut, and what
+it reached is charged to the spec statement that called it. A hook's statement
+is recorded as the case's own line. Lines keep their numbers and Babel's map
+names the file as you wrote it, so an inline aria snapshot lands where you
+wrote it.
+
+Each statement waits at most a second for its drain. One held up longer by the
+page, as an open `alert` holds every evaluation until the test answers it, lets
+the statement go on, and from there the case's regions are recorded without a
+line. Its crossings are recorded either way.
+
+The plugin requires Sense's compiled `dist/`, and Playwright compiles every
+file outside `node_modules` it loads as CommonJS, which a workspace-linked
+Sense is not. So `withTestSelection` also adds that directory to
+`build.external`, after any globs your configuration already lists there.
+
+On a synthetic suite of 40 tests of 20 statements each, every click entering
+five of 88 regions, the lines add 4.7 KB to a 24.8 KB record, 18.9%: the
+record holds nothing but lines-dense cases, so the share is the high end. Over
+three runs with one worker, the suite took 18.6–18.7 s with the cut and
+18.7–19.9 s without it.
+
+Pass `cadence: false` to compile your specs as Playwright would and write no
+lines.
 
 ### Keep what each test looked at
 
