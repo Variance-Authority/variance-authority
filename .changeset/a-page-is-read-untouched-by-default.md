@@ -75,14 +75,26 @@ The collectors apply all four. So does the `variance` fixture in
 takes the pointer off the page and releases focus before every observation,
 giving focus back after it. Two new fixture options, `varianceStabilize` and
 `varianceNow`, choose what it sets and the instant, and are set with
-`test.use`; `varianceDriven` holds the ids it set. Leave `freeze-clock` out when your
-test sets `page.clock` itself. On a page the fixture never handed your test,
+`test.use`; `varianceDriven` holds the ids it set. A fixed `Date` stops code
+that times itself with `Date.now()`: a debounce or a throttle, such as lodash's
+`debounce`, sees no time pass and never fires, so a test that types into a
+debounced search box can stop getting results after this upgrade. Leave
+`freeze-clock` out for such a test, and for one that sets `page.clock` itself:
+
+```ts
+import { DEFAULT_STABILIZE } from '@variance-authority/playwright-test';
+
+test.use({ varianceStabilize: DEFAULT_STABILIZE.filter((id) => id !== 'freeze-clock') });
+```
+
+On a page the fixture never handed your test,
 such as one opened from your own browser context, call the new
 `driveBeforeTest(page)` before `page.goto()` to set the same two; `observe` and
 `createVariance` there apply `no-hover` and `no-focus`.
-`@variance-authority/vitest-browser` and `@variance-authority/presentation` run
-inside your page and apply `no-focus` only, giving focus back once the reading
-is taken. A trick left out is absent from the
+`@variance-authority/vitest-browser` reads from inside your page and has no
+driver; `@variance-authority/presentation` reads through the Playwright `Page`
+you hand it, a test's or an agent's live browser, and does not drive it. Both
+apply `no-focus` only, giving focus back once the reading is taken. A trick left out is absent from the
 reading's ids and digest, as a trick a tier cannot reach already is.
 `stabilizeForObservation` in `@variance-authority/dom` takes `driven`, the ids
 your driver applied, and returns `refocus()`, which gives focus back to the

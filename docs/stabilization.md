@@ -60,6 +60,11 @@ Do the same in a test that installs its own `page.clock`. Its clock replaces the
 fixed `Date` either way, and leaving `freeze-clock` out keeps the recipe the
 reading records true to the clock it read.
 
+Do the same in a test that waits on a debounce or a throttle that times itself
+with `Date.now()`, such as lodash's `debounce`. Under a fixed `Date` no time
+passes for it, so it never fires, and a test that types into a debounced search
+box waits for results that never arrive.
+
 ### What reaches the image
 
 By default the screenshot is not taken from your page. The tool records your
@@ -276,17 +281,22 @@ the page is yours and its JavaScript is the subject.
 ## How far an intervention goes
 
 Holding a page still means changing it, and the three ways of doing that cost
-you different things. **Every trick shipped here stays in the first row.**
+you different things. **Every trick shipped here stays in the first row but
+one, `freeze-clock`.**
 
 | how far it goes | what it is | what it costs you |
 |---|---|---|
-| **outside the subject** | injected CSS, screenshot options, a rewritten response | delete the tool and the intervention is gone |
-| **runtime substitution** | wrapping `Promise`, replacing a suspense boundary | a difference caused by the patch is indistinguishable from one caused by the code |
+| **outside the subject** | injected CSS, screenshot options, a browser setting such as the pointer position or the motion preference, a rewritten response | delete the tool and the intervention is gone |
+| **runtime substitution** | replacing `Date`, wrapping `Promise`, replacing a suspense boundary | a difference caused by the patch is indistinguishable from one caused by the code |
 | **a contract the subject implements** | a readiness marker in your component | real design damage |
 
-The middle row ships with nothing in it. A project that decides the trade is
-worth it can write its own intervention and compose it — see [composing an
-observation](compose-observation.md).
+`freeze-clock` is in the middle row, and it pays that row's cost. It removes one
+difference, the date and time a page prints, and adds another: code that times
+itself with `Date.now()`, such as a debounce or a throttle, sees no time pass and
+never fires, which reads as a defect in your code. Leave it out where that
+matters ([turning one off](#turning-one-off)). A project that decides another
+substitution is worth it can write its own intervention and compose it — see
+[composing an observation](compose-observation.md).
 
 The injected stylesheet stays outside the subject in your output too: collection
 injects exactly one `<style data-va-stabilize>` and attribution never charges a
@@ -423,9 +433,17 @@ fixes `Date` too, but installs its own `setTimeout`, `requestAnimationFrame` and
 yours: a clock your test installs replaces the fixed `Date`, and the reading
 reads your clock.
 
+A fixed `Date` costs code that measures elapsed time with it. A debounce or a
+throttle timed with `Date.now()`, lodash's `debounce` among them, sees no time
+pass and never fires. Leave `freeze-clock` out of a page that waits on one
+([turning one off](#turning-one-off)).
+
 The default instant is `2024-06-15T12:00:00.000Z`. At noon UTC it is the same
 calendar date in every zone from UTC−11 to UTC+11, so a page that prints today's
-date prints one date wherever the browser runs. To use another instant, set
+date prints one date wherever the browser runs. The timezone the page runs in is
+pinned as well, to `UTC` unless you declare another
+([a timezone and a locale](flakiness.md#the-rest-of-the-family)), so the page
+prints one time of day too. To use another instant, set
 `now` to an ISO 8601 instant with its zone:
 
 ```js
@@ -453,9 +471,10 @@ change your code made.
 | --- | --- |
 | `routeCollector` and `storybookCollector` | all four |
 | the Playwright renderer | `no-focus`, the one of the four that acts on a page that only paints |
-| the `variance` fixture in `@variance-authority/playwright-test` | all four. `reduced-motion` and `freeze-clock` are set on the `page` it hands your test, before the test body runs; `no-hover` and `no-focus` before every observation, and focus goes back after it. Set `varianceStabilize` and `varianceNow` with `test.use` to change the first two |
+| the `variance` fixture in `@variance-authority/playwright-test` | all four. `reduced-motion` and `freeze-clock` are set on the `page` it hands your test, before the test body runs; `no-hover` and `no-focus` before every observation, and focus goes back after it. Set `varianceStabilize` and `varianceNow` with `test.use` to change the first two. The page opens in `UTC` when your Playwright config sets no `timezoneId` |
 | `observe` and `createVariance` in `@variance-authority/playwright-test`, on a page the fixture never handed your test, such as one you opened from your own `browser.newContext()` | `no-hover` and `no-focus`, before every observation, and focus goes back after it. That page loaded before either was called, so set the clock and the motion preference on it before `page.goto()`: `await driveBeforeTest(page)`, from `@variance-authority/playwright-test`, sets both as the fixture does |
-| a collector that runs inside the page with no driver: Vitest browser mode and `@variance-authority/presentation` | `no-focus`, and focus goes back once the reading is taken |
+| Vitest browser mode, which reads from inside the page and has no driver | `no-focus`, and focus goes back once the reading is taken |
+| `@variance-authority/presentation`, which reads through the Playwright `Page` you hand it, a test's or an agent's live browser, and does not drive it: the page and its state are yours | `no-focus`, and focus goes back once the reading is taken. Set the other three on your page yourself: `page.mouse.move(-1, -1)`, and `await driveBeforeTest(page)` before `page.goto()` |
 
 A host that cannot apply a trick leaves it out of the recipe it records, the
 same way a tier does. The report and the environment key show what ran on your
