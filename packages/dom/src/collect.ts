@@ -10,7 +10,6 @@ import type {
   Wiring,
   Holding,
 } from '@variance-authority/core/format';
-import { admits } from '@variance-authority/core/rules';
 import { ariaOf } from './aria.js';
 import { resolveIgnores, type IgnoreSelector } from './ignore.js';
 import { conditionKey, indexStyleSheets, matchRulesFor, type StyleIndex } from './css.js';
@@ -18,7 +17,9 @@ import { inheritedSeed } from './inherit.js';
 import { deviceProbe, type ConditionEnvironment } from './media.js';
 import { attributesOf, childNodesOf, elements, propertyNames } from './dom-list.js';
 import { detectProfile } from './profile.js';
+import { editedAttributes, formState, type FormState } from './form-state.js';
 import { hostChosenFonts } from './typeface.js';
+import { GENERATED_BOXES, computedStyleOf, generatedBox, textNode } from './generated-box.js';
 export { detectProfile } from './profile.js';
 
 /**
@@ -240,6 +241,7 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
 
   const portalRoots = options.portalsOf?.(root) ?? [];
   const couplings = new Set<string>();
+  const form = formState(document);
 
   if (options.portalsOf === undefined) {
     diagnostics.push({
@@ -251,7 +253,7 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
     });
   }
 
-  const rootNode = captureNode(root, profile, index, view, options, couplings, ignores.marks);
+  const rootNode = captureNode(root, profile, index, view, options, couplings, ignores.marks, form);
 
   const hostChosen = hostChosenFonts(rootNode);
   if (hostChosen !== undefined) {
@@ -287,11 +289,12 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
     },
     root: rootNode,
     inheritedSeed: inheritedSeed(root, profile, view, index),
+    baseUrl: root.ownerDocument.baseURI,
     ...(couplings.size > 0 ? { couplings: [...couplings].sort() } : {}),
     ...(portalRoots.length > 0
       ? {
           portals: portalRoots.map((host) =>
-            captureNode(host, profile, index, view, options, couplings, ignores.marks),
+            captureNode(host, profile, index, view, options, couplings, ignores.marks, form),
           ),
         }
       : {}),
@@ -333,8 +336,12 @@ function captureNode(
   options: CollectOptions,
   couplingSink: Set<string>,
   marks: ReadonlyMap<Element, readonly string[]>,
+  form: FormState,
 ): RawNode {
-  const attributes = attributesOf(element);
+  // What a form control holds now, as its markup would say it: the snapshot and
+  // the render document take the same answer, from the same reader.
+  const edit = form.editOf(element);
+  const attributes = edit ? editedAttributes(attributesOf(element), edit) : attributesOf(element);
 
   const inline = (element as HTMLElement).style;
   const inlineStyle: Record<string, string> = {};
@@ -346,13 +353,19 @@ function captureNode(
   const wiring = options.wiringOf?.(element);
   const holding = options.holdingOf?.(element);
   const ignoredBy = marks.get(element);
-  const { matched, couplings } = matchRulesFor(element, index);
+  const { matched, pseudo, couplings } = matchRulesFor(element, index);
   for (const coupling of couplings) couplingSink.add(coupling);
+  const [before, after] = GENERATED_BOXES.map((box) =>
+    generatedBox(element, box, pseudo.get(box) ?? [], profile, view, provenance),
+  );
 
-  const children: RawNode[] = [];
-  for (const child of childNodesOf(element)) {
+  // A textarea someone typed into holds text its child nodes no longer carry.
+  const typed = edit && 'text' in edit ? edit.text : undefined;
+  const children: RawNode[] = before ? [before] : [];
+  if (typed) children.push(textNode(typed, provenance));
+  for (const child of typed === undefined ? childNodesOf(element) : []) {
     if (child.nodeType === 1) {
-      children.push(captureNode(child as Element, profile, index, view, options, couplingSink, marks));
+      children.push(captureNode(child as Element, profile, index, view, options, couplingSink, marks, form));
       continue;
     }
 
@@ -367,11 +380,13 @@ function captureNode(
     }
   }
 
+  if (after) children.push(after);
+
   const shadow = (element as Element & { shadowRoot?: ShadowRoot | null }).shadowRoot;
   const shadowChildren: RawNode[] = [];
   if (shadow) {
     for (const child of elements(shadow.children)) {
-      shadowChildren.push(captureNode(child, profile, index, view, options, couplingSink, marks));
+      shadowChildren.push(captureNode(child, profile, index, view, options, couplingSink, marks, form));
     }
   }
 
@@ -393,45 +408,6 @@ function captureNode(
     // a DOM — so a deep subtree costs one mark rather than one per node.
     ...(ignoredBy ? { ignoredBy } : {}),
   };
-}
-
-/**
- * Text is carried on a synthetic node rather than merged into its parent.
- *
- * `<p>Hello <b>world</b></p>` has two text runs whose order matters. Folding
- * them into the parent's `text` would report a reordering of prose as no change.
- *
- * It carries the parent's owner chain, because that is whose chain it is — React
- * attaches no fiber expando to a text node, but the component that rendered the
- * element rendered its text too. Without this, every text delta lands in
- * `unattributed` and cannot be grouped with the element delta that caused it,
- * which turns one root into several.
- */
-function textNode(text: string, provenance: Provenance | undefined): RawNode {
-  return {
-    tag: '#text',
-    attributes: {},
-    matchedRules: [],
-    text,
-    ...(provenance ? { provenance } : {}),
-    children: [],
-  };
-}
-
-
-function computedStyleOf(element: Element, view: Window): Record<string, string> {
-  const computed = view.getComputedStyle(element);
-  const style: Record<string, string> = {};
-
-  for (const property of propertyNames(computed)) {
-    // Projection onto the allowlist happens here rather than in `core` only to
-    // keep the capture small enough to cross a network hop; `core` re-applies
-    // it, so this is a size optimization and never the authoritative filter.
-    if (!admits(property)) continue;
-    style[property] = computed.getPropertyValue(property);
-  }
-
-  return style;
 }
 
 function rectOf(element: Element): { x: number; y: number; width: number; height: number } {

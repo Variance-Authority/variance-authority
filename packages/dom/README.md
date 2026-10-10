@@ -24,8 +24,8 @@ runs in whichever one your test already has:
 
 | Environment | What you get |
 | --- | --- |
-| jsdom (`jsdom`, or Vitest's `jsdom` environment) | tree, ARIA, and declared CSS |
-| a real browser (Chromium, via Playwright or a collector) | the above, plus computed styles and element geometry |
+| jsdom (`jsdom`, or Vitest's `jsdom` environment) | tree, ARIA, and declared CSS; a `::before` or `::after` whose rules give it content is in the tree with those rules and the words its declared `content` says; one whose `content` needs a counter, a quote, a `var()` or a `url()` is marked `unread` instead, because jsdom computes no generated content |
+| a real browser (Chromium, via Playwright or a collector) | the above, plus computed styles, element geometry, and the computed style and text of every `::before` and `::after` that renders |
 
 `@variance-authority/core` installs with it and defines the capture types. The
 examples below also use `jsdom`:

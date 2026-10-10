@@ -260,7 +260,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('the bytes a page was served', () => {
   it('records a content hash for every asset, which nothing did before', async () => {
     const assets = assetsOf(await collect());
 
-    expect(Object.keys(assets).sort()).toEqual([`${base}/logo.png`, `${base}/spinner.gif`]);
+    expect(Object.keys(assets).sort()).toEqual(['/logo.png', '/spinner.gif']);
     for (const digest of Object.values(assets)) expect(digest).toMatch(/^v1:[0-9a-f]{32}$/);
   }, 60_000);
 
@@ -276,7 +276,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('the bytes a page was served', () => {
     // direction that matters. Nothing in the DOM moved — same `src`, same box,
     // same rules — and the picture is a different picture. Without the asset
     // hash these two are one baseline and the run reports a pass.
-    expect(assetsOf(after)[`${base}/logo.png`]).not.toBe(assetsOf(before)[`${base}/logo.png`]);
+    expect(assetsOf(after)['/logo.png']).not.toBe(assetsOf(before)['/logo.png']);
     expect(after.snapshot?.environment.semanticDigest).not.toBe(
       before.snapshot?.environment.semanticDigest,
     );
@@ -289,7 +289,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('the bytes a page was served', () => {
     // the identity a baseline is stored under.
     const assets = assetsOf(await collect());
 
-    expect(Object.keys(assets)).not.toContain(`${base}/outside.png`);
+    expect(Object.keys(assets)).not.toContain('/outside.png');
   }, 60_000);
 
   it('hands the same assets to the document, which is what decides to skip a render', async () => {
@@ -308,7 +308,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('the bytes a page was served', () => {
       throw new Error('no document');
     }
 
-    expect(before.document.assets?.[`${base}/logo.png`]).toMatch(/^v1:[0-9a-f]{32}$/);
+    expect(before.document.assets?.['/logo.png']).toMatch(/^v1:[0-9a-f]{32}$/);
     expect(documentDigest(after.document)).not.toBe(documentDigest(before.document));
   }, 60_000);
 
@@ -331,7 +331,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('the bytes a page was served', () => {
     // rule that fired is an input, and recording it is how the environment key
     // says which run was blanked. Its neighbour, hashed on any other run, is
     // gone. Both facts come from the same routing being alive.
-    expect(assets).toEqual({ [`${base}/logo.png`]: 'blank:logo:1x1' });
+    expect(assets).toEqual({ '/logo.png': 'blank:logo:1x1' });
   }, 60_000);
 });
 

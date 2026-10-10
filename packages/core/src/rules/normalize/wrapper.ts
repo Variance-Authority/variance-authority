@@ -54,6 +54,11 @@ export function isInertWrapper(
   // already reading wiring, which is a change that needs its own changeset.
   if (node.holding !== undefined) return false;
 
+  // A box CSS generates inside the wrapper is the wrapper's to paint: its rules
+  // were written against this element, and hoisting `::before` onto a parent
+  // puts it on a box that generates nothing.
+  if (raw.children.some((child) => child.tag.startsWith('::'))) return false;
+
   const declaredHere = declaredBy.get(node) ?? EMPTY_PROPERTIES;
 
   for (const [property, value] of Object.entries(node.style)) {

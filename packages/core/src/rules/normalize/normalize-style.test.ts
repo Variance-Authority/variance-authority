@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { normalize } from './index.js';
-import { capture, node } from './fixture.js';
+import { CHROMIUM_PROFILE, capture, node } from './fixture.js';
 
 /**
  * ADR-0003's claims about turning declarations into computed style.
@@ -60,6 +60,43 @@ describe('value canonicalization', () => {
     const shadowed = (value: string) =>
       node({ rules: [{ selector: '.x', declare: { display: value } }] });
     expect(hashOf(shadowed('  BLOCK '))).toBe(hashOf(shadowed('block')));
+  });
+
+  describe('a url() the engine resolved against the page', () => {
+    const served = (baseUrl: string, image: string) =>
+      normalize(
+        capture({
+          root: node({ computedStyle: { 'background-image': `url("${image}")` } }),
+          profile: CHROMIUM_PROFILE,
+          baseUrl,
+        }),
+      );
+
+    it('drops the page origin, so the port a build was served on moves nothing', () => {
+      const first = served('http://127.0.0.1:4001/', 'http://127.0.0.1:4001/hero.png');
+      const second = served('http://127.0.0.1:4002/', 'http://127.0.0.1:4002/hero.png');
+
+      expect(first.root.style['background-image']).toBe('url("/hero.png")');
+      expect(first.renderHash).toBe(second.renderHash);
+    });
+
+    it('keeps the origin of an image another host serves', () => {
+      const cdn = served('http://127.0.0.1:4001/', 'https://cdn.example/hero.png');
+
+      expect(cdn.root.style['background-image']).toBe('url("https://cdn.example/hero.png")');
+    });
+
+    it('keeps a port that is only a prefix of the page port', () => {
+      const other = served('http://127.0.0.1:400/', 'http://127.0.0.1:4001/hero.png');
+
+      expect(other.root.style['background-image']).toBe('url("http://127.0.0.1:4001/hero.png")');
+    });
+
+    it('reads a parenthesis inside the quoted url as part of the path', () => {
+      const quoted = served('http://127.0.0.1:4001/', 'http://127.0.0.1:4001/a)b.png');
+
+      expect(quoted.root.style['background-image']).toBe('url("/a)b.png")');
+    });
   });
 });
 
@@ -255,6 +292,24 @@ describe('custom properties and token attribution', () => {
     const snapshot = normalize(
       capture({
         root: node({ rules: [{ selector: '.x', declare: { color: 'var(--missing, #00ff00)' } }] }),
+      }),
+    );
+    expect(snapshot.root.style['color']).toBe('rgb(0 255 0 / 1)');
+  });
+
+  it('reads a parenthesis inside a quoted fallback as text, not as the close of var()', () => {
+    const snapshot = normalize(
+      capture({
+        root: node({ rules: [{ selector: '.x', declare: { 'font-family': 'var(--missing, "a)b")' } }] }),
+      }),
+    );
+    expect(snapshot.root.style['font-family']).toBe('"a)b"');
+  });
+
+  it('closes an unclosed var() at the end of the value, as CSS syntax does', () => {
+    const snapshot = normalize(
+      capture({
+        root: node({ rules: [{ selector: '.x', declare: { color: 'var(--missing, #00ff00' } }] }),
       }),
     );
     expect(snapshot.root.style['color']).toBe('rgb(0 255 0 / 1)');

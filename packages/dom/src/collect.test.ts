@@ -219,6 +219,18 @@ describe('ARIA extraction', () => {
     expect(input.state?.['checked']).toBe(true);
   });
 
+  it('records the box as it is now, not as the markup ticked it', () => {
+    const root = render(`<input type="checkbox" checked><input type="radio">`, '');
+    const [box, radio] = [...root.querySelectorAll('input')];
+    box!.checked = false;
+    radio!.checked = true;
+
+    const [unticked, ticked] = normalize(collect(root, options)).root.children;
+
+    expect(unticked!.state?.['checked']).toBe(false);
+    expect(ticked!.state?.['checked']).toBe(true);
+  });
+
   it('reads a native label as the accessible name', () => {
     const root = render(`<label for="e">Email</label><input id="e" type="email">`, '');
     const snapshot = normalize(collect(root, options));

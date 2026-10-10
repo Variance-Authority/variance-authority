@@ -142,21 +142,7 @@
   {
     "files": [
       "packages/core/src/rules/normalize/cascade.ts",
-      "packages/core/src/rules/normalize/value.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
-      "packages/core/src/rules/normalize/cascade.ts",
       "packages/dom/src/inherit.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
-      "packages/core/src/rules/normalize/value.ts",
-      "packages/dom/src/specificity.ts"
     ],
     "count": 1
   },

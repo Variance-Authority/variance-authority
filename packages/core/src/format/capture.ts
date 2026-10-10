@@ -68,6 +68,16 @@ export interface RawCapture {
    */
   readonly couplings?: readonly string[];
 
+  /**
+   * The document's base URL, `document.baseURI`, as the page reported it.
+   *
+   * An engine resolves every `url()` in a computed value against this, so a
+   * build served on a different port comes back with different strings. The
+   * normalizer drops this origin from them. Absent when the collector had no
+   * page to ask, and then nothing is dropped.
+   */
+  readonly baseUrl?: string;
+
   /** Anything the collector could not do. Empty is the expected case. */
   readonly diagnostics: readonly Diagnostic[];
 }
@@ -98,6 +108,11 @@ export interface SubjectRef {
  * ruleset, versioned by nothing.
  */
 export interface RawNode {
+  /**
+   * Lower-case element name, `#text` for a text run, or `::before` / `::after`
+   * for a box CSS generates inside its parent — children with no DOM node,
+   * which paint like any other child.
+   */
   readonly tag: string;
   readonly attributes: Readonly<Record<string, string>>;
 
@@ -176,6 +191,16 @@ export interface RawNode {
    * re-baseline the repository.
    */
   readonly ignoredBy?: readonly string[];
+
+  /**
+   * Why part of this node was not read, on a node whose existence is known and
+   * whose values are not — a `::before` whose `content` holds a `counter()` under
+   * a host with no layout engine.
+   *
+   * A marker, never a value: the fields it describes are absent rather than
+   * guessed (ADR-0002). Outside every hash, like `ignoredBy` above it.
+   */
+  readonly unread?: string;
 }
 
 export interface RawAria {
