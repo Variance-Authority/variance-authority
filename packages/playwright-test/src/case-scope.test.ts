@@ -105,7 +105,7 @@ describe('the case a Playwright test runs as', () => {
         await recorder.note(page, 'tests/checkout.spec.ts', { name: 'checkout > pays', id: 'runner-id-1' });
       });
       await recorder.close();
-      expect(recordedEyesAt(coverageFile)).toEqual({ watched: ['tests/checkout.spec.ts > checkout > pays'], journals: [] });
+      expect(recordedEyesAt(coverageFile)).toEqual({ watched: ['|chromium| tests/checkout.spec.ts > checkout > pays'], journals: [] });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

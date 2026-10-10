@@ -374,6 +374,17 @@ describe('a worker that is one of several', () => {
         file: resolve(process.cwd(), 'tests/checkout.spec.ts'),
         testId: 'abc123',
       } as unknown as TestInfo),
-    ).toEqual({ name: 'checkout > pays with a saved card', id: 'abc123' });
+    ).toEqual({ name: 'checkout > pays with a saved card', id: 'abc123', project: 'chromium' });
+  });
+
+  it('names no project for a test of the unnamed one', () => {
+    expect(
+      testOf({
+        titlePath: ['', 'tests/checkout.spec.ts', 'pays'],
+        project: { name: '' },
+        file: resolve(process.cwd(), 'tests/checkout.spec.ts'),
+        testId: 'abc123',
+      } as unknown as TestInfo),
+    ).toEqual({ name: 'pays', id: 'abc123' });
   });
 });

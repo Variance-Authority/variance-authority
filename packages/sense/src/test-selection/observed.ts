@@ -71,6 +71,8 @@ export interface ObservedCase {
   readonly name: string;
   /** Unique within the run. Two drains under one id are one case read twice. */
   readonly id: string;
+  /** {@link CaseCoordinate.project}: absent when the run names none. */
+  readonly project?: string;
   /** {@link ExecutionTest.stopped}: absent when the driver cannot say how the case settled. */
   readonly stopped?: boolean;
   /** {@link ExecutionTest.duration}: the runner's milliseconds, summed over the attempts this source saw. */
@@ -204,6 +206,7 @@ export function caseJournals(cases: readonly ObservedCase[]): readonly CaseJourn
       file: observed.file,
       name: observed.name,
       id: observed.id,
+      ...(observed.project === undefined ? {} : { project: observed.project }),
       ...(observed.stopped === undefined ? {} : { stopped: observed.stopped }),
       ...(observed.duration === undefined ? {} : { duration: observed.duration }),
       ...(observed.said === undefined ? {} : { said: observed.said }),
