@@ -4,7 +4,7 @@
  * Rstest builds the suite with Rspack and runs what it built, so the place a
  * module can be instrumented is a loader rather than a plugin hook. Declared
  * `enforce: 'pre'`, it receives the file as it is on disk, before SWC — the
- * same text the Vite and Jest seams instrument, cut by {@link captureModule}.
+ * same text the Vite and Jest seams instrument, cut by {@link placeModule}.
  *
  * A loader is loaded by path and given options, never handed the object the
  * configuration built, so the run it belongs to cannot be closed over. It is
@@ -18,7 +18,7 @@
  * reporter's empty-record note is what the user reads.
  */
 
-import { captureModule } from './captured-modules.js';
+import { placeModule } from './captured-modules.js';
 import { cleanId } from './instrumented-modules.js';
 import { runOf } from './selection-run.js';
 
@@ -41,8 +41,8 @@ export interface SelectionLoaderContext {
  * mean.
  *
  * A module this run has no business in — the seam's own setup shim, anything
- * the `include` predicate refuses, a build whose snapshot names no run — is
- * handed back exactly as it arrived.
+ * the `include` and `unprobed` predicates both refuse, a build whose snapshot
+ * names no run — is handed back exactly as it arrived.
  */
 function instrumentModule(this: SelectionLoaderContext, code: string): void {
   const file = cleanId(this.resourcePath);
@@ -55,7 +55,7 @@ function instrumentModule(this: SelectionLoaderContext, code: string): void {
     this.callback(null, code);
     return;
   }
-  const captured = captureModule(run.root, file, code, run.include, run.mode);
+  const captured = placeModule(run.root, file, code, run.include, run.unprobed, run.mode);
   if (captured !== undefined) run.modules.set(captured.module.id, captured.module);
   // With no map: every probe sits on the line it reports, so SWC's map from
   // this text is a map from the file on disk.

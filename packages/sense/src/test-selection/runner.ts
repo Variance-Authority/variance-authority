@@ -30,14 +30,14 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { registerHooks, type ModuleHooks } from 'node:module';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
-import { captureModule } from './captured-modules.js';
+import { captureModule, markModule } from './captured-modules.js';
 import collectors from './collectors.cjs';
 import journalFormat from './journal-format.cjs';
 import { recordFileFor } from './record-location.js';
-import { defaultInclude } from './instrumented-modules.js';
+import { defaultInclude, insideRoot } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
 import { reportedDuration } from './finished-files.js';
 import { finishedCase } from './case-durations.js';
@@ -199,6 +199,7 @@ export function instrumentModule(code: string, file: string): string {
   if (recording === undefined) return code;
   const path = resolve(file);
   const original = (at: string) => (at === path ? code : readFileSync(at, 'utf8'));
+  // TODO: publish a marking sibling of this function on `./runner`, so a runner with its own transform marks a module it must not probe rather than probing it; a predicate cannot ride RECORDING_VARIABLE to reach this one.
   return captureModule(recording.root, path, code, () => true, recording.mode, original)?.code ?? code;
 }
 
@@ -209,6 +210,13 @@ export interface RegisterRecordingOptions {
    * built output.
    */
   readonly include?: (file: string) => boolean;
+  /**
+   * Which loaded files are product source no probe may sit in: a module whose
+   * functions cross into a page as text, where the first probe would throw. It
+   * wins over `include`. Each is marked as loaded at its end instead, and an
+   * edit to it selects every test that loaded it.
+   */
+  readonly unprobed?: (file: string) => boolean;
 }
 
 /**
@@ -228,7 +236,7 @@ export function registerRecording(options: RegisterRecordingOptions = {}): Modul
   const recording = carried();
   if (recording === undefined) return undefined;
   collectors.attach(globalThis as { __VA__?: unknown }, recording.continuations);
-  const include = options.include ?? ((file: string) => inside(recording.root, file) && defaultInclude(file));
+  const include = options.include ?? ((file: string) => insideRoot(recording.root, file) && defaultInclude(file));
   return registerHooks({
     load(url, context, nextLoad) {
       const loaded = nextLoad(url, context);
@@ -237,20 +245,19 @@ export function registerRecording(options: RegisterRecordingOptions = {}): Modul
       if (!EVALUATED.has(loaded.format ?? '')) return loaded;
       const file = fileURLToPath(url);
       // The observed file is the test, and a test is not a module other files run.
-      if (file === observing || !include(file)) return loaded;
+      if (file === observing) return loaded;
+      const marked = insideRoot(recording.root, file) && options.unprobed?.(file) === true;
+      if (!marked && !include(file)) return loaded;
       const code = typeof loaded.source === 'string' ? loaded.source : new TextDecoder().decode(loaded.source);
-      return { ...loaded, source: instrumentModule(code, file) };
+      if (!marked) return { ...loaded, source: instrumentModule(code, file) };
+      const original = (at: string) => (at === file ? code : readFileSync(at, 'utf8'));
+      return { ...loaded, source: markModule(recording.root, file, code, () => true, original)?.code ?? code };
     },
   });
 }
 
 /** The formats Node evaluates from source text; `json`, `wasm`, `builtin` and `addon` are not. */
 const EVALUATED = new Set(['module', 'commonjs', 'module-typescript', 'commonjs-typescript']);
-
-function inside(root: string, file: string): boolean {
-  const path = relative(root, file);
-  return path !== '' && !path.startsWith(`..${sep}`) && path !== '..' && !isAbsolute(path);
-}
 
 /** Everything the runner reports about one test file while it runs. */
 export interface TestFileObserver {

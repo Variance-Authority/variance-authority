@@ -90,6 +90,20 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
     ]);
   }, 60_000);
 
+  it('selects every file that loaded a module named unprobed, for an edit to a line none of them ran', async () => {
+    const { coverageFile } = await record('--weigh-unprobed');
+
+    const weigh = await readFile(resolve(fixture, 'src/weigh.mts'), 'utf8');
+    const line = lineIn(weigh, "    return 'heavy';");
+    const diff = `--- a/${at('src/weigh.mts')}\n+++ b/${at('src/weigh.mts')}\n@@ -${line},1 +${line},1 @@\n-    return 'heavy';\n+    return 'weighty';`;
+
+    await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([at('test/alpha.case.mjs'), at('test/beta.case.mjs')]);
+    expect(decodeTestCoverage(await readFile(coverageFile)).modules.find((module) => module.file === at('src/weigh.mts')))
+      .toEqual(expect.objectContaining({ instrumented: false, blocks: [] }));
+  }, 60_000);
+
+  it.todo('marks a module a runner with its own transform must not probe — needs a marking sibling of `instrumentModule` published on `./runner`');
+
   it('names each case by its declaration path, and gives a branch only to the case that walked it', async () => {
     const { coverageFile } = await record();
     const index = decodeExecutionIndex(await readFile(coverageFile));
@@ -185,6 +199,26 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
       expect(observeTestFile(resolve(fixture, 'test/alpha.case.mjs'))).toBeUndefined();
     } finally {
       if (open !== undefined) process.env[RECORDING_VARIABLE] = open;
+    }
+  });
+
+  it('marks a module it cannot parse as loaded, so the test that loaded it still reports it', () => {
+    const { [RECORDING_VARIABLE]: open } = process.env;
+    process.env[RECORDING_VARIABLE] = JSON.stringify({
+      root: repository,
+      runDirectory: fixture,
+      caseDirectory: fixture,
+      mode: 'presence',
+      continuations: false,
+    });
+    try {
+      const broken = 'export const = ;\n';
+      const code = instrumentModule(broken, resolve(fixture, 'src/broken.mjs'));
+      expect(code.startsWith(broken)).toBe(true);
+      expect(code.slice(broken.length)).toMatch(new RegExp(`${at('src/broken.mjs')}@[0-9a-f]+[\\s\\S]*__vaE\\(\\);$`));
+    } finally {
+      if (open === undefined) delete process.env[RECORDING_VARIABLE];
+      else process.env[RECORDING_VARIABLE] = open;
     }
   });
 });

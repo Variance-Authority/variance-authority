@@ -47,7 +47,7 @@
  */
 
 import { extname } from 'node:path';
-import { EDGE_KINDS, RUNTIME_EDGES, idOf, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { idOf, type NodeId, type Relations } from '@variance-authority/core/relate';
 import { native } from '../addon.js';
 import type { NativeModuleReaders, NativeScanner } from '../native.js';
 import { MODULE_EXTENSIONS } from '../read.js';
@@ -56,6 +56,7 @@ import type { LineRange } from './diff-lines.js';
 import { declaredEffects } from './effects.js';
 import { frameOf, type Frame } from './frame.js';
 import type { TestCoverageView } from './format-view.js';
+import { walkImporters } from './importer-walk.js';
 import { importedAsAsset, type ExecutionNarrowingOptions } from './importers.js';
 import { findModules, findTest } from './lookup.js';
 import { applied, hunksOf } from './patch.js';
@@ -308,21 +309,9 @@ function readValues(
   }
 
   const covered = new Set<number>();
-  const visited = new Set<NodeId>([id]);
-  let wave: Array<{ readonly id: NodeId; readonly moved: ReadonlyMap<string, string> }> = [{ id, moved }];
-  while (wave.length > 0) {
-    const next: typeof wave = [];
-    for (const step of wave) {
-      for (const importer of directImporters(relations, step.id)) {
-        const node = nodeAt(relations, importer);
-        if (node === undefined || node.kind !== 'file' || visited.has(importer)) continue;
-        visited.add(importer);
-        const passed = readImporter(context, node.name, step.moved, verdict.gone, reader, covered);
-        if (passed.size > 0) next.push({ id: importer, moved: passed });
-      }
-    }
-    wave = next;
-  }
+  walkImporters(relations, id, moved, (importer, carried) =>
+    readImporter(context, importer, carried, verdict.gone, reader, covered),
+  );
 
   // A test that loaded the declaring file through no importer the reading
   // followed reached it by an edge the graph does not hold. It is named, not
@@ -484,16 +473,3 @@ function firstId(relations: Relations, names: readonly string[]): NodeId | undef
   }
   return undefined;
 }
-
-/** The files that load this one at runtime, one edge away: a type-only import loads nothing. */
-function directImporters(relations: Relations, id: NodeId): readonly NodeId[] {
-  const { offset, target, kind } = relations.dependents;
-  const importers: NodeId[] = [];
-  for (let edge = offset[id]!; edge < offset[id + 1]!; edge += 1) {
-    if (LOADS[kind[edge]!] === 1 && target[edge] !== id) importers.push(target[edge]!);
-  }
-  return importers;
-}
-
-const LOADS = new Uint8Array(EDGE_KINDS.length);
-for (const kind of RUNTIME_EDGES) LOADS[EDGE_KINDS.indexOf(kind)] = 1;

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { configDefaults, defineConfig, mergeConfig } from 'vitest/config';
 import { withTestSelection } from '@variance-authority/sense/vitest';
 import { nativeSources } from './tools/native-sources.mjs';
-import { probeable } from './tools/page-side.mjs';
+import { marked, probeable } from './tools/page-side.mjs';
 
 /** This file's directory, so the exclusions read the same from any cwd. */
 const ROOT = import.meta.dirname;
@@ -75,8 +75,15 @@ const TEST = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
  * functions leave this process, and the list exists because the alternative —
  * a probe that tolerates its own absence — was tried and rejected.
  */
-const instrumentable = (file: string) =>
-  (PRODUCT.test(file) || BUILT.test(file)) && MODULE.test(file) && !TEST.test(file) && probeable(ROOT, file);
+const source = (file: string) => (PRODUCT.test(file) || BUILT.test(file)) && MODULE.test(file) && !TEST.test(file);
+const instrumentable = (file: string) => source(file) && probeable(ROOT, file);
+
+/**
+ * The page-side modules that are still loaded here, marked as loaded rather
+ * than probed: an edit to one selects every test that loaded it, which a
+ * reading of its importers alone cannot promise.
+ */
+const unprobed = (file: string) => source(file) && marked(ROOT, file);
 
 /** What every slice runs under. */
 const shared = defineConfig({
@@ -201,6 +208,7 @@ export const selectionOf = (name: SliceName) => ({
   // The suite this run is, as the root `variance.config.json` declares it.
   suite: name,
   include: instrumentable,
+  unprobed,
   // What governs every observation rather than any one of them. The seam
   // declares the config file Vite loaded and the local modules it imports, and
   // the selection reads the manifests and the lockfile as the install they

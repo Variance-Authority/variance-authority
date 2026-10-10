@@ -191,14 +191,19 @@ describe('what a finished Rstest file is worth', () => {
 
 describe('the Rstest loader', () => {
   /** What the loader hands Rspack for `code` at `file`, and the run it recorded into. */
-  async function loaded(file: string, code: string, files: Readonly<Record<string, string>> = {}) {
+  async function loaded(
+    file: string,
+    code: string,
+    files: Readonly<Record<string, string>> = {},
+    unprobed?: (file: string) => boolean,
+  ) {
     const directory = await root();
     const coverageFile = resolve(directory, 'coverage.bin');
     for (const [path, text] of Object.entries(files)) {
       await mkdir(resolve(directory, path, '..'), { recursive: true });
       await writeFile(resolve(directory, path), text);
     }
-    withTestSelection({ root: directory }, { coverageFile });
+    withTestSelection({ root: directory }, { coverageFile, ...(unprobed === undefined ? {} : { unprobed }) });
     let handed: string | undefined;
     instrumentModule.call(
       { resourcePath: resolve(directory, file), getOptions: () => ({ coverageFile }), callback: (_error, text) => { handed = text; } },
@@ -219,11 +224,20 @@ describe('the Rstest loader', () => {
     expect(modules.map((module) => module.file)).toEqual(['src/pick.ts']);
   });
 
-  it('hands a module it cannot parse back as it arrived, recorded as not instrumented', async () => {
+  it('hands a module it cannot parse back marked as loaded, recorded as not instrumented', async () => {
     const broken = 'export const pick = (;\n';
     const { handed, modules } = await loaded('src/pick.ts', broken);
 
-    expect(handed).toBe(broken);
+    expect(handed).toMatch(/^export const pick = \(;\n\n;[^]*__vaE\(\);$/);
     expect(modules).toEqual([expect.objectContaining({ file: 'src/pick.ts', instrumented: false, blocks: [] })]);
+  });
+
+  it('hands a module named unprobed back marked as loaded, though include accepts it, recorded as not instrumented', async () => {
+    const page = 'export const tag = () => \'#text\';\n';
+    const { handed, modules } = await loaded('src/page.ts', page, { 'src/page.ts': page }, (file) => file.endsWith('page.ts'));
+
+    expect(handed).toMatch(/^export const tag = \(\) => '#text';\n\n;[^]*__vaE\(\);$/);
+    expect(handed).not.toMatch(/__va\(\d+\)/);
+    expect(modules).toEqual([expect.objectContaining({ file: 'src/page.ts', instrumented: false, blocks: [] })]);
   });
 });

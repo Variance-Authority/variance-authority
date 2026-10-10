@@ -15,7 +15,9 @@ if (flag === '--names-another-root') {
   const root = fileURLToPath(new URL('src', import.meta.url));
   process.env['VARIANCE_AUTHORITY_RECORDING'] = JSON.stringify({ ...recording, root });
 }
-if (flag !== '--no-hooks') registerRecording();
+// `--weigh-unprobed` loads `weigh.mts` marked as loaded rather than probed.
+if (flag === '--weigh-unprobed') registerRecording({ unprobed: (path) => path.endsWith('weigh.mts') });
+else if (flag !== '--no-hooks') registerRecording();
 
 const observer = observeTestFile(file);
 const cases = [];

@@ -81,6 +81,8 @@ describe('withJourneyCoverage for Jest', () => {
     expect(() => withJourneyCoverage({ rootDir }, { journeyFile: 'journeys.bin', trace: '@sentry/node' }))
       .toThrow(/is not a path/);
   });
+
+  it.todo('marks the modules `unprobed` names as loaded, as withTestSelection does — needs `unprobed` on JestJourneyCoverageOptions');
 });
 
 async function project(): Promise<string> {
@@ -244,6 +246,28 @@ describe('withTestSelection for Jest', () => {
       'default',
       [SELECTION_REPORTER, { root: '/repo', coverageFile: '/repo/coverage.bin', preconditions: [], mode: 'entries' }],
     ]);
+  });
+
+  it('hands every transform the modules named unprobed, as globs under rootDir', () => {
+    const configured = withTestSelection(
+      { rootDir: '/repo', transform: { '\\.tsx?$': '@swc/jest' } },
+      { coverageFile: 'coverage.bin', unprobed: ['src/page/**', '/elsewhere/world.ts'] },
+    );
+
+    expect(configured.transform).toEqual({
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest', unprobed: ['/repo/src/page/**', '/elsewhere/world.ts'] }],
+    });
+  });
+
+  it('keeps a negated unprobed glob negated when it resolves it under rootDir', () => {
+    const configured = withTestSelection(
+      { rootDir: '/repo', transform: { '\\.tsx?$': '@swc/jest' } },
+      { coverageFile: 'coverage.bin', unprobed: ['src/page/**', '!src/page/keep.ts'] },
+    );
+
+    expect(configured.transform).toEqual({
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest', unprobed: ['/repo/src/page/**', '!/repo/src/page/keep.ts'] }],
+    });
   });
 
   it('refuses a project named by path rather than instrumenting half the run', () => {

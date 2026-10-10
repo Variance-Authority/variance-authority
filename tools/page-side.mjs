@@ -25,10 +25,13 @@ import { relative, resolve } from 'node:path';
  * at the first probe, which is exactly the failure the product chose to keep.
  *
  * `tools/page-side.check.ts` holds the other end, which is the direction nothing
- * else watches: an entry that has stopped being true costs a module its
- * measurement, silently and for as long as nobody looks. So every entry must
- * name a module that is there, and every entry in {@link CROSSES} must still
- * contain the call that put it there.
+ * else watches: an entry that has stopped being true costs a module its lines,
+ * silently and for as long as nobody looks. A module in {@link CROSSES} or
+ * {@link SERIALIZED} is only marked as loaded, so a change to it selects every
+ * test that loaded it; one in {@link RUNTIME} is neither probed nor marked, so
+ * a change to it is answered by the import graph. So every entry must name a
+ * module that is there, and every entry in {@link CROSSES} must still contain
+ * the call that put it there.
  *
  * Written as extensionless repository-relative stems, because the same module
  * arrives at the runner twice — once as the `src` its own package's tests
@@ -142,4 +145,18 @@ export function claims(entry, stem) {
 export function probeable(root, file) {
   const stem = sourceStem(root, file);
   return !PAGE_SIDE.some((entry) => claims(entry, stem));
+}
+
+/**
+ * Whether a transformed module is marked as loaded where it may not be probed.
+ *
+ * Every module whose functions cross is still loaded in this process, by the
+ * tests that hand those functions to a page, and a mark at the end of its text
+ * says which tests did without placing anything inside a function. An edit to
+ * it then selects those tests whole. The probe runtime is not marked: the mark
+ * calls the runtime, which cannot be its own subject.
+ */
+export function marked(root, file) {
+  const stem = sourceStem(root, file);
+  return [...CROSSES, ...SERIALIZED].some((entry) => claims(entry, stem));
 }

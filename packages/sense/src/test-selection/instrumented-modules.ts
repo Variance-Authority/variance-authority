@@ -56,6 +56,12 @@ export function projectPath(root: string, file: string): string {
   return relative(root, file).split(sep).join('/');
 }
 
+/** Whether the absolute `file` lies under `root`, so {@link projectPath} names it without leaving the checkout. */
+export function insideRoot(root: string, file: string): boolean {
+  const path = relative(root, file);
+  return path !== '' && !path.startsWith(`..${sep}`) && path !== '..' && !isAbsolute(path);
+}
+
 /** What one test file's run counted, per module, under the ids the modules reported. */
 export interface ReadJournal {
   readonly testFile: string;

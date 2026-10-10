@@ -29,7 +29,6 @@ import {
   coveringTestsInFile,
   readCommitRuns,
   readJourneyChange,
-  testsGovernedBy,
   type CommitRuns,
   type ExecutionIndex,
   type ExecutionTest,
@@ -42,6 +41,7 @@ import { landingRecord, recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
 import { motionAgainst, motionOfRuns, runsWrote, type CoveringMotion } from './covering-motion.js';
 import { readExecutionFor, readExecutionIndex, recordedExecutionFile, replacedCases } from './execution-input.js';
+import { heldAsPrecondition, type HeldAsPrecondition } from './held-as-precondition.js';
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
 import { reviewedCommit } from './review-head.js';
@@ -282,7 +282,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     });
   }
 
-  const suite = await preconditionsOf(recorded.file, [...changed.keys()].map(named));
+  const suite = heldAsPrecondition(recorded.file, [...changed.keys()].map(named));
   const beyond = await installDiff(point, [...changed.keys()]);
   const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
   const motion = !moves ? undefined : against !== undefined
@@ -303,7 +303,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     files,
     ...(suite === undefined ? {} : {
       suite: suite.tests,
-      before: beforeReach([...changed.keys()].map(named), suite.declared),
+      before: beforeReach([...changed.keys()].map(named), suite.of),
     }),
     ...(beyond === undefined ? {} : { beyond }),
     ...(packages === undefined ? {} : { packages }),
@@ -417,33 +417,11 @@ function casesMoved(
   };
 }
 
-/**
- * How many test files the snapshot holds, and how many of them declare each
- * changed file as a precondition. The snapshot's own lookup answers it; a test
- * that declares its own source is not counted, since that is the test itself.
- */
-async function preconditionsOf(
-  coverageFile: string,
-  changed: readonly string[],
-): Promise<{ readonly tests: number; readonly declared: ReadonlyMap<string, number> } | undefined> {
-  try {
-    return await askCoverageFile(coverageFile, (coverage) => {
-      const declared = new Map<string, number>();
-      for (const [test, names] of testsGovernedBy(coverage, changed).tests) {
-        const own = coverage.string(coverage.testPath.at(test));
-        for (const name of names) if (name !== own) declared.set(name, (declared.get(name) ?? 0) + 1);
-      }
-      return { tests: coverage.testPath.length, declared };
-    });
-  } catch {
-    return undefined;
-  }
-}
-
-function beforeReach(changed: readonly string[], declared: ReadonlyMap<string, number>): readonly BeforeReach[] {
+/** The changed files test files hold as a precondition, each with how many hold it, the most held first. */
+function beforeReach(changed: readonly string[], held: HeldAsPrecondition['of']): readonly BeforeReach[] {
   return changed
-    .filter((file) => declared.has(file))
-    .map((file) => ({ file, tests: declared.get(file)! }))
+    .filter((file) => held.has(file))
+    .map((file) => ({ file, tests: held.get(file)!.length }))
     .sort((left, right) => right.tests - left.tests || (left.file < right.file ? -1 : 1));
 }
 

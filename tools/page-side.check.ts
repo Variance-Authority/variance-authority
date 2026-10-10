@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CROSSES, PAGE_SIDE, claims, sourceStem } from './page-side.mjs';
+import { CROSSES, PAGE_SIDE, RUNTIME, SERIALIZED, claims, probeable, sourceStem } from './page-side.mjs';
+import { selectionOf } from '../vitest.config.mts';
 import { ROOT, sourceFiles } from './workspaces.js';
 
 /**
@@ -11,8 +12,10 @@ import { ROOT, sourceFiles } from './workspaces.js';
  * missing entry is already loud: the probe throws `ReferenceError` in a headless
  * page and the suite goes red. Nothing watches the other direction. An entry
  * that has stopped being true — the module renamed, the `evaluate` call gone —
- * costs that module its measurement in every run from then on, silently, and
- * `yarn test:since` narrows around a hole nobody can see.
+ * costs that module its lines in every run from then on, silently: one in
+ * `CROSSES` or `SERIALIZED` is marked as loaded instead, so a change to it
+ * selects every test file that loaded it rather than the cases that ran it,
+ * and one in `RUNTIME` is answered by the import graph alone.
  *
  * So both ends are held here, and the reverse sweep is exact rather than
  * approximate: today every module outside a test file that hands a function to
@@ -92,5 +95,32 @@ describe('the list governs the run', () => {
       (entry: string) => !entry.endsWith('/') && !existsSync(join(ROOT, `${entry}.ts`)) && !existsSync(join(ROOT, `${entry}.tsx`)),
     );
     expect(missing, 'renamed or deleted since somebody wrote them down').toEqual([]);
+  });
+});
+
+describe('a module the list keeps unprobed is marked as loaded, except the probe runtime', () => {
+  const { include, unprobed } = selectionOf('unit');
+  const claimed = (entries: readonly string[]) => (file: string) =>
+    entries.some((entry) => claims(entry, sourceStem(ROOT, file)));
+
+  it.each([...CROSSES, ...SERIALIZED])('%s is marked, so a change to it selects the tests that loaded it', (entry: string) => {
+    const sources = modules.filter(claimed([entry]));
+    expect(sources.filter((file) => include(file) || !unprobed(file)).map((file) => relative(ROOT, file))).toEqual([]);
+  });
+
+  it('marks the built module as it marks its source', () => {
+    const built = join(ROOT, 'packages/playwright/dist/harness.js');
+    expect([include(built), unprobed(built)]).toEqual([false, true]);
+  });
+
+  it('neither probes nor marks the probe runtime, which the mark itself calls', () => {
+    const runtime = modules.filter(claimed(RUNTIME));
+    expect(runtime).not.toHaveLength(0);
+    expect(runtime.filter((file) => include(file) || unprobed(file)).map((file) => relative(ROOT, file))).toEqual([]);
+  });
+
+  it('marks nothing the list does not name', () => {
+    const named = modules.filter((file) => unprobed(file) && probeable(ROOT, file));
+    expect(named.map((file) => relative(ROOT, file))).toEqual([]);
   });
 });

@@ -173,6 +173,30 @@ describe('a browser run records what it executed', () => {
     });
   });
 
+  it('marks a module it cannot parse, so an edit to it selects every subject that loaded it', async () => {
+    await inRoot(async (root) => {
+      const cacheRoot = resolve(root, 'cache');
+      const coverageFile = resolve(root, 'coverage.bin');
+      const broken = 'export const = ;\n';
+      const module = resolve(root, 'broken.js');
+      await writeFile(module, broken, 'utf8');
+
+      const transformed = testSelectionProbes({ root }).transform(broken, module);
+
+      expect(transformed?.code.startsWith(`import "variance-authority:execution-collector";${broken}`)).toBe(true);
+      // The module's own text throws wherever it runs; what follows it is the mark.
+      const realm = evaluate(transformed!.code.replace(broken, ''));
+      await recordExecution({
+        root,
+        cacheRoot,
+        coverageFile,
+        subjects: [{ owner: 'story:broken--loaded', journal: realm.collector.drain() }],
+      });
+
+      expect(await selectTestFiles(coverageFile, diffAt('broken.js', 1))).toEqual(['story:broken--loaded']);
+    });
+  });
+
   it('gives every region entered during module initialization every subject the page served', async () => {
     await inRoot(async (root) => {
       const cacheRoot = resolve(root, 'cache');

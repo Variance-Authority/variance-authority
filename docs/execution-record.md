@@ -95,7 +95,9 @@ they stop and list the suites.
 `variance covering` asks the other question, which suites ran this code, so it
 reads every declared suite's record and answers under each suite's name and
 kind. Suites that never loaded the file are named together after the answers,
-and a suite with no recording yet says so. A payment module your unit suite
+and a suite with no recording yet says so. A suite that loaded the file without
+instrumenting it names the test files that loaded it, which are the ones a
+change to it selects, and no line. A payment module your unit suite
 walked and your visual suite never loaded reads as exactly that. `--suite
 <name>` asks one record alone.
 
@@ -187,7 +189,7 @@ they return are the ones this page describes.
 
 | Import from | Names |
 |---|---|
-| `@variance-authority/sense/instrument` | `instrument`, `instrumentationId`, `instrumentModeOf`, `INSTRUMENTATION_ID`, `EVALUATING`; types `Block`, `BlockKind`, `Instrumented`, `InstrumentOptions`, `ModuleId` |
+| `@variance-authority/sense/instrument` | `instrument`, `instrumentationId`, `instrumentModeOf`, `probeRecipe`, `probeRuntime`, `INSTRUMENTATION_ID`, `EVALUATING`; types `Block`, `BlockKind`, `Instrumented`, `InstrumentOptions`, `ModuleId` |
 | `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `BLOCK_KINDS`, `caseSectionsAt`, `openSetColumns`, `selectTestFiles`, `narrowByExecution`, `mergeCoverage`, `foldTestCoverage`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `cacheRootFor`, `CACHE_CONFIG`, `repositoryLayers`, `layeredFiles`; types `CacheLayers`, `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CoverageShard`, `ExecutionIndex`, `SetColumns`, `TestColumns`, `StringTable` |
 | `@variance-authority/sense/journal` | `testSelectionProbes`, `drainExecution`, `recordExecution`, `joinObservations`, `moduleId`, `EXECUTION_GLOBAL`; types `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `ObservedSubject` |
 | `@variance-authority/sense/journey` | `collectJourneys`, `stitchJourneys`, `mintJourney`, `journeyOf`, `JOURNEY_COOKIE`, `JOURNEY_VARIABLE`, `JOURNEY_HEAD_VARIABLE`; types `JourneyAccount`, `JourneyReport`, `StitchedJourneys` |
@@ -584,13 +586,23 @@ Placing probes is deterministic, so one text, one path and one recipe give one
 set of ordinals, and every reader cuts the module again from the checkout:
 
 - **The file has the text the digest names.** The reader cuts it exactly as the
-  transform did, and every ordinal means the region it meant in the build.
+  transform did, and every ordinal means the region it meant in the build. Text
+  the transform could not parse ran with one mark at its end instead of probes,
+  and the reader fails on it too, so the module is recorded as not
+  instrumented, as below.
 - **The file has other text.** The module is recorded as not instrumented: its
   file is still named, with no regions. Every subject that ran it depends on
   that file's text whole, so a change to it selects those subjects.
 - **The file is gone, or the id names no file under the root.** The module is
   left out. The test that ran it is recorded incomplete, so a later run never
   skips it.
+- **The digest has a `~` in front of it, as `path@~digest`.** The module ran
+  with one mark at the end of its text and no probe inside it: a module the
+  [`unprobed` option](../packages/sense/README.md) names, because its functions
+  run where a probe has nothing to report to, such as a page, or a module a
+  Jest transformer that places its own probes handed back with none in it. The
+  reader cuts no regions and records the module as not instrumented, so a
+  change to it selects every subject that loaded it.
 
 So a transform reads nothing from the rest of the build: ten changed files out
 of two hundred thousand are rebuilt in parallel, in any order, by processes that
@@ -703,7 +715,8 @@ below is one stage of that call.
    without `sourceAt`, whose hunks do not apply to the recorded text, whose
    text does not parse, or on a machine without the scanner's native addon is
    charged by its lines, and `readings` records which. Two parses per side per
-   changed file, and one parse per importer of a moved value.
+   changed file, and one parse per importer of a moved value, plus one more each
+   time another path reaches that importer with a name no earlier path brought.
 4. **Lines to blocks.** Each charged line costs one scan of the module's
    blocks, O(B). Every synthesized region containing the line is charged. Source
    regions containing it are grouped by span, and the narrowest group is
