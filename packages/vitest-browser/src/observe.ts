@@ -177,6 +177,10 @@ export async function observeSubject(
     ...(held.digest === undefined ? {} : { stabilization: held.digest }),
   });
 
+  // The test goes on using this page, and a field it focused before it
+  // observed is still the one it types into after.
+  held.refocus();
+
   // TODO: portalled content is not read here. `portalContentOf` finds the
   // subtrees React rendered outside this element — a dialog, a tooltip, a
   // toast — and `capture` has no seam to take them through, so a subject whose

@@ -4,6 +4,7 @@ import {
   conflicts,
   digestValue,
   documentDigest,
+  driveBeforeLoad,
   recipeCss,
   recipeDigest,
   recipeScreenshot,
@@ -163,6 +164,7 @@ export async function createPlaywrightRenderer(
   const browser = await ENGINE_TYPES[engine].launch({ headless, args: [...launchArgs] });
   const recipe = options.stabilization ?? RASTER_RECIPE;
   const holdStill = recipeCss(recipe);
+  const settledWithoutWaits = recipe.filter((intervention) => intervention.trick !== 'wait');
   const shot = recipeScreenshot(recipe);
   // Two objects, because two identity fields ask different questions. `raster`
   // is what this renderer decided; `screenshot` is that plus whatever the recipe
@@ -212,9 +214,18 @@ export async function createPlaywrightRenderer(
 
     const concurrency = Math.max(1, options.concurrency ?? 1);
     const activeResources = new WeakMap<BrowserContext, Set<string>>();
-    const pool = new PagePool(browser, concurrency, (context, url) => {
-      activeResources.get(context)?.add(`websocket ${url}`);
-    });
+    const pool = new PagePool(
+      browser,
+      concurrency,
+      (context, url) => {
+        activeResources.get(context)?.add(`websocket ${url}`);
+      },
+      // Once per page: the pointer, the clock and the media preference survive
+      // `setContent`, and nothing in a render moves the pointer.
+      async (page) => {
+        await driveBeforeLoad(recipe, page);
+      },
+    );
 
     // One expression, used by `render` to stamp the raster and by the pipeline
     // to look a baseline up. Two expressions is how the write key and the lookup
@@ -251,9 +262,10 @@ export async function createPlaywrightRenderer(
           // would discard a sheet added before it.
           if (holdStill !== '') await page.addStyleTag({ content: holdStill });
 
-          // Every wait the recipe asks for, and nothing else. A recipe with no
-          // waits — the structure-and-style rung — pays for none of this.
-          if (options.waitForFonts !== false) await settleRecipe(recipe, page);
+          // Every settle the recipe asks for, and nothing else. A recipe with no
+          // waits — the structure-and-style rung — pays for none of this, and
+          // `waitForFonts: false` turns off the waits alone: `no-focus` still runs.
+          await settleRecipe(options.waitForFonts === false ? settledWithoutWaits : recipe, page);
 
           const missingFonts = await page.evaluate(probeFonts, familiesOf(document.fonts));
 
@@ -379,6 +391,8 @@ class PagePool {
   readonly #browser: Browser;
   readonly #limit: number;
   readonly #onWebSocket: (context: BrowserContext, url: string) => void;
+  /** The recipe's driver tricks, applied to each page as it opens. */
+  readonly #drive: (page: Page) => Promise<void>;
   /** Idle pages, per viewport key. A render takes one and puts it back. */
   readonly #idle = new Map<string, Page[]>();
   #leased = 0;
@@ -388,10 +402,12 @@ class PagePool {
     browser: Browser,
     limit: number,
     onWebSocket: (context: BrowserContext, url: string) => void,
+    drive: (page: Page) => Promise<void>,
   ) {
     this.#browser = browser;
     this.#limit = limit;
     this.#onWebSocket = onWebSocket;
+    this.#drive = drive;
   }
 
   /**
@@ -446,6 +462,7 @@ class PagePool {
       serviceWorkers: closed ? 'block' : 'allow',
     });
     const page = await context.newPage();
+    await this.#drive(page);
     if (closed) {
       await context.routeWebSocket(/.*/, async (route) => {
         this.#onWebSocket(context, route.url());

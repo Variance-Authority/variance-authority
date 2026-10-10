@@ -1,4 +1,4 @@
-import { acquireDocument, collect, stabilizeForObservation } from '@variance-authority/dom';
+import { acquireDocument, collect, stabilizeAsRequested } from '@variance-authority/dom';
 import {
   awaitSuspense,
   createDeclarationRegistry,
@@ -9,7 +9,6 @@ import {
   wiringOf,
 } from '@variance-authority/react';
 import type { DeclaredComponents, SuspenseSettlement } from '@variance-authority/react';
-import { recipeOf } from '@variance-authority/core/format';
 import type {
   Digest,
   RawCapture,
@@ -70,6 +69,15 @@ export interface AcquireRequest {
    * not survive the trip; the page holds the same registry and resolves them.
    */
   readonly stabilize?: readonly string[];
+
+  /**
+   * The driver tricks the driver applied to this page, by id.
+   *
+   * `no-hover` before each reading, and `reduced-motion` and `freeze-clock`
+   * when the `variance` fixture set them before the test's page loaded. A trick
+   * nobody drove is left out of the recorded recipe. Absent is none.
+   */
+  readonly driven?: readonly string[];
 
   /**
    * `'raster'` when this reading is followed by a screenshot of the same live
@@ -144,10 +152,8 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
   // `transform` and `opacity`, both of which the semantic representation
   // carries — so an unstabilized collection reports a fade as a regression with
   // a component and a file attached. See `docs/stabilization.md`.
-  const held = await stabilizeForObservation(root.ownerDocument, {
-    ...(request.stabilize === undefined ? {} : { recipe: recipeOf(request.stabilize) }),
-    ...(request.tier === undefined ? {} : { tier: request.tier }),
-  });
+  const held = await stabilizeAsRequested(root.ownerDocument, request);
+  unfocused.push(held.refocus);
 
   // The width media queries resolve against is the page's, not the one the
   // driver asked for. They differ under `isMobile`: a page with no viewport meta
@@ -161,6 +167,9 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
         ? request.viewport
         : { ...request.viewport, width: view.innerWidth, height: view.innerHeight },
     ...(request.fonts !== undefined ? { fonts: request.fonts } : {}),
+    // The preference the driver emulated, declared, so `@media` reads it as
+    // the browser answers it rather than as unknown.
+    ...(held.features !== undefined ? { features: held.features } : {}),
   };
 
   // FIXME: remounts are not read here, and `remountedSince` is why. It needs a
@@ -212,8 +221,25 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
   });
 }
 
+/** What each acquisition since the last {@link refocus} took focus from. */
+const unfocused: (() => void)[] = [];
+
+/**
+ * Give focus back to the element the acquisitions since the last call took it
+ * from.
+ *
+ * Not part of `acquire`, because the in-place path photographs the live
+ * document after it, and a focus ring given back before the photograph is in
+ * it. The Node half calls this once the observation is done.
+ */
+export function refocus(): void {
+  for (const restore of unfocused.splice(0)) restore();
+}
+
 export interface InstalledAgent {
   readonly acquire: (root: Element, request: AcquireRequest) => Promise<string>;
+  /** {@link refocus}. */
+  readonly refocus: () => void;
   readonly version: string;
   /** What `createDeclarationReader` reads, keyed on `AGENT` rather than `AGENT_GLOBAL`. */
   readonly declared: DeclaredComponents;

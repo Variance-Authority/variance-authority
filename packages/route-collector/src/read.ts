@@ -168,7 +168,10 @@ export async function readRoute(
     // rule has nothing for a document to resolve, and sending one would put a
     // digest in a browser that cannot use it.
     ...(selectable.length > 0 ? { ignore: selectable } : {}),
+    // These fields match the Storybook collector's request on purpose and stay apart:
+    // each collector's page agent is its own bundle with its own request type.
     ...(options.stabilize !== undefined ? { stabilize: options.stabilize } : {}),
+    ...(world.driven.length > 0 ? { driven: world.driven } : {}),
     // Sent only when the caller said something. The page agent holds the
     // defaults, so a bundle and a driver built from different checkouts cannot
     // disagree about what absent meant.

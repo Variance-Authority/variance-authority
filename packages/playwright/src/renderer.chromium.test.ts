@@ -287,6 +287,26 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', 
     }
   }, 60_000);
 
+  it('releases focus with `waitForFonts: false`, since only the waits are what it turns off', async () => {
+    // `no-focus` is a settle trick like the two waits, and a renderer that skips
+    // every settle when fonts are not awaited keeps a field the document focused.
+    const renderer = await createPlaywrightRenderer({ concurrency: 1, waitForFonts: false });
+    const field = (autofocus: string): RenderDocument => ({
+      ...documentOf('fixture:field', '#fff'),
+      html: `<div data-va-path="0" style="width:160px;height:80px;padding:20px"><input ${autofocus}></div>`,
+      css: ['input { outline: none; border: 1px solid #000; } input:focus { outline: 6px solid #00f; }'],
+    });
+
+    try {
+      const focused = await renderer.render(field('autofocus'));
+      const untouched = await renderer.render(field(''));
+
+      expect(comparePngs(decode(focused.bytes), decode(untouched.bytes)).changed['default']).toBe(0);
+    } finally {
+      await renderer.close();
+    }
+  }, 60_000);
+
   it('records a subject that occupies no pixels instead of refusing it', async () => {
     // A quarter of Material UI's unit tier is this shape: `describeConformance`
     // mounts each component with no children, so the subject is an empty div

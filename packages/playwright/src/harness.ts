@@ -1,6 +1,14 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
-import type { RawCapture, Viewport } from '@variance-authority/core/format';
+import {
+  driveBeforeLoad,
+  featuresOf,
+  forDriver,
+  type RawCapture,
+  type Recipe,
+  type Viewport,
+} from '@variance-authority/core/format';
 import { AGENT_GLOBAL, type CaptureRequest, type PageAgent } from './agent.js';
+import { observeNetwork, type NetworkObservation, type NetworkOptions } from './network.js';
 
 /**
  * A persistent Chromium harness: one browser, one page, one navigation, one
@@ -42,8 +50,20 @@ export interface HarnessOptions {
 
   /** See {@link CaptureRequest.fonts}. Omitted means the capture says so. */
   readonly fonts?: readonly string[];
+  /**
+   * Media features the project declares, such as `prefers-reduced-motion`.
+   * A declared motion preference is the one {@link HarnessOptions.stabilize}'s
+   * `reduced-motion` emulates.
+   */
   readonly features?: Readonly<Record<string, string>>;
   readonly assets?: Readonly<Record<string, string>>;
+
+  /**
+   * The stabilization recipe whose driver tricks — reduced motion, a fixed
+   * clock, the pointer off the page — are applied before the first navigation.
+   * Absent drives nothing. The ids applied are {@link Harness.driven}.
+   */
+  readonly stabilize?: Recipe;
 
   /** Defaults to `fixture:<subject>`, matching the JSDOM measurement. */
   readonly subjectId?: (subject: string) => string;
@@ -79,6 +99,12 @@ export interface Harness {
    */
   capture(subject: string, variant: string): Promise<RawCapture>;
 
+  /**
+   * The driver tricks applied before the first navigation, for the page agent
+   * to keep in the recipe it records. Empty when nothing was driven.
+   */
+  readonly driven: readonly string[];
+
   /** Console errors the page reported, in order. Empty is the expected case. */
   pageErrors(): readonly string[];
 
@@ -104,6 +130,12 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
       if (message.type() === 'error') errors.push(message.text());
     });
 
+    // Before `prepare` and the first navigation, because all three driver
+    // tricks survive one and the page's first script already reads the clock
+    // and the motion preference.
+    const driven =
+      options.stabilize === undefined ? [] : await driveBeforeLoad(options.stabilize, page, options.features);
+    const features = featuresOf(forDriver(options.stabilize ?? [], driven), options.features);
     if (options.prepare !== undefined) await options.prepare(page);
 
     await page.goto(options.url, { waitUntil: 'load' });
@@ -115,6 +147,7 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
     return {
       engine,
       page,
+      driven,
       pageErrors: () => [...errors],
       async capture(subject, variant) {
         return evaluateCapture(page, {
@@ -124,7 +157,7 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
           viewport: options.viewport,
           engine,
           ...(options.fonts ? { fonts: options.fonts } : {}),
-          ...(options.features ? { features: options.features } : {}),
+          ...(features ? { features } : {}),
           ...(options.assets ? { assets: options.assets } : {}),
         });
       },
@@ -138,6 +171,28 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
     await browser.close();
     throw error;
   }
+}
+
+/**
+ * A harness whose page is watched by {@link observeNetwork} from before its
+ * first navigation, when `network` asks for it; absent watches nothing.
+ *
+ * The observation is the caller's to close, before the harness: it outlives the
+ * harness's `prepare`, which is where it has to start, because a watcher
+ * installed after `goto` has missed every asset the document pulled in.
+ */
+export async function createObservedHarness(
+  options: Omit<HarnessOptions, 'prepare'>,
+  network: NetworkOptions | undefined,
+): Promise<{ readonly harness: Harness; readonly network?: NetworkObservation }> {
+  let observation: NetworkObservation | undefined;
+  const harness = await createHarness({
+    ...options,
+    prepare: async (page): Promise<void> => {
+      if (network !== undefined) observation = await observeNetwork(page, network);
+    },
+  });
+  return observation === undefined ? { harness } : { harness, network: observation };
 }
 
 /**

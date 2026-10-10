@@ -10,11 +10,7 @@ import { documentDigest } from '@variance-authority/core/format';
 import { normalize } from '@variance-authority/core/rules';
 import type { CaptureArtifact } from '@variance-authority/core';
 import type { SourceIndex } from '@variance-authority/core/attribute';
-import type {
-  SemanticSnapshot,
-  SubjectRef,
-  Viewport,
-} from '@variance-authority/core/format';
+import type { SemanticSnapshot, SubjectRef } from '@variance-authority/core/format';
 import {
   observeAgainstBaseline,
   observeCaptureAgainstBaseline,
@@ -27,8 +23,8 @@ import { accepted, adopts } from './accepted.js';
 import type { MaterializationOptions, VarianceOptions } from './options.js';
 import { bundlePageAgent } from './bundle.js';
 import { checkoutStore } from './render-cache.js';
-import { acquireFrom } from './acquire.js';
-import { runOf, type VarianceRun } from './run.js';
+import { acquireFrom, refocusAfter } from './acquire.js';
+import { runOf, subjectFromRun, viewportOf, type VarianceRun } from './run.js';
 import { settledCapture } from './in-place.js';
 import { varianceCompletedFixtures, type VarianceCompletedFixtures } from './completed.js';
 import { varianceDocumentFixtures } from './documents.js';
@@ -48,6 +44,7 @@ import {
 import { runnerReprieve, varianceDesk, varianceVantageFixtures } from './vantage.js';
 import type { VarianceDesk, VarianceVantageFixtures, VarianceVantageWorkerFixtures } from './vantage.js';
 import { varianceWireFixtures, type VarianceWireFixtures } from './wire.js';
+import { varianceDriveFixtures, type VarianceDriveFixtures } from './drive.js';
 import { playwrightStanding } from './preconditions.js';
 import { AGENT, type AcquireRequest } from './page-agent.js';
 
@@ -80,7 +77,8 @@ import { AGENT, type AcquireRequest } from './page-agent.js';
  * two networks away.
  */
 
-export interface VarianceFixtures extends VarianceEventFixtures, VarianceVantageFixtures, VarianceCompletedFixtures {
+export interface VarianceFixtures
+  extends VarianceEventFixtures, VarianceVantageFixtures, VarianceCompletedFixtures, VarianceDriveFixtures {
   /**
    * Observe one subtree against its stored baseline — and, on the same name, the
    * two calls that let a test be looked at while it runs.
@@ -141,41 +139,8 @@ export interface VarianceRuntime {
    * not one the document was taken under. Absent outside a runner's case.
    */
   readonly arranged?: () => SnapshotCase;
-}
-
-/**
- * The subject id a run supplies when an observation does not name one.
- *
- * Refused rather than defaulted: an id is the coordinate a baseline is stored
- * at, and inventing one from a counter or a timestamp would give the same
- * subject a different address on every run.
- */
-function subjectFromRun(run: VarianceRun): string {
-  if (run.id === undefined || run.id === '') {
-    throw new Error(
-      'variance needs a subject id and this run has none; ' +
-        'pass `subjectId` on the observation, or `id` on the run descriptor',
-    );
-  }
-  return run.id;
-}
-
-function viewportOf(
-  size: { width: number; height: number } | null,
-  run: VarianceRun,
-): Viewport {
-  if (size === null) {
-    throw new Error(
-      'variance needs a viewport and this page has none; ' +
-        'a null viewport means the image has no declared size, so no two runs are comparable',
-    );
-  }
-
-  return {
-    ...size,
-    deviceScaleFactor: run.deviceScaleFactor ?? 1,
-    colorScheme: run.colorScheme === 'dark' ? 'dark' : 'light',
-  };
+  /** The driver tricks set on this page before it loaded, by id. Absent is none. */
+  readonly driven?: readonly string[];
 }
 
 /**
@@ -197,6 +162,7 @@ export const varianceFixtures: Fixtures<
   ...varianceEventFixtures,
   ...varianceCompletedFixtures,
   ...varianceDocumentFixtures,
+  ...varianceDriveFixtures,
 
   varianceBaselines: ['.variance/baselines', { scope: 'worker', option: true }],
 
@@ -269,7 +235,16 @@ export const varianceFixtures: Fixtures<
     // Nothing is drained here. The page belongs to the test's context, and the
     // context drains every document it held once the test is done with it —
     // for every spec, including the ones that never destructure this fixture.
-    { page, varianceBundle, varianceRecorder, varianceRenderer, varianceStore, varianceJourney, varianceVantage },
+    {
+      page,
+      varianceBundle,
+      varianceRecorder,
+      varianceRenderer,
+      varianceStore,
+      varianceJourney,
+      varianceVantage,
+      varianceDriven,
+    },
     use,
     testInfo,
   ) => {
@@ -290,6 +265,7 @@ export const varianceFixtures: Fixtures<
           declared,
           evidence: testInfo.outputPath('variance'),
           arranged: () => snapshotCaseOf(testInfo, varianceRecorder),
+          driven: varianceDriven,
         },
         locator,
         options,
@@ -359,6 +335,8 @@ export async function observeLocator(
     // about what absent meant.
     ...(options.wiring !== undefined ? { wiring: options.wiring } : {}),
     ...(options.holdings !== undefined ? { holdings: options.holdings } : {}),
+    ...(options.stabilize !== undefined ? { stabilize: options.stabilize } : {}),
+    ...(runtime.driven !== undefined && runtime.driven.length > 0 ? { driven: runtime.driven } : {}),
   };
 
   // Read at capture rather than when the case ends, the accessibility tree is
@@ -369,6 +347,8 @@ export async function observeLocator(
     taken = runtime.arranged?.();
   });
   const observed = await observeAcquired(runtime, locator, options, { subject, request, acquired });
+  // The test goes on using this page, and types into the field it focused.
+  await refocusAfter(page);
   return taken === undefined ? observed : { ...observed, case: taken };
 }
 

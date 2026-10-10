@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createCallSiteResolver, overlaySourceIndex } from '@variance-authority/core/attribute';
+import { recipeToDrive, type Recipe } from '@variance-authority/core/format';
 import { createDeclarationReader, fetchModules } from '@variance-authority/playwright';
 import { createStoryRecorder } from './execution.js';
 import { harnessPage, readParameters } from '@variance-authority/storybook';
@@ -115,6 +116,16 @@ export function storybookCollector(
     const { config, plan } = context;
     const roots = options.roots ?? STORY_ROOTS;
 
+    // Resolved here as well as in the page, because the driver applies three of
+    // its tricks and has to know which. An unknown id or an instant with no zone
+    // is the operator's to fix, and is said before a browser opens.
+    let stabilize: Recipe;
+    try {
+      stabilize = recipeToDrive(options);
+    } catch (error) {
+      throw operatorError((error as Error).message, { cause: error });
+    }
+
     // Checked before anything reads it. `index` is what `subjects.kind:
     // "storybook"` supplies, so a config naming another kind arrives here with
     // nothing to serve — and the guard further down in `plan()` is too late,
@@ -169,6 +180,7 @@ export function storybookCollector(
         viewport: config.viewport,
         ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
         ...(options.headless !== undefined ? { headless: options.headless } : {}),
+        stabilize,
       },
       // Installed in `prepare`, which runs before the first navigation: an
       // observation that starts afterwards has already missed the assets the
@@ -316,5 +328,6 @@ export function storybookCollector(
 
 export type { StorybookCollectorOptions } from './options.js';
 export type { StoryExecutionOptions } from './execution.js';
+export { DEFAULT_STABILIZE } from '@variance-authority/core/format';
 export type { SourceScan } from './source.js';
 export type { AcquireRequest, Acquired } from './page-agent.js';

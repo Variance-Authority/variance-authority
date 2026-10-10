@@ -2,7 +2,7 @@ import {
   acquireDocument,
   assetsFor,
   collect,
-  stabilizeForObservation,
+  stabilizeAsRequested,
 } from '@variance-authority/dom';
 import {
   awaitHydration,
@@ -15,7 +15,6 @@ import {
   wiringOf,
 } from '@variance-authority/react';
 import type { HydrationSettlement, SuspenseSettlement } from '@variance-authority/react';
-import { recipeOf } from '@variance-authority/core/format';
 import type { RawCapture, RenderDocument, Viewport } from '@variance-authority/core/format';
 
 /**
@@ -67,6 +66,15 @@ export interface AcquireRequest {
    * not survive the trip; the page holds the same registry and resolves them.
    */
   readonly stabilize?: readonly string[];
+
+  /**
+   * The driver tricks the driver applied to this page, by id.
+   *
+   * The page cannot emulate a media feature, fix its own clock or move the
+   * pointer, so a trick that needs one of those holds only when the driver says
+   * it did it. The rest are left out of the recorded recipe. Absent is none.
+   */
+  readonly driven?: readonly string[];
 
   /**
    * How long to wait for the subject's Suspense boundaries, in milliseconds.
@@ -200,10 +208,7 @@ export async function acquire(request: AcquireRequest): Promise<string> {
   // `transform` and `opacity`, both of which the semantic representation
   // carries — so an unstabilized collection reports a fade as a regression with
   // a component and a file attached. See `docs/stabilization.md`.
-  const held = await stabilizeForObservation(
-    root.ownerDocument,
-    request.stabilize === undefined ? {} : { recipe: recipeOf(request.stabilize) },
-  );
+  const held = await stabilizeAsRequested(root.ownerDocument, request);
 
   // Narrowed to this route's own subtree, and handed to **both** keys. The
   // document's key is the one `settle` reads: a document that omitted the assets
@@ -216,6 +221,9 @@ export async function acquire(request: AcquireRequest): Promise<string> {
     subject: { id: request.subjectId, kind: 'route' as const },
     viewport: request.viewport,
     ...(request.fonts !== undefined ? { fonts: request.fonts } : {}),
+    // The preference the driver emulated, declared, so `@media` reads it as
+    // the browser answers it rather than as unknown.
+    ...(held.features !== undefined ? { features: held.features } : {}),
     ...(Object.keys(assets).length > 0 ? { assets } : {}),
   };
 

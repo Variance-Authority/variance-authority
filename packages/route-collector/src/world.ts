@@ -1,6 +1,5 @@
 import {
-  createHarness,
-  observeNetwork,
+  createObservedHarness,
   type Harness,
   type HarnessOptions,
   type NetworkObservation,
@@ -28,10 +27,10 @@ import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 
 export interface RouteWorldRecipe {
   /**
-   * Everything `createHarness` needs, except the hook this module owns.
+   * Everything `createHarness` needs, except the hook `createObservedHarness` owns.
    *
    * `prepare` is excluded because the network observation has to be installed
-   * before the first navigation and this is the file that knows it — a caller
+   * before the first navigation and `createObservedHarness` installs it — a caller
    * free to supply its own hook could open the two worlds with two different
    * observers, which is the one difference that would look exactly like
    * pollution.
@@ -70,6 +69,15 @@ export interface RouteWorld {
    */
   ensureAgent(): Promise<void>;
 
+  /**
+   * The driver tricks applied before the first navigation, which hold for
+   * every reading after it: nothing but this world moves the pointer.
+   *
+   * The ids go to the page agent, which keeps the driver tricks it was told
+   * about and drops the rest, so a reading's recipe is the one that held.
+   */
+  readonly driven: readonly string[];
+
   close(): Promise<void>;
 }
 
@@ -83,18 +91,7 @@ export interface RouteWorld {
  * hand, so the reading that costs a launch is the one worth having.
  */
 export async function openWorld(recipe: RouteWorldRecipe): Promise<RouteWorld> {
-  let network: NetworkObservation | undefined;
-
-  const harness = await createHarness({
-    ...recipe.harness,
-    ...(recipe.network === undefined
-      ? {}
-      : {
-          prepare: async (page): Promise<void> => {
-            network = await observeNetwork(page, recipe.network as NetworkOptions);
-          },
-        }),
-  });
+  const { harness, network } = await createObservedHarness(recipe.harness, recipe.network);
 
   const page = harness.page;
   let agentInstalled = false;
@@ -122,6 +119,8 @@ export async function openWorld(recipe: RouteWorldRecipe): Promise<RouteWorld> {
       if (!installed) throw new Error(`the page bundle did not install ${AGENT_GLOBAL}`);
       agentInstalled = true;
     },
+
+    driven: harness.driven,
 
     async close(): Promise<void> {
       await network?.close();

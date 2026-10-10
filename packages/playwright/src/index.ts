@@ -25,7 +25,7 @@
  * persistence is worth in wall-clock terms, and how to reproduce it.
  */
 
-export { createHarness, captureOnce } from './harness.js';
+export { createHarness, createObservedHarness, captureOnce } from './harness.js';
 export type { Harness, HarnessOptions } from './harness.js';
 
 export { unresizable, unwidened, widthsOf, type WidthPlanned } from './viewport.js';

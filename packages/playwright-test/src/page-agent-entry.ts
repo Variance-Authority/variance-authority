@@ -1,4 +1,4 @@
-import { AGENT, AGENT_VERSION, acquire, declared, type InstalledAgent } from './page-agent.js';
+import { AGENT, AGENT_VERSION, acquire, declared, refocus, type InstalledAgent } from './page-agent.js';
 
 /**
  * The bundle's entry point, and the only module here with a side effect.
@@ -9,6 +9,7 @@ import { AGENT, AGENT_VERSION, acquire, declared, type InstalledAgent } from './
  */
 (globalThis as unknown as Record<string, InstalledAgent>)[AGENT] = {
   acquire,
+  refocus,
   version: AGENT_VERSION,
   declared,
 };
