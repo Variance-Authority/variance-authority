@@ -195,6 +195,7 @@ function Build({
               subject={subject}
               {...(anchor === undefined ? {} : { anchor, far: distanceFrom(build, anchor) })}
               sourced={build.causes.some((cause) => cause.file !== undefined)}
+              go={go}
               onDecided={reload}
               onConcerned={concerns.refresh}
             />

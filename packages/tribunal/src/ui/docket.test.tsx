@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { BuildDetail, BuildSummary, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import { BuildPage } from './docket.js';
+import type { Route } from './route.js';
 
 /**
  * The line the build page opens on, held to what it is allowed to say.
@@ -230,5 +231,35 @@ describe('a build that has not arrived still wears its chrome', () => {
       'Builds',
     );
     expect(host.querySelector('.va-failure button')?.textContent).toBe('retry');
+  });
+});
+
+describe('a subject page names the earlier build that kept its image', () => {
+  it('opens that build’s page for the same subject', async () => {
+    HTMLElement.prototype.scrollTo = () => undefined;
+    const now = build('6', [
+      subject({
+        repeats: {
+          count: 1,
+          builds: [{ build: '5', at: '2026-06-01T11:00:00.000Z', decision: null }],
+        },
+      }),
+    ]);
+    const visited: Route[] = [];
+    await act(async () => {
+      root.render(
+        <BuildPage
+          client={clientThat(now, build('5', []))}
+          reviewer="marina"
+          route={{ page: 'subject', build: '6', subject: 'story:card' }}
+          go={(route) => visited.push(route)}
+        />,
+      );
+    });
+
+    const link = host.querySelector<HTMLAnchorElement>('a[href="/builds/5/subjects/story%3Acard"]');
+    act(() => link?.click());
+
+    expect(visited).toEqual([{ page: 'subject', build: '5', subject: 'story:card' }]);
   });
 });
