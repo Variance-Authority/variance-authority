@@ -133,7 +133,8 @@ export function requires(granted: Granted, needed: Granted, path: string): void 
       (granted === 'share'
         ? SHARE_ONLY
         : needed === 'review'
-          ? 'Deciding promotes a baseline, so it is not something a build log can do'
+          ? 'What people decide and write on the review surface, a baseline promoted among it, ' +
+            'is not something a build log can do'
           : 'Writing to this deployment is something CI does, not something a reviewer does'),
   );
 }

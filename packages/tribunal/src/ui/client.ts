@@ -18,6 +18,13 @@ import type {
   TribunalChangelog,
   TribunalChangelogQuery,
 } from '../review.js';
+import type {
+  Concern,
+  ConcernQuery,
+  ConcernTally,
+  MoveConcern,
+  RaiseConcern,
+} from '../concern-types.js';
 
 /**
  * The review API, as the browser sees it.
@@ -91,6 +98,16 @@ export interface ReviewClient {
     note?: string,
   ): Promise<DecisionRecord>;
   sweep(days?: number): Promise<SweepReport>;
+  /**
+   * What reviewers suspect, apart from what they decided.
+   *
+   * `seenIn` reads every concern on a subject that build showed, whichever build
+   * raised it, and brings the build's tally with it; without it there is no
+   * build to count over and `tally` is absent.
+   */
+  concerns(query?: ConcernQuery): Promise<{ readonly concerns: readonly Concern[]; readonly tally?: ConcernTally }>;
+  raise(input: RaiseConcern): Promise<Concern>;
+  moveConcern(id: number, input: MoveConcern): Promise<Concern>;
   /** The URL of one image, for an `<img src>`. Never fetched here. */
   imageUrl(build: string, subject: string, kind: 'before' | 'after' | 'diff'): string;
   /**
@@ -190,6 +207,27 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
       call<SweepReport>(`/review/sweep${days === undefined ? '' : `?days=${days}`}`, {
         method: 'POST',
       }),
+
+    concerns: (query = {}) =>
+      call<{ readonly concerns: readonly Concern[]; readonly tally?: ConcernTally }>(
+        `/review/concerns${search({ build: query.seenIn, subject: query.subject, state: query.state })}`,
+      ),
+
+    async raise(input): Promise<Concern> {
+      const body = await call<{ readonly concern: Concern }>('/review/concerns', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
+      return body.concern;
+    },
+
+    async moveConcern(id, input): Promise<Concern> {
+      const body = await call<{ readonly concern: Concern }>(`/review/concerns/${id}`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
+      return body.concern;
+    },
 
     imageUrl: (build, subject, kind) =>
       `${base}/review/builds/${encode(build)}/subjects/${encode(subject)}/${kind}.png`,

@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import type { Decision, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
+import { Concerns } from './concerns.js';
 import type { Ruler } from './distance.js';
 import { Findings } from './findings.js';
 import { glanceOf, type Blamed, type Glance } from './glance.js';
@@ -38,6 +39,7 @@ export function SubjectPanel({
   far,
   sourced,
   onDecided,
+  onConcerned,
 }: {
   readonly client: ReviewClient;
   readonly reviewer: string;
@@ -50,6 +52,8 @@ export function SubjectPanel({
   /** Whether the run resolved any source file — see {@link RegionTable}. */
   readonly sourced?: boolean | undefined;
   readonly onDecided: () => void;
+  /** Told after a concern on this subject was raised or moved. */
+  readonly onConcerned?: (() => void) | undefined;
 }): ReactElement {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -130,6 +134,11 @@ export function SubjectPanel({
               No candidate was uploaded for this subject, so it cannot be approved here.
             </p>
           )}
+        </section>
+
+        <section className="va-card">
+          <h2>Concerns</h2>
+          <Concerns client={client} reviewer={reviewer} build={build} subject={subject} onChanged={onConcerned} />
         </section>
 
         <section className="va-card">
