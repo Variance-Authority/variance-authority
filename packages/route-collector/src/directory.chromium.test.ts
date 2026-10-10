@@ -4,7 +4,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { routeCollector, type Collector } from './index.js';
+import { routeCollector, type Collected, type Collector } from './index.js';
+import { documentDigest } from '@variance-authority/core/format';
 
 /**
  * A built directory, taken as a suite.
@@ -112,5 +113,63 @@ chromium_('a built directory as a suite', () => {
     await expect(bare.plan()).rejects.toThrow(/no \.html file/);
     await bare.close();
     rmSync(empty, { recursive: true, force: true });
+  }, 120_000);
+});
+
+/** A 1×1 PNG, base64, so the build has a file a stylesheet can name. */
+const HERO = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
+  'base64',
+);
+
+/** One read of the home page of `site`, from a collector serving it on a port of its own. */
+async function readServed(site: string): Promise<Collected> {
+  const served = await routeCollector({ directory: site, roots: ['#app'] })({
+    config: { viewport: { width: 800, height: 600, deviceScaleFactor: 1, colorScheme: 'light' } },
+  });
+
+  try {
+    const plan = await served.plan();
+    const home = plan.subjects.find((planned) => planned.subject.id === '/');
+    return await served.collect(home!);
+  } finally {
+    await served.close();
+  }
+}
+
+chromium_('one build, served twice', () => {
+  it('reads to the same key and the same hashes whichever port served it', async () => {
+    // The server listens on port 0, so every run serves the build from an
+    // origin nobody chose. The author wrote `/hero.png`; the engine computes
+    // `url("http://127.0.0.1:<port>/hero.png")` and the wire records the
+    // absolute URL. If either reaches an identity, the same bytes on disk are a
+    // different baseline on every run — `incomparable`, or a change, with no
+    // edit anywhere. The document digest addresses the render cache, so a port
+    // that reached it would repaint every page on every run.
+    const site = mkdtempSync(join(tmpdir(), 'variance-port-'));
+    writeFileSync(join(site, 'hero.png'), HERO);
+    writeFileSync(
+      join(site, 'index.html'),
+      '<!doctype html><html><body><main id="app">' +
+        '<div style="width:40px;height:40px;background-image:url(/hero.png)"></div>' +
+        '</main></body></html>',
+    );
+
+    try {
+      const first = await readServed(site);
+      const second = await readServed(site);
+      if (!first.ok || !second.ok) throw new Error('collection failed');
+
+      const identity = (reading: Collected & { ok: true }) => ({
+        semanticDigest: reading.snapshot?.environment.semanticDigest,
+        documentDigest: documentDigest(reading.document),
+        styleHash: reading.snapshot?.styleHash,
+        renderHash: reading.snapshot?.renderHash,
+      });
+
+      expect(identity(second)).toEqual(identity(first));
+    } finally {
+      rmSync(site, { recursive: true, force: true });
+    }
   }, 120_000);
 });

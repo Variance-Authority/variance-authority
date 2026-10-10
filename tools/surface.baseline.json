@@ -279,6 +279,7 @@
         "Viewport": "interface",
         "Wiring": "interface",
         "accessibilitySnapshot": "function",
+        "assetUrl": "function",
         "canonicalNumber": "function",
         "canonicalize": "function",
         "conflicts": "function",
@@ -306,6 +307,7 @@
         "keyedByPosition": "function",
         "mergeDiagnostics": "function",
         "occupiesPixels": "function",
+        "pageOrigin": "function",
         "picture": "function",
         "pictured": "function",
         "pinAnimations": "const",
@@ -323,7 +325,8 @@
         "tierOfProfile": "function",
         "tierReaches": "function",
         "waitForFonts": "const",
-        "waitForImages": "const"
+        "waitForImages": "const",
+        "withoutOrigin": "function"
       },
       "./share": {
         "BlobPath": "type",
@@ -395,10 +398,12 @@
         "canonicalizeDimension": "function",
         "canonicalizeTokens": "function",
         "canonicalizeValue": "function",
+        "declaredValue": "function",
         "expandDeclaration": "function",
         "formatColor": "function",
         "isAllowedProperty": "function",
         "isCustomProperty": "function",
+        "matchingParen": "function",
         "normalize": "function",
         "parseColor": "function",
         "resolveStyle": "function",

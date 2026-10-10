@@ -28,6 +28,7 @@ import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
+import { configuredPath, environmentPaths, projectRoot, setupPaths } from './jest-config-paths.js';
 import { placingSequencer } from './jest-placing.js';
 import { projectNamed } from './jest-projects.js';
 import { selectingFilter } from './jest-selection.js';
@@ -104,6 +105,14 @@ export interface JestTestSelectionOptions {
    */
   readonly continuations?: boolean;
   /**
+   * Whether each statement of a test or a hook is cut, so the record says which
+   * line of the test first reached each region its case entered. On by default.
+   * The cut is one call per statement the test runs, and it reaches the record
+   * only as a line per case; turn it off to record a suite exactly as it ran
+   * before cuts existed.
+   */
+  readonly cadence?: boolean;
+  /**
    * The selection this run is handed, read once when Jest first filters what
    * it found. A `filter` drops what it may skip after the project's own, and
    * stderr says `selected N of M`. Absent, `VARIANCE_AUTHORITY_SINCE` asks for
@@ -172,6 +181,8 @@ export interface SelectionTransformerConfig {
   readonly unprobed?: readonly string[];
   /** The probe recipe; `presence` when absent. */
   readonly mode?: InstrumentMode;
+  /** Whether test files are cut, statement by statement; they are unless this is `false`. */
+  readonly cadence?: boolean;
 }
 
 /** What the reporter is handed. */
@@ -300,8 +311,9 @@ export function withTestSelection(
   const unprobed = options.unprobed?.map((glob) =>
     glob.startsWith('!') ? `!${resolve(rootDir, glob.slice(1))}` : resolve(rootDir, glob));
   const placing = { mode, unprobed };
+  const cadence = options.cadence !== false;
   const projects = inline?.map((project) =>
-    instrumented(project, root, projectRoot(project, rootDir), placing, declared));
+    instrumented(project, root, projectRoot(project, rootDir), placing, declared, cadence));
   const preconditions = [
     ...environmentPaths(config, rootDir),
     ...setupPaths(config, rootDir),
@@ -323,7 +335,7 @@ export function withTestSelection(
   const times = timesFrom({ root, from: rootDir, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) });
 
   return {
-    ...(projects === undefined ? instrumented(config, root, rootDir, placing, declared) : config),
+    ...(projects === undefined ? instrumented(config, root, rootDir, placing, declared, cadence) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     ...(selection === undefined ? {} : selectingFilter(config, {
@@ -354,7 +366,7 @@ export function withJourneyCoverage(
     throw new Error(`trace ${JSON.stringify(options.trace)} is not a path: name the module that exports your tracing, as ./… or <rootDir>/…`);
   }
   const journeyProject = (project: JestConfig, at: string): JestConfig =>
-    traced(instrumented(project, root, at, { mode: options.mode, unprobed: undefined }, declared), at, trace);
+    traced(instrumented(project, root, at, { mode: options.mode, unprobed: undefined }, declared, false), at, trace);
   const projects = inline?.map((project) => journeyProject(project, projectRoot(project, rootDir)));
   const reporter: JourneyReporterConfig = {
     root,
@@ -424,6 +436,7 @@ function instrumented(
   rootDir: string,
   { mode, unprobed }: { readonly mode: InstrumentMode | undefined; readonly unprobed: readonly string[] | undefined },
   declared: readonly string[],
+  cadence: boolean,
 ): JestConfig {
   const configured = config.transform === undefined
     ? { [DEFAULT_PATTERN]: 'babel-jest' }
@@ -446,6 +459,7 @@ function instrumented(
           ...(exclude.length === 0 ? {} : { exclude }),
           ...(unprobed === undefined ? {} : { unprobed }),
           ...(mode === undefined ? {} : { mode }),
+          ...(cadence ? {} : { cadence: false }),
         },
       ],
     ]),
@@ -460,37 +474,6 @@ function instrumented(
     setupFiles: [SELECTION_GLOBALS, ...(config.setupFiles ?? [])],
     setupFilesAfterEnv: [...(config.setupFilesAfterEnv ?? []), SELECTION_SETUP],
   };
-}
-
-/** A project's `rootDir`, absolute, with the top level's `<rootDir>` spelled out; the top level's own when it has none. */
-function projectRoot(project: JestConfig, root: string): string {
-  return resolve(root, (project.rootDir ?? '.').replace(/^<rootDir>\/?/, ''));
-}
-
-/**
- * The setup entries that are files of the project's, as absolute paths.
- *
- * Jest resolves a setup entry the way `require` would: `<rootDir>/…`, `./…`
- * and `/…` are paths, and anything else — `jest-canvas-mock`, `dotenv/config`
- * — is a package. A package is not a precondition a diff can carry, and
- * reading it as a path is a missing file that fails the reporter and loses the
- * run's snapshot entirely.
- */
-function setupPaths(config: JestConfig, rootDir: string): readonly string[] {
-  return [...(config.setupFiles ?? []), ...(config.setupFilesAfterEnv ?? [])]
-    .flatMap((file) => configuredPath(file, rootDir));
-}
-
-/** A custom environment runs before `setupFiles`, so it is an input and never probed source. */
-function environmentPaths(config: JestConfig, rootDir: string): readonly string[] {
-  return config.testEnvironment === undefined ? [] : configuredPath(config.testEnvironment, rootDir);
-}
-
-/** Resolve one configuration entry only when it names a file rather than a package. */
-function configuredPath(file: string, rootDir: string): readonly string[] {
-  return file.startsWith('<rootDir>') || file.startsWith('.') || file.startsWith('/')
-    ? [resolve(rootDir, file.replace(/^<rootDir>\/?/, ''))]
-    : [];
 }
 
 export { mergeCoverage } from './merge.js';

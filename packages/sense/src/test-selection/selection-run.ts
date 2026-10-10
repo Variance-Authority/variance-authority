@@ -61,6 +61,11 @@ export interface SelectionRun {
   include: (file: string) => boolean;
   /** Which transformed modules are product source no probe may sit in, carried for the same reason; absent marks none. */
   unprobed: ((file: string) => boolean) | undefined;
+  /**
+   * Which files are tests, and so cut as well as probed where `include` takes
+   * them, carried for the same reason as `include`; absent cuts nothing.
+   */
+  cadence: ((file: string) => boolean) | undefined;
   /** Files this seam generated, which no transform may instrument. */
   readonly shims: Set<string>;
   /**
@@ -127,6 +132,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     mode,
     include: defaultInclude,
     unprobed: undefined,
+    cadence: undefined,
     shims: new Set<string>(),
     made: new Set<string>(),
     cases: true,

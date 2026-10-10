@@ -187,6 +187,9 @@ export interface SemanticNode {
    */
   readonly ignoredBy?: readonly string[];
 
+  /** What was not read about this node, carried from `RawNode.unread`. Outside every hash. */
+  readonly unread?: string;
+
   readonly children: readonly SemanticNode[];
 }
 

@@ -52,6 +52,7 @@ describe('withJourneyCoverage for Jest', () => {
         root: '/repo',
         transformer: '@swc/jest',
         exclude: ['/repo/test/environment.ts'],
+        cadence: false,
       }],
     });
     expect(configured.setupFiles).toEqual([SELECTION_GLOBALS]);
@@ -267,6 +268,17 @@ describe('withTestSelection for Jest', () => {
 
     expect(configured.transform).toEqual({
       '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest', unprobed: ['/repo/src/page/**', '!/repo/src/page/keep.ts'] }],
+    });
+  });
+
+  it('tells every transform to leave test files uncut when `cadence` is off', () => {
+    const configured = withTestSelection(
+      { rootDir: '/repo', transform: { '\\.tsx?$': '@swc/jest' } },
+      { coverageFile: 'coverage.bin', cadence: false },
+    );
+
+    expect(configured.transform).toEqual({
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest', cadence: false }],
     });
   });
 

@@ -33,6 +33,8 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import picomatch from 'picomatch';
+import { cadence, type CutTestFile } from '../instrument/cadence.js';
+import { behindCut, inlineBehindCut } from './cut-map.js';
 import { probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { markUnplaced, placeModule, planModule } from './captured-modules.js';
 import { defaultInclude } from './instrumented-modules.js';
@@ -139,6 +141,20 @@ export async function createTransformer(
   }
   const excluded = new Set((config.exclude ?? []).map((file) => resolve(file)));
   const how: Placing = { mode, excluded, unprobed: unprobedMatcher(config.unprobed) };
+  const cuts = config.cadence !== false;
+  const cutOf = (source: string, path: string, options: JestTransformRequest): CutTestFile | undefined =>
+    cuts && isTestFile(path, options.config) ? cadence(source, path) : undefined;
+  // The project's transformer maps the cut text, so its map is moved back to
+  // the file on disk: Jest writes an inline snapshot into the call a frame
+  // names, by line and column, and refuses a file whose calls it cannot find.
+  // A transformer that returns no map, `@swc/jest` among them, leaves it inline.
+  const behind = (transformed: JestTransformedSource, cut: CutTestFile | undefined): JestTransformedSource => {
+    if (cut === undefined) return transformed;
+    if (transformed.map == null || transformed.map === '') {
+      return { ...transformed, code: inlineBehindCut(transformed.code, cut.shifts) };
+    }
+    return { ...transformed, map: behindCut(transformed.map, cut.shifts) };
+  };
   const forInner = (options: JestTransformRequest): JestTransformRequest => ({
     ...options,
     ...(innerConfig === undefined ? {} : { transformerConfig: innerConfig }),
@@ -156,6 +172,8 @@ export async function createTransformer(
       .update(excluded.has(resolve(path)) ? 'excluded' : '')
       .update('\0')
       .update(JSON.stringify(config.unprobed ?? null))
+      .update('\0')
+      .update(cuts ? 'cadence' : '')
       .digest('hex')
       .slice(0, 32);
   const innerKeyAsync = inner?.getCacheKeyAsync ?? inner?.getCacheKey;
@@ -168,19 +186,23 @@ export async function createTransformer(
     getCacheKeyAsync: async (source, path, options) =>
       keyOf(source, path, options, await innerKeyAsync?.(source, path, forInner(options))),
     processAsync: async (source, path, options) => {
-      if (innerProcessAsync === undefined) return { code: place(root, path, options, source, how) };
-      const handed = places ? handOver(root, path, forInner(options), source, how) : undefined;
-      if (handed !== undefined) return marked(await innerProcessAsync(source, path, handed), handed);
-      return innerProcessAsync(place(root, path, options, source, how), path, forInner(options));
+      const cut = cutOf(source, path, options);
+      const text = cut?.code ?? source;
+      if (innerProcessAsync === undefined) return bare(root, path, options, text, how, cut);
+      const handed = places ? handOver(root, path, forInner(options), text, how) : undefined;
+      if (handed !== undefined) return behind(marked(await innerProcessAsync(text, path, handed), handed), cut);
+      return behind(await innerProcessAsync(place(root, path, options, text, how), path, forInner(options)), cut);
     },
   };
   const innerProcess = inner?.process?.bind(inner);
   if (inner === undefined || innerProcess !== undefined) {
     transformer.process = (source, path, options) => {
-      if (innerProcess === undefined) return { code: place(root, path, options, source, how) };
-      const handed = places ? handOver(root, path, forInner(options), source, how) : undefined;
-      if (handed !== undefined) return marked(innerProcess(source, path, handed), handed);
-      return innerProcess(place(root, path, options, source, how), path, forInner(options));
+      const cut = cutOf(source, path, options);
+      const text = cut?.code ?? source;
+      if (innerProcess === undefined) return bare(root, path, options, text, how, cut);
+      const handed = places ? handOver(root, path, forInner(options), text, how) : undefined;
+      if (handed !== undefined) return behind(marked(innerProcess(text, path, handed), handed), cut);
+      return behind(innerProcess(place(root, path, options, text, how), path, forInner(options)), cut);
     };
   }
   return transformer;
@@ -193,13 +215,27 @@ interface Placing {
   readonly unprobed: ((file: string) => boolean) | undefined;
 }
 
+/** What no wrapped transformer touches: the probes, or the cut and its map. */
+function bare(
+  root: string,
+  path: string,
+  options: JestTransformRequest,
+  text: string,
+  how: Placing,
+  cut: CutTestFile | undefined,
+): JestTransformedSource {
+  const code = place(root, path, options, text, how);
+  return cut === undefined ? { code } : { code, map: JSON.stringify(cut.map) };
+}
+
 /**
  * Probes on the project's text.
  *
  * A test file is not a module: nothing enters one, and its own edit is what
- * runs it. Which files are tests is the project's `testMatch` or `testRegex`,
- * read from the configuration Jest hands every transform, matched the way
- * Jest's own search matches them.
+ * runs it. It is cut instead, before this, unless `cadence` is off. Which
+ * files are tests is the project's `testMatch` or `testRegex`, read from the
+ * configuration Jest hands every transform, matched the way Jest's own search
+ * matches them.
  *
  * Every probe is placed on the line it reports, so the wrapped transformer's
  * map names the right line of the project's source for a stack trace.

@@ -52,6 +52,13 @@ export class Translation {
     return found;
   }
 
+  /** The cases an output set holds, ascending. */
+  members(set: SetId): Uint32Array {
+    const found = this.#members[set];
+    if (found === undefined) throw new Error('a case index names a set it does not hold');
+    return found;
+  }
+
   pool(): CrossingSetsPool {
     return this.#sets.pool();
   }
