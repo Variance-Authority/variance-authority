@@ -198,6 +198,21 @@ describe('a suite that recorded the file under another root', () => {
     expect(text.out.endsWith(`\n${NOT_LOADED('stories (visual)')}\n`)).toBe(true);
   });
 
+  it('carries a shorter recorded path the asked one ends in, a record rooted deeper', async () => {
+    const at = await repository('src/pay.ts', 'packages/shop/src/pay.ts');
+    const answer = await ask(['covering', '--file', 'packages/shop/src/pay.ts', '--line', '12', '--root', at, '--format', 'json']);
+
+    const said = JSON.parse(answer.out) as { suites: Record<string, unknown>[] };
+    expect(said.suites.find((one) => one['suite'] === 'stories')).toMatchObject({ spelled: ['src/pay.ts'] });
+  });
+
+  it('is a suite that tests other code when it holds the file name at its root', async () => {
+    const at = await repository('pay.ts', 'packages/shop/src/pay.ts');
+    const answer = await ask(['covering', '--file', 'packages/shop/src/pay.ts', '--line', '12', '--root', at]);
+
+    expect(answer.out.endsWith(`\n${NOT_LOADED('stories (visual)')}\n`)).toBe(true);
+  });
+
   it('explains every suite in full when none answered, since a wrong path is then the likely cause', async () => {
     const at = await repository('packages/shop/src/pay.ts', 'src/Button.tsx');
     const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', at]);

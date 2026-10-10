@@ -15,7 +15,7 @@ import { OperatorError } from '../exit.js';
 
 /** A record that never loaded the file, with the paths it holds of the same file under another root. */
 export class UnloadedFile extends OperatorError {
-  /** Recorded paths that end in the asked one, or that it ends in, at a `/`; empty when none does. */
+  /** Recorded paths that end in the asked one, or that it ends in, sharing a directory; empty when none does. */
   readonly spelled: readonly string[];
 
   constructor(message: string, spelled: readonly string[]) {
@@ -33,8 +33,10 @@ export function unloadedFile(file: string, from: string, files: readonly string[
     .filter((candidate) => candidate === tail || candidate.endsWith(`/${tail}`))
     .sort()
     .slice(0, 3);
+  // A shared directory makes it the same file under another root; a bare name
+  // at a record's root is any file of that name.
   const rooted = files
-    .filter((candidate) => candidate.endsWith(`/${file}`) || file.endsWith(`/${candidate}`))
+    .filter((candidate) => candidate.endsWith(`/${file}`) || (candidate.includes('/') && file.endsWith(`/${candidate}`)))
     .sort();
   return new UnloadedFile(
     `\`${file}\` is not in the index at \`${from}\`, which holds ${files.length} file${
