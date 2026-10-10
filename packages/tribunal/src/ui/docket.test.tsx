@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { BuildDetail, BuildSummary, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import { BuildPage } from './docket.js';
+import type { Route } from './route.js';
 
 /**
  * The line the build page opens on, held to what it is allowed to say.
@@ -145,16 +146,17 @@ describe('the opening line counts only what there is something to count', () => 
 describe('the header counts the concerns the build showed', () => {
   it('counts what stands, and only when something was ever flagged', async () => {
     const asked: unknown[] = [];
-    const text = await open(build('6', [subject()]), build('5', [subject()]), async (query) => {
+    await open(build('6', [subject()]), build('5', [subject()]), async (query) => {
       asked.push(query);
       return { concerns: [], tally: { open: 2, investigating: 1, resolved: 0 } };
     });
 
     expect(asked).toEqual([{ seenIn: '6' }]);
+    // Concerns, and it says so: the Open task beside it counts renders, and a
+    // bare "2 open" over a task saying "Open 1" would read as a mistake.
     expect(host.querySelector('.va-topbar .va-concern-tally')?.textContent).toBe(
-      '2 flagged · 1 investigating · 0 resolved',
+      'concerns: 2 open · 1 investigating · 0 resolved',
     );
-    expect(text).toContain('2 flagged');
   });
 
   it('says it could not read them, never that there are none', async () => {
@@ -230,5 +232,35 @@ describe('a build that has not arrived still wears its chrome', () => {
       'Builds',
     );
     expect(host.querySelector('.va-failure button')?.textContent).toBe('retry');
+  });
+});
+
+describe('the bar on a subject walks the rail it sits beside', () => {
+  it('numbers the render in the rail’s order and goes to the row below it', async () => {
+    // Listed smallest first, so a bar that walked the build's own order would
+    // call the larger one second and send the reviewer back up the rail.
+    const small = subject({ subject: 'story:small', changedPixels: 10 });
+    const large = subject({ subject: 'story:large', changedPixels: 900 });
+    const now = build('6', [small, large]);
+    const went: Route[] = [];
+    Element.prototype.scrollTo = () => undefined;
+
+    await act(async () => {
+      root.render(
+        <BuildPage
+          client={{ ...clientThat(now, build('5', [])), imageBlob: () => new Promise(() => undefined) }}
+          reviewer="marina"
+          route={{ page: 'subject', build: '6', subject: 'story:large' }}
+          go={(route) => went.push(route)}
+        />,
+      );
+    });
+    const bar = host.querySelector('.va-actionbar')!;
+    await act(async () =>
+      [...bar.querySelectorAll('button')].find((each) => each.textContent?.startsWith('Next'))!.click(),
+    );
+
+    expect(bar.textContent).toContain('1 of 2');
+    expect(went).toEqual([{ page: 'subject', build: '6', subject: 'story:small' }]);
   });
 });
