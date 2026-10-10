@@ -364,7 +364,7 @@ made on it with who made it. **An image an earlier build rejected** is drawn as 
 rejection: it is a render you already rejected, not a new defect. You can still
 approve it, since accepting a known defect is how the change it blocks gets
 merged, and the approval then opens a concern titled with the build that
-rejected it, carrying that rejection's note, so the defect stays on record. The
+rejected it, carrying who rejected it and their note, so the defect stays on record. The
 decision's answer carries the concern's id as `concern`. A second approval in
 the same build opens no second concern, and neither does an image whose latest
 earlier decision approved it. **An image
@@ -386,7 +386,9 @@ closes it without removing it. Its region is a place on the image of the build
 it was raised in, so it names a place nobody can see once that build is swept;
 the component it carries still says what was there, as `Button · 24×18 at
 154,85`. A concern and a decision never settle each other: approving does not resolve
-a concern, and resolving one approves nothing. The build's header counts the
+a concern, and resolving one approves nothing. One approval does open a concern:
+approving an image an earlier build rejected, which accepts a known defect and
+keeps it on record. The build's header counts the
 concerns its subjects carry, and says so when it could not read them rather than
 showing none.
 

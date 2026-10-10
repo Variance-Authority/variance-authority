@@ -22,7 +22,7 @@ import {
 } from './review-summary.js';
 import { ingestBuild } from './review-ingest.js';
 import { createConcernStore } from './concerns.js';
-import { UNREPEATED, rejectionAccepted, repeatsFrom, repeatsStatement } from './repeats.js';
+import { UNREPEATED, acceptanceTitle, rejectionAccepted, repeatsFrom, repeatsStatement } from './repeats.js';
 import { sweepProject } from './review-sweep.js';
 import { ReviewError, instant, optionalText, text, type Row } from './review-rows.js';
 import type {
@@ -389,13 +389,12 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
           : await createConcernStore({ db, project, now }).raise({
               build: input.build,
               subject: input.subject,
-              title: `Approved the image build ${accepts.build} rejected`,
+              title: acceptanceTitle(accepts.build),
               by: input.by,
               note:
                 accepts.decision.note === undefined
                   ? `${accepts.decision.by} rejected it`
                   : `${accepts.decision.by} rejected it: ${accepts.decision.note}`,
-              evidence: [accepts.build],
             });
 
       return {

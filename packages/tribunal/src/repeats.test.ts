@@ -255,7 +255,6 @@ describe('approving an image an earlier build rejected', () => {
       title: 'Approved the image build ci-1000 rejected',
       by: 'anton',
       state: 'open',
-      evidence: ['ci-1000'],
     });
     expect(raised[0]?.events[0]?.note).toBe('marina rejected it: the toggle lost its focus ring');
   });
@@ -267,6 +266,16 @@ describe('approving an image an earlier build rejected', () => {
     const again = await review.decide({ build: 'ci-1001', subject: CHANGED, decision: 'approved', by: 'anton' });
 
     expect(again).not.toHaveProperty('concern');
+    expect(await concerns.list({ subject: CHANGED })).toHaveLength(1);
+  });
+
+  it('opens one concern when the build is approved, rejected and approved again', async () => {
+    const { review, concerns } = await rejectedThenBack();
+
+    await review.decide({ build: 'ci-1001', subject: CHANGED, decision: 'approved', by: 'anton' });
+    await review.decide({ build: 'ci-1001', subject: CHANGED, decision: 'rejected', by: 'anton' });
+    await review.decide({ build: 'ci-1001', subject: CHANGED, decision: 'approved', by: 'anton' });
+
     expect(await concerns.list({ subject: CHANGED })).toHaveLength(1);
   });
 

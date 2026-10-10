@@ -34,7 +34,9 @@ export const NAMED = 8;
  * is what a reviewer acts on: eight builds nobody looked at must not push out
  * the one that rejected this image.
  *
- * `subject` narrows the answer to one render, for a decision being recorded.
+ * `subject` narrows the answer to one render, for a decision being recorded: an
+ * equality rather than a nullable parameter, so that read probes the primary
+ * key instead of walking every subject of the build.
  */
 export function repeatsStatement(
   db: D1Like,
@@ -65,14 +67,14 @@ export function repeatsStatement(
              SELECT MAX(seq) FROM decisions
               WHERE project = there.project AND build = there.build AND subject = there.subject)
           WHERE here.project = ? AND here.build = ? AND here.after_key IS NOT NULL
-            AND (? IS NULL OR here.subject = ?)
+            ${subject === undefined ? '' : 'AND here.subject = ?'}
             AND here.verdict NOT IN ('unchanged', 'ignored')
             AND (earlier.at_ms, earlier.rowid) < (this.at_ms, this.rowid)
        )
         WHERE place <= ?
         ORDER BY subject, place`,
     )
-    .bind(project, build, subject ?? null, subject ?? null, NAMED);
+    .bind(project, build, ...(subject === undefined ? [] : [subject]), NAMED);
 }
 
 /**
@@ -110,14 +112,21 @@ export function asksRepeats(verdict: string): boolean {
 /** What a subject that kept a candidate says when no earlier build kept it. */
 export const UNREPEATED: Repeats = { count: 0, builds: [] };
 
+/** The title of the concern an approval of an image `rejected` rejected opens. */
+export function acceptanceTitle(rejected: string): string {
+  return `Approved the image build ${rejected} rejected`;
+}
+
 /**
  * The earlier build whose rejection an approval of `subject` in `build` would
  * accept, or `undefined`.
  *
  * The latest decision on the same image is what is accepted, so an image
  * rejected and then approved elsewhere accepts nothing new. Neither does a build
- * already approved here: that approval accepted it, and a second one is the same
- * reviewer's mind, not a second defect.
+ * that already opened the concern: approving there again, whatever was decided
+ * in between, is the same reviewer's mind, not a second defect. Read from the
+ * concerns rather than from this build's decisions, so an approval whose concern
+ * never got written opens it on the next try.
  */
 export async function rejectionAccepted(
   db: D1Like,
@@ -125,16 +134,12 @@ export async function rejectionAccepted(
   build: string,
   subject: string,
 ): Promise<RepeatedIn | undefined> {
-  const [here, earlier] = await db.batch<Row>([
-    db
-      .prepare(
-        'SELECT decision FROM decisions WHERE project = ? AND build = ? AND subject = ? ORDER BY seq DESC LIMIT 1',
-      )
-      .bind(project, build, subject),
-    repeatsStatement(db, project, build, subject),
-  ]);
-  const standing = here?.results[0];
-  if (standing !== undefined && optionalText(standing, 'decision', 'a decision') === 'approved') return undefined;
-  const lead = repeatsFrom(earlier?.results ?? []).get(subject)?.builds[0];
-  return lead?.decision?.decision === 'rejected' ? lead : undefined;
+  const earlier = await repeatsStatement(db, project, build, subject).all<Row>();
+  const lead = repeatsFrom(earlier.results).get(subject)?.builds[0];
+  if (lead?.decision?.decision !== 'rejected') return undefined;
+  const raised = await db
+    .prepare('SELECT 1 FROM concerns WHERE project = ? AND build = ? AND subject = ? AND title = ?')
+    .bind(project, build, subject, acceptanceTitle(lead.build))
+    .first<Row>();
+  return raised === null ? lead : undefined;
 }
