@@ -191,8 +191,9 @@ export function freezeDate(frozen: number): void {
  * substitute — measured, an element already hovered keeps `:hover` under it.
  *
  * Once per page, before load, where nothing but the host moves the pointer. A
- * move is acknowledged on the next frame, ~14 ms measured, so moving it again
- * before every reading would charge each subject a frame to undo nothing.
+ * move is acknowledged on the next frame, ~14 ms measured, so a host that alone
+ * drives its page does not move it again. A host that shares the page with a
+ * test does, before every reading: see {@link driveBeforeRead}.
  */
 export const noHover: Intervention = {
   id: 'no-hover',
@@ -309,8 +310,11 @@ export async function driveBeforeLoad(
       await target.mouse.move(-1, -1);
       applied.push(intervention.id);
     } else if (driver?.reducedMotion !== undefined) {
-      await target.emulateMedia({ reducedMotion: motionOf(declared?.[MOTION] ?? driver.reducedMotion) });
-      applied.push(intervention.id);
+      const preference = motionOf(declared?.[MOTION] ?? driver.reducedMotion);
+      await target.emulateMedia({ reducedMotion: preference });
+      // A declared `no-preference` is emulated and recorded among the features;
+      // the trick's id would claim a reduced motion the page never had.
+      if (preference === driver.reducedMotion) applied.push(intervention.id);
     } else if (driver?.clock !== undefined) {
       await target.addInitScript(freezeDate, driver.clock.at);
       applied.push(intervention.id);
@@ -333,6 +337,12 @@ function motionOf(value: string): MotionPreference {
  * For a host that shares the page: a test hovers a menu to open it and then
  * observes, so the pointer is wherever the test's last step left it. A host
  * that alone drives its page needs only {@link driveBeforeLoad}.
+ *
+ * Every reading pays the frame, hovered or not: measured in Chromium, a
+ * Playwright hover restyles the element while `:hover` matches nothing from
+ * script, so the page cannot say whether the move is needed. The pointer is
+ * not put back afterwards, and the move fires `mouseleave`: a menu a script
+ * opened on hover is closed for the test's next step.
  */
 export async function driveBeforeRead(
   recipe: readonly Intervention[],

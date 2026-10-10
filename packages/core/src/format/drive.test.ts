@@ -80,13 +80,21 @@ describe('before the page loads', () => {
     expect(driven).toContain('freeze-clock@2031-01-02T01:04:05.000Z');
   });
 
-  it('emulates the motion preference a project declared, rather than its own', async () => {
+  it('emulates the motion preference a project declared, and records no reduced motion it did not apply', async () => {
     const { calls, target } = recording();
 
     const driven = await driveBeforeLoad([reducedMotion], target, { 'prefers-reduced-motion': 'no-preference' });
 
     expect(calls).toEqual(['emulateMedia {"reducedMotion":"no-preference"}']);
-    expect(driven).toEqual(['reduced-motion']);
+    expect(driven).toEqual([]);
+  });
+
+  it('records reduced motion when the project declares the value the trick would set', async () => {
+    const { target } = recording();
+
+    expect(await driveBeforeLoad([reducedMotion], target, { 'prefers-reduced-motion': 'reduce' })).toEqual([
+      'reduced-motion',
+    ]);
   });
 
   it('refuses a declared motion preference no browser reports', async () => {
