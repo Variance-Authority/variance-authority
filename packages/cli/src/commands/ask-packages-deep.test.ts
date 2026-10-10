@@ -225,6 +225,24 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(uses.out).toMatch(/^`roundTax` is imported in 1 place, and no entry publishes it; it is exported at packages\/\w+\/src\/\S+:\d+ and 1 more\.$/m);
   });
 
+  it('answers `symbol` and `uses` asked with the specifier of one file from the export in that file alone', async () => {
+    checkout({ 'packages/lib/src/other.ts': 'export const roundTax = (amount: number): number => amount;\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax', '--package', '@acme/lib/src/other']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('exported, without being published, at packages/lib/src/other.ts:1 by @acme/lib');
+    expect(out).not.toContain('packages/lib/src/internal/math.ts');
+
+    const uses = await run(['ask', 'uses', '--name', 'roundTax', '--package', '@acme/lib/src/other.js']);
+    expect(uses.out).toContain('exported, without being published, at packages/lib/src/other.ts:1,');
+    expect(uses.out).not.toContain('more.');
+
+    const imported = await run(['ask', 'symbol', '--name', 'roundTax', '--package', '@acme/lib/src/internal/math']);
+    expect(imported.out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
+    expect(imported.out).not.toContain('packages/lib/src/other.ts');
+  });
+
   it('leaves out the line of an unpublished export the checkout has since rewritten', async () => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

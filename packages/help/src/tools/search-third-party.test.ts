@@ -29,7 +29,7 @@ const reads = (file: string, ...to: readonly string[]): FileRecord =>
   to.length === 0 ? { file } : { file, edges: to.map((target) => ({ to: target, kind: 'imports' as const })) };
 
 /** A workspace of two packages, each declaring its own installed kit, indexed with its lexicon. */
-async function workspace(more: Readonly<Record<string, string>> = {}): Promise<string> {
+async function workspace(more: Readonly<Record<string, string>> = {}, lexicon = true): Promise<string> {
   process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-owner-cache-'));
   const root = mkdtempSync(join(tmpdir(), 'va-owner-fixture-'));
   execFileSync('git', ['init', '--quiet', root]);
@@ -51,7 +51,7 @@ async function workspace(more: Readonly<Record<string, string>> = {}): Promise<s
   }
   execFileSync('git', ['add', '-f', '.'], { cwd: root });
   await updateSourceIndex(root);
-  await refreshDependencyLexicon(root);
+  if (lexicon) await refreshDependencyLexicon(root);
   return root;
 }
 
@@ -85,4 +85,12 @@ it('answers an installed name a workspace file passes on as well as the file tha
   const said = symbol.run(readHelp(root), { name: 'betaOwnName' }, { root });
   expect(said).toContain('exported, without being published, at packages/beta/src/fixtures.ts:');
   expect(said).toContain('beta-kit · betaOwnName [const] · beta-kit@1.0.0');
+});
+
+it('answers a workspace export when no lexicon of installed names is published', async () => {
+  const root = await workspace({ 'packages/beta/src/fixtures.ts': 'export const fixtureOnly = 1;\n' }, false);
+
+  expect(symbol.run(readHelp(root), { name: 'fixtureOnly' }, { root })).toContain(
+    'exported, without being published, at packages/beta/src/fixtures.ts:1',
+  );
 });

@@ -16,6 +16,7 @@
 import type { Help, Named, Use } from '@variance-authority/package/help';
 import { importersOf } from '@variance-authority/sense';
 import { useOf } from '../refresh-native.js';
+import { importsByPath } from './by-path.js';
 
 /** What an import count leaves out: a use that names the export without importing it. */
 export const UNCOUNTED = 'an import through an `export *` file and a call through a qualified path are not counted';
@@ -26,8 +27,27 @@ export function exportsNamed(help: Help, name: string, within: string | undefine
     (held) =>
       held.name === name &&
       held.kind === 'source' &&
-      (within === undefined || held.by === within || within.startsWith(`${held.by}/`)),
+      (within === undefined || held.by === within || fileOf(help, held, within)),
   );
+}
+
+/**
+ * Whether `within`, a specifier past `held`'s package name, names `held`'s file:
+ * the file its imports resolved to, or, when nothing imports it, the file its
+ * path spells, with or without an extension or an `index`.
+ */
+function fileOf(help: Help, held: Named, within: string): boolean {
+  if (!within.startsWith(`${held.by}/`)) return false;
+  const resolved = importsByPath(help, within).flatMap(([deep]) => (deep.specifier === within && deep.to !== undefined ? [deep.to] : []));
+  if (resolved.length > 0) return resolved.includes(held.at);
+  const spelled = bare(within.slice(held.by.length + 1));
+  const file = bare(held.at);
+  return file.endsWith(`/${spelled}`) || file.endsWith(`/${spelled}/index`);
+}
+
+/** A path without its script extension. */
+function bare(path: string): string {
+  return path.replace(/\.[cm]?[jt]sx?$/, '');
 }
 
 /** `at:line`, and how many more exports there are past the first. */

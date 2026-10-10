@@ -77,6 +77,8 @@ export const symbol: Tool<Help> = {
       const at = startPointArg(input, 'from');
       const paths = at === undefined ? undefined : typeof at === 'string' ? [at] : [...at];
       const everywhere = queryDependencyLexicon(invocation.root, name, undefined, true, wanted, 100);
+      // No lexicon of installed names says nothing against the workspace's own export.
+      if (everywhere === undefined && own.length > 0) return own.join('\n\n');
       if (everywhere === undefined) throw new Error(`the dependency lexicon is not published; run \`variance index\` before asking about \`${name}\``);
       const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, 100);
       const shown = here ?? everywhere;
