@@ -52,6 +52,13 @@ export interface RstestTestSelectionOptions {
   /** Decide which bundled modules are product source. */
   readonly include?: (file: string) => boolean;
   /**
+   * Decide which bundled modules are product source no probe may sit in: a
+   * module whose functions cross into a page as text, where the first probe
+   * would throw. It wins over `include`. Each is marked as loaded at its end
+   * instead, and an edit to it selects every test that loaded it.
+   */
+  readonly unprobed?: (file: string) => boolean;
+  /**
    * Additional files whose contents are preconditions of every test observation.
    *
    * The configured setup files are declared already; the config file is not,
@@ -194,6 +201,8 @@ export function withTestSelection(
   const globalSetup = new Set(array(config.globalSetup).map((file) => resolve(configRoot, file)));
   const chosen = options.include ?? defaultInclude;
   run.include = (file: string): boolean => !globalSetup.has(file) && chosen(file);
+  const marked = options.unprobed;
+  run.unprobed = marked === undefined ? undefined : (file: string): boolean => !globalSetup.has(file) && marked(file);
 
   const setupFiles = array(config.setupFiles);
   // A setup entry may be a package — `dotenv/config` — rather than a file of

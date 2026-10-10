@@ -15,13 +15,14 @@
  * what the probes mean is written: the reporter cuts the module again from the
  * file and the digest its probes report.
  *
- * A module the instrumenter cannot read reaches the inner transformer as it
- * is.
+ * A module the instrumenter cannot read, and one `unprobed` names, reaches the
+ * inner transformer as it is with one mark after its last line.
  *
  * A transformer that places the probes itself — a Rust pipeline linking the
  * instrumenter crate the package ships — says so with `senseRecipe`, and is
  * then handed each module untouched, with {@link SenseProbes} saying where its
- * probes go.
+ * probes go. A module `unprobed` names is marked here and handed over without
+ * them, since the mark is not a probe the crate places.
  */
 
 import { createHash } from 'node:crypto';
@@ -31,7 +32,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import picomatch from 'picomatch';
 import { probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';
-import { captureModule, planModule } from './captured-modules.js';
+import { placeModule, planModule } from './captured-modules.js';
 import { defaultInclude } from './instrumented-modules.js';
 import type { SelectionTransformerConfig } from './jest.js';
 import type { TransformSourceMap } from './source-lines.js';
@@ -135,6 +136,7 @@ export async function createTransformer(
     );
   }
   const excluded = new Set((config.exclude ?? []).map((file) => resolve(file)));
+  const how: Placing = { mode, excluded, unprobed: unprobedMatcher(config.unprobed) };
   const forInner = (options: JestTransformRequest): JestTransformRequest => ({
     ...options,
     ...(innerConfig === undefined ? {} : { transformerConfig: innerConfig }),
@@ -150,6 +152,8 @@ export async function createTransformer(
       .update(JSON.stringify(innerConfig ?? null))
       .update('\0')
       .update(excluded.has(resolve(path)) ? 'excluded' : '')
+      .update('\0')
+      .update(JSON.stringify(config.unprobed ?? null))
       .digest('hex')
       .slice(0, 32);
   const innerKeyAsync = inner?.getCacheKeyAsync ?? inner?.getCacheKey;
@@ -162,20 +166,29 @@ export async function createTransformer(
     getCacheKeyAsync: async (source, path, options) =>
       keyOf(source, path, options, await innerKeyAsync?.(source, path, forInner(options))),
     processAsync: async (source, path, options) => {
-      if (innerProcessAsync === undefined) return { code: place(root, path, options, source, mode, excluded) };
-      if (places) return innerProcessAsync(source, path, handOver(root, path, forInner(options), source, mode, excluded));
-      return innerProcessAsync(place(root, path, options, source, mode, excluded), path, forInner(options));
+      if (innerProcessAsync === undefined) return { code: place(root, path, options, source, how) };
+      const handed = places ? handOver(root, path, forInner(options), source, how) : undefined;
+      if (handed !== undefined) return innerProcessAsync(source, path, handed);
+      return innerProcessAsync(place(root, path, options, source, how), path, forInner(options));
     },
   };
   const innerProcess = inner?.process?.bind(inner);
   if (inner === undefined || innerProcess !== undefined) {
     transformer.process = (source, path, options) => {
-      if (innerProcess === undefined) return { code: place(root, path, options, source, mode, excluded) };
-      if (places) return innerProcess(source, path, handOver(root, path, forInner(options), source, mode, excluded));
-      return innerProcess(place(root, path, options, source, mode, excluded), path, forInner(options));
+      if (innerProcess === undefined) return { code: place(root, path, options, source, how) };
+      const handed = places ? handOver(root, path, forInner(options), source, how) : undefined;
+      if (handed !== undefined) return innerProcess(source, path, handed);
+      return innerProcess(place(root, path, options, source, how), path, forInner(options));
     };
   }
   return transformer;
+}
+
+/** What decides where a module's probes go, the same for every module of one transformer. */
+interface Placing {
+  readonly mode: InstrumentMode;
+  readonly excluded: ReadonlySet<string>;
+  readonly unprobed: ((file: string) => boolean) | undefined;
 }
 
 /**
@@ -194,30 +207,40 @@ function place(
   path: string,
   options: JestTransformRequest,
   source: string,
-  mode: InstrumentMode,
-  excluded: ReadonlySet<string>,
+  { mode, excluded, unprobed }: Placing,
 ): string {
   if (excluded.has(resolve(path)) || isTestFile(path, options.config)) return source;
-  return captureModule(root, path, source, defaultInclude, mode, originalOf(path, source))?.code ?? source;
+  return placeModule(root, path, source, defaultInclude, unprobed, mode, originalOf(path, source))?.code ?? source;
 }
 
-/** The same decisions as {@link place}, handed to a transformer that places the probes itself. */
+/**
+ * The same decisions as {@link place}, handed to a transformer that places the
+ * probes itself; `undefined` for a module {@link place} marks, which that
+ * transformer is handed already marked.
+ */
 function handOver(
   root: string,
   path: string,
   options: JestTransformRequest,
   source: string,
-  mode: InstrumentMode,
-  excluded: ReadonlySet<string>,
-): JestTransformRequest {
+  { mode, excluded, unprobed }: Placing,
+): JestTransformRequest | undefined {
   if (excluded.has(resolve(path)) || isTestFile(path, options.config)) return options;
-  const plan = planModule(root, path, source, defaultInclude, originalOf(path, source));
-  return plan === undefined ? options : { ...options, senseProbes: { file: plan.file, module: plan.id, mode } };
+  const plan = planModule(root, path, source, defaultInclude, originalOf(path, source), unprobed);
+  if (plan === undefined) return options;
+  return plan.marked ? undefined : { ...options, senseProbes: { file: plan.file, module: plan.id, mode } };
 }
 
 /** The file as Jest read it is the text it handed over; any other is read from disk. */
 function originalOf(path: string, source: string): (at: string) => string {
   return (at) => (at === path ? source : readFileSync(at, 'utf8'));
+}
+
+/** The `unprobed` globs as one predicate over absolute paths, matched the way Jest matches `testMatch`. */
+function unprobedMatcher(globs: readonly string[] | undefined): ((file: string) => boolean) | undefined {
+  if (globs === undefined || globs.length === 0) return undefined;
+  const match = picomatch([...globs], { dot: true });
+  return (file) => match(file.replaceAll(/\\(?![$()+.?^{}])/g, '/'));
 }
 
 /** What Jest hashes when a transformer declares no key of its own. */

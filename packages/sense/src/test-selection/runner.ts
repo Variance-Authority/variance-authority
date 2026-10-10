@@ -33,7 +33,7 @@ import { registerHooks, type ModuleHooks } from 'node:module';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
-import { captureModule } from './captured-modules.js';
+import { captureModule, markModule } from './captured-modules.js';
 import collectors from './collectors.cjs';
 import journalFormat from './journal-format.cjs';
 import { recordFileFor } from './record-location.js';
@@ -209,6 +209,13 @@ export interface RegisterRecordingOptions {
    * built output.
    */
   readonly include?: (file: string) => boolean;
+  /**
+   * Which loaded files are product source no probe may sit in: a module whose
+   * functions cross into a page as text, where the first probe would throw. It
+   * wins over `include`. Each is marked as loaded at its end instead, and an
+   * edit to it selects every test that loaded it.
+   */
+  readonly unprobed?: (file: string) => boolean;
 }
 
 /**
@@ -237,9 +244,13 @@ export function registerRecording(options: RegisterRecordingOptions = {}): Modul
       if (!EVALUATED.has(loaded.format ?? '')) return loaded;
       const file = fileURLToPath(url);
       // The observed file is the test, and a test is not a module other files run.
-      if (file === observing || !include(file)) return loaded;
+      if (file === observing) return loaded;
+      const marked = options.unprobed?.(file) === true;
+      if (!marked && !include(file)) return loaded;
       const code = typeof loaded.source === 'string' ? loaded.source : new TextDecoder().decode(loaded.source);
-      return { ...loaded, source: instrumentModule(code, file) };
+      if (!marked) return { ...loaded, source: instrumentModule(code, file) };
+      const original = (at: string) => (at === file ? code : readFileSync(at, 'utf8'));
+      return { ...loaded, source: markModule(recording.root, file, code, () => true, original)?.code ?? code };
     },
   });
 }

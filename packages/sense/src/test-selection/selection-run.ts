@@ -59,6 +59,8 @@ export interface SelectionRun {
    * it, and `defaultInclude` stands until a wrapper says otherwise.
    */
   include: (file: string) => boolean;
+  /** Which transformed modules are product source no probe may sit in, carried for the same reason; absent marks none. */
+  unprobed: ((file: string) => boolean) | undefined;
   /** Files this seam generated, which no transform may instrument. */
   readonly shims: Set<string>;
   /**
@@ -124,6 +126,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     runConfig: undefined,
     mode,
     include: defaultInclude,
+    unprobed: undefined,
     shims: new Set<string>(),
     made: new Set<string>(),
     cases: true,

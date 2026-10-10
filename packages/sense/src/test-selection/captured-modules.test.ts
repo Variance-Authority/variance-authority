@@ -78,6 +78,7 @@ describe('a module marked as loaded', () => {
 
     expect(markModule(root, file, SOURCE, defaultInclude)!.module).toEqual({
       ...captured.module,
+      id: captured.module.id.replace('@', '@~'),
       instrumented: false,
       blocks: [],
     });
@@ -87,6 +88,38 @@ describe('a module marked as loaded', () => {
     const { root, file } = await checkout(SOURCE);
 
     expect(markModule(root, file, SOURCE, () => false)).toBeUndefined();
+  });
+  it('is not instrumented when it is cut again from the checkout, though the text could carry probes', async () => {
+    const { root, file } = await checkout(SCRIPT);
+    const marked = markModule(root, file, SCRIPT, defaultInclude)!;
+
+    const derived = await deriveModules(root, [marked.module.id], undefined);
+
+    expect(derived.get(marked.module.id)).toEqual(marked.module);
+  });
+});
+
+describe('a module the instrumenter cannot read', () => {
+  const BROKEN = 'export const = ;\n';
+
+  it('runs marked as loaded, so the test that loaded it still reports it', async () => {
+    const { root, file } = await checkout(BROKEN);
+    const captured = captureModule(root, file, BROKEN, defaultInclude, undefined)!;
+    const fake = recordingRoot();
+
+    expect(captured.module.instrumented).toBe(false);
+    expect(captured.code?.startsWith(BROKEN)).toBe(true);
+    runInNewContext(captured.code!.slice(BROKEN.length), { __VA__: fake });
+    expect(fake.calls).toEqual([['r', captured.module.id, 1], ['e'], ['g', EVALUATING >>> 0], ['x']]);
+  });
+
+  it('is not instrumented when it is cut again from the checkout', async () => {
+    const { root, file } = await checkout(BROKEN);
+    const captured = captureModule(root, file, BROKEN, defaultInclude, undefined)!;
+
+    const derived = await deriveModules(root, [captured.module.id], undefined);
+
+    expect(derived.get(captured.module.id)).toEqual(captured.module);
   });
 });
 

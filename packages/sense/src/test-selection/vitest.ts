@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
 import type { UserConfig } from 'vitest/config';
 import type { InstrumentMode } from '../instrument/index.js';
-import { captureModule, markModule, pathOf, type Captured } from './captured-modules.js';
+import { pathOf, placeModule, type Captured } from './captured-modules.js';
 import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
 import { writeCut } from './case-cut.js';
 import { readFinished, type FinishedFile } from './finished-files.js';
@@ -37,10 +37,10 @@ export interface TestSelectionOptions {
   /** Decide which transformed modules are product source. */
   readonly include?: (file: string) => boolean;
   /**
-   * Decide which transformed modules are product source no probe may sit in,
-   * asked of what `include` refuses: a module whose functions cross into a
-   * page as text, where the first probe would throw. Each is marked as loaded
-   * at its end instead, and an edit to it selects every test that loaded it.
+   * Decide which transformed modules are product source no probe may sit in:
+   * a module whose functions cross into a page as text, where the first probe
+   * would throw. It wins over `include`. Each is marked as loaded at its end
+   * instead, and an edit to it selects every test that loaded it.
    */
   readonly unprobed?: (file: string) => boolean;
   /**
@@ -152,10 +152,10 @@ export function withTestSelection(
   const chosen = options.include ?? defaultInclude;
   const include = (file: string): boolean => !globalSetup.has(file) && chosen(file);
   const marked = options.unprobed;
-  const unprobed = marked && ((file: string): boolean => !globalSetup.has(file) && marked(file));
-  // A module `include` refuses and `unprobed` names runs as it is, marked as loaded at its end.
+  const unprobed = marked === undefined ? undefined : (file: string): boolean => !globalSetup.has(file) && marked(file);
+  // A module `unprobed` names runs as it is, marked as loaded at its end, whatever `include` says.
   const capture = (file: string, code: string): Captured | undefined =>
-    captureModule(root, file, code, include, mode) ?? (unprobed && markModule(root, file, code, unprobed));
+    placeModule(root, file, code, include, unprobed, mode);
   const setupFiles = array(config.test?.setupFiles);
   // What the author declared is declared for the tests this configuration
   // governs, which for the one that describes the run is every test.
@@ -397,7 +397,7 @@ function selectionPlugin(
         );
       }
       modules.set(captured.module.id, captured.module);
-      return captured.code === undefined ? null : { code: captured.code, map: null };
+      return { code: captured.code, map: null };
     } },
   };
 }

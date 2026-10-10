@@ -63,6 +63,15 @@ export interface JestTestSelectionOptions {
    */
   readonly preconditions?: readonly string[];
   /**
+   * Globs naming product source no probe may sit in: a module whose functions
+   * cross into a page as text, where the first probe would throw. Relative
+   * globs resolve against the root, as `preconditions` do; a module matches
+   * under the path Jest hands the transform or the source its map names. Each
+   * is marked as loaded at its end instead of probed, and an edit to it
+   * selects every test that loaded it.
+   */
+  readonly unprobed?: readonly string[];
+  /**
    * `presence` probes every arrival region; `entries` probes modules and
    * functions only, and costs a fraction of it. Both record which functions
    * ran before the file's first test.
@@ -158,6 +167,8 @@ export interface SelectionTransformerConfig {
   readonly transformer?: string | readonly [string, Record<string, unknown>];
   /** Absolute paths Jest evaluates before `setupFiles` can install the probe collector. */
   readonly exclude?: readonly string[];
+  /** Absolute globs naming the modules marked as loaded rather than probed. */
+  readonly unprobed?: readonly string[];
   /** The probe recipe; `presence` when absent. */
   readonly mode?: InstrumentMode;
 }
@@ -284,8 +295,9 @@ export function withTestSelection(
   const inline = inlineProjects(config);
   const mode = options.mode;
   const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
+  const placing = { mode, unprobed: options.unprobed?.map((glob) => resolve(rootDir, glob)) };
   const projects = inline?.map((project) =>
-    instrumented(project, root, projectRoot(project, rootDir), mode, declared));
+    instrumented(project, root, projectRoot(project, rootDir), placing, declared));
   const preconditions = [
     ...environmentPaths(config, rootDir),
     ...setupPaths(config, rootDir),
@@ -307,7 +319,7 @@ export function withTestSelection(
   const times = timesFrom({ root, from: rootDir, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) });
 
   return {
-    ...(projects === undefined ? instrumented(config, root, rootDir, mode, declared) : config),
+    ...(projects === undefined ? instrumented(config, root, rootDir, placing, declared) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     ...(selection === undefined ? {} : selectingFilter(config, {
@@ -338,7 +350,7 @@ export function withJourneyCoverage(
     throw new Error(`trace ${JSON.stringify(options.trace)} is not a path: name the module that exports your tracing, as ./… or <rootDir>/…`);
   }
   const journeyProject = (project: JestConfig, at: string): JestConfig =>
-    traced(instrumented(project, root, at, options.mode, declared), at, trace);
+    traced(instrumented(project, root, at, { mode: options.mode, unprobed: undefined }, declared), at, trace);
   const projects = inline?.map((project) => journeyProject(project, projectRoot(project, rootDir)));
   const reporter: JourneyReporterConfig = {
     root,
@@ -406,7 +418,7 @@ function instrumented(
   config: JestConfig,
   root: string,
   rootDir: string,
-  mode: InstrumentMode | undefined,
+  { mode, unprobed }: { readonly mode: InstrumentMode | undefined; readonly unprobed: readonly string[] | undefined },
   declared: readonly string[],
 ): JestConfig {
   const configured = config.transform === undefined
@@ -428,6 +440,7 @@ function instrumented(
           root,
           ...(transformer === undefined ? {} : { transformer }),
           ...(exclude.length === 0 ? {} : { exclude }),
+          ...(unprobed === undefined ? {} : { unprobed }),
           ...(mode === undefined ? {} : { mode }),
         },
       ],

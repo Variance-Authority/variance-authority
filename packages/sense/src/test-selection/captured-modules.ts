@@ -24,8 +24,12 @@ import { handedTexts, rawFrame, type RawFrame } from './source-lines.js';
 /** A module cut into regions, and the text that carries its probes. */
 export interface Captured {
   readonly module: CapturedModule;
-  /** `undefined` when the instrumenter could not read the text: it runs as it is. */
-  readonly code: string | undefined;
+  /**
+   * The text to run. Where the instrumenter could not read the text, it runs
+   * marked as loaded ({@link markLoaded}) and the module is recorded as not
+   * instrumented, so a change to it selects every test that loaded it.
+   */
+  readonly code: string;
   /** The file is on disk, and the text handed over is not it, nor it with its map comments blanked: see {@link rawFrame}. */
   readonly changed?: true;
 }
@@ -38,26 +42,36 @@ export interface Captured {
  * repository-relative path and the digest of `code`, `path@digest`: all the
  * join needs to cut the same module again. `file` is the project path the
  * regions are read under, whose extension decides how the text is parsed.
- * `undefined` when `include` refuses the module under every name
- * {@link rawFrame} could give it.
+ * A module `unprobed` names, under the name it was handed or the one its frame
+ * reads under, is marked as loaded instead, and its id is {@link markedId}.
+ * `undefined` when neither `include` nor `unprobed` accepts the module under
+ * any name {@link rawFrame} could give it.
  */
 export function planModule(
   root: string,
   path: string,
   code: string,
   include: (file: string) => boolean,
-  original: (path: string) => string = (at) => readFileSync(at, 'utf8'),
+  original: (path: string) => string = readOriginal,
+  unprobed?: (file: string) => boolean,
 ): PlannedModule | undefined {
-  const frame = rawFrame(code, path, include, original);
+  const accepts = unprobed === undefined ? include : (file: string) => unprobed(file) || include(file);
+  const frame = rawFrame(code, path, accepts, original);
   if (frame === undefined) return undefined;
-  return { frame, file: projectPath(root, frame.file), id: moduleId(projectPath(root, path), code) };
+  const at = projectPath(root, path);
+  // `unprobed` wins, because a probe in a module whose functions leave the
+  // process throws where it lands.
+  const marked = unprobed !== undefined && (unprobed(frame.file) || unprobed(path));
+  return { frame, file: projectPath(root, frame.file), id: marked ? markedId(at, code) : moduleId(at, code), marked };
 }
 
-/** What {@link planModule} decided: the file the regions are read under, and the id the probes report. */
+/** What {@link planModule} decided: the file the regions are read under, the id the probes report, and whether it is marked rather than probed. */
 export interface PlannedModule {
   readonly frame: RawFrame;
   readonly file: string;
   readonly id: ModuleId;
+  /** No probe goes in: the module runs with {@link markLoaded}'s mark at its end. */
+  readonly marked: boolean;
 }
 
 /** Cut one module, as a transform is handed it, and place its probes where {@link planModule} put them. */
@@ -67,20 +81,9 @@ export function captureModule(
   code: string,
   include: (file: string) => boolean,
   mode: InstrumentMode | undefined,
-  original?: (path: string) => string,
+  original: (path: string) => string = readOriginal,
 ): Captured | undefined {
-  const plan = planModule(root, path, code, include, original);
-  if (plan === undefined) return undefined;
-  const { frame, file, id } = plan;
-  const { sourceDigest } = frame;
-  const done = instrument(code, file, id, mode === undefined ? {} : { mode });
-  return {
-    module: done === undefined
-      ? { file, id, sourceDigest, instrumented: false, blocks: [] }
-      : { file, id, sourceDigest, instrumented: true, blocks: recordedBlocks(done.blocks, frame, code, mode ?? 'presence') },
-    code: done?.code,
-    ...(frame.changed === undefined ? {} : { changed: frame.changed }),
-  };
+  return placeModule(root, path, code, include, undefined, mode, original);
 }
 
 /**
@@ -90,29 +93,70 @@ export function captureModule(
  * names it, under any name {@link rawFrame} could give it, as `include` names
  * the modules {@link captureModule} probes. The module is recorded as not
  * instrumented, so every test that loaded it declares its text, and a change
- * to it selects them. `undefined` when `loaded` refuses it.
+ * to it selects them. Its id is {@link markedId}, so the join reads it as
+ * marked too. `undefined` when `loaded` refuses it.
  */
 export function markModule(
   root: string,
   path: string,
   code: string,
   loaded: (file: string) => boolean,
-  original: (path: string) => string = (at) => readFileSync(at, 'utf8'),
+  original: (path: string) => string = readOriginal,
 ): Captured | undefined {
-  const frame = rawFrame(code, path, loaded, original);
-  if (frame === undefined) return undefined;
-  const id = moduleId(projectPath(root, path), code);
+  return placeModule(root, path, code, () => false, loaded, undefined, original);
+}
+
+/**
+ * Place one module, as every seam's transform is handed it, where
+ * {@link planModule} put it: marked as loaded, probed, or `undefined` when
+ * neither `include` nor `unprobed` accepts it.
+ */
+export function placeModule(
+  root: string,
+  path: string,
+  code: string,
+  include: (file: string) => boolean,
+  unprobed: ((file: string) => boolean) | undefined,
+  mode: InstrumentMode | undefined,
+  original: (path: string) => string = readOriginal,
+): Captured | undefined {
+  const plan = planModule(root, path, code, include, original, unprobed);
+  if (plan === undefined) return undefined;
+  const { frame, file, id } = plan;
+  const { sourceDigest } = frame;
+  const changed = frame.changed === undefined ? {} : { changed: frame.changed };
+  if (plan.marked) {
+    return { module: { file, id, sourceDigest, instrumented: false, blocks: [] }, code: markLoaded(code, id), ...changed };
+  }
+  const done = instrument(code, file, id, mode === undefined ? {} : { mode });
   return {
-    module: { file: projectPath(root, frame.file), id, sourceDigest: frame.sourceDigest, instrumented: false, blocks: [] },
-    code: markLoaded(code, id),
-    ...(frame.changed === undefined ? {} : { changed: frame.changed }),
+    module: done === undefined
+      ? { file, id, sourceDigest, instrumented: false, blocks: [] }
+      : { file, id, sourceDigest, instrumented: true, blocks: recordedBlocks(done.blocks, frame, code, mode ?? 'presence') },
+    code: done?.code ?? markLoaded(code, id),
+    ...changed,
   };
+}
+
+function readOriginal(path: string): string {
+  return readFileSync(path, 'utf8');
 }
 
 /** The id the probes on `code`, read from `path`, report. */
 export function moduleId(path: string, code: string): ModuleId {
   return `${path}@${digestOf(code)}`;
 }
+
+/**
+ * The id a module marked as loaded reports: `path@~digest`. Its text could
+ * carry probes, but none was placed on it, so the join must not cut it into
+ * regions again; the mark says so.
+ */
+export function markedId(path: string, code: string): ModuleId {
+  return `${path}@${MARKED}${digestOf(code)}`;
+}
+
+const MARKED = '~';
 
 /** The hex half of a text's digest: a digest has no `@` in it, so the last one in an id is the separator. */
 function digestOf(code: string): string {
@@ -155,7 +199,7 @@ export async function deriveModules(
 /** How many files {@link deriveModules} reads at once. */
 const READERS = 64;
 
-const ID = /^(.+)@([0-9a-f]+)$/;
+const ID = /^(.+)@(~?)([0-9a-f]+)$/;
 
 /** The repository-relative path an id names, or the whole id when it names no digest. */
 export function pathOf(id: ModuleId): string {
@@ -169,7 +213,7 @@ async function deriveModule(
 ): Promise<CapturedModule | undefined> {
   const parts = ID.exec(id);
   if (parts === null) return undefined;
-  const [, file, digest] = parts as unknown as [string, string, string];
+  const [, file, marked, digest] = parts as unknown as [string, string, string, string];
   const path = resolve(root, file);
   let disk: string;
   try {
@@ -183,7 +227,10 @@ async function deriveModule(
     return { file, id, sourceDigest: digestString(disk), instrumented: false, blocks: [] };
   }
   // Every name the transform could have accepted, because it did accept one:
-  // the module reported, so it was instrumented under one of them.
-  const captured = captureModule(root, path, code, () => true, mode, (at) => (at === path ? disk : readFileSync(at, 'utf8')));
+  // the module reported, so it was instrumented or marked under one of them.
+  const original = (at: string) => (at === path ? disk : readFileSync(at, 'utf8'));
+  const captured = marked === MARKED
+    ? markModule(root, path, code, () => true, original)
+    : captureModule(root, path, code, () => true, mode, original);
   return captured?.module;
 }

@@ -90,6 +90,21 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
     ]);
   }, 60_000);
 
+  it('selects every file that loaded a module named unprobed, for an edit to a line none of them ran', async () => {
+    const { coverageFile } = await record('--weigh-unprobed');
+
+    const weigh = await readFile(resolve(fixture, 'src/weigh.mts'), 'utf8');
+    const line = lineIn(weigh, "    return 'heavy';");
+    const diff = `--- a/${at('src/weigh.mts')}\n+++ b/${at('src/weigh.mts')}\n@@ -${line},1 +${line},1 @@\n-    return 'heavy';\n+    return 'weighty';`;
+
+    await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([at('test/alpha.case.mjs'), at('test/beta.case.mjs')]);
+    expect(decodeTestCoverage(await readFile(coverageFile)).modules.find((module) => module.file === at('src/weigh.mts')))
+      .toEqual(expect.objectContaining({ instrumented: false, blocks: [] }));
+  }, 60_000);
+
+  // FIXME: `instrumentModule` takes no predicate, so a runner with its own transform cannot mark a module it must not probe.
+  it.todo('marks a module a runner hands `instrumentModule` as unprobed — needs a published marking sibling on `./runner`');
+
   it('names each case by its declaration path, and gives a branch only to the case that walked it', async () => {
     const { coverageFile } = await record();
     const index = decodeExecutionIndex(await readFile(coverageFile));

@@ -148,7 +148,7 @@ export function testSelectionProbes(
       const source = cleanId(specifier);
       if (source === RESOLVED_COLLECTOR) return null;
       const captured = captureModule(root, source, code, include, options.mode);
-      if (captured?.code === undefined) return null;
+      if (captured === undefined) return null;
 
       // Hoisted in front of everything the module imports, and on the first line,
       // so line numbers survive the way every other insertion in this package

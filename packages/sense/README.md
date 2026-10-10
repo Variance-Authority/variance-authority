@@ -337,7 +337,7 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | `suite` | none; required once the root config declares `suites` | the repository declares its suites, and this configuration runs one of them. It cannot be combined with `coverageFile` |
 | `coverageFile` | the cache path above | CI needs a named artifact |
 | `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path, except for a build whose sibling map leads to exactly one source: it receives that source's path first, and the module's own only if it refuses the source ([below](#a-library-loaded-from-its-build)) |
-| `unprobed` | none | product source a probe cannot sit in, such as a module whose functions you hand to `page.evaluate`, where the first probe throws. It is asked of each module `include` refuses, under the same names; the module runs unprobed with a mark at the end of its text, and a change to it selects every test that loaded it |
+| `unprobed` | none | product source a probe cannot sit in, such as a module whose functions you hand to `page.evaluate`, where the first probe throws. It is asked under the same names as `include`, and wins over it; the module runs unprobed with a mark at the end of its text, and a change to it selects every test that loaded it |
 | `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings or a fixture read with `fs` |
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
@@ -583,8 +583,10 @@ export default withTestSelection({
 ```
 
 The second argument accepts `root`, `suite`, `coverageFile`, `preconditions`,
-`mode`, `continuations`, and `selection`, with the meanings above. Jest does not report which
-config file it loaded, so name it in `preconditions`. There is no `include`:
+`unprobed`, `mode`, `continuations`, and `selection`, with the meanings above. Jest does not report which
+config file it loaded, so name it in `preconditions`. `unprobed` is a list of
+globs rather than a function, because Jest hands its transformer options as
+data; relative globs resolve against `root`, as `preconditions` do. There is no `include`:
 product source is every JavaScript and TypeScript module the configuration's
 `testMatch` or `testRegex` does not name, less dependencies and built output that
 is not [a library loaded from its build](#a-library-loaded-from-its-build). A
@@ -718,7 +720,8 @@ Run `instrument` before your own parse: every probe stays on its line, and the
 text stays the language it was. `senseProbes` is absent for a test file, a file
 outside product source and a file Jest loads before the collector exists, and
 `instrument` returns nothing for a text it cannot parse; either way the module
-runs without probes. The wrapper compares `senseRecipe` with this package's
+runs without probes. A module `unprobed` names reaches your transformer without
+`senseProbes` too, already carrying the wrapper's mark at the end of its text. The wrapper compares `senseRecipe` with this package's
 recipe when Jest loads it, and refuses one built from other sources of the
 crate, naming both; a `senseRecipe` that answers nothing for the mode leaves
 the transformer a plain one, given the text with the probes already in.
@@ -745,7 +748,7 @@ export default defineConfig(withTestSelection({
 ```
 
 The second argument accepts `root`, `suite`, `coverageFile`, `include`,
-`preconditions`, `mode`, and `continuations`, with the meanings above. Rstest
+`unprobed`, `preconditions`, `mode`, and `continuations`, with the meanings above. Rstest
 does not report which config file it loaded, so name it in `preconditions`. The
 loader runs ahead of SWC, on the text you wrote, so the lines a record carries
 are the ones you edited.
@@ -846,7 +849,8 @@ Each function has one place in your runner:
   whatever a loader registered before it hands on. It needs Node 22.15 or
   newer. `include` narrows which files count as product source; the default
   is JavaScript and TypeScript inside the checkout, without test files,
-  dependencies or built output.
+  dependencies or built output. `unprobed` names the ones a probe cannot sit
+  in, as it does on the Vitest seam.
 - **`instrumentModule` replaces it if your runner already transforms
   source.** Call it last, on the JavaScript about to run, with the `map` from
   the file on disk when an earlier step moved lines. Records then name the

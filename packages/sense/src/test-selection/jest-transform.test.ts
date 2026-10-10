@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { probeRecipe } from '../instrument/index.js';
 import probeLog from '../instrument/probe-log.cjs';
 import { createTransformer, type JestTransformRequest, type JestTransformedSource } from './jest-transform.js';
-import { deriveModules, moduleId } from './captured-modules.js';
+import { deriveModules, markedId, moduleId } from './captured-modules.js';
 import { sourceLines, type TransformSourceMap } from './source-lines.js';
 
 const temporary: string[] = [];
@@ -69,6 +69,33 @@ describe('the Jest transformer over a module loaded from its build', () => {
     const { code } = await built(['../src/pick.ts', '../src/other.ts']);
 
     expect(code).toBe(BUILT);
+  });
+});
+
+describe('the Jest transformer over a module named unprobed', () => {
+  const PAGE = 'export function tag() {\n  return \'#text\';\n}\n';
+
+  it('runs it as written with one mark after it, which the reporter reads as loaded and not probed', async () => {
+    const root = await project('variance-jest-unprobed-');
+    await writeFile(resolve(root, 'src/page.js'), PAGE);
+    const transformer = await createTransformer({ root, unprobed: [`${root}/src/*.js`] });
+
+    const { code } = transformer.process!(PAGE, resolve(root, 'src/page.js'), transformOptions(root));
+
+    const id = markedId('src/page.js', PAGE);
+    expect(code.startsWith(`${PAGE}\n;`)).toBe(true);
+    expect(code).toContain(JSON.stringify(id));
+    expect((await deriveModules(root, [id], undefined)).get(id))
+      .toEqual(expect.objectContaining({ file: 'src/page.js', instrumented: false, blocks: [] }));
+  });
+
+  it('keys what it cached on the modules it marks', async () => {
+    const root = await project('variance-jest-unprobed-key-');
+    const path = resolve(root, 'src/page.js');
+    const probing = await createTransformer({ root });
+    const marking = await createTransformer({ root, unprobed: [`${root}/src/*.js`] });
+
+    expect(marking.getCacheKey!(PAGE, path, transformOptions(root))).not.toBe(probing.getCacheKey!(PAGE, path, transformOptions(root)));
   });
 });
 
@@ -242,6 +269,37 @@ module.exports = {
     const handed = JSON.parse(done.code) as { source: string; probes: unknown };
     expect(handed.probes).toBeNull();
     expect(handed.source).toContain('.r("src/pick.js@');
+  });
+
+  it('is handed a module named unprobed already marked, with nothing to place', async () => {
+    const root = await placing(OURS);
+    const transformer = await createTransformer({
+      root,
+      transformer: resolve(root, 'transformer.cjs'),
+      unprobed: [`${root}/src/*.js`],
+    });
+
+    const done = transformer.process!(RAW, resolve(root, 'src/pick.js'), transformOptions(root));
+
+    const handed = JSON.parse(done.code) as { source: string; probes: unknown };
+    expect(handed.probes).toBeNull();
+    expect(handed.source.startsWith(`${RAW}\n;`)).toBe(true);
+    expect(handed.source).toContain(JSON.stringify(markedId('src/pick.js', RAW)));
+  });
+
+  it('is handed a module named unprobed already marked on the asynchronous path too', async () => {
+    const root = await placing(OURS);
+    const transformer = await createTransformer({
+      root,
+      transformer: resolve(root, 'transformer.cjs'),
+      unprobed: [`${root}/src/*.js`],
+    });
+
+    const done = await transformer.processAsync!(RAW, resolve(root, 'src/pick.js'), transformOptions(root));
+
+    const handed = JSON.parse(done.code) as { source: string; probes: unknown };
+    expect(handed.probes).toBeNull();
+    expect(handed.source).toContain(JSON.stringify(markedId('src/pick.js', RAW)));
   });
 
   it('is handed nothing to place in a test file', async () => {
