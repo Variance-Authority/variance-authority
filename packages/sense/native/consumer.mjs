@@ -79,10 +79,12 @@ try {
   if (run.status !== 0) throw new Error(`the consumer did not build or run (exit ${run.status})`);
 
   const [recipe, regions, ...code] = run.stdout.split('\n');
+  // The module's text ends in a newline, so the last element is the empty rest after it.
+  const lines = code.length - 1;
   const expected = [
     [recipe?.startsWith('sense:instrument/presence-v5+'), `a recipe under presence, not ${recipe}`],
     [regions === '5', `5 regions (the module, f, both arms and what follows), not ${regions}`],
-    [code.length === 5, `the module's 4 lines and nothing after, not ${code.length - 1}`],
+    [lines === 4 && code.at(-1) === '', `the module's 4 lines and nothing after, not ${lines}`],
     [code[0]?.includes('.r("src/f.ts@'), 'the header reporting under the module id'],
   ].filter(([held]) => !held);
   if (expected.length > 0) {
