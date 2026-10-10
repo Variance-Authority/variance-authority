@@ -194,6 +194,7 @@ export function createTribunal(options: TribunalOptions): Tribunal {
   const attested = createAttestedRoutes(review);
   const concerns = createConcernRoutes(options);
   const retentionDays = options.retentionDays ?? 30;
+  const surfaces: Surfaces = { baselines, history, review, attested, share, concerns, retentionDays };
 
   return {
     async fetch(request: Request): Promise<Response> {
@@ -210,12 +211,7 @@ export function createTribunal(options: TribunalOptions): Tribunal {
       }
 
       try {
-        return await route(
-          { baselines, history, review, attested, share, concerns, retentionDays },
-          granted,
-          url,
-          request,
-        );
+        return await route(surfaces, granted, url, request);
       } catch (error) {
         if (error instanceof BadRequest) return json(400, { error: error.message });
         if (error instanceof Forbidden) return json(403, { error: error.message });
