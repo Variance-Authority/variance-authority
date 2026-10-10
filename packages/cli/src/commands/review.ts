@@ -37,7 +37,7 @@ import {
   type LineRange,
 } from '@variance-authority/sense/test-selection';
 import { digestString } from '@variance-authority/core/format';
-import { affectedBy, EDGE_KINDS } from '@variance-authority/core/relate';
+import { affectedBy, type EdgeKind } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
 import { landingRecord, recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
@@ -67,6 +67,13 @@ import type { ReviewCoverage } from './review-coverage.js';
  * - `unwalked`: nothing entered it, and every case that could have finished.
  * - `unknown`: the record cannot tell `hole` from `unwalked`.
  */
+/**
+ * The edges a changed package's importers are walked through. Who imports the changed code is a question about
+ * source, so a package importing only a type reads the change too; one that only reads the file, as a stylesheet or a
+ * `/// <depends>` does, imports nothing.
+ */
+const IMPORT_EDGES: readonly EdgeKind[] = ['imports', 'reexports', 'dynamic', 'type'];
+
 export type Reach = 'near' | 'far' | 'unplaced' | 'loaded' | 'hole' | 'unwalked' | 'unknown';
 
 export const REACHES: readonly Reach[] = ['near', 'far', 'unplaced', 'loaded', 'hole', 'unwalked', 'unknown'];
@@ -308,9 +315,8 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     });
   }
 
-  // Who imports the changed code is a question about source: a package importing only a type reads the change too.
   const changedPackages = changedPackagesOf(root, files, (seeds) => {
-    const reach = affectedBy(relations, seeds, { through: EDGE_KINDS });
+    const reach = affectedBy(relations, seeds, { through: IMPORT_EDGES });
     return reach.missing.length === seeds.length ? undefined : reach.files;
   });
   const suite = await preconditionsOf(recorded.file, [...changed.keys()].map(named));

@@ -98,7 +98,11 @@ describe('a review of what a change did, after the run that recorded it', () => 
     await mkdir(join(root, 'types'));
     await writeFile(join(root, 'types/package.json'), JSON.stringify({ name: '@o/types' }));
     await writeFile(join(root, 'types/price.ts'), "import type { round } from '../src/total';\nexport type Rounding = typeof round;\n");
-    git(root, ['add', 'types']);
+    // A package that reads the file without importing it does not: nothing in it calls the change.
+    await mkdir(join(root, 'notes'));
+    await writeFile(join(root, 'notes/package.json'), JSON.stringify({ name: '@o/notes' }));
+    await writeFile(join(root, 'notes/source.ts'), '/// <depends path="../src/total.ts" />\nexport const shown = 1;\n');
+    git(root, ['add', 'types', 'notes']);
     await updateSourceIndex(root);
 
     const answer = await review(parse(['--since', first, '--root', root]));
