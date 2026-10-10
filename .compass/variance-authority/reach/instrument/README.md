@@ -71,8 +71,15 @@ silently dropping evidence.
   the factory's identity moves
 - `packages/sense/src/instrument/spliced.ts` — the region vocabulary, and the
   addon's columns read back as regions
-- `packages/sense/native/src/instrument_walk.rs` — the descent that applies the
+- `packages/sense/native/instrument/src/walk.rs` — the descent that applies the
   arrival rule, region identity, and where a module header may be inserted
+- `packages/sense/native/instrument/src/lib.rs` — the instrumenter crate a Rust
+  pipeline links from `node_modules`: `instrument`, `module_id` and `recipe`
+- `packages/sense/native/instrument/src/header.rs` — the one author of the
+  header every instrumented module carries
+- `packages/sense/src/test-selection/jest-transform.ts` — the handoff: a
+  transformer that answers `senseRecipe` with this build's recipe is given
+  `senseProbes` and places the probes itself
 - `packages/sense/src/test-selection/probes.ts` — the build-side plugin: probes in, inventory out
 - `packages/sense/src/test-selection/source-lines.ts` — transformed offsets back to authored lines
 - `packages/sense/src/test-selection/instrumented-modules.ts` — the inventory as

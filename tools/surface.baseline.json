@@ -2444,6 +2444,9 @@
         "!dist/**/*.d.ts.map",
         "!dist/native",
         "mark.svg",
+        "native/instrument/Cargo.toml",
+        "native/instrument/build.rs",
+        "native/instrument/src/*.rs",
         "scripts/overhead.mjs",
         "scripts/probe-write.mjs"
       ],
@@ -2700,10 +2703,11 @@
         "InstrumentOptions": "interface",
         "Instrumented": "interface",
         "ModuleId": "type",
-        "PROBE_RUNTIME": "const",
         "instrument": "function",
         "instrumentModeOf": "function",
-        "instrumentationId": "function"
+        "instrumentationId": "function",
+        "probeRecipe": "function",
+        "probeRuntime": "function"
       },
       "./test-selection": {
         "AxisStep": "interface",
@@ -3133,6 +3137,7 @@
         "JestTransformRequest": "interface",
         "JestTransformedSource": "interface",
         "JestTransformer": "interface",
+        "SenseProbes": "interface",
         "createTransformer": "function"
       },
       "./jest-reporter": {

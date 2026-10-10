@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-import { EVALUATING, PROBE_RUNTIME } from '../instrument/index.js';
+import { EVALUATING, probeRuntime } from '../instrument/index.js';
 import preconditions from './case-preconditions.cjs';
 import journals from './journal-format.cjs';
 
@@ -122,7 +122,7 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
     const again = loaded.length > 0 && next(6) === 0 ? loaded[next(loaded.length)]! : undefined;
     const id = again?.id ?? `m${loaded.length}`;
     const count = again?.count ?? 2 + next(60);
-    const runtime = PROBE_RUNTIME.replace('.r("",0)', `.r(${JSON.stringify(id)},${count})`);
+    const runtime = probeRuntime(id, count);
     model.depth += 1;
     model.touch(id, count, 0);
     const text = `${runtime}__run(__va);__vaE();return __va;`;
@@ -261,7 +261,7 @@ describe('the recording a file writes', () => {
     const holder: Record<PropertyKey, unknown> = {};
     const collector = collectors.flat(holder);
     const load = (id: string, run: (own: Probe) => void): Probe => {
-      const runtime = PROBE_RUNTIME.replace('.r("",0)', `.r("${id}",5)`);
+      const runtime = probeRuntime(id, 5);
       const text = `${runtime}__run(__va);__vaE();return __va;`;
       return new Function('globalThis', '__run', text)(holder, run) as Probe;
     };
