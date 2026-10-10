@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { REVIEW_TOOLS } from '@variance-authority/mcp/tools';
 import type { Config } from '../config.js';
 import { ask } from './ask.js';
-import { decisionsSubject } from './ask-decisions.js';
+import { reviewSubject } from './ask-review.js';
 
 /**
  * `variance ask decisions`, and the `variance_decisions` tool behind it: what
@@ -43,7 +43,7 @@ function answering(status: number, body: unknown) {
 describe('the decisions a deployment recorded', () => {
   it('are read from the review deployment with the share token, never the ingest one', async () => {
     const { asked, fetch } = answering(200, HISTORY);
-    const read = await decisionsSubject(CONFIG, { subject: 'story:a', build: 'ci-1' }, fetch);
+    const read = await reviewSubject(CONFIG, decisions, { subject: 'story:a', build: 'ci-1' }, fetch);
     expect(asked).toEqual([
       {
         url: `${DEPLOYMENT}/review/decisions?subject=story%3Aa&build=ci-1&limit=20`,
@@ -57,7 +57,7 @@ describe('the decisions a deployment recorded', () => {
   it('are refused, by name, where no share is stored at the deployment', async () => {
     const { asked, fetch } = answering(200, HISTORY);
     const alone = { ...CONFIG, share: { kind: 'directory', root: '/tmp/share' } } as unknown as Config;
-    await expect(decisionsSubject(alone, { subject: 'story:a' }, fetch)).rejects.toThrow(/share token/);
+    await expect(reviewSubject(alone, decisions, { subject: 'story:a' }, fetch)).rejects.toThrow(/share token/);
     expect(asked).toEqual([]);
   });
 
@@ -69,7 +69,7 @@ describe('the decisions a deployment recorded', () => {
       build: 'ci-2',
       report: 'unused.json',
       read: () => Promise.reject(new Error('a decision is not read from a report')),
-      decisions: (input) => decisionsSubject(CONFIG, input, fetch),
+      review: (tool, input) => reviewSubject(CONFIG, tool, input, fetch),
     });
     expect(answer).toBe(`${decisions.run({ from: DEPLOYMENT, decisions: HISTORY.decisions as never }, { subject: 'story:a', build: 'ci-2' })}\n`);
     expect(answer).toContain('2026-06-03T10:00:00.000Z  rejected  story:a  ci-2  marina');

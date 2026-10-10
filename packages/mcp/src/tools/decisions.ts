@@ -1,4 +1,4 @@
-import type { Tool } from './tool.js';
+import { count, textOf, type Reviewed, type ReviewTool } from './review.js';
 
 /**
  * `variance_decisions` — what reviewers decided on the review surface.
@@ -32,9 +32,7 @@ export interface ReviewDecisionEntry {
 }
 
 /** The decisions a host read for one call, and where it read them. */
-export interface ReviewSubject {
-  /** The deployment the history was read from, as a reader should be told it. */
-  readonly from: string;
+export interface DecisionsSubject extends Reviewed {
   /** Newest first, as the deployment answered them. */
   readonly decisions: readonly ReviewDecisionEntry[];
 }
@@ -84,8 +82,9 @@ export function decisionsQuery(input: Readonly<Record<string, unknown>>): Decisi
   };
 }
 
-export const decisions: Tool<ReviewSubject> = {
+export const decisions: ReviewTool<DecisionsSubject> = {
   name: 'variance_decisions',
+  route: '/review/decisions',
   description:
     'What reviewers decided on the review surface: every approval and rejection, newest first, with who ' +
     'made it, when, and their note. A decision a later one replaced is marked, so the first row for a ' +
@@ -105,6 +104,11 @@ export const decisions: Tool<ReviewSubject> = {
       },
     },
     additionalProperties: false,
+  },
+
+  query(input) {
+    const query = decisionsQuery(input);
+    return { subject: query.subject, build: query.build, limit: query.limit };
   },
 
   run(subject, input) {
@@ -141,14 +145,3 @@ export const decisions: Tool<ReviewSubject> = {
     return lines.join('\n');
   },
 };
-
-function textOf(input: Readonly<Record<string, unknown>>, name: string): string | undefined {
-  const value = input[name];
-  if (value === undefined) return undefined;
-  if (typeof value !== 'string' || value === '') throw new Error(`\`${name}\` must be a non-empty string`);
-  return value;
-}
-
-function count(n: number, noun: string): string {
-  return `${String(n)} ${noun}${n === 1 ? '' : 's'}`;
-}

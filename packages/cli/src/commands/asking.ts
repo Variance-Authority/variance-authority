@@ -6,7 +6,7 @@ import {
   TOOLS,
   VANTAGE_TOOLS,
   type CostsSubject,
-  type ReviewSubject,
+  type ReviewTool,
   type Tool,
 } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
@@ -83,8 +83,8 @@ export interface Question {
   readonly source?: Tool<Help>;
   /** Asked of the times a run recorded, or absent when it is not a question about cost. */
   readonly costs?: Tool<CostsSubject>;
-  /** Asked of what reviewers decided, or absent when it is not a question about review. */
-  readonly review?: Tool<ReviewSubject>;
+  /** Asked of what review settled, or absent when it is not a question about review. */
+  readonly review?: ReviewTool;
 }
 
 /** Every question, each knowing which subjects it answers about. */

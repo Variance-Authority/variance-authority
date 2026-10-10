@@ -10,7 +10,7 @@ import { inputFor, questionFor, questionOf, refuseWords, type Question } from '.
 import { grep, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
-import { readTree, type CostsSubject, type ReviewSubject, type Tree } from '@variance-authority/mcp/tools';
+import { readTree, type CostsSubject, type Reviewed, type ReviewTool, type Tree } from '@variance-authority/mcp/tools';
 import { questions } from './ask-questions.js';
 import { grepSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
@@ -153,8 +153,8 @@ export interface AskRequest {
   readonly look?: (at: string) => Promise<VantageReading>;
   /** What each subject cost: the mainline's times, or the named reports'. Absent, `costs` is refused. */
   readonly costs?: () => Promise<CostsSubject>;
-  /** What reviewers decided, read for the window a call names. Absent, `decisions` is refused. */
-  readonly decisions?: (input: Readonly<Record<string, unknown>>) => Promise<ReviewSubject>;
+  /** What a review tool's call names, read from its deployment. Absent, every question about review is refused. */
+  readonly review?: <Subject extends Reviewed>(tool: ReviewTool<Subject>, input: Readonly<Record<string, unknown>>) => Promise<Subject>;
   /** How the checkout is read. Injected so the source path is testable without a repository. */
   readonly source?: (root: string, options?: SourceReadOptions) => Promise<Sourced>;
 }
@@ -206,10 +206,12 @@ export async function ask(request: AskRequest): Promise<string> {
   if (question.review !== undefined) {
     const input = inputFor(question.review, flagged(request));
     refuseWords(question.tool, request.reports);
-    if (request.decisions === undefined) {
-      throw new OperatorError('`decisions` needs a config: it names the deployment and the share token that reads it');
+    if (request.review === undefined) {
+      throw new OperatorError(
+        `\`${request.question}\` needs a config: it names the deployment and the share token that reads it`,
+      );
     }
-    return `${question.review.run(await request.decisions(input), input)}\n`;
+    return `${question.review.run(await request.review(question.review, input), input)}\n`;
   }
   if (request.changedFile !== undefined || request.taintFile !== undefined) {
     const flag = request.changedFile !== undefined ? '--changed-file' : '--taint-file';

@@ -230,13 +230,15 @@ export const COSTS_TOOLS = [costs] as const;
 export type { CostsSubject, SubjectCost } from './tools/costs.js';
 
 /**
- * What reviewers decided on a review deployment. Its own subject, because a
+ * What review settled on a review deployment. Its own subject, because a
  * decision is a fact about the deployment rather than about a run, and the
- * host reads it with the share token — which reads, and never decides.
+ * host reads it with the share token — which reads, and never decides. Each
+ * tool names the route it is read from, so a host reads every one the same way.
  */
 export const REVIEW_TOOLS = [decisions] as const;
 export { decisionsQuery } from './tools/decisions.js';
-export type { DecisionsQuery, ReviewDecision, ReviewDecisionEntry, ReviewSubject } from './tools/decisions.js';
+export type { DecisionsQuery, DecisionsSubject, ReviewDecision, ReviewDecisionEntry } from './tools/decisions.js';
+export type { Reviewed, ReviewTool } from './tools/review.js';
 
 /** Retained scenario executions, including witnessed Arrange state and Act outcomes. */
 export const SCENARIO_TOOLS = [scenarios, diff as Tool<ScenarioEvidence>] as const;

@@ -38,7 +38,7 @@ export function attestedDeployment(config: Reading, among: readonly string[] = d
   if (found !== undefined) return found;
   const where = among.length === 0 ? 'a review deployment, and this config names none' : among.join(' or ');
   throw new OperatorError(
-    `what reviewers decided is read from ${where} with that deployment's share token, and this ` +
+    `what review settled is read from ${where} with that deployment's share token, and this ` +
       'config stores no `http` share there to hold one: a share kept anywhere else holds no token this ' +
       'deployment accepts. Store the share there, as `"share": { "kind": "http", ' +
       `"endpoint": "${among[0] ?? 'https://<deployment>'}/share", "token": { "env": "VARIANCE_SHARE_TOKEN" } }\``,

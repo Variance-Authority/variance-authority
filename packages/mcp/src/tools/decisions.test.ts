@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { REVIEW_TOOLS } from '../tools.js';
-import { decisions, decisionsQuery, type ReviewSubject } from './decisions.js';
+import { decisions, decisionsQuery, type DecisionsSubject } from './decisions.js';
 
 /**
  * What reviewers decided, as an agent reads it: newest first, every reversal
@@ -9,7 +9,7 @@ import { decisions, decisionsQuery, type ReviewSubject } from './decisions.js';
  * leaves that to arithmetic gets the arithmetic wrong.
  */
 
-const SUBJECT: ReviewSubject = {
+const SUBJECT: DecisionsSubject = {
   from: 'https://tribunal.example',
   decisions: [
     { build: 'ci-2', subject: 'story:a', decision: 'rejected', by: 'marina', at: '2026-06-03T10:00:00.000Z' },

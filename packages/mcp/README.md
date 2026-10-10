@@ -382,7 +382,7 @@ that names neither is refused; `limit` is 20 unless you set it, and 200 at most.
 the rejection's note is often the only place the reason is written; the earlier
 row for the same build and subject is marked `(replaced)`, so the first row for
 a pair is the one that stands. `REVIEW_TOOLS` holds it, and its subject is a
-`ReviewSubject` — the deployment it was read from, and a `ReviewDecisionEntry`
+`DecisionsSubject` — the deployment it was read from, and a `ReviewDecisionEntry`
 per decision.
 
 It is a subject of its own because a decision is a fact about a deployment, not

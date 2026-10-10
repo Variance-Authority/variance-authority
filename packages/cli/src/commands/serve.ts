@@ -4,7 +4,7 @@ import {
   COSTS_TOOLS,
   REVIEW_TOOLS,
   type CostsSubject,
-  type ReviewSubject,
+  type Reviewed,
   type Served,
   type Tool,
   type Tree,
@@ -16,7 +16,7 @@ import { HELP, HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Config } from '../config.js';
 import { costsSubject } from './ask-costs.js';
-import { decisionsSubject } from './ask-decisions.js';
+import { reviewSubject } from './ask-review.js';
 import { reportSource } from './report-source.js';
 
 /**
@@ -65,9 +65,9 @@ interface Bench {
   readonly costs?: CostsSubject;
   /** Why they could not be read, in the sentence `variance ask costs` prints. */
   readonly costsRefused?: string;
-  /** The decisions one `variance_decisions` call asked for, read for that call and at no other time. */
-  readonly review?: ReviewSubject;
-  /** Why they could not be read, in the sentence `variance ask decisions` prints. */
+  /** What one review tool's call asked for, read for that call and at no other time. */
+  readonly review?: Reviewed;
+  /** Why it could not be read, in the sentence `variance ask` prints for the same question. */
   readonly reviewRefused?: string;
   /** The line and commit the report was read from, when it came from the share. */
   readonly says?: string;
@@ -129,8 +129,8 @@ const BENCH: Served<Bench> = {
     })),
     // The mainline's times, as `variance ask costs` reads them with no report named.
     ...over(COSTS_TOOLS, (bench) => bench.costs, (bench) => bench.costsRefused ?? 'no subject costs were read'),
-    // What reviewers decided, as `variance ask decisions` reads it: with the share token.
-    ...over(REVIEW_TOOLS, (bench) => bench.review, (bench) => bench.reviewRefused ?? 'no decisions were read'),
+    // What review settled, as `variance ask` reads it: with the share token.
+    ...over(REVIEW_TOOLS, (bench) => bench.review, (bench) => bench.reviewRefused ?? 'nothing review settled was read'),
     ...over(
       HELP.tools,
       (bench) => bench.help,
@@ -246,8 +246,9 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
         )
         : {};
       // Read for the window this call names, so a reversal made a minute ago is in it.
-      const review = asked === REVIEW_TOOLS[0].name
-        ? await decisionsSubject(config, input ?? {}).then(
+      const reviewing = REVIEW_TOOLS.find((tool) => tool.name === asked);
+      const review = reviewing !== undefined
+        ? await reviewSubject(config, reviewing, input ?? {}).then(
           (read) => ({ review: read }),
           (refused: unknown) => ({ reviewRefused: refused instanceof Error ? refused.message : String(refused) }),
         )

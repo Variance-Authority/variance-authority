@@ -23,7 +23,7 @@ import {
 import { renderCacheLine, sweepRenders } from './commands/renders.js';
 import { pruneWhenDueLines } from './commands/prune-cache.js';
 import { ask, costsSubject } from './commands/ask.js';
-import { decisionsSubject } from './commands/ask-decisions.js';
+import { reviewSubject } from './commands/ask-review.js';
 import { said } from './here.js';
 import { formatReport } from './commands/report.js';
 import {
@@ -221,7 +221,7 @@ export async function dispatch(
           ...(at === undefined ? {} : { at }),
           report: config.report,
           read: () => reportsFor(reports, config), costs: () => costsSubject(config, reports),
-          decisions: (input) => decisionsSubject(config, input),
+          review: (tool, input) => reviewSubject(config, tool, input),
         }),
       );
       // A reading is not a verdict. `report` and `adjudicate` are where a run is
