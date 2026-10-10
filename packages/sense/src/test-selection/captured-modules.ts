@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
-import { instrument, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { instrument, markLoaded, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { recordedBlocks } from './coverage-rows.js';
 import { isMissing, projectPath, type CapturedModule } from './instrumented-modules.js';
 import { handedTexts, rawFrame, type RawFrame } from './source-lines.js';
@@ -79,6 +79,32 @@ export function captureModule(
       ? { file, id, sourceDigest, instrumented: false, blocks: [] }
       : { file, id, sourceDigest, instrumented: true, blocks: recordedBlocks(done.blocks, frame, code, mode ?? 'presence') },
     code: done?.code,
+    ...(frame.changed === undefined ? {} : { changed: frame.changed }),
+  };
+}
+
+/**
+ * Mark one module as loaded, as a transform is handed it, without probing it.
+ *
+ * For product source no probe may sit in (see {@link markLoaded}): `loaded`
+ * names it, under any name {@link rawFrame} could give it, as `include` names
+ * the modules {@link captureModule} probes. The module is recorded as not
+ * instrumented, so every test that loaded it declares its text, and a change
+ * to it selects them. `undefined` when `loaded` refuses it.
+ */
+export function markModule(
+  root: string,
+  path: string,
+  code: string,
+  loaded: (file: string) => boolean,
+  original: (path: string) => string = (at) => readFileSync(at, 'utf8'),
+): Captured | undefined {
+  const frame = rawFrame(code, path, loaded, original);
+  if (frame === undefined) return undefined;
+  const id = moduleId(projectPath(root, path), code);
+  return {
+    module: { file: projectPath(root, frame.file), id, sourceDigest: frame.sourceDigest, instrumented: false, blocks: [] },
+    code: markLoaded(code, id),
     ...(frame.changed === undefined ? {} : { changed: frame.changed }),
   };
 }

@@ -22,6 +22,8 @@ import { fileURLToPath } from 'node:url';
  * while every other signal says it is about today's.
  */
 
+// FIXME: selection never sees a bundle's inputs: no test loads them through the runner, so an edit to
+// page-side code that only reaches the page here selects nothing (page-side.integration.test.ts, the todo).
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Each entry is `[package, entry within dist, output within dist]`. */

@@ -143,3 +143,17 @@ export function probeable(root, file) {
   const stem = sourceStem(root, file);
   return !PAGE_SIDE.some((entry) => claims(entry, stem));
 }
+
+/**
+ * Whether a transformed module is marked as loaded where it may not be probed.
+ *
+ * Every module whose functions cross is still loaded in this process, by the
+ * tests that hand those functions to a page, and a mark at the end of its text
+ * says which tests did without placing anything inside a function. An edit to
+ * it then selects those tests whole. The probe runtime is not marked: the mark
+ * calls the runtime, which cannot be its own subject.
+ */
+export function marked(root, file) {
+  const stem = sourceStem(root, file);
+  return [...CROSSES, ...SERIALIZED].some((entry) => claims(entry, stem));
+}

@@ -83,10 +83,20 @@ describe('a module loaded but not probed', () => {
     expect(narrowing.entered).toEqual([named('test/collector.test.js')]);
   });
 
+  it('selects it from the record alone, with no import graph to read', async () => {
+    const narrowing = await narrowByExecution(coverageFile, await edit(harness, "'pageerror'", "'pageerrorx'"), {});
+    expect(narrowing.entered).toEqual([named('test/collector.test.js')]);
+  });
+
   it('selects the test that loaded it for an edit to a module only a crossing module imports', async () => {
     const narrowing = await select(await edit(world, "'title'", "'heading'"));
     expect(narrowing.entered).toEqual([named('test/collector.test.js')]);
   });
+
+  // FIXME: a module read as text and run in the page (tools/page-agents.mjs bundles) is never loaded through the
+  // runner, so nothing marks it and an edit to it selects nothing. Measuring it needs a record of which
+  // bundle a test read and what went into it — a record-format or spec decision, not taken here.
+  it.todo('selects the test that ran it in the page for an edit to code it reads as a bundle');
 
   it('still charges a probed module by its lines', async () => {
     const narrowing = await select(await edit(plain, "'plain'", "'plainer'"));

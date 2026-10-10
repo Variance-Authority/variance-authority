@@ -1,8 +1,10 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { captureModule, deriveModules, pathOf } from './captured-modules.js';
+import { EVALUATING } from '../instrument/index.js';
+import { captureModule, deriveModules, markModule, pathOf } from './captured-modules.js';
 import { defaultInclude } from './instrumented-modules.js';
 
 /** The most reads the derivation had in flight at once. */
@@ -47,6 +49,63 @@ describe('the module the probes name', () => {
     expect(pathOf(captured.module.id)).toBe('src-cart.js');
   });
 });
+
+describe('a module marked as loaded', () => {
+  const SCRIPT = 'function total(items) {\n  return items.length > 0 ? items.length : 0;\n}\n';
+
+  it('keeps its text whole, so a function read from it crosses with no probe in it', async () => {
+    const { root, file } = await checkout(SCRIPT);
+    const marked = markModule(root, file, SCRIPT, defaultInclude)!;
+
+    expect(marked.code!.startsWith(SCRIPT)).toBe(true);
+    const total = runInNewContext(`${marked.code}\ntotal`, { __VA__: recordingRoot() }) as (items: unknown[]) => number;
+    expect(runInNewContext(`(${total.toString()})([1, 2])`)).toBe(2);
+  });
+
+  it('reports its own region once, as entered while it evaluated', async () => {
+    const { root, file } = await checkout(SCRIPT);
+    const marked = markModule(root, file, SCRIPT, defaultInclude)!;
+    const fake = recordingRoot();
+
+    runInNewContext(marked.code!, { __VA__: fake });
+
+    expect(fake.calls).toEqual([['r', marked.module.id, 1], ['e'], ['g', EVALUATING >>> 0], ['x']]);
+  });
+
+  it('is the module the transform would have probed, recorded as not instrumented', async () => {
+    const { root, file } = await checkout(SOURCE);
+    const captured = captureModule(root, file, SOURCE, defaultInclude, undefined)!;
+
+    expect(markModule(root, file, SOURCE, defaultInclude)!.module).toEqual({
+      ...captured.module,
+      instrumented: false,
+      blocks: [],
+    });
+  });
+
+  it('is not marked when the predicate refuses it', async () => {
+    const { root, file } = await checkout(SOURCE);
+
+    expect(markModule(root, file, SOURCE, () => false)).toBeUndefined();
+  });
+});
+
+/** A probe root that writes down what a module asked of it, in order. */
+function recordingRoot(): { calls: unknown[][] } & Record<string, unknown> {
+  const calls: unknown[][] = [];
+  return {
+    calls,
+    a: 0,
+    s: null,
+    r: (id: string, count: number) => {
+      calls.push(['r', id, count]);
+      return { f: new Uint8Array(count), s: new Uint8Array(count), b: 0, p: new Uint8Array([1]) };
+    },
+    e: () => calls.push(['e']),
+    x: () => calls.push(['x']),
+    g: (entry: number) => calls.push(['g', entry >>> 0]),
+  };
+}
 
 describe('a module cut again from the checkout', () => {
   it('is the module the transform cut', async () => {

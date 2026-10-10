@@ -214,6 +214,21 @@ export function instrument(
 }
 
 /**
+ * Mark a module as loaded without probing it.
+ *
+ * For a module no probe may sit in: one whose functions cross into another
+ * realm as text, where the first probe throws. The text is unchanged up to its
+ * end, and the runtime follows it there, at module scope, which no function
+ * carries with it when it crosses. It registers one region, the module's own,
+ * and logs it as {@link instrument}'s header does, so every test that loaded
+ * the module is in the record — which an edit to it then selects whole,
+ * because nothing says what in it ran.
+ */
+export function markLoaded(source: string, id: ModuleId): string {
+  return `${source}\n;${probeRuntime(id, 1)}__vaE();`;
+}
+
+/**
  * The declarations every instrumented module carries, and its own probe.
  *
  * 618 bytes a module, 340 after gzip and 317 after brotli: the text is the same
