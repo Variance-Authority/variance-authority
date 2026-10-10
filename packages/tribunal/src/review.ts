@@ -16,6 +16,7 @@ import {
   latestDecisionsStatement,
   newestBuilds,
   oneBuild,
+  readDecisions,
   summarize,
   summaryCounts,
   summaryStatements,
@@ -404,6 +405,10 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
         ...(input.note !== undefined ? { note: input.note } : {}),
         ...(concern !== undefined ? { concern: concern.id } : {}),
       };
+    },
+
+    async decisions(query) {
+      return readDecisions(db, project, query ?? {});
     },
 
     async changelog(query): Promise<TribunalChangelog> {

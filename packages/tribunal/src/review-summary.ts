@@ -2,7 +2,13 @@ import { identityFrom } from '@variance-authority/raster';
 import type { D1Like, D1PreparedLike, D1ResultLike, D1Value } from './bindings.js';
 import { ReviewError, number, optionalText, text, type Row } from './review-rows.js';
 import type { ObservationRecord } from '@variance-authority/report';
-import type { BuildSummary, Coverage, DecisionRecord } from './review-types.js';
+import type {
+  BuildSummary,
+  Coverage,
+  DecisionEntry,
+  DecisionRecord,
+  DecisionsQuery,
+} from './review-types.js';
 
 /**
  * The four aggregates a build listing is made of, and the window they run over.
@@ -240,6 +246,47 @@ export function decisionOf(row: Row, at = 'at'): DecisionRecord {
     at: text(row, at, 'a decision'),
     ...(note !== undefined ? { note } : {}),
   };
+}
+
+/** How many decisions one reading returns unless it asks for fewer, and the most it may ask for. */
+export const DECISIONS_LIMIT = 200;
+
+/**
+ * Every decision the query names, newest first, reversals included.
+ *
+ * Ordered by `seq` for the reason {@link latestDecisionsStatement} is: two
+ * decisions can share a millisecond, and the order they were written in is the
+ * order a reader has to see them in to know which one stands.
+ */
+export async function readDecisions(
+  db: D1Like,
+  project: string,
+  query: DecisionsQuery,
+): Promise<readonly DecisionEntry[]> {
+  const conditions = ['project = ?'];
+  const bindings: D1Value[] = [project];
+  if (query.build !== undefined) {
+    conditions.push('build = ?');
+    bindings.push(query.build);
+  }
+  if (query.subject !== undefined) {
+    conditions.push('subject = ?');
+    bindings.push(query.subject);
+  }
+
+  const found = await db
+    .prepare(
+      `SELECT build, subject, decision, decided_by, note, at FROM decisions
+        WHERE ${conditions.join(' AND ')} ORDER BY seq DESC LIMIT ?`,
+    )
+    .bind(...bindings, query.limit ?? DECISIONS_LIMIT)
+    .all<Row>();
+
+  return found.results.map((row) => ({
+    build: text(row, 'build', 'a decision'),
+    subject: text(row, 'subject', 'a decision'),
+    ...decisionOf(row),
+  }));
 }
 
 /** One `GROUP BY` row of a counted column, or zero because the group was empty. */

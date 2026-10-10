@@ -9,6 +9,7 @@ import {
   VANTAGE,
   createLineReader,
   handle,
+  askedInput,
   askedTool,
   wantsTree,
   type JsonRpcRequest,
@@ -43,8 +44,12 @@ export interface ServerOptions<Subject = RunReport> {
    * refresh and answered from the previous value would make *this* request the
    * stale one, which is the request that matters: the agent asking is the agent
    * that just re-ran.
+   *
+   * `input` is the arguments the call names, so a host whose subject is fetched
+   * from somewhere — a deployment's decision history — fetches the window the
+   * call asked for rather than all of it. Absent for anything but a call.
    */
-  readonly subject: (asked?: string) => Subject | Promise<Subject>;
+  readonly subject: (asked?: string, input?: Readonly<Record<string, unknown>>) => Subject | Promise<Subject>;
 
   /**
    * How the subject is kept for the next request, where the default will not do.
@@ -98,7 +103,7 @@ export function serve<Subject>(options: ServerOptions<Subject>): () => void {
     }
 
     queue = queue.then(async () => {
-      const subject = await options.subject(askedTool(request));
+      const subject = await options.subject(askedTool(request), askedInput(request));
       const tree = wantsTree(request, options.served) ? await options.tree?.() : undefined;
       const response = handle(request, () => subject, options.served, {
         ...(previous === undefined ? {} : { previous }),
