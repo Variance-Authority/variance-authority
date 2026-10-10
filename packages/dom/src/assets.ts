@@ -1,3 +1,4 @@
+import { pageOrigin, withoutOrigin } from '@variance-authority/core/format';
 import { detectProfile } from './profile.js';
 
 /**
@@ -196,13 +197,12 @@ export function assetsFor(
   observed: Readonly<Record<string, string>>,
 ): Readonly<Record<string, string>> {
   const scoped: Record<string, string> = {};
-  const origin = new URL(root.ownerDocument.baseURI).origin;
-  const own = origin === 'null' ? undefined : `${origin}/`;
+  const origin = pageOrigin(root.ownerDocument.baseURI);
 
   for (const url of referencedAssets(root)) {
     const digest = observed[url];
     if (digest === undefined) continue;
-    scoped[own !== undefined && url.startsWith(own) ? url.slice(origin.length) : url] = digest;
+    scoped[withoutOrigin(url, origin)] = digest;
   }
 
   return scoped;

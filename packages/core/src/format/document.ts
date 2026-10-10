@@ -1,6 +1,7 @@
 import type { Diagnostic, SubjectRef } from './capture.js';
 import type { Viewport } from './environment.js';
 import { digestValue, type Digest } from './hash.js';
+import { pageOrigin, withoutOrigin } from './origin.js';
 import type { ComponentHash } from './snapshot.js';
 
 /**
@@ -180,6 +181,7 @@ export interface FrameElement {
  * never a wrong image.
  */
 export function documentDigest(document: RenderDocument): Digest {
+  const origin = pageOrigin(document.baseUrl);
   return digestValue({
     documentVersion: document.documentVersion,
     html: document.html,
@@ -199,15 +201,16 @@ export function documentDigest(document: RenderDocument): Digest {
     inherited: { ...document.inherited },
     fonts: [...document.fonts],
     ...(document.assets ? { assets: { ...document.assets } } : {}),
-    // FIXME: `baseUrl`, and the absolute URLs `resources` is keyed by, hold the
-    // origin the collector served the build on. A collector serves on a free
-    // port, so one build served twice digests twice and misses the render cache.
-    ...(document.baseUrl !== undefined ? { baseUrl: document.baseUrl } : {}),
+    // The base and the page's own resources as paths: a collector serves the
+    // build on a free port, and a digest holding it would miss the render cache
+    // on every run. The document keeps both absolute, because the renderer
+    // resolves against them; a resource another origin serves stays absolute.
+    ...(document.baseUrl !== undefined ? { baseUrl: withoutOrigin(document.baseUrl, origin) } : {}),
     ...(document.resources !== undefined
       ? {
           resources: Object.fromEntries(
             Object.entries(document.resources).map(([url, resource]) => [
-              url,
+              withoutOrigin(url, origin),
               { ...resource },
             ]),
           ),

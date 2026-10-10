@@ -1,3 +1,4 @@
+import { withoutOrigin } from '../../format/origin.js';
 import { canonicalizeColor, isColorProperty } from './color.js';
 
 /**
@@ -127,8 +128,9 @@ function sameOriginPath(token: string, origin: string | undefined): string {
   if (origin === undefined) return token;
   const match = /^url\(\s*(["']?)(.*?)\1\s*\)$/s.exec(token);
   const url = match?.[2];
-  if (url === undefined || !url.startsWith(`${origin}/`)) return token;
-  return `url(${match![1]}${url.slice(origin.length)}${match![1]})`;
+  if (url === undefined) return token;
+  const path = withoutOrigin(url, origin);
+  return path === url ? token : `url(${match![1]}${path}${match![1]})`;
 }
 
 /** Canonicalize one `<number><unit>` token. */

@@ -1,6 +1,7 @@
 import type { Diagnostic, RawCapture, RawNode } from '../../format/capture.js';
 import { environmentKey } from '../../format/environment.js';
 import { digestCombine, digestValue, type Digest } from '../../format/hash.js';
+import { pageOrigin } from '../../format/origin.js';
 import { relativizeSource, type Provenance } from '../../format/provenance.js';
 import { ALLOWLIST_VERSION, RULESET_VERSION, admitsAttribute } from '../ruleset.js';
 import type { SemanticNode, SemanticSnapshot, StyleProvenanceEntry } from '../../format/snapshot.js';
@@ -93,7 +94,7 @@ export function normalize(capture: RawCapture, options: NormalizeOptions = {}): 
     collapseWrappers,
     digestText,
     ...(sourceRoot !== undefined ? { sourceRoot } : {}),
-    ...originOf(capture.baseUrl),
+    ...withOrigin(pageOrigin(capture.baseUrl)),
     styleProvenance,
     declaredBy: new WeakMap(),
   };
@@ -363,19 +364,11 @@ function normalizeSelector(selector: string): string {
     .trim();
 }
 
-/** The seed minus its custom properties: values that actually render. */
-/**
- * The origin a page's own `url()` values start with, or nothing for an opaque one.
- *
- * Read off the string rather than through `URL`, which `core` does not assume its
- * host has. `baseURI` arrives serialized by the engine, so the scheme and host are
- * already lower case and a default port is already dropped.
- */
-function originOf(baseUrl: string | undefined): { readonly origin?: string } {
-  const origin = baseUrl === undefined ? undefined : /^https?:\/\/[^/?#]+/.exec(baseUrl)?.[0];
+function withOrigin(origin: string | undefined): { readonly origin?: string } {
   return origin === undefined ? {} : { origin };
 }
 
+/** The seed minus its custom properties: values that actually render. */
 function renderableOnly(seed: Readonly<Record<string, string>>): Record<string, string> {
   const renderable: Record<string, string> = {};
   for (const [property, value] of Object.entries(seed)) {
