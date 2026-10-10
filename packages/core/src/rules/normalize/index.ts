@@ -17,6 +17,7 @@ import {
 export { buildAliasMap, aliasAttributeValue, aliasStyleValue } from './alias.js';
 export type { AliasMap, AliasResult } from './alias.js';
 export {
+  declaredValue,
   resolveStyle,
   resolveVariables,
   INHERITED_PROPERTIES,

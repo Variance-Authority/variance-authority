@@ -14,17 +14,23 @@ generated box now enters the capture as a child node tagged `::before` (first)
 or `::after` (last), carrying the rules written for it. In a browser it carries
 its computed style, projected onto the allowlist, and the text its `content`
 says as a `#text` child; a box whose `content` is `none` or `normal`, or whose
-`display` is `none`, is not in the tree. A `content` that is not a string, such
-as `counter()` or `open-quote`, is carried as written.
+`display` is `none`, is not in the tree. Strings are joined and `attr()` reads
+the element's attribute; a part such as `counter()` or `open-quote` is carried
+as written.
 
-Under JSDOM, which computes no generated content, a box is in the tree when the
-winning declared `content` gives it one, with the rules that style it and no
-computed style or text. It carries `unread` on `RawNode` and `SemanticNode`,
-saying what was not read; `unread` is outside every hash. A change to the words
-alone of such a box does not move the snapshot under JSDOM.
+Under JSDOM, which computes no generated content, the declared rules answer,
+picked by the same cascade order normalization uses: a box is in the tree when
+the winning `content` gives it one and the winning `display` is not `none`, with the rules that style it and no computed style.
+When that `content` is strings and `attr()`, the box says its words as a
+`#text` child, as in a browser, so rewording it moves the snapshot. When it
+holds a `counter()`, a quote, a `var()` or a `url()`, the box has no text and
+carries `unread` on `RawNode` and `SemanticNode`, naming the parts it could not
+resolve; `unread` is outside every hash. JSDOM's own parser drops a `content`
+that is a single `attr()` or `counter()` and nothing else, so no box is read
+for one.
 
-`RULESET_VERSION` moves from `r1` to `r2`, the same `r2` that keeps the served
-port out of a render. It is part of the render identity, so **every existing
-baseline is `incomparable` after this upgrade**. Where a subject's render document is unchanged, `variance accept
---all` adopts the new images; a subject with a `::before` or `::after` rule has
-a new render document, and its image needs review before it is accepted.
+This is part of `RULESET_VERSION` `r2`, the same `r2` that keeps the served
+port out of a render. A subject with a `::before` or `::after` box has a new
+render document, so after this upgrade its image shows the box and reads
+`changed`; `variance accept --all` and Playwright's
+`--update-snapshots=changed` adopt it.

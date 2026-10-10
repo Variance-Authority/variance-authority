@@ -4,9 +4,8 @@ import type {
   Provenance,
   RawNode,
 } from '@variance-authority/core/format';
-import { admits } from '@variance-authority/core/rules';
+import { admits, declaredValue, matchingParen } from '@variance-authority/core/rules';
 import { propertyNames } from './dom-list.js';
-import { compareSpecificity } from './specificity.js';
 
 /**
  * The boxes CSS generates inside an element: `::before` and `::after`.
@@ -16,8 +15,8 @@ import { compareSpecificity } from './specificity.js';
  * `.badge::before { content: "New" }` rewritten to `"Old"` repaints the badge
  * and moved nothing a capture read. These are read here, from the element they
  * hang from, and enter the capture as the children they render as: `::before`
- * first, `::after` last, each with the rules that style it and, where the engine
- * computes one, the text it says as a `#text` child — the same shape an element's
+ * first, `::after` last, each with the rules that style it and the text it says
+ * as a `#text` child — the same shape an element's
  * text takes, so a reworded box diffs like reworded text.
  *
  * Only these two. `::marker`, `::placeholder` and the rest style a box the
@@ -27,24 +26,28 @@ import { compareSpecificity } from './specificity.js';
 export const GENERATED_BOXES = ['::before', '::after'] as const;
 
 /**
- * Why a generated box under a host without a layout engine says nothing.
+ * What a generated box under a host without a layout engine could not say.
  *
  * JSDOM implements no generated content: `getComputedStyle(element, '::before')`
- * logs "Not implemented" and answers with the *element's* style. What is known
- * without an engine is which rules style the box and that one of them gives it
- * content; whether it renders, and what it says, is not.
+ * logs "Not implemented" and answers with the *element's* style. The cascade is
+ * still read here: the winning `content` says its words when it is made of
+ * strings and `attr()`. A counter, a quote, a `var()` or a `url()` is resolved
+ * only by a layout engine or a runtime, so a box whose content holds one is
+ * marked with the parts it could not resolve, and says nothing rather than a guess.
  */
-export const GENERATED_BOX_UNREAD =
-  'no layout engine: whether this generated box renders, and what it says, were not read';
+export function unreadWords(unresolved: readonly string[]): string {
+  return `no layout engine to resolve ${unresolved.join(', ')}: what this generated box says was not read`;
+}
 
 /**
  * The generated box `pseudo` adds to `element`, or nothing when it adds none.
  *
- * With computed style, the engine decides: a box exists when its `content`
- * makes one and its `display` is not `none`. Without it, the box is reported
- * when the winning declared `content` makes one, carries the rules that style
- * it, and is marked {@link GENERATED_BOX_UNREAD} — never a guessed text or a
- * guessed value.
+ * A box exists when its `content` makes one and its `display` is not `none`.
+ * With computed style, the engine answers both. Without it, the declared rules
+ * answer, and {@link declaredValue} picks the winner among them by the same
+ * order normalization uses for every other property. The box then says the
+ * words of the winning `content` when {@link readContent} can read them, or is
+ * marked {@link unreadWords} when it cannot.
  */
 export function generatedBox(
   element: Element,
@@ -60,46 +63,73 @@ export function generatedBox(
     matchedRules: [...rules],
     ...(provenance ? { provenance } : {}),
   };
+  const saying = (text: string): RawNode[] => (text === '' ? [] : [textNode(text, provenance)]);
 
   if (!profile.computedStyle || !view) {
-    if (!makesBox(declaredContent(rules))) return undefined;
-    return { ...box, unread: GENERATED_BOX_UNREAD, children: [] };
+    const content = declaredValue(rules, 'content');
+    if (!makesBox(content) || declaredValue(rules, 'display') === 'none') return undefined;
+
+    const read = readContent(content, element);
+    if ('unresolved' in read) return { ...box, unread: unreadWords(read.unresolved), children: [] };
+    return { ...box, children: saying(read.text) };
   }
 
   const computed = view.getComputedStyle(element, pseudo);
   const content = computed.getPropertyValue('content');
   if (!makesBox(content) || computed.getPropertyValue('display') === 'none') return undefined;
 
-  const text = contentText(content);
+  const read = readContent(content, element);
   return {
     ...box,
     computedStyle: projected(computed),
-    children: text === '' ? [] : [textNode(text, provenance)],
+    // The engine painted what it resolved; a part it reports unresolved is
+    // carried as written, so a change to it is still a change.
+    children: saying('text' in read ? read.text : content),
   };
 }
 
+/** The words a `content` value says, or the parts of it that only an engine or a runtime resolves. */
+export type ContentReading = { readonly text: string } | { readonly unresolved: readonly string[] };
+
 /**
- * The text a computed `content` says.
+ * Read the words a `content` value says on `host`.
  *
- * Strings are unescaped and joined, which is what the engine paints. Anything
- * else — `counter()`, `open-quote`, `url()` — is a value the engine did not
- * resolve to text, and is carried as written: a change to it is still a change,
- * and turning it into prose would be a guess.
+ * Strings are unescaped and joined, and `attr(name)` is the host's attribute,
+ * or nothing when it has none — which is what an engine paints for both.
+ * Alternative text after `/` is for assistive technology and is not painted.
+ * Anything else — `counter()`, `open-quote`, `var()`, `url()`, an `attr()` with
+ * a type or a fallback — is named in `unresolved`, each once, in order.
  */
-export function contentText(content: string): string {
-  const strings: string[] = [];
-  const pattern = /\s*"((?:[^"\\]|\\[\s\S])*)"\s*/y;
+export function readContent(content: string, host: Element): ContentReading {
+  const words: string[] = [];
+  const unresolved: string[] = [];
+  const token = /\s*(?:"((?:[^"\\]|\\[\s\S])*)"|'((?:[^'\\]|\\[\s\S])*)'|(\/)|([\w-]+)\(|([^\s"'(/]+))/y;
   let at = 0;
 
   while (at < content.length) {
-    pattern.lastIndex = at;
-    const found = pattern.exec(content);
-    if (!found) return content;
-    strings.push(unescape(found[1]!));
-    at = pattern.lastIndex;
+    token.lastIndex = at;
+    const found = token.exec(content);
+    if (!found) break;
+    at = token.lastIndex;
+    const [, double, single, slash, fn, other] = found;
+
+    if (double !== undefined || single !== undefined) {
+      words.push(unescape(double ?? single!));
+    } else if (slash !== undefined) {
+      break;
+    } else if (fn !== undefined) {
+      const close = matchingParen(content, at - 1);
+      const argument = content.slice(at, close).trim();
+      at = close + 1;
+      const name = fn.toLowerCase();
+      if (name === 'attr' && /^[\w-]+$/.test(argument)) words.push(host.getAttribute(argument) ?? '');
+      else unresolved.push(`${name}()`);
+    } else {
+      unresolved.push(other!.toLowerCase());
+    }
   }
 
-  return strings.length === 0 ? content : strings.join('');
+  return unresolved.length > 0 ? { unresolved: [...new Set(unresolved)] } : { text: words.join('') };
 }
 
 function unescape(string: string): string {
@@ -111,32 +141,8 @@ function unescape(string: string): string {
 }
 
 /** `none` and `normal` are the two values under which `::before` and `::after` generate nothing. */
-function makesBox(content: string | undefined): boolean {
+function makesBox(content: string | undefined): content is string {
   return content !== undefined && content !== '' && content !== 'none' && content !== 'normal';
-}
-
-/** The `content` the cascade picks among declared rules: importance, then specificity, then order. */
-function declaredContent(rules: readonly MatchedRule[]): string | undefined {
-  let winner: { value: string; important: boolean; rule: MatchedRule } | undefined;
-
-  for (const rule of rules) {
-    for (const declaration of rule.declarations) {
-      if (declaration.property !== 'content') continue;
-      const challenger = { value: declaration.value.trim(), important: declaration.important, rule };
-      if (winner === undefined || beats(challenger, winner)) winner = challenger;
-    }
-  }
-
-  return winner?.value;
-}
-
-function beats(
-  a: { important: boolean; rule: MatchedRule },
-  b: { important: boolean; rule: MatchedRule },
-): boolean {
-  if (a.important !== b.important) return a.important;
-  const specificity = compareSpecificity(a.rule.specificity, b.rule.specificity);
-  return specificity === 0 ? a.rule.order > b.rule.order : specificity > 0;
 }
 
 /** An element's computed style, projected onto the allowlist. */

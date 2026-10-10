@@ -194,7 +194,8 @@ export interface RawNode {
 
   /**
    * Why part of this node was not read, on a node whose existence is known and
-   * whose values are not — a `::before` under a host with no layout engine.
+   * whose values are not — a `::before` whose `content` holds a `counter()` under
+   * a host with no layout engine.
    *
    * A marker, never a value: the fields it describes are absent rather than
    * guessed (ADR-0002). Outside every hash, like `ignoredBy` above it.

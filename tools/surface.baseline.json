@@ -397,6 +397,7 @@
         "canonicalizeDimension": "function",
         "canonicalizeTokens": "function",
         "canonicalizeValue": "function",
+        "declaredValue": "function",
         "expandDeclaration": "function",
         "formatColor": "function",
         "isAllowedProperty": "function",

@@ -318,6 +318,38 @@ function wins(candidate: Candidate, incumbent: Candidate): boolean {
 }
 
 /**
+ * The value of `property` that wins among `matchedRules`, picked by the order
+ * {@link resolveStyle} applies, with no allowlist and no canonicalization.
+ *
+ * For a property the snapshot reads as something other than a style: `content`
+ * is left off the allowlist because a generated box's words are recorded as its
+ * text, so {@link resolveStyle} drops it, and the box still has to know which
+ * `content` won before it can say them.
+ */
+export function declaredValue(matchedRules: readonly MatchedRule[], property: string): string | undefined {
+  let winner: Candidate | undefined;
+
+  for (const rule of matchedRules) {
+    for (const declaration of rule.declarations) {
+      if (declaration.property.trim().toLowerCase() !== property) continue;
+      const candidate: Candidate = {
+        property,
+        value: declaration.value.trim(),
+        important: declaration.important,
+        inline: false,
+        specificity: specificityRank(rule.specificity),
+        order: rule.order,
+        sheet: rule.sheet,
+        selector: rule.selector,
+      };
+      if (winner === undefined || wins(candidate, winner)) winner = candidate;
+    }
+  }
+
+  return winner?.value;
+}
+
+/**
  * Collapse `[id, class, type]` into one comparable number.
  *
  * The 1 000-per-column base is far above any real selector's count in a column,

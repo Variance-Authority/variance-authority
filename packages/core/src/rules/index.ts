@@ -25,6 +25,7 @@ export {
   buildAliasMap,
   aliasAttributeValue,
   aliasStyleValue,
+  declaredValue,
   resolveStyle,
   resolveVariables,
   INHERITED_PROPERTIES,

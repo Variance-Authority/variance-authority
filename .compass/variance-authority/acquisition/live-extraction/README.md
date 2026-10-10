@@ -64,9 +64,11 @@ is reported here as evidence, because only a whole run can tell an ordinary
 miss from a rule that has stopped matching anywhere.
 
 A generated box is read from the element it hangs from, with the rules written
-for it rather than for that element. Without a layout engine it is marked
-unread: the rules that style it are known, and whether it renders and what it
-says are not, so neither is filled in.
+for it rather than for that element. Without a layout engine the cascade
+decides whether it renders and what it says: strings and `attr()` are read
+from the winning declared `content`. A counter, a quote, a `var()` or a `url()`
+is resolved only by an engine, so such a box is marked unread, naming those
+parts, and says nothing.
 
 A URL nothing requested is absent, never invented. An asset served from cache
 before observation began has bytes nobody saw, and a placeholder would be a claim

@@ -19,6 +19,11 @@
  * the element they hang from, styled by the rules written for them. Under `r1`
  * a rule naming a pseudo-element matched nothing, so restyling or rewording one
  * repainted the page and moved no hash.
+ *
+ * `r2` also reads a form as it stands: the text typed into an `<input>` or a
+ * `<textarea>`, the option chosen in a `<select>` and the box ticked. Under `r1`
+ * the capture read the markup the server sent, so a filled form read as an
+ * empty one.
  */
 export const RULESET_VERSION = 'r2';
 
@@ -62,8 +67,9 @@ export const ALLOWLIST_VERSION = 'a2';
  *   and the accessibility tree at rest.
  * - `content` — the text a `::before` or `::after` says is captured as a text
  *   child of that box, not as a declaration, so that it diffs like the text it
- *   is. A host without a layout engine computes no generated content, and marks
- *   the box `unread` rather than reading a declaration in its place.
+ *   is. A host without a layout engine reads those words from the winning
+ *   declared `content` when it is strings and `attr()`, and marks the box
+ *   `unread` when it holds a part only an engine resolves, such as `counter()`.
  */
 export const STYLE_ALLOWLIST: readonly string[] = [
   // Box model and formatting context
