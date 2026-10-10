@@ -1,0 +1,2550 @@
+{
+ "cases": [
+  "0002-history-store.md",
+  "0008-locale-runs.md",
+  "0011-storage-and-cache-primitives.md",
+  "0013-a-real-agent.md",
+  "0014-hosted-who-the-caller-is-and-what-the-bill-counts.md",
+  "0022-evidence-from-code-this-project-did-not-write.md",
+  "0028-the-instrument.md",
+  "0029-what-a-run-remembers.md",
+  "0031-a-contract-is-a-subject.md",
+  "0036-a-journey-crosses-processes.md",
+  "0042-a-start-point-is-a-path-sense-holds.md",
+  "0043-a-record-costs-what-the-run-cost.md",
+  "0044-many-writers-one-record.md",
+  "0045-a-snapshot-states-its-own-age.md",
+  "0046-the-safety-rule-lives-in-one-place.md",
+  "0047-a-skip-list-is-worth-what-it-skips.md",
+  "0048-a-worker-that-dies-says-so.md",
+  "0051-a-sensitivity-is-scoped-by-id-and-nothing-else.md",
+  "0055-a-workspace-import-resolves-to-its-source.md",
+  "0056-a-session-daemon-keeps-the-index-current.md",
+  "0059-a-change-runs-the-cases-that-ran-it.md",
+  "0061-a-depends-directive-takes-a-glob.md",
+  "0062-a-suite-says-which-files-reach-it.md",
+  "0063-an-editor-asks-about-the-text-it-holds.md",
+  "0067-a-case-carries-its-outcome.md",
+  "0068-an-edit-runs-what-it-reaches-from-the-editor.md",
+  "0070-a-change-says-what-its-tests-moved.md",
+  "0071-a-test-is-read-alone.md",
+  "0072-a-case-read-two-ways-is-compared-with-itself.md",
+  "0074-what-ci-derived-is-reachable-from-a-checkout.md",
+  "0079-shards-steal-from-each-other.md",
+  "0080-coverage-is-counted-per-kind.md",
+  "0087-every-suite-is-compared-with-its-own-base.md",
+  "0088-a-suite-is-carried-alone.md",
+  "0089-this-repository-reports-every-kind-it-runs.md"
+ ],
+ "gold": {
+  "0002-history-store.md": [
+   "retention"
+  ],
+  "0008-locale-runs.md": [
+   "adjudication"
+  ],
+  "0011-storage-and-cache-primitives.md": [
+   "acquisition",
+   "adjudication",
+   "materialization",
+   "normalization",
+   "retention",
+   "stability"
+  ],
+  "0013-a-real-agent.md": [
+   "adjudication",
+   "report"
+  ],
+  "0014-hosted-who-the-caller-is-and-what-the-bill-counts.md": [
+   "review"
+  ],
+  "0022-evidence-from-code-this-project-did-not-write.md": [
+   "acquisition"
+  ],
+  "0028-the-instrument.md": [
+   "reach"
+  ],
+  "0029-what-a-run-remembers.md": [
+   "reach"
+  ],
+  "0031-a-contract-is-a-subject.md": [
+   "acquisition",
+   "materialization"
+  ],
+  "0036-a-journey-crosses-processes.md": [
+   "reach"
+  ],
+  "0042-a-start-point-is-a-path-sense-holds.md": [
+   "adjudication",
+   "reach",
+   "report"
+  ],
+  "0043-a-record-costs-what-the-run-cost.md": [
+   "reach"
+  ],
+  "0044-many-writers-one-record.md": [
+   "adjudication",
+   "reach"
+  ],
+  "0045-a-snapshot-states-its-own-age.md": [
+   "reach"
+  ],
+  "0046-the-safety-rule-lives-in-one-place.md": [
+   "reach"
+  ],
+  "0047-a-skip-list-is-worth-what-it-skips.md": [
+   "adjudication",
+   "reach"
+  ],
+  "0048-a-worker-that-dies-says-so.md": [
+   "reach"
+  ],
+  "0051-a-sensitivity-is-scoped-by-id-and-nothing-else.md": [
+   "adjudication",
+   "normalization"
+  ],
+  "0055-a-workspace-import-resolves-to-its-source.md": [
+   "acquisition",
+   "normalization",
+   "reach"
+  ],
+  "0056-a-session-daemon-keeps-the-index-current.md": [
+   "reach"
+  ],
+  "0059-a-change-runs-the-cases-that-ran-it.md": [
+   "reach"
+  ],
+  "0061-a-depends-directive-takes-a-glob.md": [
+   "reach"
+  ],
+  "0062-a-suite-says-which-files-reach-it.md": [
+   "reach"
+  ],
+  "0063-an-editor-asks-about-the-text-it-holds.md": [
+   "adjudication",
+   "reach"
+  ],
+  "0067-a-case-carries-its-outcome.md": [
+   "reach"
+  ],
+  "0068-an-edit-runs-what-it-reaches-from-the-editor.md": [
+   "reach"
+  ],
+  "0070-a-change-says-what-its-tests-moved.md": [
+   "reach"
+  ],
+  "0071-a-test-is-read-alone.md": [
+   "reach"
+  ],
+  "0072-a-case-read-two-ways-is-compared-with-itself.md": [
+   "reach"
+  ],
+  "0074-what-ci-derived-is-reachable-from-a-checkout.md": [
+   "adjudication",
+   "reach"
+  ],
+  "0079-shards-steal-from-each-other.md": [
+   "adjudication",
+   "reach"
+  ],
+  "0080-coverage-is-counted-per-kind.md": [
+   "adjudication",
+   "reach"
+  ],
+  "0087-every-suite-is-compared-with-its-own-base.md": [
+   "adjudication",
+   "reach"
+  ],
+  "0088-a-suite-is-carried-alone.md": [
+   "adjudication",
+   "reach"
+  ],
+  "0089-this-repository-reports-every-kind-it-runs.md": [
+   "acquisition"
+  ]
+ },
+ "bm": {
+  "0002-history-store.md": [
+   "retention",
+   "review"
+  ],
+  "0008-locale-runs.md": [
+   "adjudication",
+   "acquisition"
+  ],
+  "0011-storage-and-cache-primitives.md": [
+   "retention",
+   "reach"
+  ],
+  "0013-a-real-agent.md": [
+   "report",
+   "acquisition"
+  ],
+  "0014-hosted-who-the-caller-is-and-what-the-bill-counts.md": [
+   "review",
+   "retention"
+  ],
+  "0022-evidence-from-code-this-project-did-not-write.md": [
+   "acquisition",
+   "retention"
+  ],
+  "0028-the-instrument.md": [
+   "reach",
+   "acquisition"
+  ],
+  "0029-what-a-run-remembers.md": [
+   "reach",
+   "retention"
+  ],
+  "0031-a-contract-is-a-subject.md": [
+   "review",
+   "acquisition"
+  ],
+  "0036-a-journey-crosses-processes.md": [
+   "reach",
+   "runtime"
+  ],
+  "0042-a-start-point-is-a-path-sense-holds.md": [
+   "reach",
+   "retention"
+  ],
+  "0043-a-record-costs-what-the-run-cost.md": [
+   "retention",
+   "reach"
+  ],
+  "0044-many-writers-one-record.md": [
+   "reach",
+   "stability"
+  ],
+  "0045-a-snapshot-states-its-own-age.md": [
+   "reach",
+   "retention"
+  ],
+  "0046-the-safety-rule-lives-in-one-place.md": [
+   "reach",
+   "retention"
+  ],
+  "0047-a-skip-list-is-worth-what-it-skips.md": [
+   "reach",
+   "stability"
+  ],
+  "0048-a-worker-that-dies-says-so.md": [
+   "runtime",
+   "reach"
+  ],
+  "0051-a-sensitivity-is-scoped-by-id-and-nothing-else.md": [
+   "adjudication",
+   "retention"
+  ],
+  "0055-a-workspace-import-resolves-to-its-source.md": [
+   "reach",
+   "retention"
+  ],
+  "0056-a-session-daemon-keeps-the-index-current.md": [
+   "reach",
+   "runtime"
+  ],
+  "0059-a-change-runs-the-cases-that-ran-it.md": [
+   "reach",
+   "runtime"
+  ],
+  "0061-a-depends-directive-takes-a-glob.md": [
+   "reach",
+   "acquisition"
+  ],
+  "0062-a-suite-says-which-files-reach-it.md": [
+   "reach",
+   "adjudication"
+  ],
+  "0063-an-editor-asks-about-the-text-it-holds.md": [
+   "reach",
+   "acquisition"
+  ],
+  "0067-a-case-carries-its-outcome.md": [
+   "reach",
+   "retention"
+  ],
+  "0068-an-edit-runs-what-it-reaches-from-the-editor.md": [
+   "reach",
+   "runtime"
+  ],
+  "0070-a-change-says-what-its-tests-moved.md": [
+   "reach",
+   "acquisition"
+  ],
+  "0071-a-test-is-read-alone.md": [
+   "reach",
+   "runtime"
+  ],
+  "0072-a-case-read-two-ways-is-compared-with-itself.md": [
+   "reach",
+   "stability"
+  ],
+  "0074-what-ci-derived-is-reachable-from-a-checkout.md": [
+   "report",
+   "reach"
+  ],
+  "0079-shards-steal-from-each-other.md": [
+   "acquisition",
+   "reach"
+  ],
+  "0080-coverage-is-counted-per-kind.md": [
+   "reach",
+   "retention"
+  ],
+  "0087-every-suite-is-compared-with-its-own-base.md": [
+   "reach",
+   "report"
+  ],
+  "0088-a-suite-is-carried-alone.md": [
+   "reach",
+   "review"
+  ],
+  "0089-this-repository-reports-every-kind-it-runs.md": [
+   "reach",
+   "acquisition"
+  ]
+ },
+ "out": {
+  "0002-history-store.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.0681,
+      "SUPPLIER": 0.3086,
+      "CONSUMER": 0.1018,
+      "CONSEQUENCE": 0.0777,
+      "UNRELATED": 0.4438
+     },
+     {
+      "PRIMARY": 0.0809,
+      "SUPPLIER": 0.2582,
+      "CONSUMER": 0.1215,
+      "CONSEQUENCE": 0.0845,
+      "UNRELATED": 0.4549
+     },
+     {
+      "PRIMARY": 0.0795,
+      "SUPPLIER": 0.2299,
+      "CONSUMER": 0.1599,
+      "CONSEQUENCE": 0.0893,
+      "UNRELATED": 0.4414
+     }
+    ],
+    "noul": [
+     0.1294,
+     0.2444,
+     0.4431,
+     0.1403
+    ]
+   },
+   "review": {
+    "choice": [
+     {
+      "PRIMARY": 0.0308,
+      "SUPPLIER": 0.054,
+      "CONSUMER": 0.0455,
+      "CONSEQUENCE": 0.0313,
+      "UNRELATED": 0.8384
+     },
+     {
+      "PRIMARY": 0.0406,
+      "SUPPLIER": 0.0547,
+      "CONSUMER": 0.053,
+      "CONSEQUENCE": 0.0358,
+      "UNRELATED": 0.8159
+     },
+     {
+      "PRIMARY": 0.0394,
+      "SUPPLIER": 0.0591,
+      "CONSUMER": 0.0573,
+      "CONSEQUENCE": 0.0439,
+      "UNRELATED": 0.8003
+     }
+    ],
+    "noul": [
+     0.0365,
+     0.0513,
+     0.1889,
+     0.0594
+    ]
+   }
+  },
+  "0008-locale-runs.md": {
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.0159,
+      "SUPPLIER": 0.0546,
+      "CONSUMER": 0.0412,
+      "CONSEQUENCE": 0.0342,
+      "UNRELATED": 0.8541
+     },
+     {
+      "PRIMARY": 0.0302,
+      "SUPPLIER": 0.0491,
+      "CONSUMER": 0.0454,
+      "CONSEQUENCE": 0.0322,
+      "UNRELATED": 0.8431
+     },
+     {
+      "PRIMARY": 0.0266,
+      "SUPPLIER": 0.0459,
+      "CONSUMER": 0.0474,
+      "CONSEQUENCE": 0.0336,
+      "UNRELATED": 0.8465
+     }
+    ],
+    "noul": [
+     0.0272,
+     0.0319,
+     0.2018,
+     0.0564
+    ]
+   },
+   "adjudication": {
+    "choice": [
+     {
+      "PRIMARY": 0.074,
+      "SUPPLIER": 0.2483,
+      "CONSUMER": 0.0899,
+      "CONSEQUENCE": 0.0682,
+      "UNRELATED": 0.5196
+     },
+     {
+      "PRIMARY": 0.0854,
+      "SUPPLIER": 0.2241,
+      "CONSUMER": 0.0754,
+      "CONSEQUENCE": 0.067,
+      "UNRELATED": 0.5482
+     },
+     {
+      "PRIMARY": 0.0698,
+      "SUPPLIER": 0.2108,
+      "CONSUMER": 0.0939,
+      "CONSEQUENCE": 0.0766,
+      "UNRELATED": 0.5489
+     }
+    ],
+    "noul": [
+     0.1184,
+     0.0947,
+     0.2979,
+     0.2264
+    ]
+   }
+  },
+  "0011-storage-and-cache-primitives.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.1025,
+      "SUPPLIER": 0.269,
+      "CONSUMER": 0.1286,
+      "CONSEQUENCE": 0.0898,
+      "UNRELATED": 0.4102
+     },
+     {
+      "PRIMARY": 0.1234,
+      "SUPPLIER": 0.215,
+      "CONSUMER": 0.1655,
+      "CONSEQUENCE": 0.0992,
+      "UNRELATED": 0.3969
+     },
+     {
+      "PRIMARY": 0.1152,
+      "SUPPLIER": 0.2282,
+      "CONSUMER": 0.199,
+      "CONSEQUENCE": 0.1028,
+      "UNRELATED": 0.3548
+     }
+    ],
+    "noul": [
+     0.1807,
+     0.1984,
+     0.4552,
+     0.1795
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0281,
+      "SUPPLIER": 0.0581,
+      "CONSUMER": 0.0947,
+      "CONSEQUENCE": 0.035,
+      "UNRELATED": 0.784
+     },
+     {
+      "PRIMARY": 0.0406,
+      "SUPPLIER": 0.0747,
+      "CONSUMER": 0.0952,
+      "CONSEQUENCE": 0.0348,
+      "UNRELATED": 0.7547
+     },
+     {
+      "PRIMARY": 0.0353,
+      "SUPPLIER": 0.0815,
+      "CONSUMER": 0.1243,
+      "CONSEQUENCE": 0.0491,
+      "UNRELATED": 0.7098
+     }
+    ],
+    "noul": [
+     0.05,
+     0.0424,
+     0.4727,
+     0.0695
+    ]
+   }
+  },
+  "0013-a-real-agent.md": {
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.0288,
+      "SUPPLIER": 0.1114,
+      "CONSUMER": 0.0678,
+      "CONSEQUENCE": 0.037,
+      "UNRELATED": 0.755
+     },
+     {
+      "PRIMARY": 0.038,
+      "SUPPLIER": 0.0716,
+      "CONSUMER": 0.0545,
+      "CONSEQUENCE": 0.0352,
+      "UNRELATED": 0.8007
+     },
+     {
+      "PRIMARY": 0.0307,
+      "SUPPLIER": 0.063,
+      "CONSUMER": 0.0583,
+      "CONSEQUENCE": 0.0376,
+      "UNRELATED": 0.8105
+     }
+    ],
+    "noul": [
+     0.0489,
+     0.0666,
+     0.3438,
+     0.0538
+    ]
+   },
+   "report": {
+    "choice": [
+     {
+      "PRIMARY": 0.0767,
+      "SUPPLIER": 0.4587,
+      "CONSUMER": 0.1393,
+      "CONSEQUENCE": 0.0609,
+      "UNRELATED": 0.2644
+     },
+     {
+      "PRIMARY": 0.0861,
+      "SUPPLIER": 0.419,
+      "CONSUMER": 0.1615,
+      "CONSEQUENCE": 0.066,
+      "UNRELATED": 0.2674
+     },
+     {
+      "PRIMARY": 0.0749,
+      "SUPPLIER": 0.3164,
+      "CONSUMER": 0.2141,
+      "CONSEQUENCE": 0.0855,
+      "UNRELATED": 0.3091
+     }
+    ],
+    "noul": [
+     0.1089,
+     0.222,
+     0.2487,
+     0.1892
+    ]
+   }
+  },
+  "0014-hosted-who-the-caller-is-and-what-the-bill-counts.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.0307,
+      "SUPPLIER": 0.1056,
+      "CONSUMER": 0.0788,
+      "CONSEQUENCE": 0.0519,
+      "UNRELATED": 0.733
+     },
+     {
+      "PRIMARY": 0.0284,
+      "SUPPLIER": 0.076,
+      "CONSUMER": 0.0681,
+      "CONSEQUENCE": 0.0479,
+      "UNRELATED": 0.7796
+     },
+     {
+      "PRIMARY": 0.0252,
+      "SUPPLIER": 0.0717,
+      "CONSUMER": 0.0695,
+      "CONSEQUENCE": 0.0442,
+      "UNRELATED": 0.7894
+     }
+    ],
+    "noul": [
+     0.0346,
+     0.0396,
+     0.48,
+     0.0424
+    ]
+   },
+   "review": {
+    "choice": [
+     {
+      "PRIMARY": 0.1173,
+      "SUPPLIER": 0.2043,
+      "CONSUMER": 0.0755,
+      "CONSEQUENCE": 0.0893,
+      "UNRELATED": 0.5136
+     },
+     {
+      "PRIMARY": 0.1168,
+      "SUPPLIER": 0.2396,
+      "CONSUMER": 0.1105,
+      "CONSEQUENCE": 0.1272,
+      "UNRELATED": 0.4059
+     },
+     {
+      "PRIMARY": 0.1163,
+      "SUPPLIER": 0.2359,
+      "CONSUMER": 0.1615,
+      "CONSEQUENCE": 0.1442,
+      "UNRELATED": 0.342
+     }
+    ],
+    "noul": [
+     0.1956,
+     0.1807,
+     0.3427,
+     0.3032
+    ]
+   }
+  },
+  "0022-evidence-from-code-this-project-did-not-write.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.0299,
+      "SUPPLIER": 0.1078,
+      "CONSUMER": 0.0669,
+      "CONSEQUENCE": 0.0471,
+      "UNRELATED": 0.7482
+     },
+     {
+      "PRIMARY": 0.0216,
+      "SUPPLIER": 0.0476,
+      "CONSUMER": 0.0398,
+      "CONSEQUENCE": 0.0203,
+      "UNRELATED": 0.8707
+     },
+     {
+      "PRIMARY": 0.0196,
+      "SUPPLIER": 0.0455,
+      "CONSUMER": 0.0485,
+      "CONSEQUENCE": 0.0276,
+      "UNRELATED": 0.8588
+     }
+    ],
+    "noul": [
+     0.0268,
+     0.0567,
+     0.5283,
+     0.0454
+    ]
+   },
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.0582,
+      "SUPPLIER": 0.1932,
+      "CONSUMER": 0.0878,
+      "CONSEQUENCE": 0.0681,
+      "UNRELATED": 0.5927
+     },
+     {
+      "PRIMARY": 0.0615,
+      "SUPPLIER": 0.1113,
+      "CONSUMER": 0.0725,
+      "CONSEQUENCE": 0.0564,
+      "UNRELATED": 0.6983
+     },
+     {
+      "PRIMARY": 0.0532,
+      "SUPPLIER": 0.0926,
+      "CONSUMER": 0.0844,
+      "CONSEQUENCE": 0.058,
+      "UNRELATED": 0.7118
+     }
+    ],
+    "noul": [
+     0.0592,
+     0.116,
+     0.3478,
+     0.092
+    ]
+   }
+  },
+  "0028-the-instrument.md": {
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.1248,
+      "SUPPLIER": 0.3798,
+      "CONSUMER": 0.0995,
+      "CONSEQUENCE": 0.1297,
+      "UNRELATED": 0.2662
+     },
+     {
+      "PRIMARY": 0.1569,
+      "SUPPLIER": 0.3455,
+      "CONSUMER": 0.1632,
+      "CONSEQUENCE": 0.1199,
+      "UNRELATED": 0.2145
+     },
+     {
+      "PRIMARY": 0.1409,
+      "SUPPLIER": 0.3514,
+      "CONSUMER": 0.1933,
+      "CONSEQUENCE": 0.1263,
+      "UNRELATED": 0.1881
+     }
+    ],
+    "noul": [
+     0.283,
+     0.1801,
+     0.3277,
+     0.4359
+    ]
+   },
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.0326,
+      "SUPPLIER": 0.1465,
+      "CONSUMER": 0.0831,
+      "CONSEQUENCE": 0.0684,
+      "UNRELATED": 0.6694
+     },
+     {
+      "PRIMARY": 0.045,
+      "SUPPLIER": 0.1117,
+      "CONSUMER": 0.0912,
+      "CONSEQUENCE": 0.0542,
+      "UNRELATED": 0.6979
+     },
+     {
+      "PRIMARY": 0.0382,
+      "SUPPLIER": 0.1051,
+      "CONSUMER": 0.1018,
+      "CONSEQUENCE": 0.067,
+      "UNRELATED": 0.6878
+     }
+    ],
+    "noul": [
+     0.0685,
+     0.0851,
+     0.2914,
+     0.0833
+    ]
+   }
+  },
+  "0029-what-a-run-remembers.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.0617,
+      "SUPPLIER": 0.1843,
+      "CONSUMER": 0.1018,
+      "CONSEQUENCE": 0.0711,
+      "UNRELATED": 0.5811
+     },
+     {
+      "PRIMARY": 0.0606,
+      "SUPPLIER": 0.1403,
+      "CONSUMER": 0.1397,
+      "CONSEQUENCE": 0.0665,
+      "UNRELATED": 0.5929
+     },
+     {
+      "PRIMARY": 0.0627,
+      "SUPPLIER": 0.1615,
+      "CONSUMER": 0.1815,
+      "CONSEQUENCE": 0.0831,
+      "UNRELATED": 0.5111
+     }
+    ],
+    "noul": [
+     0.0888,
+     0.1352,
+     0.5875,
+     0.1408
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.073,
+      "SUPPLIER": 0.1684,
+      "CONSUMER": 0.1468,
+      "CONSEQUENCE": 0.0747,
+      "UNRELATED": 0.5371
+     },
+     {
+      "PRIMARY": 0.0983,
+      "SUPPLIER": 0.1931,
+      "CONSUMER": 0.1718,
+      "CONSEQUENCE": 0.0877,
+      "UNRELATED": 0.4491
+     },
+     {
+      "PRIMARY": 0.0745,
+      "SUPPLIER": 0.1705,
+      "CONSUMER": 0.2349,
+      "CONSEQUENCE": 0.108,
+      "UNRELATED": 0.4122
+     }
+    ],
+    "noul": [
+     0.0947,
+     0.179,
+     0.4249,
+     0.1582
+    ]
+   }
+  },
+  "0031-a-contract-is-a-subject.md": {
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.1124,
+      "SUPPLIER": 0.3166,
+      "CONSUMER": 0.1004,
+      "CONSEQUENCE": 0.109,
+      "UNRELATED": 0.3616
+     },
+     {
+      "PRIMARY": 0.1465,
+      "SUPPLIER": 0.2115,
+      "CONSUMER": 0.156,
+      "CONSEQUENCE": 0.1248,
+      "UNRELATED": 0.3612
+     },
+     {
+      "PRIMARY": 0.1347,
+      "SUPPLIER": 0.1778,
+      "CONSUMER": 0.1651,
+      "CONSEQUENCE": 0.128,
+      "UNRELATED": 0.3944
+     }
+    ],
+    "noul": [
+     0.2383,
+     0.1597,
+     0.3491,
+     0.2822
+    ]
+   },
+   "review": {
+    "choice": [
+     {
+      "PRIMARY": 0.0532,
+      "SUPPLIER": 0.1152,
+      "CONSUMER": 0.0477,
+      "CONSEQUENCE": 0.0444,
+      "UNRELATED": 0.7396
+     },
+     {
+      "PRIMARY": 0.0535,
+      "SUPPLIER": 0.1039,
+      "CONSUMER": 0.0666,
+      "CONSEQUENCE": 0.0548,
+      "UNRELATED": 0.7213
+     },
+     {
+      "PRIMARY": 0.0503,
+      "SUPPLIER": 0.1017,
+      "CONSUMER": 0.0677,
+      "CONSEQUENCE": 0.0688,
+      "UNRELATED": 0.7114
+     }
+    ],
+    "noul": [
+     0.1128,
+     0.0907,
+     0.2528,
+     0.2254
+    ]
+   }
+  },
+  "0036-a-journey-crosses-processes.md": {
+   "runtime": {
+    "choice": [
+     {
+      "PRIMARY": 0.0794,
+      "SUPPLIER": 0.319,
+      "CONSUMER": 0.0626,
+      "CONSEQUENCE": 0.0803,
+      "UNRELATED": 0.4587
+     },
+     {
+      "PRIMARY": 0.0949,
+      "SUPPLIER": 0.2579,
+      "CONSUMER": 0.1042,
+      "CONSEQUENCE": 0.0834,
+      "UNRELATED": 0.4597
+     },
+     {
+      "PRIMARY": 0.0904,
+      "SUPPLIER": 0.2486,
+      "CONSUMER": 0.1479,
+      "CONSEQUENCE": 0.0951,
+      "UNRELATED": 0.418
+     }
+    ],
+    "noul": [
+     0.1722,
+     0.258,
+     0.2088,
+     0.289
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.066,
+      "SUPPLIER": 0.2812,
+      "CONSUMER": 0.1011,
+      "CONSEQUENCE": 0.0917,
+      "UNRELATED": 0.46
+     },
+     {
+      "PRIMARY": 0.0904,
+      "SUPPLIER": 0.2823,
+      "CONSUMER": 0.1217,
+      "CONSEQUENCE": 0.1082,
+      "UNRELATED": 0.3974
+     },
+     {
+      "PRIMARY": 0.0729,
+      "SUPPLIER": 0.2658,
+      "CONSUMER": 0.1411,
+      "CONSEQUENCE": 0.1053,
+      "UNRELATED": 0.4149
+     }
+    ],
+    "noul": [
+     0.1005,
+     0.1413,
+     0.2337,
+     0.1505
+    ]
+   }
+  },
+  "0042-a-start-point-is-a-path-sense-holds.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.0838,
+      "SUPPLIER": 0.1817,
+      "CONSUMER": 0.0973,
+      "CONSEQUENCE": 0.0731,
+      "UNRELATED": 0.5641
+     },
+     {
+      "PRIMARY": 0.0616,
+      "SUPPLIER": 0.1115,
+      "CONSUMER": 0.1089,
+      "CONSEQUENCE": 0.0666,
+      "UNRELATED": 0.6515
+     },
+     {
+      "PRIMARY": 0.0793,
+      "SUPPLIER": 0.1283,
+      "CONSUMER": 0.1448,
+      "CONSEQUENCE": 0.0882,
+      "UNRELATED": 0.5594
+     }
+    ],
+    "noul": [
+     0.0839,
+     0.1204,
+     0.4937,
+     0.116
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.1378,
+      "SUPPLIER": 0.2916,
+      "CONSUMER": 0.1325,
+      "CONSEQUENCE": 0.1103,
+      "UNRELATED": 0.3279
+     },
+     {
+      "PRIMARY": 0.181,
+      "SUPPLIER": 0.2915,
+      "CONSUMER": 0.1734,
+      "CONSEQUENCE": 0.1106,
+      "UNRELATED": 0.2435
+     },
+     {
+      "PRIMARY": 0.1671,
+      "SUPPLIER": 0.2548,
+      "CONSUMER": 0.2008,
+      "CONSEQUENCE": 0.1332,
+      "UNRELATED": 0.2441
+     }
+    ],
+    "noul": [
+     0.2147,
+     0.2991,
+     0.3675,
+     0.3895
+    ]
+   }
+  },
+  "0043-a-record-costs-what-the-run-cost.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.0775,
+      "SUPPLIER": 0.1529,
+      "CONSUMER": 0.1257,
+      "CONSEQUENCE": 0.076,
+      "UNRELATED": 0.568
+     },
+     {
+      "PRIMARY": 0.0749,
+      "SUPPLIER": 0.1173,
+      "CONSUMER": 0.146,
+      "CONSEQUENCE": 0.0731,
+      "UNRELATED": 0.5888
+     },
+     {
+      "PRIMARY": 0.0874,
+      "SUPPLIER": 0.1339,
+      "CONSUMER": 0.191,
+      "CONSEQUENCE": 0.0864,
+      "UNRELATED": 0.5013
+     }
+    ],
+    "noul": [
+     0.1152,
+     0.1577,
+     0.5176,
+     0.1613
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0895,
+      "SUPPLIER": 0.1615,
+      "CONSUMER": 0.1262,
+      "CONSEQUENCE": 0.0504,
+      "UNRELATED": 0.5724
+     },
+     {
+      "PRIMARY": 0.1066,
+      "SUPPLIER": 0.1575,
+      "CONSUMER": 0.144,
+      "CONSEQUENCE": 0.0715,
+      "UNRELATED": 0.5204
+     },
+     {
+      "PRIMARY": 0.1074,
+      "SUPPLIER": 0.1532,
+      "CONSUMER": 0.193,
+      "CONSEQUENCE": 0.0853,
+      "UNRELATED": 0.4611
+     }
+    ],
+    "noul": [
+     0.1168,
+     0.1152,
+     0.4054,
+     0.1672
+    ]
+   }
+  },
+  "0044-many-writers-one-record.md": {
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0407,
+      "SUPPLIER": 0.1462,
+      "CONSUMER": 0.0825,
+      "CONSEQUENCE": 0.0483,
+      "UNRELATED": 0.6824
+     },
+     {
+      "PRIMARY": 0.0523,
+      "SUPPLIER": 0.1073,
+      "CONSUMER": 0.0977,
+      "CONSEQUENCE": 0.0593,
+      "UNRELATED": 0.6835
+     },
+     {
+      "PRIMARY": 0.0506,
+      "SUPPLIER": 0.1109,
+      "CONSUMER": 0.1348,
+      "CONSEQUENCE": 0.073,
+      "UNRELATED": 0.6307
+     }
+    ],
+    "noul": [
+     0.0592,
+     0.0637,
+     0.3535,
+     0.097
+    ]
+   },
+   "stability": {
+    "choice": [
+     {
+      "PRIMARY": 0.0335,
+      "SUPPLIER": 0.0865,
+      "CONSUMER": 0.0489,
+      "CONSEQUENCE": 0.0511,
+      "UNRELATED": 0.7801
+     },
+     {
+      "PRIMARY": 0.031,
+      "SUPPLIER": 0.0606,
+      "CONSUMER": 0.0443,
+      "CONSEQUENCE": 0.0273,
+      "UNRELATED": 0.8368
+     },
+     {
+      "PRIMARY": 0.0331,
+      "SUPPLIER": 0.0684,
+      "CONSUMER": 0.0663,
+      "CONSEQUENCE": 0.0493,
+      "UNRELATED": 0.7829
+     }
+    ],
+    "noul": [
+     0.0388,
+     0.0388,
+     0.2659,
+     0.077
+    ]
+   }
+  },
+  "0045-a-snapshot-states-its-own-age.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.082,
+      "SUPPLIER": 0.1491,
+      "CONSUMER": 0.0701,
+      "CONSEQUENCE": 0.0588,
+      "UNRELATED": 0.64
+     },
+     {
+      "PRIMARY": 0.0721,
+      "SUPPLIER": 0.1037,
+      "CONSUMER": 0.0908,
+      "CONSEQUENCE": 0.0651,
+      "UNRELATED": 0.6683
+     },
+     {
+      "PRIMARY": 0.0915,
+      "SUPPLIER": 0.1217,
+      "CONSUMER": 0.1363,
+      "CONSEQUENCE": 0.0814,
+      "UNRELATED": 0.5692
+     }
+    ],
+    "noul": [
+     0.0995,
+     0.1188,
+     0.4316,
+     0.1259
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0376,
+      "SUPPLIER": 0.0912,
+      "CONSUMER": 0.0596,
+      "CONSEQUENCE": 0.0332,
+      "UNRELATED": 0.7785
+     },
+     {
+      "PRIMARY": 0.0467,
+      "SUPPLIER": 0.0704,
+      "CONSUMER": 0.075,
+      "CONSEQUENCE": 0.0534,
+      "UNRELATED": 0.7544
+     },
+     {
+      "PRIMARY": 0.0564,
+      "SUPPLIER": 0.084,
+      "CONSUMER": 0.1134,
+      "CONSEQUENCE": 0.0649,
+      "UNRELATED": 0.6814
+     }
+    ],
+    "noul": [
+     0.0647,
+     0.05,
+     0.35,
+     0.096
+    ]
+   }
+  },
+  "0046-the-safety-rule-lives-in-one-place.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.1277,
+      "SUPPLIER": 0.2294,
+      "CONSUMER": 0.105,
+      "CONSEQUENCE": 0.0745,
+      "UNRELATED": 0.4634
+     },
+     {
+      "PRIMARY": 0.1127,
+      "SUPPLIER": 0.2172,
+      "CONSUMER": 0.1565,
+      "CONSEQUENCE": 0.0678,
+      "UNRELATED": 0.4458
+     },
+     {
+      "PRIMARY": 0.1125,
+      "SUPPLIER": 0.1997,
+      "CONSUMER": 0.2299,
+      "CONSEQUENCE": 0.0849,
+      "UNRELATED": 0.3731
+     }
+    ],
+    "noul": [
+     0.1456,
+     0.2697,
+     0.4971,
+     0.2288
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.073,
+      "SUPPLIER": 0.1594,
+      "CONSUMER": 0.0884,
+      "CONSEQUENCE": 0.0538,
+      "UNRELATED": 0.6255
+     },
+     {
+      "PRIMARY": 0.0802,
+      "SUPPLIER": 0.1492,
+      "CONSUMER": 0.118,
+      "CONSEQUENCE": 0.0739,
+      "UNRELATED": 0.5787
+     },
+     {
+      "PRIMARY": 0.0774,
+      "SUPPLIER": 0.1534,
+      "CONSUMER": 0.1698,
+      "CONSEQUENCE": 0.0867,
+      "UNRELATED": 0.5128
+     }
+    ],
+    "noul": [
+     0.0895,
+     0.1348,
+     0.4111,
+     0.1403
+    ]
+   }
+  },
+  "0047-a-skip-list-is-worth-what-it-skips.md": {
+   "stability": {
+    "choice": [
+     {
+      "PRIMARY": 0.0405,
+      "SUPPLIER": 0.0912,
+      "CONSUMER": 0.0448,
+      "CONSEQUENCE": 0.0482,
+      "UNRELATED": 0.7754
+     },
+     {
+      "PRIMARY": 0.0397,
+      "SUPPLIER": 0.0634,
+      "CONSUMER": 0.0436,
+      "CONSEQUENCE": 0.0252,
+      "UNRELATED": 0.8282
+     },
+     {
+      "PRIMARY": 0.0363,
+      "SUPPLIER": 0.0622,
+      "CONSUMER": 0.05,
+      "CONSEQUENCE": 0.038,
+      "UNRELATED": 0.8134
+     }
+    ],
+    "noul": [
+     0.0496,
+     0.0857,
+     0.2894,
+     0.1348
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0259,
+      "SUPPLIER": 0.0674,
+      "CONSUMER": 0.0465,
+      "CONSEQUENCE": 0.0298,
+      "UNRELATED": 0.8305
+     },
+     {
+      "PRIMARY": 0.032,
+      "SUPPLIER": 0.0541,
+      "CONSUMER": 0.0485,
+      "CONSEQUENCE": 0.0261,
+      "UNRELATED": 0.8393
+     },
+     {
+      "PRIMARY": 0.0328,
+      "SUPPLIER": 0.0652,
+      "CONSUMER": 0.0684,
+      "CONSEQUENCE": 0.0421,
+      "UNRELATED": 0.7915
+     }
+    ],
+    "noul": [
+     0.0359,
+     0.0579,
+     0.3281,
+     0.0995
+    ]
+   }
+  },
+  "0048-a-worker-that-dies-says-so.md": {
+   "runtime": {
+    "choice": [
+     {
+      "PRIMARY": 0.1034,
+      "SUPPLIER": 0.3337,
+      "CONSUMER": 0.0952,
+      "CONSEQUENCE": 0.0805,
+      "UNRELATED": 0.3871
+     },
+     {
+      "PRIMARY": 0.1153,
+      "SUPPLIER": 0.2598,
+      "CONSUMER": 0.1407,
+      "CONSEQUENCE": 0.0941,
+      "UNRELATED": 0.3901
+     },
+     {
+      "PRIMARY": 0.1278,
+      "SUPPLIER": 0.2445,
+      "CONSUMER": 0.2075,
+      "CONSEQUENCE": 0.1051,
+      "UNRELATED": 0.3151
+     }
+    ],
+    "noul": [
+     0.17,
+     0.2299,
+     0.323,
+     0.2678
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0751,
+      "SUPPLIER": 0.2509,
+      "CONSUMER": 0.1092,
+      "CONSEQUENCE": 0.0598,
+      "UNRELATED": 0.505
+     },
+     {
+      "PRIMARY": 0.0821,
+      "SUPPLIER": 0.2,
+      "CONSUMER": 0.143,
+      "CONSEQUENCE": 0.0912,
+      "UNRELATED": 0.4837
+     },
+     {
+      "PRIMARY": 0.0784,
+      "SUPPLIER": 0.1932,
+      "CONSUMER": 0.1865,
+      "CONSEQUENCE": 0.0909,
+      "UNRELATED": 0.451
+     }
+    ],
+    "noul": [
+     0.0798,
+     0.153,
+     0.4484,
+     0.1298
+    ]
+   }
+  },
+  "0051-a-sensitivity-is-scoped-by-id-and-nothing-else.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.0167,
+      "SUPPLIER": 0.0791,
+      "CONSUMER": 0.0413,
+      "CONSEQUENCE": 0.0261,
+      "UNRELATED": 0.8368
+     },
+     {
+      "PRIMARY": 0.0141,
+      "SUPPLIER": 0.0442,
+      "CONSUMER": 0.0572,
+      "CONSEQUENCE": 0.0237,
+      "UNRELATED": 0.8608
+     },
+     {
+      "PRIMARY": 0.0181,
+      "SUPPLIER": 0.0556,
+      "CONSUMER": 0.0682,
+      "CONSEQUENCE": 0.0343,
+      "UNRELATED": 0.8239
+     }
+    ],
+    "noul": [
+     0.0248,
+     0.0496,
+     0.3526,
+     0.0678
+    ]
+   },
+   "adjudication": {
+    "choice": [
+     {
+      "PRIMARY": 0.0486,
+      "SUPPLIER": 0.1715,
+      "CONSUMER": 0.131,
+      "CONSEQUENCE": 0.0572,
+      "UNRELATED": 0.5917
+     },
+     {
+      "PRIMARY": 0.0609,
+      "SUPPLIER": 0.1179,
+      "CONSUMER": 0.155,
+      "CONSEQUENCE": 0.0741,
+      "UNRELATED": 0.592
+     },
+     {
+      "PRIMARY": 0.0598,
+      "SUPPLIER": 0.128,
+      "CONSUMER": 0.1568,
+      "CONSEQUENCE": 0.0863,
+      "UNRELATED": 0.5692
+     }
+    ],
+    "noul": [
+     0.0879,
+     0.1408,
+     0.3036,
+     0.2755
+    ]
+   }
+  },
+  "0055-a-workspace-import-resolves-to-its-source.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.047,
+      "SUPPLIER": 0.0764,
+      "CONSUMER": 0.0663,
+      "CONSEQUENCE": 0.0511,
+      "UNRELATED": 0.7592
+     },
+     {
+      "PRIMARY": 0.031,
+      "SUPPLIER": 0.0592,
+      "CONSUMER": 0.0714,
+      "CONSEQUENCE": 0.0461,
+      "UNRELATED": 0.7923
+     },
+     {
+      "PRIMARY": 0.0441,
+      "SUPPLIER": 0.0774,
+      "CONSUMER": 0.1038,
+      "CONSEQUENCE": 0.0627,
+      "UNRELATED": 0.712
+     }
+    ],
+    "noul": [
+     0.0457,
+     0.0706,
+     0.3234,
+     0.0729
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0773,
+      "SUPPLIER": 0.1384,
+      "CONSUMER": 0.1121,
+      "CONSEQUENCE": 0.0688,
+      "UNRELATED": 0.6035
+     },
+     {
+      "PRIMARY": 0.0878,
+      "SUPPLIER": 0.1621,
+      "CONSUMER": 0.1476,
+      "CONSEQUENCE": 0.0975,
+      "UNRELATED": 0.5051
+     },
+     {
+      "PRIMARY": 0.0766,
+      "SUPPLIER": 0.1409,
+      "CONSUMER": 0.1926,
+      "CONSEQUENCE": 0.1168,
+      "UNRELATED": 0.473
+     }
+    ],
+    "noul": [
+     0.1048,
+     0.1561,
+     0.3961,
+     0.2006
+    ]
+   }
+  },
+  "0056-a-session-daemon-keeps-the-index-current.md": {
+   "runtime": {
+    "choice": [
+     {
+      "PRIMARY": 0.0665,
+      "SUPPLIER": 0.1801,
+      "CONSUMER": 0.0697,
+      "CONSEQUENCE": 0.0475,
+      "UNRELATED": 0.6361
+     },
+     {
+      "PRIMARY": 0.0739,
+      "SUPPLIER": 0.1511,
+      "CONSUMER": 0.0949,
+      "CONSEQUENCE": 0.0589,
+      "UNRELATED": 0.6212
+     },
+     {
+      "PRIMARY": 0.0787,
+      "SUPPLIER": 0.1705,
+      "CONSUMER": 0.1252,
+      "CONSEQUENCE": 0.0711,
+      "UNRELATED": 0.5546
+     }
+    ],
+    "noul": [
+     0.0964,
+     0.1385,
+     0.3141,
+     0.2157
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0839,
+      "SUPPLIER": 0.2276,
+      "CONSUMER": 0.1004,
+      "CONSEQUENCE": 0.06,
+      "UNRELATED": 0.5281
+     },
+     {
+      "PRIMARY": 0.1148,
+      "SUPPLIER": 0.2449,
+      "CONSUMER": 0.1326,
+      "CONSEQUENCE": 0.0863,
+      "UNRELATED": 0.4215
+     },
+     {
+      "PRIMARY": 0.1272,
+      "SUPPLIER": 0.2758,
+      "CONSUMER": 0.1621,
+      "CONSEQUENCE": 0.1022,
+      "UNRELATED": 0.3326
+     }
+    ],
+    "noul": [
+     0.1375,
+     0.2056,
+     0.3775,
+     0.272
+    ]
+   }
+  },
+  "0059-a-change-runs-the-cases-that-ran-it.md": {
+   "runtime": {
+    "choice": [
+     {
+      "PRIMARY": 0.0469,
+      "SUPPLIER": 0.1881,
+      "CONSUMER": 0.0986,
+      "CONSEQUENCE": 0.0696,
+      "UNRELATED": 0.5967
+     },
+     {
+      "PRIMARY": 0.0526,
+      "SUPPLIER": 0.1417,
+      "CONSUMER": 0.1139,
+      "CONSEQUENCE": 0.0664,
+      "UNRELATED": 0.6254
+     },
+     {
+      "PRIMARY": 0.0496,
+      "SUPPLIER": 0.138,
+      "CONSUMER": 0.1419,
+      "CONSEQUENCE": 0.0802,
+      "UNRELATED": 0.5903
+     }
+    ],
+    "noul": [
+     0.07,
+     0.1294,
+     0.3242,
+     0.1251
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.107,
+      "SUPPLIER": 0.3869,
+      "CONSUMER": 0.085,
+      "CONSEQUENCE": 0.0702,
+      "UNRELATED": 0.3509
+     },
+     {
+      "PRIMARY": 0.1216,
+      "SUPPLIER": 0.3865,
+      "CONSUMER": 0.1032,
+      "CONSEQUENCE": 0.0911,
+      "UNRELATED": 0.2975
+     },
+     {
+      "PRIMARY": 0.1107,
+      "SUPPLIER": 0.3546,
+      "CONSUMER": 0.1284,
+      "CONSEQUENCE": 0.1099,
+      "UNRELATED": 0.2963
+     }
+    ],
+    "noul": [
+     0.1348,
+     0.2134,
+     0.3225,
+     0.2031
+    ]
+   }
+  },
+  "0061-a-depends-directive-takes-a-glob.md": {
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0382,
+      "SUPPLIER": 0.0975,
+      "CONSUMER": 0.0888,
+      "CONSEQUENCE": 0.0376,
+      "UNRELATED": 0.7378
+     },
+     {
+      "PRIMARY": 0.0495,
+      "SUPPLIER": 0.0835,
+      "CONSUMER": 0.1068,
+      "CONSEQUENCE": 0.0502,
+      "UNRELATED": 0.71
+     },
+     {
+      "PRIMARY": 0.0572,
+      "SUPPLIER": 0.0958,
+      "CONSUMER": 0.1525,
+      "CONSEQUENCE": 0.0746,
+      "UNRELATED": 0.6199
+     }
+    ],
+    "noul": [
+     0.0503,
+     0.0839,
+     0.4196,
+     0.0833
+    ]
+   },
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.0194,
+      "SUPPLIER": 0.0428,
+      "CONSUMER": 0.0438,
+      "CONSEQUENCE": 0.0207,
+      "UNRELATED": 0.8732
+     },
+     {
+      "PRIMARY": 0.0255,
+      "SUPPLIER": 0.0362,
+      "CONSUMER": 0.0498,
+      "CONSEQUENCE": 0.0255,
+      "UNRELATED": 0.8631
+     },
+     {
+      "PRIMARY": 0.0375,
+      "SUPPLIER": 0.0493,
+      "CONSUMER": 0.0658,
+      "CONSEQUENCE": 0.0399,
+      "UNRELATED": 0.8076
+     }
+    ],
+    "noul": [
+     0.0457,
+     0.0637,
+     0.3166,
+     0.0846
+    ]
+   }
+  },
+  "0062-a-suite-says-which-files-reach-it.md": {
+   "adjudication": {
+    "choice": [
+     {
+      "PRIMARY": 0.0483,
+      "SUPPLIER": 0.0697,
+      "CONSUMER": 0.0808,
+      "CONSEQUENCE": 0.0522,
+      "UNRELATED": 0.7491
+     },
+     {
+      "PRIMARY": 0.0526,
+      "SUPPLIER": 0.0809,
+      "CONSUMER": 0.1047,
+      "CONSEQUENCE": 0.063,
+      "UNRELATED": 0.6988
+     },
+     {
+      "PRIMARY": 0.048,
+      "SUPPLIER": 0.1008,
+      "CONSUMER": 0.0984,
+      "CONSEQUENCE": 0.0829,
+      "UNRELATED": 0.67
+     }
+    ],
+    "noul": [
+     0.0344,
+     0.069,
+     0.3716,
+     0.0729
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.198,
+      "SUPPLIER": 0.2315,
+      "CONSUMER": 0.1039,
+      "CONSEQUENCE": 0.0819,
+      "UNRELATED": 0.3847
+     },
+     {
+      "PRIMARY": 0.171,
+      "SUPPLIER": 0.2966,
+      "CONSUMER": 0.1091,
+      "CONSEQUENCE": 0.0974,
+      "UNRELATED": 0.3258
+     },
+     {
+      "PRIMARY": 0.1722,
+      "SUPPLIER": 0.2762,
+      "CONSUMER": 0.1531,
+      "CONSEQUENCE": 0.1202,
+      "UNRELATED": 0.2784
+     }
+    ],
+    "noul": [
+     0.205,
+     0.3078,
+     0.2031,
+     0.3049
+    ]
+   }
+  },
+  "0063-an-editor-asks-about-the-text-it-holds.md": {
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.0244,
+      "SUPPLIER": 0.0911,
+      "CONSUMER": 0.0513,
+      "CONSEQUENCE": 0.0435,
+      "UNRELATED": 0.7897
+     },
+     {
+      "PRIMARY": 0.0319,
+      "SUPPLIER": 0.0675,
+      "CONSUMER": 0.0486,
+      "CONSEQUENCE": 0.0422,
+      "UNRELATED": 0.8097
+     },
+     {
+      "PRIMARY": 0.0335,
+      "SUPPLIER": 0.0641,
+      "CONSUMER": 0.0579,
+      "CONSEQUENCE": 0.0458,
+      "UNRELATED": 0.7988
+     }
+    ],
+    "noul": [
+     0.0467,
+     0.0526,
+     0.2302,
+     0.1097
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.058,
+      "SUPPLIER": 0.1487,
+      "CONSUMER": 0.0742,
+      "CONSEQUENCE": 0.05,
+      "UNRELATED": 0.6691
+     },
+     {
+      "PRIMARY": 0.0693,
+      "SUPPLIER": 0.1265,
+      "CONSUMER": 0.0721,
+      "CONSEQUENCE": 0.0614,
+      "UNRELATED": 0.6707
+     },
+     {
+      "PRIMARY": 0.0785,
+      "SUPPLIER": 0.134,
+      "CONSUMER": 0.0852,
+      "CONSEQUENCE": 0.0656,
+      "UNRELATED": 0.6368
+     }
+    ],
+    "noul": [
+     0.0933,
+     0.0933,
+     0.287,
+     0.2337
+    ]
+   }
+  },
+  "0067-a-case-carries-its-outcome.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.0244,
+      "SUPPLIER": 0.1084,
+      "CONSUMER": 0.0622,
+      "CONSEQUENCE": 0.0466,
+      "UNRELATED": 0.7584
+     },
+     {
+      "PRIMARY": 0.0251,
+      "SUPPLIER": 0.0661,
+      "CONSUMER": 0.0726,
+      "CONSEQUENCE": 0.0374,
+      "UNRELATED": 0.7989
+     },
+     {
+      "PRIMARY": 0.0207,
+      "SUPPLIER": 0.0691,
+      "CONSUMER": 0.0963,
+      "CONSEQUENCE": 0.0416,
+      "UNRELATED": 0.7723
+     }
+    ],
+    "noul": [
+     0.0351,
+     0.0974,
+     0.267,
+     0.0402
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0337,
+      "SUPPLIER": 0.2304,
+      "CONSUMER": 0.0892,
+      "CONSEQUENCE": 0.063,
+      "UNRELATED": 0.5837
+     },
+     {
+      "PRIMARY": 0.0527,
+      "SUPPLIER": 0.1922,
+      "CONSUMER": 0.1342,
+      "CONSEQUENCE": 0.082,
+      "UNRELATED": 0.5389
+     },
+     {
+      "PRIMARY": 0.046,
+      "SUPPLIER": 0.1683,
+      "CONSUMER": 0.1812,
+      "CONSEQUENCE": 0.0801,
+      "UNRELATED": 0.5244
+     }
+    ],
+    "noul": [
+     0.0601,
+     0.1268,
+     0.3007,
+     0.0764
+    ]
+   }
+  },
+  "0068-an-edit-runs-what-it-reaches-from-the-editor.md": {
+   "runtime": {
+    "choice": [
+     {
+      "PRIMARY": 0.0413,
+      "SUPPLIER": 0.226,
+      "CONSUMER": 0.0864,
+      "CONSEQUENCE": 0.0671,
+      "UNRELATED": 0.5792
+     },
+     {
+      "PRIMARY": 0.0541,
+      "SUPPLIER": 0.1844,
+      "CONSUMER": 0.0976,
+      "CONSEQUENCE": 0.0733,
+      "UNRELATED": 0.5906
+     },
+     {
+      "PRIMARY": 0.048,
+      "SUPPLIER": 0.1798,
+      "CONSUMER": 0.1368,
+      "CONSEQUENCE": 0.0817,
+      "UNRELATED": 0.5538
+     }
+    ],
+    "noul": [
+     0.0869,
+     0.1471,
+     0.3285,
+     0.1727
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0763,
+      "SUPPLIER": 0.598,
+      "CONSUMER": 0.0778,
+      "CONSEQUENCE": 0.0514,
+      "UNRELATED": 0.1964
+     },
+     {
+      "PRIMARY": 0.0915,
+      "SUPPLIER": 0.6402,
+      "CONSUMER": 0.0741,
+      "CONSEQUENCE": 0.061,
+      "UNRELATED": 0.1332
+     },
+     {
+      "PRIMARY": 0.0762,
+      "SUPPLIER": 0.6185,
+      "CONSUMER": 0.0916,
+      "CONSEQUENCE": 0.0762,
+      "UNRELATED": 0.1375
+     }
+    ],
+    "noul": [
+     0.149,
+     0.2261,
+     0.2531,
+     0.2814
+    ]
+   }
+  },
+  "0070-a-change-says-what-its-tests-moved.md": {
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0515,
+      "SUPPLIER": 0.372,
+      "CONSUMER": 0.0866,
+      "CONSEQUENCE": 0.0683,
+      "UNRELATED": 0.4215
+     },
+     {
+      "PRIMARY": 0.081,
+      "SUPPLIER": 0.3363,
+      "CONSUMER": 0.1142,
+      "CONSEQUENCE": 0.0731,
+      "UNRELATED": 0.3954
+     },
+     {
+      "PRIMARY": 0.0568,
+      "SUPPLIER": 0.2849,
+      "CONSUMER": 0.1378,
+      "CONSEQUENCE": 0.0845,
+      "UNRELATED": 0.4361
+     }
+    ],
+    "noul": [
+     0.0937,
+     0.1112,
+     0.2386,
+     0.1675
+    ]
+   },
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.0198,
+      "SUPPLIER": 0.1036,
+      "CONSUMER": 0.0614,
+      "CONSEQUENCE": 0.0435,
+      "UNRELATED": 0.7717
+     },
+     {
+      "PRIMARY": 0.0258,
+      "SUPPLIER": 0.0723,
+      "CONSUMER": 0.0581,
+      "CONSEQUENCE": 0.0412,
+      "UNRELATED": 0.8025
+     },
+     {
+      "PRIMARY": 0.0205,
+      "SUPPLIER": 0.0627,
+      "CONSUMER": 0.0662,
+      "CONSEQUENCE": 0.0372,
+      "UNRELATED": 0.8134
+     }
+    ],
+    "noul": [
+     0.0424,
+     0.0558,
+     0.2095,
+     0.0483
+    ]
+   }
+  },
+  "0071-a-test-is-read-alone.md": {
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0479,
+      "SUPPLIER": 0.3076,
+      "CONSUMER": 0.0757,
+      "CONSEQUENCE": 0.0615,
+      "UNRELATED": 0.5072
+     },
+     {
+      "PRIMARY": 0.0686,
+      "SUPPLIER": 0.2451,
+      "CONSUMER": 0.0895,
+      "CONSEQUENCE": 0.0697,
+      "UNRELATED": 0.5271
+     },
+     {
+      "PRIMARY": 0.0516,
+      "SUPPLIER": 0.226,
+      "CONSUMER": 0.1132,
+      "CONSEQUENCE": 0.0711,
+      "UNRELATED": 0.538
+     }
+    ],
+    "noul": [
+     0.0651,
+     0.12,
+     0.2282,
+     0.118
+    ]
+   },
+   "runtime": {
+    "choice": [
+     {
+      "PRIMARY": 0.028,
+      "SUPPLIER": 0.1239,
+      "CONSUMER": 0.0599,
+      "CONSEQUENCE": 0.0556,
+      "UNRELATED": 0.7326
+     },
+     {
+      "PRIMARY": 0.0306,
+      "SUPPLIER": 0.0848,
+      "CONSUMER": 0.0706,
+      "CONSEQUENCE": 0.0431,
+      "UNRELATED": 0.7708
+     },
+     {
+      "PRIMARY": 0.0264,
+      "SUPPLIER": 0.0719,
+      "CONSUMER": 0.0789,
+      "CONSEQUENCE": 0.0439,
+      "UNRELATED": 0.7788
+     }
+    ],
+    "noul": [
+     0.0379,
+     0.077,
+     0.204,
+     0.069
+    ]
+   }
+  },
+  "0072-a-case-read-two-ways-is-compared-with-itself.md": {
+   "stability": {
+    "choice": [
+     {
+      "PRIMARY": 0.1231,
+      "SUPPLIER": 0.2942,
+      "CONSUMER": 0.0789,
+      "CONSEQUENCE": 0.0823,
+      "UNRELATED": 0.4214
+     },
+     {
+      "PRIMARY": 0.158,
+      "SUPPLIER": 0.2795,
+      "CONSUMER": 0.0996,
+      "CONSEQUENCE": 0.0779,
+      "UNRELATED": 0.385
+     },
+     {
+      "PRIMARY": 0.1234,
+      "SUPPLIER": 0.2622,
+      "CONSUMER": 0.1355,
+      "CONSEQUENCE": 0.1003,
+      "UNRELATED": 0.3786
+     }
+    ],
+    "noul": [
+     0.1334,
+     0.3661,
+     0.16,
+     0.3789
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0544,
+      "SUPPLIER": 0.1982,
+      "CONSUMER": 0.0804,
+      "CONSEQUENCE": 0.0519,
+      "UNRELATED": 0.6152
+     },
+     {
+      "PRIMARY": 0.0749,
+      "SUPPLIER": 0.1763,
+      "CONSUMER": 0.0985,
+      "CONSEQUENCE": 0.0607,
+      "UNRELATED": 0.5895
+     },
+     {
+      "PRIMARY": 0.0683,
+      "SUPPLIER": 0.1522,
+      "CONSUMER": 0.1213,
+      "CONSEQUENCE": 0.0815,
+      "UNRELATED": 0.5767
+     }
+    ],
+    "noul": [
+     0.0706,
+     0.1045,
+     0.3191,
+     0.1556
+    ]
+   }
+  },
+  "0074-what-ci-derived-is-reachable-from-a-checkout.md": {
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0383,
+      "SUPPLIER": 0.1379,
+      "CONSUMER": 0.0664,
+      "CONSEQUENCE": 0.0458,
+      "UNRELATED": 0.7115
+     },
+     {
+      "PRIMARY": 0.0435,
+      "SUPPLIER": 0.1455,
+      "CONSUMER": 0.0872,
+      "CONSEQUENCE": 0.0638,
+      "UNRELATED": 0.6599
+     },
+     {
+      "PRIMARY": 0.0327,
+      "SUPPLIER": 0.1219,
+      "CONSUMER": 0.0998,
+      "CONSEQUENCE": 0.0686,
+      "UNRELATED": 0.677
+     }
+    ],
+    "noul": [
+     0.0293,
+     0.1176,
+     0.2744,
+     0.0974
+    ]
+   },
+   "report": {
+    "choice": [
+     {
+      "PRIMARY": 0.1377,
+      "SUPPLIER": 0.2759,
+      "CONSUMER": 0.115,
+      "CONSEQUENCE": 0.0731,
+      "UNRELATED": 0.3983
+     },
+     {
+      "PRIMARY": 0.1122,
+      "SUPPLIER": 0.2672,
+      "CONSUMER": 0.1413,
+      "CONSEQUENCE": 0.0905,
+      "UNRELATED": 0.3887
+     },
+     {
+      "PRIMARY": 0.1178,
+      "SUPPLIER": 0.2836,
+      "CONSUMER": 0.161,
+      "CONSEQUENCE": 0.1137,
+      "UNRELATED": 0.3239
+     }
+    ],
+    "noul": [
+     0.1204,
+     0.2535,
+     0.2397,
+     0.3204
+    ]
+   }
+  },
+  "0079-shards-steal-from-each-other.md": {
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.0455,
+      "SUPPLIER": 0.1618,
+      "CONSUMER": 0.0974,
+      "CONSEQUENCE": 0.0626,
+      "UNRELATED": 0.6326
+     },
+     {
+      "PRIMARY": 0.0553,
+      "SUPPLIER": 0.1171,
+      "CONSUMER": 0.1021,
+      "CONSEQUENCE": 0.0824,
+      "UNRELATED": 0.643
+     },
+     {
+      "PRIMARY": 0.0524,
+      "SUPPLIER": 0.1051,
+      "CONSUMER": 0.1233,
+      "CONSEQUENCE": 0.0906,
+      "UNRELATED": 0.6287
+     }
+    ],
+    "noul": [
+     0.0721,
+     0.0953,
+     0.2999,
+     0.0737
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0602,
+      "SUPPLIER": 0.1802,
+      "CONSUMER": 0.1025,
+      "CONSEQUENCE": 0.0536,
+      "UNRELATED": 0.6036
+     },
+     {
+      "PRIMARY": 0.0662,
+      "SUPPLIER": 0.16,
+      "CONSUMER": 0.1171,
+      "CONSEQUENCE": 0.0894,
+      "UNRELATED": 0.5673
+     },
+     {
+      "PRIMARY": 0.0565,
+      "SUPPLIER": 0.1398,
+      "CONSUMER": 0.168,
+      "CONSEQUENCE": 0.106,
+      "UNRELATED": 0.5297
+     }
+    ],
+    "noul": [
+     0.0711,
+     0.0914,
+     0.3032,
+     0.0857
+    ]
+   }
+  },
+  "0080-coverage-is-counted-per-kind.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.0152,
+      "SUPPLIER": 0.128,
+      "CONSUMER": 0.0605,
+      "CONSEQUENCE": 0.0364,
+      "UNRELATED": 0.76
+     },
+     {
+      "PRIMARY": 0.0149,
+      "SUPPLIER": 0.0731,
+      "CONSUMER": 0.0569,
+      "CONSEQUENCE": 0.0249,
+      "UNRELATED": 0.8302
+     },
+     {
+      "PRIMARY": 0.0137,
+      "SUPPLIER": 0.0788,
+      "CONSUMER": 0.0729,
+      "CONSEQUENCE": 0.0323,
+      "UNRELATED": 0.8023
+     }
+    ],
+    "noul": [
+     0.0307,
+     0.0695,
+     0.3398,
+     0.0351
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0438,
+      "SUPPLIER": 0.325,
+      "CONSUMER": 0.0742,
+      "CONSEQUENCE": 0.0556,
+      "UNRELATED": 0.5014
+     },
+     {
+      "PRIMARY": 0.0685,
+      "SUPPLIER": 0.2586,
+      "CONSUMER": 0.0918,
+      "CONSEQUENCE": 0.0629,
+      "UNRELATED": 0.5182
+     },
+     {
+      "PRIMARY": 0.0439,
+      "SUPPLIER": 0.2135,
+      "CONSUMER": 0.1045,
+      "CONSEQUENCE": 0.06,
+      "UNRELATED": 0.5781
+     }
+    ],
+    "noul": [
+     0.0628,
+     0.095,
+     0.3234,
+     0.1041
+    ]
+   }
+  },
+  "0087-every-suite-is-compared-with-its-own-base.md": {
+   "report": {
+    "choice": [
+     {
+      "PRIMARY": 0.0369,
+      "SUPPLIER": 0.0794,
+      "CONSUMER": 0.0706,
+      "CONSEQUENCE": 0.0301,
+      "UNRELATED": 0.783
+     },
+     {
+      "PRIMARY": 0.0287,
+      "SUPPLIER": 0.0589,
+      "CONSUMER": 0.0805,
+      "CONSEQUENCE": 0.0372,
+      "UNRELATED": 0.7946
+     },
+     {
+      "PRIMARY": 0.0314,
+      "SUPPLIER": 0.0708,
+      "CONSUMER": 0.0888,
+      "CONSEQUENCE": 0.0479,
+      "UNRELATED": 0.7611
+     }
+    ],
+    "noul": [
+     0.0298,
+     0.0937,
+     0.3178,
+     0.0421
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0357,
+      "SUPPLIER": 0.1099,
+      "CONSUMER": 0.0607,
+      "CONSEQUENCE": 0.031,
+      "UNRELATED": 0.7628
+     },
+     {
+      "PRIMARY": 0.0541,
+      "SUPPLIER": 0.1313,
+      "CONSUMER": 0.0763,
+      "CONSEQUENCE": 0.0477,
+      "UNRELATED": 0.6906
+     },
+     {
+      "PRIMARY": 0.0446,
+      "SUPPLIER": 0.0992,
+      "CONSUMER": 0.0832,
+      "CONSEQUENCE": 0.0482,
+      "UNRELATED": 0.7248
+     }
+    ],
+    "noul": [
+     0.0464,
+     0.0839,
+     0.2962,
+     0.0781
+    ]
+   }
+  },
+  "0088-a-suite-is-carried-alone.md": {
+   "review": {
+    "choice": [
+     {
+      "PRIMARY": 0.0433,
+      "SUPPLIER": 0.0673,
+      "CONSUMER": 0.0639,
+      "CONSEQUENCE": 0.0342,
+      "UNRELATED": 0.7913
+     },
+     {
+      "PRIMARY": 0.0354,
+      "SUPPLIER": 0.0621,
+      "CONSUMER": 0.0575,
+      "CONSEQUENCE": 0.0455,
+      "UNRELATED": 0.7995
+     },
+     {
+      "PRIMARY": 0.0378,
+      "SUPPLIER": 0.0668,
+      "CONSUMER": 0.0663,
+      "CONSEQUENCE": 0.0528,
+      "UNRELATED": 0.7764
+     }
+    ],
+    "noul": [
+     0.0481,
+     0.0575,
+     0.2429,
+     0.0583
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0677,
+      "SUPPLIER": 0.1473,
+      "CONSUMER": 0.0767,
+      "CONSEQUENCE": 0.0505,
+      "UNRELATED": 0.6577
+     },
+     {
+      "PRIMARY": 0.0689,
+      "SUPPLIER": 0.1355,
+      "CONSUMER": 0.0942,
+      "CONSEQUENCE": 0.0574,
+      "UNRELATED": 0.6439
+     },
+     {
+      "PRIMARY": 0.0597,
+      "SUPPLIER": 0.135,
+      "CONSUMER": 0.1146,
+      "CONSEQUENCE": 0.0613,
+      "UNRELATED": 0.6293
+     }
+    ],
+    "noul": [
+     0.0732,
+     0.0792,
+     0.2954,
+     0.1019
+    ]
+   }
+  },
+  "0089-this-repository-reports-every-kind-it-runs.md": {
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0864,
+      "SUPPLIER": 0.1786,
+      "CONSUMER": 0.0774,
+      "CONSEQUENCE": 0.0582,
+      "UNRELATED": 0.5994
+     },
+     {
+      "PRIMARY": 0.1117,
+      "SUPPLIER": 0.1757,
+      "CONSUMER": 0.1005,
+      "CONSEQUENCE": 0.071,
+      "UNRELATED": 0.5412
+     },
+     {
+      "PRIMARY": 0.1061,
+      "SUPPLIER": 0.1847,
+      "CONSUMER": 0.1294,
+      "CONSEQUENCE": 0.0816,
+      "UNRELATED": 0.4982
+     }
+    ],
+    "noul": [
+     0.1037,
+     0.0995,
+     0.3739,
+     0.2207
+    ]
+   },
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.1103,
+      "SUPPLIER": 0.3266,
+      "CONSUMER": 0.0918,
+      "CONSEQUENCE": 0.0954,
+      "UNRELATED": 0.3759
+     },
+     {
+      "PRIMARY": 0.1321,
+      "SUPPLIER": 0.2721,
+      "CONSUMER": 0.1352,
+      "CONSEQUENCE": 0.1001,
+      "UNRELATED": 0.3605
+     },
+     {
+      "PRIMARY": 0.1276,
+      "SUPPLIER": 0.2412,
+      "CONSUMER": 0.1786,
+      "CONSEQUENCE": 0.1203,
+      "UNRELATED": 0.3323
+     }
+    ],
+    "noul": [
+     0.2006,
+     0.1408,
+     0.3734,
+     0.2898
+    ]
+   }
+  }
+ }
+}

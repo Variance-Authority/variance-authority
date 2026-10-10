@@ -1,0 +1,2365 @@
+[
+ {
+  "spec": "0002-history-store.md",
+  "gold": [
+   "retention"
+  ],
+  "bm25": [
+   "presentation",
+   "retention",
+   "normalization"
+  ],
+  "g1": {
+   "acquisition": 0.0337,
+   "adjudication": 0.1369,
+   "materialization": 0.0429,
+   "normalization": 0.0612,
+   "presentation": 0.0624,
+   "reach": 0.0176,
+   "report": 0.1029,
+   "retention": 0.3428,
+   "review": 0.099,
+   "runtime": 0.0575,
+   "stability": 0.0429
+  },
+  "g2": {
+   "presentation": 0.0839,
+   "retention": 0.9161
+  },
+  "g3": [
+   {
+    "block": "presentation",
+    "sentence": "It owns no baseline, promotes no candidate, and returns no verdict about a run.",
+    "p_outside": 0.9155
+   },
+   {
+    "block": "retention",
+    "sentence": "It does not render, does not compare two readings, does not classify a difference into a band, and never produces a verdict.",
+    "p_outside": 0.7556
+   },
+   {
+    "block": "normalization",
+    "sentence": "It reaches no state, drives no browser, holds nothing still, paints nothing, compares nothing and performs no I/O of its own: a raw capture arrives as plain data, and anything else it needs arrives as an argument.",
+    "p_outside": 0.1525
+   },
+   {
+    "block": "normalization",
+    "sentence": "It applies no operator policy \u2014 an ignore is a site on the tree and never an absorbed change, a sensitivity is never read here, no verdict is spelled, and whether two readings that disagree are an instability is decided elsewhere.",
+    "p_outside": 0.9105
+   }
+  ]
+ },
+ {
+  "spec": "0008-locale-runs.md",
+  "gold": [
+   "adjudication"
+  ],
+  "bm25": [
+   "adjudication",
+   "review",
+   "acquisition"
+  ],
+  "g1": {
+   "acquisition": 0.0431,
+   "adjudication": 0.279,
+   "materialization": 0.1634,
+   "normalization": 0.1408,
+   "presentation": 0.1258,
+   "reach": 0.0207,
+   "report": 0.0466,
+   "retention": 0.0411,
+   "review": 0.0274,
+   "runtime": 0.0562,
+   "stability": 0.0558
+  },
+  "g2": {
+   "adjudication": 0.8652,
+   "review": 0.1348
+  },
+  "g3": [
+   {
+    "block": "adjudication",
+    "sentence": "It never infers cause from a pixel \u2014 causality runs code \u2192 meaning \u2192 pixels in one direction, so an author is looked up rather than reconstructed.",
+    "p_outside": 0.0452
+   },
+   {
+    "block": "review",
+    "sentence": "Nothing here observes: no verdict, no cause and no region is computed in this block \u2014 each arrives already attributed from adjudication inside the artifact report owns \u2014 and a promotion moves evidence a run already uploaded rather than painting any.",
+    "p_outside": 0.2822
+   },
+   {
+    "block": "review",
+    "sentence": "It owns neither the baseline store nor the record it re-serves from the same socket; those are retention's protocols, restated here over this deployment's own bindings so one address answers a run and a reviewer.",
+    "p_outside": 0.4475
+   },
+   {
+    "block": "acquisition",
+    "sentence": "It owns no policy \u2014 not the normalization ruleset, not what an ignore means, not the stabilization recipe, not arrival, not which subjects a change could have moved \u2014 and it does not paint, does not compare, and holds no baseline.",
+    "p_outside": 0.9497
+   }
+  ]
+ },
+ {
+  "spec": "0011-storage-and-cache-primitives.md",
+  "gold": [
+   "acquisition",
+   "adjudication",
+   "materialization",
+   "normalization",
+   "retention",
+   "stability"
+  ],
+  "bm25": [
+   "adjudication",
+   "materialization",
+   "review"
+  ],
+  "g1": {
+   "acquisition": 0.0713,
+   "adjudication": 0.1718,
+   "materialization": 0.0793,
+   "normalization": 0.1546,
+   "presentation": 0.0549,
+   "reach": 0.0168,
+   "report": 0.0851,
+   "retention": 0.0994,
+   "review": 0.101,
+   "runtime": 0.1042,
+   "stability": 0.0615
+  },
+  "g2": {
+   "adjudication": 0.5487,
+   "materialization": 0.4513
+  },
+  "g3": [
+   {
+    "block": "adjudication",
+    "sentence": "It does not observe, does not decide when to re-read, does not choose or keep baselines, and does not aggregate for a person: it receives readings normalization already made comparable, and emits per-subject observations and per-rule ledgers, in plan order, owning neither the format nor its readings.",
+    "p_outside": 0.8228
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It never infers cause from a pixel \u2014 causality runs code \u2192 meaning \u2192 pixels in one direction, so an author is looked up rather than reconstructed.",
+    "p_outside": 0.1063
+   },
+   {
+    "block": "materialization",
+    "sentence": "It does not compare, does not store, and does not decide whether the image was needed: adjudication owns the pixel comparison, the mask, the regions and every verdict, and settling a subject against the prior reading's document digest happens before a document is handed here.",
+    "p_outside": 0.8926
+   },
+   {
+    "block": "materialization",
+    "sentence": "It does not choose what to observe, does not drive an application to a state, does not read a live tree, does not decide where a baseline lives and never promotes one.",
+    "p_outside": 0.7649
+   },
+   {
+    "block": "review",
+    "sentence": "Nothing here observes: no verdict, no cause and no region is computed in this block \u2014 each arrives already attributed from adjudication inside the artifact report owns \u2014 and a promotion moves evidence a run already uploaded rather than painting any.",
+    "p_outside": 0.7773
+   },
+   {
+    "block": "review",
+    "sentence": "It owns neither the baseline store nor the record it re-serves from the same socket; those are retention's protocols, restated here over this deployment's own bindings so one address answers a run and a reviewer.",
+    "p_outside": 0.1577
+   }
+  ]
+ },
+ {
+  "spec": "0012-order-dependence-in-a-run.md",
+  "gold": [
+   "acquisition",
+   "report",
+   "stability"
+  ],
+  "bm25": [
+   "stability",
+   "reach",
+   "presentation"
+  ],
+  "g1": {
+   "acquisition": 0.043,
+   "adjudication": 0.3924,
+   "materialization": 0.0503,
+   "normalization": 0.0896,
+   "presentation": 0.048,
+   "reach": 0.0351,
+   "report": 0.0767,
+   "retention": 0.0656,
+   "review": 0.0732,
+   "runtime": 0.0631,
+   "stability": 0.0631
+  },
+  "g2": {
+   "stability": 0.6671,
+   "reach": 0.3329
+  },
+  "g3": [
+   {
+    "block": "stability",
+    "sentence": "It does not retry: both outcomes of both second readings are reported and neither clears anything.",
+    "p_outside": 0.9073
+   },
+   {
+    "block": "stability",
+    "sentence": "It decides nothing beyond whether a reading may be trusted \u2014 it does not paint, does not say what a difference against a baseline means, and does not keep the record of how often a subject has read differently, which belongs to retention.",
+    "p_outside": 0.9185
+   },
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.8791
+   },
+   {
+    "block": "reach",
+    "sentence": "It does not gate \u2014 a subject it excluded is stated by name for report to carry.",
+    "p_outside": 0.7957
+   },
+   {
+    "block": "presentation",
+    "sentence": "It owns no baseline, promotes no candidate, and returns no verdict about a run.",
+    "p_outside": 0.9185
+   }
+  ]
+ },
+ {
+  "spec": "0013-a-real-agent.md",
+  "gold": [
+   "adjudication",
+   "report"
+  ],
+  "bm25": [
+   "report",
+   "presentation",
+   "materialization"
+  ],
+  "g1": {
+   "acquisition": 0.0319,
+   "adjudication": 0.2779,
+   "materialization": 0.0329,
+   "normalization": 0.1186,
+   "presentation": 0.0754,
+   "reach": 0.0309,
+   "report": 0.1759,
+   "retention": 0.0436,
+   "review": 0.0815,
+   "runtime": 0.0708,
+   "stability": 0.0606
+  },
+  "g2": {
+   "report": 0.83,
+   "presentation": 0.17
+  },
+  "g3": [
+   {
+    "block": "report",
+    "sentence": "It observes nothing and decides nothing: no reading here renders a subject, re-runs a comparison, consults a baseline, opens a browser or reads a clock, and no reading computes a verdict, promotes a candidate or records an approval.",
+    "p_outside": 0.6002
+   },
+   {
+    "block": "report",
+    "sentence": "It does not own the format it defines \u2014 neither the writer nor any reader does \u2014 so a shape is admitted here only if it means the same thing to all of them.",
+    "p_outside": 0.2709
+   },
+   {
+    "block": "presentation",
+    "sentence": "It owns no baseline, promotes no candidate, and returns no verdict about a run.",
+    "p_outside": 0.7106
+   },
+   {
+    "block": "materialization",
+    "sentence": "It does not compare, does not store, and does not decide whether the image was needed: adjudication owns the pixel comparison, the mask, the regions and every verdict, and settling a subject against the prior reading's document digest happens before a document is handed here.",
+    "p_outside": 0.8539
+   }
+  ]
+ },
+ {
+  "spec": "0014-hosted-who-the-caller-is-and-what-the-bill-counts.md",
+  "gold": [
+   "review"
+  ],
+  "bm25": [
+   "review",
+   "presentation",
+   "materialization"
+  ],
+  "g1": {
+   "acquisition": 0.0597,
+   "adjudication": 0.2378,
+   "materialization": 0.1539,
+   "normalization": 0.1224,
+   "presentation": 0.0819,
+   "reach": 0.0194,
+   "report": 0.0635,
+   "retention": 0.0472,
+   "review": 0.0797,
+   "runtime": 0.0931,
+   "stability": 0.0415
+  },
+  "g2": {
+   "review": 0.7491,
+   "presentation": 0.2509
+  },
+  "g3": [
+   {
+    "block": "review",
+    "sentence": "Nothing here observes: no verdict, no cause and no region is computed in this block \u2014 each arrives already attributed from adjudication inside the artifact report owns \u2014 and a promotion moves evidence a run already uploaded rather than painting any.",
+    "p_outside": 0.1505
+   },
+   {
+    "block": "review",
+    "sentence": "It owns neither the baseline store nor the record it re-serves from the same socket; those are retention's protocols, restated here over this deployment's own bindings so one address answers a run and a reviewer.",
+    "p_outside": 0.1505
+   },
+   {
+    "block": "presentation",
+    "sentence": "It owns no baseline, promotes no candidate, and returns no verdict about a run.",
+    "p_outside": 0.8449
+   },
+   {
+    "block": "materialization",
+    "sentence": "It does not compare, does not store, and does not decide whether the image was needed: adjudication owns the pixel comparison, the mask, the regions and every verdict, and settling a subject against the prior reading's document digest happens before a document is handed here.",
+    "p_outside": 0.8032
+   },
+   {
+    "block": "materialization",
+    "sentence": "It does not choose what to observe, does not drive an application to a state, does not read a live tree, does not decide where a baseline lives and never promotes one.",
+    "p_outside": 0.5107
+   }
+  ]
+ },
+ {
+  "spec": "0019-provenance-without-react.md",
+  "gold": [
+   "acquisition"
+  ],
+  "bm25": [
+   "normalization",
+   "acquisition",
+   "stability"
+  ],
+  "g1": {
+   "acquisition": 0.0628,
+   "adjudication": 0.1953,
+   "materialization": 0.0571,
+   "normalization": 0.1764,
+   "presentation": 0.0901,
+   "reach": 0.0246,
+   "report": 0.0724,
+   "retention": 0.0498,
+   "review": 0.0741,
+   "runtime": 0.1509,
+   "stability": 0.0464
+  },
+  "g2": {
+   "normalization": 0.7178,
+   "acquisition": 0.2822
+  },
+  "g3": [
+   {
+    "block": "normalization",
+    "sentence": "It reaches no state, drives no browser, holds nothing still, paints nothing, compares nothing and performs no I/O of its own: a raw capture arrives as plain data, and anything else it needs arrives as an argument.",
+    "p_outside": 0.2822
+   },
+   {
+    "block": "normalization",
+    "sentence": "It applies no operator policy \u2014 an ignore is a site on the tree and never an absorbed change, a sensitivity is never read here, no verdict is spelled, and whether two readings that disagree are an instability is decided elsewhere.",
+    "p_outside": 0.2946
+   },
+   {
+    "block": "acquisition",
+    "sentence": "It never mounts anything: a subject arrives already on screen, and the knowledge of how to put it there stays with whoever already had it.",
+    "p_outside": 0.8615
+   },
+   {
+    "block": "stability",
+    "sentence": "It decides nothing beyond whether a reading may be trusted \u2014 it does not paint, does not say what a difference against a baseline means, and does not keep the record of how often a subject has read differently, which belongs to retention.",
+    "p_outside": 0.1056
+   }
+  ]
+ },
+ {
+  "spec": "0022-evidence-from-code-this-project-did-not-write.md",
+  "gold": [
+   "acquisition"
+  ],
+  "bm25": [
+   "acquisition",
+   "stability",
+   "normalization"
+  ],
+  "g1": {
+   "acquisition": 0.0521,
+   "adjudication": 0.2333,
+   "materialization": 0.198,
+   "normalization": 0.1789,
+   "presentation": 0.0489,
+   "reach": 0.0321,
+   "report": 0.0604,
+   "retention": 0.0344,
+   "review": 0.0501,
+   "runtime": 0.0546,
+   "stability": 0.0572
+  },
+  "g2": {
+   "acquisition": 0.413,
+   "stability": 0.587
+  },
+  "g3": [
+   {
+    "block": "acquisition",
+    "sentence": "It never mounts anything: a subject arrives already on screen, and the knowledge of how to put it there stays with whoever already had it.",
+    "p_outside": 0.8933
+   },
+   {
+    "block": "acquisition",
+    "sentence": "It owns no policy \u2014 not the normalization ruleset, not what an ignore means, not the stabilization recipe, not arrival, not which subjects a change could have moved \u2014 and it does not paint, does not compare, and holds no baseline.",
+    "p_outside": 0.7186
+   },
+   {
+    "block": "stability",
+    "sentence": "It does not retry: both outcomes of both second readings are reported and neither clears anything.",
+    "p_outside": 0.6379
+   },
+   {
+    "block": "stability",
+    "sentence": "It decides nothing beyond whether a reading may be trusted \u2014 it does not paint, does not say what a difference against a baseline means, and does not keep the record of how often a subject has read differently, which belongs to retention.",
+    "p_outside": 0.5477
+   },
+   {
+    "block": "normalization",
+    "sentence": "It reaches no state, drives no browser, holds nothing still, paints nothing, compares nothing and performs no I/O of its own: a raw capture arrives as plain data, and anything else it needs arrives as an argument.",
+    "p_outside": 0.5039
+   },
+   {
+    "block": "normalization",
+    "sentence": "It applies no operator policy \u2014 an ignore is a site on the tree and never an absorbed change, a sensitivity is never read here, no verdict is spelled, and whether two readings that disagree are an instability is decided elsewhere.",
+    "p_outside": 0.8615
+   }
+  ]
+ },
+ {
+  "spec": "0024-what-a-prop-controls.md",
+  "gold": [
+   "adjudication",
+   "normalization"
+  ],
+  "bm25": [
+   "stability",
+   "adjudication",
+   "normalization"
+  ],
+  "g1": {
+   "acquisition": 0.0739,
+   "adjudication": 0.1828,
+   "materialization": 0.1075,
+   "normalization": 0.1153,
+   "presentation": 0.0549,
+   "reach": 0.1843,
+   "report": 0.0421,
+   "retention": 0.0462,
+   "review": 0.0594,
+   "runtime": 0.0792,
+   "stability": 0.0545
+  },
+  "g2": {
+   "stability": 0.2576,
+   "adjudication": 0.7424
+  },
+  "g3": [
+   {
+    "block": "stability",
+    "sentence": "It decides nothing beyond whether a reading may be trusted \u2014 it does not paint, does not say what a difference against a baseline means, and does not keep the record of how often a subject has read differently, which belongs to retention.",
+    "p_outside": 0.1546
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It never infers cause from a pixel \u2014 causality runs code \u2192 meaning \u2192 pixels in one direction, so an author is looked up rather than reconstructed.",
+    "p_outside": 0.0379
+   },
+   {
+    "block": "normalization",
+    "sentence": "It reaches no state, drives no browser, holds nothing still, paints nothing, compares nothing and performs no I/O of its own: a raw capture arrives as plain data, and anything else it needs arrives as an argument.",
+    "p_outside": 0.1089
+   },
+   {
+    "block": "normalization",
+    "sentence": "It applies no operator policy \u2014 an ignore is a site on the tree and never an absorbed change, a sensitivity is never read here, no verdict is spelled, and whether two readings that disagree are an instability is decided elsewhere.",
+    "p_outside": 0.7461
+   }
+  ]
+ },
+ {
+  "spec": "0028-the-instrument.md",
+  "gold": [
+   "reach"
+  ],
+  "bm25": [
+   "reach",
+   "presentation",
+   "adjudication"
+  ],
+  "g1": {
+   "acquisition": 0.035,
+   "adjudication": 0.1043,
+   "materialization": 0.0468,
+   "normalization": 0.1875,
+   "presentation": 0.1747,
+   "reach": 0.0965,
+   "report": 0.0852,
+   "retention": 0.0401,
+   "review": 0.0539,
+   "runtime": 0.1393,
+   "stability": 0.0366
+  },
+  "g2": {
+   "reach": 0.6352,
+   "presentation": 0.3648
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.6926
+   },
+   {
+    "block": "reach",
+    "sentence": "It does not gate \u2014 a subject it excluded is stated by name for report to carry.",
+    "p_outside": 0.1495
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It does not observe, does not decide when to re-read, does not choose or keep baselines, and does not aggregate for a person: it receives readings normalization already made comparable, and emits per-subject observations and per-rule ledgers, in plan order, owning neither the format nor its readings.",
+    "p_outside": 0.2183
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It never infers cause from a pixel \u2014 causality runs code \u2192 meaning \u2192 pixels in one direction, so an author is looked up rather than reconstructed.",
+    "p_outside": 0.0798
+   }
+  ]
+ },
+ {
+  "spec": "0029-what-a-run-remembers.md",
+  "gold": [
+   "reach"
+  ],
+  "bm25": [
+   "retention",
+   "reach",
+   "materialization"
+  ],
+  "g1": {
+   "acquisition": 0.0635,
+   "adjudication": 0.136,
+   "materialization": 0.055,
+   "normalization": 0.1224,
+   "presentation": 0.0485,
+   "reach": 0.0244,
+   "report": 0.0648,
+   "retention": 0.0845,
+   "review": 0.0797,
+   "runtime": 0.1889,
+   "stability": 0.1324
+  },
+  "g2": {
+   "retention": 0.8657,
+   "reach": 0.1343
+  },
+  "g3": [
+   {
+    "block": "retention",
+    "sentence": "It does not render, does not compare two readings, does not classify a difference into a band, and never produces a verdict.",
+    "p_outside": 0.3886
+   },
+   {
+    "block": "retention",
+    "sentence": "It decides nothing and gates nothing: a person's decision arrives from review already made, and this block writes it down.",
+    "p_outside": 0.9404
+   },
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.847
+   },
+   {
+    "block": "materialization",
+    "sentence": "It does not compare, does not store, and does not decide whether the image was needed: adjudication owns the pixel comparison, the mask, the regions and every verdict, and settling a subject against the prior reading's document digest happens before a document is handed here.",
+    "p_outside": 0.9033
+   },
+   {
+    "block": "materialization",
+    "sentence": "It does not choose what to observe, does not drive an application to a state, does not read a live tree, does not decide where a baseline lives and never promotes one.",
+    "p_outside": 0.9255
+   }
+  ]
+ },
+ {
+  "spec": "0031-a-contract-is-a-subject.md",
+  "gold": [
+   "acquisition",
+   "materialization"
+  ],
+  "bm25": [
+   "acquisition",
+   "normalization",
+   "review"
+  ],
+  "g1": {
+   "acquisition": 0.0568,
+   "adjudication": 0.1632,
+   "materialization": 0.1009,
+   "normalization": 0.1849,
+   "presentation": 0.0753,
+   "reach": 0.0429,
+   "report": 0.0667,
+   "retention": 0.0429,
+   "review": 0.0765,
+   "runtime": 0.1332,
+   "stability": 0.0566
+  },
+  "g2": {
+   "acquisition": 0.2967,
+   "normalization": 0.7033
+  },
+  "g3": [
+   {
+    "block": "acquisition",
+    "sentence": "It never mounts anything: a subject arrives already on screen, and the knowledge of how to put it there stays with whoever already had it.",
+    "p_outside": 0.9466
+   },
+   {
+    "block": "normalization",
+    "sentence": "It reaches no state, drives no browser, holds nothing still, paints nothing, compares nothing and performs no I/O of its own: a raw capture arrives as plain data, and anything else it needs arrives as an argument.",
+    "p_outside": 0.4941
+   },
+   {
+    "block": "review",
+    "sentence": "Nothing here observes: no verdict, no cause and no region is computed in this block \u2014 each arrives already attributed from adjudication inside the artifact report owns \u2014 and a promotion moves evidence a run already uploaded rather than painting any.",
+    "p_outside": 0.9115
+   },
+   {
+    "block": "review",
+    "sentence": "It owns neither the baseline store nor the record it re-serves from the same socket; those are retention's protocols, restated here over this deployment's own bindings so one address answers a run and a reviewer.",
+    "p_outside": 0.1052
+   }
+  ]
+ },
+ {
+  "spec": "0036-a-journey-crosses-processes.md",
+  "gold": [
+   "reach"
+  ],
+  "bm25": [
+   "reach",
+   "runtime",
+   "acquisition"
+  ],
+  "g1": {
+   "acquisition": 0.0338,
+   "adjudication": 0.1342,
+   "materialization": 0.0267,
+   "normalization": 0.139,
+   "presentation": 0.0649,
+   "reach": 0.0365,
+   "report": 0.0937,
+   "retention": 0.0503,
+   "review": 0.11,
+   "runtime": 0.2765,
+   "stability": 0.0343
+  },
+  "g2": {
+   "reach": 0.1399,
+   "runtime": 0.8601
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.7732
+   },
+   {
+    "block": "reach",
+    "sentence": "It does not gate \u2014 a subject it excluded is stated by name for report to carry.",
+    "p_outside": 0.1259
+   },
+   {
+    "block": "runtime",
+    "sentence": "Nothing here decides anything and nothing here observes a subject: it writes no verdict, no baseline, no approval, no history row and no exit code, and it neither captures, normalizes nor rasterizes.",
+    "p_outside": 0.8775
+   },
+   {
+    "block": "runtime",
+    "sentence": "Nothing on a default path is written down \u2014 an announcement is worth something for the length of one execution and nothing afterwards, and the scenario archive is the one component that keeps anything.",
+    "p_outside": 0.4941
+   },
+   {
+    "block": "acquisition",
+    "sentence": "It never mounts anything: a subject arrives already on screen, and the knowledge of how to put it there stays with whoever already had it.",
+    "p_outside": 0.9005
+   }
+  ]
+ },
+ {
+  "spec": "0037-a-closure-per-node.md",
+  "gold": [
+   "adjudication",
+   "normalization",
+   "reach"
+  ],
+  "bm25": [
+   "reach",
+   "adjudication",
+   "stability"
+  ],
+  "g1": {
+   "acquisition": 0.0482,
+   "adjudication": 0.1231,
+   "materialization": 0.0768,
+   "normalization": 0.2136,
+   "presentation": 0.0863,
+   "reach": 0.0467,
+   "report": 0.0724,
+   "retention": 0.0515,
+   "review": 0.068,
+   "runtime": 0.1347,
+   "stability": 0.0786
+  },
+  "g2": {
+   "reach": 0.4177,
+   "adjudication": 0.5823
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.8852
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It does not observe, does not decide when to re-read, does not choose or keep baselines, and does not aggregate for a person: it receives readings normalization already made comparable, and emits per-subject observations and per-rule ledgers, in plan order, owning neither the format nor its readings.",
+    "p_outside": 0.8371
+   },
+   {
+    "block": "stability",
+    "sentence": "It decides nothing beyond whether a reading may be trusted \u2014 it does not paint, does not say what a difference against a baseline means, and does not keep the record of how often a subject has read differently, which belongs to retention.",
+    "p_outside": 0.5419
+   }
+  ]
+ },
+ {
+  "spec": "0040-a-baseline-in-git-is-a-picture.md",
+  "gold": [
+   "adjudication",
+   "reach",
+   "retention"
+  ],
+  "bm25": [
+   "retention",
+   "review",
+   "report"
+  ],
+  "g1": {
+   "acquisition": 0.0751,
+   "adjudication": 0.0927,
+   "materialization": 0.1809,
+   "normalization": 0.0964,
+   "presentation": 0.0415,
+   "reach": 0.0145,
+   "report": 0.0726,
+   "retention": 0.0663,
+   "review": 0.2233,
+   "runtime": 0.0902,
+   "stability": 0.0464
+  },
+  "g2": {
+   "retention": 0.1981,
+   "review": 0.8019
+  },
+  "g3": [
+   {
+    "block": "retention",
+    "sentence": "It does not render, does not compare two readings, does not classify a difference into a band, and never produces a verdict.",
+    "p_outside": 0.6243
+   },
+   {
+    "block": "retention",
+    "sentence": "It decides nothing and gates nothing: a person's decision arrives from review already made, and this block writes it down.",
+    "p_outside": 0.9073
+   },
+   {
+    "block": "review",
+    "sentence": "Nothing here observes: no verdict, no cause and no region is computed in this block \u2014 each arrives already attributed from adjudication inside the artifact report owns \u2014 and a promotion moves evidence a run already uploaded rather than painting any.",
+    "p_outside": 0.4805
+   },
+   {
+    "block": "review",
+    "sentence": "It owns neither the baseline store nor the record it re-serves from the same socket; those are retention's protocols, restated here over this deployment's own bindings so one address answers a run and a reviewer.",
+    "p_outside": 0.3558
+   },
+   {
+    "block": "report",
+    "sentence": "It observes nothing and decides nothing: no reading here renders a subject, re-runs a comparison, consults a baseline, opens a browser or reads a clock, and no reading computes a verdict, promotes a candidate or records an approval.",
+    "p_outside": 0.3268
+   },
+   {
+    "block": "report",
+    "sentence": "It does not own the format it defines \u2014 neither the writer nor any reader does \u2014 so a shape is admitted here only if it means the same thing to all of them.",
+    "p_outside": 0.1067
+   }
+  ]
+ },
+ {
+  "spec": "0042-a-start-point-is-a-path-sense-holds.md",
+  "gold": [
+   "adjudication",
+   "reach",
+   "report"
+  ],
+  "bm25": [
+   "reach",
+   "stability",
+   "adjudication"
+  ],
+  "g1": {
+   "acquisition": 0.0712,
+   "adjudication": 0.1073,
+   "materialization": 0.0446,
+   "normalization": 0.1543,
+   "presentation": 0.0842,
+   "reach": 0.124,
+   "report": 0.0826,
+   "retention": 0.039,
+   "review": 0.0996,
+   "runtime": 0.1413,
+   "stability": 0.0517
+  },
+  "g2": {
+   "reach": 0.717,
+   "stability": 0.283
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.8955
+   },
+   {
+    "block": "reach",
+    "sentence": "It does not gate \u2014 a subject it excluded is stated by name for report to carry.",
+    "p_outside": 0.4883
+   },
+   {
+    "block": "stability",
+    "sentence": "It does not retry: both outcomes of both second readings are reported and neither clears anything.",
+    "p_outside": 0.717
+   },
+   {
+    "block": "stability",
+    "sentence": "It decides nothing beyond whether a reading may be trusted \u2014 it does not paint, does not say what a difference against a baseline means, and does not keep the record of how often a subject has read differently, which belongs to retention.",
+    "p_outside": 0.1895
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It does not observe, does not decide when to re-read, does not choose or keep baselines, and does not aggregate for a person: it receives readings normalization already made comparable, and emits per-subject observations and per-rule ledgers, in plan order, owning neither the format nor its readings.",
+    "p_outside": 0.8534
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It never infers cause from a pixel \u2014 causality runs code \u2192 meaning \u2192 pixels in one direction, so an author is looked up rather than reconstructed.",
+    "p_outside": 0.1234
+   }
+  ]
+ },
+ {
+  "spec": "0043-a-record-costs-what-the-run-cost.md",
+  "gold": [
+   "reach"
+  ],
+  "bm25": [
+   "adjudication",
+   "reach",
+   "stability"
+  ],
+  "g1": {
+   "acquisition": 0.0638,
+   "adjudication": 0.14,
+   "materialization": 0.125,
+   "normalization": 0.1125,
+   "presentation": 0.0488,
+   "reach": 0.0357,
+   "report": 0.0936,
+   "retention": 0.0462,
+   "review": 0.0997,
+   "runtime": 0.184,
+   "stability": 0.0507
+  },
+  "g2": {
+   "adjudication": 0.5622,
+   "reach": 0.4378
+  },
+  "g3": [
+   {
+    "block": "adjudication",
+    "sentence": "It does not observe, does not decide when to re-read, does not choose or keep baselines, and does not aggregate for a person: it receives readings normalization already made comparable, and emits per-subject observations and per-rule ledgers, in plan order, owning neither the format nor its readings.",
+    "p_outside": 0.6169
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It never infers cause from a pixel \u2014 causality runs code \u2192 meaning \u2192 pixels in one direction, so an author is looked up rather than reconstructed.",
+    "p_outside": 0.1375
+   },
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.8732
+   },
+   {
+    "block": "reach",
+    "sentence": "It does not gate \u2014 a subject it excluded is stated by name for report to carry.",
+    "p_outside": 0.1931
+   },
+   {
+    "block": "stability",
+    "sentence": "It does not retry: both outcomes of both second readings are reported and neither clears anything.",
+    "p_outside": 0.4766
+   },
+   {
+    "block": "stability",
+    "sentence": "It decides nothing beyond whether a reading may be trusted \u2014 it does not paint, does not say what a difference against a baseline means, and does not keep the record of how often a subject has read differently, which belongs to retention.",
+    "p_outside": 0.3433
+   }
+  ]
+ },
+ {
+  "spec": "0044-many-writers-one-record.md",
+  "gold": [
+   "adjudication",
+   "reach"
+  ],
+  "bm25": [
+   "reach",
+   "review",
+   "stability"
+  ],
+  "g1": {
+   "acquisition": 0.065,
+   "adjudication": 0.1808,
+   "materialization": 0.0306,
+   "normalization": 0.1453,
+   "presentation": 0.0364,
+   "reach": 0.05,
+   "report": 0.0763,
+   "retention": 0.0618,
+   "review": 0.1739,
+   "runtime": 0.1243,
+   "stability": 0.0558
+  },
+  "g2": {
+   "reach": 0.3381,
+   "review": 0.6619
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.4244
+   },
+   {
+    "block": "review",
+    "sentence": "Nothing here observes: no verdict, no cause and no region is computed in this block \u2014 each arrives already attributed from adjudication inside the artifact report owns \u2014 and a promotion moves evidence a run already uploaded rather than painting any.",
+    "p_outside": 0.4026
+   },
+   {
+    "block": "review",
+    "sentence": "It owns neither the baseline store nor the record it re-serves from the same socket; those are retention's protocols, restated here over this deployment's own bindings so one address answers a run and a reviewer.",
+    "p_outside": 0.817
+   },
+   {
+    "block": "stability",
+    "sentence": "It decides nothing beyond whether a reading may be trusted \u2014 it does not paint, does not say what a difference against a baseline means, and does not keep the record of how often a subject has read differently, which belongs to retention.",
+    "p_outside": 0.4287
+   }
+  ]
+ },
+ {
+  "spec": "0045-a-snapshot-states-its-own-age.md",
+  "gold": [
+   "reach"
+  ],
+  "bm25": [
+   "presentation",
+   "reach",
+   "report"
+  ],
+  "g1": {
+   "acquisition": 0.0638,
+   "adjudication": 0.1506,
+   "materialization": 0.0474,
+   "normalization": 0.1554,
+   "presentation": 0.0769,
+   "reach": 0.0317,
+   "report": 0.1019,
+   "retention": 0.0616,
+   "review": 0.0456,
+   "runtime": 0.1201,
+   "stability": 0.1449
+  },
+  "g2": {
+   "presentation": 0.5254,
+   "reach": 0.4746
+  },
+  "g3": [
+   {
+    "block": "presentation",
+    "sentence": "It owns no baseline, promotes no candidate, and returns no verdict about a run.",
+    "p_outside": 0.8754
+   },
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.8256
+   },
+   {
+    "block": "reach",
+    "sentence": "It does not gate \u2014 a subject it excluded is stated by name for report to carry.",
+    "p_outside": 0.3469
+   },
+   {
+    "block": "report",
+    "sentence": "It observes nothing and decides nothing: no reading here renders a subject, re-runs a comparison, consults a baseline, opens a browser or reads a clock, and no reading computes a verdict, promotes a candidate or records an approval.",
+    "p_outside": 0.2121
+   },
+   {
+    "block": "report",
+    "sentence": "It does not own the format it defines \u2014 neither the writer nor any reader does \u2014 so a shape is admitted here only if it means the same thing to all of them.",
+    "p_outside": 0.1366
+   }
+  ]
+ },
+ {
+  "spec": "0046-the-safety-rule-lives-in-one-place.md",
+  "gold": [
+   "reach"
+  ],
+  "bm25": [
+   "review",
+   "reach",
+   "runtime"
+  ],
+  "g1": {
+   "acquisition": 0.043,
+   "adjudication": 0.2317,
+   "materialization": 0.0507,
+   "normalization": 0.094,
+   "presentation": 0.0357,
+   "reach": 0.0371,
+   "report": 0.0441,
+   "retention": 0.0395,
+   "review": 0.0798,
+   "runtime": 0.0693,
+   "stability": 0.2752
+  },
+  "g2": {
+   "review": 0.709,
+   "reach": 0.291
+  },
+  "g3": [
+   {
+    "block": "review",
+    "sentence": "Nothing here observes: no verdict, no cause and no region is computed in this block \u2014 each arrives already attributed from adjudication inside the artifact report owns \u2014 and a promotion moves evidence a run already uploaded rather than painting any.",
+    "p_outside": 0.8684
+   },
+   {
+    "block": "review",
+    "sentence": "It owns neither the baseline store nor the record it re-serves from the same socket; those are retention's protocols, restated here over this deployment's own bindings so one address answers a run and a reviewer.",
+    "p_outside": 0.0786
+   },
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.7287
+   },
+   {
+    "block": "runtime",
+    "sentence": "Nothing here decides anything and nothing here observes a subject: it writes no verdict, no baseline, no approval, no history row and no exit code, and it neither captures, normalizes nor rasterizes.",
+    "p_outside": 0.9137
+   },
+   {
+    "block": "runtime",
+    "sentence": "Nothing on a default path is written down \u2014 an announcement is worth something for the length of one execution and nothing afterwards, and the scenario archive is the one component that keeps anything.",
+    "p_outside": 0.7074
+   }
+  ]
+ },
+ {
+  "spec": "0047-a-skip-list-is-worth-what-it-skips.md",
+  "gold": [
+   "adjudication",
+   "reach"
+  ],
+  "bm25": [
+   "stability",
+   "presentation",
+   "acquisition"
+  ],
+  "g1": {
+   "acquisition": 0.0532,
+   "adjudication": 0.1612,
+   "materialization": 0.0676,
+   "normalization": 0.1527,
+   "presentation": 0.0997,
+   "reach": 0.0532,
+   "report": 0.085,
+   "retention": 0.0498,
+   "review": 0.084,
+   "runtime": 0.1296,
+   "stability": 0.0641
+  },
+  "g2": {
+   "stability": 0.3886,
+   "presentation": 0.6114
+  },
+  "g3": [
+   {
+    "block": "stability",
+    "sentence": "It does not retry: both outcomes of both second readings are reported and neither clears anything.",
+    "p_outside": 0.7982
+   },
+   {
+    "block": "stability",
+    "sentence": "It decides nothing beyond whether a reading may be trusted \u2014 it does not paint, does not say what a difference against a baseline means, and does not keep the record of how often a subject has read differently, which belongs to retention.",
+    "p_outside": 0.7202
+   },
+   {
+    "block": "presentation",
+    "sentence": "It owns no baseline, promotes no candidate, and returns no verdict about a run.",
+    "p_outside": 0.9155
+   },
+   {
+    "block": "presentation",
+    "sentence": "It never produces a global quality score, a threshold pass, a severity, or a design recommendation, and it never proposes deleting, hiding, collapsing or truncating information to make a finding go away.",
+    "p_outside": 0.7249
+   },
+   {
+    "block": "acquisition",
+    "sentence": "It never mounts anything: a subject arrives already on screen, and the knowledge of how to put it there stays with whoever already had it.",
+    "p_outside": 0.9258
+   },
+   {
+    "block": "acquisition",
+    "sentence": "It owns no policy \u2014 not the normalization ruleset, not what an ignore means, not the stabilization recipe, not arrival, not which subjects a change could have moved \u2014 and it does not paint, does not compare, and holds no baseline.",
+    "p_outside": 0.8816
+   }
+  ]
+ },
+ {
+  "spec": "0048-a-worker-that-dies-says-so.md",
+  "gold": [
+   "reach"
+  ],
+  "bm25": [
+   "review",
+   "runtime",
+   "reach"
+  ],
+  "g1": {
+   "acquisition": 0.039,
+   "adjudication": 0.1989,
+   "materialization": 0.0509,
+   "normalization": 0.1183,
+   "presentation": 0.0449,
+   "reach": 0.035,
+   "report": 0.0752,
+   "retention": 0.0568,
+   "review": 0.0785,
+   "runtime": 0.1543,
+   "stability": 0.1484
+  },
+  "g2": {
+   "review": 0.2436,
+   "runtime": 0.7564
+  },
+  "g3": [
+   {
+    "block": "review",
+    "sentence": "Nothing here observes: no verdict, no cause and no region is computed in this block \u2014 each arrives already attributed from adjudication inside the artifact report owns \u2014 and a promotion moves evidence a run already uploaded rather than painting any.",
+    "p_outside": 0.3785
+   },
+   {
+    "block": "review",
+    "sentence": "It owns neither the baseline store nor the record it re-serves from the same socket; those are retention's protocols, restated here over this deployment's own bindings so one address answers a run and a reviewer.",
+    "p_outside": 0.1944
+   },
+   {
+    "block": "runtime",
+    "sentence": "Nothing here decides anything and nothing here observes a subject: it writes no verdict, no baseline, no approval, no history row and no exit code, and it neither captures, normalizes nor rasterizes.",
+    "p_outside": 0.8977
+   },
+   {
+    "block": "runtime",
+    "sentence": "Nothing on a default path is written down \u2014 an announcement is worth something for the length of one execution and nothing afterwards, and the scenario archive is the one component that keeps anything.",
+    "p_outside": 0.7698
+   },
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.9258
+   },
+   {
+    "block": "reach",
+    "sentence": "It does not gate \u2014 a subject it excluded is stated by name for report to carry.",
+    "p_outside": 0.3933
+   }
+  ]
+ },
+ {
+  "spec": "0049-nothing-can-ask-the-record-where-it-stands.md",
+  "gold": [
+   "adjudication",
+   "reach",
+   "report"
+  ],
+  "bm25": [
+   "reach",
+   "review",
+   "acquisition"
+  ],
+  "g1": {
+   "acquisition": 0.0332,
+   "adjudication": 0.2498,
+   "materialization": 0.0338,
+   "normalization": 0.0786,
+   "presentation": 0.0562,
+   "reach": 0.049,
+   "report": 0.2618,
+   "retention": 0.0438,
+   "review": 0.0817,
+   "runtime": 0.0777,
+   "stability": 0.0343
+  },
+  "g2": {
+   "reach": 0.6316,
+   "review": 0.3684
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.5049
+   },
+   {
+    "block": "reach",
+    "sentence": "It does not gate \u2014 a subject it excluded is stated by name for report to carry.",
+    "p_outside": 0.2121
+   },
+   {
+    "block": "review",
+    "sentence": "Nothing here observes: no verdict, no cause and no region is computed in this block \u2014 each arrives already attributed from adjudication inside the artifact report owns \u2014 and a promotion moves evidence a run already uploaded rather than painting any.",
+    "p_outside": 0.8804
+   },
+   {
+    "block": "review",
+    "sentence": "It owns neither the baseline store nor the record it re-serves from the same socket; those are retention's protocols, restated here over this deployment's own bindings so one address answers a run and a reviewer.",
+    "p_outside": 0.6968
+   },
+   {
+    "block": "acquisition",
+    "sentence": "It never mounts anything: a subject arrives already on screen, and the knowledge of how to put it there stays with whoever already had it.",
+    "p_outside": 0.9196
+   },
+   {
+    "block": "acquisition",
+    "sentence": "It owns no policy \u2014 not the normalization ruleset, not what an ignore means, not the stabilization recipe, not arrival, not which subjects a change could have moved \u2014 and it does not paint, does not compare, and holds no baseline.",
+    "p_outside": 0.9196
+   }
+  ]
+ },
+ {
+  "spec": "0051-a-sensitivity-is-scoped-by-id-and-nothing-else.md",
+  "gold": [
+   "adjudication",
+   "normalization"
+  ],
+  "bm25": [
+   "adjudication",
+   "normalization",
+   "review"
+  ],
+  "g1": {
+   "acquisition": 0.0501,
+   "adjudication": 0.2262,
+   "materialization": 0.0658,
+   "normalization": 0.2307,
+   "presentation": 0.0706,
+   "reach": 0.0227,
+   "report": 0.0439,
+   "retention": 0.0701,
+   "review": 0.0529,
+   "runtime": 0.0576,
+   "stability": 0.1094
+  },
+  "g2": {
+   "adjudication": 0.5506,
+   "normalization": 0.4494
+  },
+  "g3": [
+   {
+    "block": "adjudication",
+    "sentence": "It does not observe, does not decide when to re-read, does not choose or keep baselines, and does not aggregate for a person: it receives readings normalization already made comparable, and emits per-subject observations and per-rule ledgers, in plan order, owning neither the format nor its readings.",
+    "p_outside": 0.8262
+   },
+   {
+    "block": "normalization",
+    "sentence": "It reaches no state, drives no browser, holds nothing still, paints nothing, compares nothing and performs no I/O of its own: a raw capture arrives as plain data, and anything else it needs arrives as an argument.",
+    "p_outside": 0.8007
+   },
+   {
+    "block": "normalization",
+    "sentence": "It applies no operator policy \u2014 an ignore is a site on the tree and never an absorbed change, a sensitivity is never read here, no verdict is spelled, and whether two readings that disagree are an instability is decided elsewhere.",
+    "p_outside": 0.4484
+   },
+   {
+    "block": "review",
+    "sentence": "Nothing here observes: no verdict, no cause and no region is computed in this block \u2014 each arrives already attributed from adjudication inside the artifact report owns \u2014 and a promotion moves evidence a run already uploaded rather than painting any.",
+    "p_outside": 0.4693
+   }
+  ]
+ },
+ {
+  "spec": "0052-a-run-holds-every-tree-it-rendered.md",
+  "gold": [
+   "acquisition",
+   "adjudication",
+   "retention",
+   "stability"
+  ],
+  "bm25": [
+   "acquisition",
+   "stability",
+   "adjudication"
+  ],
+  "g1": {
+   "acquisition": 0.0621,
+   "adjudication": 0.1702,
+   "materialization": 0.0846,
+   "normalization": 0.1295,
+   "presentation": 0.0511,
+   "reach": 0.0465,
+   "report": 0.1,
+   "retention": 0.0904,
+   "review": 0.0411,
+   "runtime": 0.1534,
+   "stability": 0.0712
+  },
+  "g2": {
+   "acquisition": 0.3612,
+   "stability": 0.6388
+  },
+  "g3": [
+   {
+    "block": "acquisition",
+    "sentence": "It never mounts anything: a subject arrives already on screen, and the knowledge of how to put it there stays with whoever already had it.",
+    "p_outside": 0.9241
+   },
+   {
+    "block": "acquisition",
+    "sentence": "It owns no policy \u2014 not the normalization ruleset, not what an ignore means, not the stabilization recipe, not arrival, not which subjects a change could have moved \u2014 and it does not paint, does not compare, and holds no baseline.",
+    "p_outside": 0.7249
+   },
+   {
+    "block": "stability",
+    "sentence": "It does not retry: both outcomes of both second readings are reported and neither clears anything.",
+    "p_outside": 0.1432
+   },
+   {
+    "block": "stability",
+    "sentence": "It decides nothing beyond whether a reading may be trusted \u2014 it does not paint, does not say what a difference against a baseline means, and does not keep the record of how often a subject has read differently, which belongs to retention.",
+    "p_outside": 0.9063
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It does not observe, does not decide when to re-read, does not choose or keep baselines, and does not aggregate for a person: it receives readings normalization already made comparable, and emits per-subject observations and per-rule ledgers, in plan order, owning neither the format nor its readings.",
+    "p_outside": 0.8505
+   }
+  ]
+ },
+ {
+  "spec": "0053-a-surface-inside-a-suite-reaches-less.md",
+  "gold": [
+   "acquisition",
+   "runtime"
+  ],
+  "bm25": [
+   "acquisition",
+   "report",
+   "review"
+  ],
+  "g1": {
+   "acquisition": 0.0361,
+   "adjudication": 0.1062,
+   "materialization": 0.0436,
+   "normalization": 0.1108,
+   "presentation": 0.0617,
+   "reach": 0.0304,
+   "report": 0.1703,
+   "retention": 0.029,
+   "review": 0.0952,
+   "runtime": 0.2628,
+   "stability": 0.0538
+  },
+  "g2": {
+   "acquisition": 0.1836,
+   "report": 0.8164
+  },
+  "g3": [
+   {
+    "block": "acquisition",
+    "sentence": "It never mounts anything: a subject arrives already on screen, and the knowledge of how to put it there stays with whoever already had it.",
+    "p_outside": 0.8926
+   },
+   {
+    "block": "acquisition",
+    "sentence": "It owns no policy \u2014 not the normalization ruleset, not what an ignore means, not the stabilization recipe, not arrival, not which subjects a change could have moved \u2014 and it does not paint, does not compare, and holds no baseline.",
+    "p_outside": 0.1238
+   },
+   {
+    "block": "report",
+    "sentence": "It observes nothing and decides nothing: no reading here renders a subject, re-runs a comparison, consults a baseline, opens a browser or reads a clock, and no reading computes a verdict, promotes a candidate or records an approval.",
+    "p_outside": 0.847
+   },
+   {
+    "block": "report",
+    "sentence": "It does not own the format it defines \u2014 neither the writer nor any reader does \u2014 so a shape is admitted here only if it means the same thing to all of them.",
+    "p_outside": 0.2012
+   },
+   {
+    "block": "review",
+    "sentence": "Nothing here observes: no verdict, no cause and no region is computed in this block \u2014 each arrives already attributed from adjudication inside the artifact report owns \u2014 and a promotion moves evidence a run already uploaded rather than painting any.",
+    "p_outside": 0.1461
+   },
+   {
+    "block": "review",
+    "sentence": "It owns neither the baseline store nor the record it re-serves from the same socket; those are retention's protocols, restated here over this deployment's own bindings so one address answers a run and a reviewer.",
+    "p_outside": 0.0839
+   }
+  ]
+ },
+ {
+  "spec": "0055-a-workspace-import-resolves-to-its-source.md",
+  "gold": [
+   "acquisition",
+   "normalization",
+   "reach"
+  ],
+  "bm25": [
+   "reach",
+   "adjudication",
+   "normalization"
+  ],
+  "g1": {
+   "acquisition": 0.0456,
+   "adjudication": 0.1998,
+   "materialization": 0.0248,
+   "normalization": 0.1508,
+   "presentation": 0.0559,
+   "reach": 0.2818,
+   "report": 0.0572,
+   "retention": 0.0329,
+   "review": 0.0467,
+   "runtime": 0.0688,
+   "stability": 0.0355
+  },
+  "g2": {
+   "reach": 0.5059,
+   "adjudication": 0.4941
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.9305
+   },
+   {
+    "block": "reach",
+    "sentence": "It does not gate \u2014 a subject it excluded is stated by name for report to carry.",
+    "p_outside": 0.0804
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It never infers cause from a pixel \u2014 causality runs code \u2192 meaning \u2192 pixels in one direction, so an author is looked up rather than reconstructed.",
+    "p_outside": 0.1002
+   },
+   {
+    "block": "normalization",
+    "sentence": "It reaches no state, drives no browser, holds nothing still, paints nothing, compares nothing and performs no I/O of its own: a raw capture arrives as plain data, and anything else it needs arrives as an argument.",
+    "p_outside": 0.539
+   }
+  ]
+ },
+ {
+  "spec": "0056-a-session-daemon-keeps-the-index-current.md",
+  "gold": [
+   "reach"
+  ],
+  "bm25": [
+   "reach",
+   "normalization",
+   "presentation"
+  ],
+  "g1": {
+   "acquisition": 0.0745,
+   "adjudication": 0.2097,
+   "materialization": 0.0363,
+   "normalization": 0.1257,
+   "presentation": 0.0473,
+   "reach": 0.1167,
+   "report": 0.0705,
+   "retention": 0.0539,
+   "review": 0.0652,
+   "runtime": 0.1652,
+   "stability": 0.0349
+  },
+  "g2": {
+   "reach": 0.4659,
+   "normalization": 0.5341
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.1371
+   },
+   {
+    "block": "normalization",
+    "sentence": "It reaches no state, drives no browser, holds nothing still, paints nothing, compares nothing and performs no I/O of its own: a raw capture arrives as plain data, and anything else it needs arrives as an argument.",
+    "p_outside": 0.2613
+   },
+   {
+    "block": "normalization",
+    "sentence": "It applies no operator policy \u2014 an ignore is a site on the tree and never an absorbed change, a sensitivity is never read here, no verdict is spelled, and whether two readings that disagree are an instability is decided elsewhere.",
+    "p_outside": 0.5889
+   }
+  ]
+ },
+ {
+  "spec": "0059-a-change-runs-the-cases-that-ran-it.md",
+  "gold": [
+   "reach"
+  ],
+  "bm25": [
+   "reach",
+   "adjudication",
+   "retention"
+  ],
+  "g1": {
+   "acquisition": 0.0494,
+   "adjudication": 0.1013,
+   "materialization": 0.0332,
+   "normalization": 0.0619,
+   "presentation": 0.0321,
+   "reach": 0.4686,
+   "report": 0.0654,
+   "retention": 0.0275,
+   "review": 0.0403,
+   "runtime": 0.0998,
+   "stability": 0.0204
+  },
+  "g2": {
+   "reach": 0.817,
+   "adjudication": 0.183
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.7599
+   },
+   {
+    "block": "reach",
+    "sentence": "It does not gate \u2014 a subject it excluded is stated by name for report to carry.",
+    "p_outside": 0.7311
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It does not observe, does not decide when to re-read, does not choose or keep baselines, and does not aggregate for a person: it receives readings normalization already made comparable, and emits per-subject observations and per-rule ledgers, in plan order, owning neither the format nor its readings.",
+    "p_outside": 0.5765
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It never infers cause from a pixel \u2014 causality runs code \u2192 meaning \u2192 pixels in one direction, so an author is looked up rather than reconstructed.",
+    "p_outside": 0.1093
+   },
+   {
+    "block": "retention",
+    "sentence": "It does not render, does not compare two readings, does not classify a difference into a band, and never produces a verdict.",
+    "p_outside": 0.3951
+   },
+   {
+    "block": "retention",
+    "sentence": "It decides nothing and gates nothing: a person's decision arrives from review already made, and this block writes it down.",
+    "p_outside": 0.9185
+   }
+  ]
+ },
+ {
+  "spec": "0061-a-depends-directive-takes-a-glob.md",
+  "gold": [
+   "reach"
+  ],
+  "bm25": [
+   "reach",
+   "adjudication",
+   "acquisition"
+  ],
+  "g1": {
+   "acquisition": 0.0324,
+   "adjudication": 0.0655,
+   "materialization": 0.0703,
+   "normalization": 0.1247,
+   "presentation": 0.0705,
+   "reach": 0.3918,
+   "report": 0.0601,
+   "retention": 0.052,
+   "review": 0.0334,
+   "runtime": 0.067,
+   "stability": 0.0322
+  },
+  "g2": {
+   "reach": 0.7476,
+   "adjudication": 0.2524
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.5746
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It never infers cause from a pixel \u2014 causality runs code \u2192 meaning \u2192 pixels in one direction, so an author is looked up rather than reconstructed.",
+    "p_outside": 0.2644
+   },
+   {
+    "block": "acquisition",
+    "sentence": "It never mounts anything: a subject arrives already on screen, and the knowledge of how to put it there stays with whoever already had it.",
+    "p_outside": 0.8903
+   }
+  ]
+ },
+ {
+  "spec": "0062-a-suite-says-which-files-reach-it.md",
+  "gold": [
+   "reach"
+  ],
+  "bm25": [
+   "reach",
+   "adjudication",
+   "normalization"
+  ],
+  "g1": {
+   "acquisition": 0.0924,
+   "adjudication": 0.1529,
+   "materialization": 0.0657,
+   "normalization": 0.0844,
+   "presentation": 0.0349,
+   "reach": 0.3223,
+   "report": 0.0418,
+   "retention": 0.0352,
+   "review": 0.0411,
+   "runtime": 0.0938,
+   "stability": 0.0355
+  },
+  "g2": {
+   "reach": 0.7773,
+   "adjudication": 0.2227
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.3469
+   },
+   {
+    "block": "reach",
+    "sentence": "It does not gate \u2014 a subject it excluded is stated by name for report to carry.",
+    "p_outside": 0.3416
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It does not observe, does not decide when to re-read, does not choose or keep baselines, and does not aggregate for a person: it receives readings normalization already made comparable, and emits per-subject observations and per-rule ledgers, in plan order, owning neither the format nor its readings.",
+    "p_outside": 0.4092
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It never infers cause from a pixel \u2014 causality runs code \u2192 meaning \u2192 pixels in one direction, so an author is looked up rather than reconstructed.",
+    "p_outside": 0.0891
+   },
+   {
+    "block": "normalization",
+    "sentence": "It reaches no state, drives no browser, holds nothing still, paints nothing, compares nothing and performs no I/O of its own: a raw capture arrives as plain data, and anything else it needs arrives as an argument.",
+    "p_outside": 0.1097
+   },
+   {
+    "block": "normalization",
+    "sentence": "It applies no operator policy \u2014 an ignore is a site on the tree and never an absorbed change, a sensitivity is never read here, no verdict is spelled, and whether two readings that disagree are an instability is decided elsewhere.",
+    "p_outside": 0.9012
+   }
+  ]
+ },
+ {
+  "spec": "0063-an-editor-asks-about-the-text-it-holds.md",
+  "gold": [
+   "adjudication",
+   "reach"
+  ],
+  "bm25": [
+   "reach",
+   "retention",
+   "adjudication"
+  ],
+  "g1": {
+   "acquisition": 0.0411,
+   "adjudication": 0.1564,
+   "materialization": 0.0689,
+   "normalization": 0.1407,
+   "presentation": 0.0805,
+   "reach": 0.0363,
+   "report": 0.204,
+   "retention": 0.0376,
+   "review": 0.0909,
+   "runtime": 0.1054,
+   "stability": 0.0383
+  },
+  "g2": {
+   "reach": 0.2351,
+   "retention": 0.7649
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.884
+   },
+   {
+    "block": "reach",
+    "sentence": "It does not gate \u2014 a subject it excluded is stated by name for report to carry.",
+    "p_outside": 0.0775
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It never infers cause from a pixel \u2014 causality runs code \u2192 meaning \u2192 pixels in one direction, so an author is looked up rather than reconstructed.",
+    "p_outside": 0.0957
+   }
+  ]
+ },
+ {
+  "spec": "0067-a-case-carries-its-outcome.md",
+  "gold": [
+   "reach"
+  ],
+  "bm25": [
+   "reach",
+   "retention",
+   "review"
+  ],
+  "g1": {
+   "acquisition": 0.0389,
+   "adjudication": 0.1808,
+   "materialization": 0.0443,
+   "normalization": 0.0964,
+   "presentation": 0.0608,
+   "reach": 0.0357,
+   "report": 0.2294,
+   "retention": 0.0483,
+   "review": 0.0647,
+   "runtime": 0.1653,
+   "stability": 0.0353
+  },
+  "g2": {
+   "reach": 0.3225,
+   "retention": 0.6775
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.7807
+   },
+   {
+    "block": "retention",
+    "sentence": "It does not render, does not compare two readings, does not classify a difference into a band, and never produces a verdict.",
+    "p_outside": 0.8129
+   },
+   {
+    "block": "review",
+    "sentence": "It owns neither the baseline store nor the record it re-serves from the same socket; those are retention's protocols, restated here over this deployment's own bindings so one address answers a run and a reviewer.",
+    "p_outside": 0.1993
+   }
+  ]
+ },
+ {
+  "spec": "0068-an-edit-runs-what-it-reaches-from-the-editor.md",
+  "gold": [
+   "reach"
+  ],
+  "bm25": [
+   "reach",
+   "presentation",
+   "report"
+  ],
+  "g1": {
+   "acquisition": 0.0387,
+   "adjudication": 0.1592,
+   "materialization": 0.035,
+   "normalization": 0.1279,
+   "presentation": 0.0607,
+   "reach": 0.0873,
+   "report": 0.1433,
+   "retention": 0.0378,
+   "review": 0.0962,
+   "runtime": 0.1906,
+   "stability": 0.0233
+  },
+  "g2": {
+   "reach": 0.713,
+   "presentation": 0.287
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.7925
+   },
+   {
+    "block": "presentation",
+    "sentence": "It owns no baseline, promotes no candidate, and returns no verdict about a run.",
+    "p_outside": 0.4707
+   },
+   {
+    "block": "presentation",
+    "sentence": "It never produces a global quality score, a threshold pass, a severity, or a design recommendation, and it never proposes deleting, hiding, collapsing or truncating information to make a finding go away.",
+    "p_outside": 0.1034
+   },
+   {
+    "block": "report",
+    "sentence": "It observes nothing and decides nothing: no reading here renders a subject, re-runs a comparison, consults a baseline, opens a browser or reads a clock, and no reading computes a verdict, promotes a candidate or records an approval.",
+    "p_outside": 0.8606
+   },
+   {
+    "block": "report",
+    "sentence": "It does not own the format it defines \u2014 neither the writer nor any reader does \u2014 so a shape is admitted here only if it means the same thing to all of them.",
+    "p_outside": 0.2282
+   }
+  ]
+ },
+ {
+  "spec": "0070-a-change-says-what-its-tests-moved.md",
+  "gold": [
+   "reach"
+  ],
+  "bm25": [
+   "reach",
+   "adjudication",
+   "runtime"
+  ],
+  "g1": {
+   "acquisition": 0.0346,
+   "adjudication": 0.3122,
+   "materialization": 0.0532,
+   "normalization": 0.1291,
+   "presentation": 0.0538,
+   "reach": 0.085,
+   "report": 0.0827,
+   "retention": 0.0762,
+   "review": 0.0689,
+   "runtime": 0.0608,
+   "stability": 0.0434
+  },
+  "g2": {
+   "reach": 0.2344,
+   "adjudication": 0.7656
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.8278
+   }
+  ]
+ },
+ {
+  "spec": "0071-a-test-is-read-alone.md",
+  "gold": [
+   "reach"
+  ],
+  "bm25": [
+   "reach",
+   "adjudication",
+   "stability"
+  ],
+  "g1": {
+   "acquisition": 0.0356,
+   "adjudication": 0.119,
+   "materialization": 0.0766,
+   "normalization": 0.0844,
+   "presentation": 0.3378,
+   "reach": 0.0376,
+   "report": 0.1002,
+   "retention": 0.0397,
+   "review": 0.0751,
+   "runtime": 0.0625,
+   "stability": 0.0314
+  },
+  "g2": {
+   "reach": 0.4533,
+   "adjudication": 0.5467
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.862
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It does not observe, does not decide when to re-read, does not choose or keep baselines, and does not aggregate for a person: it receives readings normalization already made comparable, and emits per-subject observations and per-rule ledgers, in plan order, owning neither the format nor its readings.",
+    "p_outside": 0.851
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It never infers cause from a pixel \u2014 causality runs code \u2192 meaning \u2192 pixels in one direction, so an author is looked up rather than reconstructed.",
+    "p_outside": 0.0895
+   },
+   {
+    "block": "stability",
+    "sentence": "It does not retry: both outcomes of both second readings are reported and neither clears anything.",
+    "p_outside": 0.3693
+   },
+   {
+    "block": "stability",
+    "sentence": "It decides nothing beyond whether a reading may be trusted \u2014 it does not paint, does not say what a difference against a baseline means, and does not keep the record of how often a subject has read differently, which belongs to retention.",
+    "p_outside": 0.4064
+   }
+  ]
+ },
+ {
+  "spec": "0072-a-case-read-two-ways-is-compared-with-itself.md",
+  "gold": [
+   "reach"
+  ],
+  "bm25": [
+   "reach",
+   "adjudication",
+   "materialization"
+  ],
+  "g1": {
+   "acquisition": 0.0482,
+   "adjudication": 0.2272,
+   "materialization": 0.0698,
+   "normalization": 0.1202,
+   "presentation": 0.0572,
+   "reach": 0.0346,
+   "report": 0.0883,
+   "retention": 0.0918,
+   "review": 0.0666,
+   "runtime": 0.0823,
+   "stability": 0.1138
+  },
+  "g2": {
+   "reach": 0.2983,
+   "adjudication": 0.7017
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.9086
+   },
+   {
+    "block": "reach",
+    "sentence": "It does not gate \u2014 a subject it excluded is stated by name for report to carry.",
+    "p_outside": 0.1059
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It does not observe, does not decide when to re-read, does not choose or keep baselines, and does not aggregate for a person: it receives readings normalization already made comparable, and emits per-subject observations and per-rule ledgers, in plan order, owning neither the format nor its readings.",
+    "p_outside": 0.6553
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It never infers cause from a pixel \u2014 causality runs code \u2192 meaning \u2192 pixels in one direction, so an author is looked up rather than reconstructed.",
+    "p_outside": 0.0988
+   },
+   {
+    "block": "materialization",
+    "sentence": "It does not compare, does not store, and does not decide whether the image was needed: adjudication owns the pixel comparison, the mask, the regions and every verdict, and settling a subject against the prior reading's document digest happens before a document is handed here.",
+    "p_outside": 0.9425
+   },
+   {
+    "block": "materialization",
+    "sentence": "It does not choose what to observe, does not drive an application to a state, does not read a live tree, does not decide where a baseline lives and never promotes one.",
+    "p_outside": 0.8948
+   }
+  ]
+ },
+ {
+  "spec": "0074-what-ci-derived-is-reachable-from-a-checkout.md",
+  "gold": [
+   "adjudication",
+   "reach"
+  ],
+  "bm25": [
+   "report",
+   "retention",
+   "adjudication"
+  ],
+  "g1": {
+   "acquisition": 0.173,
+   "adjudication": 0.1126,
+   "materialization": 0.056,
+   "normalization": 0.1237,
+   "presentation": 0.0542,
+   "reach": 0.088,
+   "report": 0.1144,
+   "retention": 0.0528,
+   "review": 0.0915,
+   "runtime": 0.1015,
+   "stability": 0.0323
+  },
+  "g2": {
+   "report": 0.7387,
+   "retention": 0.2613
+  },
+  "g3": [
+   {
+    "block": "report",
+    "sentence": "It observes nothing and decides nothing: no reading here renders a subject, re-runs a comparison, consults a baseline, opens a browser or reads a clock, and no reading computes a verdict, promotes a candidate or records an approval.",
+    "p_outside": 0.8093
+   },
+   {
+    "block": "report",
+    "sentence": "It does not own the format it defines \u2014 neither the writer nor any reader does \u2014 so a shape is admitted here only if it means the same thing to all of them.",
+    "p_outside": 0.6243
+   },
+   {
+    "block": "retention",
+    "sentence": "It decides nothing and gates nothing: a person's decision arrives from review already made, and this block writes it down.",
+    "p_outside": 0.8554
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It does not observe, does not decide when to re-read, does not choose or keep baselines, and does not aggregate for a person: it receives readings normalization already made comparable, and emits per-subject observations and per-rule ledgers, in plan order, owning neither the format nor its readings.",
+    "p_outside": 0.3923
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It never infers cause from a pixel \u2014 causality runs code \u2192 meaning \u2192 pixels in one direction, so an author is looked up rather than reconstructed.",
+    "p_outside": 0.0558
+   }
+  ]
+ },
+ {
+  "spec": "0079-shards-steal-from-each-other.md",
+  "gold": [
+   "adjudication",
+   "reach"
+  ],
+  "bm25": [
+   "report",
+   "reach",
+   "runtime"
+  ],
+  "g1": {
+   "acquisition": 0.0689,
+   "adjudication": 0.0927,
+   "materialization": 0.0408,
+   "normalization": 0.1318,
+   "presentation": 0.0608,
+   "reach": 0.0927,
+   "report": 0.0684,
+   "retention": 0.0492,
+   "review": 0.0694,
+   "runtime": 0.2856,
+   "stability": 0.0397
+  },
+  "g2": {
+   "report": 0.3363,
+   "reach": 0.6637
+  },
+  "g3": [
+   {
+    "block": "report",
+    "sentence": "It observes nothing and decides nothing: no reading here renders a subject, re-runs a comparison, consults a baseline, opens a browser or reads a clock, and no reading computes a verdict, promotes a candidate or records an approval.",
+    "p_outside": 0.1705
+   },
+   {
+    "block": "report",
+    "sentence": "It does not own the format it defines \u2014 neither the writer nor any reader does \u2014 so a shape is admitted here only if it means the same thing to all of them.",
+    "p_outside": 0.093
+   },
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.2822
+   },
+   {
+    "block": "reach",
+    "sentence": "It does not gate \u2014 a subject it excluded is stated by name for report to carry.",
+    "p_outside": 0.175
+   },
+   {
+    "block": "runtime",
+    "sentence": "Nothing here decides anything and nothing here observes a subject: it writes no verdict, no baseline, no approval, no history row and no exit code, and it neither captures, normalizes nor rasterizes.",
+    "p_outside": 0.5467
+   },
+   {
+    "block": "runtime",
+    "sentence": "Nothing on a default path is written down \u2014 an announcement is worth something for the length of one execution and nothing afterwards, and the scenario archive is the one component that keeps anything.",
+    "p_outside": 0.1634
+   }
+  ]
+ },
+ {
+  "spec": "0080-coverage-is-counted-per-kind.md",
+  "gold": [
+   "adjudication",
+   "reach"
+  ],
+  "bm25": [
+   "reach",
+   "report",
+   "adjudication"
+  ],
+  "g1": {
+   "acquisition": 0.0341,
+   "adjudication": 0.276,
+   "materialization": 0.0809,
+   "normalization": 0.1443,
+   "presentation": 0.0559,
+   "reach": 0.0992,
+   "report": 0.0889,
+   "retention": 0.0829,
+   "review": 0.0463,
+   "runtime": 0.0623,
+   "stability": 0.0292
+  },
+  "g2": {
+   "reach": 0.4263,
+   "report": 0.5737
+  },
+  "g3": [
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.8634
+   },
+   {
+    "block": "report",
+    "sentence": "It observes nothing and decides nothing: no reading here renders a subject, re-runs a comparison, consults a baseline, opens a browser or reads a clock, and no reading computes a verdict, promotes a candidate or records an approval.",
+    "p_outside": 0.8872
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It does not observe, does not decide when to re-read, does not choose or keep baselines, and does not aggregate for a person: it receives readings normalization already made comparable, and emits per-subject observations and per-rule ledgers, in plan order, owning neither the format nor its readings.",
+    "p_outside": 0.897
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It never infers cause from a pixel \u2014 causality runs code \u2192 meaning \u2192 pixels in one direction, so an author is looked up rather than reconstructed.",
+    "p_outside": 0.1101
+   }
+  ]
+ },
+ {
+  "spec": "0081-the-tech-stack-is-read-from-the-code.md",
+  "gold": [
+   "report"
+  ],
+  "bm25": [
+   "normalization",
+   "presentation",
+   "review"
+  ],
+  "g1": {
+   "acquisition": 0.0462,
+   "adjudication": 0.138,
+   "materialization": 0.0411,
+   "normalization": 0.1886,
+   "presentation": 0.0986,
+   "reach": 0.0678,
+   "report": 0.0691,
+   "retention": 0.0516,
+   "review": 0.1025,
+   "runtime": 0.1412,
+   "stability": 0.0553
+  },
+  "g2": {
+   "normalization": 0.4659,
+   "presentation": 0.5341
+  },
+  "g3": [
+   {
+    "block": "normalization",
+    "sentence": "It reaches no state, drives no browser, holds nothing still, paints nothing, compares nothing and performs no I/O of its own: a raw capture arrives as plain data, and anything else it needs arrives as an argument.",
+    "p_outside": 0.2846
+   },
+   {
+    "block": "normalization",
+    "sentence": "It applies no operator policy \u2014 an ignore is a site on the tree and never an absorbed change, a sensitivity is never read here, no verdict is spelled, and whether two readings that disagree are an instability is decided elsewhere.",
+    "p_outside": 0.851
+   },
+   {
+    "block": "presentation",
+    "sentence": "It never produces a global quality score, a threshold pass, a severity, or a design recommendation, and it never proposes deleting, hiding, collapsing or truncating information to make a finding go away.",
+    "p_outside": 0.4003
+   },
+   {
+    "block": "review",
+    "sentence": "Nothing here observes: no verdict, no cause and no region is computed in this block \u2014 each arrives already attributed from adjudication inside the artifact report owns \u2014 and a promotion moves evidence a run already uploaded rather than painting any.",
+    "p_outside": 0.4785
+   }
+  ]
+ },
+ {
+  "spec": "0087-every-suite-is-compared-with-its-own-base.md",
+  "gold": [
+   "adjudication",
+   "reach"
+  ],
+  "bm25": [
+   "adjudication",
+   "report",
+   "acquisition"
+  ],
+  "g1": {
+   "acquisition": 0.0612,
+   "adjudication": 0.2496,
+   "materialization": 0.0789,
+   "normalization": 0.1812,
+   "presentation": 0.0654,
+   "reach": 0.0374,
+   "report": 0.0586,
+   "retention": 0.0908,
+   "review": 0.0335,
+   "runtime": 0.0944,
+   "stability": 0.0492
+  },
+  "g2": {
+   "adjudication": 0.5215,
+   "report": 0.4785
+  },
+  "g3": [
+   {
+    "block": "adjudication",
+    "sentence": "It does not observe, does not decide when to re-read, does not choose or keep baselines, and does not aggregate for a person: it receives readings normalization already made comparable, and emits per-subject observations and per-rule ledgers, in plan order, owning neither the format nor its readings.",
+    "p_outside": 0.8267
+   },
+   {
+    "block": "adjudication",
+    "sentence": "It never infers cause from a pixel \u2014 causality runs code \u2192 meaning \u2192 pixels in one direction, so an author is looked up rather than reconstructed.",
+    "p_outside": 0.1067
+   },
+   {
+    "block": "report",
+    "sentence": "It observes nothing and decides nothing: no reading here renders a subject, re-runs a comparison, consults a baseline, opens a browser or reads a clock, and no reading computes a verdict, promotes a candidate or records an approval.",
+    "p_outside": 0.8688
+   },
+   {
+    "block": "report",
+    "sentence": "It does not own the format it defines \u2014 neither the writer nor any reader does \u2014 so a shape is admitted here only if it means the same thing to all of them.",
+    "p_outside": 0.2031
+   }
+  ]
+ },
+ {
+  "spec": "0088-a-suite-is-carried-alone.md",
+  "gold": [
+   "adjudication",
+   "reach"
+  ],
+  "bm25": [
+   "retention",
+   "reach",
+   "acquisition"
+  ],
+  "g1": {
+   "acquisition": 0.1123,
+   "adjudication": 0.0692,
+   "materialization": 0.0347,
+   "normalization": 0.0988,
+   "presentation": 0.0611,
+   "reach": 0.0784,
+   "report": 0.142,
+   "retention": 0.1355,
+   "review": 0.0917,
+   "runtime": 0.1442,
+   "stability": 0.0321
+  },
+  "g2": {
+   "retention": 0.661,
+   "reach": 0.339
+  },
+  "g3": [
+   {
+    "block": "retention",
+    "sentence": "It decides nothing and gates nothing: a person's decision arrives from review already made, and this block writes it down.",
+    "p_outside": 0.9208
+   },
+   {
+    "block": "reach",
+    "sentence": "It observes nothing, paints nothing, compares nothing, issues no verdict and computes no build graph: another tool's affected-project answer arrives as a seed rather than as a selection.",
+    "p_outside": 0.9225
+   },
+   {
+    "block": "reach",
+    "sentence": "It does not gate \u2014 a subject it excluded is stated by name for report to carry.",
+    "p_outside": 0.1059
+   }
+  ]
+ },
+ {
+  "spec": "0089-this-repository-reports-every-kind-it-runs.md",
+  "gold": [
+   "acquisition"
+  ],
+  "bm25": [
+   "acquisition",
+   "report",
+   "presentation"
+  ],
+  "g1": {
+   "acquisition": 0.0302,
+   "adjudication": 0.143,
+   "materialization": 0.0916,
+   "normalization": 0.0742,
+   "presentation": 0.064,
+   "reach": 0.0473,
+   "report": 0.2423,
+   "retention": 0.0562,
+   "review": 0.0564,
+   "runtime": 0.1614,
+   "stability": 0.0332
+  },
+  "g2": {
+   "acquisition": 0.1582,
+   "report": 0.8418
+  },
+  "g3": [
+   {
+    "block": "acquisition",
+    "sentence": "It never mounts anything: a subject arrives already on screen, and the knowledge of how to put it there stays with whoever already had it.",
+    "p_outside": 0.8856
+   },
+   {
+    "block": "report",
+    "sentence": "It observes nothing and decides nothing: no reading here renders a subject, re-runs a comparison, consults a baseline, opens a browser or reads a clock, and no reading computes a verdict, promotes a candidate or records an approval.",
+    "p_outside": 0.7853
+   },
+   {
+    "block": "report",
+    "sentence": "It does not own the format it defines \u2014 neither the writer nor any reader does \u2014 so a shape is admitted here only if it means the same thing to all of them.",
+    "p_outside": 0.0988
+   }
+  ]
+ }
+]
