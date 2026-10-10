@@ -2,8 +2,9 @@
 
 A spinner caught mid-turn, a web font that arrived late, a scrollbar one machine
 draws and another does not: any of them reports a change your code did not make.
-A run holds your page still before it reads it, so that two readings of an
-unchanged UI agree. Read on for what it does to get your page there, what you
+A run, one execution of `npx variance run` or one observation in your test,
+holds your page still before it reads it, so that two readings of an unchanged
+UI agree. Read on for what it does to get your page there, what you
 can change about it, and how far into your page it goes.
 
 New here? Start with [your first run](start.md).
@@ -39,8 +40,10 @@ export default routeCollector({
 });
 ```
 
-The environment key records the recipe, so these baselines are kept apart from
-the default ones. `@variance-authority/storybook-collector` exports the same
+Every baseline records the list it was taken under. A run under a new list
+does not report each subject, one named UI state such as a story or a route,
+as changed: it reports it `incomparable`, and the baseline you accept under the
+new list starts over. `@variance-authority/storybook-collector` exports the same
 `DEFAULT_STABILIZE` for `storybookCollector`.
 
 The `variance` fixture in `@variance-authority/playwright-test` fixes `Date` on
@@ -59,21 +62,23 @@ reading records true to the clock it read.
 
 ### What reaches the image
 
-Leaving a trick out changes what is read. Whether it changes the image
-depends on which browser paints it.
+By default the screenshot is not taken from your page. The tool records your
+page's markup and the styles that apply to it, then paints that record later in
+a fresh browser page that nobody points at or focuses. `routeCollector` and
+`storybookCollector` always work this way, and so does the `variance` fixture
+unless you choose in-place capture, below. The fresh page gets a fixed set of
+tricks of its own, whatever list your page was read under: animations held,
+scrollbars and the caret hidden, focus released, even from an `autofocus`, and
+fonts and images waited for.
 
-**Deferred rendering** paints the reading in a fresh page of its own. It is how
-`routeCollector` and `storybookCollector` paint, and how the `variance` fixture
-paints unless you choose in-place capture. That page is painted under the
-renderer's own recipe, whatever recipe your page was read under: animations
-held, scrollbars and the caret hidden, focus released, even from an `autofocus`,
-fonts and images waited for. Nothing moves a pointer over it. A hover state or
-a focus ring cannot reach this image: it is the image of a page nobody is using.
-Leaving `no-hover` or `no-focus` out changes only the reading, where the
-`:hover` and `:focus` rules that matched while your page was hovered or focused
-are recorded, and keeps its own baselines. A date your page printed and the
-`@media` rules the motion preference chose are in the reading, so leaving
-`freeze-clock` or `reduced-motion` out does reach this image.
+A hover state or a focus ring cannot reach that screenshot: it is the image of
+a page nobody is using. Leaving `no-hover` or `no-focus` out changes the record,
+not the screenshot. Which `:hover` and `:focus` rules matched while your page
+was hovered or focused is recorded and compared, and a difference shows as
+`document: changed` among the result's [signals](information.md#verdicts),
+beside a verdict that follows the screenshot. Leaving `freeze-clock` or
+`reduced-motion` out does reach the screenshot, because the date your page
+printed and the styles the motion preference chose are part of the record.
 
 **In-place capture** in `@variance-authority/playwright-test` takes the
 screenshot from the page your test is using
@@ -101,14 +106,6 @@ once you need it.
 | skip the Suspense wait | `suspenseTimeoutMs: 0` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
 
 ## Before your first run
-
-Two terms this page uses throughout:
-
-- A **subject** is one named UI state you asked for and can ask for again — a
-  story, a route, a fixture, or a value such as a JSON body — identified by a
-  stable id like `story:components-button--primary`.
-- A **run** is one execution of `npx variance run`: it plans a set of subjects,
-  captures each one, and compares it against that subject's baseline.
 
 If you have not installed the CLI yet:
 
