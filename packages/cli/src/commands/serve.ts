@@ -5,6 +5,7 @@ import {
   REVIEW_TOOLS,
   type CostsSubject,
   type Reviewed,
+  type ReviewTool,
   type Served,
   type Tool,
   type Tree,
@@ -78,6 +79,9 @@ interface Bench {
 /** The one tool whose answer is about the previous request's report as well as this one's. */
 const COMPARES_PREVIOUS = 'variance_diff';
 
+/** Every question about review, each read for the subject its own route answers. */
+const REVIEWING: readonly ReviewTool[] = REVIEW_TOOLS;
+
 const SOURCE_QUESTIONS: ReadonlySet<string> = new Set(HELP_TOOLS.map((tool) => tool.name));
 
 /**
@@ -130,7 +134,7 @@ const BENCH: Served<Bench> = {
     // The mainline's times, as `variance ask costs` reads them with no report named.
     ...over(COSTS_TOOLS, (bench) => bench.costs, (bench) => bench.costsRefused ?? 'no subject costs were read'),
     // What review settled, as `variance ask` reads it: with the share token.
-    ...over(REVIEW_TOOLS, (bench) => bench.review, (bench) => bench.reviewRefused ?? 'nothing review settled was read'),
+    ...over(REVIEWING, (bench) => bench.review, (bench) => bench.reviewRefused ?? 'nothing review settled was read'),
     ...over(
       HELP.tools,
       (bench) => bench.help,
@@ -146,7 +150,8 @@ const BENCH: Served<Bench> = {
     'and which recorded test files took longest — read from the checkout, ' +
     'with no run required. `variance_costs` says which files and subjects the suite spends its time on, ' +
     'from the times the mainline\'s last build published. `variance_decisions` lists what reviewers ' +
-    'approved and rejected on the review surface, read with the share token, which never decides.',
+    'approved and rejected on the review surface, and `variance_concerns` which renders they flagged ' +
+    'as suspect and why; both are read with the share token, which never decides.',
 };
 
 export interface ServeOptions {
@@ -246,7 +251,7 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
         )
         : {};
       // Read for the window this call names, so a reversal made a minute ago is in it.
-      const reviewing = REVIEW_TOOLS.find((tool) => tool.name === asked);
+      const reviewing = REVIEWING.find((tool) => tool.name === asked);
       const review = reviewing !== undefined
         ? await reviewSubject(config, reviewing, input ?? {}).then(
           (read) => ({ review: read }),

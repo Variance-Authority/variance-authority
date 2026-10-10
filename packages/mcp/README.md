@@ -373,7 +373,7 @@ console.log(costs.run({
 }, { limit: 5, from: ['src'] }));
 ```
 
-## Say what review decided
+## Say what review decided and suspects
 
 `variance_decisions` answers from the review deployment's record: every
 approval and rejection, newest first, with the build, the subject, who decided
@@ -404,6 +404,31 @@ console.log(decisions.run({
     { build: 'ci-42', subject: 'story:card', decision: 'rejected', by: 'reviewer', at: '2026-08-21T09:50:11Z' },
   ],
 }, { subject: 'story:card' }));
+```
+
+`variance_concerns` answers, from the same deployment and with the same token,
+what reviewers suspect without having decided: each concern on a render, with
+its title, its state (`open`, `investigating` or `resolved`), the region and
+component it is about, what the reviewer pointed at, and every step since with
+its note and hypothesis. A call names a `subject`, a `build` or both, and
+`state` keeps one state. A `build` reads the concerns on every subject that
+build showed, whichever build raised them, and the answer counts them by state.
+Its subject is a `ConcernsSubject`, a `ReviewConcern` per concern. Every tool in
+`REVIEW_TOOLS` is a `ReviewTool`: it names the `route` its subject is read from
+and the `query` a call's input sends there, so a host reads them all one way.
+
+```js
+const [, concerns] = REVIEW_TOOLS;
+console.log(concerns.run({
+  from: 'https://variance.example.com',
+  concerns: [{
+    id: 7, build: 'ci-42', subject: 'story:card', title: 'The border is clipped',
+    region: { x: 154, y: 85, width: 24, height: 18, component: 'Button' },
+    evidence: ['the right border'], by: 'reviewer', at: '2026-08-21T09:40:00Z', state: 'open',
+    events: [{ state: 'open', by: 'reviewer', at: '2026-08-21T09:40:00Z', note: 'the right edge is cut' }],
+  }],
+  tally: { open: 1, investigating: 0, resolved: 0 },
+}, { build: 'ci-42' }));
 ```
 
 ## Watch a suite that has not finished

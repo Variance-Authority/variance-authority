@@ -42,6 +42,7 @@ describe('the question a tool answers', () => {
     // not from the report a reader has open.
     expect(questionFor('costs').costs).toBe(COSTS_TOOLS[0]);
     expect(questionFor('decisions').review).toBe(REVIEW_TOOLS[0]);
+    expect(questionFor('concerns').review).toBe(REVIEW_TOOLS[1]);
     expect(questionFor('costs').report).toBeUndefined();
     expect(questionFor('search').live).toBeUndefined();
     expect(questionFor('locate').source).toBeUndefined();

@@ -10,7 +10,7 @@ import { reviewSubject } from './ask-review.js';
  * token, and nothing that could decide.
  */
 
-const [decisions] = REVIEW_TOOLS;
+const [decisions, concerns] = REVIEW_TOOLS;
 const DEPLOYMENT = 'https://tribunal.example';
 
 const CONFIG = {
@@ -78,11 +78,67 @@ describe('the decisions a deployment recorded', () => {
   it('are refused without a config, which names the deployment and the token', async () => {
     await expect(
       ask({
+        question: 'concerns',
+        build: 'ci-1',
+        report: 'unused.json',
+        read: () => Promise.reject(new Error('a concern is not read from a report')),
+      }),
+    ).rejects.toThrow(/`concerns` needs a config: it names the deployment and the share token/);
+    await expect(
+      ask({
         question: 'decisions',
         subject: 'story:a',
         report: 'unused.json',
         read: () => Promise.reject(new Error('a decision is not read from a report')),
       }),
     ).rejects.toThrow(/`decisions` needs a config: it names the deployment and the share token/);
+  });
+});
+
+const FLAGGED = {
+  concerns: [
+    {
+      id: 3,
+      build: 'ci-1',
+      subject: 'story:a',
+      title: 'The border is clipped',
+      evidence: ['CartSummary.tsx:84'],
+      by: 'marina',
+      at: '2026-06-01T10:00:00.000Z',
+      state: 'open',
+      events: [{ state: 'open', by: 'marina', at: '2026-06-01T10:00:00.000Z', note: 'the right edge is cut' }],
+    },
+  ],
+  tally: { open: 1, investigating: 0, resolved: 0 },
+};
+
+describe('the concerns reviewers raised', () => {
+  it('are read from the same deployment, with the same share token, by the same reader', async () => {
+    const { asked, fetch } = answering(200, FLAGGED);
+    const read = await reviewSubject(CONFIG, concerns, { build: 'ci-1', state: 'open' }, fetch);
+    expect(asked).toEqual([
+      { url: `${DEPLOYMENT}/review/concerns?build=ci-1&state=open`, method: 'GET', authorization: 'Bearer share-secret' },
+    ]);
+    expect(read).toEqual({ from: DEPLOYMENT, ...FLAGGED });
+  });
+
+  it('are refused before anything is sent when the call names neither a subject nor a build', async () => {
+    const { asked, fetch } = answering(200, FLAGGED);
+    await expect(reviewSubject(CONFIG, concerns, { state: 'open' }, fetch)).rejects.toThrow(/needs a `subject` or a `build`/);
+    expect(asked).toEqual([]);
+  });
+
+  it('answer `variance ask concerns --build --state`, through the same tool the server mounts', async () => {
+    const { fetch } = answering(200, FLAGGED);
+    const answer = await ask({
+      question: 'concerns',
+      build: 'ci-1',
+      state: 'open',
+      report: 'unused.json',
+      read: () => Promise.reject(new Error('a concern is not read from a report')),
+      review: (tool, input) => reviewSubject(CONFIG, tool, input, fetch),
+    });
+    expect(answer).toContain('  #3  open  story:a  ci-1  "The border is clipped"');
+    expect(answer).toContain('      evidence CartSummary.tsx:84');
   });
 });

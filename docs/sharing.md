@@ -867,7 +867,7 @@ your machine needs. The names below are the deployment's settings, not yours:
   publish with it answers 403 before any byte is stored. It also reads what
   review settled — the changelog of approved baselines, every decision, and the
   concerns reviewers raised — for `variance changelog`, `variance ask decisions`
-  and `GET /review/concerns`, and it never decides or raises a concern.
+  and `variance ask concerns`, and it never decides or raises a concern.
 - **The review token is refused under `/share/`** with 403. It is the token a
   reviewer approves and rejects with, and nothing that reads a share holds it.
 
@@ -906,7 +906,9 @@ your `review.endpoint` or your `remote` `baselines.endpoint` names, when your
 `share.endpoint` is under it. It prints the decisions on that subject, a line
 saying there are none, or why the deployment refused: a 403 that names the ingest
 token when the variable holds CI's token, or a 404 when the deployment serves an
-API older than 5.
+API older than 5. `npx variance ask concerns --build <id>` reads the same way
+which renders reviewers flagged as suspect on the subjects that build showed,
+with each concern's state, region, evidence and trail.
 
 An older deployment answers 404 under `/share/`. A lookup then prints *nothing
 is published there*, and a publish writes nothing. `variance push` to that

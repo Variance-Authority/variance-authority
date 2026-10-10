@@ -1,5 +1,11 @@
 import type { Tool } from './tool.js';
 
+/** What a host read from a review deployment for one call. */
+export interface Reviewed {
+  /** The deployment the answer was read from, as a reader should be told it. */
+  readonly from: string;
+}
+
 /**
  * A question about what review settled, and the one deployment route it is
  * answered from.
@@ -10,13 +16,6 @@ import type { Tool } from './tool.js';
  * the same way — this route, this query, the share token — and a second
  * question about review is a second tool, never a second reader.
  */
-
-/** What a host read from a review deployment for one call. */
-export interface Reviewed {
-  /** The deployment the answer was read from, as a reader should be told it. */
-  readonly from: string;
-}
-
 export interface ReviewTool<Subject extends Reviewed = Reviewed> extends Tool<Subject> {
   /** The deployment route the subject is read from, with the share token. */
   readonly route: string;

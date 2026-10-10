@@ -113,6 +113,15 @@ Button
   share token, which never decides, so nothing you ask here approves or rejects
   anything. A 403 naming the ingest token means `VARIANCE_SHARE_TOKEN` holds
   CI's token, not the share token.
+- **`concerns --build <id>` or `--subject <id>` — before changing a render a
+  reviewer flagged, or proposing its baseline.** What reviewers suspect without
+  having decided: each concern's title, its state (`open`, `investigating`,
+  `resolved`), the region and component it is about, what the reviewer pointed
+  at, and every step since with its note and hypothesis. `--build` reads the
+  concerns on every subject that build showed, whichever build raised them, and
+  counts them by state; `--state open` keeps the ones nobody has picked up. It
+  reads the same deployment with the same share token as `decisions`, so nothing
+  you ask here raises, moves or resolves a concern.
 
 ## `ask diff` has two subjects
 

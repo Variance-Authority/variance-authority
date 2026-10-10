@@ -24,7 +24,7 @@ import { questionOf, takes, wrap, type Asked } from './asking.js';
  */
 export function questions(): string {
   return [
-    'Ask about a visual run, a running suite, the code, what the suite costs, or what review decided.',
+    'Ask about a visual run, a running suite, the code, what the suite costs, or what review decided and suspects.',
     '',
     'ABOUT THE LAST RUN',
     '',
@@ -38,7 +38,7 @@ export function questions(): string {
     'ABOUT WHAT THE SUITE COSTS',
     '',
     ...COSTS_TOOLS.flatMap(entry),
-    'ABOUT WHAT REVIEW DECIDED',
+    'ABOUT WHAT REVIEW DECIDED AND SUSPECTS',
     '',
     ...REVIEW_TOOLS.flatMap(entry),
     'The report is the configured one unless report paths are named.',
@@ -48,7 +48,7 @@ export function questions(): string {
     '`variance watch` starts a watcher and prints both.',
     'Source questions read the checkout under the working directory and need no config.',
     'Costs are the mainline\'s, read from the share, unless report paths are named.',
-    'Decisions are read from the review deployment with the share token, which never decides.',
+    'Decisions and concerns are read from the review deployment with the share token, which never decides.',
     '',
   ].join('\n');
 }

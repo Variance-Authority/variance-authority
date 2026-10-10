@@ -164,7 +164,7 @@ describe('`variance serve` in a checkout with no report', () => {
   });
 });
 
-describe('what reviewers decided, over `variance serve`', () => {
+describe('what review settled, over `variance serve`', () => {
   it('is read from the review deployment with the share token, and a refusal does not close the connection', async () => {
     const asked: { method: string; url: string; authorization: string | undefined }[] = [];
     let refuse = false;
@@ -176,9 +176,16 @@ describe('what reviewers decided, over `variance serve`', () => {
         response.end(JSON.stringify({ error: 'that token does not read here' }));
         return;
       }
-      response.end(JSON.stringify({
-        decisions: [{ build: 'ci-1', subject: 'story:a', decision: 'approved', by: 'marina', at: '2026-06-02T10:00:00.000Z' }],
-      }));
+      response.end(JSON.stringify(
+        request.url?.startsWith('/review/concerns?') === true
+          ? {
+            concerns: [{
+              id: 3, build: 'ci-1', subject: 'story:a', title: 'The border is clipped', evidence: [], by: 'anton',
+              at: '2026-06-01T10:00:00.000Z', state: 'open', events: [{ state: 'open', by: 'anton', at: '2026-06-01T10:00:00.000Z' }],
+            }],
+          }
+          : { decisions: [{ build: 'ci-1', subject: 'story:a', decision: 'approved', by: 'marina', at: '2026-06-02T10:00:00.000Z' }] },
+      ));
     });
     await new Promise<void>((listening) => deployment.listen(0, '127.0.0.1', listening));
     const endpoint = `http://127.0.0.1:${String((deployment.address() as AddressInfo).port)}`;
@@ -202,8 +209,11 @@ describe('what reviewers decided, over `variance serve`', () => {
     try {
       const answer = await server.request<Answer>('tools/call', { name: 'variance_decisions', arguments: { subject: 'story:a' } });
       expect(answer.content[0]!.text).toContain('2026-06-02T10:00:00.000Z  approved  story:a  ci-1  marina');
+      const flagged = await server.request<Answer>('tools/call', { name: 'variance_concerns', arguments: { subject: 'story:a' } });
+      expect(flagged.content[0]!.text).toContain('  #3  open  story:a  ci-1  "The border is clipped"');
       expect(asked).toEqual([
         { method: 'GET', url: '/review/decisions?subject=story%3Aa&limit=20', authorization: 'Bearer share-secret' },
+        { method: 'GET', url: '/review/concerns?subject=story%3Aa', authorization: 'Bearer share-secret' },
       ]);
 
       refuse = true;

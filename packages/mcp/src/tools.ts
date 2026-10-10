@@ -15,6 +15,7 @@ import { locate } from './tools/locate.js';
 import { summarize } from './tools/summary.js';
 import { attention } from './tools/attention.js';
 import { costs } from './tools/costs.js';
+import { concerns } from './tools/concerns.js';
 import { decisions } from './tools/decisions.js';
 import { distillTool, observability } from './tools/observability.js';
 import { presentations, type PresentationEvidence } from './tools/presentations.js';
@@ -230,12 +231,23 @@ export const COSTS_TOOLS = [costs] as const;
 export type { CostsSubject, SubjectCost } from './tools/costs.js';
 
 /**
- * What review settled on a review deployment. Its own subject, because a
- * decision is a fact about the deployment rather than about a run, and the
- * host reads it with the share token — which reads, and never decides. Each
- * tool names the route it is read from, so a host reads every one the same way.
+ * What review settled on a review deployment, and what reviewers suspect. Its
+ * own subject, because a decision or a concern is a fact about the deployment
+ * rather than about a run, and the host reads it with the share token — which
+ * reads, and never decides. Each tool names the route it is read from, so a
+ * host reads every one the same way.
  */
-export const REVIEW_TOOLS = [decisions] as const;
+export const REVIEW_TOOLS = [decisions, concerns] as const;
+export { concernsQuery } from './tools/concerns.js';
+export type {
+  ConcernsQuery,
+  ConcernsSubject,
+  ReviewConcern,
+  ReviewConcernEvent,
+  ReviewConcernRegion,
+  ReviewConcernState,
+  ReviewConcernTally,
+} from './tools/concerns.js';
 export { decisionsQuery } from './tools/decisions.js';
 export type { DecisionsQuery, DecisionsSubject, ReviewDecision, ReviewDecisionEntry } from './tools/decisions.js';
 export type { Reviewed, ReviewTool } from './tools/review.js';

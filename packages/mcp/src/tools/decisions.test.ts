@@ -34,8 +34,8 @@ const SUBJECT: DecisionsSubject = {
 };
 
 describe('variance_decisions', () => {
-  it('is the review tool set, and declares no argument that could decide', () => {
-    expect(REVIEW_TOOLS.map((tool) => tool.name)).toEqual(['variance_decisions']);
+  it('is in the review tool set, and declares no argument that could decide', () => {
+    expect(REVIEW_TOOLS[0]).toBe(decisions);
     expect(Object.keys(decisions.inputSchema['properties'] as object).sort()).toEqual(['build', 'limit', 'subject']);
   });
 
