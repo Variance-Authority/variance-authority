@@ -2719,6 +2719,7 @@
         "instrument": "function",
         "instrumentModeOf": "function",
         "instrumentationId": "function",
+        "markLoaded": "function",
         "probeRecipe": "function",
         "probeRuntime": "function"
       },

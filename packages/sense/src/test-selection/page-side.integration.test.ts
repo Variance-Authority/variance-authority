@@ -96,7 +96,9 @@ describe('a module loaded but not probed', () => {
   // FIXME: a module read as text and run in the page (tools/page-agents.mjs bundles) is never loaded through the
   // runner, so nothing marks it and an edit to it selects nothing. Measuring it needs a record of which
   // bundle a test read and what went into it — a record-format or spec decision, not taken here.
-  it.todo('selects the test that ran it in the page for an edit to code it reads as a bundle');
+  it.todo(
+    'selects the test that ran a bundle in the page for an edit to its source — needs a record of what the bundle was built from',
+  );
 
   it('still charges a probed module by its lines', async () => {
     const narrowing = await select(await edit(plain, "'plain'", "'plainer'"));
