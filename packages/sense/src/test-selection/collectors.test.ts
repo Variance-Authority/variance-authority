@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 import { EVALUATING, probeRuntime } from '../instrument/index.js';
 import preconditions from './case-preconditions.cjs';
+import caseOwner from './case-owner.cjs';
 import journals from './journal-format.cjs';
 
 /**
@@ -165,7 +166,7 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
       }
     }
   };
-  fold(journals.packCase(FILE, '', ''), sealedModel);
+  fold(caseOwner.packCase(FILE, '', ''), sealedModel);
   const ambient: Presence = new Map();
   model.current = ambient;
   const scope = holder[CASE_SCOPE] as Scope;
@@ -175,7 +176,7 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
   model.told = [];
   for (let index = 0; index < 60; index += 1) {
     work(next(20), 0);
-    const key = journals.packCase(FILE, `case ${index % 45}`, String(index % 45));
+    const key = caseOwner.packCase(FILE, `case ${index % 45}`, String(index % 45));
     const presence: Presence = new Map();
     const before = model.told;
     model.told = [];
@@ -189,10 +190,10 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
     model.current = ambient;
     // The case returned, so its frame is named as one that finished, and as
     // one a recorder listened to that said nothing.
-    fold(preconditions.packSaid(journals.settledCase(key, false), []), presence, true);
+    fold(preconditions.packSaid(caseOwner.settledCase(key, false), []), presence, true);
   }
   work(next(20), 0);
-  fold(journals.packCase(FILE, '', ''), ambient);
+  fold(caseOwner.packCase(FILE, '', ''), ambient);
   const done = collector.finish(FILE);
   return {
     engine: journals.encodeJournal(FILE, done.modules, sealed),
@@ -288,7 +289,7 @@ describe('how a case settles', () => {
     const holder: Record<PropertyKey, unknown> = {};
     const collector = collectors.scoped(holder, true);
     const scope = holder[CASE_SCOPE] as Scope;
-    const key = (name: string) => journals.packCase(FILE, name, name);
+    const key = (name: string) => caseOwner.packCase(FILE, name, name);
     scope.enter(key('returned'), () => {});
     expect(() => scope.enter(key('threw'), () => { throw new Error('no'); })).toThrow('no');
     await expect(scope.enter(key('rejected'), () => Promise.reject(new Error('no')))).rejects.toThrow('no');
@@ -296,7 +297,7 @@ describe('how a case settles', () => {
     void scope.enter(key('abandoned'), () => new Promise(() => {}));
 
     const frames = journals.unpackFrames(journals.packFrames(collector.finish(FILE).frames ?? []));
-    const settled = frames.map((frame) => journals.unpackCase(journals.decodeJournal(frame).testFile))
+    const settled = frames.map((frame) => caseOwner.unpackCase(journals.decodeJournal(frame).testFile))
       .filter((unpacked) => unpacked.name !== '')
       .map((unpacked) => [unpacked.name, unpacked.stopped]);
 
@@ -312,16 +313,16 @@ describe('how a case settles', () => {
     const scope = holder[CASE_SCOPE] as Scope & { journey(): string | undefined };
     let journey: string | undefined;
     // Nothing crossed in-process: the journey alone is what makes the frame.
-    scope.enter(journals.packCase(FILE, 'called', 'called'), () => {
+    scope.enter(caseOwner.packCase(FILE, 'called', 'called'), () => {
       journey = scope.journey();
     });
 
     const [frame] = journals.unpackFrames(journals.packFrames(collector.finish(FILE).frames ?? []));
     const owner = journals.decodeJournal(frame!).testFile;
-    expect(journals.unpackCase(owner)).toMatchObject({ name: 'called', stopped: false });
-    expect(journals.journeyOf(owner)).toBe(journey);
+    expect(caseOwner.unpackCase(owner)).toMatchObject({ name: 'called', stopped: false });
+    expect(caseOwner.journeyOf(owner)).toBe(journey);
     // A part frame has no case and no settling, and names the journey in the same field.
-    expect(journals.journeyOf(journals.packJourney(journals.packCase('', '', ''), journey!))).toBe(journey);
+    expect(caseOwner.journeyOf(caseOwner.packJourney(caseOwner.packCase('', '', ''), journey!))).toBe(journey);
   });
 
   it('runs every case inside the trace its realm was handed, whose id is the journey its frame names', () => {
@@ -346,7 +347,7 @@ describe('how a case settles', () => {
     const scope = holder[CASE_SCOPE] as Scope & { journey(): string | undefined };
     let inside: string | undefined;
     // The case never asks for its journey: the trace is what carries it.
-    expect(scope.enter(journals.packCase(FILE, 'quotes', 'quotes'), () => {
+    expect(scope.enter(caseOwner.packCase(FILE, 'quotes', 'quotes'), () => {
       inside = running;
       return 'answered';
     })).toBe('answered');
@@ -356,7 +357,7 @@ describe('how a case settles', () => {
     expect(carried[0]!.journey).toMatch(/^[0-9a-f]{32}$/);
     expect(inside).toBe(carried[0]!.journey);
     const [frame] = journals.unpackFrames(journals.packFrames(collector.finish(FILE).frames ?? []));
-    expect(journals.journeyOf(journals.decodeJournal(frame!).testFile)).toBe(carried[0]!.journey);
+    expect(caseOwner.journeyOf(journals.decodeJournal(frame!).testFile)).toBe(carried[0]!.journey);
   });
 });
 
@@ -364,7 +365,7 @@ describe('what a case said it arranged', () => {
   const PRECONDITION = Symbol.for('variance-authority.test-selection.precondition');
   const said = (frame: Uint8Array) => {
     const owner = journals.decodeJournal(frame).testFile;
-    return [journals.unpackCase(owner).name, preconditions.saidOf(owner)?.map(([name, value, , level]) => [name, value, level])];
+    return [caseOwner.unpackCase(owner).name, preconditions.saidOf(owner)?.map(([name, value, , level]) => [name, value, level])];
   };
 
   it('travels in the frame of the case that said it, and a case that only said something still writes one', () => {
@@ -377,8 +378,8 @@ describe('what a case said it arranged', () => {
     scope.phase({ kind: 'each', depth: 1 });
     say({ network: 'mocked' }, undefined, new Error());
     scope.phase(undefined);
-    scope.enter(journals.packCase(FILE, 'checkout > pays', '0'), () => say({ flag: 'ff-on' }, undefined, new Error()));
-    expect(() => scope.enter(journals.packCase(FILE, 'refunds > pays', '1'), () => {
+    scope.enter(caseOwner.packCase(FILE, 'checkout > pays', '0'), () => say({ flag: 'ff-on' }, undefined, new Error()));
+    expect(() => scope.enter(caseOwner.packCase(FILE, 'refunds > pays', '1'), () => {
       throw new Error('stopped, so it writes a frame, and said nothing');
     })).toThrow('stopped');
 
@@ -396,7 +397,7 @@ describe('what a case said it arranged', () => {
     const scope = holder[CASE_SCOPE] as Scope;
     const say = holder[PRECONDITION] as (named: unknown, value: unknown, called: Error) => void;
     let late: Promise<void> | undefined;
-    await scope.enter(journals.packCase(FILE, 'pays', '0'), async () => {
+    await scope.enter(caseOwner.packCase(FILE, 'pays', '0'), async () => {
       late = new Promise((settle) => setTimeout(settle, 5)).then(() => say({ network: 'mocked' }, undefined, new Error()));
     });
     await expect(late).rejects.toThrow(/ran outside a running case/);

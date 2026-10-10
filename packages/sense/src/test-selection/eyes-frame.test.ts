@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
+import caseOwner from './case-owner.cjs';
 import journals from './journal-format.cjs';
 
 /** As a worker loads them: built, because they `require` their neighbours by the names the build gives them. */
@@ -31,10 +32,10 @@ function handed(frames: readonly Uint8Array[] | undefined) {
   return journals.unpackFrames(journals.packFrames(frames ?? []))
     .map((frame) => eyesFrames.decodeEyesFrame(frame))
     .filter((frame) => frame !== undefined)
-    .map((frame) => ({ ...frame, case: journals.unpackCase(frame.case).name }));
+    .map((frame) => ({ ...frame, case: caseOwner.unpackCase(frame.case).name }));
 }
 
-const key = (name: string) => journals.packCase(FILE, name, name);
+const key = (name: string) => caseOwner.packCase(FILE, name, name);
 
 describe('what Eyes hands a case, as the collector writes it', () => {
   it('writes a journal handed in the body or the attempt\'s hooks under the case, and counts its attempts', () => {

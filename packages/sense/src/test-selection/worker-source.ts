@@ -287,14 +287,14 @@ const caseScope = () => globalThis[Symbol.for('variance-authority.test-selection
 // because it is positional and moves when a case is inserted above. The
 // project that runs the file rides with it: two projects' copies of one case
 // are two cases.
-let journalFormat;
+let caseOwner;
 const caseKey = (test) => {
   const names = getNames(test);
   const file = test.file?.filepath ?? names[0] ?? '';
   // Required here, where a case is recorded, and not at the top: a runner that
   // records nothing never loads it.
-  journalFormat ??= createRequire(${JSON.stringify(HERE)})('./journal-format.cjs');
-  return journalFormat.packCase(file, names.slice(1).join(' > '), test.id, test.file?.projectName);
+  caseOwner ??= createRequire(${JSON.stringify(HERE)})('./case-owner.cjs');
+  return caseOwner.packCase(file, names.slice(1).join(' > '), test.id, test.file?.projectName);
 };
 
 // Where a \`variancePrecondition\` call stands. Hooks are wrapped when their

@@ -166,7 +166,7 @@ public final class Parts {
   private static byte[] frame(String journey, List<Coverage.Module> modules, TreeSet<String> unknown) {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     out.write(PART_MAGIC, 0, PART_MAGIC.length);
-    // No case, no settling, then the journey: `packJourney` in sense's journal-format.cts.
+    // No case, no settling, then the journey: `packJourney` in sense's case-owner.cts.
     text(out, "\0\0\0\0" + journey);
     List<Coverage.Module> entered = new ArrayList<>();
     List<List<Integer>> hits = new ArrayList<>();

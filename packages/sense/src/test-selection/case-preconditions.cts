@@ -276,7 +276,7 @@ function checkoutSite(root: string, site: string): string {
 /**
  * A packed case coordinate carrying what the case said, as its sixth field.
  *
- * Set at its index, as `journal-format.cts` sets every field after the
+ * Set at its index, as `case-owner.cts` sets every field after the
  * coordinate, so the project after it stays where its reader looks. The field
  * is always JSON: `[]` is a case that said nothing under a recorder that was
  * listening; an empty or missing field is a frame from a writer that never

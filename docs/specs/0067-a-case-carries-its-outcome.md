@@ -59,7 +59,7 @@ is the one the record now writes:
   when the story did not render or was still suspended. Playwright Test is
   stopped when its completion mark says the test did not complete.
 - **A frame carries it by name.** A journal frame's name gains a fourth `\0`
-  field, `stopped` or `finished` (`settledCase` in `journal-format.cts`). Join
+  field, `stopped` or `finished` (`settledCase` in `case-owner.cts`). Join
   keys stay file, name and id, so a frame written before the field joins the
   one written after it. A stopped case writes a frame even with no rows.
 - **A retry closes the hole.** When frames or attempts of one case meet (the
