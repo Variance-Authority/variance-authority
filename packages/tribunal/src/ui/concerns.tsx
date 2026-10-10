@@ -32,15 +32,25 @@ type Loaded =
   | { readonly kind: 'failed'; readonly message: string }
   | { readonly kind: 'ready'; readonly concerns: readonly Concern[] };
 
-/** Read one subject's trail into the card; the returned function drops an answer that comes too late. */
-function readTrail(client: ReviewClient, subject: string, setLoaded: (loaded: Loaded) => void): () => void {
-  let live = true;
+/**
+ * Read one subject's trail into the card. Only the newest read may write: an
+ * earlier one answering last would put back a trail from before a decision.
+ * The returned function drops this read's answer.
+ */
+function readTrail(
+  client: ReviewClient,
+  subject: string,
+  setLoaded: (loaded: Loaded) => void,
+  reads: { current: number },
+): () => void {
+  const mine = ++reads.current;
+  const newest = (): boolean => reads.current === mine;
   client.concerns({ subject }).then(
-    (answer) => live && setLoaded({ kind: 'ready', concerns: answer.concerns }),
-    (error: unknown) => live && setLoaded({ kind: 'failed', message: messageOf(error) }),
+    (answer) => newest() && setLoaded({ kind: 'ready', concerns: answer.concerns }),
+    (error: unknown) => newest() && setLoaded({ kind: 'failed', message: messageOf(error) }),
   );
   return () => {
-    live = false;
+    if (newest()) reads.current += 1;
   };
 }
 
@@ -78,6 +88,7 @@ export function Concerns({
   // a write that answers after the reviewer moved on belongs to a trail that is
   // no longer drawn, and is dropped rather than added to the next one's.
   const shown = useRef(subject.subject);
+  const reads = useRef(0);
 
   useEffect(() => {
     shown.current = subject.subject;
@@ -85,7 +96,7 @@ export function Concerns({
     setWriting(false);
     setBusy(false);
     setFailed(null);
-    return readTrail(client, subject.subject, setLoaded);
+    return readTrail(client, subject.subject, setLoaded, reads);
   }, [client, subject.subject]);
 
   // A decision can add to the trail, and a draft open beside it is the
@@ -94,7 +105,7 @@ export function Concerns({
   useEffect(() => {
     if (lastRead.current === read) return;
     lastRead.current = read;
-    return readTrail(client, subject.subject, setLoaded);
+    return readTrail(client, subject.subject, setLoaded, reads);
   }, [client, subject.subject, read]);
 
   // Both before paint: a browser runs the next keydown as soon as the form is

@@ -373,4 +373,51 @@ describe('an approval on a subject page reads the concerns again', () => {
 
     expect(host.querySelector('.va-subject')?.textContent).toContain('Approved the image build 5 rejected');
   });
+
+  it('keeps the trail read after the decision when the first read answers last', async () => {
+    // The card's first read can still be on the wire when the decision lands.
+    // Answering last, it would put back the trail from before the approval.
+    Element.prototype.scrollTo = () => undefined;
+    let first: ((answer: unknown) => void) | undefined;
+    let reads = 0;
+    const opened = {
+      id: 1,
+      build: '6',
+      subject: 'story:card',
+      title: 'Approved the image build 5 rejected',
+      evidence: [],
+      by: 'marina',
+      at: '2026-06-01T12:01:00.000Z',
+      state: 'open',
+      events: [],
+    };
+    const tally = { open: 0, investigating: 0, resolved: 0 };
+    const now = build('6', [subject()]);
+    const client = {
+      ...clientThat(now, build('5', []), (query: { subject?: string }) => {
+        if (query.subject === undefined) return Promise.resolve({ concerns: [], tally });
+        reads += 1;
+        if (reads === 1) return new Promise((resolve) => (first = resolve));
+        return Promise.resolve({ concerns: [opened], tally });
+      }),
+      imageBlob: () => new Promise(() => undefined),
+      decide: async () => ({ decision: 'approved', by: 'marina', at: '2026-06-01T12:01:00.000Z', concern: 1 }),
+    } as unknown as ReviewClient;
+
+    await act(async () => {
+      root.render(
+        <BuildPage
+          client={client}
+          reviewer="marina"
+          route={{ page: 'subject', build: '6', subject: 'story:card' }}
+          go={() => undefined}
+        />,
+      );
+    });
+    const approve = [...host.querySelectorAll('button')].find((each) => each.textContent?.trim().startsWith('Approve'));
+    await act(async () => approve!.click());
+    await act(async () => first!({ concerns: [], tally }));
+
+    expect(host.querySelector('.va-subject')?.textContent).toContain('Approved the image build 5 rejected');
+  });
 });
