@@ -89,6 +89,21 @@ describe('the Jest transformer over a module named unprobed', () => {
       .toEqual(expect.objectContaining({ file: 'src/page.js', instrumented: false, blocks: [] }));
   });
 
+  it('places the same text when Jest transforms asynchronously and no project transformer is configured', async () => {
+    const root = await project('variance-jest-unprobed-async-');
+    const transformer = await createTransformer({ root, unprobed: [`${root}/src/page.js`] });
+    const page = resolve(root, 'src/page.js');
+    const pick = resolve(root, 'src/pick.js');
+
+    const marked = await transformer.processAsync!(PAGE, page, transformOptions(root));
+    const probed = await transformer.processAsync!(SOURCE, pick, transformOptions(root));
+
+    expect(marked.code).toBe(transformer.process!(PAGE, page, transformOptions(root)).code);
+    expect(marked.code).toContain(JSON.stringify(markedId('src/page.js', PAGE)));
+    expect(probed.code).toBe(transformer.process!(SOURCE, pick, transformOptions(root)).code);
+    expect(probed.code).toContain(JSON.stringify(moduleId('src/pick.js', SOURCE)));
+  });
+
   it('keys what it cached on the modules it marks', async () => {
     const root = await project('variance-jest-unprobed-key-');
     const path = resolve(root, 'src/page.js');
@@ -371,6 +386,16 @@ module.exports = {
 
     const done = transformer.process!(RAW, resolve(root, 'test/pick.case.js'), transformOptions(root));
 
+    expect(JSON.parse(done.code)).toEqual({ source: RAW, probes: null });
+  });
+
+  it('is handed a module the include leaves out as it arrived, with nothing to place and no mark', async () => {
+    const root = await placing(OURS);
+    const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs') });
+
+    const done = transformer.process!(RAW, resolve(root, 'node_modules/pick/index.js'), transformOptions(root));
+
+    // A mark would have been appended after the transformer's text, and this would not parse.
     expect(JSON.parse(done.code)).toEqual({ source: RAW, probes: null });
   });
 
