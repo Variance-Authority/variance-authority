@@ -128,6 +128,7 @@ import { heardAcross, heardOf, type Said } from './case-precondition-column.js';
 import preconditions from './case-preconditions.cjs';
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
+import { CaseLinesBuilder, lineValue, type CaseLines } from './case-lines.js';
 
 /**
  * Where the worker half hands the case scope to the runner half.
@@ -206,6 +207,38 @@ export interface CaseJournal {
     readonly hits: readonly number[];
     readonly shared: readonly number[];
   }[];
+  /**
+   * The test line that first reached each region the case entered, where its
+   * driver cut the test file (spec 0100); absent where it did not.
+   */
+  readonly lines?: readonly ReachedLines[];
+}
+
+/** Of one module, the test line that first reached each region: `lines[at]` reached `hits[at]`. */
+export interface ReachedLines {
+  readonly id: ModuleId;
+  readonly hits: readonly number[];
+  readonly lines: readonly number[];
+}
+
+/** The lines of one case across two frames: the first frame to reach a region keeps it. */
+export function linesAcross(
+  first: readonly ReachedLines[] | undefined,
+  second: readonly ReachedLines[] | undefined,
+): { readonly lines?: readonly ReachedLines[] } {
+  if (first === undefined && second === undefined) return {};
+  return { lines: [...(first ?? []), ...(second ?? [])] };
+}
+
+/** Each module's region ordinals, to the line that first reached each. */
+function reachedAt(lines: readonly ReachedLines[]): Map<ModuleId, Map<number, number>> {
+  const reached = new Map<ModuleId, Map<number, number>>();
+  for (const { id, hits, lines: at } of lines) {
+    const byOrdinal = reached.get(id) ?? new Map<number, number>();
+    for (const [index, ordinal] of hits.entries()) if (!byOrdinal.has(ordinal)) byOrdinal.set(ordinal, at[index]!);
+    reached.set(id, byOrdinal);
+  }
+  return reached;
 }
 
 /** Where a case is, and the runner's id for it: what a run tells two cases apart by. */
@@ -318,7 +351,7 @@ export function ownedExecutionIndexFrom(
   journals: readonly CaseJournal[],
   modules: ReadonlyMap<ModuleId, CapturedModule>,
   durations: CaseDurations = UNTIMED,
-): { readonly index: ExecutionIndex; readonly owners: readonly Uint32Array[] } {
+): { readonly index: ExecutionIndex; readonly owners: readonly Uint32Array[]; readonly lines?: readonly (CaseLines | undefined)[] } {
   const ambient = new Map<string, CaseJournal[]>();
   // A case is written when it settles, so work that outlived it arrives as a
   // second frame under the same coordinate: one case, joined here.
@@ -336,6 +369,7 @@ export function ownedExecutionIndexFrom(
       ...settledAcross(first.stopped, journal.stopped),
       ...timedAcross(first.duration, journal.duration),
       ...heardOf(heardAcross(first.said, journal.said)),
+      ...linesAcross(first.lines, journal.lines),
     });
   }
   const cases = [...byCase.values()];
@@ -388,6 +422,8 @@ export function ownedExecutionIndexFrom(
 
   const kept = rows
     .map(([id, module]) => ({
+      id,
+      ordinals: module.blocks.filter(isWritten).map((block) => block.ordinal),
       owner: keptOwners(module.blocks),
       module: {
         file: module.file,
@@ -409,7 +445,23 @@ export function ownedExecutionIndexFrom(
       },
     }))
     .sort((left, right) => codeUnitOrder(left.module.file, right.module.file));
-  return { index: { tests, modules: kept.map(({ module }) => module) }, owners: kept.map(({ owner }) => owner) };
+  const index = { tests, modules: kept.map(({ module }) => module) };
+  const owners = kept.map(({ owner }) => owner);
+  if (!ordered.some((journal) => journal.lines !== undefined)) return { index, owners };
+
+  // A lined case holds a value for every region it crossed: the line that
+  // first reached it, or none, ambient, for one only its teardown drained.
+  const reached = ordered.map((journal) => (journal.lines === undefined ? undefined : reachedAt(journal.lines)));
+  const builders = reached.map((lines) => (lines === undefined ? undefined : new CaseLinesBuilder()));
+  for (const [place, { id, ordinals, module }] of kept.entries()) {
+    for (const [block, { crossings }] of module.blocks.entries()) {
+      for (const { test } of crossings) {
+        const line = reached[test]?.get(id)?.get(ordinals[block]!);
+        builders[test]?.add(place, block, lineValue(line ?? 0, line === undefined));
+      }
+    }
+  }
+  return { index, owners, lines: builders.map((builder) => builder?.finish()) };
 }
 
 /**
