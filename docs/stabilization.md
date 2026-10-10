@@ -231,7 +231,7 @@ what already happened to your subject.
 | `wait-for-fonts` | a font arriving after the subject was read | `document.fonts.ready` covers loads that have *started*; a font requested lazily by a later interaction is not in it |
 | `wait-for-images` | an image whose intrinsic size had not landed | `document.images` at one moment. Anything appended during the wait is missed — the wire covers that |
 | `hide-scrollbars` | a platform and preference difference, and the reflow at the overflow threshold | headless Chromium uses overlay scrollbars, so the classic scrollbar flake does not reproduce in CI at all |
-| `hide-caret` | a cursor blinking on its own schedule | a screenshot option, so it applies at render and not at collection — a tier that never rasterizes cannot see a caret and must not pay to hide it |
+| `hide-caret` | a cursor blinking on its own schedule | a caret paints and does not lay out, so only a reading that takes an image applies it: every render, and a collection whose live page is photographed, as [in-place capture](#what-reaches-the-image) does. A reading that only lays the page out skips it |
 | `no-hover` | a `:hover` style left by wherever the pointer rests | the pointer goes to `(-1, -1)`, outside the page. A component that opens on hover is read closed |
 | `no-focus` | a `:focus` or `:focus-visible` style on a field your test filled or the page focused | the focused element is blurred, through shadow roots. On a page your test or agent goes on using, focus goes back to that element once the reading is taken |
 | `reduced-motion` | a script animation, which a stylesheet cannot stop | only in a page that honours `prefers-reduced-motion`. The page is read as a user who asked for less motion sees it |
