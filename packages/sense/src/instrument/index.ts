@@ -75,10 +75,14 @@
  * the root and never reassigns the global. A module that kept a replaced root
  * would log into it, silently, for as long as it lived.
  *
- * A switch moves the root's activation, `a`. A probe that finds `a` changed
- * since its module last logged also logs the module's own region into the new
- * bucket: a case that reached a module another case evaluated entered that
- * module, and an edit to its top level is an edit the case ran.
+ * A probe also logs its module's own region, once each way per segment: a case
+ * that reached a module another case evaluated entered that module, and so did
+ * a case that called into a module its own inline require evaluated, and an
+ * edit to the top level is an edit the case ran. It tests the region's flag
+ * against the root's evaluating bit `v` rather than `__vaP`, because a story
+ * tap hands every module a passing bit of zero to see each hit, and the root
+ * would otherwise be logged on all of them. The module's own probe sets the
+ * evaluating side directly: it runs just after raising the depth.
  *
  * ## The scope, and why it is not a getter
  *
@@ -212,7 +216,7 @@ export function instrument(
 /**
  * The declarations every instrumented module carries, and its own probe.
  *
- * 671 bytes a module, 357 after gzip and 322 after brotli: the text is the same
+ * 618 bytes a module, 340 after gzip and 317 after brotli: the text is the same
  * in every module but two numbers, so a compressor spends almost nothing on it.
  * It is written per module rather than built by the collector because the
  * fast path is made of module variables: `__vaF` and `__vaP` are slots in the

@@ -293,10 +293,10 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, roo
     const journey = journeys.get(bucket.key);
     // What the case said it arranged; the file's own bucket is no case.
     const said = bucket.key === AMBIENT ? undefined : recorder.take(bucket.key);
-    // A case that stopped before it crossed anything is still a case that
-    // stopped: its frame is what tells a reader the journey was cut short. One
-    // that only named its preconditions still has them to carry.
-    if (view.rows.length === 0 && settled !== true && journey === undefined && !said?.length) return undefined;
+    // A case that crossed nothing is still a case that ran: its frame names it
+    // in the case index, and says how it settled. Only the file's own bucket
+    // has nothing to write when it entered nothing.
+    if (view.rows.length === 0 && settled === undefined && journey === undefined && !said?.length) return undefined;
     const settledOwner = settled === undefined ? name : journals.settledCase(name, settled);
     const owner = journey === undefined ? settledOwner : journals.packJourney(settledOwner, journey);
     frames.push(journals.encodeLog(said === undefined ? owner : preconditions.packSaid(owner, said), view));

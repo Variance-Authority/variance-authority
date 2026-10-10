@@ -97,7 +97,15 @@ export type { InstrumentMode };
 // What a driver observed, and how a run recorded by several processes is
 // joined: both are the journal seam's surface, and neither is this file's
 // subject, which is the one call that turns a journal into the index.
-export { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
+export {
+  enterModules,
+  enteredModules,
+  joinObservations,
+  modulesEntered,
+  type EnteredModules,
+  type ObservedCase,
+  type ObservedSubject,
+} from './observed.js';
 export type { ObservedEyes } from './eyes-record.js';
 export { listenForPreconditions, type PreconditionListener, type PreconditionStanding } from './precondition-listener.js';
 export { preconditionText, type CasePrecondition } from './case-precondition-column.js';

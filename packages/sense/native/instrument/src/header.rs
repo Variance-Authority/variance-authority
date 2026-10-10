@@ -24,18 +24,18 @@ pub fn header(module: &str, count: usize) -> String {
 }
 
 const HEAD: &str = concat!(
-    "var __vaK,__vaG,__vaB,__vaA;function __vaF(){}function __vaP(){}",
+    "var __vaK,__vaG,__vaB;function __vaF(){}function __vaP(){}",
     "function __vaI(){__vaK=globalThis.__VA__;const r=__vaK.r(",
 );
 
 const TAIL: &str = concat!(
     ");__vaF=r.f;__vaG=r.s;__vaB=r.b;__vaP=r.p;return __vaK}",
     "function __va(i){if((__vaF[i]&__vaP[0])===0)__vaS(i)}",
-    "function __vaS(i){const K=__vaK||__vaI();if(K.s!==null)K.s();const a=K.a;if(__vaA!==a){if(__vaA!==undefined&&__vaG[0]===0){__vaG[0]=1;K.g(__vaB)}__vaA=a}",
-    "const f=__vaG[i],p=__vaP[0];if((f&p)===0){__vaG[i]=f|p;const n=K.n;if(n<K.l){K.L[n]=(__vaB+i)|K.v;K.n=n+1}else K.g((__vaB+i)|K.v)}}",
+    "function __vaS(i){const K=__vaK||__vaI();if(K.s!==null)K.s();const v=K.v,m=v===0?1:2;if((__vaG[0]&m)===0){__vaG[0]|=m;K.g(__vaB|v)}",
+    "const f=__vaG[i],p=__vaP[0];if((f&p)===0){__vaG[i]=f|p;const n=K.n;if(n<K.l){K.L[n]=(__vaB+i)|v;K.n=n+1}else K.g((__vaB+i)|v)}}",
     "function __vaR(v,i){__va(i);return v}",
     "function __vaE(){(__vaK||__vaI()).x()}",
-    "(__vaK||__vaI()).e();__vaA=__vaK.a;__vaG[0]|=__vaP[0];__vaK.g(2147483648|__vaB);",
+    "(__vaK||__vaI()).e();__vaG[0]|=2;__vaK.g(2147483648|__vaB);",
 );
 
 /// `JSON.stringify` of a string, which is how the id has always been written.

@@ -40,6 +40,7 @@
  * Inter and JetBrains Mono first and fall back to the system stacks: this sheet is
  * handed over as text, so it can ask for a face and must not require one.
  */
+import { CONCERN_STYLES } from './styles-concerns.js';
 import { DOCKET_STYLES } from './styles-docket.js';
 import { FINDING_STYLES } from './styles-findings.js';
 import { JOURNEY_STYLES } from './styles-journeys.js';
@@ -413,6 +414,7 @@ ${DOCKET_STYLES}
 .va-stability.va-unknown, .va-churn.va-unknown { color: var(--va-warn); }
 .va-stability.va-flaky { color: var(--va-bad); }
 ${FINDING_STYLES}
+${CONCERN_STYLES}
 /* Folded, because on a run of three hundred stories this is three hundred lines
    of nothing — and present, because a green subject that is green by declaration
    is the one a mask hides behind. */
