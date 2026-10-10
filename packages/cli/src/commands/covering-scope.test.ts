@@ -14,6 +14,7 @@ const INDEX = {
   tests: [
     { id: 'total.test.ts > discounts', file: 'total.test.ts', name: 'discounts' },
     { id: 'flow.test.tsx > checks out', file: 'flow.test.tsx', name: 'checks out' },
+    { id: 'e2e/cart.test.ts > empties', file: 'e2e/cart.test.ts', name: 'empties' },
   ],
   modules: [{
     file: 'src/total.ts',
@@ -73,8 +74,17 @@ describe('a test read alone', () => {
   it('refuses a test file the index holds no case of, and points at the spelling it does', async () => {
     const execution = await recorded();
 
-    await expect(covering(parse(['--file', 'src/total.ts', '--cases', 'e2e/flow.test.tsx', '--execution', execution])))
-      .rejects.toThrow(/names no test file.*`flow.test.tsx`/);
+    await expect(covering(parse(['--file', 'src/total.ts', '--cases', 'app/e2e/cart.test.ts', '--execution', execution])))
+      .rejects.toThrow(/names no test file.*The record spells it `e2e\/cart.test.ts`\.$/);
+  });
+
+  it('refuses a test file whose name alone is recorded, and does not call that file its spelling', async () => {
+    const execution = await recorded();
+
+    const asked = covering(parse(['--file', 'src/total.ts', '--cases', 'e2e/flow.test.tsx', '--execution', execution]));
+
+    await expect(asked).rejects.toThrow(/names no test file.*`flow.test.tsx` only shares its name\.$/);
+    await expect(asked).rejects.not.toThrow(/record spells it/);
   });
 
   it('refuses `last` when no run named itself in the record', async () => {
