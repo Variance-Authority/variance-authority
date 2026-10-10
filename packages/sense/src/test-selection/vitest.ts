@@ -1,7 +1,6 @@
 import { existsSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
-import picomatch from 'picomatch';
 import type { UserConfig } from 'vitest/config';
 import { cadence, type InstrumentMode } from '../instrument/index.js';
 import { captureModule, pathOf } from './captured-modules.js';
@@ -13,6 +12,7 @@ import { foldRun } from './selection-fold.js';
 import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
 import { removeSeamModules, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { recordFileFor, recordsAlone } from './record-location.js';
+import { testFilesAt } from './test-files.js';
 import { selectionReporter } from './vitest-reporter.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
@@ -453,20 +453,11 @@ function array<T>(value: T | readonly T[] | undefined): T[] {
 
 export { mergeCoverage } from './merge.js';
 
-/** Vitest's own default for `test.include`, the same in every major this seam supports. */
-const TEST_INCLUDE = ['**/*.{test,spec}.?(c|m)[jt]s?(x)'];
-
 /**
  * Which files this configuration runs as tests: its `test.include` globs, under
- * `test.dir` or the root, as Vitest's own search reads them, never one under
- * `node_modules`.
+ * `test.dir` or the root, as Vitest's own search reads them.
  */
 function testFiles(config: UserConfig, configRoot: string): (file: string) => boolean {
   const test = config.test as { include?: readonly string[]; dir?: string } | undefined;
-  const dir = resolve(configRoot, test?.dir ?? '.');
-  const matches = picomatch([...(test?.include ?? TEST_INCLUDE)], { dot: true });
-  return (file) => {
-    const path = relative(dir, file).split(sep).join('/');
-    return !path.startsWith('../') && !path.split('/').includes('node_modules') && matches(path);
-  };
+  return testFilesAt(configRoot, test?.dir, test?.include);
 }
