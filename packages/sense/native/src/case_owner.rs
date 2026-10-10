@@ -1,5 +1,5 @@
 //! A case frame's owner, as `journal-format.cts` packs it: file, name, runner
-//! id and settling, then the journey and what the case said.
+//! id and settling, then the journey, what the case said and the project that ran it.
 use std::path::Path;
 
 use crate::journey_journal::{FINISHED, STOPPED, UNSETTLED};
@@ -25,6 +25,12 @@ pub fn unpack_case(packed: &str) -> (&str, &str, &str, u8) {
 /// [`case_preconditions::said_of`]'s.
 pub fn journey_of(packed: &str) -> &str {
     packed.split('\0').nth(4).unwrap_or("")
+}
+
+/// The project that ran a frame's case: the seventh field of its owner, `None`
+/// when the run named none. `packCase` in `journal-format.cts`.
+pub fn project_of(packed: &str) -> Option<&str> {
+    packed.split('\0').nth(6).filter(|project| !project.is_empty())
 }
 
 pub fn project_path(root: &Path, file: &str) -> String {

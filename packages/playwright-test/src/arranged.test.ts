@@ -101,6 +101,7 @@ describe('snapshotCaseOf', () => {
         file: owner,
         name: 'mocked > pays',
         id: 'one',
+        project: 'chromium',
         // The body's call overrides the beforeEach's, as it does on the row.
         preconditions: [['network', 'mocked', 0xffff]],
       });
@@ -134,7 +135,7 @@ describe('snapshotCaseOf', () => {
       const recorder = createExecutionRecorder({ root, coverageFile: resolve(root, 'coverage.bin') });
       const taken = snapshotCaseOf(testInfoIn(root, 'one', 'pays'), recorder);
       await recorder.close();
-      expect(taken).toEqual({ file: 'tests/checkout.spec.ts', name: 'mocked > pays', id: 'one' });
+      expect(taken).toEqual({ file: 'tests/checkout.spec.ts', name: 'mocked > pays', id: 'one', project: 'chromium' });
       expect('preconditions' in taken).toBe(false);
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -144,7 +145,7 @@ describe('snapshotCaseOf', () => {
   it('names the file from the checkout the process runs in when there is no recorder', () => {
     const here = repositoryRoot(process.cwd());
     const taken = snapshotCaseOf(testInfoIn(here, 'one', 'pays'), undefined);
-    expect(taken).toEqual({ file: relative(here, resolve(here, 'tests/checkout.spec.ts')), name: 'mocked > pays', id: 'one' });
+    expect(taken).toEqual({ file: relative(here, resolve(here, 'tests/checkout.spec.ts')), name: 'mocked > pays', id: 'one', project: 'chromium' });
   });
 });
 

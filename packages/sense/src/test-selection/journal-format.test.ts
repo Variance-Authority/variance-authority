@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EVALUATING } from '../instrument/index.js';
 import journals from './journal-format.cjs';
 
-const { encodeJournal, decodeJournal } = journals;
+const { encodeJournal, encodeLog, decodeJournal } = journals;
 
 const counters = (values: readonly number[]): Uint32Array => Uint32Array.from(values);
 
@@ -38,6 +38,24 @@ describe('a journal as bytes', () => {
     ]));
 
     expect(decodeJournal(frame).modules).toEqual([{ id: 'src/cart.ts', hits: [0, 1, 2], shared: [0, 2], loaded: [] }]);
+  });
+
+  it('writes a module a case entered both while it evaluated and after as a second row of what it entered after', () => {
+    // A probe log's read-out: each entry an ordinal shifted left one, with the
+    // evaluating bit below it. Ordinal 0 was entered both ways, 1 only while
+    // `cart.ts` evaluated, 2 only after.
+    const frame = encodeLog('src/a.test.ts', {
+      rows: [0],
+      start: Int32Array.of(0),
+      end: Int32Array.of(4),
+      sorted: Int32Array.of(0 << 1, (0 << 1) | 1, (1 << 1) | 1, 2 << 1),
+      ids: ['src/cart.ts'],
+    });
+
+    expect(decodeJournal(frame).modules).toEqual([
+      { id: 'src/cart.ts', hits: [0, 1, 2], shared: [0, 1], loaded: [] },
+      { id: 'src/cart.ts', hits: [0], shared: [], loaded: [] },
+    ]);
   });
 
   it('holds a module nothing entered, because the file still consumed it', () => {

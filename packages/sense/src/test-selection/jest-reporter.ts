@@ -26,7 +26,8 @@ import { freshCases } from './case-fold.js';
 import { caseDurations, finishedCase } from './case-durations.js';
 import { stageJestJourneys } from './jest-journey-artifact.js';
 import { commitOf } from './commit.js';
-import { noteAnEmptyRecord, readJournals, reportedDuration } from './finished-files.js';
+import { noteAnEmptyRecord, reportedDuration } from './finished-files.js';
+import { journalsOf, oneTestPerFile, projectNamed, readProjectJournals } from './jest-projects.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import { landRun } from './commit-runs.js';
 import { markCheckout } from './cache-layers.js';
@@ -72,6 +73,8 @@ export interface JestRunResults {
     readonly testFilePath: string;
     readonly skipped: boolean;
     readonly testExecError?: unknown;
+    /** The project that ran the file, as its configuration names it: a string or `{ name, color }`. */
+    readonly displayName?: unknown;
     /** Each case as Jest reported it: `fullName` is the `currentTestName` the case scope records it by. */
     readonly testResults: ReadonlyArray<{
       readonly status: string;
@@ -182,7 +185,8 @@ class JestCoverageReporter {
       return;
     }
 
-    const journals = await readJournals(runDirectory);
+    const written = await readProjectJournals(runDirectory);
+    const journals = written.map((entry) => entry.journal);
     // A module whose file is gone is left out, and the file that entered it is
     // recorded incomplete: a crossing nobody can place is one this run may not
     // let a later run skip on.
@@ -201,16 +205,16 @@ class JestCoverageReporter {
     const observed = crossingsOf(rows);
     const early = loadedOf(rows);
 
-    const tests = await Promise.all(
+    const tests = oneTestPerFile(await Promise.all(
       results.testResults.map((result) => coverageTest(
         result,
         cut.has(result.testFilePath),
         selection,
         [...(selection.declared ?? []), ...(this.#governing.get(result.testFilePath) ?? selection.preconditions)],
-        journals,
+        journalsOf(written, projectNamed(result.displayName)),
         modules,
       )),
-    );
+    ));
     const commit = await commitOf(root);
     const current: TestCoverage = {
       version: 3,
@@ -290,7 +294,8 @@ async function coverageTest(
   // hooks — so a file whose every test is skipped is announced as finished,
   // counts as a usable outcome below, and carries no record of the modules its
   // collection did enter. Recorded whole, that empty reach excludes the file
-  // from every diff there will ever be.
+  // from every diff there will ever be. `journals` are this result's project's
+  // own: another project's journal for the same path is not this one's.
   let recorded = false;
   for (const journal of journals) {
     if (projectPath(config.root, journal.testFile) !== file) continue;
@@ -321,6 +326,7 @@ async function coverageTest(
     );
   return { file, complete, preconditions, ...reportedDuration(result.perfStats?.runtime) };
 }
+
 
 /**
  * The setup and environment files one Jest project rests on, as Jest resolved

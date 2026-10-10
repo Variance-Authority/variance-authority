@@ -284,11 +284,17 @@ const tree = (task) => ({
 const caseScope = () => globalThis[Symbol.for('variance-authority.test-selection.cases')];
 // The declaration path under the file, which is what a reader recognises a
 // case by. The runner's own \`test.id\` is unique and is carried beside it,
-// because it is positional and moves when a case is inserted above.
+// because it is positional and moves when a case is inserted above. The
+// project that runs the file rides with it: two projects' copies of one case
+// are two cases.
+let journalFormat;
 const caseKey = (test) => {
   const names = getNames(test);
   const file = test.file?.filepath ?? names[0] ?? '';
-  return file + '\\u0000' + names.slice(1).join(' > ') + '\\u0000' + test.id;
+  // Required here, where a case is recorded, and not at the top: a runner that
+  // records nothing never loads it.
+  journalFormat ??= createRequire(${JSON.stringify(HERE)})('./journal-format.cjs');
+  return journalFormat.packCase(file, names.slice(1).join(' > '), test.id, test.file?.projectName);
 };
 
 // Where a \`variancePrecondition\` call stands. Hooks are wrapped when their
@@ -430,6 +436,10 @@ const wrapCase = (api, depth) => {
           state.currentTestName?.endsWith(' > ' + own) === true
           ? state.currentTestName ?? ''
           : [...path, own].join(' > ');
+        // FIXME: the key carries no project, so two Rstest projects' copies of
+        // one file are numbered as repeats (\`#1\`) rather than named. The case
+        // context names none, and a configuration with \`projects\` gets no setup
+        // file of ours to hand one in.
         const key = (state.testPath ?? '') + '\\u0000' + name + '\\u0000' + ordinal;
         // The context the runner hands the body is the one it handed the
         // case's \`beforeEach\`es, so it joins what they said to this case

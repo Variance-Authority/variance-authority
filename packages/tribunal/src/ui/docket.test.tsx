@@ -75,9 +75,13 @@ afterEach(() => {
 });
 
 /** A client answering the two calls the build page and its crossing make. */
-function clientThat(now: BuildDetail, earlier: BuildDetail): ReviewClient {
+function clientThat(
+  now: BuildDetail,
+  earlier: BuildDetail,
+  concerns: ReviewClient['concerns'] = async () => ({ concerns: [], tally: { open: 0, investigating: 0, resolved: 0 } }),
+): ReviewClient {
   const refuse = (): never => {
-    throw new Error('the build page reads the build list and two builds, nothing else');
+    throw new Error('the build page reads the build list, two builds and its concerns, nothing else');
   };
 
   return {
@@ -90,15 +94,20 @@ function clientThat(now: BuildDetail, earlier: BuildDetail): ReviewClient {
     lastChanged: refuse,
     decide: refuse,
     sweep: refuse,
+    concerns,
     imageUrl: () => '',
   } as unknown as ReviewClient;
 }
 
-async function open(now: BuildDetail, earlier: BuildDetail): Promise<string> {
+async function open(
+  now: BuildDetail,
+  earlier: BuildDetail,
+  concerns?: ReviewClient['concerns'],
+): Promise<string> {
   await act(async () => {
     root.render(
       <BuildPage
-        client={clientThat(now, earlier)}
+        client={clientThat(now, earlier, concerns)}
         reviewer="marina"
         route={{ page: 'build', build: now.build }}
         go={() => undefined}
@@ -130,6 +139,32 @@ describe('the opening line counts only what there is something to count', () => 
 
     expect(text).toContain('nothing here is a difference it also carried');
     expect(text).not.toMatch(/\b0 /);
+  });
+});
+
+describe('the header counts the concerns the build showed', () => {
+  it('counts what stands, and only when something was ever flagged', async () => {
+    const asked: unknown[] = [];
+    const text = await open(build('6', [subject()]), build('5', [subject()]), async (query) => {
+      asked.push(query);
+      return { concerns: [], tally: { open: 2, investigating: 1, resolved: 0 } };
+    });
+
+    expect(asked).toEqual([{ seenIn: '6' }]);
+    expect(host.querySelector('.va-topbar .va-concern-tally')?.textContent).toBe(
+      '2 flagged · 1 investigating · 0 resolved',
+    );
+    expect(text).toContain('2 flagged');
+  });
+
+  it('says it could not read them, never that there are none', async () => {
+    await open(build('6', [subject()]), build('5', [subject()]), () =>
+      Promise.reject(new Error('GET /review/concerns answered 404')),
+    );
+
+    const line = host.querySelector('.va-topbar .va-concern-tally');
+    expect(line?.textContent).toBe('concerns unread');
+    expect(line?.getAttribute('title')).toContain('answered 404');
   });
 });
 
