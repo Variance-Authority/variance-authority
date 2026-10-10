@@ -482,7 +482,10 @@ That covers a story running inside Storybook's `#storybook-preview-iframe` and a
 second tab opened with `context.newPage()`. A document the test replaced is
 gone by then: a second `goto`, a `reload()`, a frame the application removed,
 or a page that closed or crashed. What it executed after its last read is lost,
-so the spec is recorded as incomplete and the next selection runs it.
+so the spec is recorded as incomplete and the next selection runs it. A spec
+[cut statement by statement](#record-which-spec-line-reached-each-region) is
+also read before each statement, so what is lost is only what the document did
+during the statement that replaced it.
 `pushState` and hash changes keep the same document and lose nothing. A context
 the spec creates for itself with `browser.newContext()` is not read: open pages
 from the test's own `context`, or hand one to `createVariance`.
