@@ -52,10 +52,10 @@ under the hold that is already there and only the caret is hidden.
 It never retries to make a subject agree. Independent screenshots are required to
 agree with each other and a disagreement is refused by name, because an image of
 something that was moving becomes a baseline that never corresponded to a state
-of the product. Agreement is not enough on its own: the page records every
-change to the subject from the read before the screenshots to the read after
-them, so a state that came and went between the two is retried, then refused
-by name.
+of the product. Agreement is not enough on its own: the page records each
+change to the subject's light DOM from the read before the screenshots to the
+read after them, so a state that came and went between the two is retried, then
+refused by name. The record does not enter shadow roots.
 
 ## Implementation coordinates
 

@@ -6,9 +6,9 @@ An in-place capture retries when the subject changed during its screenshots, eve
 
 The two reads around an in-place capture's screenshots could agree while the
 screenshots held a state neither read saw: a text swapped and restored between
-them. The page now records every change to the subject between the two reads,
-outside `data-variance-ignore` regions; any change counts as movement, and the
-refusal names what changed. A write that sets an attribute or a text to the
+them. The page now records each change to the subject's elements, attributes
+and text between the two reads, outside `data-variance-ignore` regions and
+shadow roots; any change counts as movement, and the refusal names what changed. A write that sets an attribute or a text to the
 value it already holds is not a change.
 
 This counts changes the compared reading never shows. An attribute the reading

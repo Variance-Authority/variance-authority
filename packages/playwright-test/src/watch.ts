@@ -24,7 +24,7 @@ interface Watch {
 
 let watching: Watch | undefined;
 
-/** Start recording changes to `root` and everything under it. */
+/** Start recording changes to `root` and everything under it, short of a shadow root: a `MutationObserver` does not enter one. */
 export function watch(root: Element): void {
   unwatch();
   const records: MutationRecord[] = [];
