@@ -280,9 +280,14 @@ function originalOf(path: string, source: string): (at: string) => string {
   return (at) => (at === path ? source : readFileSync(at, 'utf8'));
 }
 
-/** The `unprobed` globs as one predicate over absolute paths, read as Jest reads `testMatch` ({@link globMatcher}). */
+/**
+ * The `unprobed` globs as one predicate over absolute paths, read as Jest reads
+ * `testMatch` ({@link globMatcher}). The wrapper resolved each with
+ * `path.resolve`, which spells a Windows path with backslashes, so each is
+ * slashed first, as Jest slashes the paths it matches.
+ */
 function unprobedMatcher(globs: readonly string[] | undefined): ((file: string) => boolean) | undefined {
-  return globs === undefined || globs.length === 0 ? undefined : globMatcher(globs);
+  return globs === undefined || globs.length === 0 ? undefined : globMatcher(globs.map(slashed));
 }
 
 /** What Jest hashes when a transformer declares no key of its own. */
@@ -326,9 +331,14 @@ function globMatcher(globs: readonly string[]): (path: string) => boolean {
   const positive = globs.filter((glob) => !glob.startsWith('!')).map((glob) => picomatch(glob, { dot: true }));
   const negative = globs.filter((glob) => glob.startsWith('!')).map((glob) => picomatch(glob.slice(1), { dot: true }));
   return (path) => {
-    const slashed = path.replaceAll(/\\(?![$()+.?^{}])/g, '/');
-    return positive.some((match) => match(slashed)) && !negative.some((match) => match(slashed));
+    const candidate = slashed(path);
+    return positive.some((match) => match(candidate)) && !negative.some((match) => match(candidate));
   };
+}
+
+/** Jest's `replacePathSepForGlob`: a backslash is a separator unless it escapes a glob's special character. */
+function slashed(path: string): string {
+  return path.replaceAll(/\\(?![$()+.?^{}])/g, '/');
 }
 
 /**

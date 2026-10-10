@@ -105,6 +105,17 @@ describe('the Jest transformer over a module named unprobed', () => {
     expect(probed.code).toContain(JSON.stringify(moduleId('src/pick.js', SOURCE)));
   });
 
+  it('reads a glob resolved with Windows separators as the same glob', async () => {
+    // `withTestSelection` resolves each glob with `path.resolve`, which spells
+    // it with backslashes on Windows, and picomatch reads a backslash as an escape.
+    const root = await project('variance-jest-unprobed-windows-');
+    const transformer = await createTransformer({ root, unprobed: [`${root}/src/*.js`.replaceAll('/', '\\')] });
+
+    const { code } = transformer.process!(PAGE, resolve(root, 'src/page.js'), transformOptions(root));
+
+    expect(code).toContain(JSON.stringify(markedId('src/page.js', PAGE)));
+  });
+
   it('keys what it cached on the modules it marks', async () => {
     const root = await project('variance-jest-unprobed-key-');
     const path = resolve(root, 'src/page.js');
