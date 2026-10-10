@@ -51,7 +51,7 @@ describe('a cut test charges each region to the line that first reached it', () 
     runInContext(library.code, context, { filename: 'lib.js' });
     const running = engine.open('case');
     engine.use(running);
-    runInContext(test!, context, { filename: 'lib.test.js' });
+    runInContext(test!.code, context, { filename: 'lib.test.js' });
 
     const lines = linesOf(engine, running)!;
     const [a, b] = library.blocks.flatMap((block, ordinal) => (block.name === 'a' || block.name === 'b' ? [ordinal] : []));
