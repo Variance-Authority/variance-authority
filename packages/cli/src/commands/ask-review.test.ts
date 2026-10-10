@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { REVIEW_TOOLS } from '@variance-authority/mcp/tools';
 import type { Config } from '../config.js';
+import { OperatorError } from '../exit.js';
 import { ask } from './ask.js';
 import { reviewSubject } from './ask-review.js';
 
@@ -140,5 +141,19 @@ describe('the concerns reviewers raised', () => {
     });
     expect(answer).toContain('  #3  open  story:a  ci-1  "The border is clipped"');
     expect(answer).toContain('      evidence CartSummary.tsx:84');
+  });
+
+  it('refuse a call that names neither a subject nor a build as the operator’s, not as a defect', async () => {
+    const { asked, fetch } = answering(200, FLAGGED);
+    const asking = ask({
+      question: 'concerns',
+      state: 'open',
+      report: 'unused.json',
+      read: () => Promise.reject(new Error('a concern is not read from a report')),
+      review: (tool, input) => reviewSubject(CONFIG, tool, input, fetch),
+    });
+    await expect(asking).rejects.toBeInstanceOf(OperatorError);
+    await expect(asking).rejects.toThrow(/needs a `subject` or a `build`/);
+    expect(asked).toEqual([]);
   });
 });

@@ -144,7 +144,7 @@ export const concerns: ReviewTool<ConcernsSubject> = {
     const on = [
       ...(query.subject === undefined ? [] : [` on ${query.subject}`]),
       ...(query.build === undefined ? [] : [` seen in build ${query.build}`]),
-      ...(query.state === undefined ? [] : [` that ${read.length === 1 ? 'is' : 'are'} ${query.state}`]),
+      ...(query.state === undefined ? [] : [` that ${read.length <= 1 ? 'is' : 'are'} ${query.state}`]),
     ].join('');
     const tally = query.build === undefined || subject.tally === undefined
       ? []
