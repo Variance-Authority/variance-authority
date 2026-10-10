@@ -211,13 +211,6 @@ export async function ask(request: AskRequest): Promise<string> {
         `\`${request.question}\` needs a config: it names the deployment and the share token that reads it`,
       );
     }
-    // The tool refuses a call it cannot ask, such as one naming neither subject
-    // nor build. That is the operator's to fix, not a defect in the tool.
-    try {
-      question.review.query(input);
-    } catch (refusal) {
-      throw new OperatorError(refusal instanceof Error ? refusal.message : String(refusal), { cause: refusal });
-    }
     return `${question.review.run(await request.review(question.review, input), input)}\n`;
   }
   if (request.changedFile !== undefined || request.taintFile !== undefined) {

@@ -36,12 +36,17 @@ export function deploymentsOf(config: Reading): readonly string[] {
 export function attestedDeployment(config: Reading, among: readonly string[] = deploymentsOf(config)): string {
   const found = among.find((endpoint) => shareAt(config.share, endpoint));
   if (found !== undefined) return found;
-  const where = among.length === 0 ? 'a review deployment, and this config names none' : among.join(' or ');
+  if (among.length === 0) {
+    throw new OperatorError(
+      'what review settled is read from a review deployment with its share token, and this config ' +
+        'names no deployment: declare it as `"review": { "endpoint": "https://<deployment>" }` beside the share',
+    );
+  }
   throw new OperatorError(
-    `what review settled is read from ${where} with that deployment's share token, and this ` +
+    `what review settled is read from ${among.join(' or ')} with that deployment's share token, and this ` +
       'config stores no `http` share there to hold one: a share kept anywhere else holds no token this ' +
       'deployment accepts. Store the share there, as `"share": { "kind": "http", ' +
-      `"endpoint": "${among[0] ?? 'https://<deployment>'}/share", "token": { "env": "VARIANCE_SHARE_TOKEN" } }\``,
+      `"endpoint": "${among[0]}/share", "token": { "env": "VARIANCE_SHARE_TOKEN" } }\``,
   );
 }
 

@@ -62,6 +62,15 @@ describe('the decisions a deployment recorded', () => {
     expect(asked).toEqual([]);
   });
 
+  it('are refused, naming the deployment to declare, where the config declares only a share', async () => {
+    const { asked, fetch } = answering(200, HISTORY);
+    const shareOnly = { project: 'design-system', retention: 'durable', share: CONFIG.share } as unknown as Config;
+    await expect(reviewSubject(shareOnly, decisions, { subject: 'story:a' }, fetch)).rejects.toThrow(
+      /names no deployment: declare it as `"review": \{ "endpoint"/,
+    );
+    expect(asked).toEqual([]);
+  });
+
   it('answer `variance ask decisions --subject --build`, through the same tool the server mounts', async () => {
     const { fetch } = answering(200, HISTORY);
     const answer = await ask({
