@@ -14,8 +14,8 @@ import {
 /**
  * A badge whose words and colour live in `::before`.
  *
- * The allowlist leaves `content` out on the stated ground that resolved
- * pseudo-element text "is captured as text". A pseudo-element is not an element:
+ * The allowlist leaves `content` out because the text a `::before` says is
+ * captured as text, on a child of the badge. A pseudo-element is not an element:
  * nothing walking `childNodes` reaches it, `Element.matches` answers `false` for a
  * selector ending in one, and `getComputedStyle(element)` describes the element
  * itself. So the claim is checked here on the engine the chromium profile reads,
@@ -209,6 +209,14 @@ chromium_(
 
     it("moves the snapshot when the text of `::before` changes", () => {
       expect(renderHash("reworded")).not.toBe(renderHash("plain"));
+    });
+
+    it("reads `::before` as the badge's first child, saying its words as text", () => {
+      const badge = read.get("badge/plain")?.snapshot?.root.children[0];
+      const box = badge?.children[0];
+      expect(box?.tag).toBe("::before");
+      expect(box?.style["color"]).toBe("rgb(0 0 255 / 1)");
+      expect(box?.children.map((child) => child.text)).toEqual(["New"]);
     });
   },
 );

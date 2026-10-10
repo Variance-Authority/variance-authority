@@ -284,6 +284,7 @@ function normalizeNode(
       // they hash by name, so this reaches the snapshot without reaching the
       // identity — which is the whole contract an ignore is under.
       ...(node.ignoredBy && node.ignoredBy.length > 0 ? { ignoredBy: node.ignoredBy } : {}),
+      ...(node.unread !== undefined ? { unread: node.unread } : {}),
       children,
     };
 

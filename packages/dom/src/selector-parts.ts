@@ -17,6 +17,21 @@
 
 /** Everything before the final combinator, or `null` when the selector is simple. */
 export function ancestorPortion(selector: string): string | null {
+  const { lastBreak } = walk(selector);
+  return lastBreak < 0 ? null : selector.slice(0, lastBreak);
+}
+
+/** Split off the last compound selector, respecting combinators and nesting. */
+export function lastCompound(selector: string): string {
+  return selector.slice(walk(selector).lastBreak + 1).trim();
+}
+
+/**
+ * The one walk: the index of the last combinator at depth zero, `-1` when there
+ * is none, and the bracket depth the string ends at, which is not zero when it
+ * stops inside a `[` or a `(`.
+ */
+function walk(selector: string): { readonly lastBreak: number; readonly depth: number } {
   let depth = 0;
   let lastBreak = -1;
 
@@ -29,22 +44,49 @@ export function ancestorPortion(selector: string): string | null {
     }
   }
 
-  return lastBreak < 0 ? null : selector.slice(0, lastBreak);
+  return { lastBreak, depth };
 }
 
-/** Split off the last compound selector, respecting combinators and nesting. */
-export function lastCompound(selector: string): string {
-  let depth = 0;
-  let start = 0;
+/** A selector that styles a pseudo-element, cut into the element it hangs from and the pseudo-element. */
+export interface PseudoElementSelector {
+  /** What the originating element must match. `*` when the selector names only the pseudo-element. */
+  readonly host: string;
+  /** The pseudo-element, always in its double-colon form: `::before`, never `:before`. */
+  readonly pseudo: string;
+}
 
-  for (let i = 0; i < selector.length; i += 1) {
-    const char = selector[i]!;
-    if (char === '(' || char === '[') depth += 1;
-    else if (char === ')' || char === ']') depth -= 1;
-    else if (depth === 0 && (char === ' ' || char === '>' || char === '+' || char === '~')) {
-      start = i + 1;
-    }
-  }
+/** The four pseudo-elements CSS 2 wrote with one colon, which a CSSOM may hand back as written. */
+const LEGACY_PSEUDO_ELEMENTS = new Set(['before', 'after', 'first-line', 'first-letter']);
 
-  return selector.slice(start).trim();
+/**
+ * Split a trailing pseudo-element off a selector, or `null` when it styles an element.
+ *
+ * `Element.matches('.badge::before')` is `false` in every engine — a pseudo-element
+ * is not an element — so a rule written for one never reached the box it paints.
+ * Matching the host and keeping the pseudo-element beside it is what lets the
+ * rule be attributed to the box it styles.
+ *
+ * Only an argument-less pseudo-element at the very end is split. `::part()` and
+ * `::slotted()` select elements and match as written; a pseudo-element followed
+ * by anything else is left whole, so it matches what it matched before.
+ */
+export function splitPseudoElement(selector: string): PseudoElementSelector | null {
+  const written = selector.trimEnd();
+  const found = /(::?)([a-z-][\w-]*)$/i.exec(lastCompound(written));
+  if (!found) return null;
+
+  const name = found[2]!.toLowerCase();
+  if (found[1] === ':' && !LEGACY_PSEUDO_ELEMENTS.has(name)) return null;
+
+  // The colons must start a pseudo, not end an escape or sit inside brackets:
+  // `.a\:before` is a class, and a match that began inside `[` or `(` is not at depth zero.
+  const at = written.length - found[0].length;
+  if (at > 0 && written[at - 1] === '\\') return null;
+  if (walk(written.slice(0, at)).depth !== 0) return null;
+
+  // `.card ::before` is any descendant's box, not the card's: a host that ends on
+  // a combinator, or is empty, gets the universal selector it implied.
+  const host = written.slice(0, at);
+  const implied = host.length === 0 || /[\s>+~]$/.test(host);
+  return { host: implied ? `${host}*` : host, pseudo: `::${name}` };
 }

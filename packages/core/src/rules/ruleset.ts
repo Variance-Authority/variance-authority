@@ -14,6 +14,11 @@
  * collectors key an asset the page's origin serves by its path. Under `r1` the
  * port a collector happened to serve a build on was part of both, so one build
  * served twice read as two renders in two environments.
+ *
+ * `r2` also reads the boxes `::before` and `::after` generate as children of
+ * the element they hang from, styled by the rules written for them. Under `r1`
+ * a rule naming a pseudo-element matched nothing, so restyling or rewording one
+ * repainted the page and moved no hash.
  */
 export const RULESET_VERSION = 'r2';
 
@@ -55,8 +60,10 @@ export const ALLOWLIST_VERSION = 'a2';
  *   not contain. Including them would make every easing tweak a diff.
  * - `cursor`, `user-select`, `will-change`, `contain` — invisible in both raster
  *   and the accessibility tree at rest.
- * - `content` — resolved pseudo-element text is captured as text, not as a
- *   declaration, so that it diffs like the content it is.
+ * - `content` — the text a `::before` or `::after` says is captured as a text
+ *   child of that box, not as a declaration, so that it diffs like the text it
+ *   is. A host without a layout engine computes no generated content, and marks
+ *   the box `unread` rather than reading a declaration in its place.
  */
 export const STYLE_ALLOWLIST: readonly string[] = [
   // Box model and formatting context

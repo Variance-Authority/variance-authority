@@ -13,6 +13,7 @@ import { indexStyleSheets, matchRulesFor, type StyleIndex } from './css.js';
 import { deviceProbe, type ConditionEnvironment } from './media.js';
 import { attributesOf, elements } from './dom-list.js';
 import { formState } from './form-state.js';
+import { splitPseudoElement } from './selector-parts.js';
 
 /**
  * Acquisition — phase one: a live DOM becomes something you can send somewhere.
@@ -261,9 +262,19 @@ function applicableCss(
 
   const walk = (element: Element): void => {
     const path = element.getAttribute(PATH_ATTRIBUTE)!;
-    for (const rule of matchRulesFor(element, index).matched) {
+    const { matched, pseudo } = matchRulesFor(element, index);
+    for (const rule of matched) {
       byOrder.set(rule.order, rule);
       bindings.push({ path, selector: rule.selector });
+    }
+    // A pseudo-element's rule paints too, and is bound to the element it hangs
+    // from: `matches` answers `false` for any selector naming a pseudo-element,
+    // so what `verify` can re-test is that its host still matches.
+    for (const rules of pseudo.values()) {
+      for (const rule of rules) {
+        byOrder.set(rule.order, rule);
+        bindings.push({ path, selector: splitPseudoElement(rule.selector)?.host ?? rule.selector });
+      }
     }
     for (const child of elements(element.children)) walk(child);
   };
@@ -286,7 +297,8 @@ function applicableCss(
   // rule that fails to match an ancestor in the render can only *lose* styling
   // the page had, and `subject-size-diverged` is the detector for the outcome.
   for (const ancestor of frameChain(root)) {
-    for (const rule of matchRulesFor(ancestor, index).matched) byOrder.set(rule.order, rule);
+    const { matched, pseudo } = matchRulesFor(ancestor, index);
+    for (const rule of [...matched, ...[...pseudo.values()].flat()]) byOrder.set(rule.order, rule);
   }
 
   const rules = [...byOrder.values()].sort((a, b) => a.order - b.order);

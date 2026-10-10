@@ -188,6 +188,28 @@ describe('wrapper collapse', () => {
     expect(hashOf(boundary)).not.toBe(hashOf(bare));
   });
 
+  it('keeps a wrapper that hosts a generated box', () => {
+    // `.tag::before` was written against the span; hoisting the box onto the
+    // parent puts it on an element that generates nothing.
+    const snapshot = normalize(
+      capture({
+        root: node({
+          children: [
+            node({
+              tag: 'span',
+              children: [
+                node({ tag: '::before', children: [node({ tag: '#text', text: 'New' })] }),
+                node({ tag: '#text', text: 'hi' }),
+              ],
+            }),
+          ],
+        }),
+      }),
+    );
+
+    expect(snapshot.root.children.map((child) => child.tag)).toEqual(['span']);
+  });
+
   it('repaths promoted children so paths describe the final tree', () => {
     const snapshot = normalize(
       capture({
@@ -205,6 +227,17 @@ describe('wrapper collapse', () => {
   it('can be switched off', () => {
     const wrapped = node({ children: [node({ children: [node({ tag: 'span', text: 'hi' })] })] });
     expect(hashOf(wrapped, { collapseWrappers: false })).not.toBe(hashOf(wrapped));
+  });
+});
+
+describe('a node read only in part', () => {
+  it('carries why it was not read, outside every hash', () => {
+    const box = node({ tag: '::before', rules: [{ selector: '.a::before', declare: { color: 'red' } }] });
+    const marked = normalize(capture({ root: node({ children: [{ ...box, unread: 'not read' }] }) }));
+    const bare = normalize(capture({ root: node({ children: [box] }) }));
+
+    expect(marked.root.children[0]!.unread).toBe('not read');
+    expect(marked.renderHash).toBe(bare.renderHash);
   });
 });
 

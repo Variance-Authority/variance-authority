@@ -27,7 +27,19 @@ import type { IndexedRule, StyleIndex } from './css-index.js';
  * than taking a screenshot.
  */
 export interface MatchResult {
+  /** Rules styling the element itself. */
   readonly matched: MatchedRule[];
+  /**
+   * Rules styling one of the element's pseudo-elements, by pseudo-element
+   * (`::before`, `::marker`, …), in document order.
+   *
+   * Apart from `matched` because they style a different box. A
+   * `.badge::before { color: red }` attached to the badge recolours, in the
+   * snapshot, a box the page never painted red — and the box that *was* painted
+   * red is left with no rule at all. Each rule's `selector` is still the whole
+   * branch, pseudo-element included, because that is the rule a reader finds.
+   */
+  readonly pseudo: ReadonlyMap<string, MatchedRule[]>;
   /**
    * Root-state keys this element is *latently* coupled to.
    *
@@ -60,24 +72,34 @@ export function matchRulesFor(element: Element, index: StyleIndex): MatchResult 
   candidates.push(...(index.byKey.get('[attr]') ?? []));
 
   const matched: MatchedRule[] = [];
+  const pseudo = new Map<string, MatchedRule[]>();
   const couplings = new Set<string>();
 
   for (const candidate of candidates) {
-    if (safeMatches(element, candidate.branch)) {
-      matched.push({
+    if (safeMatches(element, candidate.host)) {
+      const rule: MatchedRule = {
         sheet: candidate.sheet,
         selector: candidate.branch,
         specificity: candidate.specificity,
         order: candidate.order,
         declarations: candidate.declarations,
-      });
+      };
+      if (candidate.pseudo === undefined) {
+        matched.push(rule);
+        continue;
+      }
+      const box = pseudo.get(candidate.pseudo);
+      if (box) box.push(rule);
+      else pseudo.set(candidate.pseudo, [rule]);
       continue;
     }
 
-    for (const key of latentCouplings(element, candidate.branch)) couplings.add(key);
+    for (const key of latentCouplings(element, candidate.host)) couplings.add(key);
   }
 
-  return { matched: matched.sort((a, b) => a.order - b.order), couplings: [...couplings] };
+  const byOrder = (a: MatchedRule, b: MatchedRule): number => a.order - b.order;
+  for (const rules of pseudo.values()) rules.sort(byOrder);
+  return { matched: matched.sort(byOrder), pseudo, couplings: [...couplings] };
 }
 
 /**

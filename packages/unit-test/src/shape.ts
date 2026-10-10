@@ -272,6 +272,7 @@ function semanticNodeShape(node: Record<string, unknown>): boolean {
     (node.wiring === undefined || wiringShape(node.wiring)) &&
     (node.portalled === undefined || typeof node.portalled === 'boolean') &&
     (node.ignoredBy === undefined || stringArray(node.ignoredBy)) &&
+    optionalString(node.unread) &&
     Array.isArray(node.children) &&
     node.children.every((child) => {
       const parsed = record(child);

@@ -6,7 +6,7 @@
 '@variance-authority/storybook-collector': minor
 ---
 
-The port a build is served on is no part of a render, and every stored baseline is invalidated
+The port a build is served on is no part of a render
 
 The route and Storybook collectors serve a build on a free port, and that port
 reached two identities. An asset the page loaded was keyed by its absolute URL,
@@ -23,7 +23,15 @@ and resources as paths, so one build served on two ports addresses one render
 and the render cache hits; the document keeps them absolute for the renderer,
 and a resource another origin serves stays absolute in the digest too.
 
-**Every stored baseline is invalidated.** `RULESET_VERSION` moves from `r1` to
-`r2`, and the ruleset version is part of the environment key, so every subject
-recorded under `r1` reads as `incomparable` on its first run under `r2`. Run
-once and accept the result to record baselines under `r2`.
+**The document of every page served over `http` moves once after this
+upgrade.** `documentDigest` now reads a document's base and resources without
+the page's origin, so the digest of every document served over `http` or
+`https` changes: every route, every story, every Vitest browser page, and every
+Playwright page opened by URL. A moved document misses the render cache once,
+and its image is still compared with the baseline: a page whose pixels did not
+move reads `unchanged`, and one whose pixels did reads `changed`, which
+`variance accept --all` and Playwright's `--update-snapshots=changed` adopt.
+`RULESET_VERSION` moves from `r1` to `r2`. The ruleset is part of a snapshot's
+environment key, not of the render recipe, so no image reads `incomparable` for
+it; a snapshot diffed against one recorded under `r1` names the ruleset as its
+environment root.
