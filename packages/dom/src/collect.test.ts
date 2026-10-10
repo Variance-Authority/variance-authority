@@ -338,6 +338,26 @@ describe('profile detection', () => {
     driven.release();
   });
 
+  it('gives focus back to the element it took it from, and to nothing a later one took', async () => {
+    document.body.innerHTML = '<input id="name"><input id="email">';
+    const name = document.getElementById('name') as HTMLInputElement;
+    const email = document.getElementById('email') as HTMLInputElement;
+    name.focus();
+
+    const held = await stabilizeForObservation(document, { profile: CHROMIUM_PROFILE });
+    expect(held.ids).toContain('no-focus');
+    expect(document.activeElement).toBe(document.body);
+    held.refocus();
+    expect(document.activeElement).toBe(name);
+    held.release();
+
+    const again = await stabilizeForObservation(document, { profile: CHROMIUM_PROFILE });
+    email.focus();
+    again.refocus();
+    expect(document.activeElement).toBe(email);
+    again.release();
+  });
+
   it('refuses a request naming a trick nothing answers to', async () => {
     // A page agent is handed the recipe by name, since an intervention carries
     // functions and cannot cross. The ids it applies are pinned in a browser,
