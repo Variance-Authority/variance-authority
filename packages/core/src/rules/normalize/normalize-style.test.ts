@@ -297,6 +297,24 @@ describe('custom properties and token attribution', () => {
     expect(snapshot.root.style['color']).toBe('rgb(0 255 0 / 1)');
   });
 
+  it('reads a parenthesis inside a quoted fallback as text, not as the close of var()', () => {
+    const snapshot = normalize(
+      capture({
+        root: node({ rules: [{ selector: '.x', declare: { 'font-family': 'var(--missing, "a)b")' } }] }),
+      }),
+    );
+    expect(snapshot.root.style['font-family']).toBe('"a)b"');
+  });
+
+  it('closes an unclosed var() at the end of the value, as CSS syntax does', () => {
+    const snapshot = normalize(
+      capture({
+        root: node({ rules: [{ selector: '.x', declare: { color: 'var(--missing, #00ff00' } }] }),
+      }),
+    );
+    expect(snapshot.root.style['color']).toBe('rgb(0 255 0 / 1)');
+  });
+
   it('terminates on a circular custom-property reference', () => {
     const circular = capture({
       root: node({
