@@ -45,6 +45,13 @@ export function fit(box: Size, window: Size): number {
 }
 
 /**
+ * The smallest a raster is drawn. Below a quarter, with smoothing refused, the
+ * sampler picks which rows survive, and two pictures can match or differ by
+ * sampling alone; past it a picture is cropped rather than shrunk.
+ */
+export const SMALLEST_SCALE = 0.25;
+
+/**
  * One layer's share of the plate, as a percentage.
  *
  * A percentage rather than a pixel width so that nothing here has to know the

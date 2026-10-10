@@ -238,7 +238,8 @@ describe('a name read through the configured grammar', () => {
   it('carries the step on the record, so a reader can place the pair without parsing prose', () => {
     // The review page draws a subject that varies on two axes as a grid, and a
     // grid needs each subject's coordinate. Reading it back out of `because`
-    // would make a sentence the interface between two packages.
+    // would make a sentence the interface between two packages, and which axis
+    // runs down is the order the format writes them in, so the step says where.
     const records = variationsOf({
       plan: planOf(planned('fixture:dragon-green'), planned('fixture:dragon-glass')),
       names,
@@ -248,7 +249,7 @@ describe('a name read through the configured grammar', () => {
       ]),
     });
 
-    expect(records?.[0]?.step).toEqual({ axis: 'colour', from: 'green', to: 'glass' });
+    expect(records?.[0]?.step).toEqual({ axis: 'colour', position: 1, from: 'green', to: 'glass' });
   });
 
   it('leaves the step absent when no format read the names', () => {
