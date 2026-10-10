@@ -72,6 +72,9 @@ export interface PageFocusable {
   blur?(): void;
 }
 
+/** The two values of `prefers-reduced-motion` a browser can be told to report. */
+export type MotionPreference = 'no-preference' | 'reduce';
+
 /**
  * What a trick asks of the browser driver, where neither a stylesheet nor a
  * script in the page can reach.
@@ -84,9 +87,6 @@ export interface PageFocusable {
  * tricks it cannot honour, and the hosts that can drive agree on what each one
  * means. [`drive.ts`](./drive.ts) applies it.
  */
-/** The two values of `prefers-reduced-motion` a browser can be told to report. */
-export type MotionPreference = 'no-preference' | 'reduce';
-
 export interface DriverState {
   /** `prefers-reduced-motion: reduce`, emulated before the page loads. */
   readonly reducedMotion?: 'reduce';

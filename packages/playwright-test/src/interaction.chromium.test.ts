@@ -165,6 +165,7 @@ chromium_('what a test leaves behind before it observes', () => {
 
     expect((await observe(page!, subject, info('none'), options)).verdict).toBe('changed');
   }, 60_000);
+
   it('keeps the focus a test gave, when its recipe leaves focus alone', async () => {
     const subject = page!.locator('#subject');
     const options = {
