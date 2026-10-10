@@ -683,8 +683,10 @@ changed regions none of this build's regions meets, the approval goes through.
 The service records nothing and answers 409 with
 `{"error":"…","read":…,"current":…}` only when they meet, when the baseline
 standing now was written by something that names no regions — a run's
-`/baseline/put` — or when there was no baseline as you read it, since then both
-sides added the whole image. The sentence names the two baselines and, when it
+`/baseline/put` — when a region list on either side was cut short, when the
+baseline you read has since been deleted, or when there was no baseline as you
+read it, since then both sides added the whole image. An approval whose own
+image already stands goes through. The sentence names the two baselines and, when it
 is one, the build whose change met yours; `read` and `current` are the two
 document digests, `null` for none. The version is the baseline standing when you
 read the build, not the one its run compared against, so it guards the time the

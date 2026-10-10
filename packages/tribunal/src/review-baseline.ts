@@ -124,8 +124,11 @@ export async function refuseMoved(
  * place it did, or `null` when none did.
  *
  * Every approval after the build counts, not only the one standing now: a
- * baseline moved twice carries both changes. The last of them must be the image
- * standing now; anything else wrote it after, and said no regions.
+ * baseline moved twice carries both changes. One of them must have promoted the
+ * image standing now, since a document digest names its pixels; when none did,
+ * something else wrote it after, and said no regions. Approvals under another
+ * identity count too, and can only add regions. A region list the run cut short
+ * on either side is not a list of where it changed.
  */
 async function clashSince(
   db: D1Like,
@@ -137,7 +140,8 @@ async function clashSince(
   const name = text(subject, 'subject', 'a build subject');
   const { results } = await db
     .prepare(
-      `SELECT changelog.build, changelog.regions, build_subjects.candidate_document_digest AS promoted
+      `SELECT changelog.build, changelog.regions, build_subjects.truncated,
+              build_subjects.candidate_document_digest AS promoted
          FROM changelog
          LEFT JOIN build_subjects ON build_subjects.project = changelog.project
           AND build_subjects.build = changelog.build AND build_subjects.subject = changelog.subject
@@ -148,27 +152,36 @@ async function clashSince(
     .bind(project, name, build, project, build)
     .all<Row>();
 
-  const last = results.at(-1);
-  if (last === undefined || optionalText(last, 'promoted', 'a changelog entry') !== current) {
+  if (!results.some((entry) => optionalText(entry, 'promoted', 'a changelog entry') === current)) {
     return 'what wrote it was not an approval here, and says nothing about where it changed';
+  }
+  if (optionalText(subject, 'truncated', 'a build subject') !== undefined) {
+    return 'this build found more changed regions than it kept, so there is no telling where the two differ';
   }
 
   const ours = regionsOf(subject, 'a build subject');
   for (const entry of results) {
+    const by = text(entry, 'build', 'a changelog entry');
+    if (optionalText(entry, 'truncated', 'a changelog entry') !== undefined) {
+      return `build "${by}" found more changed regions than it kept, so there is no telling where the two differ`;
+    }
     const theirs = regionsOf(entry, 'a changelog entry');
     const met = theirs.find((region) => ours.some((mine) => intersectionArea(mine, region) > 0));
     if (met !== undefined) {
-      return (
-        `build "${text(entry, 'build', 'a changelog entry')}" changed it at ` +
-        `${met.x},${met.y} ${met.width}×${met.height}, where this build changed it too`
-      );
+      return `build "${by}" changed it at ${met.x},${met.y} ${met.width}×${met.height}, where this build changed it too`;
     }
   }
   return null;
 }
 
 function regionsOf(row: Row, what: string): readonly RegionRecord[] {
-  const regions: unknown = JSON.parse(text(row, 'regions', what));
+  let regions: unknown;
+  try {
+    regions = JSON.parse(text(row, 'regions', what));
+  } catch (error) {
+    if (error instanceof ReviewError) throw error;
+    throw new ReviewError(`${what} has a \`regions\` that is not JSON`);
+  }
   if (!Array.isArray(regions)) throw new ReviewError(`${what} has a \`regions\` that is not a list`);
   return regions as readonly RegionRecord[];
 }

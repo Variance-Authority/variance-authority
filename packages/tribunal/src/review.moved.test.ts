@@ -29,13 +29,15 @@ beforeEach(async () => {
 
 /**
  * The fixture's build under another id, painted from another document, and
- * changed where `regions` says when it is given.
+ * changed where `regions` says when it is given, with more found than kept when
+ * `truncated` says so.
  */
 function later(
   build: string,
   documentDigest: string,
   identity?: RenderIdentity,
   regions?: readonly RegionRecord[],
+  truncated?: { readonly regions: number; readonly pixels: number },
 ): BuildIngest {
   const base = ingest();
   const images = base.images?.[SUBJECT];
@@ -46,7 +48,7 @@ function later(
       : {
           ...base.report,
           observations: base.report.observations.map((each) =>
-            each.subject === SUBJECT ? { ...each, regions } : each,
+            each.subject === SUBJECT ? { ...each, regions, ...(truncated === undefined ? {} : { truncated }) } : each,
           ),
         };
   return {
@@ -263,10 +265,13 @@ describe('a decision that echoes the version it read', () => {
 
 describe('an approval whose baseline moved, read the way a merge reads code', () => {
   /** A baseline both builds start from, then another build approved over it. */
-  async function movedBy(regions: readonly RegionRecord[]): Promise<string | null | undefined> {
+  async function movedBy(
+    regions: readonly RegionRecord[],
+    truncated?: { readonly regions: number; readonly pixels: number },
+  ): Promise<string | null | undefined> {
     await accepted('0ddba11', IDENTITY);
     await review.ingest(ingest());
-    await review.ingest(later('ci-1002', 'feedface', undefined, regions));
+    await review.ingest(later('ci-1002', 'feedface', undefined, regions, truncated));
     const read = await versionOf('ci-1001');
     await review.decide({ build: 'ci-1002', subject: SUBJECT, decision: 'approved', by: 'anton' });
     return read;
@@ -330,6 +335,53 @@ describe('an approval whose baseline moved, read the way a merge reads code', ()
         baselineVersion: read ?? null,
       }),
     ).rejects.toMatchObject({ read: '0ddba11', current: 'cafebabe' });
+  });
+
+  it('goes through when the change that moved it names no region at all', async () => {
+    // A build whose image moved and whose regions are empty changed nowhere
+    // anybody drew; there is nothing for this one to meet.
+    const read = await movedBy([]);
+
+    const record = await review.decide({
+      build: 'ci-1001',
+      subject: SUBJECT,
+      decision: 'approved',
+      by: 'marina',
+      baselineVersion: read ?? null,
+    });
+    expect(record.decision).toBe('approved');
+  });
+
+  it('is refused when the change that moved it kept fewer regions than it found', async () => {
+    // The regions it dropped may be exactly where this build changed it.
+    const read = await movedBy(ELSEWHERE, { regions: 40, pixels: 9000 });
+
+    await expect(
+      review.decide({
+        build: 'ci-1001',
+        subject: SUBJECT,
+        decision: 'approved',
+        by: 'marina',
+        baselineVersion: read ?? null,
+      }),
+    ).rejects.toThrow(/ci-1002.*more changed regions than it kept/s);
+  });
+
+  it('goes through when a later approval under another identity did not overlap either', async () => {
+    // A Retina baseline is another file; approving it moves nothing this one
+    // replaces, and it is not what wrote the baseline standing here.
+    const read = await movedBy(ELSEWHERE);
+    await review.ingest(later('ci-1003', 'c0ffee', RETINA, ELSEWHERE));
+    await review.decide({ build: 'ci-1003', subject: SUBJECT, decision: 'approved', by: 'anton' });
+
+    const record = await review.decide({
+      build: 'ci-1001',
+      subject: SUBJECT,
+      decision: 'approved',
+      by: 'marina',
+      baselineVersion: read ?? null,
+    });
+    expect(record.decision).toBe('approved');
   });
 
   it('goes through when what stands now is already this build\'s image', async () => {

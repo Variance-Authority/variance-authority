@@ -58,10 +58,12 @@ merge reads code. A baseline that moved since is not a conflict by itself: the
 approvals that moved it after the build ran each froze the regions they changed,
 and when none meets one of this build's the approval goes through. It is refused
 before anything is promoted or recorded when one does, when what stands was
-written by something that names no regions — a run's own write — or when there
-was no baseline as the page was read, with a sentence naming both baselines and
+written by something that names no regions — a run's own write — when a region
+list on either side was cut short, or when there was no baseline as the page was
+read or none stands now, with a sentence naming both baselines and
 the build whose change met, and the two versions beside it, so a page can say
-them in its own words. An approval that goes through replaces the moved baseline
+them in its own words. An approval whose own image already stands goes through.
+An approval that goes through replaces the moved baseline
 whole, and the next run shows the other build's change again. A rejection
 promotes nothing and is not checked, nor is a decision without a version.
 
