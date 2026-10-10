@@ -1,12 +1,14 @@
 import type { SearchIndex } from '../search-index.js';
-import { termsOf } from '../search-index.js';
+import { tokensOf } from '../search-index.js';
 
 /**
  * The loose pass's membership, read off the published dictionary.
  *
  * This answers the set MiniSearch answered when the pass built an index per
- * question: every held name tokenized with MiniSearch's default tokenizer, terms
- * shorter than two dropped and the rest lowercased, then `combineWith: 'AND'`,
+ * question: every held name tokenized with MiniSearch's default tokenizer, each
+ * token kept whole and split into the words it is written in, terms shorter
+ * than two dropped and the rest lowercased; the query tokenized without the
+ * split; then `combineWith: 'AND'`,
  * `prefix: true`, `fuzzy: 0.2` and `maxFuzzy: 1`. Each query term is satisfied
  * by any dictionary term equal to it, starting with it, or one edit from it
  * when the term is three characters or longer; a name is in the answer when
@@ -46,7 +48,7 @@ export function looseNames(
   within: ReadonlySet<number> | undefined,
   already: ReadonlySet<number>,
 ): ReadonlySet<number> {
-  const terms = termsOf(query);
+  const terms = tokensOf(query);
   if (terms.length === 0) return new Set();
 
   const heldCache = new Map<number, boolean>();
