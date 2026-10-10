@@ -24,6 +24,7 @@
 //! the crate takes no options beyond the [`Mode`]: what it writes is what the
 //! collectors read.
 
+mod cadence;
 mod cut;
 /// The digest every stored text is named by; [`module_id`] is the one a
 /// pipeline needs.
@@ -32,6 +33,7 @@ pub mod digest;
 mod header;
 mod walk;
 
+pub use cadence::cadence;
 pub use header::EVALUATING;
 
 /// How many regions a module is cut into.

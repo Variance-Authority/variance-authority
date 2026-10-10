@@ -2,6 +2,7 @@ import { blob, column, NO_OWNER, sections } from './format-layout.js';
 import { type CrossingSetsView } from './crossing-sets-read.js';
 import { CrossingSets, type CrossingSetsPool } from './crossing-sets.js';
 import { codeUnitOrder, intern } from '@variance-authority/core/segment';
+import { linesColumn, type CaseLines } from './case-lines.js';
 import { preconditionSection, preconditionStrings, preconditionWords, preconditionsFrom } from './case-precondition-column.js';
 import {
   columnWords,
@@ -60,6 +61,11 @@ export interface SetExecutionIndex {
   readonly tests: readonly ExecutionTest[];
   readonly modules: readonly SetExecutionModule[];
   readonly sets: CrossingSetsPool;
+  /**
+   * The line that reached each region, by case, each module named by its place
+   * in `modules`; absent, or a case's entry absent, where it was not recorded.
+   */
+  readonly lines?: readonly (CaseLines | undefined)[];
 }
 
 /**
@@ -76,7 +82,8 @@ export interface SetExecutionIndex {
  */
 export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
   const { strings, id } = intern(dictionary(index));
-  const modules = [...index.modules].sort((left, right) => codeUnitOrder(left.file, right.file));
+  const order = Array.from(index.modules.keys()).sort((left, right) => codeUnitOrder(index.modules[left]!.file, index.modules[right]!.file));
+  const modules = order.map((at) => index.modules[at]!);
   const encoded = strings.map((value) => Buffer.from(value, 'utf8'));
   const stringOffsets = new Uint32Array(strings.length + 1);
   let byteOffset = 0;
@@ -144,14 +151,27 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
     blockCalled,
     blockLoaded,
     blockOwner,
+    testLines: index.lines === undefined ? undefined : renamed(index.lines, order),
   }, index.sets);
 }
 
-/** The columns an index is written from: every one {@link SetColumns} reads, none optional but the owner column. */
-export interface WrittenSetColumns extends Omit<SetColumns, 'sets' | 'testStopped' | 'testDuration' | 'testPreconditions'> {
+/** Each case's lines with its modules named by the place they are written at. */
+function renamed(lines: readonly (CaseLines | undefined)[], order: readonly number[]): (CaseLines | undefined)[] {
+  const written = new Uint32Array(order.length);
+  for (const [at, from] of order.entries()) written[from] = at;
+  return lines.map((held) => held === undefined ? undefined : {
+    ...held,
+    segments: new Map([...held.segments].map(([module, segment]) => [written[module] ?? fail(), segment])),
+  });
+}
+
+/** The columns an index is written from: every one {@link SetColumns} reads, none optional but the owner and lines columns. */
+export interface WrittenSetColumns extends Omit<SetColumns, 'sets' | 'testStopped' | 'testDuration' | 'testPreconditions' | 'testLines'> {
   readonly testStopped: Uint8Array;
   readonly testDuration: Uint32Array;
   readonly testPreconditions: Uint32Array;
+  /** Each case's lines, its modules named by their row; no column where no case recorded any. */
+  readonly testLines?: readonly (CaseLines | undefined)[] | undefined;
 }
 
 /**
@@ -168,6 +188,7 @@ export function writeSetColumns(columns: WrittenSetColumns, sets: CrossingSetsPo
     'tests.stopped': column(columns.testStopped),
     'tests.duration': column(columns.testDuration),
     ...preconditionSection(columns.testPreconditions),
+    ...linesColumn(columns.testLines ?? []),
     'modules.file': column(columns.moduleFile),
     'modules.blocks': column(columns.moduleBlocks),
     'blocks.kind': column(columns.blockKind),

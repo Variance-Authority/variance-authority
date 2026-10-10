@@ -1,8 +1,9 @@
 import { existsSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
+import picomatch from 'picomatch';
 import type { UserConfig } from 'vitest/config';
-import type { InstrumentMode } from '../instrument/index.js';
+import { cadence, type InstrumentMode } from '../instrument/index.js';
 import { captureModule, pathOf } from './captured-modules.js';
 import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
 import { writeCut } from './case-cut.js';
@@ -74,6 +75,14 @@ export interface TestSelectionOptions {
    * concurrent. Leave it off the rest of the time.
    */
   readonly continuations?: boolean;
+  /**
+   * Whether each statement of a test or a hook is cut, so the record says which
+   * line of the test first reached each region its case entered. On by default.
+   * The cut is one call per statement the test runs, and it reaches the record
+   * only as a line per case; turn it off to record a suite exactly as it ran
+   * before cuts existed.
+   */
+  readonly cadence?: boolean;
   /**
    * The selection this run is handed, read once when Vitest first sorts its
    * files. A wrapping `sequence.sequencer` drops what it may skip and hands
@@ -175,7 +184,8 @@ export function withTestSelection(
     };
   }
 
-  const plugin = selectionPlugin(root, setupId, runnerId, globalSetup, run, include, mode, declared, settle);
+  const cut = options.cadence === false ? undefined : testFiles(config, configRoot);
+  const plugin = selectionPlugin(root, setupId, runnerId, globalSetup, run, include, mode, declared, settle, cut);
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
   const continuations = options.continuations === true;
@@ -296,6 +306,7 @@ function selectionPlugin(
   mode: InstrumentMode,
   declared: readonly string[],
   settle: (files: readonly FinishedFile[]) => Promise<void>,
+  cut: ((file: string) => boolean) | undefined,
 ): VitePlugin {
   const { modules } = run;
   let closing: Promise<void> | undefined;
@@ -368,6 +379,13 @@ function selectionPlugin(
       // A `globalSetup` file is refused by the file it is as well as by the name
       // `include` is asked about, which a build's map may have changed.
       if (file === setupId || file === runnerId || globalSetup.has(file)) return null;
+      // A test file is cut rather than probed: nothing enters it, and what it
+      // carries is which of its lines was running. The file itself only — a
+      // query asks for a module built from it.
+      if (cut !== undefined && id === file && run.cases && cut(file)) {
+        const cutCode = cadence(code, file);
+        return cutCode === undefined ? null : { code: cutCode, map: null };
+      }
       // Its probes report under the file the transform was handed: a source and
       // its build both answer to the name, each with its own regions, and the
       // fold joins them (see `joinReadings`). Vitest re-transforms every run in
@@ -434,3 +452,21 @@ function array<T>(value: T | readonly T[] | undefined): T[] {
 }
 
 export { mergeCoverage } from './merge.js';
+
+/** Vitest's own default for `test.include`, the same in every major this seam supports. */
+const TEST_INCLUDE = ['**/*.{test,spec}.?(c|m)[jt]s?(x)'];
+
+/**
+ * Which files this configuration runs as tests: its `test.include` globs, under
+ * `test.dir` or the root, as Vitest's own search reads them, never one under
+ * `node_modules`.
+ */
+function testFiles(config: UserConfig, configRoot: string): (file: string) => boolean {
+  const test = config.test as { include?: readonly string[]; dir?: string } | undefined;
+  const dir = resolve(configRoot, test?.dir ?? '.');
+  const matches = picomatch([...(test?.include ?? TEST_INCLUDE)], { dot: true });
+  return (file) => {
+    const path = relative(dir, file).split(sep).join('/');
+    return !path.startsWith('../') && !path.split('/').includes('node_modules') && matches(path);
+  };
+}

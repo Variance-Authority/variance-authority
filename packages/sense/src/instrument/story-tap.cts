@@ -195,6 +195,10 @@ function createTap(engine: Engine, limit: number): Tap {
     x(): void {
       inner.x();
     },
+    // A test line's cut is not a visit: the tape is what the code entered.
+    c(line: number): void {
+      inner.c(line);
+    },
   };
 
   const api: Tap = {

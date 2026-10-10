@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { probeRecipe } from '../instrument/index.js';
+import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
 import { createTransformer, type JestTransformRequest, type JestTransformedSource } from './jest-transform.js';
 import { deriveModules, moduleId } from './captured-modules.js';
@@ -107,7 +108,7 @@ function run(file: string, done: JestTransformedSource): { calls: string[]; line
   const [, row, column] = new RegExp(`${file.replaceAll('.', '\\.')}:(\\d+):(\\d+)`).exec(stack) ?? [];
   const map = (typeof done.map === 'string' ? JSON.parse(done.map) : done.map) as TransformSourceMap;
   const offset = done.code.split('\n').slice(0, Number(row) - 1).join('\n').length + Number(column);
-  const entered = engine.lists(engine.read(bucket), true).flatMap((module) => module.hits).length;
+  const entered = probeLists.lists(engine.read(bucket), true).flatMap((module) => module.hits).length;
   return { calls, line: sourceLines(done.code, map, file)(offset, offset)?.[0], entered };
 }
 
