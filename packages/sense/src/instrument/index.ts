@@ -75,10 +75,14 @@
  * the root and never reassigns the global. A module that kept a replaced root
  * would log into it, silently, for as long as it lived.
  *
- * A switch moves the root's activation, `a`. A probe that finds `a` changed
- * since its module last logged also logs the module's own region into the new
- * bucket: a case that reached a module another case evaluated entered that
- * module, and an edit to its top level is an edit the case ran.
+ * A probe also logs its module's own region, once each way per segment: a case
+ * that reached a module another case evaluated entered that module, and so did
+ * a case that called into a module its own inline require evaluated, and an
+ * edit to the top level is an edit the case ran. It tests the region's flag
+ * against the root's evaluating bit `v` rather than `__vaP`, because a story
+ * tap hands every module a passing bit of zero to see each hit, and the root
+ * would otherwise be logged on all of them. The module's own probe sets the
+ * evaluating side directly: it runs just after raising the depth.
  *
  * ## The scope, and why it is not a getter
  *
@@ -217,7 +221,7 @@ export function instrument(
 /**
  * The declarations every instrumented module carries, and its own probe.
  *
- * 671 bytes a module, 357 after gzip and 322 after brotli: the text is the same
+ * 618 bytes a module, 340 after gzip and 317 after brotli: the text is the same
  * in every module but two numbers, so a compressor spends almost nothing on it.
  * It is written per module rather than built by the collector because the
  * fast path is made of module variables: `__vaF` and `__vaP` are slots in the
@@ -248,14 +252,14 @@ function runtime(id: ModuleId, count: number): string {
   const module = JSON.stringify(id);
 
   return (
-    `var __vaK,__vaG,__vaB,__vaA;function __vaF(){}function __vaP(){}` +
+    `var __vaK,__vaG,__vaB;function __vaF(){}function __vaP(){}` +
     `function __vaI(){__vaK=globalThis.__VA__;const r=__vaK.r(${module},${count});__vaF=r.f;__vaG=r.s;__vaB=r.b;__vaP=r.p;return __vaK}` +
     `function __va(i){if((__vaF[i]&__vaP[0])===0)__vaS(i)}` +
-    `function __vaS(i){const K=__vaK||__vaI();if(K.s!==null)K.s();const a=K.a;if(__vaA!==a){if(__vaA!==undefined&&__vaG[0]===0){__vaG[0]=1;K.g(__vaB)}__vaA=a}` +
-    `const f=__vaG[i],p=__vaP[0];if((f&p)===0){__vaG[i]=f|p;const n=K.n;if(n<K.l){K.L[n]=(__vaB+i)|K.v;K.n=n+1}else K.g((__vaB+i)|K.v)}}` +
+    `function __vaS(i){const K=__vaK||__vaI();if(K.s!==null)K.s();const v=K.v,m=v===0?1:2;if((__vaG[0]&m)===0){__vaG[0]|=m;K.g(__vaB|v)}` +
+    `const f=__vaG[i],p=__vaP[0];if((f&p)===0){__vaG[i]=f|p;const n=K.n;if(n<K.l){K.L[n]=(__vaB+i)|v;K.n=n+1}else K.g((__vaB+i)|v)}}` +
     `function __vaR(v,i){__va(i);return v}` +
     `function __vaE(){(__vaK||__vaI()).x()}` +
-    `(__vaK||__vaI()).e();__vaA=__vaK.a;__vaG[0]|=__vaP[0];__vaK.g(${EVALUATING}|__vaB);`
+    `(__vaK||__vaI()).e();__vaG[0]|=2;__vaK.g(${EVALUATING}|__vaB);`
   );
 }
 

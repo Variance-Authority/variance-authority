@@ -78,18 +78,23 @@ describe.each(Object.entries(targets))('a journey across a service boundary, wri
     });
 
     const index = decodeExecutionIndex(await readFile(journeyFile));
-    const pricing = index.modules.find((module) => module.file === at('service/pricing.mjs'));
-    expect(pricing).toBeDefined();
-    const source = await readFile(resolve(fixture, 'service/pricing.mjs'), 'utf8');
-    const lineOf = (text: string): number => source.slice(0, source.indexOf(text)).split('\n').length;
-    const walking = (text: string): readonly string[] => {
-      const line = lineOf(text);
-      const block = pricing!.blocks
-        .filter((candidate) => candidate.startLine <= line && line <= candidate.endLine)
-        .sort((left, right) => left.startLine - right.startLine)
-        .at(-1);
-      return block!.crossings.map((crossing) => index.tests[crossing.test]!.id).sort();
+    const read = async (file: string) => {
+      const module = index.modules.find((candidate) => candidate.file === at(`service/${file}`));
+      expect(module).toBeDefined();
+      const source = await readFile(resolve(fixture, 'service', file), 'utf8');
+      const lineOf = (text: string): number => source.slice(0, source.indexOf(text)).split('\n').length;
+      const walking = (text: string): readonly string[] => {
+        const line = lineOf(text);
+        const block = module!.blocks
+          .filter((candidate) => candidate.startLine <= line && line <= candidate.endLine)
+          .sort((left, right) => left.startLine - right.startLine)
+          .at(-1);
+        return block!.crossings.map((crossing) => index.tests[crossing.test]!.id).sort();
+      };
+      const change = (text: string) => new Map([[at(`service/${file}`), [{ start: lineOf(text), end: lineOf(text) }]]]);
+      return { module: module!, walking, change };
     };
+    const { module: pricing, walking, change } = await read('pricing.mjs');
 
     // One branch, one case, on the far side of an HTTP request.
     expect(walking("return '9,00 €'")).toEqual([at('test/quote.case.ts > quotes in euros')]);
@@ -102,13 +107,26 @@ describe.each(Object.entries(targets))('a journey across a service boundary, wri
     // never charged to the other file's cases, whose requests went to another
     // process, nor to the silent file's, whose process served no journey.
     expect(walking("return '$9.99'")).toEqual([at('test/refund.case.ts > refunds a small amount')]);
-    // A case that never crossed the fence has nothing on the far side.
-    expect(index.tests.map((test) => test.id)).not.toContain(at('test/quote.case.ts > never calls the service'));
+    // A case that never crossed the fence ran, so the index names it, and
+    // nothing on the far side is charged to it.
+    const silent = index.tests.findIndex((test) => test.id === at('test/quote.case.ts > never calls the service'));
+    expect(silent).toBeGreaterThanOrEqual(0);
+    expect(pricing.blocks.some((block) => block.crossings.some((crossing) => crossing.test === silent))).toBe(false);
 
-    const change = (text: string) => new Map([[at('service/pricing.mjs'), [{ start: lineOf(text), end: lineOf(text) }]]]);
     expect((await selectJourneyFile(journeyFile, change("return '9,00 €'")))?.entered).toEqual([at('test/quote.case.ts')]);
     expect((await selectJourneyFile(journeyFile, change("return 'refunded'")))?.entered).toEqual([at('test/refund.case.ts')]);
     expect((await selectJourneyFile(journeyFile, change("return 'review'")))?.entered).toEqual([]);
+
+    // The quote file's service evaluates the standing script inside the
+    // journey of the first case that asks for a standing, and that case calls
+    // into it afterwards. What ran while it evaluated is the process's work,
+    // charged to every case it served, as a load before the first request
+    // would be; the case that evaluated it is charged with its own call too.
+    const standing = await read('standing.js');
+    const served = ['quotes in euros', 'quotes in pounds', 'ranks a gold customer'].map((name) => at(`test/quote.case.ts > ${name}`));
+    expect(standing.walking("return 'priority'")).toEqual(served);
+    expect(standing.walking("return 'queued'")).toEqual([]);
+    expect((await selectJourneyFile(journeyFile, standing.change("return 'priority'")))?.entered).toEqual([at('test/quote.case.ts')]);
 
     // The next run's service writes where the fold does not read: the finalize
     // reads the artifact it replaces and names the head that wrote parts then

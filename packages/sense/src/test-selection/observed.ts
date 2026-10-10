@@ -14,7 +14,7 @@ import { AMBIENT, type CaseJournal } from './cases.js';
 import type { ObservedEyes } from './eyes-record.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoveragePrecondition } from './index.js';
-import type { ExecutionJournal } from './probes.js';
+import type { ExecutedModule, ExecutionJournal } from './probes.js';
 
 /** One subject's window in the page, as the driver observed it. */
 export interface ObservedSubject {
@@ -92,6 +92,64 @@ export interface ObservedCase {
 }
 
 /**
+ * What one owner entered, gathered across every window that fed it, kept apart
+ * by the way each region was entered.
+ *
+ * Two windows of one owner are joined per way, never per list. A region one
+ * window entered only while its module evaluated and another entered while
+ * none did is a region the owner entered both ways, the same as one window
+ * that entered it both ways ({@link ExecutedModule.again}). Joining `hits` and
+ * `shared` alone reads it as entered while evaluating, and the owner loses the
+ * call it made.
+ */
+export interface EnteredModules {
+  readonly hits: Map<ModuleId, Set<number>>;
+  /** Of `hits`, entered while a module was evaluating. */
+  readonly shared: Map<ModuleId, Set<number>>;
+  /** Of `hits`, entered while no module was evaluating. */
+  readonly plain: Map<ModuleId, Set<number>>;
+}
+
+/** Nothing entered yet. */
+export function enteredModules(): EnteredModules {
+  return { hits: new Map(), shared: new Map(), plain: new Map() };
+}
+
+/** Fold one window's modules into what its owner entered. */
+export function enterModules(entered: EnteredModules, modules: readonly ExecutedModule[]): void {
+  const into = (held: Map<ModuleId, Set<number>>, id: ModuleId): Set<number> => {
+    let ordinals = held.get(id);
+    if (ordinals === undefined) held.set(id, (ordinals = new Set()));
+    return ordinals;
+  };
+  for (const module of modules) {
+    const hits = into(entered.hits, module.id);
+    const shared = into(entered.shared, module.id);
+    const plain = into(entered.plain, module.id);
+    const evaluating = new Set(module.shared);
+    for (const ordinal of module.hits) {
+      hits.add(ordinal);
+      if (!evaluating.has(ordinal)) plain.add(ordinal);
+    }
+    for (const ordinal of module.shared) shared.add(ordinal);
+    for (const ordinal of module.again ?? []) plain.add(ordinal);
+  }
+}
+
+/** What an owner entered as one window's modules, by id and by ordinal. */
+export function modulesEntered(entered: EnteredModules): ExecutedModule[] {
+  const sorted = (ordinals: Iterable<number>): number[] => [...ordinals].sort((a, b) => a - b);
+  return [...entered.hits]
+    .map(([id, ordinals]): ExecutedModule => {
+      const shared = sorted(entered.shared.get(id) ?? []);
+      const plain = entered.plain.get(id);
+      const again = shared.filter((ordinal) => plain?.has(ordinal) === true);
+      return { id, hits: sorted(ordinals), shared, ...(again.length === 0 ? {} : { again }) };
+    })
+    .sort((left, right) => codeUnitOrder(left.id, right.id));
+}
+
+/**
  * One row per owner, whatever realm saw it.
  *
  * A run records once. Two calls describing the same subject are two runs as far
@@ -102,31 +160,23 @@ export function joinObservations(
   sources: readonly (readonly ObservedSubject[])[],
 ): readonly ObservedSubject[] {
   interface Held {
-    readonly modules: Map<ModuleId, Set<number>>;
-    readonly shared: Map<ModuleId, Set<number>>;
+    readonly modules: EnteredModules;
     readonly preconditions: Map<string, CoveragePrecondition>;
     complete: boolean;
     instrumentation: string;
     duration?: number;
   }
   const byOwner = new Map<string, Held>();
-  const union = (into: Map<ModuleId, Set<number>>, id: ModuleId, ordinals: readonly number[]): void => {
-    into.set(id, new Set([...(into.get(id) ?? []), ...ordinals]));
-  };
 
   for (const subjects of sources) {
     for (const subject of subjects) {
       const held = byOwner.get(subject.owner) ?? {
-        modules: new Map<ModuleId, Set<number>>(),
-        shared: new Map<ModuleId, Set<number>>(),
+        modules: enteredModules(),
         preconditions: new Map<string, CoveragePrecondition>(),
         complete: true,
         instrumentation: INSTRUMENTATION_ID,
       };
-      for (const module of subject.journal.modules) {
-        union(held.modules, module.id, module.hits);
-        union(held.shared, module.id, module.shared);
-      }
+      enterModules(held.modules, subject.journal.modules);
       for (const precondition of subject.preconditions ?? []) {
         held.preconditions.set(precondition.name, precondition);
       }
@@ -149,13 +199,7 @@ export function joinObservations(
       ...(held.duration === undefined ? {} : { duration: held.duration }),
       journal: {
         instrumentation: held.instrumentation,
-        modules: [...held.modules]
-          .map(([id, ordinals]) => ({
-            id,
-            hits: [...ordinals].sort((a, b) => a - b),
-            shared: [...(held.shared.get(id) ?? [])].sort((a, b) => a - b),
-          }))
-          .sort((left, right) => codeUnitOrder(left.id, right.id)),
+        modules: modulesEntered(held.modules),
       },
       ...(held.preconditions.size === 0
         ? {}
@@ -210,7 +254,15 @@ export function caseJournals(cases: readonly ObservedCase[]): readonly CaseJourn
       ...(observed.stopped === undefined ? {} : { stopped: observed.stopped }),
       ...(observed.duration === undefined ? {} : { duration: observed.duration }),
       ...(observed.said === undefined ? {} : { said: observed.said }),
-      modules: observed.journal.modules,
+      modules: [
+        ...observed.journal.modules,
+        // Entered both ways: once as the module evaluated, which the ambient
+        // journal gives the file, and once as the case's own, written as a
+        // second row with nothing shared, as a case frame writes it.
+        ...observed.journal.modules
+          .filter((module) => (module.again?.length ?? 0) > 0)
+          .map((module) => ({ id: module.id, hits: module.again!, shared: [] })),
+      ],
     })),
     ...files.map((file) => ({ file, name: AMBIENT, id: AMBIENT, modules: shared })),
   ];

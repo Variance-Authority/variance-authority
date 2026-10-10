@@ -21,6 +21,7 @@ import {
   drainExecution,
   joinObservations,
   listenForPreconditions,
+  modulesEntered,
   preconditionOf,
   recordExecution,
   stageExecution,
@@ -339,11 +340,7 @@ export function createExecutionRecorder(
   function journalOf(accumulated: Accumulated) {
     return {
       instrumentation: instrumentation!,
-      modules: [...accumulated.hits].map(([id, ordinals]) => ({
-        id,
-        hits: [...ordinals],
-        shared: [...(accumulated.shared.get(id) ?? [])],
-      })),
+      modules: modulesEntered(accumulated),
     };
   }
 

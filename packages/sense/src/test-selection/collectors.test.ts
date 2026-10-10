@@ -24,8 +24,8 @@ const FILE = 'file.test.js';
 
 /**
  * What a region's journal entry means, kept the plain way: one number per
- * region, nonzero once entered, carrying {@link EVALUATING} once entered while
- * any module was evaluating, and a module's own block marked in every bucket
+ * region, 1 once entered while no module was evaluating and 2 once entered
+ * while one was, and a module's own block marked the same way in every bucket
  * that touched it. The engine keeps none of this; the journal it writes has to
  * be the one this writes.
  */
@@ -41,9 +41,33 @@ class Model {
       row = new Uint32Array(count);
       this.current.set(id, row);
     }
-    row[0]! |= 1;
-    row[ordinal]! |= this.depth > 0 ? EVALUATING | 1 : 1;
+    const way = this.depth > 0 ? 2 : 1;
+    row[0]! |= way;
+    row[ordinal]! |= way;
   }
+}
+
+/** The ways a region was entered as the file's journal reads them: entered, and whether ever while evaluating. */
+function counters(presence: Presence): Presence {
+  return new Map([...presence].map(([id, row]) => [id, row.map((ways) => (ways === 0 ? 0 : ways & 2 ? EVALUATING | 1 : 1))]));
+}
+
+/** A case's frame from the ways each region was entered, as the probe log reads out. */
+function frame(name: string, presence: Presence): Buffer {
+  const ids = [...presence.keys()];
+  const sorted: number[] = [];
+  const start: number[] = [];
+  const end: number[] = [];
+  for (const row of presence.values()) {
+    start.push(sorted.length);
+    row.forEach((ways, ordinal) => {
+      if (ways & 1) sorted.push(ordinal << 1);
+      if (ways & 2) sorted.push((ordinal << 1) | 1);
+    });
+    end.push(sorted.length);
+  }
+  const rows = ids.map((_, row) => row);
+  return journals.encodeLog(name, { rows, start: Int32Array.from(start), end: Int32Array.from(end), sorted: Int32Array.from(sorted), ids });
 }
 
 /** A small deterministic generator, so a failure names its seed. */
@@ -119,16 +143,17 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
     const { modules } = collector.finish(FILE);
     return {
       engine: journals.encodeJournal(FILE, modules, sealed),
-      model: journals.encodeJournal(FILE, model.current, sealedModel),
+      model: journals.encodeJournal(FILE, counters(model.current), counters(sealedModel)),
       frames: [undefined, undefined],
       stories: undefined,
     };
   }
 
   const union: Presence = new Map();
-  const fold = (name: string, presence: Presence): void => {
-    if (presence.size === 0) return;
-    frames.push(journals.encodeJournal(name, presence));
+  // Every case writes a frame; the file's own bucket only when it entered something.
+  const fold = (name: string, presence: Presence, always = false): void => {
+    if (presence.size === 0 && !always) return;
+    frames.push(frame(name, presence));
     for (const [id, row] of presence) {
       let into = union.get(id);
       if (into === undefined || into.length !== row.length) {
@@ -136,8 +161,7 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
         union.set(id, into);
       }
       for (let at = 0; at < row.length; at += 1) {
-        const value = row[at]!;
-        if (value !== 0) into[at]! |= value & EVALUATING ? EVALUATING | 1 : 1;
+        into[at]! |= row[at]!;
       }
     }
   };
@@ -165,14 +189,14 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
     model.current = ambient;
     // The case returned, so its frame is named as one that finished, and as
     // one a recorder listened to that said nothing.
-    fold(preconditions.packSaid(journals.settledCase(key, false), []), presence);
+    fold(preconditions.packSaid(journals.settledCase(key, false), []), presence, true);
   }
   work(next(20), 0);
   fold(journals.packCase(FILE, '', ''), ambient);
   const done = collector.finish(FILE);
   return {
     engine: journals.encodeJournal(FILE, done.modules, sealed),
-    model: journals.encodeJournal(FILE, union, sealedModel),
+    model: journals.encodeJournal(FILE, counters(union), counters(sealedModel)),
     frames: [journals.packFrames(done.frames ?? []), journals.packFrames(frames)],
     stories: [new Map([...written].map(([key, bytes]) => [key, spoken(bytes)])), told] as const,
   };
@@ -201,13 +225,21 @@ describe('the recording a file writes', () => {
   it.each(['flat', 'sequential', 'continuations'] as const)(
     'is byte for byte the journal of every region entered, and which were entered while evaluating: %s',
     (mode) => {
+      let twice = 0;
       for (const seed of [1, 7, 42, 1009, 65_537]) {
         const { engine, model, frames } = drive(mode, seed);
         expect(Buffer.from(engine).equals(Buffer.from(model)), `.va, seed ${seed}`).toBe(true);
         if (frames[0] !== undefined) {
           expect(Buffer.from(frames[0]).equals(Buffer.from(frames[1]!)), `.vac, seed ${seed}`).toBe(true);
+          for (const written of journals.unpackFrames(frames[0])) {
+            const ids = journals.decodeJournal(written).modules.map((module) => module.id);
+            if (new Set(ids).size < ids.length) twice += 1;
+          }
         }
       }
+      // A case entered some module both while one evaluated and after, so the
+      // frames carry the second row that says so.
+      if (mode !== 'flat') expect(twice).toBeGreaterThan(0);
     },
   );
 
@@ -268,12 +300,11 @@ describe('how a case settles', () => {
       .filter((unpacked) => unpacked.name !== '')
       .map((unpacked) => [unpacked.name, unpacked.stopped]);
 
-    // No case crossed anything, so only the ones that stopped wrote a frame:
-    // a frame is how a reader learns the journey was cut short.
-    expect(settled).toEqual([['threw', true], ['rejected', true], ['abandoned', true]]);
+    // No case crossed anything, and each still wrote a frame: the case index
+    // names every case that ran, and a frame is how a reader learns the
+    // journey was cut short.
+    expect(settled).toEqual([['returned', false], ['threw', true], ['rejected', true], ['abandoned', true]]);
   });
-
-  it.todo('writes a frame for a case that returned without crossing anything, so the case index names every case that ran and `variance covering --cases` reads a test file whose cases entered nothing instead of refusing it — needs `close` in `collectors.cts` to keep the frame of every settled case');
 
   it('names a case that handed out a journey by both its settling and its journey', () => {
     const holder: Record<PropertyKey, unknown> = {};
