@@ -243,7 +243,7 @@ impl Walker {
     /// region opens before the parameters are walked, and a function in a default
     /// value is owned by the function whose parameter it is. The probe stands in
     /// the body, unless binding a parameter can throw: then it stands in front of
-    /// that parameter, by the rewrite `instrument_params.rs` describes, because a
+    /// that parameter, by the rewrite `walk_params.rs` describes, because a
     /// call that throws while binding has arrived.
     fn entered(&mut self, own: Option<String>, params: &FormalParameters, body: Body, arrow: bool) {
         let hint = self.hint.take();

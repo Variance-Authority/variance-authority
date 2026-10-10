@@ -11,7 +11,7 @@
  * coverage under another name.
  *
  * The descent that applies the rule is the addon's,
- * [`instrument_walk.rs`](../../native/src/instrument_walk.rs), and there is no
+ * [`walk.rs`](../../native/instrument/src/walk.rs), and there is no
  * other. What stays here is what a caller has to understand: the vocabulary a
  * report is written in, and the columns the addon answers in. The tree never
  * crosses into JavaScript, which is most of what a module used to cost to
@@ -116,7 +116,7 @@ export interface NativeInstrumented {
   readonly digests: readonly string[];
 }
 
-/** The addon numbers kinds in this order; `instrument_walk.rs` declares the same. */
+/** The addon numbers kinds in this order; `walk.rs` declares the same. */
 const KINDS: readonly BlockKind[] = [
   'module',
   'function',

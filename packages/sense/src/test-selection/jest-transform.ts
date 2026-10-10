@@ -21,7 +21,7 @@
  * A transformer that places the probes itself — a Rust pipeline linking the
  * instrumenter crate the package ships — says so with `senseRecipe`, and is
  * then handed each module untouched, with {@link SenseProbes} saying where its
- * probes go: one parse instead of two.
+ * probes go.
  */
 
 import { createHash } from 'node:crypto';

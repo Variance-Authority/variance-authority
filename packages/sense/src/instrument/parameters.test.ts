@@ -8,7 +8,7 @@ import probeLog from './probe-log.cjs';
  *
  * The walk moves the parameters from the first one that can throw into an
  * object pattern over a rest parameter, and the probe into that pattern's first
- * computed key (`native/src/instrument_params.rs`). Each fixture here runs
+ * computed key (`native/instrument/src/walk_params.rs`). Each fixture here runs
  * with and without the probes and has to leave the same trace: arity,
  * `arguments`, where every argument lands, defaults and the scope they see,
  * the order parameters bind in, when a generator and an async function throw,

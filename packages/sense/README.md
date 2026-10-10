@@ -654,6 +654,63 @@ modules by path, and you can name them yourself:
 `@variance-authority/sense/jest-setup`, and
 `@variance-authority/sense/jest-reporter`.
 
+### Place the probes from your own Rust transform
+
+Wrapped as above, the probes go into the text before your transformer sees it.
+When that transformer is your own Rust — over swc, oxc or anything else — it can
+place them itself, inside its own pipeline. The package ships the instrumenter
+as a Rust crate, the code its own addon runs, so a project that installed sense
+already has the version its runtime reads:
+
+```toml
+# Cargo.toml
+[dependencies]
+variance-sense-instrument = { path = "node_modules/@variance-authority/sense/native/instrument" }
+```
+
+Your transformer declares the recipe it was built with, and the wrapper then
+hands it each module as Jest read it, with `options.senseProbes` saying where
+the probes go:
+
+```js
+// transformer.cjs, around your addon
+const native = require('./transform.node');
+
+module.exports = {
+  senseRecipe: (mode) => native.senseRecipe(mode),
+  process: (source, path, options) => ({ code: native.transform(source, path, options.senseProbes) }),
+};
+```
+
+```rust
+use variance_sense_instrument::{instrument, recipe, Mode};
+
+/// `options.senseProbes`, as your binding hands it over.
+pub struct SenseProbes {
+    pub file: String,
+    pub module: String,
+    pub mode: String,
+}
+
+fn sense_recipe(mode: &str) -> String {
+    recipe(if mode == "entries" { Mode::Entries } else { Mode::Presence })
+}
+
+fn with_probes(source: String, probes: Option<SenseProbes>) -> String {
+    let Some(p) = probes else { return source };
+    let mode = if p.mode == "entries" { Mode::Entries } else { Mode::Presence };
+    instrument(&source, &p.file, &p.module, mode).map_or(source, |done| done.code)
+}
+```
+
+Run `instrument` before your own parse: every probe stays on its line, and the
+text stays the language it was. `senseProbes` is absent for a test file, a file
+outside product source and a file Jest loads before the collector exists, and
+`instrument` returns nothing for a text it cannot parse; either way the module
+runs without probes. Jest compares `senseRecipe` with this package's recipe when
+it loads the transformer, and refuses one built against another version of
+the crate, naming both.
+
 ## Cut an Rstest run down to a diff
 
 Rstest builds the suite with Rspack and runs what it built, so the recording
