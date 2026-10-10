@@ -44,15 +44,9 @@ export interface DecisionRecord {
   readonly at: string;
 }
 
-/**
- * A decision as recording it answered.
- *
- * `concern` is the id of the concern an approval opened, because the latest
- * earlier decision on the same image rejected it. The approval stands — it is
- * how a change that accepts a known defect gets unblocked — and the defect it
- * accepted stays on record.
- */
+/** A decision as recording it answered. */
 export interface Decided extends DecisionRecord {
+  /** The concern an approval opened because an earlier build rejected the same image; the approval stands. */
   readonly concern?: number;
 }
 
