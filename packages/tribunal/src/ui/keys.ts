@@ -2,8 +2,12 @@
  * Single keys for the moves a reviewer makes forty times a build.
  *
  * A key is taken only when nothing else could want it: not while a field or a
- * form has the focus, not with a modifier held — that is the browser's, or the system's — and
- * not when something earlier already handled the press.
+ * form has the focus, not with a modifier held — Shift included, since that is
+ * the browser's, or the system's — not when something earlier already handled
+ * the press, and not as a held key repeats, which would run down the queue.
+ *
+ * A key is the letter it types, or on a layout whose letter is not Latin, the
+ * Latin key in the same place: a reviewer typing Cyrillic still has J.
  *
  * And not at all once the reviewer turns them off. A single letter on the whole
  * window is what speech input types by accident and what a screen reader's
@@ -39,12 +43,20 @@ export function useKeysOn(): readonly [boolean, () => void] {
 
 /** Whether a press was meant for the page rather than for a field or a shortcut. */
 export function forThePage(event: KeyboardEvent): boolean {
-  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
+  if (event.defaultPrevented || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
   const target = event.target;
   if (!(target instanceof Element)) return true;
   // Inside a form, a chip or its *Save* button has the focus between fields; a
   // J there would leave the page and drop the draft with it.
   return target.closest('form, input, textarea, select, [contenteditable]:not([contenteditable="false"])') === null;
+}
+
+/** The Latin letter a press stands for, lower case, or none. */
+function letterOf(event: KeyboardEvent): string | undefined {
+  // Caps Lock gives `J` with no Shift held; it is still the J key.
+  if (/^[a-z]$/i.test(event.key)) return event.key.toLowerCase();
+  // `о` on a Russian layout is the key a Latin one types `j` with.
+  return /^Key[A-Z]$/.test(event.code) ? event.code.slice(3).toLowerCase() : undefined;
 }
 
 /**
@@ -62,8 +74,8 @@ export function useKeys(bindings: Readonly<Record<string, () => void>>, on = tru
     if (!on) return;
     const listen = (event: KeyboardEvent): void => {
       if (!forThePage(event)) return;
-      // Caps Lock gives `J` with no Shift held; it is still the J key.
-      const move = latest.current[event.key.toLowerCase()];
+      const letter = letterOf(event);
+      const move = letter === undefined ? undefined : latest.current[letter];
       if (move === undefined) return;
       event.preventDefault();
       move();

@@ -173,6 +173,54 @@ describe('every move is a button and a key', () => {
     expect(went).toEqual([]);
   });
 
+  it('never moves while a concern is half written, wherever the focus went', async () => {
+    // A reviewer writing a concern clicks the picture to look again, which takes
+    // the focus out of the form; J from there would leave the draft behind. The
+    // button still moves, because a click is not an accident.
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    press('f', document.body);
+    (document.activeElement as HTMLElement | null)?.blur();
+
+    press('j', document.body);
+    press('k', document.body);
+
+    expect(went).toEqual([]);
+    expect(button('Next').querySelector('kbd')).toBeNull();
+    await act(async () => button('Next').click());
+    expect(went).toEqual(['story:b']);
+  });
+
+  it('leaves a press alone that something earlier handled, and a key held down', async () => {
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    const taken = (event: Event): void => event.preventDefault();
+    document.body.addEventListener('keydown', taken);
+
+    press('j', document.body);
+    document.body.removeEventListener('keydown', taken);
+    press('j', document.body, { repeat: true });
+    press('j', document.body, { shiftKey: true });
+
+    expect(went).toEqual([]);
+  });
+
+  it('finds the J key on a layout that types another letter there', async () => {
+    // A Russian layout types о where a Latin one types J. The key is the same
+    // key, and a reviewer should not have to switch layouts to walk the queue.
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+
+    press('о', document.body, { code: 'KeyJ' });
+
+    expect(went).toEqual(['story:b']);
+  });
+
+  it('names each move by its words and announces its key apart', async () => {
+    await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+
+    expect(button('Next').getAttribute('aria-keyshortcuts')).toBe('J');
+    expect(button('Next').querySelector('kbd')?.getAttribute('aria-hidden')).toBe('true');
+    expect(bar().tagName).toBe('SECTION');
+  });
+
   it('reads J with Caps Lock on as J', async () => {
     const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
 
@@ -202,7 +250,7 @@ describe('every move is a button and a key', () => {
     press('i', document.body);
     expect(host.querySelector<HTMLInputElement>('input[name="state"][value="investigating"]')?.checked).toBe(true);
 
-    await act(async () => button('Looks suspicious').click());
+    press('f', document.body);
     expect(host.querySelector<HTMLInputElement>('input[name="state"][value="open"]')?.checked).toBe(true);
   });
 

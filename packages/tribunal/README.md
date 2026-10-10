@@ -361,9 +361,12 @@ Single keys reach the moves that cost nothing to undo: <kbd>J</kbd> and
 <kbd>K</kbd> walk the rail in the order it is drawn, <kbd>F</kbd> opens a
 concern and <kbd>I</kbd> opens one already under investigation, as *Flag as
 investigating* does. *Approve* and *Reject* have no key, because a key that
-promotes a baseline is a key pressed by accident. No key fires while a modifier
-is held or the focus is anywhere in a form, so a half-written concern is never
-dropped by a move to the next render. *Keys off* at the end of the bar turns
+promotes a baseline is a key pressed by accident. No key fires while a modifier,
+Shift included, is held, while the focus is anywhere in a form, or as a held
+key repeats. While a concern is half written, J and K do nothing wherever the
+focus went, so no key leaves a draft behind; *Next* and *Previous* still move.
+On a layout that does not type Latin letters, the keys are the ones in the
+same place. *Keys off* at the end of the bar turns
 every single-letter key off, for speech input and screen readers that take
 letters as their own commands; the browser remembers the choice.
 

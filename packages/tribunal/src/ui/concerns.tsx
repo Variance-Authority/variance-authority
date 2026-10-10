@@ -39,6 +39,7 @@ export function Concerns({
   build,
   subject,
   asked,
+  onWriting,
   onChanged,
 }: {
   readonly client: ReviewClient;
@@ -47,6 +48,8 @@ export function Concerns({
   readonly subject: SubjectView;
   /** The bar under the page asking for the form, and the state to start it in. */
   readonly asked?: Asked | undefined;
+  /** Told when the form opens and closes, so a key elsewhere cannot leave a draft behind. */
+  readonly onWriting?: ((writing: boolean) => void) | undefined;
   /** Told after every concern that landed, so a count elsewhere can follow. */
   readonly onChanged?: (() => void) | undefined;
 }): ReactElement {
@@ -76,6 +79,8 @@ export function Concerns({
       live = false;
     };
   }, [client, subject.subject]);
+
+  useEffect(() => onWriting?.(writing), [onWriting, writing]);
 
   // Only a new request opens the form: the panel outlives the subject, and the
   // last request is still in its props when the reviewer moves to the next one.

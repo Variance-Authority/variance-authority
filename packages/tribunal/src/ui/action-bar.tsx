@@ -10,6 +10,10 @@
  * all of it in one place that never moves, with the key for each, under the
  * picture it is about.
  *
+ * While a concern is being written, J and K stand down wherever the focus is:
+ * a reviewer who clicks the picture to look again has left the form but not the
+ * draft. The buttons still move, because a click is not an accident.
+ *
  * Deciding has a button and no key. A key that promotes a baseline is a key
  * pressed by accident; moving between renders and opening a form cost nothing to
  * undo, and those are the ones a single letter reaches.
@@ -35,10 +39,16 @@ export interface Place {
   readonly next?: string | undefined;
 }
 
+interface Shortcut {
+  readonly shortcut?: string;
+  readonly hint: ReactElement | null;
+}
+
 export function ActionBar({
   subject,
   place,
   busy,
+  writing = false,
   onDecide,
   onSuspect,
   onGo,
@@ -46,6 +56,8 @@ export function ActionBar({
   readonly subject: SubjectView;
   readonly place: Place | undefined;
   readonly busy: boolean;
+  /** Whether a concern is half written on this render. */
+  readonly writing?: boolean | undefined;
   readonly onDecide: (decision: Decision) => void;
   /** Open the concern form, starting in this state. */
   readonly onSuspect: (state: ConcernState) => void;
@@ -56,21 +68,28 @@ export function ActionBar({
   };
 
   const [keysOn, flipKeys] = useKeysOn();
+  const walking = keysOn && !writing;
   useKeys(
     {
-      j: () => go(place?.next),
-      k: () => go(place?.previous),
+      ...(walking ? { j: () => go(place?.next), k: () => go(place?.previous) } : {}),
       f: () => onSuspect('open'),
       i: () => onSuspect('investigating'),
     },
     keysOn,
   );
-  const key = (letter: string): ReactElement | null => (keysOn ? <kbd>{letter}</kbd> : null);
+  // The words name the button and the key is announced apart, as a shortcut, so
+  // a screen reader says *Next* rather than *Next J*.
+  const key = (letter: string, live = keysOn): Shortcut =>
+    live ? { shortcut: letter, hint: <kbd aria-hidden="true">{letter}</kbd> } : { hint: null };
+  const f = key('F');
+  const i = key('I');
+  const k = key('K', walking);
+  const j = key('J', walking);
 
   const cause = causeOf(subject);
 
   return (
-    <footer className="va-actionbar" aria-label="What you can do with this render">
+    <section className="va-actionbar" aria-label="What you can do with this render">
       <p className="va-scope">
         <span className="va-scope-label">Selected</span>
         <b title={subject.subject}>{subject.subject}</b>
@@ -86,15 +105,21 @@ export function ActionBar({
       </p>
 
       <div className="va-actionbar-acts">
-        <button type="button" className="va-suspicious" onClick={() => onSuspect('open')}>
-          Looks suspicious {key('F')}
+        <button
+          type="button"
+          className="va-suspicious"
+          aria-keyshortcuts={f.shortcut}
+          onClick={() => onSuspect('open')}
+        >
+          Looks suspicious {f.hint}
         </button>
         <button
           type="button"
+          aria-keyshortcuts={i.shortcut}
           onClick={() => onSuspect('investigating')}
           title="Raise a concern that you are already looking into"
         >
-          Flag as investigating {key('I')}
+          Flag as investigating {i.hint}
         </button>
         <span className="va-actionbar-gap" />
         <button
@@ -116,16 +141,22 @@ export function ActionBar({
         {onGo === undefined ? null : (
           <>
             <span className="va-actionbar-gap" />
-            <button type="button" disabled={place?.previous === undefined} onClick={() => go(place?.previous)}>
-              Previous {key('K')}
+            <button
+              type="button"
+              aria-keyshortcuts={k.shortcut}
+              disabled={place?.previous === undefined}
+              onClick={() => go(place?.previous)}
+            >
+              Previous {k.hint}
             </button>
             <button
               type="button"
               className="va-next"
+              aria-keyshortcuts={j.shortcut}
               disabled={place?.next === undefined}
               onClick={() => go(place?.next)}
             >
-              Next {key('J')}
+              Next {j.hint}
             </button>
           </>
         )}
@@ -140,6 +171,6 @@ export function ActionBar({
           Keys <span aria-hidden="true">{keysOn ? 'on' : 'off'}</span>
         </button>
       </div>
-    </footer>
+    </section>
   );
 }

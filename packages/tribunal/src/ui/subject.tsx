@@ -69,6 +69,7 @@ export function SubjectPanel({
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [asked, setAsked] = useState<Asked | undefined>(undefined);
+  const [writing, setWriting] = useState(false);
   const page = useRef<HTMLDivElement>(null);
 
   const suspect = (state: ConcernState): void => setAsked((was) => ({ state, seq: (was?.seq ?? 0) + 1 }));
@@ -140,6 +141,7 @@ export function SubjectPanel({
             build={build}
             subject={subject}
             asked={asked}
+            onWriting={setWriting}
             onChanged={onConcerned}
           />
         </section>
@@ -165,6 +167,7 @@ export function SubjectPanel({
         subject={subject}
         place={place}
         busy={busy}
+        writing={writing}
         onDecide={(decision) => void decide(decision)}
         onSuspect={suspect}
         onGo={onGo}
