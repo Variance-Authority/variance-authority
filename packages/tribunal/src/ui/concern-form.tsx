@@ -47,6 +47,7 @@ export function ConcernForm({
   reviewer,
   busy,
   initial = 'open',
+  asked,
   onSave,
   onCancel,
 }: {
@@ -56,6 +57,8 @@ export function ConcernForm({
   readonly busy: boolean;
   /** The state the form starts in; *Investigate* opens it already taken. */
   readonly initial?: ConcernState | undefined;
+  /** Counts the requests for `initial`, so asking for the same state again resets it. */
+  readonly asked?: number | undefined;
   readonly onSave: (input: RaiseConcern) => void;
   readonly onCancel: () => void;
 }): ReactElement {
@@ -67,7 +70,7 @@ export function ConcernForm({
   const [state, setState] = useState<ConcernState>(initial);
   // Asked again while open — *Investigate* after *Looks suspicious* — the state
   // follows and what was typed stays.
-  useEffect(() => setState(initial), [initial]);
+  useEffect(() => setState(initial), [initial, asked]);
 
   const offered = evidenceFor(subject);
   const ready = title.trim() !== '' && !busy;

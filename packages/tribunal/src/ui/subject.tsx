@@ -125,9 +125,7 @@ export function SubjectPanel({
               {subject.decision.note === undefined ? null : <> — {subject.decision.note}</>}
             </p>
           )}
-          {subject.decision === null && failed === null && subject.approvable ? (
-            <p className="va-note">Undecided. Approve or reject from the bar below.</p>
-          ) : null}
+          {subject.decision === null && failed === null ? <p className="va-note">Undecided.</p> : null}
           {failed === null ? null : <p className="va-failure">{failed}</p>}
           {subject.approvable ? null : (
             <p className="va-note">No candidate was uploaded for this subject, so it cannot be approved here.</p>

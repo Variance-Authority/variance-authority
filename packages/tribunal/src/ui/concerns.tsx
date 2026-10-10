@@ -157,6 +157,7 @@ export function Concerns({
           reviewer={reviewer}
           busy={busy}
           initial={startAs}
+          asked={asked?.seq}
           onSave={(input) => void save(input)}
           onCancel={() => setWriting(false)}
         />

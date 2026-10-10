@@ -20,5 +20,6 @@ export const ACTION_STYLES = `
 .va-actionbar-acts .va-approve:disabled { background: var(--va-sunken); border-color: var(--va-line-firm); color: var(--va-ink-3); }
 .va-actionbar-acts .va-next:not(:disabled) { background: var(--va-accent); border-color: var(--va-accent); color: var(--va-accent-ink); }
 .va-actionbar-gap { background: var(--va-line); height: 1.4rem; width: 1px; }
+.va-actionbar-acts .va-keys { color: var(--va-ink-3); font-weight: 500; }
 .va-actionbar kbd { border: 1px solid currentColor; border-radius: 4px; font-family: var(--va-mono); font-size: 0.64rem; font-weight: 500; line-height: 1; opacity: 0.7; padding: 0.12rem 0.3rem; }
 `;

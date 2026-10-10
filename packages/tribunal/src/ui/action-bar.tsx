@@ -18,7 +18,7 @@
 import type { ReactElement } from 'react';
 import type { ConcernState } from '../concern-types.js';
 import type { Decision, SubjectView } from '../review-types.js';
-import { useKeys } from './keys.js';
+import { useKeys, useKeysOn } from './keys.js';
 import { causeOf } from './lead.js';
 import { count, number } from './text.js';
 
@@ -55,12 +55,17 @@ export function ActionBar({
     if (to !== undefined) onGo?.(to);
   };
 
-  useKeys({
-    j: () => go(place?.next),
-    k: () => go(place?.previous),
-    f: () => onSuspect('open'),
-    i: () => onSuspect('investigating'),
-  });
+  const [keysOn, flipKeys] = useKeysOn();
+  useKeys(
+    {
+      j: () => go(place?.next),
+      k: () => go(place?.previous),
+      f: () => onSuspect('open'),
+      i: () => onSuspect('investigating'),
+    },
+    keysOn,
+  );
+  const key = (letter: string): ReactElement | null => (keysOn ? <kbd>{letter}</kbd> : null);
 
   const cause = causeOf(subject);
 
@@ -82,10 +87,14 @@ export function ActionBar({
 
       <div className="va-actionbar-acts">
         <button type="button" className="va-suspicious" onClick={() => onSuspect('open')}>
-          Looks suspicious <kbd>F</kbd>
+          Looks suspicious {key('F')}
         </button>
-        <button type="button" onClick={() => onSuspect('investigating')}>
-          Investigate <kbd>I</kbd>
+        <button
+          type="button"
+          onClick={() => onSuspect('investigating')}
+          title="Raise a concern that you are already looking into"
+        >
+          Flag as investigating {key('I')}
         </button>
         <span className="va-actionbar-gap" />
         <button
@@ -108,7 +117,7 @@ export function ActionBar({
           <>
             <span className="va-actionbar-gap" />
             <button type="button" disabled={place?.previous === undefined} onClick={() => go(place?.previous)}>
-              Previous <kbd>K</kbd>
+              Previous {key('K')}
             </button>
             <button
               type="button"
@@ -116,10 +125,20 @@ export function ActionBar({
               disabled={place?.next === undefined}
               onClick={() => go(place?.next)}
             >
-              Next <kbd>J</kbd>
+              Next {key('J')}
             </button>
           </>
         )}
+        <button
+          type="button"
+          className="va-keys"
+          role="switch"
+          aria-checked={keysOn}
+          onClick={flipKeys}
+          title="J, K, F and I, for anyone whose speech input or screen reader takes letters as its own"
+        >
+          Keys <span aria-hidden="true">{keysOn ? 'on' : 'off'}</span>
+        </button>
       </div>
     </footer>
   );

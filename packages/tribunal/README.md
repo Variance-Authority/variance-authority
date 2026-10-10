@@ -359,9 +359,13 @@ on: the subject, the component it names as the cause, its regions, and where it
 stands in the rail — *2 of 5*, or *not in the queue* for one opened by a link.
 Single keys reach the moves that cost nothing to undo: <kbd>J</kbd> and
 <kbd>K</kbd> walk the rail in the order it is drawn, <kbd>F</kbd> opens a
-concern and <kbd>I</kbd> opens one already under investigation. *Approve* and
-*Reject* have no key, because a key that promotes a baseline is a key pressed by
-accident. No key fires while a field has the caret or a modifier is held.
+concern and <kbd>I</kbd> opens one already under investigation, as *Flag as
+investigating* does. *Approve* and *Reject* have no key, because a key that
+promotes a baseline is a key pressed by accident. No key fires while a modifier
+is held or the focus is anywhere in a form, so a half-written concern is never
+dropped by a move to the next render. *Keys off* at the end of the bar turns
+every single-letter key off, for speech input and screen readers that take
+letters as their own commands; the browser remembers the choice.
 
 A render you would not approve and cannot yet call wrong has a third answer.
 *Looks suspicious*, in the bar or under the subject's concerns, raises a **concern**: a

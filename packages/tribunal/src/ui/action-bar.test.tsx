@@ -41,6 +41,7 @@ beforeEach(() => {
   // jsdom lays nothing out, so it has no scrolling; the page and the viewer both
   // return to the top on a new subject.
   Element.prototype.scrollTo = () => undefined;
+  window.localStorage.removeItem('va-keys');
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
@@ -98,7 +99,8 @@ async function show(
   return went;
 }
 
-function press(key: string, target: EventTarget = document.body, init: KeyboardEventInit = {}): void {
+/** A key pressed where a browser sends it: at whatever has the focus. */
+function press(key: string, target: EventTarget = document.activeElement ?? document.body, init: KeyboardEventInit = {}): void {
   act(() => {
     target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }));
   });
@@ -158,14 +160,62 @@ describe('every move is a button and a key', () => {
     expect(went).toEqual([]);
   });
 
+  it('never moves while the focus is on a button in a half-written concern', async () => {
+    // Clicking an evidence chip puts the focus on a button, not a field. A J
+    // there would move to the next render and drop the draft with it.
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    await act(async () => button('Looks suspicious').click());
+    const chip = host.querySelector<HTMLButtonElement>('form button[type="button"]')!;
+    chip.focus();
+
+    press('j');
+
+    expect(went).toEqual([]);
+  });
+
+  it('reads J with Caps Lock on as J', async () => {
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+
+    press('J', document.body);
+
+    expect(went).toEqual(['story:b']);
+  });
+
+  it('turns every single-letter key off, and says so on the buttons', async () => {
+    // WCAG 2.1.4: speech input types letters, and a screen reader's browse mode
+    // takes them as its own commands, so a reviewer must be able to stop them.
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    await act(async () => button('Keys').click());
+
+    press('j', document.body);
+    press('f', document.body);
+
+    expect(went).toEqual([]);
+    expect(host.querySelector('form')).toBeNull();
+    expect(bar().querySelector('kbd')).toBeNull();
+    expect(button('Keys').getAttribute('aria-checked')).toBe('false');
+    expect(window.localStorage.getItem('va-keys')).toBe('off');
+  });
+
   it('opens the concern form as open on F and as investigating on I', async () => {
     await show(subject('story:cart'), { at: 0, of: 1 });
-
-    press('f');
-    expect(host.querySelector<HTMLInputElement>('input[name="state"][value="open"]')?.checked).toBe(true);
-
-    press('i');
+    press('i', document.body);
     expect(host.querySelector<HTMLInputElement>('input[name="state"][value="investigating"]')?.checked).toBe(true);
+
+    await act(async () => button('Looks suspicious').click());
+    expect(host.querySelector<HTMLInputElement>('input[name="state"][value="open"]')?.checked).toBe(true);
+  });
+
+  it('starts the form over in the asked state each time it is asked', async () => {
+    // A reviewer who picked a state by hand and then asks again from the bar
+    // gets what the bar says, even when it asked for the same state before.
+    await show(subject('story:cart'), { at: 0, of: 1 });
+    press('f', document.body);
+    await act(async () => host.querySelector<HTMLInputElement>('input[name="state"][value="resolved"]')!.click());
+
+    await act(async () => button('Looks suspicious').click());
+
+    expect(host.querySelector<HTMLInputElement>('input[name="state"][value="open"]')?.checked).toBe(true);
   });
 
   it('decides from the bar, and from no key', async () => {
