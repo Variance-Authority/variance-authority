@@ -192,7 +192,7 @@ describe('variance ask over a private app that reaches into another package', ()
     const { code, out } = await run(['ask', 'uses', '--name', 'roundTax']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain(
-      '`roundTax` is exported, without being published, at packages/lib/src/internal/math.ts:5, and nothing in this workspace imports it.',
+      '`roundTax` is exported, without being published, at packages/lib/src/internal/math.ts:5, and nothing in this workspace imports it; a call through a qualified path imports nothing and is not counted.',
     );
   });
 
@@ -204,7 +204,22 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
     expect(out).toContain('export const roundTax = (amount: number): number => amount;');
-    expect(out).toMatch(/imported in 1 place\b/);
+    expect(out).toMatch(/Imported in 1 place\b/);
+  });
+
+  it('answers `symbol` for two unpublished exports of one name, each with the imports of its own file', async () => {
+    checkout({
+      'packages/lib/src/internal/rounded.ts': "import { roundTax } from './math.js';\nexport const rounded = roundTax(2);\n",
+      'packages/kit/src/money/round.ts': 'export const roundTax = (amount: number): number => Math.round(amount);\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(paragraph(out, /^roundTax\nexported, without being published, at packages\/lib\//)).toMatch(/Imported in 1 place\b/);
+    expect(paragraph(out, /^roundTax\nexported, without being published, at packages\/kit\//)).toContain(
+      'Nothing in this workspace imports it; a call through a qualified path imports nothing and is not counted.',
+    );
   });
 
   it('keeps refusing a name nothing exports', async () => {

@@ -4,7 +4,7 @@ import MiniSearch from 'minisearch';
 import { describe, expect, it } from 'vitest';
 import type { Help, Named } from '@variance-authority/package/help';
 import { everyEntry, readHelp } from '@variance-authority/package/help';
-import { SPACE_OR_PUNCTUATION, encodeSearchIndex, openSearchIndex, termsOf } from '../search-index.js';
+import { SPACE_OR_PUNCTUATION, encodeSearchIndex, openSearchIndex } from '../search-index.js';
 import { looseNames } from './loose.js';
 
 /**
@@ -22,6 +22,54 @@ import { looseNames } from './loose.js';
  * corners: punctuation inside a name, non-ASCII letters, a surrogate pair,
  * terms too short to index, and words split at a capital run and at digits.
  */
+
+const LOWER = /^\p{Lowercase}$/u;
+const UPPER = /^\p{Uppercase}$/u;
+const DIGIT = /^\p{N}$/u;
+
+/**
+ * The words one token is written in, split where the case or a digit changes:
+ * a lowercase letter before an uppercase one, the last capital of a run before
+ * a lowercase letter, and a digit beside anything that is not one.
+ * `parseHTTPResponse2` is `parse`, `HTTP`, `Response` and `2`; a token with
+ * nowhere to split is one word.
+ */
+function wordsOf(token: string): readonly string[] {
+  const chars = [...token];
+  const words: string[] = [];
+  let start = 0;
+  for (let at = 1; at < chars.length; at += 1) {
+    const before = chars[at - 1]!;
+    const here = chars[at]!;
+    const after = chars[at + 1];
+    const split =
+      (LOWER.test(before) && UPPER.test(here)) ||
+      (UPPER.test(before) && UPPER.test(here) && after !== undefined && LOWER.test(after)) ||
+      DIGIT.test(before) !== DIGIT.test(here);
+    if (!split) continue;
+    words.push(chars.slice(start, at).join(''));
+    start = at;
+  }
+  words.push(chars.slice(start).join(''));
+  return words;
+}
+
+/**
+ * The term rule `help_search.rs` writes the dictionary with, restated as the
+ * reference: each token whole and, when it is written in several words, each
+ * word; a term shorter than two UTF-16 code units is dropped and the rest are
+ * lowercased, once each.
+ */
+function termsOf(text: string): readonly string[] {
+  const found = new Set<string>();
+  for (const token of text.split(SPACE_OR_PUNCTUATION)) {
+    if (token.length >= 2) found.add(token.toLowerCase());
+    const words = wordsOf(token);
+    if (words.length < 2) continue;
+    for (const word of words) if (word.length >= 2) found.add(word.toLowerCase());
+  }
+  return [...found];
+}
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), '../__fixtures__/workspace');
 

@@ -17,6 +17,9 @@ import type { Help, Named, Use } from '@variance-authority/package/help';
 import { importersOf } from '@variance-authority/sense';
 import { useOf } from '../refresh-native.js';
 
+/** What an import count leaves out: a use that names the export without importing it. */
+export const UNCOUNTED = 'a call through a qualified path imports nothing and is not counted';
+
 /** Every export of `name` from ordinary source, in `within` when one is named. */
 export function exportsNamed(help: Help, name: string, within: string | undefined): readonly Named[] {
   return help.exported.filter(
@@ -44,11 +47,14 @@ export function importsOf(root: string, exported: readonly Named[], name: string
   return found?.map(useOf);
 }
 
+/** Why the source index cannot say who imports an export. */
+export function indexUnread(root: string | undefined): string {
+  return root === undefined
+    ? 'this host named no checkout to read the source index of'
+    : 'no source index is published; run `variance index`';
+}
+
 /** The refusal when the imports cannot be read: the export is known, the index that holds its importers is not. */
 export function indexMissing(name: string, exported: readonly Named[], root: string | undefined): string {
-  const why =
-    root === undefined
-      ? 'this host named no checkout to read the source index of'
-      : 'no source index is published; run `variance index`';
-  return `\`${name}\` is exported, without being published, at ${exportedAt(exported)}; who imports it is read from the source index, and ${why}.`;
+  return `\`${name}\` is exported, without being published, at ${exportedAt(exported)}; who imports it is read from the source index, and ${indexUnread(root)}.`;
 }

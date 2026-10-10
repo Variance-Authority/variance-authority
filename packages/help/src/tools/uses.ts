@@ -3,7 +3,7 @@ import { stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Opening, Use } from '@variance-authority/package/help';
 import { how, sitesByPath } from './by-path.js';
 import { entriesNamed, isPackage, unfound } from './find.js';
-import { exportedAt, exportsNamed, importsOf, indexMissing } from './unpublished.js';
+import { UNCOUNTED, exportedAt, exportsNamed, importsOf, indexMissing, indexUnread } from './unpublished.js';
 
 /**
  * `docs_uses` — how this repository actually writes a name.
@@ -176,7 +176,7 @@ export const uses: Tool<Help> = {
 
     const sites = sitesOf(found, byPath, within ?? []);
     if (sites.length === 0 && exported.length > 0) {
-      return `\`${name}\` is exported, without being published, at ${exportedAt(exported)}, and nothing in this workspace imports it.`;
+      return `\`${name}\` is exported, without being published, at ${exportedAt(exported)}, and nothing in this workspace imports it; ${UNCOUNTED}.`;
     }
     if (sites.length === 0) {
       return `\`${name}\` is published and nothing in this workspace imports it. docs_symbol has its signature and what is written above it.`;
@@ -202,6 +202,8 @@ export const uses: Tool<Help> = {
       ...listed(stories, 'Stories:'),
       ...listed(tests, 'Tests:'),
       ...listed(source, 'Source:'),
+      // The imports by package path are in the Help value; the rest are not.
+      ...(exported.length > 0 && within === undefined ? [`\nImports that do not name a package path are not listed: ${indexUnread(root)}.`] : []),
     ].join('\n');
   },
 };

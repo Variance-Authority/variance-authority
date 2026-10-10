@@ -159,7 +159,8 @@ file, is answered rather than refused: where it is declared, why nothing
 publishes it, and each import of it. A name a file exports and no entry
 publishes is answered too: the file and line that export it, the line as the
 checkout holds it, and how many imports the source index resolved to that file,
-within its package as well as across. Only a name nothing exports is refused.
+within its package as well as across. Two files that export one name are told
+apart, each with its own count. Only a name nothing exports is refused.
 
 `symbol` prints what a name is and how to call it. For why it exists and what it
 connects to, read [what is written about a name](written-about-a-name.md).
@@ -181,7 +182,9 @@ A published name that nothing imports is a different answer, not an empty list:
 
 A name a file exports and no entry publishes is answered from the source index:
 every import that resolved to a file exporting it, within its package as well as
-from another one. The first line names where it is exported:
+from another one. A call through a qualified path, such as Rust's
+`crate::order::code_unit(…)`, imports nothing and is not listed. The first line
+names where it is exported:
 
 ```
 `roundTax` is imported in 1 place, and no entry publishes it; it is exported at packages/lib/src/internal/math.ts:5.

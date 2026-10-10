@@ -9,7 +9,7 @@ import { block } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage, type ThirdPartyMatch } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { provenance } from './third-party.js';
-import { exportsNamed, importsOf } from './unpublished.js';
+import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 
 /**
  * `docs_symbol` — one name, in full.
@@ -180,28 +180,35 @@ function declaration(help: Help, name: string, site: PathSite): { readonly at: s
 /**
  * One name a file exports and no entry publishes: where each export is written,
  * the line itself when the checkout is at hand, and how many imports the source
- * index resolved to those files.
+ * index resolved to that file. Exports that share a name are told apart, each
+ * with the imports of its own file.
  */
 function exportedOnly(name: string, exported: readonly Named[], root: string | undefined): string {
-  const blocks = exported.map((held) =>
-    [
-      name,
-      `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
-      ...(root === undefined ? [] : lineOf(root, held)),
-    ].join('\n'),
-  );
-  const imports = root === undefined ? undefined : importsOf(root, exported, name);
-  const count = imports?.length;
-  const said =
-    count === undefined
-      ? []
-      : count === 0
-        ? ['\nNothing in this workspace imports it.']
-        : [`\nIt is imported in ${count} ${count === 1 ? 'place' : 'places'}; docs_uses lists them, nearest to a file you name first.`];
-  return [blocks.join('\n\n'), ...said].join('\n');
+  return exported
+    .map((held) => {
+      const imports = root === undefined ? undefined : importsOf(root, [held], name);
+      return [
+        name,
+        `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
+        ...(root === undefined ? [] : lineOf(root, held)),
+        ...(imports === undefined ? [] : [importedIn(imports.length)]),
+      ].join('\n');
+    })
+    .join('\n\n');
 }
 
-/** The line an export is written on, as the checkout holds it now; nothing when the file is gone. */
+/** How many places import one export, read off the source index. */
+function importedIn(count: number): string {
+  return count === 0
+    ? `Nothing in this workspace imports it; ${UNCOUNTED}.`
+    : `Imported in ${count} ${count === 1 ? 'place' : 'places'}; docs_uses lists them, nearest to a file you name first.`;
+}
+
+/**
+ * The line an export is written on, as the checkout holds it now; nothing when
+ * the file is gone or the line no longer holds the name, since the index read
+ * an older text.
+ */
 function lineOf(root: string, held: Named): readonly string[] {
   let text: string;
   try {
@@ -210,5 +217,5 @@ function lineOf(root: string, held: Named): readonly string[] {
     return [];
   }
   const line = text.split(/\r?\n/)[held.line - 1]?.trim();
-  return line === undefined || line === '' ? [] : [line];
+  return line === undefined || !line.includes(held.name) ? [] : [line];
 }
