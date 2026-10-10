@@ -90,6 +90,18 @@ describe('a review of what a change did, after the run that recorded it', () => 
     expect(markdown).toContain('- `test/total.test.ts`\n  - + rounds');
   });
 
+  it('says which package the changed functions are in, whose tests ran them and which packages import them', async () => {
+    const { root, first } = await changed();
+    await writeFile(join(root, 'src/package.json'), JSON.stringify({ name: '@o/total' }));
+
+    const answer = await review(parse(['--since', first, '--root', root]));
+
+    // The test file sits under no manifest, so the root's directory is its package.
+    expect(answer.areas).toEqual([
+      { package: '@o/total', path: 'src', functions: 2, reaches: { near: 1, unwalked: 1 }, tests: ['.'], reached: ['.'] },
+    ]);
+  });
+
   it('names the pull request\'s commit, the base and the merge CI ran, and links each place at that merge', async () => {
     const { root, first, against } = await changed();
     // GitHub checks out a merge of the pull request into its base, and the suite runs there.

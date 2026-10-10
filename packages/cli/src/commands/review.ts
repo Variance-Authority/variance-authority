@@ -37,6 +37,7 @@ import {
   type LineRange,
 } from '@variance-authority/sense/test-selection';
 import { digestString } from '@variance-authority/core/format';
+import { affectedBy } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
 import { landingRecord, recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
@@ -47,6 +48,7 @@ import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-ba
 import { reviewedCommit } from './review-head.js';
 import { nearTests, regionsOf, removedText, treeLines } from './review-region.js';
 import { packagesReached, type PackageReach } from './review-install.js';
+import { areasOf } from './review-areas.js';
 import { diffPoint, diffSince } from './since.js';
 import { runsBase } from './runs-base.js';
 import { relationsFor } from './source-graph.js';
@@ -123,6 +125,22 @@ export interface ReviewFile {
   /** Case names the file declares now and did not, and the reverse. Absent when there is no base to compare with. */
   readonly cases?: { readonly added: readonly string[]; readonly removed: readonly string[] };
 }
+/** One package holding changed functions: what `review` calls where the change lands. */
+export interface ReviewArea {
+  /** The manifest's `name`, or its directory when it declares none. */
+  readonly package: string;
+  /** The directory of its manifest inside the root; `.` for the root, and for files under no manifest. */
+  readonly path: string;
+  /** Its changed functions, a branch counted under the function holding it. */
+  readonly functions: number;
+  /** Those functions by their worst region's reach. */
+  readonly reaches: Partial<Record<Reach, number>>;
+  /** The packages whose test files entered them, its own included, in code-unit order. */
+  readonly tests: readonly string[];
+  /** The other packages holding a file that imports its changed files, through any number of imports, in code-unit order. */
+  readonly reached: readonly string[];
+}
+
 /** A changed file one or more tests declare as a precondition: before the reach of any import. */
 export interface BeforeReach {
   readonly file: string;
@@ -181,6 +199,8 @@ export interface Review {
   /** The runs recorded at this commit, when they listed themselves, less `test:since`'s `standing`. */
   readonly runs?: Omit<CommitRuns, 'standing'>;
   readonly files: readonly ReviewFile[];
+  /** The packages holding changed functions, by directory. Absent when no changed function was located. */
+  readonly areas?: readonly ReviewArea[];
   /** How many test files the snapshot holds, the scale `before` is read on. Absent with `before` when the snapshot could not be read. */
   readonly suite?: number;
   readonly before?: readonly BeforeReach[];
@@ -282,6 +302,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     });
   }
 
+  const areas = areasOf(root, files, (seeds) => affectedBy(relations, seeds).files);
   const suite = await preconditionsOf(recorded.file, [...changed.keys()].map(named));
   const beyond = await installDiff(point, [...changed.keys()]);
   const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
@@ -301,6 +322,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     ...(mainline === undefined ? {} : { mainline: mainlineOf(mainline) }),
     ...(runs === undefined ? {} : { runs: Object.fromEntries(Object.entries(runs).filter(([key]) => key !== 'standing')) as Omit<CommitRuns, 'standing'> }),
     files,
+    ...(areas.length === 0 ? {} : { areas }),
     ...(suite === undefined ? {} : {
       suite: suite.tests,
       before: beforeReach([...changed.keys()].map(named), suite.declared),
