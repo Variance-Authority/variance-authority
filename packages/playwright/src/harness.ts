@@ -3,13 +3,14 @@ import {
   driveBeforeLoad,
   featuresOf,
   forDriver,
+  type PageRegion,
   type RawCapture,
   type Recipe,
   type Viewport,
 } from '@variance-authority/core/format';
 import { AGENT_GLOBAL, type CaptureRequest, type PageAgent } from './agent.js';
 import { observeNetwork, type NetworkObservation, type NetworkOptions } from './network.js';
-import { pinnedLocale, type PageLocale } from './viewport.js';
+import { pinnedRegion } from './viewport.js';
 
 /**
  * A persistent Chromium harness: one browser, one page, one navigation, one
@@ -31,7 +32,7 @@ import { pinnedLocale, type PageLocale } from './viewport.js';
  * `unchanged` verdict vacuous, which is exactly the failure ADR-0003 is about.
  */
 
-export interface HarnessOptions extends PageLocale {
+export interface HarnessOptions extends PageRegion {
   /** Page to navigate to, once. `file://` is fine and needs no server. */
   readonly url: string;
 
@@ -96,7 +97,7 @@ export interface Harness {
    * The timezone and locale the page was opened in, as they land in the
    * environment key: the declared pair, or `UTC` and `en-US`.
    */
-  readonly region: Required<PageLocale>;
+  readonly region: Required<PageRegion>;
 
   /**
    * Render `(subject, variant)` in the shared page and return its capture.
@@ -126,7 +127,7 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
   const errors: string[] = [];
 
   try {
-    const region = pinnedLocale(options);
+    const region = pinnedRegion(options);
     const context = await newContext(browser, options.viewport, region);
     const page = await context.newPage();
 
@@ -229,7 +230,7 @@ export async function captureOnce(
 async function newContext(
   browser: Browser,
   viewport: Viewport,
-  region: Required<PageLocale>,
+  region: Required<PageRegion>,
 ): Promise<BrowserContext> {
   return browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },

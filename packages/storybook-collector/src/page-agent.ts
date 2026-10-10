@@ -14,7 +14,7 @@ import {
   wiringOf,
 } from '@variance-authority/react';
 import type { SuspenseSettlement } from '@variance-authority/react';
-import type { RawCapture, RenderDocument, Viewport } from '@variance-authority/core/format';
+import type { PageRegion, RawCapture, RenderDocument, Viewport } from '@variance-authority/core/format';
 
 /**
  * The browser half, shipped rather than written by each adopter.
@@ -31,15 +31,12 @@ import type { RawCapture, RenderDocument, Viewport } from '@variance-authority/c
  * would be a story about which of them was looking at what.
  */
 
-export interface AcquireRequest {
+/** What a reading asks of the agent. Its region is the one the driver opened the page in, for the environment key. */
+export interface AcquireRequest extends PageRegion {
   readonly subjectId: string;
   readonly viewport: Viewport;
   readonly engine: string;
   readonly fonts?: readonly string[];
-
-  /** The timezone and locale the driver opened the page in, for the environment key. */
-  readonly timezoneId?: string;
-  readonly locale?: string;
 
   /**
    * Subtrees this run excludes, as `(rule id, selector)` pairs (spec 0024).

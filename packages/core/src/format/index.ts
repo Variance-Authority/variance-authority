@@ -37,6 +37,7 @@ export type {
   EnvironmentKey,
   EnvironmentDelta,
   EnvironmentField,
+  PageRegion,
   Viewport,
 } from './environment.js';
 export { environmentKey, diffEnvironments } from './environment.js';

@@ -1,5 +1,6 @@
 import type { CallSiteResolver, SourceIndex } from '@variance-authority/core/attribute';
 import type {
+  PageRegion,
   RenderDocument,
   SemanticSnapshot,
   SubjectRef,
@@ -17,15 +18,13 @@ import type {
  * run.
  */
 
-export interface CollectorConfig {
+/**
+ * The subset of a run's configuration this collector reads. A region field it
+ * leaves out is pinned to `UTC` or `en-US`, never the host's.
+ */
+export interface CollectorConfig extends PageRegion {
   readonly viewport: Viewport;
   readonly fonts?: readonly string[];
-
-  /** The timezone the page's clock reads in. `UTC` when absent, never the host's. */
-  readonly timezoneId?: string;
-
-  /** The language the page formats for. `en-US` when absent, never the host's. */
-  readonly locale?: string;
   /**
    * Subtrees this project excludes, from `config.ignore` (spec 0024).
    *

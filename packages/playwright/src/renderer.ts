@@ -9,6 +9,7 @@ import {
   recipeDigest,
   recipeScreenshot,
   settleRecipe,
+  type PageRegion,
   type Raster,
   type Recipe,
   type RenderDocument,
@@ -17,7 +18,7 @@ import {
 } from '@variance-authority/core/format';
 import { captureSubject } from './capture.js';
 import { ENGINE_TYPES, type BrowserEngine } from './engines.js';
-import { pinnedLocale, type PageLocale } from './viewport.js';
+import { pinnedRegion } from './viewport.js';
 import {
   assertClosedResources,
   refuseMissingResources,
@@ -92,8 +93,8 @@ export const CHROMIUM_RASTER_ARGS = [
   '--font-render-hinting=none',
 ] as const;
 
-/** Each page opens in {@link PageLocale}'s timezone and language: `UTC` and `en-US` by default. */
-export interface PlaywrightRendererOptions extends PageLocale {
+/** Each page opens in {@link PageRegion}'s timezone and language: `UTC` and `en-US` by default. */
+export interface PlaywrightRendererOptions extends PageRegion {
   readonly headless?: boolean;
 
   /**
@@ -185,7 +186,7 @@ export async function createPlaywrightRenderer(
     );
   }
 
-  const region = pinnedLocale(options);
+  const region = pinnedRegion(options);
 
   try {
     const identity: RenderIdentity = {
@@ -399,7 +400,7 @@ function probeFonts(families: readonly string[]): string[] {
 class PagePool {
   readonly #browser: Browser;
   readonly #limit: number;
-  readonly #locale: Required<PageLocale>;
+  readonly #region: Required<PageRegion>;
   readonly #onWebSocket: (context: BrowserContext, url: string) => void;
   /** The recipe's driver tricks, applied to each page as it opens. */
   readonly #drive: (page: Page) => Promise<void>;
@@ -411,13 +412,13 @@ class PagePool {
   constructor(
     browser: Browser,
     limit: number,
-    locale: Required<PageLocale>,
+    region: Required<PageRegion>,
     onWebSocket: (context: BrowserContext, url: string) => void,
     drive: (page: Page) => Promise<void>,
   ) {
     this.#browser = browser;
     this.#limit = limit;
-    this.#locale = locale;
+    this.#region = region;
     this.#onWebSocket = onWebSocket;
     this.#drive = drive;
   }
@@ -471,7 +472,7 @@ class PagePool {
       viewport: { width: viewport.width, height: viewport.height },
       deviceScaleFactor: viewport.deviceScaleFactor,
       colorScheme: viewport.colorScheme,
-      ...this.#locale,
+      ...this.#region,
       serviceWorkers: closed ? 'block' : 'allow',
     });
     const page = await context.newPage();

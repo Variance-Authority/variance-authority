@@ -11,7 +11,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { digestValue, documentDigest } from '@variance-authority/core/format';
 import type { AttributedRegion } from '@variance-authority/core/attribute';
-import type { Raster, RenderIdentity, SemanticSnapshot } from '@variance-authority/core/format';
+import type { PageRegion, Raster, RenderIdentity, SemanticSnapshot } from '@variance-authority/core/format';
 import { normalize } from '@variance-authority/core/rules';
 import { observeRasters } from '@variance-authority/observe';
 import { suspenseRefusal } from '@variance-authority/react';
@@ -126,10 +126,10 @@ export async function stableRaster(
  *
  * Source, not a function, for the reason {@link PROBE_FONTS} gives.
  */
-export async function regionOf(page: Page): Promise<{ timezoneId: string; locale: string }> {
+export async function regionOf(page: Page): Promise<Required<PageRegion>> {
   return (await page.evaluate(
     `({ timezoneId: Intl.DateTimeFormat().resolvedOptions().timeZone, locale: navigator.language })`,
-  )) as { timezoneId: string; locale: string };
+  )) as Required<PageRegion>;
 }
 
 /**

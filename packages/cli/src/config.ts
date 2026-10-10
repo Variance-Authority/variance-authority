@@ -1,4 +1,4 @@
-import { profileById, type ProfileId, type Viewport } from '@variance-authority/core/format';
+import { profileById, type PageRegion, type ProfileId, type Viewport } from '@variance-authority/core/format';
 import type { Retention } from '@variance-authority/raster';
 import {
   fail,
@@ -36,7 +36,7 @@ import type { NameGrammar } from '@variance-authority/sense/test-selection';
 import { parseNames } from './config-names.js';
 import { parseSensitivities, type SensitivityConfig } from './config-sensitivity.js';
 import { parseRestsOn, type RestsOn } from './config-suites.js';
-import { parseRegion, type PageRegion } from './config-region.js';
+import { parseRegion } from './config-region.js';
 import { parseDeclaredAt } from './config-declared.js';
 import { checkCarriers, parsePlacement, type Carrier } from './config-placement.js';
 

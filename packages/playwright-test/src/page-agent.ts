@@ -11,6 +11,7 @@ import {
 import type { DeclaredComponents, SuspenseSettlement } from '@variance-authority/react';
 import type {
   Digest,
+  PageRegion,
   RawCapture,
   RenderDocument,
   SubjectRef,
@@ -43,16 +44,13 @@ export const AGENT = '__variance_authority_playwright_test__';
 export const ACCESSIBILITY_ROOT_ATTRIBUTE = 'data-variance-authority-accessibility-root';
 let accessibilitySequence = 0;
 
-export interface AcquireRequest {
+/** What a reading asks of the agent. Its region is the one the page runs in, for the environment key. */
+export interface AcquireRequest extends PageRegion {
   readonly subject: SubjectRef;
   readonly viewport: Viewport;
 
   /** Engine identity for the environment key, e.g. `chromium@131.0.6778.33`. */
   readonly engine: string;
-
-  /** The timezone and locale the page runs in, for the environment key. */
-  readonly timezoneId?: string;
-  readonly locale?: string;
 
   /**
    * Fonts this machine is asserted to have, as `family/weight/style/hash`.

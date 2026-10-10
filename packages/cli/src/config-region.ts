@@ -1,25 +1,17 @@
+import type { PageRegion } from '@variance-authority/core/format';
 import { fail, optionalText, quote, type ParseOptions } from './config-values.js';
 
 /**
- * The timezone the page's clock reads in and the language it formats for.
+ * The `timezoneId` and `locale` keys, each refused by its field when the runtime
+ * cannot read it.
  *
  * Absent, the renderer pins `UTC` and `en-US`, never the host's: a date the page
  * formats would otherwise read one way on a laptop in Sydney and another on a
  * runner in Virginia, from one build. Declared here, the renderer pins these
  * instead. Both join the environment key and the render identity, so a project
  * that changes one reads every image `incomparable` against the baselines
- * painted under the other, and accepts them again. `locale` is the base locale
- * spec 0008 names.
+ * painted under the other, and accepts them again.
  */
-export interface PageRegion {
-  /** An IANA timezone, such as `Europe/Berlin`. `UTC` when absent. */
-  readonly timezoneId?: string;
-
-  /** A BCP 47 language tag, such as `de-DE`. `en-US` when absent. */
-  readonly locale?: string;
-}
-
-/** The `timezoneId` and `locale` keys, each refused by its field when the runtime cannot read it. */
 export function parseRegion(root: Record<string, unknown>, options: ParseOptions): PageRegion {
   const timezoneId = optionalText(root, 'timezoneId', options);
   const locale = optionalText(root, 'locale', options);

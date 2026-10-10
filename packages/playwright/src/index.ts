@@ -28,7 +28,7 @@
 export { createHarness, createObservedHarness, captureOnce } from './harness.js';
 export type { Harness, HarnessOptions } from './harness.js';
 
-export { unresizable, unwidened, widthsOf, type WidthPlanned } from './viewport.js';
+export { pinnedRegion, unresizable, unwidened, widthsOf, type WidthPlanned } from './viewport.js';
 export { observeNetwork } from './network.js';
 export type { BlankedAsset, NetworkObservation, NetworkOptions } from './network.js';
 

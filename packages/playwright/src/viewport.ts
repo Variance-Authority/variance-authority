@@ -1,4 +1,4 @@
-import type { Viewport } from '@variance-authority/core/format';
+import type { PageRegion, Viewport } from '@variance-authority/core/format';
 
 /**
  * What a subject can ask of a page that is already open, and what it cannot.
@@ -13,23 +13,15 @@ import type { Viewport } from '@variance-authority/core/format';
  */
 
 /**
- * The timezone and locale a browser context is opened in, as Playwright names them.
+ * The region a browser context is opened in: the one declared, and `UTC` and
+ * `en-US` for a field nobody declared.
  *
- * A page that formats a date or a number without naming a timezone or a language
- * of its own gets the host's, so one build reads `12:30 AM` on a runner in UTC
- * and `4:30 PM` on a laptop in California. Both are pinned, `UTC` and `en-US`
- * unless the run declares otherwise, and both are part of the environment key and
- * the render identity, the way a colour scheme is.
+ * Never the host's: a page that formats a date without naming a timezone of its
+ * own reads `12:30 AM` on a runner in UTC and `4:30 PM` on a laptop in
+ * California. Both fields are part of the environment key and the render
+ * identity, the way a colour scheme is.
  */
-export interface PageLocale {
-  /** An IANA timezone, such as `Europe/Berlin`. Defaults to `UTC`. */
-  readonly timezoneId?: string;
-  /** A BCP 47 tag, such as `de-DE`. Defaults to `en-US`. */
-  readonly locale?: string;
-}
-
-/** {@link PageLocale} with its defaults filled in. */
-export function pinnedLocale(declared: PageLocale): Required<PageLocale> {
+export function pinnedRegion(declared: PageRegion): Required<PageRegion> {
   return { timezoneId: declared.timezoneId ?? 'UTC', locale: declared.locale ?? 'en-US' };
 }
 

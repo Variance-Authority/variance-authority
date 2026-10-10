@@ -15,7 +15,7 @@ import {
   wiringOf,
 } from '@variance-authority/react';
 import type { HydrationSettlement, SuspenseSettlement } from '@variance-authority/react';
-import type { RawCapture, RenderDocument, Viewport } from '@variance-authority/core/format';
+import type { PageRegion, RawCapture, RenderDocument, Viewport } from '@variance-authority/core/format';
 
 /**
  * The browser half for a route, which is the cheapest mount there is.
@@ -31,15 +31,12 @@ import type { RawCapture, RenderDocument, Viewport } from '@variance-authority/c
  * story about which of them was looking at what.
  */
 
-export interface AcquireRequest {
+/** What a reading asks of the agent. Its region is the one the driver opened the page in, for the environment key. */
+export interface AcquireRequest extends PageRegion {
   readonly subjectId: string;
   readonly viewport: Viewport;
   readonly engine: string;
   readonly fonts?: readonly string[];
-
-  /** The timezone and locale the driver opened the page in, for the environment key. */
-  readonly timezoneId?: string;
-  readonly locale?: string;
 
   /**
    * Content hashes for what the page was served, keyed by request URL.

@@ -15,6 +15,7 @@
  */
 
 import type { Fixtures, PlaywrightTestArgs, PlaywrightWorkerArgs } from '@playwright/test';
+import type { PageRegion } from '@variance-authority/core/format';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import type { Renderer } from '@variance-authority/raster';
 import { regionOf } from './in-place.js';
@@ -22,7 +23,7 @@ import { regionOf } from './in-place.js';
 /** Renderers a worker holds, one for each timezone and locale its pages ran in. */
 export interface RendererPool {
   /** The renderer that paints in `region`, launched the first time it is asked for. */
-  readonly for: (region: { readonly timezoneId: string; readonly locale: string }) => Promise<Renderer>;
+  readonly for: (region: Required<PageRegion>) => Promise<Renderer>;
 }
 
 export interface VarianceRendererFixtures {
