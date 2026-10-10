@@ -8,6 +8,7 @@
  */
 
 import { matchingParen } from '@variance-authority/core/rules';
+import { LEGACY_PSEUDO_ELEMENTS } from './selector-parts.js';
 
 export type Specificity = readonly [number, number, number];
 
@@ -66,7 +67,7 @@ export function specificityOf(selector: string): Specificity {
         } else if (name !== 'where') {
           classes += 1;
         }
-      } else if (doubled || PSEUDO_ELEMENTS.has(name)) {
+      } else if (doubled || LEGACY_PSEUDO_ELEMENTS.has(name)) {
         // Pseudo-elements count as type selectors; pseudo-classes as classes.
         types += 1;
       } else {
@@ -147,11 +148,6 @@ export function splitSelectorList(selectorList: string): string[] {
   if (current.trim().length > 0) branches.push(current.trim());
   return branches;
 }
-
-const PSEUDO_ELEMENTS = new Set([
-  'before', 'after', 'first-line', 'first-letter', 'selection', 'backdrop',
-  'placeholder', 'marker', 'file-selector-button',
-]);
 
 /**
  * Length of the CSS identifier at `start`.

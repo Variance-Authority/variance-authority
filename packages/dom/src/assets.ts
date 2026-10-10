@@ -1,4 +1,5 @@
 import { pageOrigin, withoutOrigin } from '@variance-authority/core/format';
+import { GENERATED_BOXES } from './generated-box.js';
 import { detectProfile } from './profile.js';
 
 /**
@@ -46,17 +47,6 @@ const URL_PROPERTIES: readonly string[] = [
 ];
 
 /**
- * Pseudo-elements that can paint a file the element's own styles do not name.
- *
- * Only asked of a host with a layout engine. `getComputedStyle(element, '::before')`
- * is unimplemented under jsdom, where it costs a virtual-console error per
- * element rather than an answer — three hundred subjects of noise for a question
- * that host cannot answer anyway. The profile probe is the honest way to ask:
- * *can this host resolve a pseudo-element's style*, not *is this jsdom*.
- */
-const PSEUDO_ELEMENTS: readonly string[] = ['::before', '::after'];
-
-/**
  * Every asset URL the subtree references, absolute, sorted, de-duplicated.
  *
  * Sorted because the result is folded into a digest through an object key order
@@ -71,7 +61,12 @@ const PSEUDO_ELEMENTS: readonly string[] = ['::before', '::after'];
 export function referencedAssets(root: Element): readonly string[] {
   const document = root.ownerDocument;
   const view = document.defaultView;
-  const pseudo = view === null || !detectProfile(view).layout ? [] : PSEUDO_ELEMENTS;
+  // A generated box can paint a file the element's own styles do not name. It
+  // is asked only of a host with a layout engine: `getComputedStyle(element,
+  // '::before')` is unimplemented under jsdom, where it costs a virtual-console
+  // error per element rather than an answer. The profile probe asks *can this
+  // host resolve a pseudo-element's style*, not *is this jsdom*.
+  const pseudo = view === null || !detectProfile(view).layout ? [] : GENERATED_BOXES;
   const found = new Set<string>();
 
   const add = (value: string | null | undefined): void => {

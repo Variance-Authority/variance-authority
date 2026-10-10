@@ -55,8 +55,12 @@ export interface PseudoElementSelector {
   readonly pseudo: string;
 }
 
-/** The four pseudo-elements CSS 2 wrote with one colon, which a CSSOM may hand back as written. */
-const LEGACY_PSEUDO_ELEMENTS = new Set(['before', 'after', 'first-line', 'first-letter']);
+/**
+ * The four pseudo-elements CSS 2 wrote with one colon, which a CSSOM may hand
+ * back as written. Every other pseudo-element is invalid with one colon, so no
+ * engine hands one back that way.
+ */
+export const LEGACY_PSEUDO_ELEMENTS: ReadonlySet<string> = new Set(['before', 'after', 'first-line', 'first-letter']);
 
 /**
  * Split a trailing pseudo-element off a selector, or `null` when it styles an element.
