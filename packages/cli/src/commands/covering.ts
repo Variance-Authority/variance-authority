@@ -39,6 +39,7 @@ import {
   coveringTests,
   anyStopped,
   coveringTestsInFile,
+  keepsCases,
   ranWhileLoading,
   stoppedBefore,
   stateOf,
@@ -57,7 +58,8 @@ import { OperatorError } from '../exit.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { hopsToTests, identities, nearbyWitnesses, refold, type Narrowing } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
-import { preconditionOf, unloadedFile } from './covering-unloaded.js';
+import { unloadedFile, unreadPreconditions } from './covering-unloaded.js';
+import { heldAsPrecondition } from './held-as-precondition.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { listedIn, namesAt, placesNoCase, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
@@ -244,9 +246,12 @@ async function ask(
   const { index, files, before } = await readIndex(from, new Map([[file, []]]));
   const module = index.modules.find((candidate) => candidate.file === file);
   if (module === undefined) {
-    const loaded = preconditionOf(file, from);
-    if (loaded.length === 0) throw unloadedFile(file, from, files);
-    return { file, preconditionOf: loaded, from };
+    const held = heldAsPrecondition(from, [file]);
+    const loaded = held?.of.get(file);
+    if (loaded !== undefined) return { file, preconditionOf: loaded, from };
+    // An index with no coverage beside it, as a foreign tool writes, holds no preconditions to read.
+    if (held === undefined && keepsCases(from)) throw unreadPreconditions(file, from);
+    throw unloadedFile(file, from, files);
   }
 
   const near = await nearbyWitnesses(request as CoveringAt);

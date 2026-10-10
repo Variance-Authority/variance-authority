@@ -8,7 +8,9 @@
  * and every test file that loaded it holds it as a precondition. That is what
  * `variance select` reads for it, so a change to it selects every one of those
  * files whole, and `covering` names the same files from the same table
- * (`testsGovernedBy`). No case and no line is named: nothing measured them.
+ * (`held-as-precondition.ts`). No case and no line is named: nothing measured
+ * them. A record whose coverage does not read cannot say whether any test file
+ * loaded it, and is refused as that, not as a file the run never loaded.
  *
  * A path given to `covering` is usually the right file and the wrong root: the
  * record spells a module the way the run saw it, and a reader who pasted an
@@ -18,7 +20,6 @@
  * file, without reading the sentence.
  */
 
-import { askCoverageFile, testsGovernedBy } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 
 /** A record that never loaded the file, with the paths it holds of the same file under another root. */
@@ -45,29 +46,21 @@ export function unloadedFile(file: string, from: string, files: readonly string[
 }
 
 /**
- * The test files the record at `from` holds `file` as a precondition of, in
- * code-unit order: the ones that loaded it without instrumenting it, or that
- * declare it. Empty when none does, and when `from` is not a record, such as an
- * index a foreign tool wrote, which carries no preconditions.
- *
- * A test file is a precondition of itself, and is not named for that.
+ * Refuse `file`, which the index at `from` does not hold, when `from` is a
+ * coverage record whose coverage cannot be read: it kept cases and no coverage,
+ * or its coverage does not decode. Its preconditions are where a module the
+ * run loaded without instrumenting it is kept, so the record cannot say whether
+ * a test file loaded this one, and the refusal does not say the run never did:
+ * it carries no `unloaded` kind for a caller to act on.
  */
-export function preconditionOf(file: string, from: string): readonly string[] {
-  try {
-    return askCoverageFile(from, (coverage) => {
-      const tests: string[] = [];
-      for (const test of testsGovernedBy(coverage, [file]).tests.keys()) {
-        const own = coverage.string(coverage.testPath.at(test));
-        if (own !== file) tests.push(own);
-      }
-      return tests.sort();
-    });
-  } catch {
-    return [];
-  }
+export function unreadPreconditions(file: string, from: string): OperatorError {
+  return new OperatorError(
+    `\`${file}\` is not in the index at \`${from}\`, and that record's coverage cannot be read, so whether ` +
+      'a test file loaded it without instrumenting it is not known.',
+  );
 }
 
-/** {@link preconditionOf} said for a person, the files one to a line. */
+/** The test files that hold `file` as a precondition (`heldAsPrecondition`), said for a person, one to a line. */
 export function preconditionText(file: string, tests: readonly string[]): string {
   return [
     `${file} is a precondition of ${tests.length} test file${tests.length === 1 ? '' : 's'}, and a change to it ` +

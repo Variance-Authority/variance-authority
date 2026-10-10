@@ -8,7 +8,7 @@ import { parseCoveringArgs } from '../covering-args.js';
 import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { digestString } from '@variance-authority/core/format';
-import { encodeExecutionIndex, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { encodeExecutionIndex, recordOfCases, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
 import { refold } from './covering-reach.js';
 import { indexOutput } from './index-command.js';
@@ -65,6 +65,14 @@ async function recordFile(): Promise<string> {
     ],
     modules: [{ file: 'src/stabilize.ts', sourceDigest: digestString('stabilize'), instrumented: false, blocks: [] }],
   }, { index: encodeExecutionIndex(INDEX) });
+  return file;
+}
+
+/** {@link INDEX} kept as a record's cases, beside coverage that does not read: a record with no coverage at all. */
+async function unreadRecordFile(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'variance-covering-'));
+  const file = join(dir, 'coverage.bin');
+  await writeFile(file, recordOfCases({ index: encodeExecutionIndex(INDEX) }));
   return file;
 }
 
@@ -160,6 +168,24 @@ describe('asking which tests entered a line', () => {
 
     await expect(covering(parse(['--file', 'src/never.ts', '--execution', execution])))
       .rejects.toThrow(/is not in the index at/);
+  });
+
+  it('does not say the run never loaded a file when the record\'s coverage, which keeps that, cannot be read', async () => {
+    const execution = await unreadRecordFile();
+
+    const asked = covering(parse(['--file', 'src/stabilize.ts', '--execution', execution]));
+
+    await expect(asked).rejects.toThrow(
+      `\`src/stabilize.ts\` is not in the index at \`${execution}\`, and that record's coverage cannot be read, so whether ` +
+        'a test file loaded it without instrumenting it is not known.',
+    );
+    await expect(asked).rejects.not.toHaveProperty('kind', 'unloaded');
+  });
+
+  it('still refuses a file as never loaded from an index that carries no coverage to hold preconditions', async () => {
+    const asked = covering(parse(['--file', 'src/never.ts', '--execution', await columnIndexFile()]));
+
+    await expect(asked).rejects.toHaveProperty('kind', 'unloaded');
   });
 
   it('separates a line nothing recorded from a line nothing covered', async () => {

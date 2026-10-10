@@ -396,8 +396,8 @@ variance covering --file src/checkout/total.ts --function applyDiscount --format
 Each test file is named once, with its cases under it. Over a whole file, a
 range walked by the same cases as the one before is folded into one line.
 
-A module the run loaded without instrumenting it, such as one your suite's
-`include` leaves out or one named in `unprobed`, has no recorded line. It is a
+A module the run loaded without instrumenting it, such as one named in
+`unprobed` or one whose text the run could not parse, has no recorded line. It is a
 precondition of every test file that loaded it, and `variance select` selects
 all of them on a change to it, so `covering` names those files and no case:
 
