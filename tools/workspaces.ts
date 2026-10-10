@@ -57,6 +57,8 @@ export interface Workspace {
   readonly name: string;
   readonly dir: string;
   readonly manifest: Manifest;
+  /** The modules the import walk read, so a rule about what it reads asks the walk. */
+  readonly files: readonly string[];
   readonly imports: { readonly source: ReadonlySet<string>; readonly test: ReadonlySet<string> };
 }
 
@@ -80,6 +82,9 @@ export interface Manifest {
  */
 const OUTPUT = new Set(['node_modules', 'dist', 'coverage', 'storybook-static']);
 
+/** Every extension Node or TypeScript loads a module from. */
+export const MODULE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
+
 export function sourceFiles(dir: string, out: string[] = []): string[] {
   if (!existsSync(dir)) return out;
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -89,10 +94,19 @@ export function sourceFiles(dir: string, out: string[] = []): string[] {
     // `import()`s it and an adopter reaches for the extension that says so — and
     // leaving them out meant the one file this repository holds up as *the* thing
     // an adopter writes was invisible to every import rule below.
-    else if (/\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(entry.name)) out.push(path);
+    else if (MODULE.test(entry.name)) out.push(path);
   }
   return out;
 }
+
+/**
+ * A module that runs only under a runner: a test, a spec or a measurement.
+ *
+ * Every extension the walk reads that a runner collects, `.mts` and `.cts`
+ * included: a `.test.mts` read as production would hold a test-only dependency
+ * to the production rule.
+ */
+export const TEST_MODULE = /\.(test|spec|measure)\.(ts|tsx|mts|cts|js|jsx)$/;
 
 /**
  * The package a specifier names, ignoring the entrypoint.
@@ -206,10 +220,12 @@ export function workspaces(): readonly Workspace[] {
               .map((entry) => join(dir, entry.name))
           : [join(dir, 'src'), join(dir, 'collector')];
       const foreign = roots.flatMap((root) => nestedManifests(root));
+      // A fixture workspace answers for its own imports; see `nestedManifests`.
+      const files = roots
+        .flatMap((root) => sourceFiles(root))
+        .filter((file) => !foreign.some((nested) => file.startsWith(`${nested}/`)));
 
-      for (const file of roots.flatMap((root) => sourceFiles(root))) {
-        // A fixture workspace answers for its own imports; see `nestedManifests`.
-        if (foreign.some((nested) => file.startsWith(`${nested}/`))) continue;
+      for (const file of files) {
 
         // `.spec.` and `.measure.` count as well as `.test.`, because the weaker
         // rule is about *when* code runs and not about which runner runs it or
@@ -226,7 +242,7 @@ export function workspaces(): readonly Workspace[] {
         // case. `collector/` is the exception that stays production, because
         // the CLI `import()`s one in an adopter's own process.
         const isTest =
-          /\.(test|spec|measure)\.(ts|tsx|js|jsx)$/.test(file) ||
+          TEST_MODULE.test(file) ||
           file.includes('__fixtures__') ||
           (group === 'cases' &&
             !file.startsWith(`${join(dir, 'src')}/`) &&
@@ -237,7 +253,7 @@ export function workspaces(): readonly Workspace[] {
           (isTest ? test : source).add(owner);
         }
       }
-      found.push({ name: manifest.name, dir, manifest, imports: { source, test } });
+      found.push({ name: manifest.name, dir, manifest, files, imports: { source, test } });
     }
   }
   return found;

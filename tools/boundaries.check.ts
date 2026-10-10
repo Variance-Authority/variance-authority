@@ -6,11 +6,12 @@ import { MODULES } from './modules.js';
 import {
   ALL,
   AMBIENT,
+  MODULE,
   REQUIRED_WITHOUT_IMPORT,
   PACKAGES,
   ROOT,
+  TEST_MODULE,
   declared,
-  sourceFiles,
   type Workspace,
 } from './workspaces.js';
 
@@ -45,9 +46,17 @@ import {
  */
 
 describe('a package declares what it imports', () => {
-  it.each(['.mts', '.cts', '.cjs'])('reads the imports of %s modules too', (extension) => {
-    const walked = ALL.flatMap((workspace) => sourceFiles(workspace.dir));
-    expect(walked.some((file) => file.endsWith(extension))).toBe(true);
+  it.each(['a.mts', 'a.cts', 'a.cjs'])('reads the imports of %s too', (file) => {
+    expect(MODULE.test(file)).toBe(true);
+  });
+
+  it('reads the .cts modules a package keeps in src', () => {
+    const walked = ALL.flatMap((workspace) => workspace.files);
+    expect(walked.some((file) => /\/packages\/[^/]+\/src\/.*\.cts$/.test(file))).toBe(true);
+  });
+
+  it.each(['a.test.mts', 'a.spec.cts', 'a.measure.mts'])('holds %s to the test rule', (file) => {
+    expect(TEST_MODULE.test(file)).toBe(true);
   });
 
   it.each(ALL.map((workspace) => [workspace.name, workspace] as const))(
