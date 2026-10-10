@@ -11,10 +11,11 @@
 The port a build is served on is no part of a render
 
 The route and Storybook collectors serve a build on a free port, and that port
-reached two identities. An asset the page loaded was keyed by its absolute URL,
-and a `url()` in a computed style was the absolute URL the engine resolved. One
-build served twice therefore read as two renders with two style hashes, and a
-subject compared against its own baseline as changed.
+reached three identities. An asset the page loaded was keyed by its absolute
+URL, a `url()` in a computed style was the absolute URL the engine resolved,
+and the document digest read both. One build served twice therefore read as two
+environment keys and two documents: each run missed the render cache, painted
+again, and read its document as changed against its own baseline.
 
 An asset the page's own origin serves is keyed by its path, and the page's
 origin is dropped from a `url()` before it is hashed. An asset another origin
