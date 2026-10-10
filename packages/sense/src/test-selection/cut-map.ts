@@ -32,6 +32,17 @@ export function inlineBehindCut(code: string, shifts: readonly number[]): string
   return code.slice(0, found.index) + comment + code.slice(found.index + found[0].length);
 }
 
+/**
+ * A cut that Node evaluates as it stands, with no transform after it: the map
+ * a loader before the cut left inline is moved back, and where none did, the
+ * cut's own map goes inline, so a stack frame names the file's columns.
+ */
+export function evaluatedCut(cut: { readonly code: string; readonly map: object; readonly shifts: readonly number[] }): string {
+  const moved = inlineBehindCut(cut.code, cut.shifts);
+  if (moved !== cut.code) return moved;
+  return `${cut.code}${MARKER}=data:application/json;charset=utf-8;base64,${Buffer.from(JSON.stringify(cut.map)).toString('base64')}\n`;
+}
+
 type Shifts = ReadonlyMap<number, readonly (readonly [column: number, length: number])[]>;
 
 function byLine(shifts: readonly number[]): Shifts {

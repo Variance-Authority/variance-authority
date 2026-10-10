@@ -7,7 +7,10 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CHECKOUT_MARKER } from './cache-layers.js';
+import { lineAt, linesOf } from './case-lines.js';
+import { caseIndexOf } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
+import { openSetColumns } from './execution-set-format.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
@@ -117,6 +120,31 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
       at('test/alpha.case.mjs > decide > waits, then takes the alpha path'),
     ]);
     expect(walking('took B')).toEqual([at('test/beta.case.mjs > decide > takes the beta path')]);
+  }, 60_000);
+
+  it('says which line of each case reached the branch it took, unless the run turns cuts off', async () => {
+    const source = await readFile(resolve(fixture, 'src/label.cjs'), 'utf8');
+    const test = await readFile(resolve(fixture, 'test/alpha.case.mjs'), 'utf8');
+    const reaching = async (coverageFile: string, name: string) => {
+      const cases = await caseIndexOf(coverageFile);
+      if (cases === undefined) throw new Error('the run wrote no execution index');
+      const index = decodeExecutionIndex(cases);
+      const module = index.modules.findIndex((entry) => entry.file === at('src/label.cjs'));
+      const line = lineIn(source, "return 'took A'");
+      const block = index.modules[module]!.blocks.findLastIndex((entry) => entry.startLine <= line && line <= entry.endLine);
+      const lines = linesOf(openSetColumns(cases)!.testLines, index.tests.findIndex((entry) => entry.id === at(`test/alpha.case.mjs > ${name}`)));
+      return lines === undefined ? undefined : lineAt(lines, module, block);
+    };
+
+    const { coverageFile } = await record();
+    expect(await reaching(coverageFile, 'decide > takes the alpha path'))
+      .toEqual({ line: lineIn(test, "if (decide('alpha')"), ambient: false });
+    // The awaited case waited first; the call after the wait reached the branch.
+    expect(await reaching(coverageFile, 'decide > waits, then takes the alpha path'))
+      .toEqual({ line: test.split('\n').findLastIndex((text) => text.includes("decide('alpha')")) + 1, ambient: false });
+
+    const uncut = await record('--no-cadence');
+    expect(await reaching(uncut.coverageFile, 'decide > takes the alpha path')).toBeUndefined();
   }, 60_000);
 
   it('keeps the duration the runner passed to `finish` for each file and for each case it named', async () => {

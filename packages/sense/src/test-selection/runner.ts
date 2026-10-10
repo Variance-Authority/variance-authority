@@ -11,8 +11,8 @@
  *
  * - {@link startRecording} in the process that starts the run, and its
  *   `finish` where that process knows which files passed;
- * - {@link registerRecording}, or {@link instrumentModule} from a transform
- *   the runner already has, wherever product source is loaded;
+ * - {@link registerRecording}, or {@link instrumentModule} and {@link cutTestFile}
+ *   from a transform the runner already has, wherever source is loaded;
  * - {@link observeTestFile} around each test file, in whichever process runs it.
  *
  * Nothing here is a runner. There is no `test`, no `expect`, no discovery and no
@@ -32,10 +32,12 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { registerHooks, type ModuleHooks } from 'node:module';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { cadence } from '../instrument/cadence.js';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
 import caseOwner from './case-owner.cjs';
 import { captureModule } from './captured-modules.js';
 import collectors from './collectors.cjs';
+import { evaluatedCut } from './cut-map.js';
 import journalFormat from './journal-format.cjs';
 import { recordFileFor } from './record-location.js';
 import { defaultInclude } from './instrumented-modules.js';
@@ -68,6 +70,13 @@ export interface RecordingOptions {
   readonly mode?: InstrumentMode;
   /** Follow each case through the async context, and name the ones whose work outlived them. */
   readonly continuations?: boolean;
+  /**
+   * Whether each statement of a test or a hook is cut, so the record says which
+   * line of a case reached each region. On when absent; `false` leaves test
+   * files as written. The cut is one call per statement the test runs, and it
+   * reaches the record only as the lines of a case that ran it.
+   */
+  readonly cadence?: boolean;
 }
 
 /** A test file the run finished with, and whether its record may be trusted. */
@@ -116,6 +125,7 @@ interface Carried {
   readonly caseDirectory: string;
   readonly mode: InstrumentMode;
   readonly continuations: boolean;
+  readonly cadence: boolean;
 }
 
 /**
@@ -137,6 +147,7 @@ export function startRecording(options: RecordingOptions = {}): Recording {
     caseDirectory: run.caseDirectory,
     mode,
     continuations: options.continuations === true,
+    cadence: options.cadence !== false,
   };
   const value = JSON.stringify(carried);
   process.env[RECORDING_VARIABLE] = value;
@@ -193,7 +204,7 @@ function carried(): Carried | undefined {
  * in.
  *
  * Only for product source: a test file is not a module that other files run,
- * and its own edit already selects it.
+ * and its own edit already selects it. A test file takes {@link cutTestFile}.
  */
 export function instrumentModule(code: string, file: string): string {
   const recording = carried();
@@ -201,6 +212,25 @@ export function instrumentModule(code: string, file: string): string {
   const path = resolve(file);
   const original = (at: string) => (at === path ? code : readFileSync(at, 'utf8'));
   return captureModule(recording.root, path, code, () => true, recording.mode, original)?.code ?? code;
+}
+
+/**
+ * Cut one test file, so each case's record says which of its lines reached
+ * each region.
+ *
+ * For a runner that already transforms source, as {@link instrumentModule}
+ * is; {@link registerRecording} cuts the observed file itself. A call goes in
+ * front of each statement of a test or a hook body — the bodies handed to
+ * `it`, `test`, `beforeEach` and their kin — and every line keeps its number,
+ * so the text carries an inline source map for its columns. Answers `code`
+ * unchanged outside a recording, when the run turns `cadence` off, and for a
+ * file that holds no such body or does not parse.
+ */
+export function cutTestFile(code: string, file: string): string {
+  const recording = carried();
+  if (recording === undefined || !recording.cadence) return code;
+  const cut = cadence(code, resolve(file));
+  return cut === undefined ? code : evaluatedCut(cut);
 }
 
 export interface RegisterRecordingOptions {
@@ -213,8 +243,8 @@ export interface RegisterRecordingOptions {
 }
 
 /**
- * Instrument every product module this process loads, through Node's own
- * module hooks.
+ * Instrument every product module this process loads, and cut the test file
+ * it observes, through Node's own module hooks.
  *
  * For a runner that evaluates source with `import` or `require` and has no
  * transform of its own. Call it in each process that runs tests, before that
@@ -237,10 +267,11 @@ export function registerRecording(options: RegisterRecordingOptions = {}): Modul
       // TypeScript is instrumented as written, and Node strips its types after.
       if (!EVALUATED.has(loaded.format ?? '')) return loaded;
       const file = fileURLToPath(url);
-      // The observed file is the test, and a test is not a module other files run.
-      if (file === observing || !include(file)) return loaded;
+      // The observed file is the test: not a module other files run, so it
+      // carries no probes, only the cut that says which of its lines ran.
+      if (file !== observing && !include(file)) return loaded;
       const code = typeof loaded.source === 'string' ? loaded.source : new TextDecoder().decode(loaded.source);
-      return { ...loaded, source: instrumentModule(code, file) };
+      return { ...loaded, source: file === observing ? cutTestFile(code, file) : instrumentModule(code, file) };
     },
   });
 }
