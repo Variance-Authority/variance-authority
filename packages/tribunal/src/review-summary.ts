@@ -223,16 +223,23 @@ export function latestDecisionsStatement(
  */
 export function decisionsFrom(rows: readonly Row[]): ReadonlyMap<string, DecisionRecord> {
   const decisions = new Map<string, DecisionRecord>();
-  for (const row of rows) {
-    const note = optionalText(row, 'note', 'a decision');
-    decisions.set(text(row, 'subject', 'a decision'), {
-      decision: text(row, 'decision', 'a decision') === 'approved' ? 'approved' : 'rejected',
-      by: text(row, 'decided_by', 'a decision'),
-      at: text(row, 'at', 'a decision'),
-      ...(note !== undefined ? { note } : {}),
-    });
-  }
+  for (const row of rows) decisions.set(text(row, 'subject', 'a decision'), decisionOf(row));
   return decisions;
+}
+
+/**
+ * One `decisions` row as the record a reviewer reads. `at` names the column
+ * the decision's time is under, because a query that also selects the build's
+ * own `at` renames one of them.
+ */
+export function decisionOf(row: Row, at = 'at'): DecisionRecord {
+  const note = optionalText(row, 'note', 'a decision');
+  return {
+    decision: text(row, 'decision', 'a decision') === 'approved' ? 'approved' : 'rejected',
+    by: text(row, 'decided_by', 'a decision'),
+    at: text(row, at, 'a decision'),
+    ...(note !== undefined ? { note } : {}),
+  };
 }
 
 /** One `GROUP BY` row of a counted column, or zero because the group was empty. */

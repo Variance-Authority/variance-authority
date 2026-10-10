@@ -20,7 +20,8 @@ this deployment does not understand is refused rather than stored as a shape
 whose fields it would then misread.
 
 Out: a build list, one build's summary and **docket**, one **subject**'s view
-with the current decision against it, and the bytes behind an image address.
+with the current decision against it and the earlier builds that kept the same
+candidate with theirs, and the bytes behind an image address.
 
 ## Depends on
 
@@ -69,6 +70,9 @@ damage rather than as a run that kept nothing.
   current decision is the highest sequence, never the newest timestamp),
   `docket`, `toSubjectView`, and the
   readers for reach, composition, movements and declarations
+- `packages/tribunal/src/repeats.ts` — the earlier builds of the project that
+  kept a subject's candidate, matched on its content key, each with the decision
+  it ended on
 - `packages/tribunal/src/review-types.ts` — the shapes, kept free of a database
   binding so the router and the surface can both name them
 - `packages/tribunal/src/schema.ts`, `migrations.ts`, `migration-steps.ts`,

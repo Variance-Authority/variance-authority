@@ -192,9 +192,11 @@ function Build({
               client={client}
               reviewer={reviewer}
               build={build.build}
+              ran={build.at}
               subject={subject}
               {...(anchor === undefined ? {} : { anchor, far: distanceFrom(build, anchor) })}
               sourced={build.causes.some((cause) => cause.file !== undefined)}
+              go={go}
               onDecided={reload}
               onConcerned={concerns.refresh}
             />

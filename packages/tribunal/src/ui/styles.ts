@@ -240,6 +240,7 @@ export const REVIEW_STYLES = `
 /* Two shapes under one component name is two edits, and the sentence saying so
    is the one thing on the card that withdraws the batch approval. */
 .va-note.va-warned { color: var(--va-warn-ink); }
+.va-note.va-rejected { color: var(--va-bad-ink); font-weight: 600; }
 .va-origin-where { display: grid; font-size: 0.86rem; gap: 0.35rem; margin-top: 0.7rem; }
 .va-origin-where li { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .va-origin-subject { font-weight: 600; }

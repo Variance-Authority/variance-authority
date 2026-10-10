@@ -3565,6 +3565,8 @@
         "DecisionRecord": "interface",
         "MoveConcern": "interface",
         "RaiseConcern": "interface",
+        "RepeatedIn": "interface",
+        "Repeats": "interface",
         "ReviewError": "class",
         "ReviewOptions": "interface",
         "ReviewStore": "interface",

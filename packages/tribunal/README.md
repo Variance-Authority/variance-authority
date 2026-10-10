@@ -354,6 +354,22 @@ drifts in nineteen runs out of twenty. Two numbers are drawn as missing rather
 than as zero: a flake rate is **absent** until a run has read every subject
 twice, and a coverage that was never stated is unknown rather than clean.
 
+A render you decide on, whose candidate is the same image an earlier build kept,
+says so in its Decision card. A candidate is stored under the SHA-256 of its
+bytes, so two builds that kept one key for a subject kept one picture. Only
+builds rendered by the same identity count: a baseline is kept per identity, so
+a decision made on another engine or platform says nothing about this one. The
+line names the earlier build, links to the subject there, and gives the decision
+made on it with who made it. **An image an earlier build rejected** is drawn as a
+rejection: it is a render you already rejected, not a new defect. **An image
+approved before this build ran, on a render that still differs from its
+baseline**, is drawn as a warning, and the line says only that: the render may
+alternate, a change may have been reverted, or the baseline moved again. An
+approval made after this build ran replaced the very baseline this build was
+compared to, so it is named without the warning. Only builds this deployment
+still keeps are counted, so a build removed by `POST /review/sweep` is not named.
+A render that is `unchanged` or `ignored`, or kept no candidate, has no line.
+
 A render you would not approve and cannot yet call wrong has a third answer.
 *Looks suspicious*, under the decision on a subject page, raises a **concern**: a
 title, the region you mean or the whole render, the components, files or the

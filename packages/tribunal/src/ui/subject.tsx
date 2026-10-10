@@ -17,6 +17,8 @@ import { Findings } from './findings.js';
 import { glanceOf, type Blamed, type Glance } from './glance.js';
 import { SubjectHistory } from './history.js';
 import { MovedHere } from './moved.js';
+import { Repeated } from './repeated.js';
+import type { Route } from './route.js';
 import { messageOf } from './shell.js';
 import { count, number, when } from './text.js';
 import { Viewer } from './viewer.js';
@@ -34,16 +36,20 @@ export function SubjectPanel({
   client,
   reviewer,
   build,
+  ran,
   subject,
   anchor,
   far,
   sourced,
+  go,
   onDecided,
   onConcerned,
 }: {
   readonly client: ReviewClient;
   readonly reviewer: string;
   readonly build: string;
+  /** When that build ran. */
+  readonly ran: string;
   readonly subject: SubjectView;
   /** The change this render is filed under, which distances are measured from. */
   readonly anchor?: string | undefined;
@@ -51,6 +57,8 @@ export function SubjectPanel({
   readonly far?: Ruler | undefined;
   /** Whether the run resolved any source file — see {@link RegionTable}. */
   readonly sourced?: boolean | undefined;
+  /** Opens another page; the earlier builds named under the decision link through it. */
+  readonly go?: ((route: Route) => void) | undefined;
   readonly onDecided: () => void;
   /** Told after a concern on this subject was raised or moved. */
   readonly onConcerned?: (() => void) | undefined;
@@ -104,6 +112,7 @@ export function SubjectPanel({
       <aside className="va-aside va-scroll">
         <section className="va-card">
           <h2>Decision</h2>
+          <Repeated subject={subject} ran={ran} go={go} />
           {subject.decision === null ? null : (
             <p className="va-decision">
               {subject.decision.decision} by {subject.decision.by} · {when(subject.decision.at)}

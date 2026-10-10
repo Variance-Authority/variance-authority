@@ -21,6 +21,7 @@ import {
   summaryStatements,
 } from './review-summary.js';
 import { ingestBuild } from './review-ingest.js';
+import { UNREPEATED, repeatsFrom, repeatsStatement } from './repeats.js';
 import { sweepProject } from './review-sweep.js';
 import { ReviewError, instant, optionalText, text, type Row } from './review-rows.js';
 import type {
@@ -92,6 +93,8 @@ export type {
   Coverage,
   Decision,
   DecisionRecord,
+  RepeatedIn,
+  Repeats,
   ReviewOptions,
   ReviewStore,
   SubjectView,
@@ -203,6 +206,7 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
       // and would be wrong on the page rather than in the log.
       const reads = {
         decisions: latestDecisionsStatement(db, project, id),
+        repeats: repeatsStatement(db, project, id),
         build: of('SELECT * FROM builds WHERE project = ? AND build = ?'),
         subjects: of('SELECT * FROM build_subjects WHERE project = ? AND build = ? ORDER BY subject'),
         notObserved: of(
@@ -261,9 +265,15 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
       const previous = rows('previous')[0];
       const composition = rows('composition');
 
-      const subjects = rows('subjects').map((subject) =>
-        toSubjectView(subject, decisions.get(text(subject, 'subject', 'a build subject')) ?? null),
-      );
+      const repeats = repeatsFrom(rows('repeats'));
+      const subjects = rows('subjects').map((row) => {
+        const subject = text(row, 'subject', 'a build subject');
+        return toSubjectView(
+          row,
+          decisions.get(subject) ?? null,
+          repeats.get(subject) ?? UNREPEATED,
+        );
+      });
 
       return {
         ...summary,
