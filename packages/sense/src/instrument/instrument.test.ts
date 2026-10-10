@@ -8,6 +8,8 @@ import {
   instrumentationId,
   instrumentModeOf,
   type ModuleId,
+  probeRecipe,
+  probeRuntime,
 } from './index.js';
 import probeLog from './probe-log.cjs';
 
@@ -481,5 +483,17 @@ describe('a source it cannot read is not a source with no blocks', () => {
     // ADR-0008: the honest report is *not instrumented*, never *not executed*, and
     // a caller cannot tell those apart from an empty block list.
     expect(instrument(`function f( {`, 'broken.js')).toBeUndefined();
+  });
+});
+
+describe('the header is written by the crate a Rust pipeline links', () => {
+  it('names the instrumentation it belongs to, and sets the bit the collectors read', () => {
+    // A transformer that places the probes itself declares this recipe, and the
+    // Jest wrapper refuses one that is not its own.
+    expect([probeRecipe('presence'), probeRecipe('entries')].map((recipe) => recipe.split('+')[0])).toEqual([
+      instrumentationId('presence'),
+      instrumentationId('entries'),
+    ]);
+    expect(probeRuntime('', 0)).toContain(`${EVALUATING}|__vaB`);
   });
 });

@@ -8,6 +8,13 @@ description = "The scanning path of @variance-authority/sense, where a cold repo
 [lib]
 crate-type = ["cdylib"]
 
+# The instrumenter is its own crate so that a Rust transform pipeline can depend
+# on it from `node_modules`; this addon is one of its two callers. The vendored
+# resolver is a patch, not a member.
+[workspace]
+members = ["instrument"]
+exclude = ["vendor"]
+
 # The tree-sitter grammars, which are the only part of this crate that can fail
 # to build for a reason that is not ours. Each grammar ships a C parser compiled
 # by a `cc` invocation on the adopter's or the runner's machine, so a toolchain
@@ -56,6 +63,7 @@ rustc-hash = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+variance-sense-instrument = { path = "instrument" }
 tree-sitter = { version = "0.27", optional = true }
 tree-sitter-java = { version = "0.23", optional = true }
 tree-sitter-kotlin-ng = { version = "1", optional = true }

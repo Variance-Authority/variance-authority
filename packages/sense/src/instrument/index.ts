@@ -117,7 +117,7 @@
  * declarations and throws, exposing that configuration error at its first probe.
  */
 
-import { spliced as splice, type Block, type BlockKind, type InstrumentMode } from './spliced.js';
+import { instrumenter, spliced as splice, type Block, type BlockKind, type InstrumentMode } from './spliced.js';
 
 export type { Block, BlockKind, InstrumentMode };
 
@@ -202,16 +202,11 @@ export function instrument(
   options: InstrumentOptions = {},
 ): Instrumented | undefined {
   const mode = options.mode ?? 'presence';
-  const spliced = splice(source, file, mode);
+  const spliced = splice(source, file, mode, id);
   if (spliced === undefined) return undefined;
 
-  const { code, headerAt, sourceDigest, blocks } = spliced;
-  return {
-    code: code.slice(0, headerAt) + runtime(id, blocks.length) + code.slice(headerAt),
-    sourceDigest,
-    instrumentation: IDS[mode],
-    blocks,
-  };
+  const { code, sourceDigest, blocks } = spliced;
+  return { code, sourceDigest, instrumentation: IDS[mode], blocks };
 }
 
 /**
@@ -243,28 +238,27 @@ export function instrument(
  * depth lives on the bucket and not in this module, because it is the realm's
  * fact: the module evaluating is not the only module whose probes fire while it
  * does.
+ *
+ * The text is written by the instrumenter crate,
+ * [`header.rs`](../../native/instrument/src/header.rs), for every module
+ * `instrument` returns; this hands it over for a module written by hand.
  */
-function runtime(id: ModuleId, count: number): string {
-  const module = JSON.stringify(id);
-
-  return (
-    `var __vaK,__vaG,__vaB,__vaA;function __vaF(){}function __vaP(){}` +
-    `function __vaI(){__vaK=globalThis.__VA__;const r=__vaK.r(${module},${count});__vaF=r.f;__vaG=r.s;__vaB=r.b;__vaP=r.p;return __vaK}` +
-    `function __va(i){if((__vaF[i]&__vaP[0])===0)__vaS(i)}` +
-    `function __vaS(i){const K=__vaK||__vaI();if(K.s!==null)K.s();const a=K.a;if(__vaA!==a){if(__vaA!==undefined&&__vaG[0]===0){__vaG[0]=1;K.g(__vaB)}__vaA=a}` +
-    `const f=__vaG[i],p=__vaP[0];if((f&p)===0){__vaG[i]=f|p;const n=K.n;if(n<K.l){K.L[n]=(__vaB+i)|K.v;K.n=n+1}else K.g((__vaB+i)|K.v)}}` +
-    `function __vaR(v,i){__va(i);return v}` +
-    `function __vaE(){(__vaK||__vaI()).x()}` +
-    `(__vaK||__vaI()).e();__vaA=__vaK.a;__vaG[0]|=__vaP[0];__vaK.g(${EVALUATING}|__vaB);`
-  );
+export function probeRuntime(id: ModuleId, count: number): string {
+  return instrumenter().probeHeader(id, count);
 }
 
 /**
- * The emitted runtime with a placeholder path and count.
+ * What this build writes under `mode`: its identity and the digest of the
+ * header's text.
  *
  * A transform cache that keys on the instrumentation identity alone serves the
- * previous probe after this text changes: the regions are the same, so the
+ * previous probe after the header changes: the regions are the same, so the
  * identity is too. What the text does is not a region question, and a cache
- * that stores it keys on the text.
+ * that stores it keys on the recipe. A Rust pipeline built on the instrumenter
+ * crate answers the same string from its `recipe()`, which is how a wrapper
+ * tells that the probes it did not place are the ones this build would have.
  */
-export const PROBE_RUNTIME = runtime('', 0);
+export function probeRecipe(mode: InstrumentMode = 'presence'): string {
+  return instrumenter().probeRecipe(mode === 'entries');
+}
+

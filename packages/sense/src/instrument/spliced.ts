@@ -29,6 +29,7 @@
  */
 
 import { native, nativeRefusal } from '../addon.js';
+import type { NativeScanner } from '../native.js';
 
 /**
  * How much of the rule is applied.
@@ -81,9 +82,9 @@ export interface Block {
 }
 
 export interface Spliced {
-  /** The source with every probe in place, and no header. */
+  /** The source with every probe in place, and the header when a module id was given. */
   readonly code: string;
-  /** Where the header goes in `code`: after the prologue and every probe in front of it. */
+  /** Where the header goes, or starts, in `code`: after the prologue and every probe in front of it. */
   readonly headerAt: number;
   /** Identity of the source the offsets are into. */
   readonly sourceDigest: string;
@@ -91,6 +92,15 @@ export interface Spliced {
 }
 
 /** The addon's answer: one column per block field, in ordinal order. */
+/** The addon, which is the only instrumenter: no addon is an error, never an uninstrumented run. */
+export function instrumenter(): NativeScanner {
+  const addon = native();
+  if (addon === undefined) {
+    throw new Error(`instrument: the native addon is required and did not load: ${nativeRefusal()}`);
+  }
+  return addon;
+}
+
 export interface NativeInstrumented {
   readonly code: string;
   readonly headerAt: number;
@@ -138,17 +148,17 @@ type WellFormed = string & { isWellFormed(): boolean };
  * A walk that panics is an error too, and names the file it panicked on: the
  * addon returns the panic instead of aborting, so the test file that loaded
  * this module fails and the worker running it goes on to the next.
+ *
+ * With a `module`, the text carries the header that reports under that id, at
+ * `headerAt`; without one it carries the probes alone.
  */
-export function spliced(source: string, file: string, mode: InstrumentMode): Spliced | undefined {
-  const addon = native();
-  if (addon === undefined) {
-    throw new Error(`instrument: the native addon is required and did not load: ${nativeRefusal()}`);
-  }
+export function spliced(source: string, file: string, mode: InstrumentMode, module?: string): Spliced | undefined {
+  const addon = instrumenter();
   if (!(source as WellFormed).isWellFormed()) return undefined;
 
   let answer: ReturnType<typeof addon.instrument>;
   try {
-    answer = addon.instrument(source, file, mode === 'entries');
+    answer = addon.instrument(source, file, mode === 'entries', module);
   } catch (error) {
     throw new Error(`instrument: the native walk failed on ${file}: ${(error as Error).message}`, { cause: error });
   }

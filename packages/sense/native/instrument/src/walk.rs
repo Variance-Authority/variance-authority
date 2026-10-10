@@ -14,9 +14,9 @@
 //! that visits the same nodes in another order is a different recording, not a
 //! faster one.
 //!
-//! What each decision opens is in `instrument_decisions.rs`, and how a region is
+//! What each decision opens is in `walk_decisions.rs`, and how a region is
 //! named — its step label, its scope, and the name it takes from where it is
-//! written — is in `instrument_names.rs`.
+//! written — is in `walk_names.rs`.
 //!
 //! ## Nothing is re-printed
 //!
@@ -56,11 +56,11 @@ use oxc_ast_visit::{walk, Visit};
 use oxc_span::GetSpan;
 use oxc_syntax::scope::ScopeFlags;
 
-#[path = "instrument_decisions.rs"]
+#[path = "walk_decisions.rs"]
 mod decisions;
-#[path = "instrument_names.rs"]
+#[path = "walk_names.rs"]
 mod names;
-#[path = "instrument_params.rs"]
+#[path = "walk_params.rs"]
 mod params;
 
 #[derive(Clone, Copy, PartialEq, Eq)]

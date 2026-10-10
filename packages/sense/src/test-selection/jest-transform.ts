@@ -25,7 +25,7 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import picomatch from 'picomatch';
-import { instrumentationId, PROBE_RUNTIME, type InstrumentMode } from '../instrument/index.js';
+import { probeRecipe, type InstrumentMode } from '../instrument/index.js';
 import { captureModule } from './captured-modules.js';
 import { defaultInclude } from './instrumented-modules.js';
 import type { SelectionTransformerConfig } from './jest.js';
@@ -98,7 +98,7 @@ export async function createTransformer(
     : await loadTransformer(root, config.transformer);
   const innerConfig = typeof config.transformer === 'string' ? undefined : config.transformer?.[1];
   const mode = config.mode ?? 'presence';
-  const instrumentation = instrumentationId(mode);
+  const recipe = probeRecipe(mode);
   const excluded = new Set((config.exclude ?? []).map((file) => resolve(file)));
   const forInner = (options: JestTransformRequest): JestTransformRequest => ({
     ...options,
@@ -106,9 +106,7 @@ export async function createTransformer(
   });
   const keyOf = (source: string, path: string, options: JestTransformRequest, innerKey: string | undefined): string =>
     createHash('sha1')
-      .update(instrumentation)
-      .update('\0')
-      .update(PROBE_RUNTIME)
+      .update(recipe)
       .update('\0')
       .update(innerKey ?? defaultKey(source, path, options))
       .update('\0')

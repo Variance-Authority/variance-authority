@@ -1,0 +1,23 @@
+[package]
+name = "variance-sense-instrument"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Sense's probes, for a transform pipeline written in Rust."
+license = "MIT"
+
+# No `workspace = true` anywhere: this manifest is read from
+# `node_modules/@variance-authority/sense/native/instrument`, where no workspace
+# around it ships, so every field is its own.
+[dependencies]
+oxc_allocator = "0.144.0"
+oxc_ast = "0.144.0"
+oxc_ast_visit = "0.144.0"
+oxc_parser = "0.144.0"
+oxc_span = "0.144.0"
+oxc_syntax = { version = "0.144.0", features = ["to_js_string"] }
+sha2 = "0.10"
+
+# The ARMv8 SHA instructions, as `sense-native` takes them: see its manifest.
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+sha2 = { version = "0.10", features = ["asm"] }
