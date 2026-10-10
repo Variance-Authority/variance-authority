@@ -43,7 +43,7 @@ import { relative, resolve } from 'node:path';
  */
 export const CROSSES = [
   'cases/incumbent-case/src/replacement-arm',
-  'packages/core/src/format/stabilize',
+  'packages/core/src/format/waits',
   'packages/eyes/src/playwright',
   'packages/playwright/src/acquire',
   'packages/playwright/src/capture',

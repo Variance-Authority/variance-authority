@@ -54,3 +54,27 @@ export async function acquireFrom(
     );
   }
 }
+
+/**
+ * Start the page agent recording changes to the subject, for the next
+ * `acquireFrom` to report as `mutated`.
+ *
+ * A separate call from the read before it leaves no gap a screenshot can fall
+ * into: a state photographed after this call and gone by the next read was left
+ * after this call, and leaving it is a change the watch records.
+ */
+export async function watchFrom(locator: Locator): Promise<void> {
+  await locator.evaluate((element, global) => {
+    const agent = (globalThis as unknown as Record<string, InstalledAgent | undefined>)[global];
+    if (agent === undefined) throw new Error(`the variance page agent is not installed at ${global}`);
+    agent.watch(element);
+  }, AGENT);
+}
+
+/** Stop a watch `acquireFrom` did not take, on a page that is still open. */
+export async function unwatchFrom(page: Page): Promise<void> {
+  if (page.isClosed()) return;
+  await page.evaluate((global) => {
+    (globalThis as unknown as Record<string, InstalledAgent | undefined>)[global]?.unwatch();
+  }, AGENT);
+}

@@ -78,10 +78,14 @@ appear in anybody's attribution.
   options or a settle step.
 - `packages/core/src/format/stabilize.ts` — the vocabulary and the recipes
   (`holdAnimations`, `pinAnimations`, `hideCaret`, `hideScrollbars`,
-  `hidePresentationalImages`, `waitForFonts`, `waitForImages`;
-  `SEMANTIC_RECIPE`, `LAYOUT_RECIPE`, `RASTER_RECIPE`, `COLLECT_RECIPE`), plus
-  `forTier`, `conflicts`, `settleRecipe` and `recipeDigest` — sorted, so
-  composition order does not change identity.
+  `hidePresentationalImages`; `SEMANTIC_RECIPE`, `LAYOUT_RECIPE`,
+  `RASTER_RECIPE`, `COLLECT_RECIPE`), plus `forTier`, `conflicts`,
+  `settleRecipe` and `recipeDigest` — sorted, so composition order does not
+  change identity.
+- `packages/core/src/format/waits.ts` — `waitForFonts` and `waitForImages`, the
+  two settle steps that block on something outside the page: each runs in the
+  page, gives up at 15000ms and names what never answered. Listed in
+  `tools/page-side.mjs`, because its closures are shipped to the page as source.
 - `packages/dom/src/stabilize.ts` — `stabilizeForObservation` and
   `STABILIZE_ATTRIBUTE`: one idempotent sheet, applied before the settle steps,
   left in place between subjects because removing it restarts every animation.

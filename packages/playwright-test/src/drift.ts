@@ -93,3 +93,15 @@ export function listDrift(drifted: readonly string[]): string {
   if (drifted.length <= 1) return drifted[0] ?? 'nothing';
   return `${drifted.slice(0, -1).join(', ')} and ${drifted[drifted.length - 1]!}`;
 }
+
+/**
+ * The places the page agent saw change, capped, as the end of a sentence.
+ *
+ * Capped for the reason `whereUnstable` is: a subject that changes everywhere is
+ * described by the first few places.
+ */
+export function listMutated(mutated: readonly string[]): string {
+  const shown = mutated.slice(0, 4);
+  const rest = mutated.length - shown.length;
+  return listDrift(rest > 0 ? [...shown, `${rest} more`] : shown);
+}
