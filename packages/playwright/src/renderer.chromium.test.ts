@@ -122,6 +122,13 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', 
       await expect(
         renderer.render({ ...document, resources: {} }),
       ).rejects.toThrow('has no bytes');
+
+      // The collectors key an asset of the page's own origin by its path, so the
+      // port a build was served on is not part of the key.
+      const byPath = { ...document, assets: { '/components/icon.svg': digestBytes(svg) } };
+      await expect(renderer.render(byPath)).resolves.toMatchObject({
+        documentDigest: documentDigest(byPath),
+      });
     } finally {
       await renderer.close();
     }

@@ -1,6 +1,7 @@
 import type { Diagnostic, RawCapture, RawNode } from '../../format/capture.js';
 import { environmentKey } from '../../format/environment.js';
 import { digestCombine, digestValue, type Digest } from '../../format/hash.js';
+import { pageOrigin } from '../../format/origin.js';
 import { relativizeSource, type Provenance } from '../../format/provenance.js';
 import { ALLOWLIST_VERSION, RULESET_VERSION, admitsAttribute } from '../ruleset.js';
 import type { SemanticNode, SemanticSnapshot, StyleProvenanceEntry } from '../../format/snapshot.js';
@@ -16,13 +17,14 @@ import {
 export { buildAliasMap, aliasAttributeValue, aliasStyleValue } from './alias.js';
 export type { AliasMap, AliasResult } from './alias.js';
 export {
+  declaredValue,
   resolveStyle,
   resolveVariables,
   INHERITED_PROPERTIES,
   EMPTY_CONTEXT,
 } from './cascade.js';
 export type { InheritContext, ResolvedStyle, DeclarationOrigin } from './cascade.js';
-export { canonicalizeValue, canonicalizeTokens, canonicalizeDimension } from './value.js';
+export { canonicalizeValue, canonicalizeTokens, canonicalizeDimension, matchingParen } from './value.js';
 export { canonicalizeColor, parseColor, formatColor } from './color.js';
 export { expandDeclaration, SHORTHAND_PROPERTIES } from './shorthand.js';
 
@@ -93,6 +95,7 @@ export function normalize(capture: RawCapture, options: NormalizeOptions = {}): 
     collapseWrappers,
     digestText,
     ...(sourceRoot !== undefined ? { sourceRoot } : {}),
+    ...withOrigin(pageOrigin(capture.baseUrl)),
     styleProvenance,
     declaredBy: new WeakMap(),
   };
@@ -160,6 +163,8 @@ interface WalkState {
   readonly collapseWrappers: boolean;
   readonly digestText: boolean;
   readonly sourceRoot?: string;
+  /** The capture's origin, from `baseUrl`; absent for an opaque one. */
+  readonly origin?: string;
   readonly styleProvenance: StyleProvenanceEntry[];
   /**
    * Properties each node declared *itself*, as opposed to inheriting.
@@ -216,6 +221,7 @@ function normalizeNode(
       ...(node.inlineStyle ? { inlineStyle: node.inlineStyle } : {}),
       ...(node.computedStyle ? { computedStyle: node.computedStyle } : {}),
       context: inherited,
+      ...(state.origin !== undefined ? { origin: state.origin } : {}),
     });
 
     const style: Record<string, string> = {};
@@ -279,6 +285,7 @@ function normalizeNode(
       // they hash by name, so this reaches the snapshot without reaching the
       // identity — which is the whole contract an ignore is under.
       ...(node.ignoredBy && node.ignoredBy.length > 0 ? { ignoredBy: node.ignoredBy } : {}),
+      ...(node.unread !== undefined ? { unread: node.unread } : {}),
       children,
     };
 
@@ -357,6 +364,10 @@ function normalizeSelector(selector: string): string {
     .replace(/\[data-(?:styled|emotion|v)-[^\]]*\]/gi, '[«generated»]')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function withOrigin(origin: string | undefined): { readonly origin?: string } {
+  return origin === undefined ? {} : { origin };
 }
 
 /** The seed minus its custom properties: values that actually render. */

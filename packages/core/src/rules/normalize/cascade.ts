@@ -1,6 +1,6 @@
 import type { Declaration, MatchedRule } from '../../format/capture.js';
 import { admits, isCustomProperty } from '../ruleset.js';
-import { canonicalizeValue } from './value.js';
+import { canonicalizeValue, matchingParen } from './value.js';
 import { expandDeclaration } from './shorthand.js';
 
 /**
@@ -101,6 +101,8 @@ export interface ResolveInput {
   /** Engine-resolved values. When present these win over anything computed here. */
   readonly computedStyle?: Readonly<Record<string, string>>;
   readonly context: InheritContext;
+  /** The page's origin, dropped from the `url()` values it serves. */
+  readonly origin?: string;
 }
 
 export function resolveStyle(input: ResolveInput): ResolvedStyle {
@@ -155,7 +157,7 @@ export function resolveStyle(input: ResolveInput): ResolvedStyle {
     if (isCustomProperty(property)) continue;
 
     const resolution = resolveVariables(candidate.value, customProperties);
-    style[property] = canonicalizeValue(property, resolution.value);
+    style[property] = canonicalizeValue(property, resolution.value, input.origin);
 
     for (const name of resolution.used) {
       const resolved = customProperties[name];
@@ -175,7 +177,7 @@ export function resolveStyle(input: ResolveInput): ResolvedStyle {
   if (input.computedStyle) {
     for (const [property, value] of Object.entries(input.computedStyle)) {
       if (!admits(property) || isCustomProperty(property)) continue;
-      style[property] = canonicalizeValue(property, value);
+      style[property] = canonicalizeValue(property, value, input.origin);
     }
   }
 
@@ -316,6 +318,38 @@ function wins(candidate: Candidate, incumbent: Candidate): boolean {
 }
 
 /**
+ * The value of `property` that wins among `matchedRules`, picked by the order
+ * {@link resolveStyle} applies, with no allowlist and no canonicalization.
+ *
+ * For a property the snapshot reads as something other than a style: `content`
+ * is left off the allowlist because a generated box's words are recorded as its
+ * text, so {@link resolveStyle} drops it, and the box still has to know which
+ * `content` won before it can say them.
+ */
+export function declaredValue(matchedRules: readonly MatchedRule[], property: string): string | undefined {
+  let winner: Candidate | undefined;
+
+  for (const rule of matchedRules) {
+    for (const declaration of rule.declarations) {
+      if (declaration.property.trim().toLowerCase() !== property) continue;
+      const candidate: Candidate = {
+        property,
+        value: declaration.value.trim(),
+        important: declaration.important,
+        inline: false,
+        specificity: specificityRank(rule.specificity),
+        order: rule.order,
+        sheet: rule.sheet,
+        selector: rule.selector,
+      };
+      if (winner === undefined || wins(candidate, winner)) winner = candidate;
+    }
+  }
+
+  return winner?.value;
+}
+
+/**
  * Collapse `[id, class, type]` into one comparable number.
  *
  * The 1 000-per-column base is far above any real selector's count in a column,
@@ -408,18 +442,6 @@ export function resolveVariables(
   }
 
   return { value: result, used };
-}
-
-function matchingParen(input: string, openIndex: number): number {
-  let depth = 0;
-  for (let i = openIndex; i < input.length; i += 1) {
-    if (input[i] === '(') depth += 1;
-    else if (input[i] === ')') {
-      depth -= 1;
-      if (depth === 0) return i;
-    }
-  }
-  return input.length;
 }
 
 function topLevelComma(input: string): number {
