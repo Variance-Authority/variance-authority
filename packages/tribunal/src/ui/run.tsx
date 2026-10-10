@@ -81,7 +81,10 @@ export function RunPage({
 
         {build.variations.length === 0 ? null : (
           <section className="va-card">
-            <Variations variations={build.variations} />
+            <Variations
+              variations={build.variations}
+              pictures={{ client, build: build.build, subjects: build.subjects, go }}
+            />
           </section>
         )}
 

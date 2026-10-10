@@ -10,7 +10,10 @@
 
 import type { VariationRecord } from '@variance-authority/report';
 import type { ReactElement } from 'react';
-import { Prose } from './shell.js';
+import type { SubjectView } from '../review-types.js';
+import type { ReviewClient } from './client.js';
+import type { Route } from './route.js';
+import { Go, Prose } from './shell.js';
 
 /**
  * Every subject that was read against another subject in the same run.
@@ -36,8 +39,14 @@ import { Prose } from './shell.js';
  */
 export function Variations({
   variations,
+  pictures,
 }: {
   readonly variations: readonly VariationRecord[];
+  /**
+   * Where each side's image comes from. Without it the list is names only, which
+   * is all a host that serves no images can draw.
+   */
+  readonly pictures?: Pictures | undefined;
 }): ReactElement | null {
   if (variations.length === 0) return null;
 
@@ -79,6 +88,7 @@ export function Variations({
               )}
             </p>
             <p className="va-because"><Prose text={variation.because} /></p>
+            {pictures === undefined ? null : <Pair variation={variation} pictures={pictures} />}
           </li>
         ))}
       </ul>
@@ -107,4 +117,70 @@ function axisOf(variation: VariationRecord): string {
   if (variation.identical) return 'reaches nothing';
   const bands = variation.bands ?? [];
   return bands.length === 0 ? 'differs' : bands.join(' · ');
+}
+
+/** What a variation needs to draw its two sides: the build's images and its pages. */
+export interface Pictures {
+  readonly client: ReviewClient;
+  readonly build: string;
+  readonly subjects: readonly SubjectView[];
+  readonly go: (route: Route) => void;
+}
+
+/**
+ * The parent and the arm, side by side, each a link to its own page.
+ *
+ * The list above says what the run measured; this is the comparison it measured,
+ * which a reviewer otherwise makes by opening two pages and remembering one. The
+ * parent comes first because the arm is read as the parent plus an axis.
+ */
+function Pair({
+  variation,
+  pictures,
+}: {
+  readonly variation: VariationRecord;
+  readonly pictures: Pictures;
+}): ReactElement {
+  const sides = variation.parent === undefined ? [variation.subject] : [variation.parent, variation.subject];
+
+  return (
+    <ul className="va-variation-pair">
+      {sides.map((id) => (
+        <Side key={id} id={id} pictures={pictures} />
+      ))}
+    </ul>
+  );
+}
+
+function Side({ id, pictures }: { readonly id: string; readonly pictures: Pictures }): ReactElement {
+  const { client, build, subjects, go } = pictures;
+  const kind = keptOf(subjects.find((each) => each.subject === id));
+
+  return (
+    <li>
+      <Go to={{ page: 'subject', build, subject: id }} go={go} className="va-variation-side">
+        {kind === undefined ? (
+          // An `unchanged` subject keeps nothing. An empty frame would read as a
+          // render that came out blank, which is a different finding.
+          <span className="va-variation-none">no image kept</span>
+        ) : (
+          <img src={client.imageUrl(build, id, kind)} alt={id} loading="lazy" />
+        )}
+        <span className="va-variation-name">{id}</span>
+        {kind === 'before' ? <span className="va-how">baseline</span> : null}
+      </Go>
+    </li>
+  );
+}
+
+/**
+ * The image that shows this subject: the candidate when the run kept one, the
+ * baseline when it kept only that, and nothing when it kept neither. The label
+ * under a baseline says so, because it is the picture before this commit.
+ */
+function keptOf(subject: SubjectView | undefined): 'after' | 'before' | undefined {
+  if (subject === undefined) return undefined;
+  if (subject.has.after) return 'after';
+  if (subject.has.before) return 'before';
+  return undefined;
 }
