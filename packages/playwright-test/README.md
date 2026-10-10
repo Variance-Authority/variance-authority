@@ -598,7 +598,8 @@ message reads *preconditions unmeasured* rather than *no preconditions recorded*
 | Fixture | Purpose | Default |
 | --- | --- | --- |
 | `varianceBaselines` | Directory of durable baselines. | `.variance/baselines` |
-| `varianceRenderer` | Renderer shared by one Playwright worker. | A Playwright renderer created and closed by the fixture. |
+| `varianceRenderer` | Renderer this test's page is painted by. | The worker's renderer for the timezone and locale the page runs in, from `varianceRenderers`. |
+| `varianceRenderers` | Renderers one Playwright worker holds, one per timezone and locale its pages ran in. | Playwright renderers launched on first use and closed by the fixture. |
 | `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`, whose render cache is `renders/` in [the cache](https://variance-authority.dev/docs/cache), pruned once in each worker. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
 | `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, cacheRoot, suite, coverageFile, heads, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |

@@ -30,7 +30,10 @@ than `changed`.
 
 `@variance-authority/playwright-test` paints each test in the timezone and
 locale its page runs in: whatever the Playwright project or `test.use` sets, and
-the host's when neither does.
+the host's when neither does. `varianceRenderer` is now a test fixture, chosen
+by the page, and `varianceRenderers` is the worker's set of renderers, one per
+timezone and locale; a project that overrode `varianceRenderer` at worker scope
+overrides it at test scope instead.
 
 **Every image painted by the Playwright renderer reads `incomparable` once
 after this upgrade**, because its recipe now carries the timezone and locale. A

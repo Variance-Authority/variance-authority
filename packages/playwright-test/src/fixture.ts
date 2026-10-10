@@ -20,7 +20,6 @@ import {
   observeCaptureAgainstBaseline,
 } from '@variance-authority/observe';
 import { createDeclarationReader, type DeclarationReader } from '@variance-authority/playwright';
-import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import { settle, type BaselineKey, type RasterStore, type Renderer } from '@variance-authority/raster';
 import { suspenseRefusal } from '@variance-authority/react';
 import { accepted, adopts } from './accepted.js';
@@ -48,6 +47,11 @@ import {
 import { runnerReprieve, varianceDesk, varianceVantageFixtures } from './vantage.js';
 import type { VarianceDesk, VarianceVantageFixtures, VarianceVantageWorkerFixtures } from './vantage.js';
 import { varianceWireFixtures, type VarianceWireFixtures } from './wire.js';
+import {
+  varianceRendererFixtures,
+  type VarianceRendererFixtures,
+  type VarianceRendererWorkerFixtures,
+} from './renderers.js';
 import { playwrightStanding } from './preconditions.js';
 import { AGENT, type AcquireRequest } from './page-agent.js';
 
@@ -80,7 +84,11 @@ import { AGENT, type AcquireRequest } from './page-agent.js';
  * two networks away.
  */
 
-export interface VarianceFixtures extends VarianceEventFixtures, VarianceVantageFixtures, VarianceCompletedFixtures {
+export interface VarianceFixtures
+  extends VarianceEventFixtures,
+    VarianceVantageFixtures,
+    VarianceCompletedFixtures,
+    VarianceRendererFixtures {
   /**
    * Observe one subtree against its stored baseline — and, on the same name, the
    * two calls that let a test be looked at while it runs.
@@ -99,7 +107,8 @@ export interface VarianceFixtures extends VarianceEventFixtures, VarianceVantage
 export interface VarianceWorkerFixtures
   extends VarianceEventWorkerFixtures,
     VarianceWireFixtures,
-    VarianceVantageWorkerFixtures {
+    VarianceVantageWorkerFixtures,
+    VarianceRendererWorkerFixtures {
   /**
    * Record what each spec executed, for the next run's `--since`.
    *
@@ -113,7 +122,6 @@ export interface VarianceWorkerFixtures
   /** The worker's accumulation. Written once, at worker teardown. */
   readonly varianceRecorder: ExecutionRecorder | undefined;
   readonly varianceBundle: string;
-  readonly varianceRenderer: Renderer;
   readonly varianceStore: RasterStore;
   readonly varianceBaselines: string;
 }
@@ -184,7 +192,7 @@ function viewportOf(
  * A suite extends its own base with it — `base.extend(varianceFixtures)` — which
  * is the only shape that composes with the extension module a project already
  * owns. The worker fixtures below are options: a suite names one in `use` when
- * it supplies its own renderer, store, agent bundle or listening arrangement.
+ * it supplies its own renderers, store, agent bundle or listening arrangement.
  */
 export const varianceFixtures: Fixtures<
   VarianceFixtures,
@@ -197,6 +205,7 @@ export const varianceFixtures: Fixtures<
   ...varianceEventFixtures,
   ...varianceCompletedFixtures,
   ...varianceDocumentFixtures,
+  ...varianceRendererFixtures,
 
   varianceBaselines: ['.variance/baselines', { scope: 'worker', option: true }],
 
@@ -233,27 +242,6 @@ export const varianceFixtures: Fixtures<
     // eslint-disable-next-line no-empty-pattern
     async ({}, use) => {
       await use(await bundlePageAgent());
-    },
-    { scope: 'worker' },
-  ],
-
-  // One renderer per worker, never one per assertion. A browser launch and first
-  // navigation dominate the work they enclose by roughly two orders of magnitude
-  // — 205 ms cold against 7.5 ms warm (journal 0007) — so a renderer built per
-  // subject spends the whole saving before it paints anything.
-  varianceRenderer: [
-    // The suite's own `timezoneId` and `locale`, so the document is painted in
-    // the region its page ran in. Read from the project because Playwright's
-    // options are test-scoped and a worker fixture cannot depend on them.
-    // eslint-disable-next-line no-empty-pattern -- see `varianceBundle`.
-    async ({}, use, workerInfo) => {
-      const { timezoneId, locale } = workerInfo.project.use;
-      const renderer = await createPlaywrightRenderer({
-        ...(timezoneId === undefined ? {} : { timezoneId }),
-        ...(locale === undefined ? {} : { locale }),
-      });
-      await use(renderer);
-      await renderer.close();
     },
     { scope: 'worker' },
   ],
