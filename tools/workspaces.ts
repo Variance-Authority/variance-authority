@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseSync } from 'oxc-parser';
+import { readModule } from '@variance-authority/sense/read';
 
 /**
  * The workspace graph, read from disk once.
@@ -112,36 +112,28 @@ export function packageOf(specifier: string): string | null {
 }
 
 /**
- * Import specifiers, and only import specifiers.
+ * The specifiers a file loads, by every way a module loads another.
  *
- * Read from the module record `oxc` has already computed for the file — every
- * static import, every re-export, every literal `import()` — rather than from
- * the text. This tree holds fixtures whose template literals contain
- * `import x from 'y'` and rationales whose strings mention `from`; a string
- * that looks like a statement is not one, and only a parser knows the
- * difference.
+ * Read by `readModule`, sense's one module reader, rather than from oxc's module
+ * record: the record lists static imports, re-exports and `import()`, and no
+ * `require` at all. A `.cts` module is CommonJS by construction — it is what a
+ * runner loads inside its own sandbox — and loads with `import x = require()`
+ * or `require()`, so reading the record alone left every one of them requiring
+ * nothing. The reader also reads only what the tree holds, so a fixture whose
+ * template literal spells `require('y')` is not a load.
  *
  * A parse error is thrown rather than rounded down to "no imports": a file this
- * rule cannot read is a file whose requirements it cannot vouch for.
+ * rule cannot read is a file whose requirements it cannot vouch for. A load of
+ * a variable — the CLI's `import()` of a collector a config names — names no
+ * package, and is not one.
  */
 export function specifiersIn(file: string, text: string): readonly string[] {
-  const { module: record, errors } = parseSync(file, text);
-  if (errors.length > 0) throw new Error(`${file} could not be parsed: ${errors[0]!.message}`);
-
-  const found: string[] = [];
-  for (const entry of record.staticImports) found.push(entry.moduleRequest.value);
-  for (const entry of record.staticExports) {
-    for (const binding of entry.entries) {
-      if (binding.moduleRequest !== null) found.push(binding.moduleRequest.value);
-    }
-  }
-  for (const entry of record.dynamicImports) {
-    // The record carries the span of the argument, not its value: an `import()`
-    // of a variable names no package this rule can check.
-    const literal = /^(['"])([^'"]+)\1$/.exec(text.slice(entry.moduleRequest.start, entry.moduleRequest.end));
-    if (literal !== null) found.push(literal[2]!);
-  }
-  return found;
+  const read = readModule(file, text);
+  // `packages/sense/native/src/read.rs` writes a parse error as one reason
+  // among the loads it could not read. The others are loads of a variable,
+  // which name no package; only a parse error hides one that does.
+  if (read.unknown?.includes('parse error')) throw new Error(`${file} could not be parsed: ${read.unknown}`);
+  return read.requests.map((request) => request.value);
 }
 
 /**

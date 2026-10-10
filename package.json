@@ -51,6 +51,7 @@
     "@variance-authority/cli": "workspace:^",
     "@variance-authority/core": "workspace:^",
     "@variance-authority/help": "workspace:^",
+    "@variance-authority/sense": "workspace:^",
     "@vitest/coverage-v8": "^2.1.8",
     "backlog.md": "1.50.1",
     "ci-info": "^4.4.0",

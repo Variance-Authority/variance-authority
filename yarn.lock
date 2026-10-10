@@ -5363,7 +5363,9 @@ __metadata:
     picomatch: "npm:^4.0.7"
     vite: "npm:^6.0.0"
   peerDependencies:
+    "@jest/globals": ^30.0.0
     jest: ^30.0.0
+    jest-circus: ^30.0.0
     vitest: ^2.1.9 || ^3.0.0 || ^4.0.0
   dependenciesMeta:
     "@variance-authority/sense-darwin-arm64":
@@ -5375,7 +5377,11 @@ __metadata:
     "@variance-authority/sense-win32-x64-msvc":
       optional: true
   peerDependenciesMeta:
+    "@jest/globals":
+      optional: true
     jest:
+      optional: true
+    jest-circus:
       optional: true
     vitest:
       optional: true
@@ -10855,6 +10861,7 @@ __metadata:
     "@variance-authority/cli": "workspace:^"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/help": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
     "@vitest/coverage-v8": "npm:^2.1.8"
     backlog.md: "npm:1.50.1"
     ci-info: "npm:^4.4.0"

@@ -138,11 +138,19 @@
     "@variance-authority/sense-win32-x64-msvc": "workspace:*"
   },
   "peerDependencies": {
+    "@jest/globals": "^30.0.0",
     "jest": "^30.0.0",
+    "jest-circus": "^30.0.0",
     "vitest": "^2.1.9 || ^3.0.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
+    "@jest/globals": {
+      "optional": true
+    },
     "jest": {
+      "optional": true
+    },
+    "jest-circus": {
       "optional": true
     },
     "vitest": {
