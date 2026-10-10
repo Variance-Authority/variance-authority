@@ -46,3 +46,29 @@ export function cadence(source: string, file: string, options: { readonly awaite
     shifts: cut.shifts,
   };
 }
+
+/**
+ * The column of the written file that a cut text's column was at, by zero-based
+ * line, from the `[line, column, length]` shifts {@link cadence} returned. A
+ * column inside an inserted call names the place it was inserted at; lines
+ * never move.
+ */
+export function columnBehindCut(shifts: readonly number[]): (line: number, column: number) => number {
+  const lines = new Map<number, (readonly [column: number, length: number])[]>();
+  for (let at = 0; at + 2 < shifts.length; at += 3) {
+    const line = shifts[at]!;
+    const row = lines.get(line) ?? [];
+    row.push([shifts[at + 1]!, shifts[at + 2]!]);
+    lines.set(line, row);
+  }
+  return (line, column) => {
+    let inserted = 0;
+    for (const [at, length] of lines.get(line) ?? []) {
+      const start = at + inserted;
+      if (column < start) break;
+      if (column < start + length) return at;
+      inserted += length;
+    }
+    return column - inserted;
+  };
+}

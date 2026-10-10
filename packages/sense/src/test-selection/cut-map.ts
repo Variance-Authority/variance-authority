@@ -1,3 +1,4 @@
+import { columnBehindCut } from '../instrument/cadence.js';
 import { vlq, vlqOf } from './map-segments.js';
 
 /**
@@ -10,10 +11,10 @@ import { vlq, vlqOf } from './map-segments.js';
  * an inserted call names the place it was inserted at. Lines never move.
  */
 export function behindCut<Given extends string | { readonly mappings: string }>(map: Given, shifts: readonly number[]): Given {
-  if (typeof map !== 'string') return { ...(map as { readonly mappings: string }), mappings: shift(map.mappings, byLine(shifts)) } as Given;
+  if (typeof map !== 'string') return { ...(map as { readonly mappings: string }), mappings: shift(map.mappings, columnBehindCut(shifts)) } as Given;
   const parsed = JSON.parse(map) as { mappings?: unknown };
   if (typeof parsed.mappings !== 'string') return map;
-  return JSON.stringify({ ...parsed, mappings: shift(parsed.mappings, byLine(shifts)) }) as Given;
+  return JSON.stringify({ ...parsed, mappings: shift(parsed.mappings, columnBehindCut(shifts)) }) as Given;
 }
 
 // Split, so no tool reads this module's text as its own inline map.
@@ -43,37 +44,12 @@ export function evaluatedCut(cut: { readonly code: string; readonly map: object;
   return `${cut.code}${MARKER}=data:application/json;charset=utf-8;base64,${Buffer.from(JSON.stringify(cut.map)).toString('base64')}\n`;
 }
 
-type Shifts = ReadonlyMap<number, readonly (readonly [column: number, length: number])[]>;
-
-function byLine(shifts: readonly number[]): Shifts {
-  const lines = new Map<number, (readonly [number, number])[]>();
-  for (let at = 0; at + 2 < shifts.length; at += 3) {
-    const line = shifts[at]!;
-    const row = lines.get(line) ?? [];
-    row.push([shifts[at + 1]!, shifts[at + 2]!]);
-    lines.set(line, row);
-  }
-  return lines;
-}
-
-/** The column of the written file a cut text's column on `line` was at. */
-function back(lines: Shifts, line: number, column: number): number {
-  let inserted = 0;
-  for (const [at, length] of lines.get(line) ?? []) {
-    const start = at + inserted;
-    if (column < start) break;
-    if (column < start + length) return at;
-    inserted += length;
-  }
-  return column - inserted;
-}
-
 /**
  * `mappings` with each original column moved back. A field is a delta from the
  * same field of the segment before it, so every original column is decoded
  * whole, moved, and written as a delta from the one moved before it.
  */
-function shift(mappings: string, lines: Shifts): string {
+function shift(mappings: string, back: (line: number, column: number) => number): string {
   let out = '';
   let index = 0;
   let line = 0;
@@ -95,7 +71,7 @@ function shift(mappings: string, lines: Shifts): string {
     if (fields.length >= 4) {
       line += fields[2]!;
       column += fields[3]!;
-      const moved = back(lines, line, column);
+      const moved = back(line, column);
       fields[3] = moved - written;
       written = moved;
     }
