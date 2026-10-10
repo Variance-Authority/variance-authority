@@ -45,6 +45,7 @@ export {
   INTERVENTIONS,
   SEMANTIC_RECIPE,
   COLLECT_RECIPE,
+  DEFAULT_STABILIZE,
   LAYOUT_RECIPE,
   RASTER_RECIPE,
   holdAnimations,
@@ -58,6 +59,7 @@ export {
   conflicts,
   interventionById,
   recipeOf,
+  recipeToDrive,
   recipeCss,
   recipeScreenshot,
   recipeDigest,
@@ -71,6 +73,8 @@ export type {
   ScreenshotOptions,
   SettleTarget,
 } from './stabilize.js';
+export { DEFAULT_NOW, driveBeforeLoad, driveBeforeRead, featuresOf, forDriver } from './drive.js';
+export type { DriverState, DriverTarget, MotionPreference } from './intervention.js';
 
 export type { Provenance, OwnerFrame, SourceLocation, StackFrame } from './provenance.js';
 export { propsDigest, heldDigest, jsxSourceOf, relativizeSource, JSX_SOURCE } from './provenance.js';

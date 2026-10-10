@@ -48,6 +48,10 @@ export interface SettleTarget {
  */
 export interface PageGlobals {
   readonly document: {
+    /** Read to find what a test left focused; a shadow host stands in for its tree. */
+    readonly activeElement?: PageFocusable | null;
+    /** Asked whether an `autofocus` is still to be honoured. */
+    querySelector(selectors: string): unknown;
     readonly fonts?: { readonly ready: Promise<unknown> };
     readonly images: ArrayLike<{
       readonly complete: boolean;
@@ -59,6 +63,49 @@ export interface PageGlobals {
   };
   setTimeout(handler: () => void, ms: number): unknown;
   clearTimeout(handle: unknown): void;
+  requestAnimationFrame(callback: () => void): unknown;
+}
+
+/** An element as a focus reset reads it: its own shadow tree's focus, and a way to let go. */
+export interface PageFocusable {
+  readonly shadowRoot?: { readonly activeElement: PageFocusable | null } | null;
+  blur?(): void;
+}
+
+/**
+ * What a trick asks of the browser driver, where neither a stylesheet nor a
+ * script in the page can reach.
+ *
+ * A media preference, the clock and the pointer belong to the browser rather
+ * than the document. A media query reads what the browser emulates, `Date` has
+ * to be replaced before the page's first script reads it, and a hover ends only
+ * when the pointer leaves. Declared as data rather than as a function, so a host
+ * with no driver — a page agent, a test runner's own browser — can tell which
+ * tricks it cannot honour, and the hosts that can drive agree on what each one
+ * means. [`drive.ts`](./drive.ts) applies it.
+ */
+/** The two values of `prefers-reduced-motion` a browser can be told to report. */
+export type MotionPreference = 'no-preference' | 'reduce';
+
+export interface DriverState {
+  /** `prefers-reduced-motion: reduce`, emulated before the page loads. */
+  readonly reducedMotion?: 'reduce';
+  /** `Date` reads one fixed instant, in milliseconds, from before the page's first script. */
+  readonly clock?: { readonly at: number };
+  /** The pointer off the page, before the subject is read. */
+  readonly pointer?: 'outside';
+}
+
+/**
+ * The driver surface a {@link DriverState} is applied through.
+ *
+ * Structural, and the shape Playwright's `Page` already has, so no driver
+ * package leaks into `core`.
+ */
+export interface DriverTarget {
+  emulateMedia(options: { reducedMotion: MotionPreference }): Promise<void>;
+  addInitScript(script: (frozen: number) => void, arg: number): Promise<unknown>;
+  readonly mouse: { move(x: number, y: number): Promise<void> };
 }
 
 export interface Intervention {
@@ -87,4 +134,14 @@ export interface Intervention {
   readonly css?: string;
   readonly screenshot?: ScreenshotOptions;
   readonly settle?: (target: SettleTarget) => Promise<void>;
+
+  /**
+   * What the browser driver must do for this trick to hold.
+   *
+   * A trick with a `driver` is in force only where a host drove it: the hosts
+   * that own the browser report the ids they applied, and the page drops the
+   * rest from its recipe, so a reading never records a hold it did not have.
+   * See `forDriver`.
+   */
+  readonly driver?: DriverState;
 }
