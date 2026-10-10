@@ -56,6 +56,9 @@ export type {
   PartingRecord,
   MovementRecord,
   SubjectStructureRecord,
+  SubjectPiecesRecord,
+  SubjectShareRecord,
+  ResidueRecord,
   BoundaryRow,
 } from './composition.js';
 

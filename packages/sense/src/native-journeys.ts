@@ -327,6 +327,38 @@ export interface NativeJourneyMap {
   readonly structure: number;
 }
 
+/** Another test, beside the one a composition was asked about. */
+export interface NativeJourneyPiece {
+  /** `blocks` is its footprint: the regions it entered, structure aside. */
+  readonly case: NativeJourneyCase;
+  /** Regions of the footprint asked about that it also entered. */
+  readonly shared: number;
+}
+
+/** What one test is made of: the smaller tests inside it, the larger ones holding it, and what no piece entered. */
+export interface NativeTestComposition {
+  /** Why the recording cannot answer; every other field is empty then. */
+  readonly notRecorded?: string | null;
+  /** Cases in the recording: the denominator of structure. */
+  readonly suite: number;
+  /** The test asked about; `blocks` is its footprint. */
+  readonly test?: NativeJourneyCase | null;
+  /** Regions it entered that more than half the suite entered too. */
+  readonly structure: number;
+  /** Other tests whose footprint is exactly its own. */
+  readonly alike: number;
+  /** Smaller tests with nine tenths of their footprint inside it, most shared first. */
+  readonly pieces: readonly NativeJourneyPiece[];
+  /** Larger tests holding nine tenths of it, smallest first. */
+  readonly wholes: readonly NativeJourneyPiece[];
+  /** Regions of its footprint some piece entered. */
+  readonly explained: number;
+  /** What no piece entered, in modules no piece entered: its own layer. */
+  readonly own: readonly NativeJourneyBlock[];
+  /** What no piece entered, in modules a piece entered: paths of a piece only it takes. */
+  readonly reached: readonly NativeJourneyBlock[];
+}
+
 /** The journey calls on a git listing the addon holds, carrying it rather than asking git again. */
 export interface NativeJourneysListing {
   /** Walk every case of the recording and keep the journeys at `out`; `null` when there is no source index. */
@@ -365,4 +397,6 @@ export interface NativeJourneys {
   forksBetween?(recording: string, a: NativeJourneyEnd, b: NativeJourneyEnd): NativeForksBetween;
   /** The map around `file`, kept to the cases whose test file or name holds any of `terms`. */
   journeyMap?(recording: string, file: string, terms?: string[] | null, known?: NativeJourneyMapFile | null): NativeJourneyMap;
+  /** What the test declared in `file`, chosen by `name` among several, is made of. */
+  testComposition?(recording: string, file: string, name?: string | null): NativeTestComposition;
 }

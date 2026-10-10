@@ -58,6 +58,8 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'format.ts': "a reader's own module, quoted from a sample test story",
   'src/cart.ts': "a reader's own module, quoted from a sample comparison of readings",
   'checkout.ts': "a reader's own module, quoted from a sample test story",
+  'src/cart/checkout.ts': "a reader's own module, quoted from a sample test composition",
+  'src/cart/total.ts': "a reader's own module, quoted from a sample test composition",
   'src/checkout.ts': "a reader's own module, quoted from a sample comparison of readings",
   'src/price.ts': "a reader's own module, quoted from a sample comparison of readings",
   'src/env.ts': "a reader's own module, quoted from a sample tech-stack answer",
