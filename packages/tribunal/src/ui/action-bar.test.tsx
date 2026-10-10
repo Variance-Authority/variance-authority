@@ -309,16 +309,23 @@ describe('every move is a button and a key', () => {
     expect(host.querySelector<HTMLInputElement>('input[name="state"][value="investigating"]')?.checked).toBe(true);
   });
 
-  it('sets the open form to the asked state each time it is asked', async () => {
+  it('sets the open form to the asked state each time it is asked, and keeps what was typed', async () => {
     // A reviewer who picked a state by hand and then asks again from the bar
-    // gets what the bar says, even when it asked for the same state before.
+    // gets what the bar says, even when it asked for the same state before. The
+    // draft is theirs and stays.
     await show(subject('story:cart'), { at: 0, of: 1 });
     press('f', document.body);
+    const title = host.querySelector<HTMLInputElement>('input[name="title"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(title, 'Pay moved left');
+      title.dispatchEvent(new Event('input', { bubbles: true }));
+    });
     await act(async () => host.querySelector<HTMLInputElement>('input[name="state"][value="resolved"]')!.click());
 
     await act(async () => button('Looks suspicious').click());
 
     expect(host.querySelector<HTMLInputElement>('input[name="state"][value="open"]')?.checked).toBe(true);
+    expect(host.querySelector<HTMLInputElement>('input[name="title"]')?.value).toBe('Pay moved left');
   });
 
   it('decides from the bar, and from no key', async () => {
