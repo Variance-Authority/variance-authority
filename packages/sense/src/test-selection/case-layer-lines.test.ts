@@ -4,6 +4,7 @@ import { CaseLinesBuilder, lineAt, linesOf, lineValue } from './case-lines.js';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { encodeSetExecutionIndex, openSetColumns, type SetExecutionModule } from './execution-set-format.js';
+import { repinnedCases } from './milestone-repin.js';
 
 /** A region's name and, per case that crossed it, the test line that reached it: a positive line its own, a negative one a hook's. */
 type Region = readonly [name: string, reached: Readonly<Record<string, number>>];
@@ -112,5 +113,18 @@ describe('a layered case index carries the line that reached each region', () =>
     const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', { 'a.test.ts > one': 1 }]] }, false);
 
     expect(openSetColumns(layerCaseIndex(old, fresh, ran(['a.test.ts'])).merged)!.testLines).toBeUndefined();
+  });
+
+  it('keeps the lines of the checkout\'s cases when a repin lays them over a newer milestone', () => {
+    const milestone = index(['b.test.ts > three'], { 'src/b-only.ts': [['only', { 'b.test.ts > three': -6 }]] });
+    const own = index(['b.test.ts > three', 'a.test.ts > one'], {
+      'src/b-only.ts': [['only', { 'b.test.ts > three': 2 }]],
+      'src/shared.ts': [['entry', {}], ['rare', { 'a.test.ts > one': 4 }]],
+    });
+
+    expect(lines(repinnedCases(milestone, own, new Set(['a.test.ts']))!)).toEqual({
+      'a.test.ts > one': { 'src/shared.ts#rare': 4 },
+      'b.test.ts > three': { 'src/b-only.ts#only': -6 },
+    });
   });
 });
