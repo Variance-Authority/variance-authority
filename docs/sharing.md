@@ -898,17 +898,38 @@ the review token can do. The review token is the one a reviewer decides with,
 and your machine is not given it:
 
 ```bash
-npx variance ask decisions --subject story:checkout--empty
+npx variance ask decisions --subject cart/empty
 ```
 
 Name any subject your project reviews. The command reads the deployment that
-your `review.endpoint` or your `remote` `baselines.endpoint` names, when your
-`share.endpoint` is under it. It prints the decisions on that subject, a line
-saying there are none, or why the deployment refused: a 403 that names the ingest
-token when the variable holds CI's token, or a 404 when the deployment serves an
-API older than 5. `npx variance ask concerns --build <id>` reads the same way
-which renders reviewers flagged as suspect on the subjects that build showed,
-with each concern's state, region, evidence and trail.
+your `review.endpoint` — the one
+[`variance push`](https://variance-authority.dev/reference/packages/cli) sends
+runs to — or your `remote` `baselines.endpoint` names, when your
+`share.endpoint` is under it. A checkout that declares only `share` has neither,
+and the command says so instead of guessing. It prints the decisions on that
+subject, a line saying there are none, or why the deployment refused: a 403 that
+names the ingest token when the variable holds CI's token, or a 404 when the
+deployment serves an API older than 5.
+
+`npx variance ask concerns --build <id>` reads, the same way, which renders
+reviewers flagged as suspect on the subjects that build showed:
+
+```bash
+npx variance ask concerns --build ci-42
+```
+
+```text
+https://variance.example.com: 1 concern seen in build ci-42, in the order they were raised.
+build ci-42, over every subject it showed: 1 open, 0 investigating, 0 resolved.
+
+  #7  open  cart/empty  ci-42  "The border is clipped"
+      region 154,85 24x18 on Button
+      evidence the right border
+      2026-08-21T09:40:00Z  open  reviewer  "the right edge is cut"
+```
+
+An agent reads the same answers through `variance serve`, as the
+`variance_decisions` and `variance_concerns` tools, with the same token.
 
 An older deployment answers 404 under `/share/`. A lookup then prints *nothing
 is published there*, and a publish writes nothing. `variance push` to that
