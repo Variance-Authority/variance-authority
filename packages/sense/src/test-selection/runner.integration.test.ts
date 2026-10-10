@@ -102,7 +102,6 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
       .toEqual(expect.objectContaining({ instrumented: false, blocks: [] }));
   }, 60_000);
 
-  // FIXME: `instrumentModule` takes no predicate, so a runner with its own transform cannot mark a module it must not probe.
   it.todo('marks a module a runner hands `instrumentModule` as unprobed — needs a published marking sibling on `./runner`');
 
   it('names each case by its declaration path, and gives a branch only to the case that walked it', async () => {
