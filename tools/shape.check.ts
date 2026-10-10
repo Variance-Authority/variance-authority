@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { MODULES } from './modules.js';
 import { ALL, PACKAGES, ROOT, type Manifest } from './workspaces.js';
 
 /**
@@ -115,33 +116,14 @@ describe('nothing grows into a monster', () => {
    */
   const VENDORED = 'packages/sense/native/vendor/oxc_resolver';
 
-  /**
-   * Every module the repository writes, by the names Node and TypeScript give
-   * one: `.cts`, `.mts` and `.cjs` too. The files that have to be CommonJS are
-   * the ones loaded inside another runner's sandbox, and while the list left
-   * them out, `journal-format.cts` reached 527 lines unread.
-   */
-  const SOURCE = execFileSync(
-    'git',
-    [
-      'ls-files',
-      '--',
-      '*.ts',
-      '*.tsx',
-      '*.mts',
-      '*.cts',
-      '*.js',
-      '*.jsx',
-      '*.mjs',
-      '*.cjs',
-      '*.rs',
-      `:(exclude)${VENDORED}`,
-    ],
-    { cwd: ROOT, encoding: 'utf8' },
-  )
-    .trim()
-    .split('\n')
-    .filter((file) => existsSync(join(ROOT, file)));
+  /** Every module the repository writes, and the addon's Rust beside it. */
+  const SOURCE = [
+    ...MODULES,
+    ...execFileSync('git', ['ls-files', '--', '*.rs'], { cwd: ROOT, encoding: 'utf8' })
+      .trim()
+      .split('\n')
+      .filter((file) => existsSync(join(ROOT, file))),
+  ].filter((file) => !file.startsWith(`${VENDORED}/`));
 
   const LIMIT = 500;
 

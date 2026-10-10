@@ -1,8 +1,8 @@
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MARKDOWN, ROOT } from './markdown.js';
+import { MODULES } from './modules.js';
 
 /**
  * The weaker question a proposal can answer.
@@ -82,12 +82,7 @@ const NOT_A_TYPE = new Set([
  */
 const EXPORTED: ReadonlySet<string> = (() => {
   const names = new Set<string>();
-  const files = execFileSync('git', ['ls-files', '*.ts', '*.tsx'], { cwd: ROOT, encoding: 'utf8' })
-    .trim()
-    .split('\n')
-    .filter((file) => !/\.(test|spec)\.tsx?$/.test(file))
-    // Tracked but removed from the working tree: a deletion not yet committed.
-    .filter((file) => existsSync(join(ROOT, file)));
+  const files = MODULES.filter((file) => /\.[cm]?tsx?$/.test(file) && !/\.(test|spec)\.[cm]?tsx?$/.test(file));
 
   for (const file of files) {
     const text = readFileSync(join(ROOT, file), 'utf8');
@@ -159,6 +154,11 @@ describe('every type a proposal names still exists', () => {
     // A roster that came out empty would make every fence pass. It has to be
     // large, not merely non-zero.
     expect(EXPORTED.size).toBeGreaterThan(100);
+  });
+
+  it('counts a name an `.mts` module exports, so a fence quoting it is not failed for it', () => {
+    // `vitest.config.mts` is the only module that exports `SliceName`.
+    expect(EXPORTED.has('SliceName')).toBe(true);
   });
 
   it.each(FENCES.map((fence) => [`${fence.file}:${fence.line}`, fence] as const))(

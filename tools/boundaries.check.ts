@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { MODULES } from './modules.js';
 import {
   ALL,
   AMBIENT,
@@ -191,15 +192,11 @@ function opening(workspace: Workspace): string {
 describe('source stays greppable', () => {
   const NUL = String.fromCharCode(0);
 
-  it.each(
-    execFileSync('git', ['ls-files', '*.ts', '*.tsx', '*.js', '*.jsx', '*.mjs', '*.cjs'], {
-      cwd: ROOT,
-      encoding: 'utf8',
-    })
-      .trim()
-      .split('\n')
-      .filter((file) => existsSync(join(ROOT, file))),
-  )('%s contains no literal NUL', (file) => {
+  it.each(['.cts', '.mts', '.cjs'])('reads %s modules too, so a NUL written in one is seen', (extension) => {
+    expect(MODULES.some((file) => file.endsWith(extension))).toBe(true);
+  });
+
+  it.each(MODULES)('%s contains no literal NUL', (file) => {
     const text = readFileSync(join(ROOT, file), 'utf8');
 
     // A `\u0000` escape is the same value and stays readable. `\0` is not the
