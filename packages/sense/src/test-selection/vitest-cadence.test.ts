@@ -30,6 +30,10 @@ describe('a test file is cut at each statement of its tests, unless the run turn
     expect(transform({}, { cadence: false }).handler(TEST, resolve(root, 'src/add.test.ts'))).toBeNull();
   });
 
+  it('leaves a module built from a test file, such as its `?raw` text, uncut', () => {
+    expect(transform().handler(TEST, `${resolve(root, 'src/add.test.ts')}?raw`)?.code ?? '').not.toContain('__vaC');
+  });
+
   it('counts what `test.include` names as a test, under `test.dir`, and nothing else', () => {
     const cuts = transform({ dir: 'spec', include: ['**/*.check.js'] });
     expect(cuts.handler(TEST, resolve(root, 'spec/add.check.js'))!.code).toContain('__vaC(3);');
