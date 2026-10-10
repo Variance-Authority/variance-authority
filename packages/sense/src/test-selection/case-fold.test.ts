@@ -219,6 +219,23 @@ describe('the bounded case fold', () => {
     expect(lineAt(two!, 0, 1)).toEqual({ line: 0, ambient: true });
   });
 
+  it('records no lines for a case whose body ran uncut, declared by a helper outside the cut file', async () => {
+    const cases = await directory();
+    const file = '/repo/test/branch.test.ts';
+    await writeFile(resolve(cases, 'worker.vac'), packFrames([
+      journalFormat.encodeLog(packCase(file, AMBIENT, AMBIENT), logged([['src/branch.ts', [[1, 3]]]])),
+      journalFormat.encodeLog(packCase(file, 'one', '1'), logged([['src/branch.ts', [[2, 6]]]])),
+      journalFormat.encodeLog(packCase(file, 'two', '2'), logged([['src/branch.ts', [[2, 0]]]], false)),
+    ]));
+    const modules = new Map([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 3)]]);
+
+    const folded = await foldCaseRun(await inspectCaseRun(cases, '/repo'), modules, 64);
+
+    const table = openSetColumns(folded.bytes)!.testLines;
+    expect(linesOf(table, 0)).toBeDefined();
+    expect(linesOf(table, 1)).toBeUndefined();
+  });
+
   it('records no lines for a run nothing cut', async () => {
     const cases = await directory();
     await writeFile(resolve(cases, 'worker.vac'), packFrames([

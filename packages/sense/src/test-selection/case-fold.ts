@@ -64,6 +64,10 @@ interface Coordinate extends CaseCoordinate {
   said?: Said;
   /** Every frame written under this coordinate, in replay order. */
   readonly frames: number[];
+  /** Whether a module row of the case's own frames was cut at its statements. */
+  cut?: boolean;
+  /** Whether one was not: a case a helper outside its file declared runs uncut. */
+  uncut?: boolean;
 }
 
 /**
@@ -92,7 +96,8 @@ export async function inspectCaseRun(
   const looked = new Map<string, Omit<RecordedEyes, 'case'>[]>();
   // The test files a frame was cut in, and the frame being scanned. The
   // transform cuts a file or leaves it whole, so a case of a cut file whose
-  // own bucket reached nothing still has lines.
+  // own bucket reached nothing still has lines; one whose bucket logged with
+  // no cut ran a body from another file, and has none.
   const cutFiles = new Set<string>();
   let scanning: Coordinate | string = '';
   let frame = 0;
@@ -144,7 +149,14 @@ export async function inspectCaseRun(
         wants(id, cut) {
           moduleIds.add(id);
           const frameOf = scanning;
-          if (cut) cutFiles.add(typeof frameOf === 'string' ? frameOf : frameOf.file);
+          if (typeof frameOf === 'string') {
+            if (cut) cutFiles.add(frameOf);
+          } else if (cut) {
+            frameOf.cut = true;
+            cutFiles.add(frameOf.file);
+          } else {
+            frameOf.uncut = true;
+          }
           return false;
         },
         module() { /* refused above */ },
@@ -174,7 +186,8 @@ export async function inspectCaseRun(
     testsByFile.set(tests[first]!.file, [first, last]);
     first = last;
   }
-  const lined = Uint8Array.from(ordered, (coordinate) => (cutFiles.has(coordinate.file) ? 1 : 0));
+  const lined = Uint8Array.from(ordered, (coordinate) =>
+    (coordinate.cut === true || (coordinate.uncut !== true && cutFiles.has(coordinate.file)) ? 1 : 0));
   const eyes = looked.size === 0 ? undefined : {
     watched: [...looked.keys()].map((key) => ids.get(key)!),
     journals: [...looked].flatMap(([key, rows]) => rows.map((row) => ({ case: ids.get(key)!, ...row }))),
