@@ -4,6 +4,8 @@
 '@variance-authority/playwright': minor
 '@variance-authority/route-collector': minor
 '@variance-authority/storybook-collector': minor
+'@variance-authority/unit-test': patch
+'@variance-authority/vitest-browser': patch
 ---
 
 The port a build is served on is no part of a render
@@ -22,6 +24,13 @@ against the document's `baseUrl`. `documentDigest` reads the page's own base
 and resources as paths, so one build served on two ports addresses one render
 and the render cache hits; the document keeps them absolute for the renderer,
 and a resource another origin serves stays absolute in the digest too.
+
+A `@variance-authority/unit-test` capture keys its assets the same way, so a
+`@variance-authority/vitest-browser` observation, which captures through it on
+the port the runner had free, keeps the port out of its environment key.
+`readCapture` reads back a capture whose asset is keyed by path, resolving the
+key against the document's `baseUrl` as the renderer does; `assetUrl` in
+`@variance-authority/core/format` is that one resolution.
 
 **The document of every page served over `http` moves once after this
 upgrade.** `documentDigest` now reads a document's base and resources without

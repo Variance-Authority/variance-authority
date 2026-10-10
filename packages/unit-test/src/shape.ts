@@ -1,5 +1,6 @@
 import type { CaptureArtifact } from '@variance-authority/core';
 import {
+  assetUrl,
   digestBytes,
   digestCombine,
   digestString,
@@ -64,11 +65,14 @@ export function captureArtifactFrom(value: unknown, path: string): CaptureArtifa
 
   const assets = record(document.assets);
   if (assets === null) throw new Error(`${path} does not declare its resource digests`);
-  for (const [url, expected] of Object.entries(assets)) {
-    const resource = (document.resources as Record<string, unknown>)[url];
+  // An asset the page's own origin serves is keyed by its path, and its bytes
+  // by the URL the page resolved it to, against the document's base.
+  const baseUrl = typeof document.baseUrl === 'string' ? document.baseUrl : undefined;
+  for (const [key, expected] of Object.entries(assets)) {
+    const resource = (document.resources as Record<string, unknown>)[assetUrl(key, baseUrl)];
     const parsed = resourceFrom(resource);
     if (typeof expected !== 'string' || parsed === null || parsed.digest !== expected) {
-      throw new Error(`${path} has no matching archived resource for ${url}`);
+      throw new Error(`${path} has no matching archived resource for ${key}`);
     }
   }
 

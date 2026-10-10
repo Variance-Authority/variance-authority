@@ -1,5 +1,5 @@
 import type { BrowserContext } from 'playwright';
-import { digestBytes, type RenderDocument } from '@variance-authority/core/format';
+import { assetUrl, digestBytes, type RenderDocument } from '@variance-authority/core/format';
 
 /**
  * Serving a resource-closed document out of what it carries.
@@ -57,7 +57,7 @@ export function assertClosedResources(document: RenderDocument): void {
   for (const [key, expected] of Object.entries(document.assets ?? {})) {
     // An asset the page's own origin serves is keyed by its path, and the
     // bytes are keyed by the URL the browser asked for.
-    const url = document.baseUrl === undefined ? key : new URL(key, document.baseUrl).toString();
+    const url = assetUrl(key, document.baseUrl);
     const resource = document.resources[url];
     if (resource === undefined) {
       throw new Error(
