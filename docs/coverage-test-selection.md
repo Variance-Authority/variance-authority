@@ -211,7 +211,9 @@ in.
 So in a well-tested codebase the graph and the run give answers that are far
 apart. A [journey](journeys.md) is the set of code one test ran, stored after
 the run. It keeps no order: the order is a [test story](test-stories.md),
-written only when you ask for one. Selection reads journeys. A change to code in some test's journey selects
+written only when you ask for one. Under a test runner each test also keeps,
+for each region, the line of the test that first reached it, and selection
+does not read it. Selection reads journeys. A change to code in some test's journey selects
 that test. A change to code in no journey selects nothing, because no test ran
 it. In the record, a shared module is charged to the tests that ran the changed
 code. In the graph, it is charged to every test that imports it, and most of a

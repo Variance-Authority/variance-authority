@@ -11,6 +11,9 @@ rung that reads the record), [spec 0036](../../specs/0036-a-journey-crosses-proc
 (the record across a process), [spec 0038](../../specs/0038-a-journey-is-read-against-the-committed-tree.md)
 (the readers this decision makes possible and does not build),
 [journal 0040](../journal/0040-photos-not-steps.md) (how this was reached)
+**Narrowed by:** [ADR-0088](0088-a-case-records-the-test-line-that-reached-each-region.md)
+(under a test-runner seam, a case records the test line that first reached each
+region)
 
 ## Context
 

@@ -276,7 +276,9 @@ differently:
   `variance covering` need it for every test. Two runs that ran the same code
   in a different order have one journey, so the order async code happens to
   run in does not change which tests [test
-  selection](coverage-test-selection.md#what-the-record-keeps) runs.
+  selection](coverage-test-selection.md#what-the-record-keeps) runs. The
+  record also keeps the test line that first reached each region, and async
+  code can move that line between runs; selection does not read it.
 - **The story is written only when you ask**, for the tests you name. Keeping
   the order adds work to every function the test runs, and a story for every
   test. Setting `VARIANCE_AUTHORITY_STORY` does not change the journeys: the

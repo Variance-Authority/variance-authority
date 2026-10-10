@@ -50,6 +50,15 @@ const EVALUATING = 0x80000000;
 const NAMED = 1;
 
 /**
+ * A module row of a cut case: a named row with a fourth list after the three,
+ * the test line each of its `hits` was first reached under, one to one, as
+ * plain numbers — lines do not rise with ordinals, so a gap would not shrink
+ * them. A case nothing cut writes {@link NAMED} rows, byte for byte the frame
+ * it was before cuts existed.
+ */
+const NAMED_LINED = 2;
+
+/**
  * The counters as a frame, read straight out of the arrays the probes increment.
  *
  * No row objects are built on the way: a module's live counters are read once,
@@ -135,6 +144,10 @@ interface LogRows {
   readonly end: Int32Array;
   readonly sorted: Int32Array;
   readonly ids: readonly ModuleId[];
+  /** Where each row's ordinals start in {@link lines}; set with it. */
+  readonly base?: Int32Array;
+  /** The test line each region was first reached under, by `base[row] + ordinal`; absent when nothing cut. */
+  readonly lines?: Int32Array | undefined;
 }
 
 /**
@@ -168,19 +181,33 @@ function encodeLog(name: string, log: LogRows): Buffer {
     }
   };
   const twice = log.rows.map((row) => sorted.subarray(start[row]!, end[row]!).some((_, at) => again(start[row]! + at, start[row]!)));
+  const { base, lines } = log;
+  const lined = base !== undefined && lines !== undefined;
+  // The reaching line of each entry `ordinals` wrote for this row and kind.
+  const reached = (row: number, from: number, to: number, kind: number): void => {
+    if (!lined) return;
+    let count = 0;
+    for (let at = from; at < to; at += 1) if (takes(at, from, kind)) count += 1;
+    out.number(count);
+    for (let at = from; at < to; at += 1) {
+      if (takes(at, from, kind)) out.number(lines[base[row]! + (sorted[at]! >>> 1)]!);
+    }
+  };
   out.number(log.rows.length + twice.filter(Boolean).length);
   log.rows.forEach((row, index) => {
-    out.byte(NAMED);
+    out.byte(lined ? NAMED_LINED : NAMED);
     out.text(log.ids[row]!);
     ordinals(start[row]!, end[row]!, ONCE);
     ordinals(start[row]!, end[row]!, EARLY);
     out.number(0);
+    reached(row, start[row]!, end[row]!, ONCE);
     if (!twice[index]) return;
-    out.byte(NAMED);
+    out.byte(lined ? NAMED_LINED : NAMED);
     out.text(log.ids[row]!);
     ordinals(start[row]!, end[row]!, AGAIN);
     out.number(0);
     out.number(0);
+    reached(row, start[row]!, end[row]!, AGAIN);
   });
   return out.done();
 }
@@ -193,11 +220,14 @@ function decodeJournal(raw: Uint8Array): ReadJournal {
   for (const byte of MAGIC) if (read.byte() !== byte) throw damaged();
   const testFile = read.text();
   const count = read.number();
-  const modules: Array<{ id: ModuleId; hits: number[]; shared: number[]; loaded: number[] }> = [];
+  const modules: Array<{ id: ModuleId; hits: number[]; shared: number[]; loaded: number[]; lines?: number[] }> = [];
   for (let index = 0; index < count; index += 1) {
-    if (read.byte() !== NAMED) throw damaged();
+    const tag = read.byte();
+    if (tag !== NAMED && tag !== NAMED_LINED) throw damaged();
     const id = read.text();
-    modules.push({ id, hits: read.ordinals(), shared: read.ordinals(), loaded: read.ordinals() });
+    const row = { id, hits: read.ordinals(), shared: read.ordinals(), loaded: read.ordinals() };
+    if (tag === NAMED) modules.push(row);
+    else modules.push({ ...row, lines: read.numbers(row.hits.length) });
   }
   if (!read.spent()) throw damaged();
   return { testFile, modules };
@@ -219,10 +249,11 @@ interface JournalVisitor {
   /**
    * Whether the rows of this module are wanted. A fold that works a slice of
    * the modules at a time says no to the rest, and their ordinals are stepped
-   * over rather than decoded.
+   * over rather than decoded. `cut` says whether the row carries lines.
    */
-  wants?(id: ModuleId): boolean;
-  module(id: ModuleId, hits: Uint32Array, shared: Uint32Array, loaded: Uint32Array): void;
+  wants?(id: ModuleId, cut: boolean): boolean;
+  /** `lines`, when the case was cut, holds the test line each of `hits` was first reached under. */
+  module(id: ModuleId, hits: Uint32Array, shared: Uint32Array, loaded: Uint32Array, lines?: Uint32Array): void;
 }
 
 /**
@@ -240,32 +271,36 @@ function scanJournal(raw: Uint8Array, visit: JournalVisitor): void {
   const wants = visit.wants;
   let scratch = new Uint32Array(64);
   for (let index = 0; index < count; index += 1) {
-    if (read.byte() !== NAMED) throw damaged();
+    const tag = read.byte();
+    if (tag !== NAMED && tag !== NAMED_LINED) throw damaged();
+    const lists = tag === NAMED ? 3 : 4;
     const id = read.text();
-    if (wants !== undefined && !wants.call(visit, id)) {
-      read.skip();
-      read.skip();
-      read.skip();
+    if (wants !== undefined && !wants.call(visit, id, lists === 4)) {
+      for (let run = 0; run < lists; run += 1) read.skip();
       continue;
     }
     let held = 0;
     const runs: number[] = [];
-    for (let run = 0; run < 3; run += 1) {
+    for (let run = 0; run < lists; run += 1) {
       const length = read.number();
       if (held + length > scratch.length) {
         const grown = new Uint32Array(1 << (32 - Math.clz32(held + length - 1)));
         grown.set(scratch.subarray(0, held));
         scratch = grown;
       }
-      read.into(scratch, held, length);
+      // The fourth list is lines, written plain: they do not rise.
+      if (run === 3) read.plain(scratch, held, length);
+      else read.into(scratch, held, length);
       runs.push(held);
       held += length;
     }
+    if (lists === 4 && held - runs[3]! !== runs[1]! - runs[0]!) throw damaged();
     visit.module(
       id,
       scratch.subarray(runs[0]!, runs[1]!),
       scratch.subarray(runs[1]!, runs[2]!),
-      scratch.subarray(runs[2]!, held),
+      scratch.subarray(runs[2]!, lists === 4 ? runs[3]! : held),
+      lists === 4 ? scratch.subarray(runs[3]!, held) : undefined,
     );
   }
   if (!read.spent()) throw damaged();
@@ -357,6 +392,21 @@ class Reader {
       last += this.number();
       values[at + index] = last;
     }
+  }
+
+  /** A run of plain numbers, as they were written. */
+  plain(values: Uint32Array, at: number, count: number): void {
+    if (this.#at + count > this.#bytes.length) throw damaged();
+    for (let index = 0; index < count; index += 1) values[at + index] = this.number();
+  }
+
+  /** A run of plain numbers that has to hold `expected` of them. */
+  numbers(expected: number): number[] {
+    const count = this.number();
+    if (count !== expected || this.#at + count > this.#bytes.length) throw damaged();
+    const values: number[] = [];
+    for (let index = 0; index < count; index += 1) values.push(this.number());
+    return values;
   }
 
   /** A run stepped over: its varints are found by their last byte, not read. */

@@ -10,6 +10,7 @@ import { instrumentationId, type InstrumentMode, type ModuleId } from '../instru
 import { captureModule } from './captured-modules.js';
 import { cleanId, defaultInclude } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
+import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
 
 /**
@@ -162,8 +163,9 @@ export function testSelectionProbes(
 /**
  * The page half, as source, because it has to cross `page.evaluate` or a bundler.
  *
- * The engine is `instrument/probe-log.cts`, sent as its own source, so a page records
- * with the code a test runner records with. A page has one bucket and never
+ * The engine is `instrument/probe-log.cts`, sent as its own source with
+ * `instrument/probe-lists.cts`, so a page records with the code a test runner
+ * records with. A page has one bucket and never
  * switches it: a drain reads it out and empties it in place.
  *
  * `globalThis.__VA__` keeps its identity for the life of the page, because
@@ -174,6 +176,7 @@ export function executionCollectorSource(mode?: InstrumentMode): string {
   const instrumentation = instrumentationId(mode);
   return `
 const engine = (${probeLog.createEngine.toString()})(false);
+const lists = ${probeLists.lists.toString()};
 const bucket = engine.open('');
 engine.use(bucket);
 // A realm that already has a root has a collector that knows more than this
@@ -189,7 +192,7 @@ if (globalThis.__VA__ === undefined) {
     instrumentation: ${JSON.stringify(instrumentation)},
     drain() {
       // In the order the page first registered each module, drain after drain.
-      const modules = engine.lists(engine.take(bucket), true);
+      const modules = lists(engine.take(bucket), true);
       return { instrumentation: ${JSON.stringify(instrumentation)}, modules };
     },
     reset() {
