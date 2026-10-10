@@ -253,6 +253,7 @@
         "NodePath": "type",
         "ObservationProfile": "interface",
         "OwnerFrame": "interface",
+        "PageRegion": "interface",
         "Pictured": "type",
         "ProfileId": "type",
         "Provenance": "interface",
@@ -1558,6 +1559,7 @@
         "freezeGif": "function",
         "imageSize": "function",
         "observeNetwork": "function",
+        "pinnedRegion": "function",
         "unresizable": "function",
         "unwidened": "function",
         "widthsOf": "function"
