@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createConcernStore, type ConcernStore } from './concerns.js';
 import type { ReviewStore } from './review.js';
 import type { SubjectView } from './review-types.js';
 import { createReviewStore } from './review.js';
@@ -216,5 +217,78 @@ describe('the earlier builds that kept the same image', () => {
       'ci-1005',
       'ci-1004',
     ]);
+  });
+});
+
+describe('approving an image an earlier build rejected', () => {
+  /**
+   * A rejected image never becomes the baseline unless somebody accepts the
+   * defect. The approval is theirs to make — it unblocks the change — and the
+   * defect it accepts stays on record as a concern rather than in a line the
+   * next reviewer may not open.
+   */
+  async function rejectedThenBack(): Promise<{ review: ReviewStore; concerns: ConcernStore }> {
+    const { db, review } = await openReview();
+    await push(review, 'ci-1000', '2026-06-01T09:00:00.000Z');
+    await review.decide({
+      build: 'ci-1000',
+      subject: CHANGED,
+      decision: 'rejected',
+      by: 'marina',
+      note: 'the toggle lost its focus ring',
+    });
+    await push(review, 'ci-1001', '2026-06-01T10:00:00.000Z');
+    return { review, concerns: createConcernStore({ db, project: 'todomvc' }) };
+  }
+
+  it('records the approval and opens a concern naming the rejection', async () => {
+    const { review, concerns } = await rejectedThenBack();
+
+    const decided = await review.decide({ build: 'ci-1001', subject: CHANGED, decision: 'approved', by: 'anton' });
+
+    expect(decided.decision).toBe('approved');
+    const raised = await concerns.list({ subject: CHANGED });
+    expect(raised).toHaveLength(1);
+    expect(raised[0]).toMatchObject({
+      id: decided.concern,
+      build: 'ci-1001',
+      title: 'Approved the image build ci-1000 rejected',
+      by: 'anton',
+      state: 'open',
+      evidence: ['ci-1000'],
+    });
+    expect(raised[0]?.events[0]?.note).toBe('marina rejected it: the toggle lost its focus ring');
+  });
+
+  it('opens one concern however many times the same build is approved', async () => {
+    const { review, concerns } = await rejectedThenBack();
+
+    await review.decide({ build: 'ci-1001', subject: CHANGED, decision: 'approved', by: 'anton' });
+    const again = await review.decide({ build: 'ci-1001', subject: CHANGED, decision: 'approved', by: 'anton' });
+
+    expect(again).not.toHaveProperty('concern');
+    expect(await concerns.list({ subject: CHANGED })).toHaveLength(1);
+  });
+
+  it('opens none when the image is rejected again', async () => {
+    const { review, concerns } = await rejectedThenBack();
+
+    const decided = await review.decide({ build: 'ci-1001', subject: CHANGED, decision: 'rejected', by: 'anton' });
+
+    expect(decided).not.toHaveProperty('concern');
+    expect(await concerns.list({ subject: CHANGED })).toEqual([]);
+  });
+
+  it('opens none when the latest earlier decision on the image approved it', async () => {
+    const { db, review } = await openReview();
+    await push(review, 'ci-1000', '2026-06-01T09:00:00.000Z');
+    await review.decide({ build: 'ci-1000', subject: CHANGED, decision: 'rejected', by: 'marina' });
+    await review.decide({ build: 'ci-1000', subject: CHANGED, decision: 'approved', by: 'marina' });
+    await push(review, 'ci-1001', '2026-06-01T10:00:00.000Z');
+
+    const decided = await review.decide({ build: 'ci-1001', subject: CHANGED, decision: 'approved', by: 'anton' });
+
+    expect(decided).not.toHaveProperty('concern');
+    expect(await createConcernStore({ db, project: 'todomvc' }).list({ subject: CHANGED })).toEqual([]);
   });
 });

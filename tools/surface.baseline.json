@@ -3566,6 +3566,7 @@
         "ConcernStore": "interface",
         "ConcernTally": "type",
         "Coverage": "interface",
+        "Decided": "interface",
         "Decision": "type",
         "DecisionRecord": "interface",
         "MoveConcern": "interface",

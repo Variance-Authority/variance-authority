@@ -44,6 +44,18 @@ export interface DecisionRecord {
   readonly at: string;
 }
 
+/**
+ * A decision as recording it answered.
+ *
+ * `concern` is the id of the concern an approval opened, because the latest
+ * earlier decision on the same image rejected it. The approval stands — it is
+ * how a change that accepts a known defect gets unblocked — and the defect it
+ * accepted stays on record.
+ */
+export interface Decided extends DecisionRecord {
+  readonly concern?: number;
+}
+
 export interface BuildSummary {
   readonly project: string;
   readonly build: string;
@@ -444,7 +456,7 @@ export interface ReviewStore {
     readonly decision: Decision;
     readonly by: string;
     readonly note?: string;
-  }): Promise<DecisionRecord>;
+  }): Promise<Decided>;
   /**
    * Why the baselines are what they are — every approval, grouped by what changed.
    *

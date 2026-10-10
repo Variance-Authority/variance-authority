@@ -2,7 +2,8 @@
  * One line in a subject's Decision card: an earlier build kept this same image.
  *
  * The decision made there leads, because it is what a reviewer acts on here. A
- * rejected image that is back is a known defect. An approved image is promoted to
+ * rejected image that is back is a known defect, and approving it accepts that
+ * defect: the approval stands and a concern is opened. An approved image is promoted to
  * the baseline, so one approved before this build ran, on a render that still
  * differs from its baseline, is drawn as a warning.
  */
@@ -82,7 +83,12 @@ function sentence(lead: RepeatedIn, subject: SubjectView, ran: string, build: Re
     </>
   );
   if (decision.decision === 'rejected') {
-    return <>This is the image build {build} rejected {who}.</>;
+    return (
+      <>
+        This is the image build {build} rejected {who}. Approving it accepts that defect and
+        opens a concern.
+      </>
+    );
   }
   if (movedSince(lead, subject, ran)) {
     return (

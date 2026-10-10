@@ -361,7 +361,13 @@ builds rendered by the same identity count: a baseline is kept per identity, so
 a decision made on another engine or platform says nothing about this one. The
 line names the earlier build, links to the subject there, and gives the decision
 made on it with who made it. **An image an earlier build rejected** is drawn as a
-rejection: it is a render you already rejected, not a new defect. **An image
+rejection: it is a render you already rejected, not a new defect. You can still
+approve it, since accepting a known defect is how the change it blocks gets
+merged, and the approval then opens a concern titled with the build that
+rejected it, carrying that rejection's note, so the defect stays on record. The
+decision's answer carries the concern's id as `concern`. A second approval in
+the same build opens no second concern, and neither does an image whose latest
+earlier decision approved it. **An image
 approved before this build ran, on a render that still differs from its
 baseline**, is drawn as a warning, and the line says only that: the render may
 alternate, a change may have been reverted, or the baseline moved again. An

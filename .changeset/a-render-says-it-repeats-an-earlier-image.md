@@ -17,5 +17,11 @@ image an earlier build rejected is drawn as a rejection. An image approved befor
 this build ran, on a render that still differs from its baseline, is drawn as a
 warning that states just that.
 
+Approving an image whose latest earlier decision rejected it records the
+approval and opens a concern naming the build that rejected it, with that
+rejection's note. The approval is not refused: accepting a known defect is how
+the change it blocks gets merged. `decide` answers with a `Decided`, a
+`DecisionRecord` that carries the concern's id as `concern` when one was opened.
+
 No upload field and no migration: the candidate's key and the decisions are
 already stored, and the existing index on `after_key` answers the lookup.

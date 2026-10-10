@@ -33,8 +33,15 @@ export const NAMED = 8;
  * Decided builds come first, the latest decision leading, because the decision
  * is what a reviewer acts on: eight builds nobody looked at must not push out
  * the one that rejected this image.
+ *
+ * `subject` narrows the answer to one render, for a decision being recorded.
  */
-export function repeatsStatement(db: D1Like, project: string, build: string): D1PreparedLike {
+export function repeatsStatement(
+  db: D1Like,
+  project: string,
+  build: string,
+  subject?: string,
+): D1PreparedLike {
   return db
     .prepare(
       `SELECT subject, build, at, decision, decided_by, note, decided_at, count FROM (
@@ -58,13 +65,14 @@ export function repeatsStatement(db: D1Like, project: string, build: string): D1
              SELECT MAX(seq) FROM decisions
               WHERE project = there.project AND build = there.build AND subject = there.subject)
           WHERE here.project = ? AND here.build = ? AND here.after_key IS NOT NULL
+            AND (? IS NULL OR here.subject = ?)
             AND here.verdict NOT IN ('unchanged', 'ignored')
             AND (earlier.at_ms, earlier.rowid) < (this.at_ms, this.rowid)
        )
         WHERE place <= ?
         ORDER BY subject, place`,
     )
-    .bind(project, build, NAMED);
+    .bind(project, build, subject ?? null, subject ?? null, NAMED);
 }
 
 /**
@@ -101,3 +109,32 @@ export function asksRepeats(verdict: string): boolean {
 
 /** What a subject that kept a candidate says when no earlier build kept it. */
 export const UNREPEATED: Repeats = { count: 0, builds: [] };
+
+/**
+ * The earlier build whose rejection an approval of `subject` in `build` would
+ * accept, or `undefined`.
+ *
+ * The latest decision on the same image is what is accepted, so an image
+ * rejected and then approved elsewhere accepts nothing new. Neither does a build
+ * already approved here: that approval accepted it, and a second one is the same
+ * reviewer's mind, not a second defect.
+ */
+export async function rejectionAccepted(
+  db: D1Like,
+  project: string,
+  build: string,
+  subject: string,
+): Promise<RepeatedIn | undefined> {
+  const [here, earlier] = await db.batch<Row>([
+    db
+      .prepare(
+        'SELECT decision FROM decisions WHERE project = ? AND build = ? AND subject = ? ORDER BY seq DESC LIMIT 1',
+      )
+      .bind(project, build, subject),
+    repeatsStatement(db, project, build, subject),
+  ]);
+  const standing = here?.results[0];
+  if (standing !== undefined && optionalText(standing, 'decision', 'a decision') === 'approved') return undefined;
+  const lead = repeatsFrom(earlier?.results ?? []).get(subject)?.builds[0];
+  return lead?.decision?.decision === 'rejected' ? lead : undefined;
+}

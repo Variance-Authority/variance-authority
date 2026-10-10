@@ -83,6 +83,14 @@ describe('an image an earlier build kept', () => {
     expect(markup).toContain('the toggle lost its focus ring');
   });
 
+  it('says approving a rejected image accepts the defect and opens a concern', () => {
+    // Approving it is allowed — it is how a change that accepts the defect gets
+    // merged — so the line says what the button will leave behind.
+    expect(page(subject({ repeats: REJECTED }))).toContain(
+      'Approving it accepts that defect and opens a concern.',
+    );
+  });
+
   it('warns that an image approved before this build ran still differs from the baseline', () => {
     const markup = page(subject({ repeats: APPROVED }));
 
