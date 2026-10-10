@@ -46,8 +46,8 @@ export class LaidLines {
     runAt: readonly number[],
     count: number,
   ) {
-    this.#held = new Array<CaseLines | undefined>(count).fill(undefined);
-    this.#run = new Array<CaseLines | undefined>(count).fill(undefined);
+    this.#held = Array.from<CaseLines | undefined>({ length: count });
+    this.#run = Array.from<CaseLines | undefined>({ length: count });
     this.#heldSource = new Uint8Array(count);
     const runSource = new Uint8Array(count);
     for (const [row, at] of heldAt.entries()) {
@@ -61,7 +61,7 @@ export class LaidLines {
     }
     this.#lined = Uint8Array.from({ length: count }, (_, at) =>
       (this.#heldSource[at] === 0 || this.#held[at] !== undefined) && (runSource[at] === 0 || this.#run[at] !== undefined) ? 1 : 0);
-    this.#builders = new Array<CaseLinesBuilder | undefined>(count).fill(undefined);
+    this.#builders = Array.from<CaseLinesBuilder | undefined>({ length: count });
     this.#seen = new Int32Array(count).fill(-1);
     for (const [at, held] of this.#held.entries()) {
       if (held === undefined || this.#lined[at] !== 1) continue;
