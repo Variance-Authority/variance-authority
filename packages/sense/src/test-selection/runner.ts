@@ -199,7 +199,7 @@ export function instrumentModule(code: string, file: string): string {
   if (recording === undefined) return code;
   const path = resolve(file);
   const original = (at: string) => (at === path ? code : readFileSync(at, 'utf8'));
-  // FIXME: no `unprobed` predicate reaches here, so a runner with its own transform cannot mark a module it must not probe.
+  // TODO: publish a marking sibling of this function on `./runner`, so a runner with its own transform marks a module it must not probe rather than probing it; a predicate cannot ride RECORDING_VARIABLE to reach this one.
   return captureModule(recording.root, path, code, () => true, recording.mode, original)?.code ?? code;
 }
 

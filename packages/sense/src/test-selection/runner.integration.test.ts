@@ -102,7 +102,7 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
       .toEqual(expect.objectContaining({ instrumented: false, blocks: [] }));
   }, 60_000);
 
-  it.todo('marks a module a runner hands `instrumentModule` as unprobed — needs a published marking sibling on `./runner`');
+  it.todo('marks a module a runner with its own transform must not probe — needs a marking sibling of `instrumentModule` published on `./runner`');
 
   it('names each case by its declaration path, and gives a branch only to the case that walked it', async () => {
     const { coverageFile } = await record();
