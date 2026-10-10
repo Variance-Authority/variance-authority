@@ -7,6 +7,8 @@
  * declines rather than guesses on anything it does not recognize.
  */
 
+import { matchingParen } from '@variance-authority/core/rules';
+
 export type Specificity = readonly [number, number, number];
 
 /** Selectors whose specificity comes from their argument, not from themselves. */
@@ -184,18 +186,6 @@ function consumeIdentifier(input: string, start: number): number {
 function skipTo(input: string, start: number, terminator: string): number {
   for (let i = start + 1; i < input.length; i += 1) {
     if (input[i] === terminator) return i;
-  }
-  return input.length - 1;
-}
-
-function matchingParen(input: string, openIndex: number): number {
-  let depth = 0;
-  for (let i = openIndex; i < input.length; i += 1) {
-    if (input[i] === '(') depth += 1;
-    else if (input[i] === ')') {
-      depth -= 1;
-      if (depth === 0) return i;
-    }
   }
   return input.length - 1;
 }

@@ -68,6 +68,16 @@ export interface RawCapture {
    */
   readonly couplings?: readonly string[];
 
+  /**
+   * The document's base URL, `document.baseURI`, as the page reported it.
+   *
+   * An engine resolves every `url()` in a computed value against this, so a
+   * build served on a different port comes back with different strings. The
+   * normalizer drops this origin from them. Absent when the collector had no
+   * page to ask, and then nothing is dropped.
+   */
+  readonly baseUrl?: string;
+
   /** Anything the collector could not do. Empty is the expected case. */
   readonly diagnostics: readonly Diagnostic[];
 }

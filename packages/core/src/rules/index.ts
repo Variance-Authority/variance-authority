@@ -32,6 +32,7 @@ export {
   canonicalizeValue,
   canonicalizeTokens,
   canonicalizeDimension,
+  matchingParen,
   canonicalizeColor,
   parseColor,
   formatColor,

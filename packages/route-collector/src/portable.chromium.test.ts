@@ -211,7 +211,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('a document that can leave the machine', () 
     // the size they had, and `resources` stays undefined so no renderer reads
     // this as a closure claim and blocks the network on it.
     expect(document.resources).toBeUndefined();
-    expect(Object.keys(document.assets ?? {})).toContain(`${base}/logo.png`);
+    expect(Object.keys(document.assets ?? {})).toContain('/logo.png');
   }, 60_000);
 
   it('closes over the bytes it was served, keyed by the URL the wire saw', async () => {

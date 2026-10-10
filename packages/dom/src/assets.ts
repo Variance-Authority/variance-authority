@@ -185,16 +185,24 @@ function urlsIn(value: string): readonly string[] {
  * Where the two halves meet: the driver knows the bytes and the page knows the
  * subject. Returned as a plain object because that is what `EnvironmentInputs`
  * carries, and built in referenced order so the shape is stable.
+ *
+ * An asset the page's own origin serves is keyed by its path. A collector serves
+ * a build on whatever port the machine had free, and a key holding that port
+ * makes one build served twice two environments. An asset from another origin
+ * keeps its absolute URL, because there the host is part of what was fetched.
  */
 export function assetsFor(
   root: Element,
   observed: Readonly<Record<string, string>>,
 ): Readonly<Record<string, string>> {
   const scoped: Record<string, string> = {};
+  const origin = new URL(root.ownerDocument.baseURI).origin;
+  const own = origin === 'null' ? undefined : `${origin}/`;
 
   for (const url of referencedAssets(root)) {
     const digest = observed[url];
-    if (digest !== undefined) scoped[url] = digest;
+    if (digest === undefined) continue;
+    scoped[own !== undefined && url.startsWith(own) ? url.slice(origin.length) : url] = digest;
   }
 
   return scoped;

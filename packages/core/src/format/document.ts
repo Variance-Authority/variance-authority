@@ -199,6 +199,9 @@ export function documentDigest(document: RenderDocument): Digest {
     inherited: { ...document.inherited },
     fonts: [...document.fonts],
     ...(document.assets ? { assets: { ...document.assets } } : {}),
+    // FIXME: `baseUrl`, and the absolute URLs `resources` is keyed by, hold the
+    // origin the collector served the build on. A collector serves on a free
+    // port, so one build served twice digests twice and misses the render cache.
     ...(document.baseUrl !== undefined ? { baseUrl: document.baseUrl } : {}),
     ...(document.resources !== undefined
       ? {

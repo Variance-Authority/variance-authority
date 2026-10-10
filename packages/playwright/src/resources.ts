@@ -54,7 +54,10 @@ export async function serveClosedResources(
 export function assertClosedResources(document: RenderDocument): void {
   if (document.resources === undefined) return;
 
-  for (const [url, expected] of Object.entries(document.assets ?? {})) {
+  for (const [key, expected] of Object.entries(document.assets ?? {})) {
+    // An asset the page's own origin serves is keyed by its path, and the
+    // bytes are keyed by the URL the browser asked for.
+    const url = document.baseUrl === undefined ? key : new URL(key, document.baseUrl).toString();
     const resource = document.resources[url];
     if (resource === undefined) {
       throw new Error(

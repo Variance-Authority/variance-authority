@@ -1,6 +1,6 @@
 import type { Declaration, MatchedRule } from '../../format/capture.js';
 import { admits, isCustomProperty } from '../ruleset.js';
-import { canonicalizeValue } from './value.js';
+import { canonicalizeValue, matchingParen } from './value.js';
 import { expandDeclaration } from './shorthand.js';
 
 /**
@@ -101,6 +101,8 @@ export interface ResolveInput {
   /** Engine-resolved values. When present these win over anything computed here. */
   readonly computedStyle?: Readonly<Record<string, string>>;
   readonly context: InheritContext;
+  /** The page's origin, dropped from the `url()` values it serves. */
+  readonly origin?: string;
 }
 
 export function resolveStyle(input: ResolveInput): ResolvedStyle {
@@ -155,7 +157,7 @@ export function resolveStyle(input: ResolveInput): ResolvedStyle {
     if (isCustomProperty(property)) continue;
 
     const resolution = resolveVariables(candidate.value, customProperties);
-    style[property] = canonicalizeValue(property, resolution.value);
+    style[property] = canonicalizeValue(property, resolution.value, input.origin);
 
     for (const name of resolution.used) {
       const resolved = customProperties[name];
@@ -175,7 +177,7 @@ export function resolveStyle(input: ResolveInput): ResolvedStyle {
   if (input.computedStyle) {
     for (const [property, value] of Object.entries(input.computedStyle)) {
       if (!admits(property) || isCustomProperty(property)) continue;
-      style[property] = canonicalizeValue(property, value);
+      style[property] = canonicalizeValue(property, value, input.origin);
     }
   }
 
@@ -408,18 +410,6 @@ export function resolveVariables(
   }
 
   return { value: result, used };
-}
-
-function matchingParen(input: string, openIndex: number): number {
-  let depth = 0;
-  for (let i = openIndex; i < input.length; i += 1) {
-    if (input[i] === '(') depth += 1;
-    else if (input[i] === ')') {
-      depth -= 1;
-      if (depth === 0) return i;
-    }
-  }
-  return input.length;
 }
 
 function topLevelComma(input: string): number {

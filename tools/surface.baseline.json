@@ -399,6 +399,7 @@
         "formatColor": "function",
         "isAllowedProperty": "function",
         "isCustomProperty": "function",
+        "matchingParen": "function",
         "normalize": "function",
         "parseColor": "function",
         "resolveStyle": "function",

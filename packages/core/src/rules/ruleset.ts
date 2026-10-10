@@ -7,8 +7,15 @@
  * means edits here are releases, not tweaks. Bump the version in the same commit.
  */
 
-/** Bump on any change to normalization behavior. */
-export const RULESET_VERSION = 'r1';
+/**
+ * Bump on any change to normalization behavior.
+ *
+ * `r2` drops the page's own origin from a `url()` in a computed value, and the
+ * collectors key an asset the page's origin serves by its path. Under `r1` the
+ * port a collector happened to serve a build on was part of both, so one build
+ * served twice read as two renders in two environments.
+ */
+export const RULESET_VERSION = 'r2';
 
 /**
  * Bump on any change to {@link STYLE_ALLOWLIST}.

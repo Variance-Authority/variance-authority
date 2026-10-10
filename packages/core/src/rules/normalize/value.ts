@@ -51,9 +51,14 @@ export const RELATIVE_UNITS: readonly string[] = [
 /** Decimal places kept for a length. Absorbs float noise, keeps sub-pixel intent. */
 const LENGTH_PRECISION = 4;
 
-export function canonicalizeValue(property: string, value: string): string {
+/**
+ * `origin` is the page's own, `https://shop.example` with no trailing slash. A
+ * `url()` it serves is written as its path, so the port a build was served on
+ * is not part of the value.
+ */
+export function canonicalizeValue(property: string, value: string, origin?: string): string {
   if (isColorProperty(property)) return canonicalizeColor(value);
-  return canonicalizeTokens(value);
+  return canonicalizeTokens(value, origin);
 }
 
 /**
@@ -63,7 +68,7 @@ export function canonicalizeValue(property: string, value: string): string {
  * family name and a resource path are opaque data, and normalizing their case
  * would change what they refer to.
  */
-export function canonicalizeTokens(value: string): string {
+export function canonicalizeTokens(value: string, origin?: string): string {
   const out: string[] = [];
   let index = 0;
   const input = value.trim();
@@ -86,7 +91,7 @@ export function canonicalizeTokens(value: string): string {
 
     if (input.slice(index).toLowerCase().startsWith('url(')) {
       const end = matchingParen(input, index + 3);
-      out.push(`url${input.slice(index + 3, end + 1)}`);
+      out.push(sameOriginPath(`url${input.slice(index + 3, end + 1)}`, origin));
       index = end + 1;
       continue;
     }
@@ -115,6 +120,15 @@ export function canonicalizeTokens(value: string): string {
   }
 
   return out.join('').trim();
+}
+
+/** One `url(…)` token, with the page's own origin dropped from its payload. */
+function sameOriginPath(token: string, origin: string | undefined): string {
+  if (origin === undefined) return token;
+  const match = /^url\(\s*(["']?)(.*?)\1\s*\)$/s.exec(token);
+  const url = match?.[2];
+  if (url === undefined || !url.startsWith(`${origin}/`)) return token;
+  return `url(${match![1]}${url.slice(origin.length)}${match![1]})`;
 }
 
 /** Canonicalize one `<number><unit>` token. */
@@ -164,14 +178,29 @@ function closingQuote(input: string, start: number): number {
   return input.length - 1;
 }
 
-function matchingParen(input: string, openIndex: number): number {
+/**
+ * The index of the `)` that closes the `(` at `openIndex`, or `input.length`
+ * when nothing closes it. A parenthesis inside a quoted string is text, and a
+ * backslash escapes the character after it inside one.
+ */
+export function matchingParen(input: string, openIndex: number): number {
   let depth = 0;
+  let quote: string | undefined;
+
   for (let i = openIndex; i < input.length; i += 1) {
-    if (input[i] === '(') depth += 1;
-    else if (input[i] === ')') {
+    const char = input[i];
+    if (quote !== undefined) {
+      if (char === '\\') i += 1;
+      else if (char === quote) quote = undefined;
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === '(') {
+      depth += 1;
+    } else if (char === ')') {
       depth -= 1;
       if (depth === 0) return i;
     }
   }
-  return input.length - 1;
+
+  return input.length;
 }

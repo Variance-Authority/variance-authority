@@ -22,7 +22,7 @@ export {
   EMPTY_CONTEXT,
 } from './cascade.js';
 export type { InheritContext, ResolvedStyle, DeclarationOrigin } from './cascade.js';
-export { canonicalizeValue, canonicalizeTokens, canonicalizeDimension } from './value.js';
+export { canonicalizeValue, canonicalizeTokens, canonicalizeDimension, matchingParen } from './value.js';
 export { canonicalizeColor, parseColor, formatColor } from './color.js';
 export { expandDeclaration, SHORTHAND_PROPERTIES } from './shorthand.js';
 
@@ -93,6 +93,7 @@ export function normalize(capture: RawCapture, options: NormalizeOptions = {}): 
     collapseWrappers,
     digestText,
     ...(sourceRoot !== undefined ? { sourceRoot } : {}),
+    ...originOf(capture.baseUrl),
     styleProvenance,
     declaredBy: new WeakMap(),
   };
@@ -160,6 +161,8 @@ interface WalkState {
   readonly collapseWrappers: boolean;
   readonly digestText: boolean;
   readonly sourceRoot?: string;
+  /** The capture's origin, from `baseUrl`; absent for an opaque one. */
+  readonly origin?: string;
   readonly styleProvenance: StyleProvenanceEntry[];
   /**
    * Properties each node declared *itself*, as opposed to inheriting.
@@ -216,6 +219,7 @@ function normalizeNode(
       ...(node.inlineStyle ? { inlineStyle: node.inlineStyle } : {}),
       ...(node.computedStyle ? { computedStyle: node.computedStyle } : {}),
       context: inherited,
+      ...(state.origin !== undefined ? { origin: state.origin } : {}),
     });
 
     const style: Record<string, string> = {};
@@ -360,6 +364,18 @@ function normalizeSelector(selector: string): string {
 }
 
 /** The seed minus its custom properties: values that actually render. */
+/**
+ * The origin a page's own `url()` values start with, or nothing for an opaque one.
+ *
+ * Read off the string rather than through `URL`, which `core` does not assume its
+ * host has. `baseURI` arrives serialized by the engine, so the scheme and host are
+ * already lower case and a default port is already dropped.
+ */
+function originOf(baseUrl: string | undefined): { readonly origin?: string } {
+  const origin = baseUrl === undefined ? undefined : /^https?:\/\/[^/?#]+/.exec(baseUrl)?.[0];
+  return origin === undefined ? {} : { origin };
+}
+
 function renderableOnly(seed: Readonly<Record<string, string>>): Record<string, string> {
   const renderable: Record<string, string> = {};
   for (const [property, value] of Object.entries(seed)) {

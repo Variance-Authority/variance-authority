@@ -287,6 +287,7 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
     },
     root: rootNode,
     inheritedSeed: inheritedSeed(root, profile, view, index),
+    baseUrl: root.ownerDocument.baseURI,
     ...(couplings.size > 0 ? { couplings: [...couplings].sort() } : {}),
     ...(portalRoots.length > 0
       ? {

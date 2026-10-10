@@ -230,7 +230,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('an image the page marked decorative', () =>
     // Blanking is the mechanism that answers this one, by writing
     // `blank:<rule>:<w>x<h>` where the byte digest would have gone; an operator
     // who wants the churn gone from the *key* has to name the URL or the size.
-    const url = `${base}/art/hero.png`;
+    const url = '/art/hero.png';
     expect(after.snapshot?.environment.inputs.assets[url]).not.toBe(
       before.snapshot?.environment.inputs.assets[url],
     );
