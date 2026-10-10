@@ -41,12 +41,20 @@
 /** How the docket is arranged. Part of the address, so an arrangement is shareable. */
 export type Order = 'story' | 'name' | 'size' | 'places';
 
+/**
+ * Which kind of work the subjects rail is narrowed to. Part of the address, so a
+ * reviewer can send somebody *the renders with an open concern in build 7*.
+ */
+export type Task = 'unreviewed' | 'open' | 'investigating' | 'resolved';
+
+export const TASKS: readonly Task[] = ['unreviewed', 'open', 'investigating', 'resolved'];
+
 /** Which page, and what it is about. The client's entire navigation state. */
 export type Route =
   | { readonly page: 'builds' }
   | { readonly page: 'build'; readonly build: string; readonly order?: Order }
   | { readonly page: 'change'; readonly build: string; readonly change: string }
-  | { readonly page: 'subject'; readonly build: string; readonly subject: string }
+  | { readonly page: 'subject'; readonly build: string; readonly subject: string; readonly task?: Task }
   | { readonly page: 'run'; readonly build: string }
   | { readonly page: 'changelog' };
 
@@ -95,6 +103,16 @@ export function parseRoute(href: string): Route | undefined {
       carried[part] = decodeURIComponent(found[index + 1] ?? '');
     });
 
+    if (pattern.page === 'subject') {
+      const asked = url.searchParams.get('task');
+      const task = TASKS.find((each) => each === asked);
+      return {
+        page: 'subject',
+        build: carried['build'] ?? '',
+        subject: carried['subject'] ?? '',
+        ...(task === undefined ? {} : { task }),
+      };
+    }
     if (pattern.page !== 'build') return { page: pattern.page, ...carried } as Route;
 
     const asked = url.searchParams.get('order');
@@ -123,7 +141,7 @@ export function hrefOf(route: Route): string {
     case 'change':
       return `/builds/${at(route.build)}/changes/${at(route.change)}`;
     case 'subject':
-      return `/builds/${at(route.build)}/subjects/${at(route.subject)}`;
+      return `/builds/${at(route.build)}/subjects/${at(route.subject)}${route.task === undefined ? '' : `?task=${route.task}`}`;
     case 'run':
       return `/builds/${at(route.build)}/run`;
     case 'changelog':

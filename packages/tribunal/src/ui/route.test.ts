@@ -22,6 +22,8 @@ const AWKWARD: readonly Route[] = [
   // too. Written raw these are extra path segments and the pattern stops
   // matching, which is a blank page rather than an error.
   { page: 'subject', build: 'main/17', subject: 'route/cart@1280' },
+  { page: 'subject', build: '7', subject: 'story:card', task: 'open' },
+  { page: 'subject', build: '7', subject: 'story:card', task: 'unreviewed' },
   { page: 'change', build: '7', change: 'Button' },
   { page: 'change', build: '7', change: 'ui/Button.Primary' },
   { page: 'run', build: '7' },
@@ -43,6 +45,14 @@ describe('a route and its address say the same thing', () => {
     // A link from a later version, or a hand-edited query. Falling back to the
     // docket's order is right; throwing would take the page down over a word.
     expect(parseRoute('/builds/7?order=vibes')).toEqual({ page: 'build', build: '7' });
+  });
+
+  it('ignores a task this surface does not have, and keeps the render', () => {
+    expect(parseRoute('/builds/7/subjects/story%3Acard?task=vibes')).toEqual({
+      page: 'subject',
+      build: '7',
+      subject: 'story:card',
+    });
   });
 
   it('serves the front page from the document a static host would name', () => {

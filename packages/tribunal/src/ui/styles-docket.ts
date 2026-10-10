@@ -30,6 +30,16 @@ export const DOCKET_STYLES = `
 .va-switch .va-mode.va-on { background: var(--va-accent-soft); color: var(--va-accent); font-weight: 650; }
 .va-switch .va-mode.va-off { color: var(--va-ink-3); cursor: not-allowed; }
 
+/* The tasks above the switch: each kind of work with its count, one pressed at
+   a time. A task with nothing in it is drawn and dimmed, not dropped, so the four
+   stay where the reader learned them. */
+.va-tasks { display: grid; flex: none; gap: 0.1rem; grid-template-columns: 1fr 1fr; margin-bottom: 0.5rem; }
+.va-tasks .va-rail-group { grid-column: 1 / -1; padding-top: 0.2rem; }
+.va-task { align-items: center; background: none; border: 1px solid transparent; border-radius: 8px; color: var(--va-ink-2); display: flex; font-size: 0.8rem; gap: 0.4rem; justify-content: space-between; padding: 0.35rem 0.55rem; text-align: left; }
+.va-task:hover:not(:disabled) { background: var(--va-sunken); color: var(--va-ink); }
+.va-task.va-on { background: var(--va-accent-soft); border-color: var(--va-accent); color: var(--va-accent); font-weight: 650; }
+.va-task:disabled { color: var(--va-ink-3); cursor: default; opacity: 0.6; }
+
 .va-rail-head { align-items: center; display: flex; flex: none; flex-wrap: wrap; gap: 0.4rem; padding: 0 0.15rem 0.5rem; }
 .va-rail-tally { color: var(--va-ink-3); font-size: 0.76rem; margin-right: auto; }
 .va-rail-empty { padding: 0.6rem 0.15rem; }

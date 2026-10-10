@@ -105,7 +105,7 @@ describe('ConcernTrail', () => {
 describe('ConcernTallyLine', () => {
   it('counts what stands, and says nothing when nothing was ever flagged', () => {
     expect(renderToStaticMarkup(<ConcernTallyLine tally={{ open: 2, investigating: 1, resolved: 0 }} />)).toContain(
-      '2 flagged',
+      'concerns: <b>2 open</b>',
     );
     expect(renderToStaticMarkup(<ConcernTallyLine tally={{ open: 0, investigating: 0, resolved: 0 }} />)).toBe('');
   });
@@ -272,7 +272,7 @@ describe('useConcernTally', () => {
     await act(async () => root.render(<Tally client={client} build="2" />));
     await act(async () => late({ open: 9, investigating: 0, resolved: 0 }));
 
-    expect(host.textContent).toContain('2 flagged');
+    expect(host.textContent).toContain('2 open');
   });
 });
 

@@ -6,7 +6,7 @@
  * reviewer who closes the form expects that state gone, not kept in the list.
  */
 
-import { useState, type FormEvent, type ReactElement } from 'react';
+import { useEffect, useState, type FormEvent, type ReactElement } from 'react';
 import { CONCERN_STATES, type ConcernRegion, type ConcernState, type RaiseConcern } from '../concern-types.js';
 import type { SubjectView } from '../review-types.js';
 import { number } from './text.js';
@@ -46,6 +46,8 @@ export function ConcernForm({
   build,
   reviewer,
   busy,
+  initial = 'open',
+  asked,
   onSave,
   onCancel,
 }: {
@@ -53,6 +55,10 @@ export function ConcernForm({
   readonly build: string;
   readonly reviewer: string;
   readonly busy: boolean;
+  /** The state the form starts in; *Investigate* opens it already taken. */
+  readonly initial?: ConcernState | undefined;
+  /** Counts the requests for `initial`, so asking for the same state again resets it. */
+  readonly asked?: number | undefined;
   readonly onSave: (input: RaiseConcern) => void;
   readonly onCancel: () => void;
 }): ReactElement {
@@ -61,7 +67,10 @@ export function ConcernForm({
   const [hypothesis, setHypothesis] = useState('');
   const [scope, setScope] = useState('');
   const [chosen, setChosen] = useState<readonly string[]>([]);
-  const [state, setState] = useState<ConcernState>('open');
+  const [state, setState] = useState<ConcernState>(initial);
+  // Asked again while open — *Investigate* after *Looks suspicious* — the state
+  // follows and what was typed stays.
+  useEffect(() => setState(initial), [initial, asked]);
 
   const offered = evidenceFor(subject);
   const ready = title.trim() !== '' && !busy;

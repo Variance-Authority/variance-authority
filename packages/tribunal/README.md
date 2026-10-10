@@ -354,8 +354,26 @@ drifts in nineteen runs out of twenty. Two numbers are drawn as missing rather
 than as zero: a flake rate is **absent** until a run has read every subject
 twice, and a coverage that was never stated is unknown rather than clean.
 
+Every move on a subject sits in one bar under the picture, beside what it acts
+on: the subject, the component it names as the cause, its regions, and where it
+stands in the rail — *2 of 5*, or *not in the queue* for one opened by a link.
+Single keys reach the moves that cost nothing to undo: <kbd>J</kbd> and
+<kbd>K</kbd> walk the rail in the order it is drawn, <kbd>F</kbd> opens a
+concern and <kbd>I</kbd> opens one already under investigation, as
+*Investigate* does. *Approve* and *Reject* have no key, because a key that
+promotes a baseline is a key pressed by accident. No key fires while a modifier,
+Shift included, is held, while the focus is in a text field or anywhere in a
+form, or as a held key repeats; a slider such as the wipe keeps them. While the
+concern form is open, J and K do nothing wherever the focus went, so no key
+leaves a draft behind; *Next* and *Previous* still move. F and I on an open
+form change its state and keep what was typed.
+On a layout that does not type Latin letters, the keys are the ones in the
+same place. *Keys off* at the end of the bar turns
+every single-letter key off, for speech input and screen readers that take
+letters as their own commands; the browser remembers the choice.
+
 A render you would not approve and cannot yet call wrong has a third answer.
-*Looks suspicious*, under the decision on a subject page, raises a **concern**: a
+*Looks suspicious*, in the bar or under the subject's concerns, raises a **concern**: a
 title, the region you mean or the whole render, the components, files or the
 baseline you are pointing at, a note and your hypothesis. It moves between
 open, investigating and resolved, each step with a name on it. It stays on the
@@ -367,6 +385,22 @@ the component it carries still says what was there, as `Button · 24×18 at
 a concern, and resolving one approves nothing. The build's header counts the
 concerns its subjects carry, and says so when it could not read them rather than
 showing none.
+
+The top of the rail names the work a build still asks for: **Unreviewed**,
+**Open**, **Investigating** and **Resolved**, each with the number of renders
+it covers. *Unreviewed* counts what the header's *awaiting review* counts; the
+other three are the states a concern moves through. Two concerns on one render
+count once, since a render is what you open. Choosing a task narrows the rail to
+its renders, and J, K and the bar walk that list. The render on screen keeps its
+place in that list until you move on, even once approving it or resolving its
+concern takes it out of the task, so J still goes to the row below. The header's
+own line counts concerns, not renders, as
+`concerns: 2 open · 1 investigating · 0 resolved`. The address carries the
+task, as `?task=open`, so a link opens the same list. A concern task includes renders the build left unchanged: a concern
+raised two builds ago still stands on a render that has not moved since, and
+nothing else on the page would lead you to it. A task with nothing in it cannot
+be chosen. When the concerns could not be read, the three concern tasks show `?`
+and say why instead of a count of zero.
 
 The run page — *what this run read*, one link from the docket — shows **where
 the subjects parted**, when the build was instrumented with probes and so has
