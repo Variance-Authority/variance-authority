@@ -141,30 +141,30 @@ function Pair({
   readonly variation: VariationRecord;
   readonly pictures: Pictures;
 }): ReactElement {
-  const sides = variation.parent === undefined ? [variation.subject] : [variation.parent, variation.subject];
-
   return (
     <ul className="va-variation-pair">
-      {sides.map((id) => (
-        <Side key={id} id={id} pictures={pictures} />
-      ))}
+      {variation.parent === undefined ? null : <Side key="parent" id={variation.parent} pictures={pictures} />}
+      <Side key="arm" id={variation.subject} pictures={pictures} />
     </ul>
   );
 }
 
 function Side({ id, pictures }: { readonly id: string; readonly pictures: Pictures }): ReactElement {
   const { client, build, subjects, go } = pictures;
-  const kind = keptOf(subjects.find((each) => each.subject === id));
+  const read = subjects.find((each) => each.subject === id);
+  const kind = keptOf(read);
 
   return (
     <li>
       <Go to={{ page: 'subject', build, subject: id }} go={go} className="va-variation-side">
         {kind === undefined ? (
-          // An `unchanged` subject keeps nothing. An empty frame would read as a
-          // render that came out blank, which is a different finding.
-          <span className="va-variation-none">no image kept</span>
+          // An `unchanged` subject keeps nothing, and one the run has no row for
+          // was never read. An empty frame would read as a render that came out
+          // blank, which is a third finding.
+          <span className="va-variation-none">{read === undefined ? 'not in this run' : 'no image kept'}</span>
         ) : (
-          <img src={client.imageUrl(build, id, kind)} alt={id} loading="lazy" />
+          // The name beneath labels the link; an alt repeating it is read twice.
+          <img src={client.imageUrl(build, id, kind)} alt="" loading="lazy" />
         )}
         <span className="va-variation-name">{id}</span>
         {kind === 'before' ? <span className="va-how">baseline</span> : null}

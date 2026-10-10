@@ -61,7 +61,7 @@ describe('a variation is shown as its two pictures', () => {
     ]);
 
     expect(markup).toContain('/subjects/story%3Aproduct-card--control/before.png');
-    expect(markup).toContain('baseline');
+    expect(markup).toContain('<span class="va-how">baseline</span>');
   });
 
   it('says the run kept no picture rather than drawing an empty frame', () => {
@@ -74,6 +74,26 @@ describe('a variation is shown as its two pictures', () => {
 
     expect(markup).not.toContain('<img');
     expect(markup).toContain('no image kept');
+  });
+
+  it('says a subject the run never read is not in it, rather than that it kept nothing', () => {
+    // A subject the run has no row for was not read; one with a row and no
+    // image was read and matched. The two are different findings.
+    const markup = draw(pair, [
+      subject('story:product-card--sale', { before: false, after: true, diff: false }),
+    ]);
+
+    expect(markup).toContain('not in this run');
+    expect(markup.match(/no image kept/g) ?? []).toHaveLength(0);
+  });
+
+  it('names each picture once, by the link that holds it', () => {
+    const markup = draw(pair, [
+      subject('story:product-card--control', { before: false, after: true, diff: false }),
+      subject('story:product-card--sale', { before: false, after: true, diff: false }),
+    ]);
+
+    expect(markup).not.toContain('alt="story:');
   });
 
   it('draws one picture for a variation whose parent is not in this run', () => {
