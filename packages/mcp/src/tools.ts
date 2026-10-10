@@ -130,6 +130,8 @@ export type { StateDifference };
 // first thing any tool does with a model's argument is refuse it or narrow it.
 export { NO_ARGS, stringArg };
 export { notObservedSentence } from './tools/subject.js';
+// A long part of an answer, capped and counted the same way in every server.
+export { cappedRows } from './tools/capped.js';
 export { diffState };
 
 /** The source-to-named-test tool set for an MCP server over an execution index. */

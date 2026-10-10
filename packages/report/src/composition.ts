@@ -248,6 +248,54 @@ export interface MovementRecord {
 export interface SubjectStructureRecord {
   readonly subject: string;
   readonly rows: readonly BoundaryRow[];
+  /**
+   * The narrower subjects inside it and the larger ones holding it.
+   *
+   * Absent from a report written before it was carried.
+   */
+  readonly pieces?: SubjectPiecesRecord;
+}
+
+/**
+ * One subject read as the narrower subjects inside it, over renderings.
+ *
+ * Its footprint is the distinct renderings it holds — a component and the
+ * digest of what it rendered — outside structure. A piece is a smaller subject
+ * with at least nine tenths of its footprint inside this one, a whole a larger
+ * one holding at least nine tenths of this one's. What no piece renders is
+ * split by component: its own, where no piece mounts the component, and in
+ * context, where a piece mounts it and renders it otherwise.
+ */
+export interface SubjectPiecesRecord {
+  readonly footprint: number;
+  /** Structural components it mounts. */
+  readonly structure: number;
+  /** Subjects with exactly its footprint. */
+  readonly alike: readonly string[];
+  /** Smaller subjects inside it, most shared first. */
+  readonly pieces: readonly SubjectShareRecord[];
+  /** Larger subjects holding it, smallest first. */
+  readonly wholes: readonly SubjectShareRecord[];
+  /** Renderings of its footprint some piece holds. */
+  readonly explained: number;
+  readonly own: readonly ResidueRecord[];
+  readonly inContext: readonly ResidueRecord[];
+}
+
+/** Another subject one subject shares renderings with: a piece inside it, or a whole holding it. */
+export interface SubjectShareRecord {
+  readonly subject: string;
+  readonly footprint: number;
+  /** Renderings of the subject read that it holds too. */
+  readonly shared: number;
+}
+
+/** Renderings of one component that no piece holds. */
+export interface ResidueRecord {
+  readonly component: string;
+  readonly renderings: number;
+  /** The pieces that mount the component and render it otherwise. Absent on a component no piece mounts. */
+  readonly pieces?: readonly string[];
 }
 
 /** Boundaries of one component at one place in one subject's tree. */

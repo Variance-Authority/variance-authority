@@ -19,7 +19,7 @@ import { resolve } from 'node:path';
 import { checkoutListing, checkoutPath, type CheckoutListing } from './checkout-path.js';
 import { native, nativeRefusal } from './native.js';
 import { BUILTINS } from './native-index-graph.js';
-import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared } from './native-journeys.js';
+import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeTestComposition } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 import { nearestTestCoverage } from './test-selection/record-location.js';
@@ -40,6 +40,7 @@ export type {
   NativeJourneyMapFunction as JourneyMapFunction,
   NativeJourneyMapPlace as JourneyMapPlace,
   NativeJourneyPath as JourneyPath,
+  NativeJourneyPiece as JourneyPiece,
   NativeJourneySide as JourneySide,
   NativePathsThrough as PathsThrough,
   NativeJourneysAmong as JourneysAmong,
@@ -54,9 +55,10 @@ export type {
   NativeJourneysPlaced as JourneysPlaced,
   NativeJourneysPrepared as JourneysPrepared,
   NativeJourneysRegion as JourneysRegion,
+  NativeTestComposition as TestComposition,
 } from './native-journeys.js';
 
-function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor' | 'journeysAmong' | 'pathsThrough' | 'forksBetween' | 'journeyMap'>(name: Name) {
+function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor' | 'journeysAmong' | 'pathsThrough' | 'forksBetween' | 'journeyMap' | 'testComposition'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -290,6 +292,37 @@ function mapOf(
   if ('outside' in asked) return { map: refused(file, asked.outside) };
   const known = knownOf(root, asked.path, recording, listing ?? checkoutListing(root, asked.path));
   return { map: entry('journeyMap')(recording, asked.path, terms === undefined ? null : [...terms], known), known };
+}
+
+/** One suite's composition of a test, or why the suite cannot give one. */
+export interface SuiteTestComposition {
+  readonly suite?: string;
+  readonly composition: NativeTestComposition;
+}
+
+/**
+ * What the test declared in `file` is made of, asked of every declared suite
+ * that has a recording: the smaller tests whose journeys sit inside its own,
+ * the larger ones that hold it, and what no piece entered — its own layer, and
+ * the paths of a piece's code only it takes. Structure, what more than half the
+ * suite entered, is counted and taken away first. `name` chooses among several
+ * tests of the file: the one named exactly that, or the one whose name holds
+ * it, ignoring case. `file` may be spelled through `..` or from the file
+ * system's root.
+ */
+export function testCompositions(root: string, file: string, name?: string): readonly SuiteTestComposition[] {
+  const asked = checkoutPath(root, file);
+  return recordings(root).flatMap(({ suite, recording }) => {
+    if (recording === undefined) return [];
+    const named = suite === undefined ? {} : { suite };
+    if ('outside' in asked) return [{ ...named, composition: uncomposed(asked.outside) }];
+    return [{ ...named, composition: entry('testComposition')(recording, asked.path, name ?? null) }];
+  });
+}
+
+/** A composition with nothing in it, for a test the recording cannot hold. */
+function uncomposed(notRecorded: string): NativeTestComposition {
+  return { notRecorded, suite: 0, structure: 0, alike: 0, pieces: [], wholes: [], explained: 0, own: [], reached: [] };
 }
 
 /** A map with nothing on it, for a path the recording cannot hold. */

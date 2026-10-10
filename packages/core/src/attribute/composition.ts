@@ -327,13 +327,11 @@ function echoesOf(components: readonly ComponentEntry[]): readonly Echo[] {
  * component two thirds of a suite mounts cannot be what distinguishes a subject
  * from its neighbours, whatever it is called.
  */
-function structuralComponents(subjects: readonly SubjectComposition[]): ReadonlySet<string> {
+export function structuralComponents(subjects: readonly SubjectComposition[]): ReadonlySet<string> {
   const mounts = new Map<string, number>();
   for (const subject of subjects) {
-    for (const instance of subject.instances) {
-      if (!attributed(instance)) continue;
-      mounts.set(instance.component, (mounts.get(instance.component) ?? 0) + 1);
-    }
+    const mounted = new Set(subject.instances.filter(attributed).map((instance) => instance.component));
+    for (const component of mounted) mounts.set(component, (mounts.get(component) ?? 0) + 1);
   }
 
   const structural = new Set<string>();
