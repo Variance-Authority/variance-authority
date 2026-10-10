@@ -13,7 +13,7 @@ rail (*2 of 5*, or *not in the queue*).
 
 <kbd>J</kbd> and <kbd>K</kbd> walk the rail in the order it is drawn.
 <kbd>F</kbd> opens a concern and <kbd>I</kbd> opens one already under
-investigation, as the bar's *Flag as investigating* does. On an open form either
+investigation, as the bar's *Investigate* does. On an open form either
 key sets its state and keeps what was typed. *Approve* and *Reject* stay buttons
 with no key. No key fires while a modifier is held, while the focus is in a text
 field or anywhere in a form, or as a held key repeats, and J and K wait while the

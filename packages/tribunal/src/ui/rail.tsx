@@ -7,9 +7,11 @@
  * component the semantic tier blamed and the size of the difference, which is
  * enough to decide without a round trip.
  *
- * What it does not carry is anything green. That is [`settled.tsx`](./settled.js)'s,
- * and the split is the point: a rail that listed a subject an ignore had already
- * decided would put it in a queue, under a header counting what awaits review.
+ * What it does not carry, unasked, is anything green. That is
+ * [`settled.tsx`](./settled.js)'s, and the split is the point: a rail that listed
+ * a subject an ignore had already decided would put it in a queue, under a header
+ * counting what awaits review. A concern task is the asking: it lists the renders
+ * a concern stands on, an unchanged one included ([`tasks.tsx`](./tasks.tsx)).
  */
 
 import type { ReactElement } from 'react';

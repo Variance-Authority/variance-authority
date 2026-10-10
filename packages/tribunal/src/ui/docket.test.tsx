@@ -146,16 +146,17 @@ describe('the opening line counts only what there is something to count', () => 
 describe('the header counts the concerns the build showed', () => {
   it('counts what stands, and only when something was ever flagged', async () => {
     const asked: unknown[] = [];
-    const text = await open(build('6', [subject()]), build('5', [subject()]), async (query) => {
+    await open(build('6', [subject()]), build('5', [subject()]), async (query) => {
       asked.push(query);
       return { concerns: [], tally: { open: 2, investigating: 1, resolved: 0 } };
     });
 
     expect(asked).toEqual([{ seenIn: '6' }]);
+    // Concerns, and it says so: the Open task beside it counts renders, and a
+    // bare "2 open" over a task saying "Open 1" would read as a mistake.
     expect(host.querySelector('.va-topbar .va-concern-tally')?.textContent).toBe(
-      '2 flagged · 1 investigating · 0 resolved',
+      'concerns: 2 open · 1 investigating · 0 resolved',
     );
-    expect(text).toContain('2 flagged');
   });
 
   it('says it could not read them, never that there are none', async () => {

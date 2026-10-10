@@ -121,7 +121,7 @@ export function ActionBar({
           onClick={() => onSuspect('investigating')}
           title="Raise a concern that you are already looking into"
         >
-          Flag as investigating {i.hint}
+          Investigate {i.hint}
         </button>
         <span className="va-actionbar-gap" />
         <button

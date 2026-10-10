@@ -323,7 +323,7 @@ describe('every move is a button and a key', () => {
     press('f', document.body);
     expect(host.querySelector<HTMLInputElement>('input[name="state"][value="open"]')?.checked).toBe(true);
 
-    await act(async () => button('Flag as investigating').click());
+    await act(async () => button('Investigate').click());
     expect(host.querySelector<HTMLInputElement>('input[name="state"][value="investigating"]')?.checked).toBe(true);
   });
 

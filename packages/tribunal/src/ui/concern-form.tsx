@@ -55,7 +55,7 @@ export function ConcernForm({
   readonly build: string;
   readonly reviewer: string;
   readonly busy: boolean;
-  /** The state the form starts in; *Flag as investigating* opens it already taken. */
+  /** The state the form starts in; *Investigate* opens it already taken. */
   readonly initial?: ConcernState | undefined;
   /** Counts the requests for `initial`, so asking for the same state again resets it. */
   readonly asked?: number | undefined;
@@ -68,7 +68,7 @@ export function ConcernForm({
   const [scope, setScope] = useState('');
   const [chosen, setChosen] = useState<readonly string[]>([]);
   const [state, setState] = useState<ConcernState>(initial);
-  // Asked again while open — *Flag as investigating* after *Looks suspicious* — the state
+  // Asked again while open — *Investigate* after *Looks suspicious* — the state
   // follows and what was typed stays.
   useEffect(() => setState(initial), [initial, asked]);
 

@@ -359,8 +359,8 @@ on: the subject, the component it names as the cause, its regions, and where it
 stands in the rail — *2 of 5*, or *not in the queue* for one opened by a link.
 Single keys reach the moves that cost nothing to undo: <kbd>J</kbd> and
 <kbd>K</kbd> walk the rail in the order it is drawn, <kbd>F</kbd> opens a
-concern and <kbd>I</kbd> opens one already under investigation, as *Flag as
-investigating* does. *Approve* and *Reject* have no key, because a key that
+concern and <kbd>I</kbd> opens one already under investigation, as
+*Investigate* does. *Approve* and *Reject* have no key, because a key that
 promotes a baseline is a key pressed by accident. No key fires while a modifier,
 Shift included, is held, while the focus is in a text field or anywhere in a
 form, or as a held key repeats; a slider such as the wipe keeps them. While the
@@ -385,6 +385,22 @@ the component it carries still says what was there, as `Button · 24×18 at
 a concern, and resolving one approves nothing. The build's header counts the
 concerns its subjects carry, and says so when it could not read them rather than
 showing none.
+
+The top of the rail names the work a build still asks for: **Unreviewed**,
+**Open**, **Investigating** and **Resolved**, each with the number of renders
+it covers. *Unreviewed* counts what the header's *awaiting review* counts; the
+other three are the states a concern moves through. Two concerns on one render
+count once, since a render is what you open. Choosing a task narrows the rail to
+its renders, and J, K and the bar walk that list. The render on screen keeps its
+place in that list until you move on, even once approving it or resolving its
+concern takes it out of the task, so J still goes to the row below. The header's
+own line counts concerns, not renders, as
+`concerns: 2 open · 1 investigating · 0 resolved`. The address carries the
+task, as `?task=open`, so a link opens the same list. A concern task includes renders the build left unchanged: a concern
+raised two builds ago still stands on a render that has not moved since, and
+nothing else on the page would lead you to it. A task with nothing in it cannot
+be chosen. When the concerns could not be read, the three concern tasks show `?`
+and say why instead of a count of zero.
 
 The run page — *what this run read*, one link from the docket — shows **where
 the subjects parted**, when the build was instrumented with probes and so has
