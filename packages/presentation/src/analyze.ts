@@ -149,7 +149,9 @@ function assertLayout(capture: RawCapture): void {
   [capture.root, ...(capture.portals ?? [])].forEach((root, rootIndex) => walk(root, `r${rootIndex}:0`));
 
   function walk(node: RawNode, path: string): void {
-    if (node.tag !== '#text' && node.rect === undefined) {
+    // A generated box has no element to ask for a rect: the DOM measures
+    // elements, and `::before` is not one. Its geometry is in its host's.
+    if (node.tag !== '#text' && !node.tag.startsWith('::') && node.rect === undefined) {
       throw new Error(
         `the ${capture.profile.id} capture claims layout is observable but ${path} has no rect; ` +
           'an absent measurement cannot be analyzed as an empty box',

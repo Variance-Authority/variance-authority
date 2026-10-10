@@ -9,7 +9,9 @@ use std::cell::RefCell;
 use oxc_allocator::Allocator;
 use oxc_ast::ast::*;
 use oxc_parser::Parser;
-use oxc_span::{GetSpan, SourceType};
+use oxc_span::GetSpan;
+
+use crate::dialect::dialect;
 use sha2::{Digest, Sha256};
 
 use crate::digest;
@@ -50,7 +52,7 @@ pub fn cut(source: &str, file: &str, entries: bool) -> Option<Cut> {
 
 fn cut_in(allocator: &Allocator, source: &str, file: &str, entries: bool) -> Option<Cut> {
     // The JavaScript parser falls back the same way for an extension it does not know.
-    let source_type = SourceType::from_path(file).unwrap_or_default();
+    let source_type = dialect(file).unwrap_or_default();
     let parsed = Parser::new(allocator, source, source_type).parse();
     if parsed.panicked || !parsed.diagnostics.is_empty() {
         return None;

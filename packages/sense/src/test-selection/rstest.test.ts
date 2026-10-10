@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { decodeTestCoverage } from './format.js';
 import { statusesComplete } from './finished-files.js';
 import { runOf } from './selection-run.js';
-import { SELECTION_LOADER, withTestSelection } from './rstest.js';
+import { SELECTION_LOADER, withTestSelection, type RstestConfig, type RstestTestSelectionOptions } from './rstest.js';
 import instrumentModule from './rstest-loader.js';
 
 const temporary: string[] = [];
@@ -191,14 +191,20 @@ describe('what a finished Rstest file is worth', () => {
 
 describe('the Rstest loader', () => {
   /** What the loader hands Rspack for `code` at `file`, and the run it recorded into. */
-  async function loaded(file: string, code: string, files: Readonly<Record<string, string>> = {}) {
+  async function loaded(
+    file: string,
+    code: string,
+    files: Readonly<Record<string, string>> = {},
+    config: RstestConfig = {},
+    options: RstestTestSelectionOptions = {},
+  ) {
     const directory = await root();
     const coverageFile = resolve(directory, 'coverage.bin');
     for (const [path, text] of Object.entries(files)) {
       await mkdir(resolve(directory, path, '..'), { recursive: true });
       await writeFile(resolve(directory, path), text);
     }
-    withTestSelection({ root: directory }, { coverageFile });
+    withTestSelection({ root: directory, ...config }, { coverageFile, ...options });
     let handed: string | undefined;
     instrumentModule.call(
       { resourcePath: resolve(directory, file), getOptions: () => ({ coverageFile }), callback: (_error, text) => { handed = text; } },
@@ -225,5 +231,33 @@ describe('the Rstest loader', () => {
 
     expect(handed).toBe(broken);
     expect(modules).toEqual([expect.objectContaining({ file: 'src/pick.ts', instrumented: false, blocks: [] })]);
+  });
+
+  const TEST = "it('adds', () => {\n  expect(1 + 1).toBe(2);\n});\n";
+
+  it('cuts a file the project counts as a test, and probes nothing `include` refuses', async () => {
+    const { handed, modules } = await loaded('src/add.test.ts', TEST);
+
+    expect(handed).toContain('  __vaC(2);expect(1 + 1)');
+    expect(modules).toEqual([]);
+  });
+
+  it('probes a test file `include` takes, and then cuts it', async () => {
+    const { handed, modules } = await loaded('spec/add.check.ts', TEST, {}, { include: ['spec/**/*.check.ts'] });
+
+    expect(handed).toContain('__va(1);');
+    expect(handed).toContain('  __vaC(2);expect(1 + 1)');
+    expect(modules).toEqual([expect.objectContaining({ file: 'spec/add.check.ts', instrumented: true })]);
+  });
+
+  it('counts what `include` names as a test, and nothing else', async () => {
+    const config = { include: ['spec/**/*.check.ts'] };
+
+    expect((await loaded('spec/add.check.ts', TEST, {}, config)).handed).toContain('__vaC(2);');
+    expect((await loaded('src/add.test.ts', TEST, {}, config)).handed).not.toContain('__vaC(');
+  });
+
+  it('leaves a test file as it is when `cadence` is off', async () => {
+    expect((await loaded('src/add.test.ts', TEST, {}, {}, { cadence: false })).handed).toBe(TEST);
   });
 });

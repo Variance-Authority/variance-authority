@@ -1,6 +1,7 @@
 import type { SetId } from './crossing-sets.js';
 import { NO_OWNER } from './format-layout.js';
 import { openSetExecutionIndex, type OpenedSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
+import { LaidLines } from './case-layer-lines.js';
 import { HeldIndex, writeLaid, type CarriedModule, type LaidModule, type LaidTest } from './held-case-index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { heldAround } from './region-around.js';
@@ -132,13 +133,18 @@ export function layerCaseIndex(
   // is not should be laid only over what it can answer for.
   if (held === undefined) return { merged: Buffer.from(fresh), cases: () => last, last, announced };
 
-  const { tests, fromHeld, fromRun, merged } = layeredCases(held, run, files);
+  const { tests, fromHeld, fromRun, merged, heldAt, runAt } = layeredCases(held, run, files);
   const runModules = new Map(run.modules.map((module) => [module.file, module]));
+  const runModuleAt = new Map(run.modules.map((module, at) => [module, at]));
+  const lines = LaidLines.open(held.columns.testLines, run.lines, heldAt, runAt, tests.length);
   const modules: LaidModule[] = [];
   for (const { row, recorded } of moduleUnion(held, runModules)) {
     if (recorded === undefined) {
       const kept = carriedRow(held, row!, fromHeld, false);
-      if (kept !== undefined) modules.push(kept);
+      if (kept !== undefined) {
+        lines?.carried(modules.length, row!);
+        modules.push(kept);
+      }
       continue;
     }
     const before = row === undefined ? undefined : held.module(row);
@@ -152,7 +158,10 @@ export function layerCaseIndex(
     for (let block = 0; block < recorded.blocks.length; block += 1) {
       const own = fromRun(recorded.called[block]!);
       const from = lands?.(block) ?? -1;
-      called[block] = from < 0 ? own : merged.union(own, fromHeld(before!.called[from]!));
+      const carriedIn = from < 0 ? undefined : fromHeld(before!.called[from]!);
+      called[block] = carriedIn === undefined ? own : merged.union(own, carriedIn);
+      lines?.recorded(modules.length, block, runModuleAt.get(recorded)!, merged.members(own),
+        carriedIn === undefined ? undefined : { row: row!, block: from, members: merged.members(carriedIn) });
       loaded[block] = recorded.loaded[block]! | (from < 0 ? 0 : before!.loaded[from]!);
     }
     modules.push({ file, blocks: recorded.blocks, called, loaded, ...(recorded.owner === undefined ? {} : { owner: recorded.owner }) });
@@ -181,7 +190,7 @@ export function layerCaseIndex(
     return lined ?? module;
   });
   return {
-    merged: writeLaid(held, tests.map((test) => test.laid), modules, merged.pool()),
+    merged: writeLaid(held, tests.map((test) => test.laid), modules, merged.pool(), lines?.finish()),
     cases: () => tests.map((test) => (typeof test.laid === 'number' ? held.string(held.columns.testId[test.laid]!) : test.laid.id)),
     last,
     announced,
@@ -208,6 +217,9 @@ function layeredCases(held: HeldIndex, run: OpenedSetExecutionIndex, files: Case
   readonly merged: Translation;
   readonly fromHeld: (set: SetId) => SetId;
   readonly fromRun: (set: SetId) => SetId;
+  /** Each held row's output case, -1 for a dropped one, and each run case's. */
+  readonly heldAt: Int32Array;
+  readonly runAt: readonly number[];
 } {
   const { testId, testFile, testName } = held.columns;
   const goneFiles = new Map<number, boolean>();
@@ -242,9 +254,11 @@ function layeredCases(held: HeldIndex, run: OpenedSetExecutionIndex, files: Case
   }
 
   const merged = new Translation(tests.length);
-  const fromHeld = merged.from(held.columns.sets, placed(testId, heldAt, gone));
-  const fromRun = merged.from(run.sets, run.tests.map((test) => runAt.get(test.id)!));
-  return { tests, merged, fromHeld, fromRun };
+  const heldPlaces = placed(testId, heldAt, gone);
+  const runPlaces = run.tests.map((test) => runAt.get(test.id)!);
+  const fromHeld = merged.from(held.columns.sets, heldPlaces);
+  const fromRun = merged.from(run.sets, runPlaces);
+  return { tests, merged, fromHeld, fromRun, heldAt: heldPlaces, runAt: runPlaces };
 }
 
 /**

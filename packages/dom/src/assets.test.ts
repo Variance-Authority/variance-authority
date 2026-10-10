@@ -19,9 +19,9 @@ import { assetsFor, referencedAssets } from './assets.js';
 
 let dom: JSDOM;
 
-function subtree(html: string): Element {
+function subtree(html: string, url = 'https://shop.example/story/index.html'): Element {
   dom = new JSDOM(`<!doctype html><html><body><main id="subject">${html}</main></body></html>`, {
-    url: 'https://shop.example/story/index.html',
+    url,
   });
   const root = dom.window.document.querySelector('#subject');
   if (root === null) throw new Error('no subject root');
@@ -135,7 +135,26 @@ describe('narrowing an observation to a subject', () => {
         'https://shop.example/logo.png': 'v1:aaa',
         'https://cdn.example/other.png': 'v1:bbb',
       }),
-    ).toEqual({ 'https://shop.example/logo.png': 'v1:aaa' });
+    ).toEqual({ '/logo.png': 'v1:aaa' });
+  });
+
+  it('keys an asset from the page origin by its path, so the served port is no part of it', () => {
+    // A collector serves a build on whatever port the machine had free. Keyed by
+    // the absolute URL, one build served twice is two environments.
+    const keyed = (origin: string) => {
+      const root = subtree('<img src="/logo.png">', `${origin}/index.html`);
+      return assetsFor(root, { [`${origin}/logo.png`]: 'v1:aaa' });
+    };
+
+    expect(keyed('http://127.0.0.1:4001')).toEqual(keyed('http://127.0.0.1:4002'));
+  });
+
+  it('keeps the absolute URL of an asset another origin serves', () => {
+    const root = subtree('<img src="https://cdn.example/other.png">');
+
+    expect(assetsFor(root, { 'https://cdn.example/other.png': 'v1:bbb' })).toEqual({
+      'https://cdn.example/other.png': 'v1:bbb',
+    });
   });
 
   it('invents no entry for a URL nobody observed', () => {
@@ -145,7 +164,7 @@ describe('narrowing an observation to a subject', () => {
     const root = subtree('<img src="/logo.png"><img src="/uncached.png">');
 
     expect(assetsFor(root, { 'https://shop.example/logo.png': 'v1:aaa' })).toEqual({
-      'https://shop.example/logo.png': 'v1:aaa',
+      '/logo.png': 'v1:aaa',
     });
   });
 });

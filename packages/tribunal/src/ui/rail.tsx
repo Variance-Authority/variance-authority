@@ -7,15 +7,35 @@
  * component the semantic tier blamed and the size of the difference, which is
  * enough to decide without a round trip.
  *
- * What it does not carry is anything green. That is [`settled.tsx`](./settled.js)'s,
- * and the split is the point: a rail that listed a subject an ignore had already
- * decided would put it in a queue, under a header counting what awaits review.
+ * What it does not carry, unasked, is anything green. That is
+ * [`settled.tsx`](./settled.js)'s, and the split is the point: a rail that listed
+ * a subject an ignore had already decided would put it in a queue, under a header
+ * counting what awaits review. A concern task is the asking: it lists the renders
+ * a concern stands on, an unchanged one included ([`tasks.tsx`](./tasks.tsx)).
  */
 
 import type { ReactElement } from 'react';
 import type { SubjectView } from '../review-types.js';
 import { causeOf } from './lead.js';
 import { briefly, count } from './text.js';
+
+/**
+ * The rail read top to bottom: verdicts in the order they first appear, largest
+ * difference first inside each.
+ *
+ * One order for the list and for the bar's *next*, so the key a reviewer presses
+ * lands on the row below the one they are on and never somewhere the rail is not.
+ */
+export function queueOf<Each extends Pick<SubjectView, 'verdict' | 'changedPixels'>>(
+  subjects: readonly Each[],
+): readonly Each[] {
+  const groups = [...new Set(subjects.map((subject) => subject.verdict))];
+  return groups.flatMap((verdict) =>
+    subjects
+      .filter((each) => each.verdict === verdict)
+      .sort((left, right) => right.changedPixels - left.changedPixels),
+  );
+}
 
 /**
  * Every subject worth a decision, grouped by verdict and readable at a glance.
@@ -38,7 +58,8 @@ export function SubjectRail({
   readonly selected: string | null;
   readonly onSelect: (subject: string | null) => void;
 }): ReactElement {
-  const groups = [...new Set(subjects.map((subject) => subject.verdict))];
+  const queue = queueOf(subjects);
+  const groups = [...new Set(queue.map((subject) => subject.verdict))];
 
   return (
     <div className="va-rail-list va-scroll">
@@ -56,9 +77,7 @@ export function SubjectRail({
       </button>
 
       {groups.map((verdict) => {
-        const rows = subjects
-          .filter((each) => each.verdict === verdict)
-          .sort((left, right) => right.changedPixels - left.changedPixels);
+        const rows = queue.filter((each) => each.verdict === verdict);
 
         return (
           <section key={verdict}>

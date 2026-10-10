@@ -94,6 +94,14 @@ export interface JestTestSelectionOptions {
    */
   readonly continuations?: boolean;
   /**
+   * Whether each statement of a test or a hook is cut, so the record says which
+   * line of the test first reached each region its case entered. On by default.
+   * The cut is one call per statement the test runs, and it reaches the record
+   * only as a line per case; turn it off to record a suite exactly as it ran
+   * before cuts existed.
+   */
+  readonly cadence?: boolean;
+  /**
    * The selection this run is handed, read once when Jest first filters what
    * it found. A `filter` drops what it may skip after the project's own, and
    * stderr says `selected N of M`. Absent, `VARIANCE_AUTHORITY_SINCE` asks for
@@ -160,6 +168,8 @@ export interface SelectionTransformerConfig {
   readonly exclude?: readonly string[];
   /** The probe recipe; `presence` when absent. */
   readonly mode?: InstrumentMode;
+  /** Whether test files are cut, statement by statement; they are unless this is `false`. */
+  readonly cadence?: boolean;
 }
 
 /** What the reporter is handed. */
@@ -284,8 +294,9 @@ export function withTestSelection(
   const inline = inlineProjects(config);
   const mode = options.mode;
   const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
+  const cadence = options.cadence !== false;
   const projects = inline?.map((project) =>
-    instrumented(project, root, projectRoot(project, rootDir), mode, declared));
+    instrumented(project, root, projectRoot(project, rootDir), mode, declared, cadence));
   const preconditions = [
     ...environmentPaths(config, rootDir),
     ...setupPaths(config, rootDir),
@@ -307,7 +318,7 @@ export function withTestSelection(
   const times = timesFrom({ root, from: rootDir, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) });
 
   return {
-    ...(projects === undefined ? instrumented(config, root, rootDir, mode, declared) : config),
+    ...(projects === undefined ? instrumented(config, root, rootDir, mode, declared, cadence) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     ...(selection === undefined ? {} : selectingFilter(config, {
@@ -338,7 +349,7 @@ export function withJourneyCoverage(
     throw new Error(`trace ${JSON.stringify(options.trace)} is not a path: name the module that exports your tracing, as ./… or <rootDir>/…`);
   }
   const journeyProject = (project: JestConfig, at: string): JestConfig =>
-    traced(instrumented(project, root, at, options.mode, declared), at, trace);
+    traced(instrumented(project, root, at, options.mode, declared, false), at, trace);
   const projects = inline?.map((project) => journeyProject(project, projectRoot(project, rootDir)));
   const reporter: JourneyReporterConfig = {
     root,
@@ -408,6 +419,7 @@ function instrumented(
   rootDir: string,
   mode: InstrumentMode | undefined,
   declared: readonly string[],
+  cadence: boolean,
 ): JestConfig {
   const configured = config.transform === undefined
     ? { [DEFAULT_PATTERN]: 'babel-jest' }
@@ -429,6 +441,7 @@ function instrumented(
           ...(transformer === undefined ? {} : { transformer }),
           ...(exclude.length === 0 ? {} : { exclude }),
           ...(mode === undefined ? {} : { mode }),
+          ...(cadence ? {} : { cadence: false }),
         },
       ],
     ]),

@@ -17,7 +17,8 @@ In: an element, a viewport, an engine identity, and three optional framework
 readers — the owner chain, the wiring, and the held state — injected rather than
 imported, so extraction carries no framework dependency.
 
-Out: a raw capture — the tree, its accessible meanings, the rules that apply to
+Out: a raw capture — the tree, including the `::before` and `::after` boxes CSS
+generates inside an element, its accessible meanings, the rules that apply to
 each node, its geometry where a layout engine existed, and the **provenance** of
 every node — plus the resolved marks for every **ignore** selector, the URLs the
 subtree actually references, and the **profile** that says what could have been
@@ -62,6 +63,13 @@ correct, every one of them zero. A selector that matched nothing in this subject
 is reported here as evidence, because only a whole run can tell an ordinary
 miss from a rule that has stopped matching anywhere.
 
+A generated box is read from the element it hangs from, with the rules written
+for it rather than for that element. Without a layout engine the cascade
+decides whether it renders and what it says: strings and `attr()` are read
+from the winning declared `content`. A counter, a quote, a `var()` or a `url()`
+is resolved only by an engine, so such a box is marked unread, naming those
+parts, and says nothing.
+
 A URL nothing requested is absent, never invented. An asset served from cache
 before observation began has bytes nobody saw, and a placeholder would be a claim
 about content.
@@ -72,6 +80,7 @@ about content.
 - `packages/dom/src/profile.ts` — `detectProfile`
 - `packages/dom/src/css.ts`, `css-index.ts`, `css-match.ts`, `specificity.ts`,
   `selector-parts.ts`, `media.ts` — applicability pruning
+- `packages/dom/src/generated-box.ts` — `::before` and `::after` as children
 - `packages/dom/src/inherit.ts` — the ancestor cascade at the subject root
 - `packages/dom/src/aria.ts`, `attributed.ts` — accessible meaning and attribute authorship
 - `packages/dom/src/ignore.ts` — `resolveIgnores`, `IGNORE_ATTRIBUTE`, `MARKED_RULE`
