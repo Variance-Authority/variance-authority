@@ -294,3 +294,37 @@ describe('the bar on a subject walks the rail it sits beside', () => {
     expect(went).toEqual([{ page: 'subject', build: '6', subject: 'story:small' }]);
   });
 });
+
+describe('an approval on a subject page reads the concerns again', () => {
+  it('asks for the build’s concerns once more, since an approval can open one', async () => {
+    // Approving an image an earlier build rejected opens a concern. A page that
+    // read the build again and not its concerns would keep the old tally.
+    Element.prototype.scrollTo = () => undefined;
+    let asked = 0;
+    const now = build('6', [subject()]);
+    const client = {
+      ...clientThat(now, build('5', []), async () => {
+        asked += 1;
+        return { concerns: [], tally: { open: 0, investigating: 0, resolved: 0 } };
+      }),
+      imageBlob: () => new Promise(() => undefined),
+      decide: async () => ({ decision: 'approved', by: 'marina', at: '2026-06-01T12:01:00.000Z', concern: 1 }),
+    } as unknown as ReviewClient;
+
+    await act(async () => {
+      root.render(
+        <BuildPage
+          client={client}
+          reviewer="marina"
+          route={{ page: 'subject', build: '6', subject: 'story:card' }}
+          go={() => undefined}
+        />,
+      );
+    });
+    const before = asked;
+    const approve = [...host.querySelectorAll('button')].find((each) => each.textContent?.trim().startsWith('Approve'));
+    await act(async () => approve!.click());
+
+    expect(asked).toBeGreaterThan(before);
+  });
+});
