@@ -136,6 +136,12 @@ describe('one name in full', () => {
     expect(call('docs_symbol', { name: 'deeper' })).toContain('exported, without being published, at packages/beta/src/inner/deeper.ts:3');
   });
 
+  it('says who imports an unpublished name is unreadable when the host named no checkout', () => {
+    expect(() => call('docs_uses', { name: 'deeper' })).toThrow(
+      '`deeper` is exported, without being published, at packages/beta/src/inner/deeper.ts:3; who imports it is read from the source index, and this host named no checkout to read the source index of.',
+    );
+  });
+
   it('names the package that exports a name when another package is asked about it', () => {
     expect(() => call('docs_symbol', { name: 'deeper', package: 'alpha' })).toThrow(
       /not published by `alpha`; it is exported, without being published, at packages\/beta\/src\/inner\/deeper\.ts:3/,
