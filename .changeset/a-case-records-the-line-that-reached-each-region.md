@@ -11,5 +11,5 @@ puts a call in front of each statement of a test or hook body; the call stores
 the case's log length beside the line and reads nothing. The lines add 2.2% to
 this repository's record and 2.4% to MUI's, and the suite's duration stays
 inside its run-to-run spread on both. The transform returns a source map back
-to the file you wrote. Pass `cadence: false` to leave test files as you wrote them and
-write no lines.
+to the file you wrote, so an inline snapshot lands where you wrote it. Pass
+`cadence: false` to leave test files as you wrote them and write no lines.
