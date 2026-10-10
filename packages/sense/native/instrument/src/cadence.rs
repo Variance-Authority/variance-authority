@@ -21,7 +21,9 @@ use oxc_allocator::Allocator;
 use oxc_ast::ast::*;
 use oxc_ast_visit::{walk, Visit};
 use oxc_parser::Parser;
-use oxc_span::{GetSpan, SourceType};
+use oxc_span::GetSpan;
+
+use crate::dialect::dialect;
 
 /// The calls whose function argument is a test or a hook body, by the name
 /// the callee chain starts from: `it.each(…)(…)` and `test.only(…)` start from
@@ -36,7 +38,7 @@ const DECLARATION: &str =
 /// or nothing when it does not parse or holds no such body.
 pub fn cadence(source: &str, file: &str) -> Option<String> {
     let allocator = Allocator::new();
-    let source_type = SourceType::from_path(file).unwrap_or_default();
+    let source_type = dialect(file).unwrap_or_default();
     let parsed = Parser::new(&allocator, source, source_type).parse();
     if parsed.panicked || !parsed.diagnostics.is_empty() {
         return None;
@@ -280,6 +282,12 @@ mod tests {
     #[test]
     fn jsx_in_a_test_parses_by_extension() {
         let out = cadence("it('t', () => {\n  render(<A />);\n});\n", "a.test.tsx").expect("tsx parses");
+        assert!(out.contains("__vaC(2);render(<A />);"), "{out}");
+    }
+
+    #[test]
+    fn jsx_in_a_javascript_test_parses() {
+        let out = cadence("it('t', () => {\n  render(<A />);\n});\n", "a.test.js").expect("js parses with jsx");
         assert!(out.contains("__vaC(2);render(<A />);"), "{out}");
     }
 }

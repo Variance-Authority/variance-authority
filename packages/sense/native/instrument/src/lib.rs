@@ -26,6 +26,7 @@
 
 mod cadence;
 mod cut;
+mod dialect;
 /// The digest every stored text is named by; [`module_id`] is the one a
 /// pipeline needs.
 #[doc(hidden)]
@@ -74,8 +75,9 @@ pub struct Instrumented {
 /// Place the probes in one module.
 ///
 /// `file` is the module's path, and only its extension is read: it decides
-/// whether the text is parsed as TypeScript, JSX or both. `module` is the id
-/// the probes report, from [`module_id`] or from the transformer that asked.
+/// whether the text is parsed as TypeScript, JSX or both, and JavaScript is
+/// always read with JSX. `module` is the id the probes report, from
+/// [`module_id`] or from the transformer that asked.
 ///
 /// Nothing when the source does not parse: a module whose regions are unknown
 /// runs as it is and is reported as not instrumented, never as not executed.
@@ -119,6 +121,7 @@ pub mod native {
     use oxc_ast::ast::Program;
 
     pub use crate::cut::{cut, Cut};
+    pub use crate::dialect::dialect;
     pub use crate::header::header;
     pub use crate::walk::{Block, Kind};
 
@@ -149,6 +152,14 @@ mod tests {
     fn entries_cuts_only_the_module_and_its_functions() {
         let source = "export function f(x) { if (x) return 1; return 0 }\n";
         assert_eq!(instrument(source, "f.js", "f", Mode::Entries).map(|out| out.regions), Some(2));
+    }
+
+    #[test]
+    fn a_javascript_module_with_jsx_is_instrumented() {
+        let source = "export function A(props) {\n  if (props.x) return <b />;\n  return <i />;\n}\n";
+        let regions = |file| instrument(source, file, "A", Mode::Presence).map(|out| out.regions);
+        assert_eq!(regions("A.js"), regions("A.jsx"));
+        assert!(regions("A.js").is_some());
     }
 
     #[test]
