@@ -16,7 +16,7 @@ import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
 // The runner's modules `require` the collectors, so they are loaded built, and
 // through the export a runner's author imports.
-const { instrumentModule, observeTestFile, registerRecording, RECORDING_VARIABLE } =
+const { cutTestFile, instrumentModule, observeTestFile, registerRecording, RECORDING_VARIABLE } =
   (await import('@variance-authority/sense/runner')) as typeof import('./runner.js');
 
 const execute = promisify(execFile);
@@ -209,6 +209,7 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
     try {
       const code = 'export const answer = 42;\n';
       expect(instrumentModule(code, resolve(fixture, 'src/answer.mjs'))).toBe(code);
+      expect(cutTestFile(code, resolve(fixture, 'test/alpha.case.mjs'))).toBe(code);
       expect(registerRecording()).toBeUndefined();
       expect(observeTestFile(resolve(fixture, 'test/alpha.case.mjs'))).toBeUndefined();
     } finally {

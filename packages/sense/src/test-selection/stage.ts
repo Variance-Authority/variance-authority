@@ -13,7 +13,8 @@ import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promise
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { heardAcross, heardOf } from './case-precondition-column.js';
-import { linesAcross, packCase, settledAcross, timedAcross, unpackCase } from './cases.js';
+import { packCase, settledAcross, timedAcross, unpackCase } from './cases.js';
+import { linesAcross } from './reached-lines.js';
 import { codeUnitOrder, isMissing } from './instrumented-modules.js';
 import type { ObservedEyes } from './eyes-record.js';
 import { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
