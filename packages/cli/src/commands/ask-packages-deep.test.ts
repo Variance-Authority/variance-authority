@@ -220,6 +220,20 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(paragraph(out, /^roundTax\nexported, without being published, at packages\/kit\//)).toContain(
       'Nothing in this workspace imports it; a call through a qualified path imports nothing and is not counted.',
     );
+
+    const uses = await run(['ask', 'uses', '--name', 'roundTax']);
+    expect(uses.out).toMatch(/^`roundTax` is imported in 1 place, and no entry publishes it; it is exported at packages\/\w+\/src\/\S+:\d+ and 1 more\.$/m);
+  });
+
+  it('leaves out the line of an unpublished export the checkout has since rewritten', async () => {
+    const root = checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    writeFileSync(join(root, 'packages/lib/src/internal/math.ts'), 'export function addTax(amount: number): number {\n  return amount;\n}\n\nexport const unrelated = 1;\n');
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
+    expect(out).not.toContain('export const unrelated');
   });
 
   it('keeps refusing a name nothing exports', async () => {
