@@ -266,6 +266,13 @@ stories and the tests — the files written to show the name in use — listed a
 from the source that depends on it. Pass `from` with the file you are editing and
 the sites arrive ordered by how many leading path segments they share with it.
 
+A name a file exports and no entry publishes, such as a helper exported for the
+file beside it, is answered too. `docs_symbol` gives the file and line that
+export it and how many imports resolved to that file; `docs_uses` lists those
+imports, from its own package as well as from others. An import through a file
+that passes the name on with `export *`, and a call through a qualified path,
+are not counted.
+
 A name your code reads off `import * as` or off `import()` is a site too, and the
 site names the line that loads the module. An `import()` loads it when that call
 runs, not when the file loads, so the file can run without the module ever
