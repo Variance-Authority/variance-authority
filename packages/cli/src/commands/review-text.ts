@@ -16,7 +16,7 @@ import type { ReviewFormat } from '../review-args.js';
 import { clampComment, COMMENT_CHARACTERS } from './comment-text.js';
 import { functionsIn, motionText } from './covering-motion.js';
 import { changeGraph } from './review-graph.js';
-import { areasMarkdown } from './review-areas.js';
+import { changedPackagesMarkdown } from './review-changed-packages.js';
 import { installLines } from './review-install.js';
 import { caseTree, functionsMarkdown, namedList, outermost, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
@@ -131,9 +131,9 @@ function markdown(review: Review): string {
   const lines = [REVIEW_MARKER, review.coverage === undefined ? `### 🧭 What this change ${ran ? 'did' : 'might do'}` : '### Test evidence', '', `<sub>${markdownHeader(review, code)}${
     ran ? '' : ' The record was made before this change, so it names the cases that stood on the changed lines.'
   }</sub>`, ''];
-  const areas = areasMarkdown(review.areas, (reach) => MARK[reach]);
-  lines.push(...calloutMarkdown(review), ...areas);
-  if (areas.length > 0) lines.push('', `<sub>${LEGEND}</sub>`);
+  const changed = changedPackagesMarkdown(review.changedPackages, (reach) => MARK[reach]);
+  lines.push(...calloutMarkdown(review), ...changed);
+  if (changed.length > 0) lines.push('', `<sub>${LEGEND}</sub>`);
   lines.push(...casesMarkdown(review.files, code));
   lines.push(...(ran ? selectionMarkdown(review, code) : []), ...lostMarkdown(review, code));
   if (review.coverage !== undefined) lines.push(...reviewCoverageSummary(review.coverage));
@@ -145,7 +145,7 @@ function markdown(review: Review): string {
   lines.push(...installLines(review, code, true));
   const uncovered = uncoveredMarkdown(review, mark);
   const functions = functionsMarkdown(review, mark);
-  if (areas.length === 0 && uncovered.length + functions.length > 0) lines.push('', `<sub>${LEGEND}</sub>`);
+  if (changed.length === 0 && uncovered.length + functions.length > 0) lines.push('', `<sub>${LEGEND}</sub>`);
   lines.push(...uncovered, ...functions, ...changeGraph(review));
   if (review.coverage !== undefined) lines.push(...reviewCoverageDetails(review.coverage));
   const more: string[] = [];

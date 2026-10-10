@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +11,7 @@ import {
   withCaseSections,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
+import { updateSourceIndex } from '@variance-authority/sense';
 import { main } from '../bin.js';
 import { readFlags } from '../args.js';
 import { parseReviewArgs } from '../review-args.js';
@@ -93,12 +94,18 @@ describe('a review of what a change did, after the run that recorded it', () => 
   it('says which package the changed functions are in, whose tests ran them and which packages import them', async () => {
     const { root, first } = await changed();
     await writeFile(join(root, 'src/package.json'), JSON.stringify({ name: '@o/total' }));
+    // A package that imports only a type from the changed file still imports it: its owner reads the change too.
+    await mkdir(join(root, 'types'));
+    await writeFile(join(root, 'types/package.json'), JSON.stringify({ name: '@o/types' }));
+    await writeFile(join(root, 'types/price.ts'), "import type { round } from '../src/total';\nexport type Rounding = typeof round;\n");
+    git(root, ['add', 'types']);
+    await updateSourceIndex(root);
 
     const answer = await review(parse(['--since', first, '--root', root]));
 
     // The test file sits under no manifest, so the root's directory is its package.
-    expect(answer.areas).toEqual([
-      { package: '@o/total', path: 'src', functions: 2, reaches: { near: 1, unwalked: 1 }, tests: ['.'], importers: 1 },
+    expect(answer.changedPackages).toEqual([
+      { package: '@o/total', path: 'src', functions: 2, reaches: { near: 1, unwalked: 1 }, own: false, tests: ['.'], importers: 2 },
     ]);
   });
 

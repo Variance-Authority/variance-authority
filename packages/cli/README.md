@@ -946,12 +946,13 @@ When the changed functions sit in more than one package, the verdict is
 followed by **Where this change lands**: one row a package, as its nearest
 `package.json` names it, with its changed functions counted by mark, the
 packages whose tests ran them (`own` for its own), and how many other packages
-import its changed files through any number of imports. Packages with code no
-case ran come first, then those only distant tests ran. The table stays within
-10 rows in a repository of any size: past that, the packages whose every
-changed function a test importing its file ran are folded into one row, and the
-packages that do not fit above it into another. `review.json` lists every
-package under `areas`.
+import its changed files through any number of imports, type-only ones
+included. Packages with code no case ran come first, then those with the most
+functions no test importing their file ran. The table stays within 10 rows in a
+repository of any size: past that, the packages whose every changed function a
+test importing its file ran are folded into one row, and the packages that do
+not fit above it into another. `review.json` lists every package under
+`changedPackages`.
 
 Changed functions are listed in one table: how the edit wrote each (new,
 modified, or moved and from where), the cases that entered it, and the cases
