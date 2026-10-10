@@ -23,24 +23,74 @@ export type { SearchGeneration };
  * The loose pass reads a term dictionary written with the same tokenizer and
  * term rule MiniSearch was given, so the set it answers is the set MiniSearch
  * would have answered without building an index per question
- * ([`loose.ts`](./tools/loose.ts)).
+ * ([`loose.ts`](./tools/loose.ts)). The dictionary holds each token whole and,
+ * when the token is written in several words, each word, so `select test
+ * files` reaches `selectTestFiles`.
  */
 
 // The layout is written by `help_search.rs` in the sense addon.
 const MAGIC = 0x53484156; // "VAHS", little-endian
-const VERSION = 1;
+const VERSION = 2;
 const NONE = 0xffffffff;
 
 /** The tokenizer MiniSearch applies by default, which the loose pass was built with. */
 export const SPACE_OR_PUNCTUATION = /[\n\r\p{Z}\p{P}]+/u;
 
-/** The term rule the loose pass gave MiniSearch: short terms dropped, the rest lowercased. */
-export function termsOf(text: string): readonly string[] {
+/** A query's terms: the tokens it was typed in, short ones dropped, the rest lowercased. */
+export function tokensOf(text: string): readonly string[] {
   const found: string[] = [];
   for (const token of text.split(SPACE_OR_PUNCTUATION)) {
     if (token.length >= 2) found.push(token.toLowerCase());
   }
   return found;
+}
+
+const LOWER = /^\p{Lowercase}$/u;
+const UPPER = /^\p{Uppercase}$/u;
+const DIGIT = /^\p{N}$/u;
+
+/**
+ * The words one token is written in, split where the case or a digit changes:
+ * a lowercase letter before an uppercase one, the last capital of a run before
+ * a lowercase letter, and a digit beside anything that is not one.
+ * `parseHTTPResponse2` is `parse`, `HTTP`, `Response` and `2`; a token with
+ * nowhere to split is one word.
+ */
+export function wordsOf(token: string): readonly string[] {
+  const chars = [...token];
+  const words: string[] = [];
+  let start = 0;
+  for (let at = 1; at < chars.length; at += 1) {
+    const before = chars[at - 1]!;
+    const here = chars[at]!;
+    const after = chars[at + 1];
+    const split =
+      (LOWER.test(before) && UPPER.test(here)) ||
+      (UPPER.test(before) && UPPER.test(here) && after !== undefined && LOWER.test(after)) ||
+      DIGIT.test(before) !== DIGIT.test(here);
+    if (!split) continue;
+    words.push(chars.slice(start, at).join(''));
+    start = at;
+  }
+  words.push(chars.slice(start).join(''));
+  return words;
+}
+
+/**
+ * The term rule the dictionary is written with: each token whole and, when it
+ * is written in several words, each word; a term shorter than two UTF-16 code
+ * units is dropped and the rest are lowercased, once each. `help_search.rs`
+ * writes the dictionary by the same rule.
+ */
+export function termsOf(text: string): readonly string[] {
+  const found = new Set<string>();
+  for (const token of text.split(SPACE_OR_PUNCTUATION)) {
+    if (token.length >= 2) found.add(token.toLowerCase());
+    const words = wordsOf(token);
+    if (words.length < 2) continue;
+    for (const word of words) if (word.length >= 2) found.add(word.toLowerCase());
+  }
+  return [...found];
 }
 
 const USE_KINDS: readonly UseKind[] = ['source', 'test', 'story'];

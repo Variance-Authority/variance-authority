@@ -4,7 +4,7 @@ import MiniSearch from 'minisearch';
 import { describe, expect, it } from 'vitest';
 import type { Help, Named } from '@variance-authority/package/help';
 import { everyEntry, readHelp } from '@variance-authority/package/help';
-import { encodeSearchIndex, openSearchIndex } from '../search-index.js';
+import { SPACE_OR_PUNCTUATION, encodeSearchIndex, openSearchIndex, termsOf } from '../search-index.js';
 import { looseNames } from './loose.js';
 
 /**
@@ -12,12 +12,15 @@ import { looseNames } from './loose.js';
  *
  * MiniSearch built an index per question; `loose.ts` reads the same membership
  * off the published dictionary. The reference here is MiniSearch configured as
- * the pass once configured it, so a drift in tokenizing, prefixing or edit
- * distance shows up as a name one side has and the other does not.
+ * the pass once configured it, with names and docs tokenized by `termsOf` —
+ * each token whole and in its words — and the query by the split alone. The
+ * dictionary itself is written by the sense addon, so a drift between the two
+ * tokenizers, or in prefixing or edit distance, shows up as a name one side has
+ * and the other does not.
  *
  * The fixture's own names are joined by exported names written to reach the
- * corners: punctuation inside a name, non-ASCII letters, a surrogate pair, and
- * terms too short to index.
+ * corners: punctuation inside a name, non-ASCII letters, a surrogate pair,
+ * terms too short to index, and words split at a capital run and at digits.
  */
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), '../__fixtures__/workspace');
@@ -33,7 +36,7 @@ const odd = (name: string): Named => ({
 
 const HELP: Help = (() => {
   const read = readHelp(WORKSPACE);
-  const extra = ['größe', 'Größenordnung', 'naïveCache', 'x', 'a_b', 'emoji😀Name', 'measureAll', 'mesure', 'ÅngströmUnit'];
+  const extra = ['größe', 'Größenordnung', 'naïveCache', 'x', 'a_b', 'emoji😀Name', 'measureAll', 'mesure', 'ÅngströmUnit', 'parseHTTPResponse2', 'v8Flags', 'ΣύνολοΤιμών'];
   return { ...read, exported: [...read.exported, ...extra.map(odd)] };
 })();
 
@@ -51,7 +54,9 @@ function reference(query: string): ReadonlySet<string> {
 
   const mini = new MiniSearch<{ id: number; name: string; doc: string }>({
     fields: ['name', 'doc'],
+    tokenize: (text) => [...termsOf(text)],
     processTerm: (term) => (term.length < 2 ? null : term.toLowerCase()),
+    searchOptions: { tokenize: (text) => text.split(SPACE_OR_PUNCTUATION) },
   });
   const names = [...held.keys()];
   mini.addAll(names.map((name, id) => ({ id, name, doc: held.get(name) ?? '' })));
@@ -64,7 +69,11 @@ const answered = (query: string): ReadonlySet<string> =>
 
 /** Each dictionary term, whole and bent: cut short, one letter dropped, two swapped, one doubled. */
 function queries(): readonly string[] {
-  const out = new Set<string>(['numbers order', 'meesure', 'größe', 'grosse', 'naive', 'emoji', '😀', 'x', 'a b', '']);
+  const out = new Set<string>([
+    'numbers order', 'meesure', 'größe', 'grosse', 'naive', 'emoji', '😀', 'x', 'a b', '',
+    'naive cache', 'cache', 'emoji name', 'measure all', 'all', 'ångström unit', 'unit', 'ordnung', 'größen',
+    'parse http response', 'http', 'response 2', 'v8', 'flags', 'σύνολο τιμών',
+  ]);
   for (let id = 0; id < INDEX.termCount; id += 1) {
     const term = INDEX.term(id);
     out.add(term);

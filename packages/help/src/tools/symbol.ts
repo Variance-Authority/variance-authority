@@ -1,12 +1,15 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
-import type { Help } from '@variance-authority/package/help';
+import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
 import { entriesNamed, isPackage, specifierOf, unfound } from './find.js';
 import { block } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage, type ThirdPartyMatch } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { provenance } from './third-party.js';
+import { exportsNamed, importsOf } from './unpublished.js';
 
 /**
  * `docs_symbol` — one name, in full.
@@ -22,7 +25,8 @@ export const symbol: Tool<Help> = {
     'Everything known about one exported name: what it is, the import line that reaches it, the ' +
     'file and line that declares it, its full signature, its documentation — or, where nothing is ' +
     'written above it, the README passage that names it — and which packages import it. Names are ' +
-    'matched exactly, including installed third-party declarations when the API catalogue is ' +
+    'matched exactly, including a name exported and not published, answered with where it is declared, and ' +
+    'installed third-party declarations when the API catalogue is ' +
     'published, and, given `from`, as the workspace that owns that path resolves them; use docs_search ' +
     'when the exact name is not known, docs_uses for local import sites.',
   inputSchema: {
@@ -62,6 +66,11 @@ export const symbol: Tool<Help> = {
     // the file exporting it, is used here — and that import is what says so.
     const byPath = found.length === 0 ? sitesByPath(help, name, wanted) : [];
     if (byPath.length > 0) return importedByPath(help, name, byPath);
+
+    // Exported for a neighbour and never published: the workspace's own name,
+    // answered before an installed one, as a published name is.
+    const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
+    if (exported.length > 0) return exportedOnly(name, exported, invocation?.root);
 
     if (found.length === 0 && invocation?.root !== undefined) {
       const at = startPointArg(input, 'from');
@@ -166,4 +175,40 @@ function declaration(help: Help, name: string, site: PathSite): { readonly at: s
   if (to !== undefined) return help.exported.find((held) => held.name === name && held.at === to);
   const owned = help.exported.filter((held) => held.name === name && held.by === site.owner);
   return owned.length === 1 ? owned[0] : undefined;
+}
+
+/**
+ * One name a file exports and no entry publishes: where each export is written,
+ * the line itself when the checkout is at hand, and how many imports the source
+ * index resolved to those files.
+ */
+function exportedOnly(name: string, exported: readonly Named[], root: string | undefined): string {
+  const blocks = exported.map((held) =>
+    [
+      name,
+      `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
+      ...(root === undefined ? [] : lineOf(root, held)),
+    ].join('\n'),
+  );
+  const imports = root === undefined ? undefined : importsOf(root, exported, name);
+  const count = imports?.length;
+  const said =
+    count === undefined
+      ? []
+      : count === 0
+        ? ['\nNothing in this workspace imports it.']
+        : [`\nIt is imported in ${count} ${count === 1 ? 'place' : 'places'}; docs_uses lists them, nearest to a file you name first.`];
+  return [blocks.join('\n\n'), ...said].join('\n');
+}
+
+/** The line an export is written on, as the checkout holds it now; nothing when the file is gone. */
+function lineOf(root: string, held: Named): readonly string[] {
+  let text: string;
+  try {
+    text = readFileSync(join(root, held.at), 'utf8');
+  } catch {
+    return [];
+  }
+  const line = text.split(/\r?\n/)[held.line - 1]?.trim();
+  return line === undefined || line === '' ? [] : [line];
 }

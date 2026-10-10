@@ -2593,6 +2593,7 @@
         "forksBetween": "function",
         "gitDigests": "function",
         "grainOf": "function",
+        "importersOf": "function",
         "inIndexTurn": "function",
         "indexDeclarations": "function",
         "indexTurnPath": "function",
