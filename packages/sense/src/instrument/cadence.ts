@@ -30,9 +30,15 @@ export interface CutTestFile {
  * as it was without one. The walk is the instrumenter crate's
  * [`cadence.rs`](../../native/instrument/src/cadence.rs), and the collector's
  * side is [`probe-cuts.cts`](probe-cuts.cts).
+ *
+ * `awaited` is for a runner whose collector is outside the test's realm, as a
+ * Playwright page is: each statement of an async body awaits what
+ * `__VA__.c(line, file)` returns, so the collector can drain what the
+ * statement before it reached first, and `file` tells a body declared in
+ * another file apart. A body that is not async is cut as it is without it.
  */
-export function cadence(source: string, file: string): CutTestFile | undefined {
-  const cut = instrumenter().cadence(source, file);
+export function cadence(source: string, file: string, options: { readonly awaited?: boolean } = {}): CutTestFile | undefined {
+  const cut = instrumenter().cadence(source, file, options.awaited === true);
   if (cut === null) return undefined;
   return {
     code: cut.code,
