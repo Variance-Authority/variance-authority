@@ -213,6 +213,13 @@ describe('a suite that recorded the file under another root', () => {
     expect(answer.out.endsWith(`\n${NOT_LOADED('stories (visual)')}\n`)).toBe(true);
   });
 
+  it('is a suite that tests other code when the asked path is a bare file name', async () => {
+    const at = await repository('lib/pay.ts', 'pay.ts');
+    const answer = await ask(['covering', '--file', 'pay.ts', '--line', '12', '--root', at]);
+
+    expect(answer.out.endsWith(`\n${NOT_LOADED('stories (visual)')}\n`)).toBe(true);
+  });
+
   it('explains every suite in full when none answered, since a wrong path is then the likely cause', async () => {
     const at = await repository('packages/shop/src/pay.ts', 'src/Button.tsx');
     const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', at]);

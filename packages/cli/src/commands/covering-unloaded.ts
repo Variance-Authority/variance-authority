@@ -33,11 +33,10 @@ export function unloadedFile(file: string, from: string, files: readonly string[
     .filter((candidate) => candidate === tail || candidate.endsWith(`/${tail}`))
     .sort()
     .slice(0, 3);
-  // A shared directory makes it the same file under another root; a bare name
-  // at a record's root is any file of that name.
-  const rooted = files
-    .filter((candidate) => candidate.endsWith(`/${file}`) || (candidate.includes('/') && file.endsWith(`/${candidate}`)))
-    .sort();
+  // A shared directory makes it the same file under another root; a bare name,
+  // asked or recorded, is any file of that name.
+  const shorter = (one: string, other: string): boolean => one.includes('/') && other.endsWith(`/${one}`);
+  const rooted = files.filter((candidate) => shorter(file, candidate) || shorter(candidate, file)).sort();
   return new UnloadedFile(
     `\`${file}\` is not in the index at \`${from}\`, which holds ${files.length} file${
       files.length === 1 ? '' : 's'
