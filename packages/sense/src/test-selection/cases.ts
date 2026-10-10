@@ -161,6 +161,8 @@ export interface UnpackedCase {
   readonly name: string;
   /** Unique within the worker; empty for the ambient bucket. */
   readonly id: string;
+  /** The project that ran the case; absent when the run names none. */
+  readonly project?: string;
   /** Whether the case's body threw, rejected or never settled; absent when the frame does not say. */
   readonly stopped?: boolean;
 }
@@ -184,6 +186,8 @@ export interface CaseJournal {
   readonly file: string;
   readonly name: string;
   readonly id: string;
+  /** The project that ran the case; absent when the run names none. */
+  readonly project?: string;
   /** How this frame's case settled; see {@link ExecutionTest.stopped}. */
   readonly stopped?: boolean;
   /**
@@ -208,20 +212,28 @@ export interface CaseCoordinate {
   readonly file: string;
   readonly name: string;
   readonly id: string;
+  /**
+   * The project that ran the case: the runner's name for one configured run of
+   * the file — a Vitest or Jest project, a Playwright project. Absent when the
+   * run names none.
+   */
+  readonly project?: string;
 }
 
 /** One key per case of a run, for a map from a coordinate to anything. */
 export function caseKey(coordinate: CaseCoordinate): string {
-  return `${coordinate.file}\0${coordinate.name}\0${coordinate.id}`;
+  const key = `${coordinate.file}\0${coordinate.name}\0${coordinate.id}`;
+  return coordinate.project === undefined ? key : `${key}\0${coordinate.project}`;
 }
 
-/** `cases` in the order the index numbers them: by file, then name, then the runner's id. */
+/** `cases` in the order the index numbers them: by file, then name, then project, then the runner's id. */
 export function inCaseOrder<Case extends CaseCoordinate>(cases: Iterable<Case>): Case[] {
   // Ordered before they are numbered, so the index reads the same whichever
   // worker finished first and whichever order the frames landed on disk.
   return [...cases].sort((left, right) =>
     codeUnitOrder(left.file, right.file) ||
     codeUnitOrder(left.name, right.name) ||
+    codeUnitOrder(left.project ?? '', right.project ?? '') ||
     codeUnitOrder(left.id, right.id),
   );
 }
@@ -236,25 +248,36 @@ export function inCaseOrder<Case extends CaseCoordinate>(cases: Iterable<Case>):
  * index, and everything that joins a case by its id, numbers through here; the
  * native fold numbers with `CaseIds` in `case_id.rs`, in the same words.
  *
+ * A case run by a named project carries that name, as the runners print it:
+ * `|compiled| test/a.test.ts > pays`. A project is one configured run of a
+ * file — Vitest's and Jest's `projects`, Playwright's `projects` — so a file
+ * two projects both run is two cases, not a repeat. The name is the case's own,
+ * carried on its frame by the seam that ran it, never read from which other
+ * projects the run took: a run filtered to one project, or a shard holding one
+ * copy, gives the copy the id a full run gives it. A run that names no project
+ * adds nothing, and the number is left for the repeats inside one project.
+ *
  * A suite whose second `pays` would take the id of a case named `pays#1` is
  * refused: one id cannot hold two cases' journeys.
  */
 export function caseIds(cases: Iterable<CaseCoordinate>): ReadonlyMap<string, string> {
+  const ordered = inCaseOrder(cases);
   const seen = new Map<string, number>();
   const ids = new Map<string, string>();
   // The name of the case holding each id handed out.
   const held = new Map<string, string>();
-  for (const coordinate of inCaseOrder(cases)) {
+  for (const coordinate of ordered) {
     const key = caseKey(coordinate);
     if (ids.has(key)) continue;
-    const { file, name } = coordinate;
-    const named = `${file} > ${name}`;
+    const { file, name, project } = coordinate;
+    const prefix = project === undefined ? `${file} > ` : `|${project}| ${file} > `;
+    const named = `${prefix}${name}`;
     const repeat = seen.get(named) ?? 0;
     seen.set(named, repeat + 1);
     const id = repeat === 0 ? named : `${named}#${repeat}`;
     const holder = held.get(id);
     if (holder !== undefined) {
-      const literal = id.slice(file.length + 3);
+      const literal = id.slice(prefix.length);
       const numbered = holder === literal ? name : holder;
       throw new Error(`cannot number the cases of ${file}: "${literal}" is the name of one case and the number of a repeated "${numbered}". Rename one of them.`);
     }
@@ -304,7 +327,7 @@ export function ownedExecutionIndexFrom(
       ambient.set(journal.file, [...(ambient.get(journal.file) ?? []), journal]);
       continue;
     }
-    const key = `${journal.file}\0${journal.name}\0${journal.id}`;
+    const key = caseKey(journal);
     const first = byCase.get(key);
     byCase.set(key, first === undefined ? journal : {
       ...first,

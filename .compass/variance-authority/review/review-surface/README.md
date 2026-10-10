@@ -27,6 +27,7 @@ worst direction, into a link the client renders and the host answers with a 404.
 
 - [`build-store`](../build-store/README.md) — the docket, the subject views, and the images
 - [`decision`](../decision/README.md) — what a press settles
+- [`concern`](../concern/README.md) — the trail a subject's concerns card draws, and a build's tally
 - [`identity`](../identity/README.md) — the name written on every decision
 
 ## Used by

@@ -94,6 +94,7 @@ somebody else's write.
 | [identity](./identity/README.md) | Establishes that a request comes from a named person, so a decision can carry a name |
 | [build-store](./build-store/README.md) | Keeps one run's uploaded evidence and reads it back as the **docket** a reviewer works from |
 | [decision](./decision/README.md) | Records one person's answer for one **subject** and, when it is yes, promotes the **candidate** the run already uploaded |
+| [concern](./concern/README.md) | Keeps what reviewers suspect about a **subject**, and each step it takes, apart from any decision on it |
 | [review-surface](./review-surface/README.md) | Draws a build as causes first, regions second and images last, and collects the answer |
 | [retention-sweep](./retention-sweep/README.md) | Removes builds past a window on request, and reports what it removed |
 | [deployment-adapters](./deployment-adapters/README.md) | Wires the one handler to a runtime without changing a route, a refusal or a status code |
@@ -113,6 +114,7 @@ flowchart TB
     ROUTER[review-router]
     STORE[build-store]
     DECIDE[decision]
+    CONCERN[concern]
     SURFACE[review-surface]
     SWEEP[retention-sweep]
 
@@ -122,9 +124,12 @@ flowchart TB
     CAP -->|the token the policy implies| ADAPT
     ROUTER --> STORE
     ROUTER --> DECIDE
+    ROUTER --> CONCERN
     ROUTER --> SWEEP
     STORE -->|the docket, and one subject's view| SURFACE
     SURFACE -->|one answer per cause| DECIDE
+    SURFACE -->|a suspicion, and each step on it| CONCERN
+    STORE -->|the subject a concern is raised on| CONCERN
     ID -->|the name written on a decision| SURFACE
     DECIDE -->|the build row an approval is frozen from| STORE
   end

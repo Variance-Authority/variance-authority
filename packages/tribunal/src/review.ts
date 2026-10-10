@@ -99,6 +99,17 @@ export type {
   SweepReport,
 } from './review-types.js';
 export { BaselineMoved, ReviewError } from './review-rows.js';
+export { createConcernStore, type ConcernStore } from './concerns.js';
+export type {
+  Concern,
+  ConcernEvent,
+  ConcernQuery,
+  ConcernRegion,
+  ConcernState,
+  ConcernTally,
+  MoveConcern,
+  RaiseConcern,
+} from './concern-types.js';
 export type {
   ChangelogChange,
   ChangelogRow,

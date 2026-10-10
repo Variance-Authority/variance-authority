@@ -101,11 +101,11 @@ describe('the Rstest integration', () => {
     const index = decodeExecutionIndex(await readFile(coverageFile));
     // `globals` is off here, so the registrars under test are the ones on the
     // object an import of `@rstest/core` compiles to, and the coordinate is
-    // read off `expect.getState()` at call time. Two of
-    // `alpha.case.ts`'s three cases are absent for different reasons: the
-    // skipped one never reaches the registrar's callback, and the one that only
-    // reads a global crossed nothing.
+    // read off `expect.getState()` at call time. The case that only reads a
+    // global is named though it crossed nothing; the skipped one never reaches
+    // the registrar's callback, so it is absent.
     expect(index.tests.map((test) => test.id)).toEqual([
+      at("test/alpha.case.ts > ran after the project's own setup file"),
       at('test/alpha.case.ts > takes the alpha path'),
       at('test/beta.case.ts > takes the beta path'),
     ]);

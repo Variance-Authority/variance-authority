@@ -36,7 +36,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { PROBE_RUNTIME } from '../dist/instrument/index.js';
+import { probeRuntime } from '../dist/instrument/index.js';
 
 const probeLog = createRequire(import.meta.url)('../dist/instrument/probe-log.cjs');
 
@@ -77,7 +77,7 @@ globalThis.__VA_SCOPED__ = scoped.root;
  */
 function source(id, variant) {
   const shape = SHAPES[variant];
-  const runtime = PROBE_RUNTIME.replace('.r("",0)', `.r(${JSON.stringify(id)},${REGIONS + 1})`).replace(
+  const runtime = probeRuntime(id, REGIONS + 1).replace(
     '__vaK=globalThis.__VA__;',
     `__vaK=globalThis.${shape.root};`,
   );

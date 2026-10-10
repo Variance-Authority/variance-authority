@@ -12,6 +12,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import type { Decision, SubjectView } from '../review-types.js';
 import { BaselineMovedNotice, movedOf } from './baseline-moved.js';
 import type { MovedBaseline, ReviewClient } from './client.js';
+import { Concerns } from './concerns.js';
 import type { Ruler } from './distance.js';
 import { Findings } from './findings.js';
 import { glanceOf, type Blamed, type Glance } from './glance.js';
@@ -39,6 +40,7 @@ export function SubjectPanel({
   far,
   sourced,
   onDecided,
+  onConcerned,
 }: {
   readonly client: ReviewClient;
   readonly reviewer: string;
@@ -56,6 +58,8 @@ export function SubjectPanel({
    * page's to say, with its own retry, and the panel it replaces goes with it.
    */
   readonly onDecided: () => void | Promise<void>;
+  /** Told after a concern on this subject was raised or moved. */
+  readonly onConcerned?: (() => void) | undefined;
 }): ReactElement {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -164,6 +168,11 @@ export function SubjectPanel({
               No candidate was uploaded for this subject, so it cannot be approved here.
             </p>
           )}
+        </section>
+
+        <section className="va-card">
+          <h2>Concerns</h2>
+          <Concerns client={client} reviewer={reviewer} build={build} subject={subject} onChanged={onConcerned} />
         </section>
 
         <section className="va-card">

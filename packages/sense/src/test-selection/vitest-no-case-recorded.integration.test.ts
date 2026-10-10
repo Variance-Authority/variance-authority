@@ -107,7 +107,8 @@ it('retires what an earlier run recorded for a case whose file finished and whic
 
   await run(idle, { VARIANCE_AUTHORITY_CALL: '0' });
   expect(await covering()).toEqual([]);
-  expect(lastCaseRunOf(caseSectionsAt(coverageFile))).toMatchObject({ cases: [] });
+  // The case still ran, so the run names it, with nothing under it.
+  expect(lastCaseRunOf(caseSectionsAt(coverageFile))).toMatchObject({ cases: [at(idle, 'test/add.case.ts > adds when asked')] });
 }, 60_000);
 
 it.todo('a Vitest 4 run whose configuration lists its projects in `test.projects`, none of them wrapped, keeps no cases in the record and leaves the cases of an earlier run and their layers as they were — needs a Vitest 4 fixture with `test.projects`');

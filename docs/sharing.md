@@ -850,7 +850,7 @@ curl -s -H "Authorization: Bearer $VARIANCE_SHARE_TOKEN" https://variance.exampl
 ```
 
 ```text
-{"service":"variance-authority-tribunal","api":3,"schema":18}
+{"service":"variance-authority-tribunal","api":4,"schema":19}
 ```
 
 An older deployment answers 404 under `/share/`. A lookup then prints *nothing

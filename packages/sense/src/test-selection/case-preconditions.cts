@@ -274,25 +274,27 @@ function checkoutSite(root: string, site: string): string {
 }
 
 /**
- * A packed case coordinate carrying what the case said, as a sixth field.
+ * A packed case coordinate carrying what the case said, as its sixth field.
  *
- * The field follows the journey, which stays empty when the case has none, so
- * a reader that knows five fields reads the case unchanged. An empty field is a
- * case that said nothing under a recorder that was listening; no field at all
- * is a frame from a writer that never listened, which a reader may not take for
- * a case with no preconditions.
+ * Set at its index, as `journal-format.cts` sets every field after the
+ * coordinate, so the project after it stays where its reader looks. The field
+ * is always JSON: `[]` is a case that said nothing under a recorder that was
+ * listening; an empty or missing field is a frame from a writer that never
+ * listened, which a reader may not take for a case with no preconditions.
  */
+const SAID_FIELD = 5;
+
 function packSaid(packed: string, said: readonly Said[]): string {
-  const fields = packed.split('\u0000').length;
-  return `${packed}${'\u0000'.repeat(Math.max(1, 6 - fields))}${said.length === 0 ? '' : JSON.stringify(said)}`;
+  const fields = packed.split('\u0000');
+  while (fields.length <= SAID_FIELD) fields.push('');
+  fields[SAID_FIELD] = JSON.stringify(said);
+  return fields.join('\u0000');
 }
 
 /** What a frame owner says its case arranged, or nothing when it does not say. */
 function saidOf(packed: string): readonly Said[] | undefined {
-  const fields = packed.split('\u0000');
-  if (fields.length < 6) return undefined;
-  const field = fields[5]!;
-  if (field === '') return [];
+  const field = packed.split('\u0000')[SAID_FIELD];
+  if (field === undefined || field === '') return undefined;
   const parsed = JSON.parse(field) as unknown;
   if (!Array.isArray(parsed)) throw new Error('not a variance-authority case journal');
   return parsed as Said[];

@@ -21,7 +21,7 @@ use sha2::{Digest, Sha256};
 use crate::compact::Layer;
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
-use crate::help_usage::{usage, IndexedUsage, NamedExport};
+use crate::help_usage::{importers, usage, IndexedUsage, NameUse, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::tree;
 
@@ -82,16 +82,32 @@ pub fn read_help(root: String, index: String, opened: Vec<String>, published: Ve
 }
 
 fn reading(root: &str, index: &str, opened: &[String], published: &[String], unentered: &[String], declared: &[String]) -> napi::Result<Option<HelpReading>> {
+    opened_chain(index, |layers| {
+        let (mut read, tree) = rayon::join(|| usage(root, layers, opened, published, unentered, declared), || tree(layers));
+        let exported = std::mem::take(&mut read.exported);
+        let digest = exported_digest(&exported);
+        HelpReading { held: Arc::new(Held { exported, tree, digest }), usage: Some(read) }
+    })
+}
+
+/// Every import of `name` out of one of `files`, which are repo-relative, by
+/// any file of the chain at `index`, relative imports included; `None` when
+/// there is no index. `key` is the specifier as the importing file wrote it.
+#[napi]
+pub fn importers_of(root: String, index: String, files: Vec<String>, name: String) -> napi::Result<Option<Vec<NameUse>>> {
+    opened_chain(&index, |layers| importers(&root, layers, &files, &name))
+}
+
+/// The chain at `index`, each segment opened in place, handed to `read`;
+/// `None` when there is no index.
+fn opened_chain<T>(index: &str, read: impl FnOnce(&[Layer]) -> T) -> napi::Result<Option<T>> {
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {index} did not read: {error}"));
     let Some(chain) = read_chain(index).map_err(fail)? else { return Ok(None) };
     let layers = chain.segments.par_iter().enumerate()
         .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
         .collect::<Result<Vec<_>, _>>()
         .map_err(fail)?;
-    let (mut read, tree) = rayon::join(|| usage(root, &layers, opened, published, unentered, declared), || tree(&layers));
-    let exported = std::mem::take(&mut read.exported);
-    let digest = exported_digest(&exported);
-    Ok(Some(HelpReading { held: Arc::new(Held { exported, tree, digest }), usage: Some(read) }))
+    Ok(Some(read(&layers)))
 }
 
 /// `exportedDigest` of a list JavaScript holds: a value published before the

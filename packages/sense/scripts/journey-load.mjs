@@ -26,7 +26,7 @@
  *   node --expose-gc packages/sense/scripts/journey-load.mjs <snapshot> [journeys] [modules]
  */
 
-import { PROBE_RUNTIME } from '../dist/instrument/index.js';
+import { probeRuntime } from '../dist/instrument/index.js';
 import { readTestCoverage } from '../dist/test-selection/index.js';
 import { WIRE_SINK, JOURNEY_COOKIE } from '../../wire/dist/index.js';
 
@@ -93,7 +93,7 @@ if (!collector.collecting) { console.error('the head did not install'); process.
  * bucket up afresh on every crossing could not fail it.
  */
 const probeFor = (module) =>
-  new Function(`${PROBE_RUNTIME.replace('.r("",0)', `.r(${JSON.stringify(`src/m${module}.ts`)},${counts[module]})`)}__vaE();return __va;`)();
+  new Function(`${probeRuntime(`src/m${module}.ts`, counts[module])}__vaE();return __va;`)();
 
 // Built before the baseline is taken: these closures are the instrumented
 // module's own weight, which `worker-load.mjs` prices, and counting them here
