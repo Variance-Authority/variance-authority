@@ -13,8 +13,8 @@ dependency and calls `instrument`, `module_id` and `recipe`.
 The Jest transformer hands such a pipeline the module untouched. A wrapped
 transformer that answers `senseRecipe(mode)` is given `options.senseProbes` —
 the file, the module id and the mode — for each module that would have carried
-probes, and places them itself. The recipe is the instrumentation id and the
-digest of the header the build writes; one that is not this package's is
+probes, and places them itself. The recipe is the instrumentation id and one
+digest of the header and of the crate's sources and manifest; one that is not this package's is
 refused when the transformer loads, naming both. A transformer without
 `senseRecipe` is given text with the probes already in, as before.
 

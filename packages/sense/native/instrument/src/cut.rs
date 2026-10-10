@@ -15,6 +15,8 @@ use sha2::{Digest, Sha256};
 use crate::digest;
 use crate::walk::{Block, Edit, Kind, Walker};
 
+/// `header_at` and `digests` are the addon's: [`crate::instrument`] reads neither.
+#[cfg_attr(not(feature = "addon"), allow(dead_code))]
 pub struct Cut {
     /// The source with every probe spliced in, and no header.
     pub code: String,

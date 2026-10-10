@@ -4,15 +4,16 @@
  * Build the instrumenter crate the way a project that installed sense does.
  *
  * `native/instrument` reaches a Rust pipeline as a Cargo path dependency into
- * `node_modules`, with nothing of this repository around it: no workspace, no
- * lockfile of ours, no sibling crate. `cargo test` here compiles it as a member
+ * `node_modules`, with nothing of this repository around it: no workspace and
+ * no sibling crate. `cargo test` here compiles it as a member
  * of the addon's workspace, which is a different build, so this lays the
  * crate's tracked files out where an install puts them, under a consumer crate
  * of its own, and runs that consumer once. `tools/native-packages.check.ts`
  * holds the other half: what is tracked here is what is packed.
  *
  * The addon's lockfile is copied in as the consumer's, so the crate resolves to
- * the versions this repository builds and the run needs no registry it has not
+ * the versions this repository builds — the parser is pinned exactly in the
+ * crate's manifest, so a project's own resolution differs only below it — and the run needs no registry it has not
  * already fetched; the consumer shares `target/` with the addon's release build
  * for the same reason.
  */

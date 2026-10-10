@@ -221,6 +221,29 @@ module.exports = {
     });
   });
 
+  it('is handed the module untouched when Jest transforms asynchronously', async () => {
+    const root = await placing(OURS);
+    const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs') });
+
+    const done = await transformer.processAsync!(RAW, resolve(root, 'src/pick.js'), transformOptions(root));
+
+    expect(JSON.parse(done.code)).toEqual({
+      source: RAW,
+      probes: { file: 'src/pick.js', module: moduleId('src/pick.js', RAW), mode: 'presence' },
+    });
+  });
+
+  it('is given the probes in the text when it has no recipe for the mode', async () => {
+    const root = await placing(JSON.stringify({ presence: probeRecipe('presence') }));
+    const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs'), mode: 'entries' });
+
+    const done = transformer.process!(RAW, resolve(root, 'src/pick.js'), transformOptions(root));
+
+    const handed = JSON.parse(done.code) as { source: string; probes: unknown };
+    expect(handed.probes).toBeNull();
+    expect(handed.source).toContain('.r("src/pick.js@');
+  });
+
   it('is handed nothing to place in a test file', async () => {
     const root = await placing(OURS);
     const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs') });

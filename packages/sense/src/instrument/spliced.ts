@@ -91,7 +91,6 @@ export interface Spliced {
   readonly blocks: readonly Block[];
 }
 
-/** The addon's answer: one column per block field, in ordinal order. */
 /** The addon, which is the only instrumenter: no addon is an error, never an uninstrumented run. */
 export function instrumenter(): NativeScanner {
   const addon = native();
@@ -101,6 +100,7 @@ export function instrumenter(): NativeScanner {
   return addon;
 }
 
+/** The addon's answer: one column per block field, in ordinal order. */
 export interface NativeInstrumented {
   readonly code: string;
   readonly headerAt: number;

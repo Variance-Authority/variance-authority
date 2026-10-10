@@ -2,6 +2,9 @@
 name = "variance-sense-instrument"
 version = "0.0.0"
 edition = "2021"
+# oxc 0.144's own floor, so an older toolchain is refused here rather than
+# inside the parser.
+rust-version = "1.95"
 publish = false
 description = "Sense's probes, for a transform pipeline written in Rust."
 license = "MIT"
@@ -10,13 +13,23 @@ license = "MIT"
 # `node_modules/@variance-authority/sense/native/instrument`, where no workspace
 # around it ships, so every field is its own.
 [dependencies]
-oxc_allocator = "0.144.0"
-oxc_ast = "0.144.0"
-oxc_ast_visit = "0.144.0"
-oxc_parser = "0.144.0"
-oxc_span = "0.144.0"
-oxc_syntax = { version = "0.144.0", features = ["to_js_string"] }
+# The parser is pinned exactly: what it reads decides the regions, and a
+# pipeline's own lockfile must not resolve another one than the addon's.
+oxc_allocator = "=0.144.0"
+oxc_ast = "=0.144.0"
+oxc_ast_visit = "=0.144.0"
+oxc_parser = "=0.144.0"
+oxc_span = "=0.144.0"
+oxc_syntax = { version = "=0.144.0", features = ["to_js_string"] }
 sha2 = "0.10"
+
+[build-dependencies]
+sha2 = "0.10"
+
+# The regions themselves and the walk over a parsed program, which the
+# package's addon reads and a pipeline does not.
+[features]
+addon = []
 
 # The ARMv8 SHA instructions, as `sense-native` takes them: see its manifest.
 [target.'cfg(target_arch = "aarch64")'.dependencies]

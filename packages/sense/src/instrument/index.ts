@@ -248,13 +248,12 @@ export function probeRuntime(id: ModuleId, count: number): string {
 }
 
 /**
- * What this build writes under `mode`: its identity and the digest of the
- * header's text.
+ * What this build writes under `mode`: its identity, and one digest of the
+ * header's text and of the instrumenter crate's sources.
  *
  * A transform cache that keys on the instrumentation identity alone serves the
- * previous probe after the header changes: the regions are the same, so the
- * identity is too. What the text does is not a region question, and a cache
- * that stores it keys on the recipe. A Rust pipeline built on the instrumenter
+ * previous probe after the header or the walk changes under the same identity.
+ * A cache that stores instrumented text keys on the recipe. A Rust pipeline built on the instrumenter
  * crate answers the same string from its `recipe()`, which is how a wrapper
  * tells that the probes it did not place are the ones this build would have.
  */

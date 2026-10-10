@@ -54,11 +54,6 @@ impl Mode {
             Mode::Entries => "sense:instrument/entries-v2",
         }
     }
-
-    /// The mode an identity names, or nothing for one this build does not emit.
-    pub fn of_instrumentation(instrumentation: &str) -> Option<Mode> {
-        [Mode::Presence, Mode::Entries].into_iter().find(|mode| mode.instrumentation() == instrumentation)
-    }
 }
 
 /// One module with its probes in.
@@ -106,14 +101,17 @@ pub fn module_id(path: &str, source: &str) -> String {
     format!("{path}@{hex}")
 }
 
-/// What this build writes under `mode`: the identity and the header's own
-/// digest. Two builds with one recipe place the same probes on the same text.
+/// What this build writes under `mode`: the identity, and one digest of the
+/// header and of the sources and manifest the crate was compiled from. Two
+/// builds with one recipe place the same probes on the same text.
 pub fn recipe(mode: Mode) -> String {
-    format!("{}+{}", mode.instrumentation(), digest::of_string(&header::header("", 0)))
+    let made = format!("{}\0{}", header::header("", 0), env!("SENSE_INSTRUMENT_SOURCES"));
+    format!("{}+{}", mode.instrumentation(), digest::of_string(&made))
 }
 
 /// What the package's addon needs and a pipeline does not: the regions
 /// themselves, and the walk over a program the scanner already parsed.
+#[cfg(feature = "addon")]
 #[doc(hidden)]
 pub mod native {
     use oxc_ast::ast::Program;
@@ -159,14 +157,6 @@ mod tests {
     #[test]
     fn a_module_id_is_the_path_and_the_hex_of_the_text_digest() {
         assert_eq!(module_id("src/a.ts", ""), "src/a.ts@e3b0c44298fc1c149afbf4c8996fb924");
-    }
-
-    #[test]
-    fn a_mode_is_named_by_its_identity_and_back() {
-        for mode in [Mode::Presence, Mode::Entries] {
-            assert_eq!(Mode::of_instrumentation(mode.instrumentation()), Some(mode));
-        }
-        assert_eq!(Mode::of_instrumentation("sense:instrument/presence-v4"), None);
     }
 
     #[test]
