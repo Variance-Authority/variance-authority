@@ -115,9 +115,28 @@ describe('nothing grows into a monster', () => {
    */
   const VENDORED = 'packages/sense/native/vendor/oxc_resolver';
 
+  /**
+   * Every module the repository writes, by the names Node and TypeScript give
+   * one: `.cts`, `.mts` and `.cjs` too. The files that have to be CommonJS are
+   * the ones loaded inside another runner's sandbox, and while the list left
+   * them out, `journal-format.cts` reached 527 lines unread.
+   */
   const SOURCE = execFileSync(
     'git',
-    ['ls-files', '--', '*.ts', '*.tsx', '*.mjs', '*.js', '*.jsx', '*.rs', `:(exclude)${VENDORED}`],
+    [
+      'ls-files',
+      '--',
+      '*.ts',
+      '*.tsx',
+      '*.mts',
+      '*.cts',
+      '*.js',
+      '*.jsx',
+      '*.mjs',
+      '*.cjs',
+      '*.rs',
+      `:(exclude)${VENDORED}`,
+    ],
     { cwd: ROOT, encoding: 'utf8' },
   )
     .trim()
@@ -206,6 +225,22 @@ describe('nothing grows into a monster', () => {
     expect(SOURCE).toContain('packages/sense/native/src/lib.rs');
   });
 
+  it('counts every module Node or TypeScript loads, so a `.cts` or `.cjs` file is not left unread', () => {
+    // The count is a list of extensions, and a list is only as long as whoever
+    // wrote it remembered. This asks git for every tracked module by the shape
+    // Node and TypeScript give its name — `.js`, `.ts`, either with `x`, and
+    // the `.c` and `.m` forms of both — and holds the count to all of them.
+    const counted = new Set(SOURCE);
+    const modules = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
+      .trim()
+      .split('\n')
+      .filter((file) => /\.[cm]?[jt]sx?$/.test(file) && !file.startsWith(`${VENDORED}/`))
+      .filter((file) => existsSync(join(ROOT, file)));
+
+    expect(modules.filter((file) => /\.c[jt]s$|\.m[jt]s$/.test(file)).length).toBeGreaterThan(0);
+    expect(modules.filter((file) => !counted.has(file))).toEqual([]);
+  });
+
   it('leaves out the vendored resolver, and the directory it leaves out exists', () => {
     expect(existsSync(join(ROOT, VENDORED, 'src/lib.rs'))).toBe(true);
     expect(SOURCE.filter((file) => file.startsWith(`${VENDORED}/`))).toEqual([]);
@@ -231,7 +266,7 @@ describe('nothing grows into a monster', () => {
     expect([...OVERSIZE.keys()].filter((file) => !existsSync(join(ROOT, file)))).toEqual([]);
   });
 
-  it.each(SOURCE.filter((file) => /\.(test|spec|check)\.(ts|tsx)$/.test(file)))(
+  it.each(SOURCE.filter((file) => /\.(test|spec|check)\.[cm]?[jt]sx?$/.test(file)))(
     '%s does not drive a compiler',
     (file) => {
       const text = readFileSync(join(ROOT, file), 'utf8');
