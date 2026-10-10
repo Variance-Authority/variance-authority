@@ -16,6 +16,7 @@ import {
 } from '@variance-authority/core/format';
 import { captureSubject } from './capture.js';
 import { ENGINE_TYPES, type BrowserEngine } from './engines.js';
+import { pinnedLocale, type PageLocale } from './viewport.js';
 import {
   assertClosedResources,
   refuseMissingResources,
@@ -90,7 +91,8 @@ export const CHROMIUM_RASTER_ARGS = [
   '--font-render-hinting=none',
 ] as const;
 
-export interface PlaywrightRendererOptions {
+/** Each page opens in {@link PageLocale}'s timezone and language: `UTC` and `en-US` by default. */
+export interface PlaywrightRendererOptions extends PageLocale {
   readonly headless?: boolean;
 
   /**
@@ -181,6 +183,8 @@ export async function createPlaywrightRenderer(
     );
   }
 
+  const region = pinnedLocale(options);
+
   try {
     const identity: RenderIdentity = {
       renderer: `playwright-${engine}`,
@@ -203,16 +207,20 @@ export async function createPlaywrightRenderer(
       // every baseline in the world went `incomparable` over a spelling.
       //
       // What belongs here is what the machine does to the pixels no recipe
-      // asked for: which browser, launched how, photographed into what format.
+      // asked for: which browser, launched how, opened in which timezone and
+      // locale, photographed into what format. The page's scripts run here, so
+      // a date they format is painted in this renderer's timezone, not the one the
+      // collector read in; an image from another timezone is not this one's.
       rasterization: digestValue({
         browser: { headless, launchArgs: [...launchArgs] },
+        page: region,
         screenshot: raster,
       }),
     };
 
     const concurrency = Math.max(1, options.concurrency ?? 1);
     const activeResources = new WeakMap<BrowserContext, Set<string>>();
-    const pool = new PagePool(browser, concurrency, (context, url) => {
+    const pool = new PagePool(browser, concurrency, region, (context, url) => {
       activeResources.get(context)?.add(`websocket ${url}`);
     });
 
@@ -378,6 +386,7 @@ function probeFonts(families: readonly string[]): string[] {
 class PagePool {
   readonly #browser: Browser;
   readonly #limit: number;
+  readonly #locale: Required<PageLocale>;
   readonly #onWebSocket: (context: BrowserContext, url: string) => void;
   /** Idle pages, per viewport key. A render takes one and puts it back. */
   readonly #idle = new Map<string, Page[]>();
@@ -387,10 +396,12 @@ class PagePool {
   constructor(
     browser: Browser,
     limit: number,
+    locale: Required<PageLocale>,
     onWebSocket: (context: BrowserContext, url: string) => void,
   ) {
     this.#browser = browser;
     this.#limit = limit;
+    this.#locale = locale;
     this.#onWebSocket = onWebSocket;
   }
 
@@ -443,6 +454,7 @@ class PagePool {
       viewport: { width: viewport.width, height: viewport.height },
       deviceScaleFactor: viewport.deviceScaleFactor,
       colorScheme: viewport.colorScheme,
+      ...this.#locale,
       serviceWorkers: closed ? 'block' : 'allow',
     });
     const page = await context.newPage();

@@ -38,6 +38,10 @@ export interface AcquireRequest {
   readonly engine: string;
   readonly fonts?: readonly string[];
 
+  /** The timezone and locale the driver opened the page in, for the environment key. */
+  readonly timezoneId?: string;
+  readonly locale?: string;
+
   /**
    * Content hashes for what the page was served, keyed by request URL.
    *
@@ -229,6 +233,8 @@ export async function acquire(request: AcquireRequest): Promise<string> {
   const capture = collect(root, {
     ...shared,
     engine: request.engine,
+    ...(request.timezoneId !== undefined ? { timezoneId: request.timezoneId } : {}),
+    ...(request.locale !== undefined ? { locale: request.locale } : {}),
     portalsOf: portalContentOf,
     // One memo for this collection: `provenanceOf` walks the owner chain of
     // every node, so without it each boundary's props are digested once per

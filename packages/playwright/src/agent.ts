@@ -52,6 +52,10 @@ export interface CaptureRequest {
 
   readonly features?: Readonly<Record<string, string>>;
   readonly assets?: Readonly<Record<string, string>>;
+
+  /** The timezone and locale the harness opened the page in, for the environment key. */
+  readonly timezoneId?: string;
+  readonly locale?: string;
 }
 
 /**

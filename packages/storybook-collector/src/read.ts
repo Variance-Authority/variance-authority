@@ -57,7 +57,7 @@ export async function readStory(
   recorder?: StoryRecorder,
 ): Promise<Collected> {
   const { config, options, baseUrl, roots, source } = reading;
-  const { page, engine, network } = world;
+  const { page, engine, region, network } = world;
   const storyId = storyIdOf(planned.subject.id);
 
   const viewport = planned.viewport ?? config.viewport;
@@ -127,6 +127,7 @@ export async function readStory(
     subjectId: planned.subject.id,
     viewport,
     engine,
+    ...region,
     ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
     // Only the rules that name a selector cross into the page. A fingerprint
     // rule has nothing for a document to resolve, and sending one would put a

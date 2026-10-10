@@ -26,6 +26,7 @@ export async function stableRaster(
   document: Parameters<typeof documentDigest>[0],
   fonts: readonly string[],
   stabilization: RenderIdentity['stabilization'],
+  region: Pick<AcquireRequest, 'timezoneId' | 'locale'>,
   options: InPlaceCaptureOptions,
   snapshot: SemanticSnapshot,
 ): Promise<Raster> {
@@ -53,6 +54,9 @@ export async function stableRaster(
         headless: options.browser.headless,
         launchArgs: [...options.browser.launchArgs],
       },
+      // The page's scripts ran in this timezone and locale, so the dates and
+      // numbers in these pixels were formatted in them.
+      page: { timezoneId: region.timezoneId, locale: region.locale },
       screenshot,
     }),
   };
@@ -110,6 +114,22 @@ export async function stableRaster(
     }
   }
   return first;
+}
+
+/**
+ * The timezone and locale the page under test runs in.
+ *
+ * Asked of the page, because it is the page's own: a suite that set
+ * `timezoneId` or `locale` in its Playwright config gets those, and one that
+ * did not gets the host's. Either way the text it lays out was formatted in
+ * them, so both keys and the render that paints it carry them.
+ *
+ * Source, not a function, for the reason {@link PROBE_FONTS} gives.
+ */
+export async function regionOf(page: Page): Promise<{ timezoneId: string; locale: string }> {
+  return (await page.evaluate(
+    `({ timezoneId: Intl.DateTimeFormat().resolvedOptions().timeZone, locale: navigator.language })`,
+  )) as { timezoneId: string; locale: string };
 }
 
 /**
@@ -221,6 +241,7 @@ export async function settledCapture(
         held.document,
         about.fonts,
         held.stabilization.digest,
+        request,
         materialization,
         heldSnapshot,
       );

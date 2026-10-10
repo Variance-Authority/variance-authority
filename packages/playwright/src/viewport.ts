@@ -13,6 +13,27 @@ import type { Viewport } from '@variance-authority/core/format';
  */
 
 /**
+ * The timezone and locale a browser context is opened in, as Playwright names them.
+ *
+ * A page that formats a date or a number without naming a timezone or a language
+ * of its own gets the host's, so one build reads `12:30 AM` on a runner in UTC
+ * and `4:30 PM` on a laptop in California. Both are pinned, `UTC` and `en-US`
+ * unless the run declares otherwise, and both are part of the environment key and
+ * the render identity, the way a colour scheme is.
+ */
+export interface PageLocale {
+  /** An IANA timezone, such as `Europe/Berlin`. Defaults to `UTC`. */
+  readonly timezoneId?: string;
+  /** A BCP 47 tag, such as `de-DE`. Defaults to `en-US`. */
+  readonly locale?: string;
+}
+
+/** {@link PageLocale} with its defaults filled in. */
+export function pinnedLocale(declared: PageLocale): Required<PageLocale> {
+  return { timezoneId: declared.timezoneId ?? 'UTC', locale: declared.locale ?? 'en-US' };
+}
+
+/**
  * Why this subject cannot be read in the page the run opened, or `undefined`.
  *
  * Width and height are a resize. A device scale factor or a colour scheme is a

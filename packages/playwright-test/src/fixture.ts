@@ -29,7 +29,7 @@ import { bundlePageAgent } from './bundle.js';
 import { checkoutStore } from './render-cache.js';
 import { acquireFrom } from './acquire.js';
 import { runOf, type VarianceRun } from './run.js';
-import { settledCapture } from './in-place.js';
+import { regionOf, settledCapture } from './in-place.js';
 import { varianceCompletedFixtures, type VarianceCompletedFixtures } from './completed.js';
 import { varianceDocumentFixtures } from './documents.js';
 import { arrangedText, snapshotCaseOf, type SnapshotCase } from './arranged.js';
@@ -242,9 +242,16 @@ export const varianceFixtures: Fixtures<
   // — 205 ms cold against 7.5 ms warm (journal 0007) — so a renderer built per
   // subject spends the whole saving before it paints anything.
   varianceRenderer: [
+    // The suite's own `timezoneId` and `locale`, so the document is painted in
+    // the region its page ran in. Read from the project because Playwright's
+    // options are test-scoped and a worker fixture cannot depend on them.
     // eslint-disable-next-line no-empty-pattern -- see `varianceBundle`.
-    async ({}, use) => {
-      const renderer = await createPlaywrightRenderer();
+    async ({}, use, workerInfo) => {
+      const { timezoneId, locale } = workerInfo.project.use;
+      const renderer = await createPlaywrightRenderer({
+        ...(timezoneId === undefined ? {} : { timezoneId }),
+        ...(locale === undefined ? {} : { locale }),
+      });
       await use(renderer);
       await renderer.close();
     },
@@ -348,6 +355,7 @@ export async function observeLocator(
     ...(materialization.kind === 'in-place' ? { tier: 'raster' as const } : {}),
     viewport: viewportOf(page.viewportSize(), run),
     engine: engineOf(page),
+    ...(await regionOf(page)),
     ...(options.fonts !== undefined ? { fonts: options.fonts } : {}),
     ...(options.loading === true
       ? { suspense: { timeoutMs: 0 } }

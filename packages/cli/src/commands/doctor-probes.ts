@@ -88,10 +88,14 @@ export interface RenderCacheReading {
  * that is not installed. A doctor that is wrong in the direction of "fine" is
  * worse than no doctor.
  */
-export function rendererOptionsFor(config: Config): { fonts: readonly string[]; browser?: BrowserEngine } {
+export function rendererOptionsFor(
+  config: Config,
+): { fonts: readonly string[]; browser?: BrowserEngine; timezoneId?: string; locale?: string } {
   return {
     fonts: config.fonts,
     ...(config.browser === undefined ? {} : { browser: config.browser }),
+    ...(config.timezoneId === undefined ? {} : { timezoneId: config.timezoneId }),
+    ...(config.locale === undefined ? {} : { locale: config.locale }),
   };
 }
 

@@ -51,6 +51,10 @@ export interface AcquireRequest {
   /** Engine identity for the environment key, e.g. `chromium@131.0.6778.33`. */
   readonly engine: string;
 
+  /** The timezone and locale the page runs in, for the environment key. */
+  readonly timezoneId?: string;
+  readonly locale?: string;
+
   /**
    * Fonts this machine is asserted to have, as `family/weight/style/hash`.
    *
@@ -179,6 +183,8 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
   const capture = collect(root, {
     ...shared,
     engine: request.engine,
+    ...(request.timezoneId === undefined ? {} : { timezoneId: request.timezoneId }),
+    ...(request.locale === undefined ? {} : { locale: request.locale }),
     portalsOf: () => portals,
     // One memo for this collection: `provenanceOf` walks the owner chain of
     // every node, so without it each boundary's props are digested once per

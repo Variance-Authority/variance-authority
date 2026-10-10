@@ -55,6 +55,9 @@ export interface World {
   /** The engine string that goes into every subject's key, from the browser itself. */
   readonly engine: string;
 
+  /** The timezone and locale the page was opened in, as they go into every subject's key. */
+  readonly region: Harness['region'];
+
   /** Absent exactly when {@link WorldRecipe.network} was. */
   readonly network?: NetworkObservation;
 
@@ -87,6 +90,7 @@ export async function openWorld(recipe: WorldRecipe): Promise<World> {
   return {
     page: harness.page,
     engine: harness.engine,
+    region: harness.region,
     ...(network !== undefined ? { network } : {}),
     async close(): Promise<void> {
       await network?.close();

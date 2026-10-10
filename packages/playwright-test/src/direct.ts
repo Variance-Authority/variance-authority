@@ -5,6 +5,7 @@ import { createPlaywrightRenderer } from '@variance-authority/playwright/rendere
 import type { RasterStore, Renderer } from '@variance-authority/raster';
 import { bundlePageAgent } from './bundle.js';
 import { observeLocator } from './fixture.js';
+import { regionOf } from './in-place.js';
 import { checkoutStore } from './render-cache.js';
 import type { MaterializationOptions, VarianceOptions } from './options.js';
 import {
@@ -118,10 +119,11 @@ export async function createVariance(
   if (!installed) await page.evaluate(bundle);
 
   // Open an owned renderer only after page setup can no longer fail. Before
-  // this point no session exists whose `close` the caller could reach.
+  // this point no session exists whose `close` the caller could reach. It
+  // paints in the timezone and locale this page runs in.
   const renderer =
     materialization.kind === 'deferred'
-      ? options.renderer ?? (await createPlaywrightRenderer())
+      ? options.renderer ?? (await createPlaywrightRenderer(await regionOf(page)))
       : options.renderer;
 
   const declared = createDeclarationReader(page, { global: AGENT });
