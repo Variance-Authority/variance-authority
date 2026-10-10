@@ -6,8 +6,8 @@ import { ROOT } from './markdown.js';
 /**
  * Every tracked module, by every name Node and TypeScript load one under.
  *
- * Shared because five checks each typed this list by hand and four typed it
- * short: the `.cts` modules are the ones loaded inside another runner's
+ * Shared because five checks each typed this list by hand and every one typed
+ * it short: the `.cts` modules are the ones loaded inside another runner's
  * sandbox, and while the line count left them out, `journal-format.cts` reached
  * 527 lines unread. A rule about source reads this list, so the extensions are
  * named once.
