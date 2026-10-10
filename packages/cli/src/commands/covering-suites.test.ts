@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
+import { formatCoveringAnswer } from './covering-suites.js';
 
 const SUITES = {
   suites: { unit: { kind: 'unit' }, stories: { kind: 'visual' }, checkout: { kind: 'e2e' } },
@@ -23,6 +24,11 @@ function indexOf(file: string, test: { id: string; file: string; name: string })
     }],
   };
 }
+
+/** The one line a suite that never loaded the file costs, once any suite answered. */
+const NOT_LOADED = (suites: string) =>
+  `Not loaded by ${suites}: a run that never loaded the file has no answer about it, ` +
+  'which is not the same as no test covering it.';
 
 let cache: string;
 let root: string;
@@ -80,8 +86,39 @@ describe('a line asked of a repository that declares suites', () => {
     const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', root]);
 
     expect(answer.out).toContain('unit (unit):\n  1 named test covered line 12 of src/pay.ts');
-    expect(answer.out).toMatch(/^stories \(visual\): `src\/pay\.ts` is not in the index at/mu);
     expect(answer.out).toMatch(/^checkout \(e2e\): nothing is recorded in/mu);
+  });
+
+  it('names the suites that never loaded the file once, after every answer, without their records', async () => {
+    const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', root]);
+
+    expect(answer.out.endsWith(`\n${NOT_LOADED('stories (visual)')}\n`)).toBe(true);
+    expect(answer.out.indexOf('unit (unit):')).toBeLessThan(answer.out.indexOf('Not loaded by'));
+    expect(answer.out).not.toContain('is not in the index');
+    expect(answer.out).not.toContain('/suites/stories/');
+  });
+
+  it('names them the same way in the answer for an agent', async () => {
+    const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', root, '--format', 'refs']);
+
+    expect(answer.out.endsWith(`\n${NOT_LOADED('stories (visual)')}\n`)).toBe(true);
+    expect(answer.out).not.toContain('is not in the index');
+  });
+
+  it('counts a suite that holds the file and refuses the line as one that answered', async () => {
+    const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '3', '--root', root]);
+
+    expect(answer.out).toMatch(/^unit \(unit\): line 3 of `src\/pay\.ts` is outside every recorded region/mu);
+    expect(answer.out.endsWith(`\n${NOT_LOADED('stories (visual)')}\n`)).toBe(true);
+  });
+
+  it('explains every suite in full when none of them loaded the file, since that is the whole answer', async () => {
+    const answer = await ask(['covering', '--file', 'src/charge.ts', '--root', root]);
+
+    expect(answer.code).toBe(0);
+    expect(answer.out).toMatch(/^stories \(visual\): `src\/charge\.ts` is not in the index at `[^`]+\/suites\/stories\/[^`]+`, which holds 1 file\./mu);
+    expect(answer.out).toMatch(/^unit \(unit\): `src\/charge\.ts` is not in the index at .* Nothing recorded ends in `charge\.ts`\.$/mu);
+    expect(answer.out).not.toContain('Not loaded by');
   });
 
   it('reads one suite alone under `--suite`, in the shape a repository with one record answers', async () => {
@@ -105,6 +142,25 @@ describe('a line asked of a repository that declares suites', () => {
 
     expect(answer.code).toBe(2);
     expect(answer.err).toContain('`--suite` and `--execution` both name the record; pass one');
+  });
+});
+
+describe('several suites that never loaded the file', () => {
+  it('cost one line between them, in declaration order', () => {
+    const unloaded = (suite: string, kind: 'e2e' | 'visual') =>
+      ({ suite, kind, refused: 'unloaded' as const, reason: '`src/pay.ts` is not in the index at `/cache/coverage.bin`.' });
+    const said = formatCoveringAnswer({
+      file: 'src/pay.ts',
+      suites: [
+        unloaded('checkout', 'e2e'),
+        unloaded('stories', 'visual'),
+        { suite: 'unit', kind: 'unit', file: 'src/pay.ts', target: { line: 12 }, tests: [], from: '/cache/unit.bin' },
+      ],
+    }, 'text');
+
+    expect(said.startsWith('unit (unit):\n')).toBe(true);
+    expect(said.endsWith(`\n${NOT_LOADED('checkout (e2e), stories (visual)')}\n`)).toBe(true);
+    expect(said).not.toContain('/cache/coverage.bin');
   });
 });
 

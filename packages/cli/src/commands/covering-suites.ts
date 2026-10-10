@@ -91,17 +91,39 @@ async function askSuite(request: ParsedCovering, suite: DeclaredSuite): Promise<
   }
 }
 
-/** Say either answer in the shape the caller asked for. */
+/**
+ * Say either answer in the shape the caller asked for.
+ *
+ * Once any suite said something about the file, one that never loaded it is
+ * named on one line after every answer, without its record's path or size: the
+ * reader came for the answer, and a suite that tests other code is the common
+ * case, not a finding. When none loaded it, each suite's refusal is the answer, and is
+ * printed in full with the spelling it points at. JSON carries every refusal
+ * whole either way.
+ */
 export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: CoveringFormat): string {
   if (!('suites' in answer)) return formatCovering(answer, format);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
 
-  return answer.suites
+  const named = (one: SuiteAnswer): string => `${one.suite} (${one.kind})`;
+  const unloaded = (one: SuiteAnswer): boolean => 'refused' in one && one.refused === 'unloaded';
+  // A refusal about a line or a function the suite holds is an answer about the file; never loading it, or never running, is not.
+  const loaded = answer.suites.some((one) =>
+    !('reason' in one) || (one.refused !== 'unloaded' && one.refused !== 'unrecorded'));
+  const said = answer.suites
+    .filter((one) => !(loaded && unloaded(one)))
     .map((one) => {
-      const head = `${one.suite} (${one.kind}):`;
+      const head = `${named(one)}:`;
       if ('reason' in one) return `${head} ${one.reason}\n`;
       const body = formatCovering(one, format);
       return `${head}\n${format === 'refs' ? body : body.replace(/^(?=.)/gmu, '  ')}`;
-    })
-    .join('\n');
+    });
+  const away = loaded ? answer.suites.filter(unloaded).map(named) : [];
+  if (away.length > 0) {
+    said.push(
+      `Not loaded by ${away.join(', ')}: a run that never loaded the file has no answer about it, ` +
+        'which is not the same as no test covering it.\n',
+    );
+  }
+  return said.join('\n');
 }

@@ -403,11 +403,17 @@ kind, because each suite proves something different:
 
 ```text
 checkout (e2e): nothing is recorded in /repo: no run left a per-case index at …
-stories (visual): `src/checkout/total.ts` is not in the index at …
+
 unit (unit):
   2 named tests covered line 48 of src/checkout/total.ts:
   …
+
+Not loaded by stories (visual): a run that never loaded the file has no answer about it, which is not the same as no test covering it.
 ```
+
+A suite that never loaded the file costs one line after the answers. When no
+suite loaded it, each suite says so in full, with the record it read and the
+nearest spelling that record holds.
 
 In JSON the answer is a `suites` list. Each entry is that suite's own answer
 with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`
