@@ -1,5 +1,116 @@
 # @variance-authority/storybook-collector
 
+## 0.15.0
+
+### Minor Changes
+
+- 3e6a370: A run's cases travel in its record
+
+  The case index, the cases a run replaced and the run that replaced them are
+  sections of `coverage.bin`, no longer a `coverage.bin.cases.bin` beside it. The
+  one file is landed, layered, seeded, repinned, sharded and shared by the same
+  rules and under the same lock as the coverage it was recorded with, so the two
+  always answer for the same runs. A share, a seed or a fetch carries the index
+  and drops the replaced cases and the run that names them, which belong to the
+  machine that ran.
+
+  A record that carries cases is format 10, and a reader that knows only coverage
+  refuses it rather than misreading it. A record without cases keeps format 9. A
+  `coverage.bin.cases.bin` left from an earlier run is not read; the next run
+  writes its cases into the record.
+
+  The `executionFile` option is removed from `withTestSelection`, the Jest and
+  rstest seams, `startRecording`, the Playwright reporter and the Storybook
+  collector, along with the JSON it could write. `decodeExecutionIndex`,
+  `readExecutionIndex`, `variance covering --against`, `variance review` and
+  `distill --execution` read the index out of a record; JSON stays readable as
+  the spelling a foreign tool supplies. `landCaseIndexes` is replaced by
+  `landCases`, which returns the sections for the record you write, and
+  `lastCaseRunOf` reads the run they name. `caseLayerFiles` and
+  `executionIndexBytes`, which named and read the file beside the record, are
+  removed. `CaseSections`, `caseSectionsAt`, `caseSectionsOf`, `caseIndexOf`,
+  `recordedCases`, `withCaseSections`, `keepsCases` and `sharedRecord` read and
+  write the sections.
+
+### Patch Changes
+
+- 8dbc834: The components a module declares are read from its code. A declaration written
+  in a block comment, a JSDoc example or a template literal no longer names a
+  component, so a commented-out `function Retired()` no longer makes its file
+  the one that declares `Retired`. A name is declared by a statement of the
+  module itself: a function, class or binding inside a function body belongs to
+  that function and no longer counts. An `export async function Page()`, an
+  abstract class, a generator, a second name in `const A = 1, B = 2`, and a name
+  that starts with a non-ASCII capital or carries a `$` are now declared too.
+
+  `variance run`, `variance collect`, the Storybook collector and the route
+  collector resolve a component to its `file:line` from the same reading, through
+  `indexDeclarations`, which `sense` now exports. What that changes in the index
+  they build from `source.dirs`:
+
+  - The line is the first line of the declaring statement. A decorated class
+    sits at its first decorator, or at its `export` when the decorator is written
+    above the `export`, and a second name in a multi-line `const` at the line of
+    the `const`.
+  - `.d.ts` files, and test, spec and story files your own `exclude` lets
+    through, declare nothing.
+  - A file the parser cannot read declares nothing, where the text scan found
+    the components in it. That covers a Flow-annotated `.js` file, and a `.vue`,
+    `.svelte` or `.mdx` file you add to a collector's `extensions`, which is
+    parsed as TSX and fails. The index built from `source.dirs` or a collector's
+    `source` does not say so: the file's components are missing, and nothing
+    names the file. Only `sense`'s source index, for a file it records, names the
+    parse error in that file's record.
+  - Building the index needs `sense`'s native addon, which ships for macOS on
+    arm64, Linux on x64 and arm64 with glibc, and Windows on x64. On any other
+    machine, including an Intel Mac, an Alpine image and Windows on arm64, a
+    configured `source.dirs` fails at its first file and names why the addon did
+    not load, where the text scan ran anywhere. The route collector depends on
+    `sense` for it.
+
+  `indexSource` is removed from `@variance-authority/core/attribute`. Build a
+  `SourceIndex` with `indexDeclarations` from `@variance-authority/sense`, or
+  write one as plain data: a map from component name to `{ file, line, via }`.
+  `SourceRef['via']` loses `'declared'`, which nothing produced, and
+  `readCapture` in `@variance-authority/unit-test` refuses a capture whose source
+  index carries it.
+
+  The source index format moves to version 18, so an index written before this
+  release is rebuilt once instead of keeping the names it read from comments.
+- ef496ad: READMEs name what the program does
+
+  The package READMEs, and the `@variance-authority/vantage` and
+  `@variance-authority/playwright-test` descriptions, no longer write a test, a
+  record or a run as something that says, asks or knows. Each sentence names what
+  the program does: a command prints, a record holds a field, a test runs or
+  covers. Where a value is filled in from configuration or a default rather than
+  recorded, the README says so. Four renamed headings change their anchors:
+  `help`'s "Where the declaration is undocumented", `playwright`'s "Where a
+  component is declared, read from the engine", `storybook`'s "What a pass sends
+  the preview" and `sense`'s "Correct what a file's text declares it imports".
+- 4799688: The checkout says what the probes meant: no build writes module records
+
+  A probe names the file it was placed on and the digest of that text,
+  `path@digest`. When a run is folded, each module the journals name is cut again
+  from the file in the checkout. A file whose text still matches is read on its
+  own regions; a file that has moved on since the build reads as one whose reach
+  is not known, which selects every test that entered it; a file that is gone
+  counts the same way. Nothing is written beside the build, and nothing under the
+  cache's `test-selection/<key>/<label>/` is read.
+
+  Breaking:
+
+  - `testSelectionProbes()` takes no `cacheRoot`. Its `label` names the journey
+    head and nothing else.
+  - `recordExecution()` takes no `label` and no `heads`.
+  - The Jest journeys options (`withJourneyCoverage`) take no `heads`.
+  - `jestStore` is removed from `@variance-authority/sense/jest`.
+  - `instrumentModule(code, file)` takes no options: call it first, on the file as
+    it is on disk.
+  - A journal names a module by `path@digest`. A driver that writes its own
+    journal builds the id with `moduleId(path, code)` from
+    `@variance-authority/sense/journal`.
+
 ## 0.14.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

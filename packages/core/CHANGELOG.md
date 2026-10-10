@@ -1,5 +1,194 @@
 # @variance-authority/core
 
+## 0.15.0
+
+### Minor Changes
+
+- 8dbc834: The components a module declares are read from its code. A declaration written
+  in a block comment, a JSDoc example or a template literal no longer names a
+  component, so a commented-out `function Retired()` no longer makes its file
+  the one that declares `Retired`. A name is declared by a statement of the
+  module itself: a function, class or binding inside a function body belongs to
+  that function and no longer counts. An `export async function Page()`, an
+  abstract class, a generator, a second name in `const A = 1, B = 2`, and a name
+  that starts with a non-ASCII capital or carries a `$` are now declared too.
+
+  `variance run`, `variance collect`, the Storybook collector and the route
+  collector resolve a component to its `file:line` from the same reading, through
+  `indexDeclarations`, which `sense` now exports. What that changes in the index
+  they build from `source.dirs`:
+
+  - The line is the first line of the declaring statement. A decorated class
+    sits at its first decorator, or at its `export` when the decorator is written
+    above the `export`, and a second name in a multi-line `const` at the line of
+    the `const`.
+  - `.d.ts` files, and test, spec and story files your own `exclude` lets
+    through, declare nothing.
+  - A file the parser cannot read declares nothing, where the text scan found
+    the components in it. That covers a Flow-annotated `.js` file, and a `.vue`,
+    `.svelte` or `.mdx` file you add to a collector's `extensions`, which is
+    parsed as TSX and fails. The index built from `source.dirs` or a collector's
+    `source` does not say so: the file's components are missing, and nothing
+    names the file. Only `sense`'s source index, for a file it records, names the
+    parse error in that file's record.
+  - Building the index needs `sense`'s native addon, which ships for macOS on
+    arm64, Linux on x64 and arm64 with glibc, and Windows on x64. On any other
+    machine, including an Intel Mac, an Alpine image and Windows on arm64, a
+    configured `source.dirs` fails at its first file and names why the addon did
+    not load, where the text scan ran anywhere. The route collector depends on
+    `sense` for it.
+
+  `indexSource` is removed from `@variance-authority/core/attribute`. Build a
+  `SourceIndex` with `indexDeclarations` from `@variance-authority/sense`, or
+  write one as plain data: a map from component name to `{ file, line, via }`.
+  `SourceRef['via']` loses `'declared'`, which nothing produced, and
+  `readCapture` in `@variance-authority/unit-test` refuses a capture whose source
+  index carries it.
+
+  The source index format moves to version 18, so an index written before this
+  release is rebuilt once instead of keeping the names it read from comments.
+- 6755276: `variance distill --file <path>` lists each module no case entered under the
+  import that made the test file load it: the topmost import every path from the
+  test file to the module runs through, with nothing behind it that a case
+  entered, often in a module the test used rather than in the test file. A module
+  two imports reach is listed as shared, with the nearest file every path to it
+  runs through; one no static import reaches, such as a dynamic import's, is
+  listed apart. The file graph is read from the checkout only when the reading
+  has a module no case entered. A module the file mocked with a factory was never
+  evaluated, and its import is not walked.
+
+  `@variance-authority/core/relate` exports `dominatorsOf`, each node's immediate
+  dominator from a root. `distillFile` takes an optional `imports` lookup and
+  sets `cause` on each module no case entered; `@variance-authority/distill`
+  exports `LoadCause`.
+- 14aefbf: Ask what one test, or one story, checks that the narrower ones inside it do
+  not.
+
+  - `variance ask test-composition --file <test> --name <words>`, and
+    `docs_test_composition`, read one recorded test as the smaller tests whose
+    regions sit inside its own, the larger tests holding it, and the regions no
+    smaller test entered: modules only it enters, and paths through a smaller
+    test's module only it takes.
+  - `variance_composition {subject}` closes with the same reading for a story:
+    the smaller stories inside it, the larger ones holding it, and what no
+    smaller story renders — components only it mounts, and components a smaller
+    story renders another way. The run carries it per subject in the report's
+    structure section; `piecesOf` in `@variance-authority/core/attribute`
+    computes it.
+  - A component mounted by more than half the suite's subjects is structure. A
+    subject that mounts a component many times now counts once, where every
+    mount used to count: a chip story is an example of the chip again when the
+    pages around it mount chips many times over.
+- f1c1b64: A bumped package and a moved manifest are read as the repository files they
+  change, once, before anything else is asked. `beyondReach` in
+  `@variance-authority/core/relate` walks a bump through the install to the first
+  files whose runtime imports load it, and stops there: a test that entered
+  anything further along evaluated that file on the way. A moved manifest becomes
+  every file beside it. `variance select`, `variance reach` and `variance run
+  --since` hand those files on as changed whole, so the suite's `before` and the
+  record answer for them as they do for an edited file.
+
+  `before` now holds files alone. A bump of a package your setup imports runs the
+  whole suite and names the setup file, not the package. `changedBefore` takes the
+  changed files only, and `BeforeReach.packages` is gone.
+
+  The `packages` option of `narrowByJourneys`, `narrowByExecution` and
+  `selectJourneyFile` is removed: pass the files `beyondReach` returns, each with
+  no line ranges.
+- bd98c3a: `--shard` in Vitest and Jest is placed by recorded time, and `variance shards` says how many to start
+
+  A Vitest or Jest config wrapped by `withTestSelection` now places the files of
+  `--shard k/n` by the time each took on the last recorded run, rather than
+  leaving the runner to divide them by count. Each shard computes the whole
+  placement from the same record and keeps its own part: files go longest first
+  to the shard with the least time so far, and a file the record has not seen is
+  priced at the median of the ones it has. The run says on stderr which record
+  placed it and what each shard was given:
+
+  ```text
+  variance-authority: shard 1/2 by the times recorded at 8e3b0f0e9028: 1 of 5 files, 9.0 s (shards 400 ms to 9.0 s)
+  ```
+
+  When the times cannot be read, the runner's own split runs instead, and the
+  line says why. A failed read never fails the run. A Jest config that names no
+  `testSequencer` finds Jest's own through Jest, so a layout that does not hoist
+  `@jest/test-sequencer`, as pnpm does not, runs as before. Under
+  `VARIANCE_AUTHORITY_SINCE`, only the files the selection keeps are placed.
+
+  `variance shards --setup <seconds>` prints how many shards a recorded suite is
+  worth, and with `--format json` a `matrix` of `k/n` strings for a CI job to
+  start. Every shard is charged its setup, so a shard is added only when it
+  shortens the wait by more than it spends, and the count stops at the slowest
+  test file, which the answer names with its slowest case. `--budget` asks for
+  the fewest shards that finish within it, `--workers` divides a shard's share
+  among its runner's workers, and `--since` leaves out what the change lets the
+  run skip, so a change that reaches no test answers `0 shards`. `--collected
+  <file>`, the runner's list of test files, counts a test file the record has not
+  seen, priced at the median.
+
+  It always answers, and names what it could not weigh, in `notes` under
+  `--format json`. Without `--setup` the count weighs no setup. A budget no
+  longer than the setup is out of reach at any count, and the answer is the count
+  that finishes soonest, with `why` set to `setup over budget`. `--since` without
+  `--collected` counts only recorded files and never answers fewer than one
+  shard, and `--at-distance` without `--since` counts the whole suite. With
+  nothing recorded it answers one shard until `--unrecorded <n>` names the count
+  to start.
+
+  `@variance-authority/core/shard` is the placement and the count, which
+  `variance run --shard` places stories and routes by too.
+  `@variance-authority/sense` exports `recordedTimes` and `fileCases`, and
+  `@variance-authority/cli` exports `suiteTimes`.
+- af6b022: `before` moves out of `source` and is declared where the suite is. The top-level
+  `before` is what every suite rests on — a CI workflow, a `.nvmrc` — and a
+  suite's own `before`, beside its `kind`, is its runner config and its setup
+  files, each listed, since a config names its setup as a string and a string is
+  not an import. `variance select` now reads both for the suite it reads: each
+  entry is walked down the file graph, and a change to any file it reaches, a
+  `package.json` whose `exports`, `main` or `type` moved over one of those files,
+  or a bump of a package those files import, runs the whole suite and names what
+  moved. A directory in either list is walked from every file under it. `select
+  --execution` reads the same lists for the suite `--suite` names, the only one
+  declared, or every declared suite when none is named; beside a snapshot
+  `--execution`, `--suite` is refused, since both name the record. A manifest move
+  is read when the diff leaves every lockfile alone. A
+  config below the repository root inherits the root's `before`, as it inherits
+  its suites. A suite that declares nothing has nothing before its reach, and
+  `select` says so.
+  `variance run --since` reads the top-level list as it read `source.before`.
+
+  `source.before` is refused: move it to the top level.
+- 8187fb1: `didYouMean` and `nearest` are exported from `@variance-authority/core` and no
+  longer from `@variance-authority/mcp/tools`. Import them from
+  `@variance-authority/core`. A mistyped command or flag is refused, with the
+  nearest right one, without loading the MCP server's tools.
+
+### Patch Changes
+
+- cb8a52f: A source index another release wrote is no longer reported as damaged
+
+  After an upgrade, the first command that read the source index said it was
+  damaged and read only up to its first bad segment, and in CI it refused with
+  the same words. The segments were whole: an earlier release had written them in
+  another format version. Now the reader names both versions, for example that
+  the index was written in format version 15 and this release reads version 18.
+  On a workstation it rebuilds the index and says so, and `variance index` prints
+  `source index rebuilt over one written in format version 15`. In CI the refusal
+  names both versions and asks you to run `variance index` with this release
+  before the command that reads it. `ask orient --files` over such an index says
+  which version wrote it and that `variance index` rebuilds it.
+- ef496ad: READMEs name what the program does
+
+  The package READMEs, and the `@variance-authority/vantage` and
+  `@variance-authority/playwright-test` descriptions, no longer write a test, a
+  record or a run as something that says, asks or knows. Each sentence names what
+  the program does: a command prints, a record holds a field, a test runs or
+  covers. Where a value is filled in from configuration or a default rather than
+  recorded, the README says so. Four renamed headings change their anchors:
+  `help`'s "Where the declaration is undocumented", `playwright`'s "Where a
+  component is declared, read from the engine", `storybook`'s "What a pass sends
+  the preview" and `sense`'s "Correct what a file's text declares it imports".
+
 ## 0.14.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

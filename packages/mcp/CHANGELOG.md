@@ -1,5 +1,168 @@
 # @variance-authority/mcp
 
+## 0.15.0
+
+### Minor Changes
+
+- 14aefbf: Ask what one test, or one story, checks that the narrower ones inside it do
+  not.
+
+  - `variance ask test-composition --file <test> --name <words>`, and
+    `docs_test_composition`, read one recorded test as the smaller tests whose
+    regions sit inside its own, the larger tests holding it, and the regions no
+    smaller test entered: modules only it enters, and paths through a smaller
+    test's module only it takes.
+  - `variance_composition {subject}` closes with the same reading for a story:
+    the smaller stories inside it, the larger ones holding it, and what no
+    smaller story renders — components only it mounts, and components a smaller
+    story renders another way. The run carries it per subject in the report's
+    structure section; `piecesOf` in `@variance-authority/core/attribute`
+    computes it.
+  - A component mounted by more than half the suite's subjects is structure. A
+    subject that mounts a component many times now counts once, where every
+    mount used to count: a chip story is an example of the chip again when the
+    pages around it mount chips many times over.
+- 0a41a23: Eyes journals travel in the record
+
+  A run that opts into Eyes writes each case's journal into `coverage.bin`, in an
+  `eyes` section keyed by the case's id and its attempt, so a journal joins its
+  case exactly and a retried case keeps every attempt. The attempt counts from 1
+  (Playwright's `retry + 1`) and is a column of its own, never part of the id. A
+  run that did not opt in writes no section. Source paths in a journal are
+  relative to the repository root, as the case index's are.
+
+  The Playwright fixture and `watchTest` hand their journal to the case the
+  recording runs, never to `testInfo.testId`. The RTL `watchTest`, given no id,
+  returns the journal and hands it to the running case where the recording seam's
+  case scope takes one. The Vitest, Jest and Rstest seams hold each attempt's case
+  from before its `beforeEach` until after its `afterEach`, so a journal closed
+  in teardown lands under that case and attempt. A run that opts in lists every case it watched in
+  the section, so a watched case that handed no journal reads apart from a case
+  whose run did not opt in. Two different journals for one case and attempt keep
+  the one whose JSON sorts first, and the run still records.
+
+  A journal stays on the machine that ran it. It leaves with the record, through
+  `variance share` or an `actions-cache` carry, and each says so: a share names
+  every suite entry whose record carried journals, and a carry save notes each
+  suite whose record goes into the cache with them. `sharedRecord` keeps the
+  section, and drops one that is unreadable or of a newer version at the
+  crossing, keeping the rest of the record. A repin keeps the journals of every
+  case its index keeps.
+
+  `variance distill` reads the checkout's own record, or the one `--execution`
+  names, and prints every attempt of the case. It refuses an id the record does
+  not hold and shows the ids it does. `--eyes` is removed, and so are the
+  `@variance-authority/eyes/collect` and `@variance-authority/eyes/reporter`
+  entries (`writeEyesArchive`, `gatherEyesArchive`, `recordEyesTest`,
+  `resetEyesJournals`, `EYES_JOURNAL_SUFFIX`, the Eyes reporter and
+  `EyesReporterOptions`). `eyesJournal` and `EyesJournal` give a test's journal,
+  and `parseEyesJournal` reads one back. In `@variance-authority/distill`,
+  `DistillInput` takes `execution` always and `eyes` as `EyesAttempt` rows, and
+  `Distillation` reports `attempts` as `AttemptAttention` in place of
+  `attention`, `joined` and `available`; `watched` names the cases a run that
+  opted in watched, and distill says which of them kept no journal. The sense
+  test-selection entry adds `keepsEyes`, `recordedEyesAt`, `recordedEyesOf`, `RecordedEyes`,
+  `ObservedEyes`, `EyesSection` and `encodeAsSetExecutionIndex`. In
+  `@variance-authority/mcp`, `serveEyesRecord` replaces `serveEyesArchive` and
+  serves the journals a record keeps, read by `readEyesRecord` off one read of
+  the record. A record a later run wrote without Eyes leaves it no journals to
+  answer from; `readEyesRecord` refuses such a record with `RecordKeepsNoEyes`.
+  `EyesArchive` carries `watched`, which `createEyesArchive` takes and
+  `parseEyesArchive` reads, so the MCP `distill` tool tells an unwatched case
+  from a watched one that kept no journal. That tool needs the runtime journey
+  and reads a case by its exact id.
+
+  Under Rstest, a case declared `it(name, options, fn)` is recorded per case, as
+  `it(name, fn)` already was.
+- 8187fb1: `didYouMean` and `nearest` are exported from `@variance-authority/core` and no
+  longer from `@variance-authority/mcp/tools`. Import them from
+  `@variance-authority/core`. A mistyped command or flag is refused, with the
+  nearest right one, without loading the MCP server's tools.
+
+### Patch Changes
+
+- 73f40a8: `variance_changed_tests` prints what each case said, with the call that said it, on the case's line, as `variance covering --since` does.
+
+  `variance covering` prints what each case said, and its twin, in every answer that lists cases. The `--since` text carries them on each case line, and the whole-file and plain `--line` or `--function` answers print each case's twin without `--where`; under `--format json` the answer carries `twins` in every form. A twin comes from the case's own test file, and a large set prints as its count and the first three names. `--where` counts out of the cases that covered what you asked about, not the whole record. When a case says one value twice, the row keeps the site that said it first. The `afterEach` warning, the invalid-value warning and the misplaced-call error name the call site from the checkout, as the row does, under every host that knows the checkout, including a runner built on `@variance-authority/sense/runner`.
+- 9bb6f47: An `incomparable` verdict names what differs, and a recipe change can be re-baselined
+
+  The reason now names only the identity fields that differ between the baseline
+  and this run, and says whether they are the machine (renderer, engine, platform,
+  scale, fonts) or only variance-authority's recipe (the stabilization or
+  rasterization digest). It used to print both identities in full and blame the
+  machine either way. A refusal no longer says pixels are machine-bound and
+  the two not comparable: it says nothing was compared because this tool
+  compares images only within one identity, and that nothing measured whether
+  another machine paints the same pixels. `incomparableBecause` and its `IncomparableSides` wording,
+  whose `replaceable` says whether the reason may offer a re-baseline, are
+  exported from `@variance-authority/raster` for a caller that writes the same
+  sentence.
+
+  When only the recipe differs, which an upgrade or a changed renderer option does
+  on an unchanged machine, the run still paints each subject. The reason says
+  whether the document is the one the baseline was painted from. If it is, only
+  the recipe moved: review the images and adopt them with `variance accept --all`,
+  or with `--update-snapshots` in Playwright or `--update` in Vitest. If the
+  document changed too, the new image is a change no comparison has read, and the
+  reason says so. Before, the run left no image, so `accept` had nothing to
+  promote and the old baselines had to be deleted by hand.
+
+  The refusal stands for another machine's baseline, for a side that recorded no
+  recipe digest, and for an identity that differs in a field this version does
+  not name: in each, nothing shows the machine is the same. `settle` takes the
+  run's identity as an optional third argument, as before, and refuses a recipe
+  re-baseline when it is absent.
+
+  `variance accept --all` skips an `incomparable` subject unless its
+  `signals.document` is `unchanged` and its `signals.identity` is `recipe`, names
+  the command that adopts it alone, and
+  exits non-zero as for any refusal; `variance accept <subject>` adopts it. A
+  report written before the signal was carried is skipped too. In
+  `@variance-authority/report`, `promotionOf` takes a `PromotionOptions` with
+  `bulk` for that rule, `bulkSkips` answers the rule alone, and the refusal for a
+  subject with no image now says the baseline is another machine's or cannot be
+  shown to be this machine's. In `@variance-authority/playwright-test`,
+  `--update-snapshots=changed` skips the same subject and `=all` adopts it;
+  `VarianceRun` carries `overwriting`, set under `=all`.
+  `@variance-authority/playwright-test` now depends on
+  `@variance-authority/report` and asks `bulkSkips`, so the two cannot adopt
+  different images. Deferred capture paints against an older recipe, so both flags
+  have an image to adopt. In-place mode's `=changed` now also skips another
+  machine's image, which it used to write over the baseline; `=all` still writes
+  it, as naming the subject does.
+
+  An incomparable observation from `@variance-authority/observe` carries
+  `signals.document`, saying whether the document is the one the baseline was
+  painted from, and `signals.identity`, `recipe` when only the recipe digests
+  differ and `machine` otherwise, as `recipeOnly`, now exported from
+  `@variance-authority/raster`, answers it. `signals.pixels` is optional,
+  since no pixels were compared.
+  TypeScript code that reads `Observation.signals.pixels` must now handle it
+  being absent.
+
+  `@variance-authority/vitest-browser` asks `bulkSkips` too, and now depends on
+  `@variance-authority/report`: Vitest's `--update` reaches every selected test,
+  so it skips the same `incomparable` subjects. It used to promote every candidate
+  it painted, including another machine's image and a re-painted recipe whose
+  document moved. A plugin declared `accept: true` still adopts them.
+
+  `variance ask summary` prints a reason that several subjects share once, with a
+  count, and lists the subjects under it, so an upgrade that leaves every subject
+  `incomparable` reads as one line rather than one per subject. It groups the
+  same way the pull-request comment does, through `byReason`, exported from
+  `@variance-authority/report`.
+- ef496ad: READMEs name what the program does
+
+  The package READMEs, and the `@variance-authority/vantage` and
+  `@variance-authority/playwright-test` descriptions, no longer write a test, a
+  record or a run as something that says, asks or knows. Each sentence names what
+  the program does: a command prints, a record holds a field, a test runs or
+  covers. Where a value is filled in from configuration or a default rather than
+  recorded, the README says so. Four renamed headings change their anchors:
+  `help`'s "Where the declaration is undocumented", `playwright`'s "Where a
+  component is declared, read from the engine", `storybook`'s "What a pass sends
+  the preview" and `sense`'s "Correct what a file's text declares it imports".
+
 ## 0.14.0
 
 ### Patch Changes

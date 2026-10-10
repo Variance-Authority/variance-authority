@@ -1,5 +1,47 @@
 # @variance-authority/tribunal
 
+## 0.15.0
+
+### Minor Changes
+
+- 4b232c9: Reviewers can flag a render as suspicious without deciding it
+
+  A subject page gains *Looks suspicious*, which raises a concern: a title, the
+  region (with its component) or the whole render, evidence — the components, files or baseline you
+  point at — a note and a hypothesis. A concern moves between open,
+  investigating and resolved with a name on each step, stays on the subject with
+  its trail across builds, and survives the retention sweep. Approving never resolves a concern,
+  and resolving one approves nothing. The build header counts the concerns its
+  subjects carry.
+
+  The routes are `GET` and `POST /review/concerns` and `POST
+  /review/concerns/<id>`, all three the review token's. `/version` reports API 4
+  and schema 19; apply migration `0017_concerns.sql` before deploying.
+  `createConcernStore` and the concern types are exported from
+  `@variance-authority/tribunal/review`, and `Concerns`,
+  `ConcernTrail`, `ConcernTallyLine` and `useConcernTally` from
+  `@variance-authority/tribunal/ui`.
+
+### Patch Changes
+
+- 242e449: The change page separates a reading mark from the sentence before it
+
+  On the change page, the run's sentence about why a component moved and the mark
+  saying how its render has read before printed as one line, as in
+  `…to reach the first rungnobody has read this render twice yet`. A ` · ` now
+  stands between them.
+- ef496ad: READMEs name what the program does
+
+  The package READMEs, and the `@variance-authority/vantage` and
+  `@variance-authority/playwright-test` descriptions, no longer write a test, a
+  record or a run as something that says, asks or knows. Each sentence names what
+  the program does: a command prints, a record holds a field, a test runs or
+  covers. Where a value is filled in from configuration or a default rather than
+  recorded, the README says so. Four renamed headings change their anchors:
+  `help`'s "Where the declaration is undocumented", `playwright`'s "Where a
+  component is declared, read from the engine", `storybook`'s "What a pass sends
+  the preview" and `sense`'s "Correct what a file's text declares it imports".
+
 ## 0.14.0
 
 ### Patch Changes
