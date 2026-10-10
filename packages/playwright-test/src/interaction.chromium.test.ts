@@ -48,6 +48,16 @@ const WITHOUT_NO_HOVER = [
   'wait-for-images',
 ];
 
+/** The same, with the focus left where the test put it. */
+const WITHOUT_NO_FOCUS = [
+  'pin-animations',
+  'hide-scrollbars',
+  'hide-caret',
+  'no-hover',
+  'wait-for-fonts',
+  'wait-for-images',
+];
+
 /**
  * Photographed off the live page, which is where a pointer and a focus are.
  *
@@ -153,6 +163,23 @@ chromium_('what a test leaves behind before it observes', () => {
     await observe(page!, subject, info('all'), options);
     await page!.mouse.move(-1, -1);
 
+    expect((await observe(page!, subject, info('none'), options)).verdict).toBe('changed');
+  }, 60_000);
+  it('keeps the focus a test gave, when its recipe leaves focus alone', async () => {
+    const subject = page!.locator('#subject');
+    const options = {
+      baselines,
+      materialization: IN_PLACE,
+      subjectId: 'checkout/kept-focus',
+      stabilize: WITHOUT_NO_FOCUS,
+    };
+    await page!.locator('input').focus();
+    await observe(page!, subject, info('all'), options);
+
+    await page!.locator('input').focus();
+    expect((await observe(page!, subject, info('none'), options)).verdict).toBe('unchanged');
+
+    await page!.locator('input').blur();
     expect((await observe(page!, subject, info('none'), options)).verdict).toBe('changed');
   }, 60_000);
 });
