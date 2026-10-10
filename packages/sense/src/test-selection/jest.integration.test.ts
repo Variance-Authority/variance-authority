@@ -8,7 +8,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
 import { decodeExecutionIndex } from './execution-format.js';
-import { journeyGaps } from './execution-set-format.js';
+import { lineAt, linesOf } from './case-lines.js';
+import { recordedCases } from './case-record.js';
+import { journeyGaps, openSetColumns } from './execution-set-format.js';
 import { finalizeJestJourneys, stitchJourneyArtifacts } from './jest-journey-artifact.js';
 
 // The story format is a CommonJS sandbox module whose own requires resolve only
@@ -336,5 +338,14 @@ describe('the Jest integration', () => {
     expect(called.get(inLoads('src/confirm.ts'))).toEqual([`${testFile} > confirms on click`]);
     expect(called.get(inLoads('src/editor.ts')) ?? []).toEqual([]);
     expect(called.get(inLoads('src/fallback.ts')) ?? []).toEqual([]);
+
+    // The test's own statement on line 7 is what reached every region `click` entered.
+    const confirms = cases.tests.findIndex((test) => test.id === `${testFile} > confirms on click`);
+    const lines = linesOf(openSetColumns(recordedCases(bytes))!.testLines, confirms)!;
+    const module = cases.modules.findIndex((entry) => entry.file === inLoads('src/confirm.ts'));
+    const reached = cases.modules[module]!.blocks.flatMap((block, at) =>
+      block.crossings.some((crossing) => crossing.test === confirms && crossing.loaded !== true) ? [lineAt(lines, module, at)] : []);
+    expect(reached.length).toBeGreaterThan(0);
+    expect(new Set(reached.map((line) => JSON.stringify(line)))).toEqual(new Set([JSON.stringify({ line: 7, ambient: false })]));
   }, 120_000);
 });

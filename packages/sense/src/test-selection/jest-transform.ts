@@ -30,7 +30,7 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import picomatch from 'picomatch';
-import { probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { cadence, probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { captureModule, planModule } from './captured-modules.js';
 import { defaultInclude } from './instrumented-modules.js';
 import type { SelectionTransformerConfig } from './jest.js';
@@ -135,6 +135,9 @@ export async function createTransformer(
     );
   }
   const excluded = new Set((config.exclude ?? []).map((file) => resolve(file)));
+  const cuts = config.cadence !== false;
+  const textOf = (source: string, path: string, options: JestTransformRequest): string =>
+    cuts && isTestFile(path, options.config) ? cadence(source, path) ?? source : source;
   const forInner = (options: JestTransformRequest): JestTransformRequest => ({
     ...options,
     ...(innerConfig === undefined ? {} : { transformerConfig: innerConfig }),
@@ -150,6 +153,8 @@ export async function createTransformer(
       .update(JSON.stringify(innerConfig ?? null))
       .update('\0')
       .update(excluded.has(resolve(path)) ? 'excluded' : '')
+      .update('\0')
+      .update(cuts ? 'cadence' : '')
       .digest('hex')
       .slice(0, 32);
   const innerKeyAsync = inner?.getCacheKeyAsync ?? inner?.getCacheKey;
@@ -162,17 +167,19 @@ export async function createTransformer(
     getCacheKeyAsync: async (source, path, options) =>
       keyOf(source, path, options, await innerKeyAsync?.(source, path, forInner(options))),
     processAsync: async (source, path, options) => {
-      if (innerProcessAsync === undefined) return { code: place(root, path, options, source, mode, excluded) };
-      if (places) return innerProcessAsync(source, path, handOver(root, path, forInner(options), source, mode, excluded));
-      return innerProcessAsync(place(root, path, options, source, mode, excluded), path, forInner(options));
+      const text = textOf(source, path, options);
+      if (innerProcessAsync === undefined) return { code: place(root, path, options, text, mode, excluded) };
+      if (places) return innerProcessAsync(text, path, handOver(root, path, forInner(options), text, mode, excluded));
+      return innerProcessAsync(place(root, path, options, text, mode, excluded), path, forInner(options));
     },
   };
   const innerProcess = inner?.process?.bind(inner);
   if (inner === undefined || innerProcess !== undefined) {
     transformer.process = (source, path, options) => {
-      if (innerProcess === undefined) return { code: place(root, path, options, source, mode, excluded) };
-      if (places) return innerProcess(source, path, handOver(root, path, forInner(options), source, mode, excluded));
-      return innerProcess(place(root, path, options, source, mode, excluded), path, forInner(options));
+      const text = textOf(source, path, options);
+      if (innerProcess === undefined) return { code: place(root, path, options, text, mode, excluded) };
+      if (places) return innerProcess(text, path, handOver(root, path, forInner(options), text, mode, excluded));
+      return innerProcess(place(root, path, options, text, mode, excluded), path, forInner(options));
     };
   }
   return transformer;
@@ -182,7 +189,7 @@ export async function createTransformer(
  * Probes on the project's text.
  *
  * A test file is not a module: nothing enters one, and its own edit is what
- * runs it. Which files are tests is the project's `testMatch` or `testRegex`,
+ * runs it. It is cut instead, before this, unless `cadence` is off. Which files are tests is the project's `testMatch` or `testRegex`,
  * read from the configuration Jest hands every transform, matched the way
  * Jest's own search matches them.
  *

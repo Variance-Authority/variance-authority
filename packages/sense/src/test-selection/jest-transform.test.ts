@@ -262,3 +262,40 @@ module.exports = {
     );
   });
 });
+
+describe('a test file\'s statements', () => {
+  const TEST = "it('adds', () => {\n  expect(1 + 1).toBe(2);\n});\n";
+
+  it('are cut by default, and the cut text is cached under its own key', async () => {
+    const root = await project('variance-jest-cadence-');
+    const path = resolve(root, 'test/add.case.js');
+    const cutting = await createTransformer({ root });
+    const plain = await createTransformer({ root, cadence: false });
+
+    expect(cutting.process!(TEST, path, transformOptions(root)).code).toContain('  __vaC(2);expect(1 + 1)');
+    expect(plain.process!(TEST, path, transformOptions(root)).code).toBe(TEST);
+    expect(cutting.getCacheKey!(TEST, path, transformOptions(root))).not.toBe(plain.getCacheKey!(TEST, path, transformOptions(root)));
+  });
+
+  it('reach a transformer that places the probes itself already cut', async () => {
+    const root = await project('variance-jest-cadence-placing-');
+    await writeFile(resolve(root, 'transformer.cjs'), `module.exports = {
+  senseRecipe: (mode) => ${JSON.stringify(probeRecipe('presence'))},
+  processAsync: async (source) => ({ code: source }),
+};
+`);
+    const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs') });
+
+    const done = await transformer.processAsync!(TEST, resolve(root, 'test/add.case.js'), transformOptions(root));
+
+    expect(done.code).toContain('  __vaC(2);expect(1 + 1)');
+  });
+
+  it('are not cut in a module that is not a test', async () => {
+    const root = await project('variance-jest-cadence-module-');
+
+    const done = (await createTransformer({ root })).process!(TEST, resolve(root, 'src/add.js'), transformOptions(root));
+
+    expect(done.code).not.toContain('__vaC(');
+  });
+});
