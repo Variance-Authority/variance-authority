@@ -87,10 +87,10 @@ import { SHARE_PREFIX, createShareRoutes, type ShareRoute } from './worker-share
  * regression.
  *
  * `share` is optional, reads, and never decides: the share, and what review
- * settled — the changelog and the decision history. It is for a reader that
- * should have a run's derived record and the verdicts on it and no more, such as
- * a developer's machine or an agent, and would otherwise be handed a token that
- * can write or approve to get them.
+ * settled — the changelog, the decision history and the concerns. It is for a
+ * reader that should have a run's derived record and the verdicts on it and no
+ * more, such as a developer's machine or an agent, and would otherwise be handed a
+ * token that can write or approve to get them.
  *
  * No two may be equal, and construction refuses it. A deployment that set two to
  * the same value would satisfy every check in this file while having one secret

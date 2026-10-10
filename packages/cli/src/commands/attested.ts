@@ -72,7 +72,8 @@ export async function readAttested(
 
   let response: Response;
   try {
-    response = await send(url, { method: 'GET', headers: { authorization: `Bearer ${token}` } });
+    // A redirect would carry the share token to wherever it points, so one is a failure.
+    response = await send(url, { method: 'GET', redirect: 'error', headers: { authorization: `Bearer ${token}` } });
   } catch (failure) {
     throw new OperatorError(`${url} could not be reached: ${failure instanceof Error ? failure.message : String(failure)}`);
   }

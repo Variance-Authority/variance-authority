@@ -278,8 +278,8 @@ The four `/v1` reads take `since`, `until` and `limit` to bound the window, and
 **The review token reads what runs recorded and never writes it.** The five
 reads answer the ingest and review tokens because they derive from rows already
 recorded, and the browser drawing a review page sends the review token. Concerns
-are not derived: a person wrote them, so reading them is the review token's, as
-raising and moving them is. `/v1/observations` and
+are not derived: a person wrote them, so raising and moving them is the review
+token's, and reading them is the review and share tokens'. `/v1/observations` and
 `/v1/approvals` are the ingest token's because they write; `/v1/current` is the
 ingest token's because its caller is a run deciding what to write.
 
@@ -306,11 +306,13 @@ configuration serves every machine and only the variable's value differs:
   `variance ask` or `variance serve`, set it to the share token: the value of
   `VARIANCE_TRIBUNAL_SHARE_TOKEN` on the Node deployment, or of `SHARE_TOKEN`
   on Cloudflare. With the share token a machine reads `/share/`,
-  `GET /review/changelog` and `GET /review/decisions`, and `GET /version`
-  answers it as it answers every token. Every other route answers 403 before
-  it checks the method, so the machine cannot push a build or decide one. A path this deployment does not serve answers 404, as it does
-  for every token. A path under `/share/` that is not a line's manifest, one
-  of its entries or an image answers 400 and names the three it could be.
+  `GET /review/changelog`, `GET /review/decisions` and `GET /review/concerns`,
+  and `GET /version` answers it as it answers every token. Every other route
+  answers 403 before it checks the method, so the machine cannot push a build,
+  decide one or raise a concern. A path this deployment does not serve answers
+  404, as it does for every token. A path under `/share/` that is not a line's
+  manifest, one of its entries or an image answers 400 and names the three it
+  could be.
 
 The review token is refused under `/share/`, because it is held by people and by
 the browser drawing the review page.

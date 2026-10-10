@@ -49,9 +49,13 @@ const CHANGELOG: RemoteChangelog = {
 };
 
 function answering(status: number, body: unknown) {
-  const asked: { url: string; authorization: string | null }[] = [];
+  const asked: { url: string; authorization: string | null; redirect?: RequestRedirect }[] = [];
   const fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-    asked.push({ url: String(url), authorization: new Headers(init?.headers).get('authorization') });
+    asked.push({
+      url: String(url),
+      authorization: new Headers(init?.headers).get('authorization'),
+      ...(init?.redirect === undefined ? {} : { redirect: init.redirect }),
+    });
     return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
   }) as typeof globalThis.fetch;
   return { asked, fetch };
@@ -74,6 +78,8 @@ describe('the changelog of a remote store', () => {
       {
         url: `${DEPLOYMENT}/review/changelog?component=Card&subject=story%3Acard&limit=5&since=2026-06-01T00%3A00%3A00.000Z`,
         authorization: 'Bearer share-secret',
+        // A redirect would carry the share token to wherever it points.
+        redirect: 'error',
       },
     ]);
   });
