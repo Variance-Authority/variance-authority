@@ -9,11 +9,11 @@ import { vlq, vlqOf } from './map-segments.js';
  * the `[line, column, length]` shifts `cadence` returned, and a column inside
  * an inserted call names the place it was inserted at. Lines never move.
  */
-export function behindCut<Map extends string | { readonly mappings: string }>(map: Map, shifts: readonly number[]): Map {
-  if (typeof map !== 'string') return { ...(map as { readonly mappings: string }), mappings: shift(map.mappings, byLine(shifts)) } as Map;
+export function behindCut<Given extends string | { readonly mappings: string }>(map: Given, shifts: readonly number[]): Given {
+  if (typeof map !== 'string') return { ...(map as { readonly mappings: string }), mappings: shift(map.mappings, byLine(shifts)) } as Given;
   const parsed = JSON.parse(map) as { mappings?: unknown };
   if (typeof parsed.mappings !== 'string') return map;
-  return JSON.stringify({ ...parsed, mappings: shift(parsed.mappings, byLine(shifts)) }) as Map;
+  return JSON.stringify({ ...parsed, mappings: shift(parsed.mappings, byLine(shifts)) }) as Given;
 }
 
 // Split, so no tool reads this module's text as its own inline map.
