@@ -72,6 +72,26 @@ export interface VariationRecord {
    */
   readonly how?: 'declared' | 'named';
 
+  /**
+   * The one axis this pair differs on, when a name format read it.
+   *
+   * `to` is the subject's value and `from` the parent's. Present only for a
+   * `named` pair resolved through `names` in the config; a pair found by prefix
+   * or declared by a tag has no coordinate to give, and absent says so.
+   *
+   * A field rather than a clause of `because`, so a reader that places subjects
+   * — a grid with one axis down and one across — reads a coordinate and never a
+   * sentence.
+   */
+  readonly step?: VariationStep;
+
   /** One sentence, ready to print, saying what this variation is or why it is not. */
   readonly because: string;
+}
+
+/** One step along one axis of a name format: the parent's value, then the subject's. */
+export interface VariationStep {
+  readonly axis: string;
+  readonly from: string;
+  readonly to: string;
 }

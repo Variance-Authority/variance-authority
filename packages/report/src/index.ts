@@ -44,6 +44,7 @@ export type {
   ChurnRecord,
   DriftRecord,
   VariationRecord,
+  VariationStep,
 } from './format.js';
 
 export type { JourneysReport, JourneyParting, JourneyRegionRecord } from './journeys.js';

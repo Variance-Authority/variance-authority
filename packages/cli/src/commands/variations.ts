@@ -322,6 +322,7 @@ function recordOf(variation: Variation, how: Declaration, step?: AxisStep): Vari
     ...(named.length > 0 ? { components: named } : {}),
     digest: variation.digest,
     how,
+    ...(step !== undefined ? { step: { axis: step.axis, from: step.from, to: step.to } } : {}),
     because: because(variation, named, how, step),
   };
 }

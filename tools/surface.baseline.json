@@ -2224,6 +2224,7 @@
         "UnclaimedChange": "interface",
         "Unrecordable": "interface",
         "VariationRecord": "interface",
+        "VariationStep": "interface",
         "absorbedBands": "function",
         "adjudicateRun": "function",
         "ageOf": "function",
