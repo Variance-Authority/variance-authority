@@ -30,11 +30,15 @@ import { blob, column, type Stored } from './format-layout.js';
  * with cuts that crossed nothing.
  */
 
-/** The column of each case's bytes, read by name and absent where no case recorded lines. */
-export const LINES_COLUMN = 'tests.lines';
+/**
+ * The column of each case's bytes, read by name and absent where no case
+ * recorded lines. Every reader, the addon's among them, unpacks a packed
+ * column of variable-length rows by its `.blob` suffix.
+ */
+export const LINES_COLUMN = 'lines.blob';
 
 /** Where each case's bytes begin in {@link LINES_COLUMN}, and one past the last case's. */
-export const LINES_OFFSETS = 'tests.lines.off';
+export const LINES_OFFSETS = 'lines.off';
 
 /** One case's lines, as a reader and a layer hold them. */
 export interface CaseLines {

@@ -55,10 +55,10 @@ describe('a case carries the test line that first reached each region', () => {
     expect(linesColumn([undefined, undefined])).toEqual({});
     const written = [built([[0, 1, 3, false]]), undefined, built([])];
     const column = linesColumn(written);
-    const blob = column['tests.lines']!.plain;
-    const offsets = new Uint32Array(column['tests.lines.off']!.plain.buffer.slice(
-      column['tests.lines.off']!.plain.byteOffset,
-      column['tests.lines.off']!.plain.byteOffset + column['tests.lines.off']!.plain.byteLength,
+    const blob = column['lines.blob']!.plain;
+    const offsets = new Uint32Array(column['lines.off']!.plain.buffer.slice(
+      column['lines.off']!.plain.byteOffset,
+      column['lines.off']!.plain.byteOffset + column['lines.off']!.plain.byteLength,
     ));
     expect(linesOf({ blob, offsets }, 0)).toEqual(written[0]);
     expect(linesOf({ blob, offsets }, 1)).toBeUndefined();
