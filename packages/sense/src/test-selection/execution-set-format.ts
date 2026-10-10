@@ -281,7 +281,11 @@ export function encodeAsSetExecutionIndex(index: ExecutionIndex): Buffer {
  * recorded them. They are matched by place, not by file: two cuts of one file
  * can reach one run.
  */
-export function encodeOwnedSetExecutionIndex(index: ExecutionIndex, owners: readonly (Uint32Array | undefined)[]): Buffer {
+export function encodeOwnedSetExecutionIndex(
+  index: ExecutionIndex,
+  owners: readonly (Uint32Array | undefined)[],
+  lines?: SetExecutionIndex['lines'],
+): Buffer {
   const sets = new CrossingSets(index.tests.length);
   sets.intern([]);
   const modules = index.modules.map((module, place): SetExecutionModule => {
@@ -303,7 +307,7 @@ export function encodeOwnedSetExecutionIndex(index: ExecutionIndex, owners: read
     const owner = owners[place];
     return { file: module.file, blocks, called, loaded, ...(owner === undefined ? {} : { owner }) };
   });
-  return encodeSetExecutionIndex({ tests: index.tests, modules, sets: sets.pool() });
+  return encodeSetExecutionIndex({ tests: index.tests, modules, sets: sets.pool(), ...(lines === undefined ? {} : { lines }) });
 }
 
 /**
