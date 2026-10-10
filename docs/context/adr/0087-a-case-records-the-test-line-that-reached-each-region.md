@@ -74,5 +74,7 @@ depth, and anything written on a page.
   from.
 - A layer carries each case's lines from whichever side recorded its set, and
   a case one side recorded without lines has none.
-- Test files now pass through the seam's transform. Their regions are still
-  not probed: the cut is the only code inserted into them.
+- Test files now pass through the seam's transform. The cut goes in after the
+  probes, so a test file a seam probed before, one Vitest's or Rstest's
+  `include` takes, keeps its regions; one it did not, every Jest test file
+  among them, carries the cut alone.

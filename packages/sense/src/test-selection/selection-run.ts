@@ -60,8 +60,8 @@ export interface SelectionRun {
    */
   include: (file: string) => boolean;
   /**
-   * Which files are cut rather than probed, carried for the same reason as
-   * `include`; absent cuts nothing.
+   * Which files are tests, and so cut as well as probed where `include` takes
+   * them, carried for the same reason as `include`; absent cuts nothing.
    */
   cadence: ((file: string) => boolean) | undefined;
   /** Files this seam generated, which no transform may instrument. */

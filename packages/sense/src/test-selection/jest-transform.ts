@@ -190,9 +190,10 @@ export async function createTransformer(
  * Probes on the project's text.
  *
  * A test file is not a module: nothing enters one, and its own edit is what
- * runs it. It is cut instead, before this, unless `cadence` is off. Which files are tests is the project's `testMatch` or `testRegex`,
- * read from the configuration Jest hands every transform, matched the way
- * Jest's own search matches them.
+ * runs it. It is cut instead, before this, unless `cadence` is off. Which
+ * files are tests is the project's `testMatch` or `testRegex`, read from the
+ * configuration Jest hands every transform, matched the way Jest's own search
+ * matches them.
  *
  * Every probe is placed on the line it reports, so the wrapped transformer's
  * map names the right line of the project's source for a stack trace.
