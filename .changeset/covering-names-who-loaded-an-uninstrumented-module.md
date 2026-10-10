@@ -10,6 +10,7 @@ never loaded it, while `variance select` selected every test file that loaded
 it. `covering` now answers with those
 files, in `preconditionOf`: each holds the module as a precondition, and a
 change to it selects every one of them. No case and no line is named, because
-nothing measured them. A file no test file loaded and no suite declares is
+nothing measured them. Under `--cases` or `--where`, only the test files of
+the cases asked about are named. A file no test file loaded and no suite declares is
 still refused, and a record whose coverage cannot be read is refused as unable
 to say, not as never having loaded it.

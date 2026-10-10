@@ -248,7 +248,11 @@ async function ask(
   if (module === undefined) {
     const held = heldAsPrecondition(from, [file]);
     const loaded = held?.of.get(file);
-    if (loaded !== undefined) return { file, preconditionOf: loaded, from };
+    // The record holds every test file's preconditions; `--cases` and `--where` ask about the cases left in the index.
+    const asked = request.cases === undefined && request.where === undefined
+      ? undefined
+      : new Set(index.tests.map((test) => test.file));
+    if (loaded !== undefined) return { file, preconditionOf: asked === undefined ? loaded : loaded.filter((test) => asked.has(test)), from };
     // An index with no coverage beside it, as a foreign tool writes, holds no preconditions to read.
     if (held === undefined && keepsCases(from)) throw unreadPreconditions(file, from);
     throw unloadedFile(file, from, files);

@@ -163,6 +163,22 @@ describe('asking which tests entered a line', () => {
     expect(formatCovering(answer, 'refs')).toBe('src/stabilize.ts precondition of: total.test.ts; no recorded line\n');
   });
 
+  it('names only the test files of the cases asked about as holding a precondition', async () => {
+    const execution = await recordFile();
+
+    const asked = await covering(parse(['--file', 'src/stabilize.ts', '--cases', 'total.test.ts', '--execution', execution]));
+    const other = await covering(parse(['--file', 'src/stabilize.ts', '--cases', 'flow.test.tsx', '--execution', execution]));
+
+    expect(asked.preconditionOf).toEqual(['total.test.ts']);
+    expect(other.preconditionOf).toEqual([]);
+    expect(formatCovering(other, 'text')).toBe(
+      'Read from the 1 case of flow.test.tsx, not the whole suite.\n' +
+        'No test file of these cases holds src/stabilize.ts as a precondition: the run loaded it without instrumenting ' +
+        'it, or the suite declares it, so no line of it has a recorded case.\n',
+    );
+    expect(formatCovering(other, 'refs')).toContain('src/stabilize.ts precondition of: no test file of these cases; no recorded line\n');
+  });
+
   it('still refuses a file the run never loaded, where the same record holds one it loaded uninstrumented', async () => {
     const execution = await recordFile();
 

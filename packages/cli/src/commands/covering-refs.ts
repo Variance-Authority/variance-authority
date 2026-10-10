@@ -53,7 +53,8 @@ function bodyOf(answer: Covering, table: Table): readonly string[] {
     return lines;
   }
   if (answer.preconditionOf !== undefined) {
-    return [`${answer.file} precondition of: ${answer.preconditionOf.join(', ')}; no recorded line`];
+    const of = answer.preconditionOf.length === 0 ? 'no test file of these cases' : answer.preconditionOf.join(', ');
+    return [`${answer.file} precondition of: ${of}; no recorded line`];
   }
   if (answer.ranges !== undefined) {
     return [

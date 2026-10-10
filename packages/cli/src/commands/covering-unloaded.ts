@@ -62,6 +62,10 @@ export function unreadPreconditions(file: string, from: string): OperatorError {
 
 /** The test files that hold `file` as a precondition (`heldAsPrecondition`), said for a person, one to a line. */
 export function preconditionText(file: string, tests: readonly string[]): string {
+  if (tests.length === 0) {
+    return `No test file of these cases holds ${file} as a precondition: the run loaded it without instrumenting it, ` +
+      'or the suite declares it, so no line of it has a recorded case.';
+  }
   return [
     `${file} is a precondition of ${tests.length} test file${tests.length === 1 ? '' : 's'}, and a change to it ` +
       'selects every one: the run loaded it without instrumenting it, or the suite declares it, so no line of it ' +
