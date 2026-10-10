@@ -9,12 +9,98 @@ can change about it, and how far into your page it goes.
 New here? Start with [your first run](start.md).
 
 **Stabilization is on by default and needs no setup.** Before every capture,
-whether or not you knew it was a problem: animations are pinned, GIFs are
-frozen, fonts and images are waited for, scrollbars are hidden, the pointer is
-off the page, nothing is focused, the browser asks for reduced motion, and
-`Date` reads one fixed instant. To read your page without one of them, see
-[turning one off](#turning-one-off). Everything else you can change is optional
-and indexed under [what you can configure](#what-you-can-configure).
+whether or not you knew it was a problem, the default recipe runs nine tricks,
+each under the id you name it by: animations are pinned (`pin-animations`),
+scrollbars and the text caret are hidden (`hide-scrollbars`, `hide-caret`), the
+pointer is off the page (`no-hover`), nothing is focused (`no-focus`), the
+browser asks for reduced motion (`reduced-motion`), `Date` reads one fixed
+instant (`freeze-clock`), and fonts and images are waited for
+(`wait-for-fonts`, `wait-for-images`). GIFs are frozen as they are served. To
+read your page without one of them, see [turning one off](#turning-one-off).
+Everything else you can change is optional and indexed under
+[what you can configure](#what-you-can-configure).
+
+## Turning one off
+
+`stabilize` replaces the default recipe rather than adding to it. To read a
+state one trick removes, start from `DEFAULT_STABILIZE`, the ids of the default
+recipe, and filter that id out. Every id above filters the same way:
+`pin-animations`, `hide-scrollbars`, `no-hover`, any of them. This collector
+reads the real clock:
+
+```js
+// variance/routes.mjs
+import { DEFAULT_STABILIZE, routeCollector } from '@variance-authority/route-collector';
+
+export default routeCollector({
+  routes: { 'billing/invoice': 'http://localhost:3000/invoice/42' },
+  roots: ['#app'],
+  stabilize: DEFAULT_STABILIZE.filter((id) => id !== 'freeze-clock'),
+});
+```
+
+The environment key records the recipe, so these baselines are kept apart from
+the default ones. `@variance-authority/storybook-collector` exports the same
+`DEFAULT_STABILIZE` for `storybookCollector`.
+
+The `variance` fixture in `@variance-authority/playwright-test` fixes `Date` on
+the `page` it hands every test. To read the real clock in one file, leave
+`freeze-clock` out with `test.use`:
+
+```ts
+import { DEFAULT_STABILIZE } from '@variance-authority/playwright-test';
+
+test.use({ varianceStabilize: DEFAULT_STABILIZE.filter((id) => id !== 'freeze-clock') });
+```
+
+Do the same in a test that installs its own `page.clock`. Its clock replaces the
+fixed `Date` either way, and leaving `freeze-clock` out keeps the recipe the
+reading records true to the clock it read.
+
+### What reaches the image
+
+Leaving a trick out changes what is read. Whether it changes the image
+depends on which browser paints it.
+
+**Deferred rendering** paints the reading in a fresh page of its own. It is how
+`routeCollector` and `storybookCollector` paint, and how the `variance` fixture
+paints unless you choose in-place capture. That page is painted under the
+renderer's own recipe, whatever recipe your page was read under: animations
+held, scrollbars and the caret hidden, focus released, even from an `autofocus`,
+fonts and images waited for. Nothing moves a pointer over it. A hover state or
+a focus ring cannot reach this image: it is the image of a page nobody is using.
+Leaving `no-hover` or `no-focus` out changes only the reading, where the
+`:hover` and `:focus` rules that matched while your page was hovered or focused
+are recorded, and keeps its own baselines. A date your page printed and the
+`@media` rules the motion preference chose are in the reading, so leaving
+`freeze-clock` or `reduced-motion` out does reach this image.
+
+**In-place capture** in `@variance-authority/playwright-test` takes the
+screenshot from the page your test is using
+([when to choose it](cases.md#existing-playwright-test)). Pass
+`materialization: { kind: 'in-place', … }` and a `stabilize` list without
+`no-hover` to `createVariance` or `observe`, hover the element in your test,
+then observe: the image shows its `:hover` style. Leave `no-focus` out and focus
+the element, and the image shows its focus ring.
+
+## What you can configure
+
+Stabilization runs without any of this. Each entry below is a knob you can turn
+once you need it.
+
+| you want to | set | where |
+| --- | --- | --- |
+| observe a subject untouched | `stabilize: []` | [observing a subject untouched](#observing-a-subject-untouched) |
+| choose the tricks yourself | `stabilize: ['pin-animations', …]` | [what runs, and what it absorbs](#what-runs-and-what-it-absorbs) |
+| hide decorative images | `stabilize: [… , 'hide-presentational-images']` | [the half the wire cannot decide](#and-the-half-the-wire-cannot-decide) |
+| turn one trick off, to read a hover, a focus, live motion or the real clock | your own `stabilize` list, which replaces the default: every trick you keep, without that one | [turning one off](#turning-one-off) |
+| fix the clock at another instant | `now: '2030-01-01T09:00:00Z'` | [hover, focus, motion and the clock](#hover-focus-motion-and-the-clock) |
+| serve some images as nothing | `blank` rules | [some images can be served as nothing](#some-images-can-be-served-as-nothing) |
+| stop hashing asset bytes | `network: false` / `hashAssets: false` | [what the wire costs](#what-the-wire-costs) |
+| record a loading state on purpose | `loading: ['subject-id']` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
+| skip the Suspense wait | `suspenseTimeoutMs: 0` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
+
+## Before your first run
 
 Two terms this page uses throughout:
 
@@ -45,23 +131,6 @@ category changes the page before it looks. The questions worth asking are
 
 [Flakiness](flakiness.md) is the position — what kind of thing variance is, and
 the four ways a cause gets absorbed. This page is the mechanism.
-
-## What you can configure
-
-Stabilization runs without any of this. Each entry below is a knob you can turn
-once you need it.
-
-| you want to | set | where |
-| --- | --- | --- |
-| observe a subject untouched | `stabilize: []` | [observing a subject untouched](#observing-a-subject-untouched) |
-| choose the tricks yourself | `stabilize: ['pin-animations', …]` | [what runs, and what it absorbs](#what-runs-and-what-it-absorbs) |
-| hide decorative images | `stabilize: [… , 'hide-presentational-images']` | [the half the wire cannot decide](#and-the-half-the-wire-cannot-decide) |
-| turn one trick off, to read a hover, a focus, live motion or the real clock | your own `stabilize` list, which replaces the default: every trick you keep, without that one | [turning one off](#turning-one-off) |
-| fix the clock at another instant | `now: '2030-01-01T09:00:00Z'` | [hover, focus, motion and the clock](#hover-focus-motion-and-the-clock) |
-| serve some images as nothing | `blank` rules | [some images can be served as nothing](#some-images-can-be-served-as-nothing) |
-| stop hashing asset bytes | `network: false` / `hashAssets: false` | [what the wire costs](#what-the-wire-costs) |
-| record a loading state on purpose | `loading: ['subject-id']` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
-| skip the Suspense wait | `suspenseTimeoutMs: 0` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
 
 ---
 
@@ -347,45 +416,6 @@ export default routeCollector({
 part of the recipe the environment key records, so a baseline read at one
 instant is `incomparable` with a run read at another, rather than reported as a
 change your code made.
-
-### Turning one off
-
-`stabilize` replaces the recipe. To read a state one of these tricks removes,
-start from `DEFAULT_STABILIZE`, the ids of the default recipe, and filter that
-trick out. This collector reads the real clock:
-
-```js
-// variance/routes.mjs
-import { DEFAULT_STABILIZE, routeCollector } from '@variance-authority/route-collector';
-
-export default routeCollector({
-  routes: { 'billing/invoice': 'http://localhost:3000/invoice/42' },
-  roots: ['#app'],
-  stabilize: DEFAULT_STABILIZE.filter((id) => id !== 'freeze-clock'),
-});
-```
-
-The environment key records the recipe, so these baselines are kept apart from
-the default ones. `@variance-authority/storybook-collector` exports the same
-`DEFAULT_STABILIZE` for `storybookCollector`.
-
-Leaving `no-focus` out changes what is read, not what is painted. The
-Playwright renderer paints every collected document under its own recipe, and
-that recipe releases focus too.
-
-The `variance` fixture in `@variance-authority/playwright-test` fixes `Date` on
-the `page` it hands every test. To read the real clock in one file, leave
-`freeze-clock` out with `test.use`:
-
-```ts
-import { DEFAULT_STABILIZE } from '@variance-authority/playwright-test';
-
-test.use({ varianceStabilize: DEFAULT_STABILIZE.filter((id) => id !== 'freeze-clock') });
-```
-
-Do the same in a test that installs its own `page.clock`. Its clock replaces the
-fixed `Date` either way, and leaving `freeze-clock` out keeps the recipe the
-reading records true to the clock it read.
 
 ### Where each one applies
 
