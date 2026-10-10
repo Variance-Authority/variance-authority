@@ -43,11 +43,14 @@ part of the environment key.**
   `driver` request, declared as data so a host with no driver can tell which
   tricks it cannot honour.
 - **Recorded only where they held.** A host passes the ids it drove, and
-  `forDriver` drops the rest from the ids and the digest. The two hosts with no
-  driver, Vitest browser mode and `@variance-authority/presentation`, record
-  `no-focus` alone, which a page does to itself. The route and Storybook
-  collectors' page agents are driven by the Playwright harness that opened
-  their page, and record all four.
+  `forDriver` drops the rest from the ids and the digest. Vitest browser mode
+  has no driver: its test runs inside the browser it would have to drive.
+  `@variance-authority/presentation` holds the caller's Playwright `Page`, a
+  test's or an agent's, and reads through it without driving it, because the
+  caller goes on using that page and the pointer, the emulated media and the
+  clock are the caller's. Both record `no-focus` alone, which a page does to
+  itself. The route and Storybook collectors' page agents are driven by the
+  Playwright harness that opened their page, and record all four.
 - **Who drives when.** The harness sets the motion preference and the clock
   before its first navigation. The `variance` fixture in
   `@variance-authority/playwright-test` sets them through `driveBeforeTest`,
@@ -71,16 +74,37 @@ part of the environment key.**
   This amends ADR-0012 §2, which declined runtime substitution because a
   difference the patch causes cannot be told from one the code causes. That
   failure needs the substitute to behave unlike the original where the code
-  depends on it. `Date`'s real value is a second reading by definition; the
-  substitute removes a difference rather than adding one, and it is in the key,
-  so a reading without it is `incomparable`, never `changed`. The timers are
-  where the failure ADR-0012 names would live, and they are not touched.
+  depends on it, and a fixed `Date` does: code that measures elapsed time with
+  `Date.now()`, a debounce or a throttle such as lodash's `debounce`, sees no
+  time pass and never fires. The substitution is accepted for `Date` anyway.
+  What it removes is a second reading in every page that prints a date; what it
+  adds is confined to code timed by `Date`, which a test can opt out of, and the
+  clock is in the key, so a reading without it is `incomparable`, never
+  `changed`. The timers, which every settle step and animation depends on, are
+  not touched.
 - **The instant has one owner, the clock's id.** `freeze-clock` is the clock at
   `DEFAULT_NOW`; any other instant is `freeze-clock@<instant>`, so an instant
   is spelled in the id only when it is not the default. The recipe digest folds
   ids, so the instant is in the key without a second field to agree with it,
   and a baseline taken at one instant reads `incomparable` against a run at
   another.
+- **The timezone and the locale are pinned, and in the environment key.** The
+  collectors' harness and the renderer open each page in the timezone and
+  locale the project declares, or in `UTC` and `en-US`, never the host's. The
+  `variance` fixture opens a test's page in `UTC` when the suite declares no
+  `timezoneId`, and Playwright Test already defaults the locale to `en-US`.
+  `createVariance` reads a page the caller opened and cannot pin it; it keys
+  whatever that page runs in. Both values are environment inputs and enter both
+  digests, the full and the semantic, because text is laid out and another date
+  or language moves the box tree; the renderer's `rasterization` names them
+  too, since the page's scripts run there. They belong with the clock: a fixed instant is one date
+  and one time of day only in one timezone. `DEFAULT_NOW`, noon UTC on 15 June,
+  is 22:00 that day in Sydney and midnight on 16 June in Auckland, so a fixed
+  `Date` in the host's timezone prints the host's time of day, and east of
+  UTC+11 the host's date. This reverses spec 0008, which kept the locale a
+  collector input and out of the key: the base locale is now the key's, and the
+  other locales of a `locales` list stay collector inputs, compared within one
+  run.
 - **Render paints under `no-focus` alone.** A painted document still honours a
   collected `autofocus`, and the browser applies it at the next rendering
   update, so the blur waits a frame when the document holds one. The other
@@ -115,6 +139,21 @@ part of the environment key.**
 - **The instant as an environment input of its own.** Two owners for one value:
   the recipe would say `freeze-clock` and a field would say when, and nothing
   makes them agree.
+- **`Date` left real, `freeze-clock` opt-in.** A debounced test keeps
+  working, and every page that prints a date reads `changed` the day after its
+  baseline, with nothing naming the clock. The debounce cost falls on the tests
+  that wait on one, each of which can leave `freeze-clock` out in one line; the
+  date cost falls on every reading of every adopter. The default carries the
+  cheaper failure.
+- **A `Date` that advances from the fixed instant.** A debounce would fire, but
+  the time a component prints would then depend on how long the page took to
+  reach it, which is the second reading the trick exists to remove.
+- **The host's timezone and locale, keyed.** Every reading on a laptop outside
+  `UTC` would be `incomparable` against a baseline made in CI, which is a
+  baseline nobody can check locally.
+- **The timezone and locale in the full digest only.** The semantic key would
+  then match two readings whose text differs, and the box tree is built from
+  that text.
 - **Opt-in, as before.** Leaves four sources of a second reading to every
   author, and the run reports each as `changed` against a component.
 - **Disabling script.** The page is the adopter's, and disabling its script is
@@ -133,6 +172,17 @@ the install. The documentation says to leave `freeze-clock` out of
 `varianceStabilize` when the test owns the clock, and a `FIXME` in
 `driveBeforeTest` marks the gap.
 
+A fixed `Date` stops a debounce or a throttle timed with `Date.now()`. The
+fixture fixes `Date` before the test body runs and leaves it fixed until the
+test ends, so a test that types into a debounced search box and waits for the
+results can stop getting them after the upgrade, with nothing in the failure
+naming the clock. The documentation and the changeset name the cost and the way
+out: `varianceStabilize: DEFAULT_STABILIZE.filter((id) => id !== 'freeze-clock')`.
+
+A test that asserts a date formatted in the host's timezone, on a host outside
+`UTC`, reads `UTC` after the upgrade; a `timezoneId` in the suite's `use` keeps
+its own.
+
 Not closed:
 
 - `Temporal.Now` and `Date` inside a worker read the real time (a `TODO` in
@@ -144,7 +194,9 @@ Not closed:
 - A document is painted under the render recipe whatever recipe it was read
   under, so a reading taken without `no-focus` is still painted blurred (a
   `TODO` at `LAYOUT_RECIPE`).
-- The collectors and the renderer open each page in `UTC` and `en-US`, or in
-  the pair the project declares, and key both. Vitest browser mode paints in
+- `createVariance` reads a page its caller opened and cannot pin it. It keys
+  the timezone and locale that page runs in, which are the host's when the
+  caller's context set none, so its readings on a host outside `UTC` are
+  `incomparable` against CI's. Vitest browser mode paints in
   `UTC` and `en-US` whatever its tab ran in, and neither it nor jsdom writes a
   timezone or locale to the key (a `FIXME` at each site).
