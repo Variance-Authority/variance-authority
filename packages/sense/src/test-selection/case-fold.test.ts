@@ -11,7 +11,8 @@ import type { CaseSections } from './case-record.js';
 import { AMBIENT, packCase, packFrames } from './cases.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { NO_OWNER } from './format-layout.js';
-import { openSetExecutionIndex } from './execution-set-format.js';
+import { openSetColumns, openSetExecutionIndex } from './execution-set-format.js';
+import { lineAt, linesOf } from './case-lines.js';
 import eyesFrames from './eyes-frame.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import type { ExecutionIndex } from './reverse.js';
@@ -84,6 +85,37 @@ function branchModule(): CapturedModule {
   return module;
 }
 
+/**
+ * A bucket's read-out as `encodeLog` takes it: each row a module's ordinals,
+ * entered once after any module evaluated, at the test line that reached each,
+ * or with no lines where `lined` is false.
+ */
+function logged(rows: readonly (readonly [ModuleId, readonly (readonly [number, number])[]])[], lined = true) {
+  const start = new Int32Array(rows.length);
+  const end = new Int32Array(rows.length);
+  const base = new Int32Array(rows.length);
+  const sorted: number[] = [];
+  const lines: number[] = [];
+  for (const [row, [, reached]] of rows.entries()) {
+    start[row] = sorted.length;
+    base[row] = lines.length;
+    for (const [ordinal, line] of reached) {
+      sorted.push(ordinal << 1);
+      lines[base[row]! + ordinal] = line;
+    }
+    for (let at = base[row]!; at < lines.length; at += 1) lines[at] ??= 0;
+    end[row] = sorted.length;
+  }
+  return {
+    rows: rows.map((_, row) => row),
+    start,
+    end,
+    sorted: Int32Array.from(sorted),
+    ids: rows.map(([id]) => id),
+    ...(lined ? { base, lines: Int32Array.from(lines) } : {}),
+  };
+}
+
 describe('the bounded case fold', () => {
   it('credits direct and ambient calls, and flags a region only a load reached', async () => {
     const cases = await directory();
@@ -140,6 +172,45 @@ describe('the bounded case fold', () => {
     const folded = await foldCaseRun(await inspectCaseRun(cases, '/repo'), new Map([['src/branch.ts', module]]), 64);
 
     expect(openSetExecutionIndex(folded.bytes)!.modules[0]!.owner).toEqual(Uint32Array.from([NO_OWNER, 0, 1]));
+  });
+
+  it('charges a hook\'s statement to the ambient bucket and a test body\'s to its own case alone', async () => {
+    const cases = await directory();
+    const file = '/repo/test/branch.test.ts';
+    await writeFile(resolve(cases, 'worker.vac'), packFrames([
+      // `beforeEach` at line 3 reaches region 1 for every case of the file.
+      journalFormat.encodeLog(packCase(file, AMBIENT, AMBIENT), logged([['src/branch.ts', [[1, 3]]]])),
+      // Case one's body reaches region 2 at line 6 and region 1 itself at line 7.
+      journalFormat.encodeLog(packCase(file, 'one', '1'), logged([['src/branch.ts', [[1, 7], [2, 6]]]])),
+      journalFormat.encodeLog(packCase(file, 'two', '2'), logged([['src/branch.ts', [[3, 10]]]])),
+    ]));
+    const modules = new Map([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 4)]]);
+
+    const folded = await foldCaseRun(await inspectCaseRun(cases, '/repo'), modules, 64);
+
+    const table = openSetColumns(folded.bytes)!.testLines;
+    const [one, two] = [linesOf(table, 0)!, linesOf(table, 1)!];
+    expect(lineAt(one, 0, 1)).toEqual({ line: 7, ambient: false });
+    expect(lineAt(one, 0, 2)).toEqual({ line: 6, ambient: false });
+    expect(lineAt(two, 0, 1)).toEqual({ line: 3, ambient: true });
+    expect(lineAt(two, 0, 3)).toEqual({ line: 10, ambient: false });
+    expect(reach(decodeExecutionIndex(folded.bytes))).toEqual({
+      'src/branch.ts#1': { entered: ['test/branch.test.ts > one', 'test/branch.test.ts > two'] },
+      'src/branch.ts#2': { entered: ['test/branch.test.ts > one'] },
+      'src/branch.ts#3': { entered: ['test/branch.test.ts > two'] },
+    });
+  });
+
+  it('records no lines for a run nothing cut', async () => {
+    const cases = await directory();
+    await writeFile(resolve(cases, 'worker.vac'), packFrames([
+      journalFormat.encodeLog(packCase('/repo/test/branch.test.ts', 'one', '1'), logged([['src/branch.ts', [[1, 0]]]], false)),
+    ]));
+    const modules = new Map([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 2)]]);
+
+    const folded = await foldCaseRun(await inspectCaseRun(cases, '/repo'), modules, 64);
+
+    expect(openSetColumns(folded.bytes)!.testLines).toBeUndefined();
   });
 
   it('joins a case written twice, across workers and passes', async () => {

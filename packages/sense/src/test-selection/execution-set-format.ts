@@ -2,7 +2,7 @@ import { blob, column, NO_OWNER, sections } from './format-layout.js';
 import { type CrossingSetsView } from './crossing-sets-read.js';
 import { CrossingSets, type CrossingSetsPool } from './crossing-sets.js';
 import { codeUnitOrder, intern } from '@variance-authority/core/segment';
-import { linesColumn, type CaseLines } from './case-lines.js';
+import { linesColumn, type CaseLines, type LinesTable } from './case-lines.js';
 import { preconditionSection, preconditionStrings, preconditionWords, preconditionsFrom } from './case-precondition-column.js';
 import {
   columnWords,
@@ -210,6 +210,8 @@ export interface OpenedSetExecutionIndex {
   readonly tests: readonly ExecutionTest[];
   readonly modules: readonly SetExecutionModule[];
   readonly sets: CrossingSetsView;
+  /** Each case's lines, absent in an index written without cuts. */
+  readonly lines?: LinesTable;
 }
 
 /**
@@ -416,6 +418,7 @@ function openedSets(columns: SetColumns): OpenedSetExecutionIndex {
     tests: Array.from(columns.testId, (_, at) => testAt(columns, at, string)),
     modules: Array.from(columns.moduleFile, (_, at) => moduleAt(columns, at, string)),
     sets: columns.sets,
+    ...(columns.testLines === undefined ? {} : { lines: columns.testLines }),
   };
 }
 
