@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
 import { afterEach, describe, expect, it } from 'vitest';
+import { probeRecipe } from '../instrument/index.js';
 import probeLog from '../instrument/probe-log.cjs';
 import { createTransformer, type JestTransformRequest, type JestTransformedSource } from './jest-transform.js';
 import { deriveModules, moduleId } from './captured-modules.js';
@@ -181,5 +182,59 @@ module.exports = {
     expect(calls).toEqual(['require ./add']);
     expect(line).toBe(6);
     expect(entered).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * A transformer that places sense's probes itself, as a Rust pipeline that
+ * links the instrumenter crate does: it declares the recipe it was built with,
+ * and is handed what to place instead of a text that already carries it.
+ */
+describe('a transformer that places the probes itself', () => {
+  const RAW = 'export function pick(value) {\n  return value ? 1 : 2;\n}\n';
+
+  /** A transformer that writes back what it was handed, under the recipe `recipes` gives each mode. */
+  async function placing(recipes: string): Promise<string> {
+    const root = await project('variance-jest-placing-');
+    await writeFile(
+      resolve(root, 'transformer.cjs'),
+      `const recipes = ${recipes};
+module.exports = {
+  senseRecipe: (mode) => recipes[mode],
+  process: (source, path, options) => ({ code: JSON.stringify({ source, probes: options.senseProbes ?? null }) }),
+};
+`,
+    );
+    return root;
+  }
+  const OURS = JSON.stringify({ presence: probeRecipe('presence'), entries: probeRecipe('entries') });
+
+  it('is handed the module untouched, with the file to parse it as and the id its probes report', async () => {
+    const root = await placing(OURS);
+    const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs'), mode: 'entries' });
+
+    const done = transformer.process!(RAW, resolve(root, 'src/pick.js'), transformOptions(root));
+
+    expect(JSON.parse(done.code)).toEqual({
+      source: RAW,
+      probes: { file: 'src/pick.js', module: moduleId('src/pick.js', RAW), mode: 'entries' },
+    });
+  });
+
+  it('is handed nothing to place in a test file', async () => {
+    const root = await placing(OURS);
+    const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs') });
+
+    const done = transformer.process!(RAW, resolve(root, 'test/pick.case.js'), transformOptions(root));
+
+    expect(JSON.parse(done.code)).toEqual({ source: RAW, probes: null });
+  });
+
+  it('is refused when it was built against another instrumenter', async () => {
+    const root = await placing(JSON.stringify({ presence: 'sense:instrument/presence-v4+v1:00' }));
+
+    await expect(createTransformer({ root, transformer: resolve(root, 'transformer.cjs') })).rejects.toThrow(
+      `places sense's probes as sense:instrument/presence-v4+v1:00, and this sense reads ${probeRecipe('presence')}`,
+    );
   });
 });

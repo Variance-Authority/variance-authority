@@ -17,6 +17,11 @@
  *
  * A module the instrumenter cannot read reaches the inner transformer as it
  * is.
+ *
+ * A transformer that places the probes itself — a Rust pipeline linking the
+ * instrumenter crate the package ships — says so with `senseRecipe`, and is
+ * then handed each module untouched, with {@link SenseProbes} saying where its
+ * probes go: one parse instead of two.
  */
 
 import { createHash } from 'node:crypto';
@@ -25,8 +30,8 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import picomatch from 'picomatch';
-import { probeRecipe, type InstrumentMode } from '../instrument/index.js';
-import { captureModule } from './captured-modules.js';
+import { probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { captureModule, planModule } from './captured-modules.js';
 import { defaultInclude } from './instrumented-modules.js';
 import type { SelectionTransformerConfig } from './jest.js';
 import type { TransformSourceMap } from './source-lines.js';
@@ -47,6 +52,20 @@ export interface JestTransformRequest {
   readonly configString: string;
   readonly instrument: boolean;
   readonly transformerConfig?: unknown;
+  /** What a transformer with a `senseRecipe` places in this module; absent places nothing. */
+  readonly senseProbes?: SenseProbes;
+}
+
+/**
+ * Where one module's probes go, handed to a transformer that places them: the
+ * arguments of `instrument` in the instrumenter crate.
+ */
+export interface SenseProbes {
+  /** The project path the module is parsed as: only its extension is read. */
+  readonly file: string;
+  /** The id the probes report. */
+  readonly module: ModuleId;
+  readonly mode: InstrumentMode;
 }
 
 export interface JestTransformedSource {
@@ -57,6 +76,13 @@ export interface JestTransformedSource {
 /** The shape of a transformer as Jest loads one, sync or async. */
 export interface JestTransformer {
   readonly canInstrument?: boolean;
+  /**
+   * The recipe this transformer places sense's probes with under `mode`, from
+   * the instrumenter crate's `recipe`. A transformer that has one is handed
+   * {@link SenseProbes} instead of a text that carries them, and one whose
+   * recipe is not this package's is refused before it transforms anything.
+   */
+  senseRecipe?(mode: InstrumentMode): string;
   getCacheKey?(source: string, path: string, options: JestTransformRequest): string;
   getCacheKeyAsync?(source: string, path: string, options: JestTransformRequest): Promise<string>;
   process?(source: string, path: string, options: JestTransformRequest): JestTransformedSource;
@@ -99,6 +125,15 @@ export async function createTransformer(
   const innerConfig = typeof config.transformer === 'string' ? undefined : config.transformer?.[1];
   const mode = config.mode ?? 'presence';
   const recipe = probeRecipe(mode);
+  const theirs = inner?.senseRecipe?.(mode);
+  const places = theirs !== undefined;
+  if (places && theirs !== recipe) {
+    const name = typeof config.transformer === 'string' ? config.transformer : config.transformer?.[0];
+    throw new Error(
+      `${name} places sense's probes as ${theirs}, and this sense reads ${recipe}: ` +
+        'build it against node_modules/@variance-authority/sense/native/instrument',
+    );
+  }
   const excluded = new Set((config.exclude ?? []).map((file) => resolve(file)));
   const forInner = (options: JestTransformRequest): JestTransformRequest => ({
     ...options,
@@ -127,14 +162,17 @@ export async function createTransformer(
     getCacheKeyAsync: async (source, path, options) =>
       keyOf(source, path, options, await innerKeyAsync?.(source, path, forInner(options))),
     processAsync: async (source, path, options) => {
-      const code = place(root, path, options, source, mode, excluded);
-      return innerProcessAsync === undefined ? { code } : innerProcessAsync(code, path, forInner(options));
+      if (innerProcessAsync === undefined) return { code: place(root, path, options, source, mode, excluded) };
+      if (places) return innerProcessAsync(source, path, handOver(root, path, forInner(options), source, mode, excluded));
+      return innerProcessAsync(place(root, path, options, source, mode, excluded), path, forInner(options));
     },
   };
-  if (inner === undefined || inner.process !== undefined) {
+  const innerProcess = inner?.process?.bind(inner);
+  if (inner === undefined || innerProcess !== undefined) {
     transformer.process = (source, path, options) => {
-      const code = place(root, path, options, source, mode, excluded);
-      return inner?.process === undefined ? { code } : inner.process(code, path, forInner(options));
+      if (innerProcess === undefined) return { code: place(root, path, options, source, mode, excluded) };
+      if (places) return innerProcess(source, path, handOver(root, path, forInner(options), source, mode, excluded));
+      return innerProcess(place(root, path, options, source, mode, excluded), path, forInner(options));
     };
   }
   return transformer;
@@ -160,8 +198,26 @@ function place(
   excluded: ReadonlySet<string>,
 ): string {
   if (excluded.has(resolve(path)) || isTestFile(path, options.config)) return source;
-  const original = (at: string) => (at === path ? source : readFileSync(at, 'utf8'));
-  return captureModule(root, path, source, defaultInclude, mode, original)?.code ?? source;
+  return captureModule(root, path, source, defaultInclude, mode, originalOf(path, source))?.code ?? source;
+}
+
+/** The same decisions as {@link place}, handed to a transformer that places the probes itself. */
+function handOver(
+  root: string,
+  path: string,
+  options: JestTransformRequest,
+  source: string,
+  mode: InstrumentMode,
+  excluded: ReadonlySet<string>,
+): JestTransformRequest {
+  if (excluded.has(resolve(path)) || isTestFile(path, options.config)) return options;
+  const plan = planModule(root, path, source, defaultInclude, originalOf(path, source));
+  return plan === undefined ? options : { ...options, senseProbes: { file: plan.file, module: plan.id, mode } };
+}
+
+/** The file as Jest read it is the text it handed over; any other is read from disk. */
+function originalOf(path: string, source: string): (at: string) => string {
+  return (at) => (at === path ? source : readFileSync(at, 'utf8'));
 }
 
 /** What Jest hashes when a transformer declares no key of its own. */
