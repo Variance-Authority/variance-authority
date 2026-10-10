@@ -1,8 +1,8 @@
 /**
  * Single keys for the moves a reviewer makes forty times a build.
  *
- * A key is taken only when nothing else could want it: not while a field or a
- * form has the focus, not with a modifier held — Shift included, since that is
+ * A key is taken only when nothing else could want it: not while a field that
+ * takes letters, or anything in a form, has the focus, not with a modifier held — Shift included, since that is
  * the browser's, or the system's — not when something earlier already handled
  * the press, and not as a held key repeats, which would run down the queue.
  *
@@ -48,8 +48,14 @@ export function forThePage(event: KeyboardEvent): boolean {
   if (!(target instanceof Element)) return true;
   // Inside a form, a chip or its *Save* button has the focus between fields; a
   // J there would leave the page and drop the draft with it.
-  return target.closest('form, input, textarea, select, [contenteditable]:not([contenteditable="false"])') === null;
+  if (target.closest('form, textarea, select, [contenteditable]:not([contenteditable="false"])') !== null) return false;
+  // An input outside a form is a field only if it takes letters: the viewer's
+  // wipe and blend are sliders, and dragging one must not leave the keys dead.
+  return !(target instanceof HTMLInputElement) || TAKES_NO_LETTERS.has(target.type);
 }
+
+/** Input types a letter cannot be typed into. */
+const TAKES_NO_LETTERS: ReadonlySet<string> = new Set(['button', 'checkbox', 'color', 'file', 'image', 'radio', 'range', 'reset', 'submit']);
 
 /** The Latin letter a press stands for, lower case, or none. */
 function letterOf(event: KeyboardEvent): string | undefined {

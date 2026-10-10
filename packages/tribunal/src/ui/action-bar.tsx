@@ -10,7 +10,7 @@
  * all of it in one place that never moves, with the key for each, under the
  * picture it is about.
  *
- * While a concern is being written, J and K stand down wherever the focus is:
+ * While the concern form is open, J and K stand down wherever the focus is:
  * a reviewer who clicks the picture to look again has left the form but not the
  * draft. The buttons still move, because a click is not an accident.
  *
@@ -56,7 +56,7 @@ export function ActionBar({
   readonly subject: SubjectView;
   readonly place: Place | undefined;
   readonly busy: boolean;
-  /** Whether a concern is half written on this render. */
+  /** Whether the concern form is open on this render. */
   readonly writing?: boolean | undefined;
   readonly onDecide: (decision: Decision) => void;
   /** Open the concern form, starting in this state. */

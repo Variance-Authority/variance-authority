@@ -150,30 +150,56 @@ describe('every move is a button and a key', () => {
     expect(button('Next').disabled).toBe(true);
   });
 
-  it('never moves while the reviewer is typing', async () => {
-    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+  it('leaves a letter to the field that has the focus', async () => {
+    // F and I stay bound while the form is open, so they are the keys a guard
+    // that missed a field would take: the state the reviewer picked would jump.
+    await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
     await act(async () => button('Looks suspicious').click());
 
-    press('j', host.querySelector('input[name="title"]')!);
+    press('i', host.querySelector('input[name="title"]')!);
+
+    expect(host.querySelector<HTMLInputElement>('input[name="state"][value="open"]')?.checked).toBe(true);
+  });
+
+  it('leaves a letter alone on a button inside the form', async () => {
+    // Clicking an evidence chip puts the focus on a button, not a field; it is
+    // still the draft's, and I there would move the state the reviewer chose.
+    await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    await act(async () => button('Looks suspicious').click());
+    host.querySelector<HTMLButtonElement>('form button[type="button"]')!.focus();
+
+    press('i');
+
+    expect(host.querySelector<HTMLInputElement>('input[name="state"][value="open"]')?.checked).toBe(true);
+  });
+
+  it('never moves from a text field outside any form, or with a modifier held', async () => {
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    const search = document.createElement('input');
+    host.append(search);
+
+    press('j', search);
     press('j', document.body, { metaKey: true });
+    press('j', document.body, { ctrlKey: true });
+    press('j', document.body, { altKey: true });
 
     expect(went).toEqual([]);
   });
 
-  it('never moves while the focus is on a button in a half-written concern', async () => {
-    // Clicking an evidence chip puts the focus on a button, not a field. A J
-    // there would move to the next render and drop the draft with it.
+  it('still moves from a slider, which takes no letters', async () => {
+    // The wipe and the blend are sliders, and dragging one is how a reviewer
+    // compares; the keys must not go dead until they click somewhere else.
     const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
-    await act(async () => button('Looks suspicious').click());
-    const chip = host.querySelector<HTMLButtonElement>('form button[type="button"]')!;
-    chip.focus();
+    const wipe = document.createElement('input');
+    wipe.type = 'range';
+    host.append(wipe);
 
-    press('j');
+    press('j', wipe);
 
-    expect(went).toEqual([]);
+    expect(went).toEqual(['story:b']);
   });
 
-  it('never moves while a concern is half written, wherever the focus went', async () => {
+  it('never moves while the concern form is open, wherever the focus went', async () => {
     // A reviewer writing a concern clicks the picture to look again, which takes
     // the focus out of the form; J from there would leave the draft behind. The
     // button still moves, because a click is not an accident.
@@ -243,6 +269,12 @@ describe('every move is a button and a key', () => {
     expect(bar().querySelector('kbd')).toBeNull();
     expect(button('Keys').getAttribute('aria-checked')).toBe('false');
     expect(window.localStorage.getItem('va-keys')).toBe('off');
+
+    // The next page this browser opens starts with them off.
+    act(() => root.unmount());
+    root = createRoot(host);
+    await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    expect(button('Keys').getAttribute('aria-checked')).toBe('false');
   });
 
   it('opens the concern form as open on F and as investigating on I', async () => {
@@ -254,7 +286,7 @@ describe('every move is a button and a key', () => {
     expect(host.querySelector<HTMLInputElement>('input[name="state"][value="open"]')?.checked).toBe(true);
   });
 
-  it('starts the form over in the asked state each time it is asked', async () => {
+  it('sets the open form to the asked state each time it is asked', async () => {
     // A reviewer who picked a state by hand and then asks again from the bar
     // gets what the bar says, even when it asked for the same state before.
     await show(subject('story:cart'), { at: 0, of: 1 });

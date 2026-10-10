@@ -362,9 +362,11 @@ Single keys reach the moves that cost nothing to undo: <kbd>J</kbd> and
 concern and <kbd>I</kbd> opens one already under investigation, as *Flag as
 investigating* does. *Approve* and *Reject* have no key, because a key that
 promotes a baseline is a key pressed by accident. No key fires while a modifier,
-Shift included, is held, while the focus is anywhere in a form, or as a held
-key repeats. While a concern is half written, J and K do nothing wherever the
-focus went, so no key leaves a draft behind; *Next* and *Previous* still move.
+Shift included, is held, while the focus is in a text field or anywhere in a
+form, or as a held key repeats; a slider such as the wipe keeps them. While the
+concern form is open, J and K do nothing wherever the focus went, so no key
+leaves a draft behind; *Next* and *Previous* still move. F and I on an open
+form change its state and keep what was typed.
 On a layout that does not type Latin letters, the keys are the ones in the
 same place. *Keys off* at the end of the bar turns
 every single-letter key off, for speech input and screen readers that take
