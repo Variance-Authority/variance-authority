@@ -28,7 +28,11 @@ every visit, is the wrong price for it.
 
 A test-runner seam is not a page. It runs one case at a time, keeps a bucket
 per case and one ambient bucket per file for hooks, and its log is written in
-first-reach order before the close sorts it.
+first-reach order before the close sorts it. The record keeps no ambient
+bucket: the close folds a file's into every case of the file, so a region a
+`beforeEach` reached is in every case's set. Spec 0100 first had a hook's line
+kept in the ambient bucket and in no case's record; that bucket is gone by the
+time the record is written, so the line goes where the region goes.
 
 ## Decision
 

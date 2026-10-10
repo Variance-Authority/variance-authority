@@ -2114,9 +2114,9 @@ reads none of it: which cases run is still decided by the crossings.
 
 On this repository's 8,191 cases the lines add 105 KB to a 4.79 MB record,
 2.2%, and on MUI's `mui-material`, 4,822 cases, 66 KB to 2.70 MB, 2.4%. The
-suite's duration stays inside its run-to-run spread on both: 50.9 s with them
-against 51.8 s without here, 16.5 s against 16.1 s on MUI, the median of three
-runs each.
+suite's duration stays inside its run-to-run spread on both, over three runs
+each with and without them: 48.9–51.9 s against 48.8–56.3 s here, 16.2–16.5 s
+against 16.0–17.2 s on MUI.
 
 Pass `cadence: false` to leave test files as you wrote them and write no lines.
 A Jest journey run leaves test files as they are either way.
