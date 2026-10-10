@@ -357,6 +357,22 @@ describe('a variation is carried, and is never a verdict', () => {
     expect(by('story:todos--orphan')?.because).toContain('was not observed');
   });
 
+  it('reads a stored step short of a whole coordinate as none, so the pair stays a pair', async () => {
+    // A step with no position, or no step at all in its column's text, cannot
+    // place a subject; placing it anyway would put a picture in a wrong cell.
+    await review.ingest(declared());
+    for (const stored of ['{"axis":"scheme","from":"light","to":"dark"}', 'not json']) {
+      await db
+        .prepare('UPDATE build_variations SET step = ? WHERE subject = ?')
+        .bind(stored, 'story:todos--populated-dark')
+        .run();
+
+      const detail = await review.build('ci-1001');
+
+      expect(detail?.variations.find((entry) => entry.subject === 'story:todos--populated-dark')).not.toHaveProperty('step');
+    }
+  });
+
   it('leaves the counts a reviewer merges on alone', async () => {
     await review.ingest(declared());
 

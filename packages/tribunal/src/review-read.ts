@@ -199,8 +199,8 @@ export function toVariation(row: Row): VariationRecord {
  *
  * A step missing a value cannot place a subject, and placing it anyway would
  * put a picture in the wrong cell of a grid somebody reads as a comparison. So
- * anything short of three strings reads as no step, and the page draws the
- * pair as a pair.
+ * anything short of three strings and a position reads as no step, and the
+ * page draws the pair as a pair.
  */
 function stepOf(stored: string | undefined): VariationStep | undefined {
   if (stored === undefined) return undefined;
@@ -211,9 +211,10 @@ function stepOf(stored: string | undefined): VariationStep | undefined {
     return undefined;
   }
   if (typeof parsed !== 'object' || parsed === null) return undefined;
-  const { axis, from, to } = parsed as Record<string, unknown>;
+  const { axis, position, from, to } = parsed as Record<string, unknown>;
   if (typeof axis !== 'string' || typeof from !== 'string' || typeof to !== 'string') return undefined;
-  return { axis, from, to };
+  if (typeof position !== 'number' || !Number.isInteger(position) || position < 0) return undefined;
+  return { axis, position, from, to };
 }
 
 /**

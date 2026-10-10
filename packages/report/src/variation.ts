@@ -92,6 +92,11 @@ export interface VariationRecord {
 /** One step along one axis of a name format: the parent's value, then the subject's. */
 export interface VariationStep {
   readonly axis: string;
+  /**
+   * Where the format writes this axis, 0 first. Carried rather than inferred
+   * from the names that combine two axes, because a run may have none.
+   */
+  readonly position: number;
   readonly from: string;
   readonly to: string;
 }
