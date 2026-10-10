@@ -21,7 +21,7 @@ const TEST_FILES = 3;
 
 const UNCOVERED = new Set(['hole', 'unwalked', 'unknown']);
 
-export function uncovered(region: ReviewRegion): boolean {
+export function uncovered(region: Pick<ReviewRegion, 'reach'>): boolean {
   return UNCOVERED.has(region.reach);
 }
 
@@ -180,7 +180,7 @@ export function caseTree(titled: readonly { readonly path: readonly string[]; re
  * not the outermost, which is the module's top level whenever that ran. By
  * file and line: the order a reviewer works in.
  */
-function located(review: Review): readonly (readonly [string, ReviewRegion])[] {
+export function located(review: Pick<Review, 'files'>): readonly (readonly [string, ReviewRegion])[] {
   return review.files
     .flatMap((file) => [
       ...outermost(file).filter(uncovered),
