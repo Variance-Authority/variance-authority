@@ -111,6 +111,22 @@ describe('asking which tests entered a line', () => {
       .rejects.toThrow(/record spells it `src\/total\.ts`/);
   });
 
+  it('names a recorded file that only shares the name as that, not as a spelling of the asked one', async () => {
+    const execution = await indexFile();
+
+    const asked = covering(parse(['--file', 'lib/total.ts', '--execution', execution]));
+
+    await expect(asked).rejects.toThrow(/`src\/total\.ts` only shares its name\.$/);
+    await expect(asked).rejects.not.toThrow(/record spells it/);
+  });
+
+  it('says a module the recording left uninstrumented has no answer, as one the run never loaded has none', async () => {
+    const execution = await indexFile();
+
+    await expect(covering(parse(['--file', 'src/stabilize.ts', '--execution', execution])))
+      .rejects.toThrow(/never loaded, or loaded without instrumenting it, has no answer here/);
+  });
+
   it('separates a line nothing recorded from a line nothing covered', async () => {
     const execution = await indexFile();
 
