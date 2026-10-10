@@ -354,18 +354,20 @@ drifts in nineteen runs out of twenty. Two numbers are drawn as missing rather
 than as zero: a flake rate is **absent** until a run has read every subject
 twice, and a coverage that was never stated is unknown rather than clean.
 
-A subject whose candidate is the same image an earlier build kept says so under
-its decision. A candidate is stored under the SHA-256 of its bytes, so two builds
+A subject whose candidate is the same image an earlier build kept says so in its
+Decision card. A candidate is stored under the SHA-256 of its bytes, so two builds
 that kept one key for a subject kept one picture. Only builds rendered by the
 same identity count: a baseline is kept per identity, so a decision made on
 another engine or platform says nothing about this one. The line names the earlier
 build, links to the subject there, and gives the decision made on it with who
 made it. **An image an earlier build rejected** is drawn as a failure: it is a
-render you already rejected, not a new defect. **An image an earlier build
-approved, on a subject that differs from its baseline today**, is drawn as a
+render you already rejected, not a new defect. **An image approved before
+this build ran, on a subject that differs from its baseline here**, is drawn as a
 warning. The approval made that image the baseline, so the baseline has changed
 since, and the subject renders one image, then another, then the first one
-again: either the render is unstable, or a change was reverted. Only builds this
+again: either the render is unstable, or a change was reverted. An approval made
+after this build ran replaced the very baseline this build was compared to, so it
+is named without the warning. Only builds this
 deployment still keeps are counted, so a build removed by `POST /review/sweep`
 is not named. A subject that kept no candidate has no line.
 

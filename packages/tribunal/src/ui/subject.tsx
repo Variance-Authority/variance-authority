@@ -36,6 +36,7 @@ export function SubjectPanel({
   client,
   reviewer,
   build,
+  ran,
   subject,
   anchor,
   far,
@@ -47,6 +48,8 @@ export function SubjectPanel({
   readonly client: ReviewClient;
   readonly reviewer: string;
   readonly build: string;
+  /** When that build ran. */
+  readonly ran: string;
   readonly subject: SubjectView;
   /** The change this render is filed under, which distances are measured from. */
   readonly anchor?: string | undefined;
@@ -109,7 +112,7 @@ export function SubjectPanel({
       <aside className="va-aside va-scroll">
         <section className="va-card">
           <h2>Decision</h2>
-          <Repeated subject={subject} go={go} />
+          <Repeated subject={subject} ran={ran} go={go} />
           {subject.decision === null ? null : (
             <p className="va-decision">
               {subject.decision.decision} by {subject.decision.by} · {when(subject.decision.at)}

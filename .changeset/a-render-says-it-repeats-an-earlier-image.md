@@ -11,9 +11,9 @@ build, and `builds` names up to eight, the decided ones first. The field is
 absent when the subject kept no candidate, and `{ count: 0, builds: [] }` when
 no earlier build kept that image.
 
-The subject page names the earlier build under the decision and links to it. An
-image an earlier build rejected is drawn as a failure. An image an earlier build
-approved, on a subject that differs from its baseline today, is drawn as a
+The subject page names the earlier build in its Decision card and links to it. An
+image an earlier build rejected is drawn as a failure. An image approved before
+this build ran, on a subject that differs from its baseline here, is drawn as a
 warning: the subject renders one image and then another in turn, so either the
 render is unstable or a change was reverted.
 

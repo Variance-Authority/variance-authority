@@ -64,8 +64,8 @@ export function repeatsStatement(db: D1Like, project: string, build: string): D1
 /**
  * The rows of {@link repeatsStatement}, by subject.
  *
- * A subject with a candidate and no row here kept an image no earlier build
- * still held kept; the caller answers that with an empty {@link Repeats}.
+ * A subject with a candidate and no row here kept an image that no earlier build
+ * still on record kept; the caller answers that with an empty {@link Repeats}.
  */
 export function repeatsFrom(rows: readonly Row[]): ReadonlyMap<string, Repeats> {
   const found = new Map<string, { count: number; builds: RepeatedIn[] }>();

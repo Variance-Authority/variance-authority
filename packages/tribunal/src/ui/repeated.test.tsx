@@ -28,12 +28,16 @@ function subject(overrides: Partial<SubjectView> = {}): SubjectView {
   };
 }
 
+/** When build ci-1001, the one on screen, ran. */
+const RAN = '2026-06-01T10:00:00.000Z';
+
 function page(view: SubjectView): string {
   return renderToStaticMarkup(
     <SubjectPanel
       client={CLIENT}
       reviewer="marina"
       build="ci-1001"
+      ran={RAN}
       subject={view}
       go={() => undefined}
       onDecided={() => undefined}
@@ -63,7 +67,7 @@ const APPROVED: Repeats = {
     {
       build: 'ci-1000',
       at: '2026-06-01T09:00:00.000Z',
-      decision: { decision: 'approved', by: 'anton', at: '2026-06-01T12:00:00.000Z' },
+      decision: { decision: 'approved', by: 'anton', at: '2026-06-01T09:30:00.000Z' },
     },
   ],
 };
@@ -88,8 +92,20 @@ describe('an image an earlier build kept', () => {
     expect(markup).toContain('the render is unstable, or a change was reverted');
   });
 
+  it('says only that it was approved when the approval came after this build ran', () => {
+    // This build was compared before anybody approved the image, against the
+    // baseline the approval then replaced: its difference says nothing new.
+    const lead = APPROVED.builds[0]!;
+    const later = { ...lead, decision: { ...lead.decision!, at: '2026-06-01T11:00:00.000Z' } };
+    const markup = page(subject({ repeats: { count: 1, builds: [later] } }));
+
+    expect(markup).toContain('approved this image');
+    expect(markup).not.toContain('changed since');
+    expect(markup).not.toContain('va-warned');
+  });
+
   it('says only that it was approved when this render does not differ from the baseline', () => {
-    const markup = page(subject({ verdict: 'new', repeats: APPROVED }));
+    const markup = page(subject({ verdict: 'unchanged', repeats: APPROVED }));
 
     expect(markup).toContain('approved this image');
     expect(markup).not.toContain('changed since');
