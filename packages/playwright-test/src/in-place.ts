@@ -217,10 +217,12 @@ export async function settledCapture(
       if (attempt > 0) await page.waitForTimeout(attempt * 100);
       // From here to the confirming read. The two reads agree about a subject
       // that changed and changed back between them, and the screenshots may
-      // hold the state in between: only the page sees that change happen.
-      await watchFrom(locator);
+      // hold the state in between: only the page sees that change happen. A
+      // watch that cannot reach the subject fails the attempt as a screenshot
+      // would, and the next one starts from a fresh read.
       let taken: Raster;
       try {
+        await watchFrom(locator);
         taken = await stableRaster(
           page,
           locator,

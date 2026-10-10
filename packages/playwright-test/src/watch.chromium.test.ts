@@ -150,6 +150,39 @@ chromium_('the in-place watch', () => {
     }
   }, 60_000);
 
+  it('retries an attempt whose watch could not reach the subject', async () => {
+    // Between the read before it and the watch, a subject that is re-rendered
+    // can be momentarily detached. That is the same restlessness a failed
+    // screenshot is, and the next attempt starts from a fresh read.
+    const target = page!.locator('#cart');
+    await accept(target, 'cart/in-place-watch-detached');
+    let watches = 0;
+    const detaching = new Proxy(target, {
+      get(locator, property) {
+        if (property === 'evaluate') {
+          return async (fn: unknown, argument: unknown) => {
+            // The watch is the one evaluate handed the agent's name alone.
+            if (typeof argument === 'string' && (watches += 1) === 1) {
+              throw new Error('locator.evaluate: Element is not attached to the DOM');
+            }
+            return locator.evaluate(fn as never, argument as never);
+          };
+        }
+        const value = Reflect.get(locator, property);
+        return typeof value === 'function' ? value.bind(locator) : value;
+      },
+    });
+    const session = await createVariance(page!, info('none'), { baselines, materialization });
+
+    try {
+      const observation = await session.observe(detaching, { subjectId: 'cart/in-place-watch-detached' });
+      expect(observation.verdict).toBe('unchanged');
+      expect(watches).toBe(2);
+    } finally {
+      await session.close();
+    }
+  }, 60_000);
+
   it('refuses an attribute set to another value and back between the reads', async () => {
     // The same flicker as the text one, through `characterData`'s sibling: two
     // records for one attribute, whose first old value matches the value now.
