@@ -68,9 +68,10 @@ export const symbol: Tool<Help> = {
     if (byPath.length > 0) return importedByPath(help, name, byPath);
 
     // Exported for a neighbour and never published: the workspace's own name,
-    // answered before an installed one, as a published name is.
+    // said first. An installed name it matches is said after it, since a file
+    // that passes an installed binding on exports it without declaring it.
     const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
-    if (exported.length > 0) return exportedOnly(name, exported, invocation?.root);
+    const own = exported.length > 0 ? [exportedOnly(name, exported, invocation?.root)] : [];
 
     if (found.length === 0 && invocation?.root !== undefined) {
       const at = startPointArg(input, 'from');
@@ -96,13 +97,15 @@ export const symbol: Tool<Help> = {
         const owner = here.scope.location?.join(', ') ?? 'the manifest that owns it';
         const where = paths.join(', ');
         return [
+          ...own,
           `\`${name}\` is not usable from ${where}: ${owner} does not declare or import it. It is offered under:`,
           ...everywhere.shown.map(described),
           ...cut(everywhere),
         ].join('\n\n');
       }
-      if (shown.total > 0 || silent.length > 0) return [...shown.shown.map(described), ...cut(shown), ...silent].join('\n\n');
+      if (shown.total > 0 || silent.length > 0) return [...own, ...shown.shown.map(described), ...cut(shown), ...silent].join('\n\n');
     }
+    if (own.length > 0) return own.join('\n\n');
     if (found.length === 0) throw new Error(unfound(help, name, wanted));
 
     const [first] = found;

@@ -18,7 +18,7 @@ import { importersOf } from '@variance-authority/sense';
 import { useOf } from '../refresh-native.js';
 
 /** What an import count leaves out: a use that names the export without importing it. */
-export const UNCOUNTED = 'a call through a qualified path imports nothing and is not counted';
+export const UNCOUNTED = 'an import through an `export *` file and a call through a qualified path are not counted';
 
 /** Every export of `name` from ordinary source, in `within` when one is named. */
 export function exportsNamed(help: Help, name: string, within: string | undefined): readonly Named[] {
