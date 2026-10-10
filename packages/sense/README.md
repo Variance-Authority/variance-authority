@@ -2084,9 +2084,9 @@ changed; selecting test files over every region there is reads the snapshot.
 A case's crossings name the regions it reached, not the statement of the test
 that reached each one. Under the Vitest, Jest and Rstest seams every case also
 records, for each region it crossed, the line of the test statement that first
-reached it, and whether that statement was the case's own or a hook's. Read a
-case's regions in line order and you have its cadence: what each statement of
-the test added.
+reached it, and whether that statement was the case's own or a hook's. Those
+lines are the test's cadence: what each of its statements added to what the
+case reached.
 
 The seam's transform puts a call in front of every statement of a test or hook
 body in a test file. It goes into nested blocks but not into nested functions,
@@ -2101,9 +2101,12 @@ charged to the last statement before its first entry:
 | a `beforeEach` or another hook, and not by the case itself | the hook's statement, flagged as a hook's |
 | an import or top-level code, before any statement ran | line 0, flagged as a hook's |
 
-A case whose body comes from a helper outside the test file, such as a shared
-conformance suite, runs code the transform never saw and records no lines. So
-does every case a record written without them carried. The record keeps such a
+The transform finds a body by the registrar it is handed to: `it`, `test`,
+their `.each`, `.only` and `.skip`, and the four hooks. A body handed over by
+name, one a registrar from `test.extend` or a renamed import takes, and one a
+helper outside the test file writes, such as a shared conformance suite, run
+uncut, and their cases record no lines. So does every case a record written
+without them carried. The record keeps such a
 case apart from one that reached nothing: lines not recorded is not an empty
 answer. When a case's asynchronous work interleaves differently from run to
 run, the line recorded is the one this run reached the region from. Selection

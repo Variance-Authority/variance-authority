@@ -21,7 +21,7 @@ per-region case count it uses to set structure apart.
 **Narrows:** [ADR-0056](../context/adr/0056-a-journey-is-the-places-visited.md)
 decision 1 — a journey records the places a case visited and never their order —
 for the test-runner seams only, by
-[ADR-0087](../context/adr/0087-a-case-records-the-test-line-that-reached-each-region.md).
+[ADR-0088](../context/adr/0088-a-case-records-the-test-line-that-reached-each-region.md).
 
 ## Purpose
 
@@ -210,9 +210,10 @@ On this repository, after `yarn test:unit`:
    rotation…" as sharing one of three tied regions.
 4. The three profile cases named above and "short-circuits on a render-hash
    hit" are each named as sharing the `compareTrees` `if#0/then` leaf.
-5. After item 2, a `beforeEach` statement that adds a region in the file's
-   first case is charged, with its line, in the ambient bucket and in no case's
-   own record; a test body's statement is charged only in its own case.
+5. After item 2, a region a `beforeEach` statement adds and no case reaches
+   itself is charged to that statement's line, flagged as a hook's, in every
+   case of the file; a region a test body's statement adds is charged to its
+   line only in its own case, unflagged.
 6. Reading a record written before item 2 lands reports *lines not recorded*
    for every case, and the leaf is still named from the set, without a line.
 7. The pull request that lands item 1 states, for MUI, how many cases have one

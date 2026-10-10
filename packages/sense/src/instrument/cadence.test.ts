@@ -163,3 +163,8 @@ describe('a cut test charges each region to the line that first reached it', () 
     expect(linesOf(engine, bucket)).toEqual(new Map([['m.js#1', 4]]));
   });
 });
+
+describe('a test body registered under another name', () => {
+  it.todo('is cut when `test.extend` made the registrar');
+  it.todo('is cut when the registrar was imported under another name');
+});

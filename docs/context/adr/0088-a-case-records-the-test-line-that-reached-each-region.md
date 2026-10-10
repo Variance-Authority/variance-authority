@@ -1,4 +1,4 @@
-# ADR-0087 — a case records the test line that reached each region
+# ADR-0088 — a case records the test line that reached each region
 
 **Status:** accepted
 **Date:** 2026-10-10
@@ -47,8 +47,9 @@ was the case's own or a hook's.** Nothing else in ADR-0056 decision 1 moves.
    the hook's line, flagged ambient. A case's own line wins over an ambient
    one for the same region. A region reached before any cut stands at line 0.
    The transform cuts a whole test file or none of it, so a case of a cut
-   file whose own bucket reached nothing has lines too. A case whose body a
-   helper outside the file declared runs uncut, and has none.
+   file whose own bucket reached nothing has lines too. A case whose body ran
+   uncut has none: a helper outside the file declared it, or the transform did
+   not know its registrar.
 3. **The record stores one value per region per case, as runs.** A case's
    values are kept over each module's regions as runs, and the value most of
    its modules hold alone is stored once: a hook that reaches a thousand
@@ -62,13 +63,21 @@ was the case's own or a hook's.** Nothing else in ADR-0056 decision 1 moves.
    before.
 
 Not admitted: a rank within a statement, counts, repeats, spans, stacks,
-depth, and anything written on a page.
+depth, and anything written on a page. ADR-0076 let a story claim only order
+because order was all its tape could vouch for; a cut vouches for less, the
+statement a region was first reached under, and claims only that.
 
 ## Consequences
 
-- The record grows by the lines and a test run by the calls. The size and the
-  time are stated, measured, in the pull request that lands this; the cuts
-  were kept under twice the record and the suite, as small as they could be.
+- The record grows by the lines and a test run by the calls. On this
+  repository's unit suite the lines add 2.2% to the record and on MUI's
+  `mui-material` 2.4%; the suite's duration stays inside its run-to-run spread
+  on both. Spec 0100 holds each under twice what it adds to.
+- The cut moves the columns after it on a statement's line, and a runner
+  writes an inline snapshot into the call a stack frame names by line and
+  column. The transform returns a source map back to the file as written:
+  Vitest and Rstest take it, and the Jest seam moves the wrapped transformer's
+  map back, returned or inline.
 - A case whose async work interleaves differently between runs can reach a
   region from another line; the line recorded is the one this run reached it
   from.
