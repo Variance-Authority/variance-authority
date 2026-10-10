@@ -165,6 +165,6 @@ describe('a cut test charges each region to the line that first reached it', () 
 });
 
 describe('a test body registered under another name', () => {
-  it.todo('is cut when `test.extend` made the registrar');
-  it.todo('is cut when the registrar was imported under another name');
+  it.todo('is cut when `test.extend` made the registrar — needs the cut to follow a binding from `test.extend` back to `BODIES`');
+  it.todo('is cut when the registrar was imported under another name — needs the cut to read the import specifier that bound the local name');
 });
