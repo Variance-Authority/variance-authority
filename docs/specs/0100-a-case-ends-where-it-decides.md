@@ -172,7 +172,9 @@ readers walk every case.
    - `covering --file --line` lists, for the region the line is charged to, the
      cases whose leaf it is before the cases that only reach it, and says which
      is which.
-   Equally rare regions are listed in source order.
+   Equally rare regions are listed in source order. A case whose record holds
+   no region has no leaf, and the answer says the case reached no code rather
+   than printing an empty leaf.
 2. **Cuts per test line.** An ADR narrows ADR-0056 decision 1 as above. Under
    Vitest, Jest and Rstest, the seam's transform cuts the log before each
    statement of a test or hook body. Test files are not instrumented today
