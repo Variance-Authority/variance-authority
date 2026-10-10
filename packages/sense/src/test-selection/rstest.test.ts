@@ -235,11 +235,19 @@ describe('the Rstest loader', () => {
 
   const TEST = "it('adds', () => {\n  expect(1 + 1).toBe(2);\n});\n";
 
-  it('cuts a file the project counts as a test, and probes nothing in it', async () => {
+  it('cuts a file the project counts as a test, and probes nothing `include` refuses', async () => {
     const { handed, modules } = await loaded('src/add.test.ts', TEST);
 
     expect(handed).toContain('  __vaC(2);expect(1 + 1)');
     expect(modules).toEqual([]);
+  });
+
+  it('probes a test file `include` takes, and then cuts it', async () => {
+    const { handed, modules } = await loaded('spec/add.check.ts', TEST, {}, { include: ['spec/**/*.check.ts'] });
+
+    expect(handed).toContain('__va(1);');
+    expect(handed).toContain('  __vaC(2);expect(1 + 1)');
+    expect(modules).toEqual([expect.objectContaining({ file: 'spec/add.check.ts', instrumented: true })]);
   });
 
   it('counts what `include` names as a test, and nothing else', async () => {

@@ -380,19 +380,21 @@ function selectionPlugin(
       // A `globalSetup` file is refused by the file it is as well as by the name
       // `include` is asked about, which a build's map may have changed.
       if (file === setupId || file === runnerId || globalSetup.has(file)) return null;
-      // A test file is cut rather than probed: nothing enters it, and what it
-      // carries is which of its lines was running. The file itself only — a
-      // query asks for a module built from it.
-      if (cut !== undefined && id === file && run.cases && cut(file)) {
-        const cutCode = cadence(code, file);
-        return cutCode === undefined ? null : { code: cutCode, map: null };
-      }
+      // A test file is probed when `include` takes it, and then cut, so its
+      // case also says which of its lines was running. The file itself only —
+      // a query asks for a module built from it. Both keep every line where it
+      // was.
+      const cutting = cut !== undefined && id === file && run.cases && cut(file);
+      const cutOf = (text: string) => (cutting ? cadence(text, file) : undefined);
       // Its probes report under the file the transform was handed: a source and
       // its build both answer to the name, each with its own regions, and the
       // fold joins them (see `joinReadings`). Vitest re-transforms every run in
       // this process, so the modules stay in this map.
       const captured = captureModule(root, file, code, include, mode);
-      if (captured === undefined) return null;
+      if (captured === undefined) {
+        const cutCode = cutOf(code);
+        return cutCode === undefined ? null : { code: cutCode, map: null };
+      }
       // Only the file itself: any query, such as `?raw`, asks for a module built
       // from it. In a page, `vi.mock` loads its mock under the file's name.
       // Otherwise its lines are not the author's, so it fails its importers.
@@ -404,7 +406,9 @@ function selectionPlugin(
         );
       }
       modules.set(captured.module.id, captured.module);
-      return captured.code === undefined ? null : { code: captured.code, map: null };
+      const probed = captured.code ?? code;
+      const text = cutOf(probed) ?? probed;
+      return text === code ? null : { code: text, map: null };
     } },
   };
 }

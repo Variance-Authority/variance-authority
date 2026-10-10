@@ -41,10 +41,10 @@ export interface SelectionLoaderContext {
  * Place probes on one module Rspack is about to bundle, and record what they
  * mean.
  *
- * A test file is cut instead, unless the run turns cuts off. A module this
- * run has no business in — the seam's own setup shim, anything
- * the `include` predicate refuses, a build whose snapshot names no run — is
- * handed back exactly as it arrived.
+ * A test file is cut as well, unless the run turns cuts off. A module this
+ * run has no business in — the seam's own setup shim, anything the `include`
+ * predicate refuses, a build whose snapshot names no run — is otherwise handed
+ * back exactly as it arrived.
  */
 function instrumentModule(this: SelectionLoaderContext, code: string): void {
   const file = cleanId(this.resourcePath);
@@ -57,17 +57,13 @@ function instrumentModule(this: SelectionLoaderContext, code: string): void {
     this.callback(null, code);
     return;
   }
-  // A test file is cut rather than probed: nothing enters it, and what it
-  // carries is which of its lines was running.
-  if (run.cases && run.cadence?.(file) === true) {
-    this.callback(null, cadence(code, file) ?? code);
-    return;
-  }
   const captured = captureModule(run.root, file, code, run.include, run.mode);
   if (captured !== undefined) run.modules.set(captured.module.id, captured.module);
-  // With no map: every probe sits on the line it reports, so SWC's map from
-  // this text is a map from the file on disk.
-  this.callback(null, captured?.code ?? code);
+  const probed = captured?.code ?? code;
+  // A test file is then cut, so its case also says which of its lines was
+  // running. With no map: every probe and cut sits on the line it reports, so
+  // SWC's map from this text is a map from the file on disk.
+  this.callback(null, run.cases && run.cadence?.(file) === true ? cadence(probed, file) ?? probed : probed);
 }
 
 // Named here and exported as the default, because a loader is named by path:
