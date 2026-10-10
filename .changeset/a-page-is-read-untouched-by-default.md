@@ -89,7 +89,11 @@ giving focus back after it. Two new fixture options, `varianceStabilize` and
 `test.use`; `varianceDriven` holds the ids it set. A fixed `Date` stops code
 that times itself with `Date.now()`: a debounce or a throttle, such as lodash's
 `debounce`, sees no time pass and never fires, so a test that types into a
-debounced search box can stop getting results after this upgrade. Leave
+debounced search box can stop getting results after this upgrade. A loop that
+waits for `Date.now()` to pass a mark hangs the page, an animation timed by
+`Date`, such as jQuery's `animate`, never calls its `complete`, and a client
+that checks a token's `nbf` or `iat` against `Date.now()` can refuse a token
+issued today. None of these failures names the clock. Leave
 `freeze-clock` out for such a test, and for one that sets `page.clock` itself:
 
 ```ts

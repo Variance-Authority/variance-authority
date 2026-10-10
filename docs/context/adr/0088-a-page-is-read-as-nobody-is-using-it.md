@@ -3,7 +3,8 @@
 **Status:** accepted
 **Date:** 2026-10-10
 **Amends:** [ADR-0012](0012-observability-and-the-damage-boundary.md) — §2, which
-declined runtime substitution, now makes one: `Date`;
+declined runtime substitution, now makes one: `Date`; and §3, whose cheapest
+tier a focus ring or a printed date would put in jsdom, where neither is held;
 [ADR-0029](0029-a-page-is-held-still-before-it-is-read.md) — §1, the two recipes
 now differ by more than one trick, and *What this does not close*, which a page
 that honours reduced motion now leaves;
@@ -162,8 +163,20 @@ part of the environment key.**
   working, and every page that prints a date reads `changed` the day after its
   baseline, with nothing naming the clock. The debounce cost falls on the tests
   that wait on one, each of which can leave `freeze-clock` out in one line; the
-  date cost falls on every reading of every adopter. The default carries the
-  cheaper failure.
+  date cost falls on every reading of every adopter. The two failures do not
+  read alike: a date shows in the diff, and a debounce that never fires names
+  nothing. The default takes the second because it reaches only tests that wait
+  on `Date`-timed code, and the documentation names it where a reader looks for
+  a debounce that stopped firing.
+- **A fixed `Date` in the collectors only, opt-in in the fixture.** The
+  collectors own their pages, and the fixture's page is the test's, so the
+  fixture's costs (a debounce, a cookie, a closed hover menu) would stay out of
+  user tests. But the fixture's in-place capture photographs that page, and a
+  date it prints reads `changed` the day after its baseline as a collector's
+  would. Presentation is left undriven for another reason: it is handed a page
+  that has already loaded and read the time, and an init script reaches only
+  the next navigation, while the fixture drives its page before the test body
+  loads anything.
 - **A `Date` that advances from the fixed instant.** A debounce would fire, but
   the time a component prints would then depend on how long the page took to
   reach it, which is the second reading the trick exists to remove.

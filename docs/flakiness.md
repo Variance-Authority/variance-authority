@@ -476,7 +476,7 @@ paint — never resolves if you take the second, and what you record is the stat
 before the timer it was waiting for. Vitest and Jest fake both by default, so ask
 for the clock alone unless you want the timers too.
 
-**Playwright** separates the two, so this is the whole recipe:
+**Playwright** fixes `Date` and keeps the timers running, though with timers and frames of its own, so a frame's timestamp no longer matches `document.timeline`:
 
 ```ts
 await page.clock.setFixedTime(new Date('2024-01-01T00:00:00Z'));

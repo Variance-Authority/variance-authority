@@ -37,7 +37,11 @@ than `changed`.
 locale its page runs in: whatever the Playwright project or `test.use` sets.
 When neither sets a `timezoneId`, `varianceFixtures` opens the page in `UTC`
 rather than the host's, so a laptop and a runner in UTC read it under one key;
-Playwright Test already opens it in `en-US` when nothing sets a `locale`. A page
+Playwright Test already opens it in `en-US` when nothing sets a `locale`. That
+reaches every test of a suite extended with `varianceFixtures`, including tests
+that never call `variance`, so a test that asserts a date formatted in your
+machine's timezone reads it in `UTC` after this upgrade; set `timezoneId` in
+`use` to keep your own. A page
 you hand to `createVariance` is read and painted in whatever its own context
 opened it in, which is the host's timezone when that context set none: open the
 context with `timezoneId: 'UTC'` to match. `varianceRenderer` is now a test fixture, chosen
