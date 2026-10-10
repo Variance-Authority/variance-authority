@@ -56,7 +56,8 @@ function realm(out: unknown[], extra: Record<string, unknown> = {}): object {
 /**
  * A probe log with one bucket in use, the way the flat collector keeps one,
  * and what it holds: per module, one entry per block ordinal, 1 for entered
- * with the evaluating bit beside it.
+ * while nothing evaluated, the evaluating bit and 1 for entered only while the
+ * module evaluated, and the evaluating bit and 2 for entered both ways.
  */
 function recorder(): { root: unknown; read(id: ModuleId, count: number): Uint32Array } {
   const engine = probeLog.createEngine(false);
@@ -70,15 +71,16 @@ function recorder(): { root: unknown; read(id: ModuleId, count: number): Uint32A
         if (entered.id !== id) continue;
         for (const ordinal of entered.hits) out[ordinal] = 1;
         for (const ordinal of entered.shared) out[ordinal] = (EVALUATING | 1) >>> 0;
+        for (const ordinal of entered.again) out[ordinal] = (EVALUATING | 2) >>> 0;
       }
       return out;
     },
   };
 }
 
-/** What one evaluation entered, by block ordinal, without the evaluating bit. */
+/** What one evaluation entered, by block ordinal: 1 for entered, either way. */
 async function hits(source: string): Promise<Uint32Array> {
-  return (await raw(source)).map((entered) => (entered & ~EVALUATING) >>> 0);
+  return (await raw(source)).map((entered) => (entered === 0 ? 0 : 1));
 }
 
 /** What one evaluation entered as the collector sees it, evaluating bit and all. */
@@ -328,10 +330,10 @@ describe('the probes record what was entered', () => {
     expect((await hits(`out.push(1);`))[0]).toBe(1);
   });
 
-  it('marks what ran while the module was evaluating, and nothing after', async () => {
+  it('marks what ran while the module was evaluating apart from what ran after', async () => {
     // The top level calls `f` once, and a microtask calls it again after the
     // last statement has run: the first call is every subject's, the second is
-    // whoever was painted.
+    // whoever was painted, and a region both calls entered is entered both ways.
     const source = `function f(n) { if (n) out.push('y'); else out.push('n'); }
       f(1); done = Promise.resolve().then(() => f(0));`;
     const instrumented = instrument(source, 'fixture.js')!;
@@ -339,9 +341,9 @@ describe('the probes record what was entered', () => {
     const at = (path: string): number =>
       counted[instrumented.blocks.find((block) => block.path === path)!.ordinal]!;
 
-    expect(at('module')).toBe(EVALUATING + 1);
+    expect(at('module')).toBe(EVALUATING + 2);
+    expect(at('entry')).toBe(EVALUATING + 2);
     expect(at('if#0/then')).toBe(EVALUATING + 1);
-    expect(at('entry')).toBe(EVALUATING + 1);
     expect(at('if#0/else')).toBe(1);
   });
 

@@ -2453,6 +2453,9 @@
         "!dist/**/*.d.ts.map",
         "!dist/native",
         "mark.svg",
+        "native/instrument/Cargo.toml",
+        "native/instrument/build.rs",
+        "native/instrument/src/*.rs",
         "scripts/overhead.mjs",
         "scripts/probe-write.mjs"
       ],
@@ -2605,6 +2608,7 @@
         "forksBetween": "function",
         "gitDigests": "function",
         "grainOf": "function",
+        "importersOf": "function",
         "inIndexTurn": "function",
         "indexDeclarations": "function",
         "indexTurnPath": "function",
@@ -2712,10 +2716,11 @@
         "InstrumentOptions": "interface",
         "Instrumented": "interface",
         "ModuleId": "type",
-        "PROBE_RUNTIME": "const",
         "instrument": "function",
         "instrumentModeOf": "function",
-        "instrumentationId": "function"
+        "instrumentationId": "function",
+        "probeRecipe": "function",
+        "probeRuntime": "function"
       },
       "./test-selection": {
         "AxisStep": "interface",
@@ -3012,6 +3017,7 @@
       "./journal": {
         "CasePrecondition": "interface",
         "EXECUTION_GLOBAL": "const",
+        "EnteredModules": "interface",
         "EvaluatingPage": "interface",
         "ExecutedModule": "interface",
         "ExecutionCollector": "interface",
@@ -3031,11 +3037,14 @@
         "TestSelectionProbeOptions": "interface",
         "closeStage": "function",
         "drainExecution": "function",
+        "enterModules": "function",
+        "enteredModules": "function",
         "executionCollectorSource": "function",
         "foldStage": "function",
         "joinObservations": "function",
         "listenForPreconditions": "function",
         "moduleId": "function",
+        "modulesEntered": "function",
         "openStage": "function",
         "preconditionOf": "function",
         "preconditionText": "function",
@@ -3141,6 +3150,7 @@
         "JestTransformRequest": "interface",
         "JestTransformedSource": "interface",
         "JestTransformer": "interface",
+        "SenseProbes": "interface",
         "createTransformer": "function"
       },
       "./jest-reporter": {
@@ -3543,9 +3553,18 @@
         "Cause": "interface",
         "ChangelogChange": "interface",
         "ChangelogRow": "interface",
+        "Concern": "interface",
+        "ConcernEvent": "interface",
+        "ConcernQuery": "interface",
+        "ConcernRegion": "interface",
+        "ConcernState": "type",
+        "ConcernStore": "interface",
+        "ConcernTally": "type",
         "Coverage": "interface",
         "Decision": "type",
         "DecisionRecord": "interface",
+        "MoveConcern": "interface",
+        "RaiseConcern": "interface",
         "ReviewError": "class",
         "ReviewOptions": "interface",
         "ReviewStore": "interface",
@@ -3554,6 +3573,7 @@
         "SweepReport": "interface",
         "TribunalChangelog": "interface",
         "TribunalChangelogQuery": "interface",
+        "createConcernStore": "function",
         "createReviewStore": "function"
       },
       "./worker": {
@@ -3593,6 +3613,9 @@
         "ChangelogEntries": "function",
         "ChangelogPage": "function",
         "ChurnLine": "function",
+        "ConcernTallyLine": "function",
+        "ConcernTrail": "function",
+        "Concerns": "function",
         "CoverageLine": "function",
         "DeclarationsPanel": "function",
         "Order": "type",
@@ -3621,7 +3644,8 @@
         "modesFor": "function",
         "needsReview": "function",
         "originsOf": "function",
-        "parseRoute": "function"
+        "parseRoute": "function",
+        "useConcernTally": "function"
       },
       "./next": {
         "Capability": "type",

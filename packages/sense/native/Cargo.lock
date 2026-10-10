@@ -1191,6 +1191,7 @@ dependencies = [
  "tree-sitter-python",
  "tree-sitter-rust",
  "tree-sitter-swift",
+ "variance-sense-instrument",
  "zstd",
 ]
 
@@ -1555,6 +1556,19 @@ dependencies = [
  "halfbrown",
  "itoa",
  "ryu",
+]
+
+[[package]]
+name = "variance-sense-instrument"
+version = "0.0.0"
+dependencies = [
+ "oxc_allocator",
+ "oxc_ast",
+ "oxc_ast_visit",
+ "oxc_parser",
+ "oxc_span",
+ "oxc_syntax",
+ "sha2",
 ]
 
 [[package]]

@@ -402,17 +402,29 @@ When the root `variance.config.json` declares
 kind, because each suite proves something different:
 
 ```text
-checkout (e2e): nothing is recorded in /repo: no run left a per-case index at …
-stories (visual): `src/checkout/total.ts` is not in the index at …
 unit (unit):
   2 named tests covered line 48 of src/checkout/total.ts:
   …
+
+checkout (e2e): nothing is recorded in /repo: no run left a per-case index at …
+
+Not loaded by stories (visual): a run that never loaded the file has no answer about it, which is not the same as no test covering it.
 ```
+
+Once any suite answers, the answers come first, then any suite that has never
+run. A suite that never loaded the file costs one line at the end, unless its
+record holds this path under another root, such as
+`apps/shop/src/checkout/total.ts` for `src/checkout/total.ts`: that suite most likely ran the file, and keeps its full
+refusal among the answers. When no suite answers, each says why in full, with
+the record it read and the recorded files of the same name, since a wrong path
+is then the likely cause.
 
 In JSON the answer is a `suites` list. Each entry is that suite's own answer
 with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`
-or to `unloaded`, for a file the suite never loaded. `--suite <name>` reads one
-record alone, and answers in the shape a repository with one record does.
+or to `unloaded`, for a file the suite never loaded. An `unloaded` entry carries
+`spelled`, the recorded paths that are this path under another root, only when
+there is one. `--suite <name>` reads one record alone, answers in the shape a
+repository with one record does, and so gives a suite's refusal in full.
 
 `--format refs` is the same answer for an agent, which pays for every repeated
 name. Each case is numbered once, in a table at the end, and every range names

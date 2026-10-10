@@ -31,6 +31,7 @@ Nothing in this block.
 - [`review-router`](../review-router/README.md) — everything the read paths answer with
 - [`decision`](../decision/README.md) — the subject row a promotion is built
   from, and the build row an explanation is frozen from
+- [`concern`](../concern/README.md) — the subject row a concern must be raised on
 - [`review-surface`](../review-surface/README.md) — the shapes it draws a build from
 - [`retention-sweep`](../retention-sweep/README.md) — the rows and object keys a window removes
 

@@ -107,10 +107,9 @@ export function unfound(help: Help, name: string, within: string | undefined): s
   if (alike.length > 1) {
     return `\`${name}\` is not published by ${where}; ${alike.map((held) => `\`${held}\``).join(' and ')} are. Names are matched exactly.`;
   }
-  // Exported for a neighbour and never published is most of any repository,
-  // and it is the half `search` reports second. A caller who typed such a name
-  // exactly is not wrong about the name, only about the door, and the file is
-  // the whole answer.
+  // `symbol` and `uses` answer an export no entry publishes, so one reaches
+  // here only from outside the package asked about: the name is right, the
+  // package is not, and the file says which one exports it.
   const exported = help.exported.filter((held) => held.name === name && held.kind === 'source');
   if (exported.length > 0) {
     const [first] = exported;

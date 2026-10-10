@@ -187,6 +187,9 @@ pub fn encode(
     // Carried only when every case has one, so a stitch never joins half its cases by it.
     let runners: Option<Vec<&str>> = tests.iter().map(|test| test.runner.as_deref()).collect();
     strings.extend(runners.iter().flatten().map(|runner| (*runner).to_owned()));
+    // Carried when any case has one: a case no named project ran is `UNNAMED`.
+    let named = tests.iter().any(|test| test.project.is_some());
+    strings.extend(tests.iter().filter_map(|test| test.project.clone()));
     strings.extend(said.iter().flatten().cloned());
     for held in modules {
         strings.push(held.module.file.clone());
@@ -283,6 +286,10 @@ pub fn encode(
     }
     if let Some(runners) = runners.filter(|runners| !runners.is_empty()) {
         columns.push(Column::Words(case_id::COLUMN, runners.into_iter().map(id).collect()));
+    }
+    if named {
+        let words = tests.iter().map(|test| test.project.as_deref().map_or(case_id::UNNAMED, id)).collect();
+        columns.push(Column::Words(case_id::PROJECT_COLUMN, words));
     }
     if said.iter().any(Option::is_some) {
         let words = said.iter().map(|text| text.as_deref().map_or(case_preconditions::UNHEARD, id)).collect();

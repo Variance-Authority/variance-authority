@@ -121,8 +121,15 @@ export interface NativeScanBatch extends NativeReadBatch {
 }
 
 export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys {
-  /** `instrument()`'s walk and splice, or `null` for a source that does not parse. */
-  instrument(source: string, file: string, entries: boolean): NativeInstrumented | null;
+  /**
+   * `instrument()`'s walk and splice, or `null` for a source that does not
+   * parse. With a `module`, the header reporting under it is in the text.
+   */
+  instrument(source: string, file: string, entries: boolean, module?: string): NativeInstrumented | null;
+  /** The header one module carries: `native/instrument/src/header.rs`. */
+  probeHeader(module: string, count: number): string;
+  /** The instrumenter crate's `recipe()` for `presence`, or for `entries`. */
+  probeRecipe(entries: boolean): string;
   gitTree(root: string): NativeGitTree | null;
   /**
    * The alias table the `tsconfig` and `jsconfig` files among `paths` declare,

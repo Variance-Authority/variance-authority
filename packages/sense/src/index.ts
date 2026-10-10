@@ -203,6 +203,7 @@ export { workingTreeChanges, type WorkingTreeChanges } from './working-tree-chan
 export {
   encodeSearch,
   exportedDigest,
+  importersOf,
   readHelp,
   type EncodedSearch,
   type HelpPublish,

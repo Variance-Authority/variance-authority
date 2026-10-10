@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -189,5 +190,24 @@ describe('the package that loads them', () => {
     // `dist/native/` is where a build for an unpublished platform lands, which
     // is this checkout's business and not a consumer's.
     expect(sense.files).toContain('!dist/native');
+  });
+});
+
+describe('the crate a Rust pipeline links', () => {
+  // `native/instrument` is a Cargo path dependency read out of `node_modules`,
+  // so what `yarn npm publish` packs is the crate a consumer compiles: every
+  // tracked file of it, and nothing else of `native/`. The addon's own crate,
+  // its lockfile and its vendored resolver stay in this repository.
+  it('is packed whole, and alone', () => {
+    const packed = execFileSync('yarn', ['pack', '--dry-run', '--json'], { cwd: SENSE, encoding: 'utf8' })
+      .split('\n')
+      .flatMap((line) => (line.startsWith('{') ? [(JSON.parse(line) as { location?: string }).location] : []))
+      .filter((location): location is string => location?.startsWith('native/') === true);
+    const tracked = execFileSync('git', ['ls-files', '--', 'native/instrument'], { cwd: SENSE, encoding: 'utf8' })
+      .split('\n')
+      .filter(Boolean);
+
+    expect(tracked).toContain('native/instrument/Cargo.toml');
+    expect(packed.toSorted()).toEqual(tracked.toSorted());
   });
 });

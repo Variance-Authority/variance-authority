@@ -11,7 +11,7 @@
  * coverage under another name.
  *
  * The descent that applies the rule is the addon's,
- * [`instrument_walk.rs`](../../native/src/instrument_walk.rs), and there is no
+ * [`walk.rs`](../../native/instrument/src/walk.rs), and there is no
  * other. What stays here is what a caller has to understand: the vocabulary a
  * report is written in, and the columns the addon answers in. The tree never
  * crosses into JavaScript, which is most of what a module used to cost to
@@ -29,6 +29,7 @@
  */
 
 import { native, nativeRefusal } from '../addon.js';
+import type { NativeScanner } from '../native.js';
 
 /**
  * How much of the rule is applied.
@@ -81,13 +82,22 @@ export interface Block {
 }
 
 export interface Spliced {
-  /** The source with every probe in place, and no header. */
+  /** The source with every probe in place, and the header when a module id was given. */
   readonly code: string;
-  /** Where the header goes in `code`: after the prologue and every probe in front of it. */
+  /** Where the header goes, or starts, in `code`: after the prologue and every probe in front of it. */
   readonly headerAt: number;
   /** Identity of the source the offsets are into. */
   readonly sourceDigest: string;
   readonly blocks: readonly Block[];
+}
+
+/** The addon, which is the only instrumenter: no addon is an error, never an uninstrumented run. */
+export function instrumenter(): NativeScanner {
+  const addon = native();
+  if (addon === undefined) {
+    throw new Error(`instrument: the native addon is required and did not load: ${nativeRefusal()}`);
+  }
+  return addon;
 }
 
 /** The addon's answer: one column per block field, in ordinal order. */
@@ -106,7 +116,7 @@ export interface NativeInstrumented {
   readonly digests: readonly string[];
 }
 
-/** The addon numbers kinds in this order; `instrument_walk.rs` declares the same. */
+/** The addon numbers kinds in this order; `walk.rs` declares the same. */
 const KINDS: readonly BlockKind[] = [
   'module',
   'function',
@@ -138,17 +148,17 @@ type WellFormed = string & { isWellFormed(): boolean };
  * A walk that panics is an error too, and names the file it panicked on: the
  * addon returns the panic instead of aborting, so the test file that loaded
  * this module fails and the worker running it goes on to the next.
+ *
+ * With a `module`, the text carries the header that reports under that id, at
+ * `headerAt`; without one it carries the probes alone.
  */
-export function spliced(source: string, file: string, mode: InstrumentMode): Spliced | undefined {
-  const addon = native();
-  if (addon === undefined) {
-    throw new Error(`instrument: the native addon is required and did not load: ${nativeRefusal()}`);
-  }
+export function spliced(source: string, file: string, mode: InstrumentMode, module?: string): Spliced | undefined {
+  const addon = instrumenter();
   if (!(source as WellFormed).isWellFormed()) return undefined;
 
   let answer: ReturnType<typeof addon.instrument>;
   try {
-    answer = addon.instrument(source, file, mode === 'entries');
+    answer = addon.instrument(source, file, mode === 'entries', module);
   } catch (error) {
     throw new Error(`instrument: the native walk failed on ${file}: ${(error as Error).message}`, { cause: error });
   }

@@ -140,6 +140,11 @@ export function codeUnitOrder(left: string, right: string): number {
  * the same in every run that wrote the same things.
  */
 export async function readWritten(directory: string): Promise<readonly Buffer[]> {
+  return (await readNamed(directory)).map((written) => written.bytes);
+}
+
+/** {@link readWritten}, with the name each file was written under. */
+export async function readNamed(directory: string): Promise<ReadonlyArray<{ name: string; bytes: Buffer }>> {
   let names: readonly string[];
   try {
     names = await readdir(directory);
@@ -147,8 +152,8 @@ export async function readWritten(directory: string): Promise<readonly Buffer[]>
     if (isMissing(error)) return [];
     throw error;
   }
-  const written = await Promise.all(names.map((name) => readFile(resolve(directory, name))));
-  return written.sort(Buffer.compare);
+  const written = await Promise.all(names.map(async (name) => ({ name, bytes: await readFile(resolve(directory, name)) })));
+  return written.sort((left, right) => Buffer.compare(left.bytes, right.bytes));
 }
 
 export function isMissing(error: unknown): boolean {
