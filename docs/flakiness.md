@@ -484,7 +484,12 @@ await page.clock.setFixedTime(new Date('2024-01-01T00:00:00Z'));
 `clock.install()` followed by `clock.pauseAt()` is the other call, for a component
 whose timers read `Date.now()` and misbehave when it does not advance. Either call
 has to run before `page.goto()`: they patch the page's clock, and a script that
-read the time while the page was loading has already read the real one.
+read the time while the page was loading has already read the real one. The
+route and Storybook collectors fix `Date` for you before every page loads, and
+so does the `variance` fixture before your test runs. They fix `Date` alone,
+with an init script, and install no Playwright clock, so a `page.clock` call of
+your own replaces theirs; [stabilization](stabilization.md#hover-focus-motion-and-the-clock) says
+how to choose the instant or leave the clock running.
 
 **Vitest** fakes `Date` as one of the timers, so name what you want faked:
 

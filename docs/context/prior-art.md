@@ -228,7 +228,28 @@ went further than we have on one axis: they name the responsible **CSS property*
 where we stop at a component, a band and a `file:line`. Anyone building
 culprit-naming for a moved component hash should read them first. The commercial
 row — Percy, Chromatic, Argos, Applitools — is
-[`compare-visual-review.md`](../compare-visual-review.md) and stays there.
+[`compare-visual-review.md`](../compare-visual-review.md) and stays there,
+but for what it does, by default, to a page nobody is using.
+
+### A page nobody is using
+
+What the three hosted services do about the pointer, focus, time and motion, by
+default, as their own documentation states it:
+
+| | Hover | Focus | Clock | Reduced motion | CSS animation | Script animation |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Chromatic** ([animations](https://www.chromatic.com/docs/animations/), [media features](https://www.chromatic.com/docs/media-features/), [hover and focus](https://www.chromatic.com/docs/hoverfocus/)) | Not reset | Not released. A focus ring outside the story's root is trimmed; the author pads the story | Not frozen. No option; the author mocks `Date` in the preview, with `isChromatic()` to tell the two apart | Off. `prefersReducedMotion: 'reduce'`, per story or per test | Paused at the last frame, `pauseAnimationAtEnd` | Not touched; the author turns the library's animations off |
+| **Percy** ([dynamic data](https://www.browserstack.com/docs/percy/stabilize-screenshots/dynamic-data), [animations](https://www.browserstack.com/docs/percy/stabilize-screenshots/animations), [hover](https://www.browserstack.com/docs/percy/common-issue/hover-state), [pseudo-classes](https://www.browserstack.com/docs/percy/percy-snapshot-config/configure-pseudo-class)) | Never captured: the DOM is serialized and painted again elsewhere | Captured only for selectors named in the pseudo-class configuration, and only if the element already holds it | Not frozen. The author freezes it, with `cy.clock` or MockDate | Not mentioned | Frozen at render, server-side | Not touched; the author turns the library's animations off |
+| **Argos** ([Playwright SDK](https://argos-ci.com/docs/reference/playwright), [date and time](https://argos-ci.com/docs/learn/reliability-and-flakiness/flaky-tests/stabilize-date-and-time)) | Hover effects disabled, `disableHover`, on by default | Not released; carets are hidden, `hideCarets` | Not frozen. The author hides the date or installs Playwright's clock | Not mentioned | Not among the documented `stabilize` options | Not mentioned |
+
+None fixes the clock, the one that offers reduced motion leaves it off, and only
+Argos turns hover off. None of the three names timezone or locale. The
+default here fixes `Date`, asks for reduced motion, and reads with the pointer
+off the page and nothing focused, and because a reading is compared by its
+environment key, the fixed instant is part of the key
+([ADR-0088](adr/0088-a-page-is-read-as-nobody-is-using-it.md)). What it
+fixes is `Date` alone: Playwright's own fixed clock replaces the timers and
+frames too, and is the reason it is not the mechanism.
 
 ## Coverage adequacy
 
