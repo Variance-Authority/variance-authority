@@ -68,6 +68,8 @@ made, to recover from a network error.
   `viewer.tsx`, `history.tsx` — the pages
 - `packages/tribunal/src/ui/carried.tsx` — the other causes riding in the same
   candidate, named before the press
+- `packages/tribunal/src/ui/repeated.tsx` — the earlier build that kept the same
+  image, named under the decision with the decision made there
 - `packages/tribunal/src/ui/client.ts` — the JSON client, where every non-2xx
   throws rather than becoming an empty list
 - `packages/tribunal/src/node/ui-assets.ts` — the document that loads it, with the
