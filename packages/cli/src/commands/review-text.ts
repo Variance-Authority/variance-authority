@@ -16,6 +16,7 @@ import type { ReviewFormat } from '../review-args.js';
 import { clampComment, COMMENT_CHARACTERS } from './comment-text.js';
 import { functionsIn, motionText } from './covering-motion.js';
 import { changeGraph } from './review-graph.js';
+import { changedPackagesMarkdown } from './review-changed-packages.js';
 import { installLines } from './review-install.js';
 import { caseTree, functionsMarkdown, namedList, outermost, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
@@ -104,7 +105,7 @@ export const MARK: Readonly<Record<Reach, string>> = {
   unknown: '🔴',
 };
 
-/** What each mark says, once, above the first place it is used. */
+/** What each mark says, once, under the first table that uses it. */
 const LEGEND = '🟢 a test importing the file ran it · 🟡 only tests further away ran it · 🟠 tests outside the import graph ran it · ' +
   '⚪ ran only while its module loaded · 🔴 no case ran it';
 
@@ -130,7 +131,10 @@ function markdown(review: Review): string {
   const lines = [REVIEW_MARKER, review.coverage === undefined ? `### 🧭 What this change ${ran ? 'did' : 'might do'}` : '### Test evidence', '', `<sub>${markdownHeader(review, code)}${
     ran ? '' : ' The record was made before this change, so it names the cases that stood on the changed lines.'
   }</sub>`, ''];
-  lines.push(...calloutMarkdown(review), ...casesMarkdown(review.files, code));
+  const changed = changedPackagesMarkdown(review.changedPackages, (reach) => MARK[reach]);
+  lines.push(...calloutMarkdown(review), ...changed);
+  if (changed.length > 0) lines.push('', `<sub>${LEGEND}</sub>`);
+  lines.push(...casesMarkdown(review.files, code));
   lines.push(...(ran ? selectionMarkdown(review, code) : []), ...lostMarkdown(review, code));
   if (review.coverage !== undefined) lines.push(...reviewCoverageSummary(review.coverage));
   if (review.before !== undefined && review.before.length > 0) {
@@ -141,7 +145,7 @@ function markdown(review: Review): string {
   lines.push(...installLines(review, code, true));
   const uncovered = uncoveredMarkdown(review, mark);
   const functions = functionsMarkdown(review, mark);
-  if (uncovered.length + functions.length > 0) lines.push('', `<sub>${LEGEND}</sub>`);
+  if (changed.length === 0 && uncovered.length + functions.length > 0) lines.push('', `<sub>${LEGEND}</sub>`);
   lines.push(...uncovered, ...functions, ...changeGraph(review));
   if (review.coverage !== undefined) lines.push(...reviewCoverageDetails(review.coverage));
   const more: string[] = [];

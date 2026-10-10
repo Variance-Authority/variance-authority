@@ -37,6 +37,7 @@ import {
   type LineRange,
 } from '@variance-authority/sense/test-selection';
 import { digestString } from '@variance-authority/core/format';
+import { affectedBy, type EdgeKind } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
 import { landingRecord, recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
@@ -47,6 +48,7 @@ import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-ba
 import { reviewedCommit } from './review-head.js';
 import { nearTests, regionsOf, removedText, treeLines } from './review-region.js';
 import { packagesReached, type PackageReach } from './review-install.js';
+import { changedPackagesOf } from './review-changed-packages.js';
 import { diffPoint, diffSince } from './since.js';
 import { runsBase } from './runs-base.js';
 import { relationsFor } from './source-graph.js';
@@ -65,6 +67,13 @@ import type { ReviewCoverage } from './review-coverage.js';
  * - `unwalked`: nothing entered it, and every case that could have finished.
  * - `unknown`: the record cannot tell `hole` from `unwalked`.
  */
+/**
+ * The edges a changed package's importers are walked through. Who imports the changed code is a question about
+ * source, so a package importing only a type reads the change too; one that only reads the file, as a stylesheet or a
+ * `/// <depends>` does, imports nothing.
+ */
+const IMPORT_EDGES: readonly EdgeKind[] = ['imports', 'reexports', 'dynamic', 'type'];
+
 export type Reach = 'near' | 'far' | 'unplaced' | 'loaded' | 'hole' | 'unwalked' | 'unknown';
 
 export const REACHES: readonly Reach[] = ['near', 'far', 'unplaced', 'loaded', 'hole', 'unwalked', 'unknown'];
@@ -123,6 +132,28 @@ export interface ReviewFile {
   /** Case names the file declares now and did not, and the reverse. Absent when there is no base to compare with. */
   readonly cases?: { readonly added: readonly string[]; readonly removed: readonly string[] };
 }
+/** One package holding changed functions: what `review` calls where the change lands. */
+export interface ChangedPackage {
+  /** The manifest's `name`, or its directory when it declares none. */
+  readonly package: string;
+  /** The directory of its manifest inside the root; `.` for the root, and for files under no manifest. */
+  readonly path: string;
+  /** Its changed functions, a branch counted under the function holding it. */
+  readonly functions: number;
+  /** Those functions by their worst region's reach. */
+  readonly reaches: Partial<Record<Reach, number>>;
+  /** Whether a test file in its own directory entered them. */
+  readonly own: boolean;
+  /** The other packages whose test files entered them, by name, in code-unit order. */
+  readonly tests: readonly string[];
+  /**
+   * How many other packages hold a file that imports its changed files, through any number of imports, a type-only
+   * import included. A count, not the names: next to a hub, the names run into the thousands for every package the
+   * change touches. Absent when the import graph holds none of its changed files.
+   */
+  readonly importers?: number;
+}
+
 /** A changed file one or more tests declare as a precondition: before the reach of any import. */
 export interface BeforeReach {
   readonly file: string;
@@ -181,6 +212,8 @@ export interface Review {
   /** The runs recorded at this commit, when they listed themselves, less `test:since`'s `standing`. */
   readonly runs?: Omit<CommitRuns, 'standing'>;
   readonly files: readonly ReviewFile[];
+  /** The packages holding changed functions, by directory. Absent when no changed function was located. */
+  readonly changedPackages?: readonly ChangedPackage[];
   /** How many test files the snapshot holds, the scale `before` is read on. Absent with `before` when the snapshot could not be read. */
   readonly suite?: number;
   readonly before?: readonly BeforeReach[];
@@ -282,6 +315,10 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     });
   }
 
+  const changedPackages = changedPackagesOf(root, files, (seeds) => {
+    const reach = affectedBy(relations, seeds, { through: IMPORT_EDGES });
+    return reach.missing.length === seeds.length ? undefined : reach.files;
+  });
   const suite = await preconditionsOf(recorded.file, [...changed.keys()].map(named));
   const beyond = await installDiff(point, [...changed.keys()]);
   const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
@@ -301,6 +338,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     ...(mainline === undefined ? {} : { mainline: mainlineOf(mainline) }),
     ...(runs === undefined ? {} : { runs: Object.fromEntries(Object.entries(runs).filter(([key]) => key !== 'standing')) as Omit<CommitRuns, 'standing'> }),
     files,
+    ...(changedPackages.length === 0 ? {} : { changedPackages }),
     ...(suite === undefined ? {} : {
       suite: suite.tests,
       before: beforeReach([...changed.keys()].map(named), suite.declared),

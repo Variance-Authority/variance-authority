@@ -5,7 +5,7 @@
  * so the nearest `package.json` at or above a file is its package, and the
  * walk stops at the root so a workspace never resolves to whatever manifest
  * happens to sit above the checkout. Synchronous because it is a handful of
- * `stat` calls per distinct directory, and remembered because one answer asks
+ * `stat` calls per distinct directory, each remembered, because one answer asks
  * about the same directories over and over.
  */
 
@@ -14,13 +14,16 @@ import { dirname, join, relative, resolve } from 'node:path';
 
 /** The directory of the nearest manifest at or above a file, inside the root; `undefined` when there is none. */
 export function packageOf(root: string, file: string): string | undefined {
-  const key = JSON.stringify([root, file]);
-  const cached = HOMES.get(key);
-  if (cached !== undefined) return cached === '' ? undefined : cached;
-
+  const walked: string[] = [];
   let at = dirname(resolve(root, file));
   let home: string | undefined;
   for (;;) {
+    const cached = HOMES.get(`${root}\0${at}`);
+    if (cached !== undefined) {
+      home = cached === '' ? undefined : cached;
+      break;
+    }
+    walked.push(at);
     if (existsSync(join(at, 'package.json'))) {
       home = at;
       break;
@@ -30,7 +33,7 @@ export function packageOf(root: string, file: string): string | undefined {
     if (up === at) break;
     at = up;
   }
-  HOMES.set(key, home ?? '');
+  for (const directory of walked) HOMES.set(`${root}\0${directory}`, home ?? '');
   return home;
 }
 
@@ -48,5 +51,5 @@ export function packageName(root: string, home: string): string {
   return typeof name === 'string' && name !== '' ? name : relative(root, home) || '.';
 }
 
-/** One process asks about one root, so the walk is worth remembering. */
+/** One process asks about one root, so the walk is worth remembering: a directory's package is every directory's below it that has no manifest. */
 const HOMES = new Map<string, string>();
