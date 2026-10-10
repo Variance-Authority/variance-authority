@@ -376,7 +376,9 @@ describe('two tokens, and what each one may do', () => {
 
   it('answers 409, naming what moved, to a decision about a baseline that has since changed', async () => {
     await call('/review/builds', { token: INGEST, body: build });
-    await call('/review/builds', { token: INGEST, body: { ...build, build: 'ci-2' } });
+    // Another image: a baseline that is already this build's own moved nothing.
+    const other = { ...build.images['story:a']!.after, documentDigest: 'feedface' };
+    await call('/review/builds', { token: INGEST, body: { ...build, build: 'ci-2', images: { 'story:a': { after: other } } } });
     const decide = (id: string, body: Record<string, unknown>) =>
       call(`/review/builds/${id}/subjects/story:a/decision`, { token: REVIEW, body });
 

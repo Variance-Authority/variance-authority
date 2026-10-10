@@ -53,12 +53,17 @@ Promotion precedes the record of it. The other order can leave an approval on th
 page whose baseline was never written, and the next run reports the same change
 again with the reviewer's name already against it.
 
-A decision is taken against the baseline the reviewer read. When it carries a
-version and the baseline an approval would replace is no longer that one —
-another build's approval or a run's own write replaced it — the decision is
-refused before anything is promoted or recorded, with a sentence naming both and
-the two versions beside it, so a page can say them in its own words. A decision
-without a version is not checked.
+An approval is taken against the baseline the reviewer read, and read the way a
+merge reads code. A baseline that moved since is not a conflict by itself: the
+approvals that moved it after the build ran each froze the regions they changed,
+and when none meets one of this build's the approval goes through. It is refused
+before anything is promoted or recorded when one does, when what stands was
+written by something that names no regions — a run's own write — or when there
+was no baseline as the page was read, with a sentence naming both baselines and
+the build whose change met, and the two versions beside it, so a page can say
+them in its own words. An approval that goes through replaces the moved baseline
+whole, and the next run shows the other build's change again. A rejection
+promotes nothing and is not checked, nor is a decision without a version.
 
 Nothing is written for a rejection. It is recorded as a decision, but no baseline
 changed, and a changelog carrying rejections would answer *why does this baseline
@@ -80,7 +85,8 @@ path, which is [report](../../report/README.md)'s.
   acceptance means when it is a click; `promotedIdentity`, the identity it files
   under; `store`, the one write on the way in
 - `packages/tribunal/src/review-baseline.ts` — the version each subject of a
-  build carries, and `refuseMoved`, the refusal of a decision whose baseline moved
+  build carries, and `refuseMoved`, the refusal of an approval whose baseline moved where it changed
+  too
 - `packages/tribunal/src/changelog.ts` — `recordApproval` and `readChangelog`. The
   regions, the commit, the intent and the reviewer are copies rather than a join,
   because the build expires and the explanation of a baseline has to last exactly

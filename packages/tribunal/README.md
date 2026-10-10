@@ -258,7 +258,7 @@ be requested anonymously.
 | `POST /review/have` | ingest | given image digests, which of them this deployment already has, so a push uploads only the rest |
 | `GET /review/builds[?limit]` | review | recent builds |
 | `GET /review/builds/{id}` | review | one build: its subjects, their verdicts, their regions, the docket |
-| `POST /review/builds/{id}/subjects/{subject}/decision` | review | `{"decision":"approved"\|"rejected","by":"…","note":"…","baselineVersion":"…"}`. 409 when the subject's baseline is no longer `baselineVersion`, below |
+| `POST /review/builds/{id}/subjects/{subject}/decision` | review | `{"decision":"approved"\|"rejected","by":"…","note":"…","baselineVersion":"…"}`. 409 when an approval's baseline moved since `baselineVersion` where this build changed it too, below |
 | `GET /review/builds/{id}/subjects/{subject}/{before\|after\|diff}.png` | review | one image, immutable and cacheable |
 | `GET /review/changelog[?component&subject&since&limit]` | review or share | every approval, grouped by shape |
 | `GET /review/decisions[?build&subject&limit]` | review or share | every decision, newest first, reversals included: `{"decisions":[{"build","subject","decision","by","at","note"}]}`. Names `build`, `subject` or both; `limit` defaults to 200 and goes no higher |
@@ -674,18 +674,29 @@ that build's uploaded candidate the baseline, through the same `RasterStore` the
 next run reads. A subject whose candidate was never uploaded **cannot be
 approved**.
 
-**A decision is taken against the baseline you read.** Each subject a build
-answers with carries `baselineVersion`: the document digest of the baseline an
-approval would replace, or `null` when there is none. Send it back with the
-decision. When that baseline has been replaced since, by an approval from
-another build or by a run's `/baseline/put`, the service records nothing and
-answers 409 with `{"error":"…","read":…,"current":…}`: a sentence naming the
-baseline you read and the one there now, and the same two document digests as
-values, `null` for none. The version is the baseline standing when you read the
-build, not the one its run compared against, so it guards the time the page is
-open. The review pages send it, and on a 409 both the subject panel and the
-change page offer to reload what you were deciding. A decision without
-`baselineVersion` is not checked.
+**An approval is taken against the baseline you read, and read the way a merge
+reads code.** Each subject a build answers with carries `baselineVersion`: the
+document digest of the baseline an approval would replace, or `null` when there
+is none. Send it back with the decision. A baseline that moved since is not a
+conflict by itself: when every approval that moved it after this build ran
+changed regions none of this build's regions meets, the approval goes through.
+The service records nothing and answers 409 with
+`{"error":"…","read":…,"current":…}` only when they meet, when the baseline
+standing now was written by something that names no regions — a run's
+`/baseline/put` — or when there was no baseline as you read it, since then both
+sides added the whole image. The sentence names the two baselines and, when it
+is one, the build whose change met yours; `read` and `current` are the two
+document digests, `null` for none. The version is the baseline standing when you
+read the build, not the one its run compared against, so it guards the time the
+page is open. The review pages send it, and on a 409 both the subject panel and
+the change page offer to reload what you were deciding.
+
+An approval that goes through over a moved baseline replaces it with this
+build's image, so the other build's change is not in the new baseline; the next
+run compares against it and shows that change again. A rejection promotes
+nothing and is never checked, and neither is a decision without
+`baselineVersion`. The check and the promotion are not one transaction: two
+decisions landing in the same instant can both pass.
 
 **A store failure is never a verdict.** Every D1 and R2 failure raises
 `RasterStoreError` instead of returning a value; `null` is reserved for *the

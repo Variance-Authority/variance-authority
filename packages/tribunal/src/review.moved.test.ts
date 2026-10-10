@@ -1,12 +1,14 @@
 // A decision taken against a baseline that is no longer there. Two reviewers
 // with the same subject open, or a newer build promoted while one of them was
 // still reading: the page each of them is looking at describes a baseline the
-// store has since replaced.
+// store has since replaced. It is treated the way a merge treats code: changes
+// that do not touch pass, and only an overlap is refused.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Digest, RenderIdentity } from '@variance-authority/core/format';
 import { BaselineMoved, ReviewError, type ReviewStore } from './review.js';
 import { CANDIDATE, IDENTITY, POSTED, ingest, openReview } from './__fixtures__/review.js';
+import type { RegionRecord } from '@variance-authority/report';
 import type { BuildIngest } from './review-ingest-types.js';
 import { createBucketStore } from './store.js';
 import type { MemoryR2, SqliteD1 } from './testing.js';
@@ -25,17 +27,40 @@ beforeEach(async () => {
   ({ db, bucket, review } = await openReview(() => clock));
 });
 
-/** The fixture's build under another id, painted from another document. */
-function later(build: string, documentDigest: string, identity?: RenderIdentity): BuildIngest {
+/**
+ * The fixture's build under another id, painted from another document, and
+ * changed where `regions` says when it is given.
+ */
+function later(
+  build: string,
+  documentDigest: string,
+  identity?: RenderIdentity,
+  regions?: readonly RegionRecord[],
+): BuildIngest {
   const base = ingest();
   const images = base.images?.[SUBJECT];
   const after = { ...images?.after, documentDigest: documentDigest as Digest };
+  const report =
+    regions === undefined
+      ? base.report
+      : {
+          ...base.report,
+          observations: base.report.observations.map((each) =>
+            each.subject === SUBJECT ? { ...each, regions } : each,
+          ),
+        };
   return {
     ...base,
     build,
+    report,
     images: { [SUBJECT]: { ...images, after: identity === undefined ? after : { ...after, identity } } },
   } as BuildIngest;
 }
+
+/** A change in the corner the fixture's regions never reach. */
+const ELSEWHERE: readonly RegionRecord[] = [{ x: 100, y: 100, width: 10, height: 10, pixels: 40 }];
+/** A change across the fixture's first region. */
+const THERE: readonly RegionRecord[] = [{ x: 5, y: 5, width: 10, height: 10, pixels: 40 }];
 
 /** What a run's `/baseline/put` writes: a baseline straight into the store. */
 async function accepted(documentDigest: string, identity: RenderIdentity): Promise<void> {
@@ -179,7 +204,7 @@ describe('a decision that echoes the version it read', () => {
       review.decide({
         build: 'ci-1001',
         subject: SUBJECT,
-        decision: 'rejected',
+        decision: 'approved',
         by: 'marina',
         baselineVersion: null,
       }),
@@ -233,5 +258,110 @@ describe('a decision that echoes the version it read', () => {
     });
     await expect(blind).rejects.toBeInstanceOf(ReviewError);
     await expect(blind).rejects.not.toBeInstanceOf(BaselineMoved);
+  });
+});
+
+describe('an approval whose baseline moved, read the way a merge reads code', () => {
+  /** A baseline both builds start from, then another build approved over it. */
+  async function movedBy(regions: readonly RegionRecord[]): Promise<string | null | undefined> {
+    await accepted('0ddba11', IDENTITY);
+    await review.ingest(ingest());
+    await review.ingest(later('ci-1002', 'feedface', undefined, regions));
+    const read = await versionOf('ci-1001');
+    await review.decide({ build: 'ci-1002', subject: SUBJECT, decision: 'approved', by: 'anton' });
+    return read;
+  }
+
+  it('goes through when the change that moved it is somewhere this one is not', async () => {
+    const read = await movedBy(ELSEWHERE);
+
+    const record = await review.decide({
+      build: 'ci-1001',
+      subject: SUBJECT,
+      decision: 'approved',
+      by: 'marina',
+      baselineVersion: read ?? null,
+    });
+    expect(record.decision).toBe('approved');
+    expect(await versionOf('ci-1001')).toBe('deadbeef');
+  });
+
+  it('is refused where the two changes overlap, naming the build that moved it', async () => {
+    const read = await movedBy(THERE);
+
+    const clash = review.decide({
+      build: 'ci-1001',
+      subject: SUBJECT,
+      decision: 'approved',
+      by: 'marina',
+      baselineVersion: read ?? null,
+    });
+    await expect(clash).rejects.toBeInstanceOf(BaselineMoved);
+    await expect(clash).rejects.toThrow(/ci-1002.*reload/s);
+    await expect(clash).rejects.toMatchObject({ read: '0ddba11', current: 'feedface' });
+  });
+
+  it('is refused when any change since it read overlaps, not only the last', async () => {
+    const read = await movedBy(THERE);
+    await review.ingest(later('ci-1003', 'c0ffee', undefined, ELSEWHERE));
+    await review.decide({ build: 'ci-1003', subject: SUBJECT, decision: 'approved', by: 'anton' });
+
+    await expect(
+      review.decide({
+        build: 'ci-1001',
+        subject: SUBJECT,
+        decision: 'approved',
+        by: 'marina',
+        baselineVersion: read ?? null,
+      }),
+    ).rejects.toBeInstanceOf(BaselineMoved);
+  });
+
+  it('is refused when a run wrote over an approval that did not overlap, since a run says no regions', async () => {
+    const read = await movedBy(ELSEWHERE);
+    await accepted('cafebabe', IDENTITY);
+
+    await expect(
+      review.decide({
+        build: 'ci-1001',
+        subject: SUBJECT,
+        decision: 'approved',
+        by: 'marina',
+        baselineVersion: read ?? null,
+      }),
+    ).rejects.toMatchObject({ read: '0ddba11', current: 'cafebabe' });
+  });
+
+  it('goes through when what stands now is already this build\'s image', async () => {
+    await review.ingest(ingest());
+    const read = await versionOf('ci-1001');
+    await review.decide({ build: 'ci-1001', subject: SUBJECT, decision: 'approved', by: 'anton' });
+
+    const record = await review.decide({
+      build: 'ci-1001',
+      subject: SUBJECT,
+      decision: 'approved',
+      by: 'marina',
+      baselineVersion: read ?? null,
+    });
+    expect(record.decision).toBe('approved');
+  });
+});
+
+describe('a rejection whose baseline moved', () => {
+  it('is recorded, since it promotes nothing a newer baseline could lose', async () => {
+    await review.ingest(ingest());
+    await review.ingest(later('ci-1002', 'feedface', undefined, THERE));
+    await review.decide({ build: 'ci-1002', subject: SUBJECT, decision: 'approved', by: 'anton' });
+
+    const record = await review.decide({
+      build: 'ci-1001',
+      subject: SUBJECT,
+      decision: 'rejected',
+      by: 'marina',
+      baselineVersion: null,
+    });
+    expect(record.decision).toBe('rejected');
+    expect(await versionOf('ci-1001')).toBe('feedface');
   });
 });

@@ -1,7 +1,8 @@
-import { identityDigest, type RenderIdentity } from '@variance-authority/core/format';
+import { identityDigest, intersectionArea, type RenderIdentity } from '@variance-authority/core/format';
 import type { RasterStore } from '@variance-authority/raster';
+import type { RegionRecord } from '@variance-authority/report';
 import type { D1Like, D1PreparedLike } from './bindings.js';
-import { BaselineMoved, ReviewError, text, type Row } from './review-rows.js';
+import { BaselineMoved, optionalText, ReviewError, text, type Row } from './review-rows.js';
 import { buildIdentity, promotedIdentity } from './review-write.js';
 
 /**
@@ -56,7 +57,15 @@ export function standingVersions(
 }
 
 /**
- * Refuse a decision whose baseline is no longer the one it read.
+ * Refuse an approval whose baseline moved where it changed too.
+ *
+ * Read the way a merge reads code: a baseline that moved is not a conflict by
+ * itself. The approvals that moved it since this build ran each froze the
+ * regions they changed, and when none of them meets one of this build's the
+ * approval goes through. It is refused when one does, when what stands now was
+ * written by something that names no regions — a run's own `baseline/put` —
+ * and when there was no baseline when the page was read, since then both sides
+ * added the whole image.
  *
  * Asked of the baseline store, under the identity the approval would write, so
  * the answer is the one the promotion that follows acts on. Checked before
@@ -90,14 +99,76 @@ export async function refuseMoved(
   const now = await baselines.describe({ subject: name }, promotedIdentity(subject, identity));
   const current = now?.comparable === true ? now.documentDigest : null;
   if (current === read) return;
+  // Somebody approved this build's image first; promoting it again moves nothing.
+  if (current !== null && current === optionalText(subject, 'candidate_document_digest', 'a build subject')) return;
+
+  const clash =
+    read === null || current === null
+      ? 'there is no telling where the two differ'
+      : await clashSince(db, project, build, subject, current);
+  if (clash === null) return;
 
   const was = read === null ? 'no baseline' : `the one painted from document ${read}`;
   const is = current === null ? 'now there is none' : `it is now the one painted from document ${current}`;
   throw new BaselineMoved(
-    `the baseline for "${name}" moved while you were reviewing: you read ${was}, and ${is}. ` +
+    `the baseline for "${name}" moved while you were reviewing: you read ${was}, and ${is}; ${clash}. ` +
       'Nothing was recorded. The images are still the ones the run compared; reload the subject to ' +
       'decide against the baseline standing now',
     read,
     current,
   );
+}
+
+/**
+ * Where the approvals since this build ran changed the subject in the same
+ * place it did, or `null` when none did.
+ *
+ * Every approval after the build counts, not only the one standing now: a
+ * baseline moved twice carries both changes. The last of them must be the image
+ * standing now; anything else wrote it after, and said no regions.
+ */
+async function clashSince(
+  db: D1Like,
+  project: string,
+  build: string,
+  subject: Row,
+  current: string,
+): Promise<string | null> {
+  const name = text(subject, 'subject', 'a build subject');
+  const { results } = await db
+    .prepare(
+      `SELECT changelog.build, changelog.regions, build_subjects.candidate_document_digest AS promoted
+         FROM changelog
+         LEFT JOIN build_subjects ON build_subjects.project = changelog.project
+          AND build_subjects.build = changelog.build AND build_subjects.subject = changelog.subject
+        WHERE changelog.project = ? AND changelog.subject = ? AND changelog.build <> ?
+          AND changelog.at_ms >= (SELECT at_ms FROM builds WHERE project = ? AND build = ?)
+        ORDER BY changelog.seq`,
+    )
+    .bind(project, name, build, project, build)
+    .all<Row>();
+
+  const last = results.at(-1);
+  if (last === undefined || optionalText(last, 'promoted', 'a changelog entry') !== current) {
+    return 'what wrote it was not an approval here, and says nothing about where it changed';
+  }
+
+  const ours = regionsOf(subject, 'a build subject');
+  for (const entry of results) {
+    const theirs = regionsOf(entry, 'a changelog entry');
+    const met = theirs.find((region) => ours.some((mine) => intersectionArea(mine, region) > 0));
+    if (met !== undefined) {
+      return (
+        `build "${text(entry, 'build', 'a changelog entry')}" changed it at ` +
+        `${met.x},${met.y} ${met.width}×${met.height}, where this build changed it too`
+      );
+    }
+  }
+  return null;
+}
+
+function regionsOf(row: Row, what: string): readonly RegionRecord[] {
+  const regions: unknown = JSON.parse(text(row, 'regions', what));
+  if (!Array.isArray(regions)) throw new ReviewError(`${what} has a \`regions\` that is not a list`);
+  return regions as readonly RegionRecord[];
 }

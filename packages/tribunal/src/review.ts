@@ -331,7 +331,8 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
         );
       }
 
-      if (input.baselineVersion !== undefined) {
+      // A rejection promotes nothing, so no newer baseline can be lost to it.
+      if (input.baselineVersion !== undefined && input.decision === 'approved') {
         await refuseMoved(baselines, db, project, input.build, row, input.baselineVersion);
       }
 

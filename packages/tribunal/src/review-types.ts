@@ -441,8 +441,10 @@ export interface ReviewStore {
     readonly note?: string;
     /**
      * The {@link SubjectView.baselineVersion} the decision was taken against.
-     * When given and no longer current, the decision is refused with
-     * `BaselineMoved` and nothing is recorded. Omitted, nothing is checked.
+     * When given on an approval and no longer current, the approval is refused
+     * with `BaselineMoved` and nothing is recorded, but only where the
+     * approvals that moved it changed a region this build changed too.
+     * Omitted, or on a rejection, nothing is checked.
      */
     readonly baselineVersion?: string | null;
   }): Promise<DecisionRecord>;
