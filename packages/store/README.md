@@ -229,14 +229,15 @@ factor and fonts — so it names a directory per rendering machine. A baseline
 written by one machine cannot be silently picked up by another: it is not in the
 directory the other machine reads.
 
-`createDurableStore(root, options)` takes three options, and `createLfsStore`
-passes all three through:
+`createDurableStore(root, options)` takes four options, and `createLfsStore`
+passes the first three through:
 
 | option | default | what it decides |
 |---|---|---|
 | `layout` | `flat` | `flat` puts every image for the root in one directory per identity, with the subject id percent-encoded into the file name. `beside` puts each image in the directory where its code lives — `components/Button/<identityDigest>/primary__wide.png` — so baselines arrive with the checkout and move when the component's own files move. The directory comes from the key's `path` when the plan named one, and otherwise from the subject id read as a path. Either way a `..` or an empty segment is refused rather than resolved. A `path` from the plan keeps the whole subject id in the file name; an id split into directories spends its own slashes. |
 | `cacheRoot` | `root` | where the render cache goes; a durable store doubles as one, so entries are written under `root` unless this points elsewhere. |
 | `recordRoot` | `root` | where the `.json` sidecars go. A sidecar changes whenever the document does — a class name, a build id, a font that resolved elsewhere — so sidecars beside their images put a tracked diff on every edit, including the edits that moved no pixel. Point this at an ignored directory or a CI cache and `root` ends up with images and nothing else. |
+| `readImage` | `readFile` | how `find` reads a baseline's image, given its path. An `ENOENT` means no image; anything else it throws reaches the caller. `describe` and the render cache never call it. The LFS store passes one that fetches a pointer's image first. |
 
 Splitting the roots moves the sidecar's directory; it does not make the sidecar
 optional. Both halves are still written and both are still read, so one half
@@ -301,7 +302,17 @@ un-smudged clone does not read as a passing run.
 That last case is the one worth naming. An un-smudged checkout — LFS not
 installed, or `GIT_LFS_SKIP_SMUDGE` set — hands you about 130 bytes of text
 where a PNG should be, and comparing two of those reports `unchanged` for every
-subject in the suite. The store refuses a pointer file read as an image.
+subject in the suite. When `find` reads a pointer, the store runs `git lfs pull
+--include=<that file>` and reads the image it fetched. Pointers met while a pull
+runs go into the next one. If the image cannot be fetched, the lookup throws a
+`RasterStoreError` rather than reporting a missing baseline.
+
+So a CI job can check out with `GIT_LFS_SKIP_SMUDGE=1`, run `git lfs install
+--local --skip-smudge`, and download only the baselines of the subjects whose
+documents changed. Without that install, git never runs git-lfs: the pull leaves
+the pointer, which the lookup refuses naming the install, and
+`tracking.diagnostics` says so at open. `describe` reads the `.json`
+sidecar, which is never a pointer, and fetches nothing.
 
 `createLfsStore` takes:
 
@@ -312,7 +323,7 @@ subject in the suite. The store refuses a pointer file read as an image.
 | `attributesFile` | `<root>/.gitattributes` | where the tracking entry lives — the baseline root, not the repository root |
 | `cacheRoot` | `root` | where the render cache goes. Defaults to `root`, so cache entries are tracked and committed alongside baselines unless this points outside the work tree |
 | `recordRoot` | `root` | where the `.json` sidecars go, passed straight to the durable store. The reason to set it is sharpest here: `pattern` routes the images out of the object database, and the sidecars are the text left behind gaining a revision per document change |
-| `verify` | `true` | `false` skips consulting git entirely, and records that in `tracking.diagnostics` rather than silently |
+| `verify` | `true` | `false` skips consulting git entirely, fetches included, and records that in `tracking.diagnostics` rather than silently |
 | `git` | `runCommand` | the `CommandRunner` git is invoked through — a `(command, args, { cwd }) => Promise<{ code, stdout, stderr }>` function, defaulting to a wrapper around `execFile`, swappable in tests |
 
 Because `git` is injected, all of this is testable without a git repository.

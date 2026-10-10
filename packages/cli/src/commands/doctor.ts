@@ -421,10 +421,13 @@ async function baselines(
 
   const mine = identityDigest(identity);
   const partitions = scanned.map((entry) => ({ ...entry, mine: entry.identity === mine }));
-  // TODO: a partition of pointers counts as a partition of baselines. `partitions`
-  // comes from a `readdir` that opens no file, so an unsmudged store reports
-  // `comparable: true` here and the run meets it one subject at a time — spec 0018
-  // asks this to see it first. The first bytes of one file per partition name it.
+  // TODO: a partition of pointers counts as a partition of baselines, which is
+  // right only where the run can fetch them (ADR-0086): git-lfs installed and
+  // `filter.lfs.clean` set. `partitions` comes from a `readdir` that opens no
+  // file, so a pointer store on a machine without either reports `comparable:
+  // true` here, and the run refuses its first changed subject. The first bytes of
+  // one file per partition name a pointer, and `tracking.diagnostics` names the
+  // missing setup.
   const ours = partitions.find((entry) => entry.mine);
 
   if (ours !== undefined) {

@@ -5,6 +5,8 @@ import type { Raster } from '@variance-authority/core/format';
 import { neverFails, RasterStoreError, REFUSAL } from '@variance-authority/raster';
 import type { Described, Found, RasterStore } from '@variance-authority/raster';
 import { createDurableStore, type DurableStoreOptions } from './durable.js';
+import { fetchingReader, POINTER_PREFIX } from './lfs-fetch.js';
+import { checkTracking } from './lfs-tracking.js';
 
 /**
  * Baselines in the repository, tracked by git-LFS.
@@ -19,15 +21,18 @@ import { createDurableStore, type DurableStoreOptions } from './durable.js';
  * get subtly half-right. That is precisely the property a *record* of hashes
  * lacks, which is why the record is a service and the images are files.
  *
- * **The bytes are ordinary files.** Nothing here shells out to git to read or
- * write an image. LFS is a clean/smudge filter, so a checked-out working tree
+ * **The bytes are ordinary files.** Nothing here reads or writes an image
+ * through git. LFS is a clean/smudge filter, so a checked-out working tree
  * already holds the real PNG at the real path; routing reads through `git show`
  * would add a second way to obtain the same bytes, and therefore a way for the
- * two to disagree. `git` is consulted for exactly one thing — whether the glob
+ * two to disagree. `git` is consulted for two things. At open, whether the glob
  * is genuinely routed through the filter — and its absence degrades to a
  * diagnostic rather than to a failed run, because a machine without git can
  * still read and write this directory perfectly well and refusing to run there
- * would trade a working capability for a warning.
+ * would trade a working capability for a warning. And when `find` meets a
+ * pointer, `git lfs pull --include` checks that one file out, so a clone that
+ * skipped the smudge downloads the images it compares and no others
+ * (ADR-0086). git-lfs writes the file; the store reads it, as before.
  *
  * **The identity partition is not reimplemented.** Every path decision is
  * delegated to {@link createDurableStore}, so `<root>/<identityDigest>/<subject>`
@@ -36,16 +41,14 @@ import { createDurableStore, type DurableStoreOptions } from './durable.js';
  * runner-image upgrade and a day of unattributable red (ADR-0011).
  *
  * **What LFS adds that a plain directory does not have: a pointer.** On a clone
- * where git-lfs is not installed, the working tree holds a short text file where
- * the PNG should be. Read as an image that is not a baseline, and reporting it as
- * one would compare a subject against a text file — so it is refused by name.
+ * that skipped the smudge, the working tree holds a short text file where the
+ * PNG should be. It is fetched; where it cannot be — no git-lfs, `verify:
+ * false`, a failed pull — reporting it as a baseline would compare a subject
+ * against a text file, so it is refused by name.
  */
 
 /** Images only. Sidecars stay text so a baseline stays attributable in review. */
 const DEFAULT_PATTERN = '*.png';
-
-/** First bytes of an LFS pointer file, per the git-lfs v1 pointer spec. */
-const POINTER_PREFIX = 'version https://git-lfs.github.com/spec/';
 
 export interface CommandResult {
   readonly code: number;
@@ -83,7 +86,7 @@ export type CommandRunner = (
  * `pattern` routes the images out of the object database, and the records are
  * the text left behind to go on growing it.
  */
-export interface LfsStoreOptions extends DurableStoreOptions {
+export interface LfsStoreOptions extends Omit<DurableStoreOptions, 'readImage'> {
   /** Baseline root, laid out exactly as the durable store lays it out. */
   readonly root: string;
 
@@ -154,7 +157,13 @@ export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore
 
   const layout = options.layout === undefined ? {} : { layout: options.layout };
   const records = options.recordRoot === undefined ? {} : { recordRoot: options.recordRoot };
-  const baselines = createDurableStore(options.root, { ...layout, ...records });
+  const run = options.git ?? runCommand;
+  // `verify: false` keeps git out of the store entirely, fetches included: a
+  // pointer then meets the refusal below. With verification on, a pointer is
+  // pulled, and a pull that fails is refused by the fetching reader instead.
+  const fetching =
+    options.verify === false ? {} : { readImage: fetchingReader(options.root, run) };
+  const baselines = createDurableStore(options.root, { ...layout, ...records, ...fetching });
   // No `records` for the cache: its own are as regenerable as its images, so a
   // second directory for them buys nothing.
   const cache =
@@ -173,7 +182,7 @@ export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore
               `whether \`${pattern}\` is routed through LFS`,
           ],
         }
-      : await checkTracking(dirname(attributesFile), pattern, options.git ?? runCommand);
+      : await checkTracking(dirname(attributesFile), pattern, run);
 
   const tracking: LfsTracking = {
     attributesFile,
@@ -206,14 +215,14 @@ export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore
      * baseline was painted from" is a fact about two committed text files, and it
      * is as true on an unsmudged clone as anywhere else. The moment a caller needs
      * the image — because the document moved, and something must be compared — it
-     * calls `find`, and `find` refuses the pointer as it always has.
+     * calls `find`, and `find` fetches the image or refuses the pointer.
      *
-     * *What it costs.* On such a clone, a run where nothing changed now passes
-     * green without ever discovering that the working tree holds pointers. The
-     * checkout is still broken and the operator finds out on the first subject
-     * that moves. Reading the head of every PNG to say so earlier would spend the
-     * lookup this method exists to avoid, on every subject, to report a condition
-     * that `createLfsStore` already reports through `tracking.diagnostics`.
+     * This is where a clone that skipped the smudge saves its download: a
+     * subject settled here never fetches its image. *What it costs.* Where the
+     * image cannot be fetched — git-lfs missing, credentials wrong — a run where
+     * nothing changed passes green without discovering it, and the operator
+     * finds out on the first subject that moves. Probing every PNG to say so
+     * earlier would spend the lookup this method exists to avoid.
      */
     describe(key, identity): Promise<Described | null> {
       return baselines.describe(key, identity);
@@ -287,7 +296,8 @@ function refuseAPointer(raster: Raster, what: string): void {
   throw new RasterStoreError(
     `${what} is a git-LFS pointer, not an image. The file was checked out without ` +
       'git-lfs installed, so the working tree holds the pointer text where the PNG ' +
-      `should be. Run \`git lfs install && git lfs pull\`. ${REFUSAL}.`,
+      `should be. Run \`git lfs install --local\`, and \`git lfs pull\` to fetch every image, or ` +
+      `drop \`verify: false\` to fetch only the images the run compares. ${REFUSAL}.`,
   );
 }
 
@@ -371,82 +381,6 @@ function patternOf(line: string): string | null {
 }
 
 /**
- * Ask git what it will actually do with a matching path.
- *
- * `git check-attr` rather than reading back the file just written: the file is
- * evidence of intent, and attributes resolve through every `.gitattributes`
- * between the repository root and the path plus the operator's global config, so
- * an entry can be present and overridden. The question worth answering is what
- * git resolves, not what this package wrote.
- *
- * `git lfs version` as well, because the filter can be configured on a machine
- * where the program implementing it is not installed — in which case commits
- * succeed, nothing warns, and the images go into the object database whole.
- */
-async function checkTracking(
-  cwd: string,
-  pattern: string,
-  run: CommandRunner,
-): Promise<{ filter: string | null; diagnostics: readonly string[] }> {
-  // check-attr answers for a path, not for a glob, so a representative path is
-  // synthesised from the pattern. It need not exist; git resolves attributes on
-  // the name alone. A leading slash anchors a pattern to the attributes file's
-  // directory and would be read as an absolute path here, so it is dropped.
-  const probe = pattern.replaceAll('*', 'probe').replace(/^\/+/, '');
-
-  let attributes: CommandResult;
-  try {
-    attributes = await run('git', ['check-attr', 'filter', '--', probe], { cwd });
-  } catch (error) {
-    return {
-      filter: null,
-      diagnostics: [
-        `git could not be run (${messageOf(error)}), so LFS tracking of \`${pattern}\` in ` +
-          `${cwd} is unverified. Baselines are still written and read as ordinary files; ` +
-          'what is unknown is whether committing them will store pointers or whole images.',
-      ],
-    };
-  }
-
-  if (attributes.code !== 0) {
-    return {
-      filter: null,
-      diagnostics: [
-        `\`git check-attr\` failed in ${cwd} (exit ${attributes.code}: ` +
-          `${firstLine(attributes.stderr)}), so LFS tracking of \`${pattern}\` is unverified. ` +
-          'A baseline root outside a work tree is durable but not shared by a clone.',
-      ],
-    };
-  }
-
-  const filter = /:\s*filter:\s*(\S+)\s*$/.exec(attributes.stdout.trim())?.[1] ?? 'unspecified';
-  const diagnostics: string[] = [];
-
-  if (filter !== 'lfs') {
-    diagnostics.push(
-      `git resolves \`filter\` to \`${filter}\` for ${probe} in ${cwd}, not \`lfs\`; ` +
-        'something above this directory is overriding the entry, and images will be ' +
-        'committed whole',
-    );
-  }
-
-  try {
-    const lfs = await run('git', ['lfs', 'version'], { cwd });
-    if (lfs.code !== 0) {
-      diagnostics.push(
-        'git-lfs is not installed on this machine (`git lfs version` exited ' +
-          `${lfs.code}); the filter is configured but nothing implements it, so images ` +
-          'will be committed whole and a clone will not get pointers',
-      );
-    }
-  } catch (error) {
-    diagnostics.push(`git-lfs could not be checked (${messageOf(error)})`);
-  }
-
-  return { filter, diagnostics };
-}
-
-/**
  * `execFile`, with the two failures separated.
  *
  * A non-zero exit resolves — that is git talking. A spawn failure rejects — that
@@ -486,12 +420,4 @@ async function readIfPresent(file: string): Promise<string | null> {
   } catch {
     return null;
   }
-}
-
-function firstLine(text: string): string {
-  return text.trim().split('\n')[0] ?? '';
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

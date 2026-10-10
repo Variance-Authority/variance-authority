@@ -62,7 +62,9 @@ back produces a decode error blamed on the renderer; reporting it as absent
 re-records. So the signature is checked and the error names
 `git lfs install && git lfs pull`.
 
-**Nothing shells out to git to read or write an image.** LFS is a clean/smudge
+**Nothing shells out to git to read or write an image.** (Amended by
+[ADR-0086](0086-an-lfs-checkout-fetches-what-it-compares.md): a pointer met by
+`find` is fetched with `git lfs pull --include`.) LFS is a clean/smudge
 filter, so a checked-out tree already holds the real PNG at the real path. `git`
 is consulted for exactly one thing — `check-attr`, to ask what the filter
 actually resolves to — and its absence degrades to a diagnostic rather than a

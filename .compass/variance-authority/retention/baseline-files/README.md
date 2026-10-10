@@ -75,16 +75,22 @@ the megabyte it exists not to spend. It hands on component *names* and never
 hashes: a name can only answer membership, and membership is the only question
 selection is allowed to ask.
 
-A pointer file where an image should be is refused by name. It is what a clone
-without the filter installed holds, it is not a baseline, and comparing a
+A pointer file where an image should be is fetched with `git lfs pull
+--include` when `find` reads it, and refused by name when the fetch fails. It is
+what a clone without the smudge holds, it is not a baseline, and comparing a
 subject against it would be comparing a subject against a text file.
 
 ## Implementation coordinates
 
 `packages/store/src/durable.ts` — `createDurableStore`, `BaselineLayout`, and
 the identity-partitioned path; `packages/store/src/lfs.ts` — `createLfsStore`,
-the tracking check, the pointer refusal, and the injectable command runner that
-separates *this is not a repository* from *this machine has no such tool*.
+the pointer refusal, and the injectable command runner that separates *this is
+not a repository* from *this machine has no such tool*;
+`packages/store/src/lfs-tracking.ts` — what git resolves for a tracked path, and
+whether git-lfs is installed and set up to run;
+`packages/store/src/lfs-fetch.ts` — the reader that fetches a pointer's image,
+one pull at a time; `packages/store/src/pair.ts` — the image and its record,
+read together or refused.
 
 ## Diagram
 

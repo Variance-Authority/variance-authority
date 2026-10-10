@@ -387,10 +387,11 @@ jobs:
 
     steps:
       # The image has neither git nor a compiler; `cases` says why each is
-      # needed before the checkout.
+      # needed before the checkout. git-lfs is for the store's test that commits
+      # a baseline through the filter, which skips where git-lfs is absent.
       - name: version control and compiler
         shell: bash
-        run: apt-get update && apt-get install -y --no-install-recommends git build-essential curl ca-certificates
+        run: apt-get update && apt-get install -y --no-install-recommends git git-lfs build-essential curl ca-certificates
 
       # Every commit, because the reading diffs each test from the commit it
       # last ran at, which can be any number of commits back. No trees, for the
@@ -1127,7 +1128,7 @@ jobs:
       # For the reason written at the same step in `cases`.
       - name: version control and compiler
         shell: bash
-        run: apt-get update && apt-get install -y --no-install-recommends git build-essential curl ca-certificates
+        run: apt-get update && apt-get install -y --no-install-recommends git git-lfs build-essential curl ca-certificates
 
       # Every commit, for the reason written at the checkout in `suite`.
       - uses: actions/checkout@v4
