@@ -138,9 +138,11 @@ describe('every move is a button and a key', () => {
 
     press('j');
     press('k');
+    press('j', window);
     await act(async () => button('Next').click());
+    await act(async () => button('Previous').click());
 
-    expect(went).toEqual(['story:b', 'story:a', 'story:b']);
+    expect(went).toEqual(['story:b', 'story:a', 'story:b', 'story:b', 'story:a']);
   });
 
   it('offers no previous on the first render and no next on the last', async () => {
@@ -277,6 +279,24 @@ describe('every move is a button and a key', () => {
     expect(button('Keys').getAttribute('aria-checked')).toBe('false');
   });
 
+  it('still turns the keys off in a browser that keeps nothing', async () => {
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    const keep = Storage.prototype.setItem;
+    Storage.prototype.setItem = () => {
+      throw new Error('storage is full');
+    };
+    try {
+      await act(async () => button('Keys').click());
+    } finally {
+      Storage.prototype.setItem = keep;
+    }
+
+    press('j', document.body);
+
+    expect(went).toEqual([]);
+    expect(button('Keys').getAttribute('aria-checked')).toBe('false');
+  });
+
   it('opens the concern form as open on F and as investigating on I', async () => {
     await show(subject('story:cart'), { at: 0, of: 1 });
     press('i', document.body);
@@ -284,6 +304,9 @@ describe('every move is a button and a key', () => {
 
     press('f', document.body);
     expect(host.querySelector<HTMLInputElement>('input[name="state"][value="open"]')?.checked).toBe(true);
+
+    await act(async () => button('Flag as investigating').click());
+    expect(host.querySelector<HTMLInputElement>('input[name="state"][value="investigating"]')?.checked).toBe(true);
   });
 
   it('sets the open form to the asked state each time it is asked', async () => {
@@ -307,8 +330,12 @@ describe('every move is a button and a key', () => {
     press('a');
     press('r');
     await act(async () => button('Approve').click());
+    await act(async () => button('Reject').click());
 
-    expect(client.decided).toEqual([['story:cart', 'approved']]);
+    expect(client.decided).toEqual([
+      ['story:cart', 'approved'],
+      ['story:cart', 'rejected'],
+    ]);
   });
 });
 
