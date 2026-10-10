@@ -159,6 +159,8 @@ export function routeCollector(
         bundle,
         viewport: config.viewport,
         ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
+        ...(config.timezoneId !== undefined ? { timezoneId: config.timezoneId } : {}),
+        ...(config.locale !== undefined ? { locale: config.locale } : {}),
         ...(options.headless !== undefined ? { headless: options.headless } : {}),
         stabilize,
       },

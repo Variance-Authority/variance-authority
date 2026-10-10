@@ -16,7 +16,6 @@ import {
   observeCaptureAgainstBaseline,
 } from '@variance-authority/observe';
 import { createDeclarationReader, type DeclarationReader } from '@variance-authority/playwright';
-import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import { settle, type BaselineKey, type RasterStore, type Renderer } from '@variance-authority/raster';
 import { suspenseRefusal } from '@variance-authority/react';
 import { accepted, adopts } from './accepted.js';
@@ -25,7 +24,7 @@ import { bundlePageAgent } from './bundle.js';
 import { checkoutStore } from './render-cache.js';
 import { acquireFrom, refocusAfter } from './acquire.js';
 import { runOf, subjectFromRun, viewportOf, type VarianceRun } from './run.js';
-import { settledCapture } from './in-place.js';
+import { regionOf, settledCapture } from './in-place.js';
 import { varianceCompletedFixtures, type VarianceCompletedFixtures } from './completed.js';
 import { varianceDocumentFixtures } from './documents.js';
 import { arrangedText, snapshotCaseOf, type SnapshotCase } from './arranged.js';
@@ -45,6 +44,11 @@ import { runnerReprieve, varianceDesk, varianceVantageFixtures } from './vantage
 import type { VarianceDesk, VarianceVantageFixtures, VarianceVantageWorkerFixtures } from './vantage.js';
 import { varianceWireFixtures, type VarianceWireFixtures } from './wire.js';
 import { varianceDriveFixtures, type VarianceDriveFixtures } from './drive.js';
+import {
+  varianceRendererFixtures,
+  type VarianceRendererFixtures,
+  type VarianceRendererWorkerFixtures,
+} from './renderers.js';
 import { playwrightStanding } from './preconditions.js';
 import { AGENT, type AcquireRequest } from './page-agent.js';
 
@@ -78,7 +82,11 @@ import { AGENT, type AcquireRequest } from './page-agent.js';
  */
 
 export interface VarianceFixtures
-  extends VarianceEventFixtures, VarianceVantageFixtures, VarianceCompletedFixtures, VarianceDriveFixtures {
+  extends VarianceEventFixtures,
+    VarianceVantageFixtures,
+    VarianceCompletedFixtures,
+    VarianceDriveFixtures,
+    VarianceRendererFixtures {
   /**
    * Observe one subtree against its stored baseline — and, on the same name, the
    * two calls that let a test be looked at while it runs.
@@ -97,7 +105,8 @@ export interface VarianceFixtures
 export interface VarianceWorkerFixtures
   extends VarianceEventWorkerFixtures,
     VarianceWireFixtures,
-    VarianceVantageWorkerFixtures {
+    VarianceVantageWorkerFixtures,
+    VarianceRendererWorkerFixtures {
   /**
    * Record what each spec executed, for the next run's `--since`.
    *
@@ -111,7 +120,6 @@ export interface VarianceWorkerFixtures
   /** The worker's accumulation. Written once, at worker teardown. */
   readonly varianceRecorder: ExecutionRecorder | undefined;
   readonly varianceBundle: string;
-  readonly varianceRenderer: Renderer;
   readonly varianceStore: RasterStore;
   readonly varianceBaselines: string;
 }
@@ -149,7 +157,7 @@ export interface VarianceRuntime {
  * A suite extends its own base with it — `base.extend(varianceFixtures)` — which
  * is the only shape that composes with the extension module a project already
  * owns. The worker fixtures below are options: a suite names one in `use` when
- * it supplies its own renderer, store, agent bundle or listening arrangement.
+ * it supplies its own renderers, store, agent bundle or listening arrangement.
  */
 export const varianceFixtures: Fixtures<
   VarianceFixtures,
@@ -163,6 +171,7 @@ export const varianceFixtures: Fixtures<
   ...varianceCompletedFixtures,
   ...varianceDocumentFixtures,
   ...varianceDriveFixtures,
+  ...varianceRendererFixtures,
 
   varianceBaselines: ['.variance/baselines', { scope: 'worker', option: true }],
 
@@ -199,20 +208,6 @@ export const varianceFixtures: Fixtures<
     // eslint-disable-next-line no-empty-pattern
     async ({}, use) => {
       await use(await bundlePageAgent());
-    },
-    { scope: 'worker' },
-  ],
-
-  // One renderer per worker, never one per assertion. A browser launch and first
-  // navigation dominate the work they enclose by roughly two orders of magnitude
-  // — 205 ms cold against 7.5 ms warm (journal 0007) — so a renderer built per
-  // subject spends the whole saving before it paints anything.
-  varianceRenderer: [
-    // eslint-disable-next-line no-empty-pattern -- see `varianceBundle`.
-    async ({}, use) => {
-      const renderer = await createPlaywrightRenderer();
-      await use(renderer);
-      await renderer.close();
     },
     { scope: 'worker' },
   ],
@@ -324,6 +319,7 @@ export async function observeLocator(
     ...(materialization.kind === 'in-place' ? { tier: 'raster' as const } : {}),
     viewport: viewportOf(page.viewportSize(), run),
     engine: engineOf(page),
+    ...(await regionOf(page)),
     ...(options.fonts !== undefined ? { fonts: options.fonts } : {}),
     ...(options.loading === true
       ? { suspense: { timeoutMs: 0 } }

@@ -68,6 +68,24 @@ export interface EnvironmentInputs {
    * as the absence it is rather than as an empty recipe.
    */
   readonly stabilization?: Digest;
+
+  /**
+   * The IANA timezone the page's clock read in, such as `UTC`.
+   *
+   * A page that formats a date without naming a timezone gets the context's, so one
+   * build reads `12:30 AM` in one timezone and `4:30 PM` in another — different text,
+   * different widths, no edit anywhere. A collector that opened its page in a
+   * timezone it chose writes it here, the way the viewport carries its colour scheme.
+   * Absent when the collector did not choose one: a jsdom capture runs in its
+   * Node process, and an absent field says so rather than naming a timezone nobody set.
+   */
+  readonly timezoneId?: string;
+
+  /**
+   * The BCP 47 locale the page formatted for, such as `en-US`. A run's base
+   * locale (spec 0008). Absent on the same terms as {@link timezoneId}.
+   */
+  readonly locale?: string;
 }
 
 export interface Viewport {
@@ -128,6 +146,11 @@ export function environmentKey(inputs: EnvironmentInputs): EnvironmentKey {
     // the recipe's first job is to stop an animation from moving `transform`,
     // which is a value the semantic representation carries.
     stabilization: inputs.stabilization,
+    // Text is laid out, so a timezone or a language reaches the box tree, and both
+    // keys carry them. `undefined` is omitted from the canonical form, so a
+    // capture that chose neither keeps the key it had before either existed.
+    timezoneId: inputs.timezoneId,
+    locale: inputs.locale,
   };
 
   // Layout depends on the viewport's size and colour scheme; rasterization also
@@ -171,6 +194,8 @@ export function diffEnvironments(
   scalar('conditions', before.conditions, after.conditions);
   scalar('assets', before.assets, after.assets);
   scalar('stabilization', before.stabilization, after.stabilization);
+  scalar('timezoneId', before.timezoneId, after.timezoneId);
+  scalar('locale', before.locale, after.locale);
 
   return deltas;
 }
@@ -184,7 +209,9 @@ export type EnvironmentField =
   | 'fonts'
   | 'conditions'
   | 'assets'
-  | 'stabilization';
+  | 'stabilization'
+  | 'timezoneId'
+  | 'locale';
 
 export interface EnvironmentDelta {
   readonly field: EnvironmentField;

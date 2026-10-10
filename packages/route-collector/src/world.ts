@@ -54,6 +54,9 @@ export interface RouteWorld {
   /** The engine string that goes into every subject's key, from the browser itself. */
   readonly engine: string;
 
+  /** The timezone and locale the page was opened in, as they go into every subject's key. */
+  readonly region: Harness['region'];
+
   /** Absent exactly when {@link RouteWorldRecipe.network} was. */
   readonly network?: NetworkObservation;
 
@@ -102,6 +105,7 @@ export async function openWorld(recipe: RouteWorldRecipe): Promise<RouteWorld> {
   return {
     page,
     engine: harness.engine,
+    region: harness.region,
     ...(network !== undefined ? { network } : {}),
 
     async ensureAgent(): Promise<void> {

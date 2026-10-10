@@ -36,6 +36,8 @@ export type {
   VarianceVantageFixtures,
   VarianceVantageWorkerFixtures,
 } from './vantage.js';
+export { varianceRendererFixtures } from './renderers.js';
+export type { RendererPool, VarianceRendererFixtures, VarianceRendererWorkerFixtures } from './renderers.js';
 export { varianceWireFixtures } from './wire.js';
 export type { VarianceWireFixtures } from './wire.js';
 export { CHROMIUM_RASTER_ARGS } from '@variance-authority/playwright/renderer';

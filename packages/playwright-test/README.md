@@ -599,7 +599,8 @@ message reads *preconditions unmeasured* rather than *no preconditions recorded*
 | Fixture | Purpose | Default |
 | --- | --- | --- |
 | `varianceBaselines` | Directory of durable baselines. | `.variance/baselines` |
-| `varianceRenderer` | Renderer shared by one Playwright worker. | A Playwright renderer created and closed by the fixture. |
+| `varianceRenderer` | Renderer this test's page is painted by. | The worker's renderer for the timezone and locale the page runs in, from `varianceRenderers`. |
+| `varianceRenderers` | Renderers one Playwright worker holds, one per timezone and locale its pages ran in. | Playwright renderers launched on first use and closed by the fixture. |
 | `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`, whose render cache is `renders/` in [the cache](https://variance-authority.dev/docs/cache), pruned once in each worker. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
 | `varianceStabilize` | The tricks set on the test's `page` before the test body runs, by id. | `undefined`, which is the standard collection recipe: `reduced-motion` and `freeze-clock` are set. Name a list without `freeze-clock` when your test sets `page.clock` itself. An observation's own `stabilize` cannot undo what was set before the page loaded. |

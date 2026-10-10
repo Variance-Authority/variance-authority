@@ -36,6 +36,7 @@ import type { NameGrammar } from '@variance-authority/sense/test-selection';
 import { parseNames } from './config-names.js';
 import { parseSensitivities, type SensitivityConfig } from './config-sensitivity.js';
 import { parseRestsOn, type RestsOn } from './config-suites.js';
+import { parseRegion, type PageRegion } from './config-region.js';
 import { parseDeclaredAt } from './config-declared.js';
 import { checkCarriers, parsePlacement, type Carrier } from './config-placement.js';
 
@@ -101,7 +102,7 @@ export type {
   SubjectsConfig,
 } from './config-sections.js';
 
-export interface Config extends RestsOn {
+export interface Config extends RestsOn, PageRegion {
   /**
    * Names this project in a shared history store.
    *
@@ -358,7 +359,7 @@ const TOP_LEVEL = [
   'workers',
   'cacheRoot',
   'suites',
-  'entrypoints', 'tiers', 'before',
+  'entrypoints', 'tiers', 'before', 'timezoneId', 'locale',
 ] as const;
 
 /**
@@ -492,5 +493,6 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     ...(concurrency === undefined ? {} : { concurrency }),
     ...(workers === undefined ? {} : { workers }),
     ...rests,
+    ...parseRegion(root, options),
   };
 }

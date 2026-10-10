@@ -144,5 +144,7 @@ Not closed:
 - A document is painted under the render recipe whatever recipe it was read
   under, so a reading taken without `no-focus` is still painted blurred (a
   `TODO` at `LAYOUT_RECIPE`).
-- Timezone and locale stay the machine's. They are taken up by the pull request
-  on `fix/a-reading-reads-what-is-there`.
+- The collectors and the renderer open each page in `UTC` and `en-US`, or in
+  the pair the project declares, and key both. Vitest browser mode paints in
+  `UTC` and `en-US` whatever its tab ran in, and neither it nor jsdom writes a
+  timezone or locale to the key (a `FIXME` at each site).

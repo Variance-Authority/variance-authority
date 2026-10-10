@@ -9,6 +9,7 @@ import {
 } from '@variance-authority/core/format';
 import { AGENT_GLOBAL, type CaptureRequest, type PageAgent } from './agent.js';
 import { observeNetwork, type NetworkObservation, type NetworkOptions } from './network.js';
+import { pinnedLocale, type PageLocale } from './viewport.js';
 
 /**
  * A persistent Chromium harness: one browser, one page, one navigation, one
@@ -30,7 +31,7 @@ import { observeNetwork, type NetworkObservation, type NetworkOptions } from './
  * `unchanged` verdict vacuous, which is exactly the failure ADR-0003 is about.
  */
 
-export interface HarnessOptions {
+export interface HarnessOptions extends PageLocale {
   /** Page to navigate to, once. `file://` is fine and needs no server. */
   readonly url: string;
 
@@ -92,6 +93,12 @@ export interface Harness {
   readonly engine: string;
 
   /**
+   * The timezone and locale the page was opened in, as they land in the
+   * environment key: the declared pair, or `UTC` and `en-US`.
+   */
+  readonly region: Required<PageLocale>;
+
+  /**
    * Render `(subject, variant)` in the shared page and return its capture.
    *
    * Sequential by contract. Two concurrent calls would render two subjects into
@@ -119,7 +126,8 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
   const errors: string[] = [];
 
   try {
-    const context = await newContext(browser, options.viewport);
+    const region = pinnedLocale(options);
+    const context = await newContext(browser, options.viewport, region);
     const page = await context.newPage();
 
     // A bundle that throws leaves the agent global undefined, and the failure
@@ -146,6 +154,7 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
 
     return {
       engine,
+      region,
       page,
       driven,
       pageErrors: () => [...errors],
@@ -156,6 +165,7 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
           subjectId: subjectId(subject),
           viewport: options.viewport,
           engine,
+          ...region,
           ...(options.fonts ? { fonts: options.fonts } : {}),
           ...(features ? { features } : {}),
           ...(options.assets ? { assets: options.assets } : {}),
@@ -216,15 +226,20 @@ export async function captureOnce(
   }
 }
 
-async function newContext(browser: Browser, viewport: Viewport): Promise<BrowserContext> {
+async function newContext(
+  browser: Browser,
+  viewport: Viewport,
+  region: Required<PageLocale>,
+): Promise<BrowserContext> {
   return browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: viewport.deviceScaleFactor,
     // Declared, never inherited from the host OS. The same case must not render
     // on a white canvas here and a black one on someone else's machine; that is
     // an undeclared render input, and the environment key can only cover inputs
-    // somebody decided (spec §11.1).
+    // somebody decided (spec §11.1). The timezone and the language likewise.
     colorScheme: viewport.colorScheme,
+    ...region,
   });
 }
 

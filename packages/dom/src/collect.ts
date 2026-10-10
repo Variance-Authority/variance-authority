@@ -106,6 +106,17 @@ export interface CollectOptions {
   /** Extra media features to evaluate against, e.g. `prefers-reduced-motion`. */
   readonly features?: Readonly<Record<string, string>>;
 
+  /**
+   * The timezone and locale the driver opened the page in, written to the
+   * environment key as given.
+   *
+   * Passed in rather than read from `Intl`. Only the driver knows whether it
+   * chose them or the host did, and a timezone nobody chose belongs to the machine,
+   * not to the render: a jsdom capture runs in its Node process's timezone.
+   */
+  readonly timezoneId?: string;
+  readonly locale?: string;
+
   /** Content hashes for external assets, keyed by request URL. */
   readonly assets?: Readonly<Record<string, string>>;
 
@@ -284,6 +295,8 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
       ...(options.stabilization !== undefined
         ? { stabilization: options.stabilization }
         : {}),
+      ...(options.timezoneId !== undefined ? { timezoneId: options.timezoneId } : {}),
+      ...(options.locale !== undefined ? { locale: options.locale } : {}),
     },
     root: rootNode,
     inheritedSeed: inheritedSeed(root, profile, view, index),

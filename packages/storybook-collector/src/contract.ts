@@ -22,6 +22,12 @@ import type {
 export interface CollectorConfig {
   readonly viewport: Viewport;
   readonly fonts?: readonly string[];
+
+  /** The timezone the page's clock reads in. `UTC` when absent, never the host's. */
+  readonly timezoneId?: string;
+
+  /** The language the page formats for. `en-US` when absent, never the host's. */
+  readonly locale?: string;
   /**
    * Subtrees this project excludes, from `config.ignore` (spec 0024).
    *

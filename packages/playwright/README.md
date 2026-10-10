@@ -150,6 +150,7 @@ subjects into one document and let one decide the other's verdict.
 | `features` | optional | environment facts recorded with the capture. A `prefers-reduced-motion` declared here is the value `stabilize` asks the browser for |
 | `assets` | optional | asset digests recorded with the capture |
 | `subjectId` | `fixture:<subject>` | how a subject name becomes a capture id |
+| `timezoneId`, `locale` | `UTC`, `en-US` | the timezone the page's clock reads in and the language it formats for. Pinned rather than taken from the host, so a date read on two machines is one date, and written to the environment key of every capture. Give the renderer the same pair: it is the renderer that carries them in `RenderIdentity` |
 | `headless` | `true` | set false to watch a case that is behaving oddly |
 | `stabilize` | none | a stabilization recipe whose driver tricks — `no-hover`, `reduced-motion`, `freeze-clock` — are applied before the first navigation. The ids it applied are `harness.driven`, for the page agent to keep in the recipe it records; with `reduced-motion` applied the capture declares `prefers-reduced-motion: reduce` unless `features` declares its own |
 | `prepare` | none | run against the page *before* its first navigation. This is where `observeNetwork` attaches: a watcher installed after `goto` has already missed every asset the document pulled in, and the alternative pays a second page load per run to observe the first one |
@@ -482,6 +483,7 @@ browser.
 |---|---|---|
 | `browser` | `chromium` | which engine paints. Part of `RenderIdentity` |
 | `headless` | `true` | set false to watch a render |
+| `timezoneId`, `locale` | `UTC`, `en-US` | the timezone and language the page is painted in. Part of `RenderIdentity`. Set them to what the collector read in, or a formatted date paints differently from the one that was read |
 | `launchArgs` | `CHROMIUM_RASTER_ARGS` on Chromium, none elsewhere | launch flags that may affect pixels. The exact ordered list is folded into the identity |
 | `fonts` | none | what this machine is **asserted** to have, as `family/weight/style/hash`. A page can ask whether a family resolves and cannot read the bytes behind it, so this is a declaration — and it is what makes a baseline from a different font stack `incomparable` rather than `changed` |
 | `waitForFonts` | `true` | wait on `document.fonts.ready` before painting |
