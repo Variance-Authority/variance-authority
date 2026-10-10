@@ -42,21 +42,22 @@ the whole command. `--execution <path>` names an index recorded elsewhere, and
 in [producers](producers.md).
 
 When the root config declares `suites`, the question is asked of each suite's
-record, and the answer is one block per suite, headed `<suite> (<kind>):`. The
-answers come first, then any suite with no recording yet. Suites that never
-loaded the file are named together on the last line, `Not loaded by <suite>
-(<kind>), …`: no answer from them, which is not *no test covers it*. A suite
-whose record holds the file's name under another path keeps its full block among
-the answers, with the spellings it holds: it most likely ran the file under
-another root. When no suite loaded the file, each suite's block says so in full,
-with the record it read and the nearest spelling it holds, since a wrong path is
-the likely cause. `--format refs` answers the same way.
-`--suite <name>` reads one suite's record alone, and is refused beside
-`--execution`. Under `--format json` the answer is `{"file": …, "suites":
-[...]}`, with `since` in place of `file` for a diff. Each entry is that suite's
-answer with `suite` and `kind` added, or `{suite, kind, refused, reason}` for a
-suite that could not answer, with `spelled` listing the record's other spellings
-of the file when it has any.
+record, and the answer is one block per suite, headed `<suite> (<kind>):`.
+Once any suite answers, the answers come first, then any suite with no recording
+yet. Suites that never loaded the file are named together on the last line,
+`Not loaded by <suite> (<kind>): …`: no answer from them, which is not *no test
+covers it*. A suite whose record holds this path under another root, such as
+`apps/shop/src/checkout/total.ts` for `src/checkout/total.ts`, keeps its full block among the
+answers: it most likely ran the file. When no suite answers, each block says why
+in full, with the record it read and the recorded files of the same name, since
+a wrong path is then the likely cause. `--format refs` answers the same way.
+`--suite <name>` reads one suite's record alone, so gives its refusal in full,
+and is refused beside `--execution`. Under `--format json` the answer is
+`{"file": …, "suites": [...]}`, with `since` in place of `file` for a diff. Each
+entry is that suite's answer with `suite` and `kind` added, or `{suite, kind,
+refused, reason}` for a suite that could not answer. An `unloaded` entry adds
+`spelled`, the recorded paths that are this path under another root, only when
+there is one.
 
 ## Nothing recorded is refused, not empty
 

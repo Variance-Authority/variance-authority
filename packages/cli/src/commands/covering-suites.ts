@@ -37,7 +37,7 @@ export type SuiteAnswer =
       readonly kind: SuiteKind;
       /** Present when a program can act on the refusal: `unrecorded`, or `unloaded` for a file the suite never loaded. */
       readonly refused?: RefusalKind;
-      /** With `unloaded`, when the record holds the file's name under another path: the spellings it holds. */
+      /** With `unloaded`, when the record holds this path under another root: those recorded paths. */
       readonly spelled?: readonly string[];
       readonly reason: string;
     };
@@ -102,15 +102,14 @@ async function askSuite(request: ParsedCovering, suite: DeclaredSuite): Promise<
 /**
  * Say either answer in the shape the caller asked for.
  *
- * Once any suite said something about the file, the answers come first. A suite
- * that has never run follows them, and one that never loaded the file is named
- * on the closing line without its record's path or size: the reader came for
- * the answer, and a suite that tests other code is the common case, not a
- * finding. A suite whose record holds the file's name under another path keeps
- * its refusal whole among the answers, since that is a finding about the
- * recording. When none loaded it, each suite's refusal is the answer, and is
- * printed in full with the spelling it points at. JSON carries every refusal
- * whole either way.
+ * Once any suite answered, the answers come first. A suite that has never run
+ * follows them, and one that never loaded the file is named on the closing line
+ * without its record's path or size: the reader came for the answer, and a
+ * suite that tests other code is the common case, not a finding. Every other
+ * refusal keeps its place and its whole sentence, among them a record that
+ * holds this path under another root, which most likely ran the file. When no
+ * suite answered, every refusal is printed in full, since a wrong path is then
+ * the likely cause. JSON carries every refusal whole either way.
  */
 export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: CoveringFormat): string {
   if (!('suites' in answer)) return formatCovering(answer, format);
@@ -123,24 +122,19 @@ export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: 
     const body = formatCovering(one, format);
     return `${head}\n${format === 'refs' ? body : body.replace(/^(?=.)/gmu, '  ')}`;
   };
-  // Any other refusal, about a line, a function or a `--where` the suite holds,
-  // is an answer about the file, and so is a record that spells it another way;
-  // never loading it, or never running, is not.
-  const answered: SuiteAnswer[] = [];
-  const unrecorded: SuiteAnswer[] = [];
-  const away: SuiteAnswer[] = [];
-  for (const one of answer.suites) {
-    if (!('reason' in one)) answered.push(one);
-    else if (one.refused === 'unrecorded') unrecorded.push(one);
-    else if (one.refused === 'unloaded' && one.spelled === undefined) away.push(one);
-    else answered.push(one);
-  }
-  if (answered.length === 0) return answer.suites.map(say).join('\n');
+  if (answer.suites.every((one) => 'reason' in one)) return answer.suites.map(say).join('\n');
 
-  const said = [...answered, ...unrecorded].map(say);
-  if (away.length > 0) {
+  const unrecorded = (one: SuiteAnswer): boolean => 'reason' in one && one.refused === 'unrecorded';
+  const away = (one: SuiteAnswer): boolean =>
+    'reason' in one && one.refused === 'unloaded' && one.spelled === undefined;
+  const said = [
+    ...answer.suites.filter((one) => !unrecorded(one) && !away(one)),
+    ...answer.suites.filter(unrecorded),
+  ].map(say);
+  const unloaded = answer.suites.filter(away).map(named);
+  if (unloaded.length > 0) {
     said.push(
-      `Not loaded by ${away.map(named).join(', ')}: a run that never loaded the file has no answer about it, ` +
+      `Not loaded by ${unloaded.join(', ')}: a run that never loaded the file has no answer about it, ` +
         'which is not the same as no test covering it.\n',
     );
   }
