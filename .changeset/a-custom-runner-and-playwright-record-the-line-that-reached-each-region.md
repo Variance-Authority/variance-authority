@@ -12,7 +12,10 @@ seams do. `withTestSelection` compiles every Playwright spec with a Babel plugin
 that waits before each statement while every frame of every page is drained,
 and charges what each drain finds to the statement before it. It also adds
 Sense's `dist/` to `build.external`, which Playwright would otherwise load as
-CommonJS. On a synthetic suite of 800 statements the lines add 18.9% to a
-record made of nothing but them, and the duration stays inside its run-to-run
-spread. Pass `cadence: false` to compile specs as Playwright would and write no
-lines.
+CommonJS. Over a probed Storybook build the lines add 2.4% to the record, and
+the duration stays inside its run-to-run spread. Draining before each statement
+also reads a document before a `goto` replaces it, so a case's crossings now
+include what that document reached. Pass `cadence: false` to compile specs as
+Playwright would and write no lines. `@variance-authority/sense/instrument`
+exports `cadence` and `columnBehindCut`, the cut and its column map, for a
+transform that cuts test files itself.

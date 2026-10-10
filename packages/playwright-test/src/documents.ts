@@ -136,7 +136,7 @@ function drainEachStatement(
       }
     }
   };
-  // FIXME: a `test.beforeEach` statement is drained under the case's own line;
+  // FIXME: a `test.beforeEach` or `test.afterEach` statement is drained under the case’s own line;
   // every other seam flags a hook's line as a hook's, and the cut does not say
   // which body it is in.
   const c: Cut = (line, file) => {

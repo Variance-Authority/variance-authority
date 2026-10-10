@@ -599,11 +599,17 @@ file outside `node_modules` it loads as CommonJS, which a workspace-linked
 Sense is not. So `withTestSelection` also adds that directory to
 `build.external`, after any globs your configuration already lists there.
 
-On a synthetic suite of 40 tests of 20 statements each, every click entering
-five of 88 regions, the lines add 4.7 KB to a 24.8 KB record, 18.9%: the
-record holds nothing but lines-dense cases, so the share is the high end. Over
-three runs with one worker, the suite took 18.6–18.7 s with the cut and
-18.7–19.9 s without it.
+Over a probed Storybook build, seven specs across two workers, the lines add
+224 bytes to a 9,296-byte record, 2.4%, and over seven runs the suite took
+2.22–2.32 s with the cut and 2.25–2.36 s without it. On a synthetic suite of 40
+tests of 20 statements each, every click entering five of 88 regions, they add
+4.7 KB to a record of 24.8 KB without them, 18.9%: that record holds nothing
+but lines-dense cases, so the share is the high end. Over three runs with one
+worker, it took 18.6–18.7 s with the cut and 18.7–19.9 s without it.
+
+Because a document is drained before the statement that replaces it, what it
+reached is in the case's crossings; with `cadence: false` only the teardown
+drain reads the page, and a document a `goto` replaced is gone by then.
 
 Pass `cadence: false` to compile your specs as Playwright would and write no
 lines.

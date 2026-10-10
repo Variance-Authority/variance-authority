@@ -78,5 +78,5 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright spec cut statement by statement'
     expect(await reachedAfter({ VARIANCE_AUTHORITY_CADENCE: 'off' })).toEqual({ open: undefined, choose: undefined, pay: undefined });
   }, 120_000);
 
-  it.todo('flags a region a beforeEach statement reached first as a hook’s — needs the cut to say which body it is in');
+  it.todo('flags a region a beforeEach or afterEach statement reached first as a hook’s — needs the cut to say which body it is in');
 });

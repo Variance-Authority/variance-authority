@@ -124,7 +124,6 @@ describe('a driver that can tell its cases apart', () => {
       expect(change?.regions.filter((region) => region.passengers !== undefined)).toEqual([]);
     });
   });
-
 });
 
 describe('a case that is the first to need a module', () => {
