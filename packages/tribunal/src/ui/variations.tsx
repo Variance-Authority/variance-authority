@@ -13,7 +13,7 @@ import type { ReactElement } from 'react';
 import type { SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import type { Route } from './route.js';
-import { Raster, type Size, union } from './plate.js';
+import { Raster, fit, type Size, union } from './plate.js';
 import { Go, Prose } from './shell.js';
 
 /**
@@ -138,8 +138,7 @@ export interface Pictures {
  * Both sides are scaled by one factor: the one that fits the box holding both
  * into a tile. Each shrunk to its own tile, a narrower arm would be drawn larger
  * than its parent and the pair would differ everywhere. A side whose size was
- * never measured falls to the tile's width, as an unmeasured layer does on the
- * plate.
+ * never measured is bounded by the tile instead, since no scale can place it.
  */
 function Pair({
   variation,
@@ -151,7 +150,7 @@ function Pair({
   const arm = sideOf(variation.subject, pictures.subjects);
   const parent = variation.parent === undefined ? undefined : sideOf(variation.parent, pictures.subjects);
   const box = union(parent?.size, arm.size);
-  const scale = box === undefined ? undefined : Math.min(TILE.width / box.width, TILE.height / box.height, 1);
+  const scale = box === undefined ? undefined : fit(box, TILE);
 
   return (
     <ul className="va-variation-pair">
@@ -196,23 +195,33 @@ function Side({
   const { client, build, go } = pictures;
   const { id, read, kind, size } = side;
 
+  // The build has no page for a subject it never read, so that side is not a link.
+  if (read === undefined) {
+    return (
+      <li className="va-variation-side">
+        <span className="va-variation-none va-note">not in this run</span>
+        <span className="va-variation-name">{id}</span>
+      </li>
+    );
+  }
+
   return (
     <li>
       <Go to={{ page: 'subject', build, subject: id }} go={go} className="va-variation-side">
         {kind === undefined ? (
-          // An `unchanged` subject keeps nothing, and one the run has no row for
-          // was never read. An empty frame would read as a render that came out
-          // blank, which is a third finding.
-          <span className="va-variation-none">{read === undefined ? 'not in this run' : 'no image kept'}</span>
+          // An `unchanged` subject keeps nothing. An empty frame would read as a
+          // render that came out blank, which is another finding.
+          <span className="va-variation-none va-note">no image kept</span>
         ) : (
           // The name beneath labels the link; an alt repeating it is read twice.
           <Raster
             src={client.imageUrl(build, id, kind)}
             alt=""
-            size={kind === 'after' ? size : undefined}
+            size={size}
             style={
               size === undefined || scale === undefined
-                ? undefined
+                ? // Nothing measured places this side, so the tile bounds it.
+                  { maxWidth: `${String(TILE.width)}px`, maxHeight: `${String(TILE.height)}px` }
                 : { width: `${String(Math.round(size.width * scale))}px` }
             }
           />

@@ -64,6 +64,29 @@ describe('a variation is shown as its two pictures', () => {
     expect(markup).toContain('<span class="va-how">baseline</span>');
   });
 
+  it('reserves a baseline its own size, which is the one it is drawn at', () => {
+    const markup = draw(pair, [
+      {
+        ...subject('story:product-card--control', { before: true, after: false, diff: false }),
+        size: { width: 999, height: 999 },
+        baseline: { width: 440, height: 360 },
+      },
+      subject('story:product-card--sale', { before: false, after: true, diff: false }),
+    ]);
+
+    expect(markup).toContain('width="440" height="360"');
+    expect(markup).not.toContain('width="999"');
+  });
+
+  it('bounds a side nobody measured by the tile, since no scale can place it', () => {
+    const markup = draw(pair, [
+      subject('story:product-card--control', { before: false, after: true, diff: false }),
+      subject('story:product-card--sale', { before: false, after: true, diff: false }),
+    ]);
+
+    expect(markup.match(/style="max-width:220px;max-height:180px"/g)).toHaveLength(2);
+  });
+
   it('says the run kept no picture rather than drawing an empty frame', () => {
     // Two `unchanged` subjects keep nothing. A blank tile would read as a
     // render that came out blank, which is a different finding.
@@ -85,6 +108,8 @@ describe('a variation is shown as its two pictures', () => {
 
     expect(markup).toContain('not in this run');
     expect(markup.match(/no image kept/g) ?? []).toHaveLength(0);
+    // The build has no page for a subject it never read.
+    expect(markup).not.toContain('href="/builds/ci-1/subjects/story%3Aproduct-card--control"');
   });
 
   it('names each picture once, by the link that holds it', () => {
