@@ -18,6 +18,7 @@ import { inheritedSeed } from './inherit.js';
 import { deviceProbe, type ConditionEnvironment } from './media.js';
 import { attributesOf, childNodesOf, elements, propertyNames } from './dom-list.js';
 import { detectProfile } from './profile.js';
+import { editedAttributes, formState, type FormState } from './form-state.js';
 import { hostChosenFonts } from './typeface.js';
 export { detectProfile } from './profile.js';
 
@@ -240,6 +241,7 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
 
   const portalRoots = options.portalsOf?.(root) ?? [];
   const couplings = new Set<string>();
+  const form = formState(document);
 
   if (options.portalsOf === undefined) {
     diagnostics.push({
@@ -251,7 +253,7 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
     });
   }
 
-  const rootNode = captureNode(root, profile, index, view, options, couplings, ignores.marks);
+  const rootNode = captureNode(root, profile, index, view, options, couplings, ignores.marks, form);
 
   const hostChosen = hostChosenFonts(rootNode);
   if (hostChosen !== undefined) {
@@ -292,7 +294,7 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
     ...(portalRoots.length > 0
       ? {
           portals: portalRoots.map((host) =>
-            captureNode(host, profile, index, view, options, couplings, ignores.marks),
+            captureNode(host, profile, index, view, options, couplings, ignores.marks, form),
           ),
         }
       : {}),
@@ -334,8 +336,12 @@ function captureNode(
   options: CollectOptions,
   couplingSink: Set<string>,
   marks: ReadonlyMap<Element, readonly string[]>,
+  form: FormState,
 ): RawNode {
-  const attributes = attributesOf(element);
+  // What a form control holds now, as its markup would say it: the snapshot and
+  // the render document take the same answer, from the same reader.
+  const edit = form.editOf(element);
+  const attributes = edit ? editedAttributes(attributesOf(element), edit) : attributesOf(element);
 
   const inline = (element as HTMLElement).style;
   const inlineStyle: Record<string, string> = {};
@@ -350,10 +356,12 @@ function captureNode(
   const { matched, couplings } = matchRulesFor(element, index);
   for (const coupling of couplings) couplingSink.add(coupling);
 
-  const children: RawNode[] = [];
-  for (const child of childNodesOf(element)) {
+  // A textarea someone typed into holds text its child nodes no longer carry.
+  const typed = edit && 'text' in edit ? edit.text : undefined;
+  const children: RawNode[] = typed ? [textNode(typed, provenance)] : [];
+  for (const child of typed === undefined ? childNodesOf(element) : []) {
     if (child.nodeType === 1) {
-      children.push(captureNode(child as Element, profile, index, view, options, couplingSink, marks));
+      children.push(captureNode(child as Element, profile, index, view, options, couplingSink, marks, form));
       continue;
     }
 
@@ -372,7 +380,7 @@ function captureNode(
   const shadowChildren: RawNode[] = [];
   if (shadow) {
     for (const child of elements(shadow.children)) {
-      shadowChildren.push(captureNode(child, profile, index, view, options, couplingSink, marks));
+      shadowChildren.push(captureNode(child, profile, index, view, options, couplingSink, marks, form));
     }
   }
 
