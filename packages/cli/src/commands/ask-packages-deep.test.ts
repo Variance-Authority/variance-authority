@@ -226,13 +226,23 @@ describe('variance ask over a private app that reaches into another package', ()
   });
 
   it('answers `symbol` and `uses` asked with the specifier of one file from the export in that file alone', async () => {
-    checkout({ 'packages/lib/src/other.ts': 'export const roundTax = (amount: number): number => amount;\n' });
+    checkout({
+      'packages/lib/src/other.ts': 'export const roundTax = (amount: number): number => amount;\n',
+      // A directory beside a file of the same name: the file is what the specifier resolves to.
+      'packages/lib/src/other/index.ts': 'export const roundTax = (amount: number): number => amount;\n',
+      'packages/lib/src/tax/index.ts': 'export const roundTax = (amount: number): number => amount;\n',
+    });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax', '--package', '@acme/lib/src/other']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('exported, without being published, at packages/lib/src/other.ts:1 by @acme/lib');
     expect(out).not.toContain('packages/lib/src/internal/math.ts');
+    expect(out).not.toContain('packages/lib/src/other/index.ts');
+
+    const directory = await run(['ask', 'symbol', '--name', 'roundTax', '--package', '@acme/lib/src/tax']);
+    expect(directory.out).toContain('exported, without being published, at packages/lib/src/tax/index.ts:1 by @acme/lib');
+    expect(directory.out).not.toContain('packages/lib/src/other');
 
     const uses = await run(['ask', 'uses', '--name', 'roundTax', '--package', '@acme/lib/src/other.js']);
     expect(uses.out).toContain('exported, without being published, at packages/lib/src/other.ts:1,');
