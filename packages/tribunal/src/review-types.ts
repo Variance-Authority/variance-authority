@@ -133,6 +133,33 @@ export interface SubjectView {
   /** `true` when the candidate carries the sidecar an approval would promote. */
   readonly approvable: boolean;
   readonly decision: DecisionRecord | null;
+  /**
+   * The earlier builds of this project in which this subject kept the same
+   * candidate, matched on its content key. Absent when the subject kept no
+   * candidate; `{ count: 0, builds: [] }` when no earlier build still held here
+   * kept that image.
+   */
+  readonly repeats?: Repeats;
+}
+
+/**
+ * Where a candidate was seen before, and what was decided about it there.
+ *
+ * `count` is every earlier build that kept the image; `builds` names at most
+ * eight of them, the decided ones first with the latest decision leading, then
+ * the undecided ones, newest first.
+ */
+export interface Repeats {
+  readonly count: number;
+  readonly builds: readonly RepeatedIn[];
+}
+
+/** One earlier build that kept the image, with the decision it ended on. */
+export interface RepeatedIn {
+  readonly build: string;
+  /** When the build ran. */
+  readonly at: string;
+  readonly decision: DecisionRecord | null;
 }
 
 /**

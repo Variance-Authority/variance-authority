@@ -26,6 +26,7 @@ import type {
   MovementView,
   Placement,
   ReachView,
+  Repeats,
   SubjectView,
 } from './review-types.js';
 
@@ -90,7 +91,11 @@ export function docket(subjects: readonly SubjectView[]): readonly Cause[] {
     });
 }
 
-export function toSubjectView(row: Row, decision: DecisionRecord | null): SubjectView {
+export function toSubjectView(
+  row: Row,
+  decision: DecisionRecord | null,
+  repeats: Repeats,
+): SubjectView {
   const what = 'a build subject';
   const truncated = optionalText(row, 'truncated', what);
   const missingFonts = optionalText(row, 'missing_fonts', what);
@@ -141,6 +146,9 @@ export function toSubjectView(row: Row, decision: DecisionRecord | null): Subjec
     ...(typeof wasWide === 'number' && typeof wasTall === 'number'
       ? { baseline: { width: wasWide, height: wasTall } }
       : {}),
+    // Only a kept candidate has a key to look for. A subject without one is not
+    // a subject whose image was never seen before; the question has no answer.
+    ...(after !== undefined ? { repeats } : {}),
   };
 }
 
