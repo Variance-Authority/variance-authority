@@ -210,6 +210,21 @@ describe('a decision about a baseline that moved, taken on the subject panel', (
     expect(host.textContent).not.toContain('The baseline changed while you were reviewing');
   });
 
+  it('says where the two changes met, when the service says it', async () => {
+    // A moved baseline goes through unless the changes meet, so a refusal is
+    // read for where; the digests alone leave the reviewer guessing.
+    const clash = 'build "ci-1002" changed it at 5,5 10×10, where this build changed it too';
+    answer = () =>
+      new Response(JSON.stringify({ error: MOVED, read: 'v1:0ddba11', current: CURRENT, clash }), { status: 409 });
+    render(subject());
+
+    await act(async () => button('Approve').click());
+
+    expect(said()).toContain(
+      'painted from document v1:c7cab60f. Build "ci-1002" changed it at 5,5 10×10, where this build changed it too. Nothing was recorded.',
+    );
+  });
+
   it('takes no decision until the reload has brought the version standing now', async () => {
     // The page still holds the version it read until the build answers again, so
     // a decision taken in between would send it and be refused a second time.

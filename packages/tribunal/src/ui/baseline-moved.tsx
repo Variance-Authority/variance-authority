@@ -2,12 +2,15 @@
  * A decision the service refused because the baseline moved under it, said
  * once, in the page's words.
  *
- * The service answers 409 with a whole sentence and, beside it, the two facts it
- * was built from: the baseline the page read and the one standing now. The
+ * The service answers 409 with a whole sentence and, beside it, the facts it
+ * was built from: the baseline the page read, the one standing now, and why the
+ * change between them could not be told apart from this one. The
  * sentence is for a caller that prints it. A page already has a headline of its
  * own, and printing the sentence under it said "moved while you were reviewing"
  * twice and spelled out two digests in full. This says the headline once and the
- * digests as short as the page prints a commit, with the whole one a hover away.
+ * digests as short as the page prints a commit, with the whole one a hover away,
+ * then the clash as a sentence, since a moved baseline that met nothing would
+ * have gone through and the reviewer is left asking where.
  *
  * Shown on both pages a decision is taken on, each with a reload, because the
  * remedy is the same on both: read the subject again, which brings the version
@@ -45,6 +48,7 @@ export function BaselineMovedNotice({
           reviewing.
         </strong>{' '}
         <Facts moved={moved} />{' '}
+        {moved.clash === undefined ? null : <>{sentence(moved.clash)} </>}
         {subject === undefined
           ? 'Nothing was recorded.'
           : 'No decision was recorded for it, nor for any render after it.'}
@@ -73,6 +77,11 @@ function Facts({ moved: { read, current } }: { readonly moved: MovedBaseline }):
       .
     </>
   );
+}
+
+/** A clause the service wrote to follow a semicolon, said as a sentence of its own. */
+function sentence(clause: string): string {
+  return `${clause.charAt(0).toUpperCase()}${clause.slice(1)}.`;
 }
 
 /**

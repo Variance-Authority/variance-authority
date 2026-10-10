@@ -216,7 +216,7 @@ export function createTribunal(options: TribunalOptions): Tribunal {
         if (error instanceof Forbidden) return json(403, { error: error.message });
         if (error instanceof MethodNotAllowed) return json(405, { error: error.message }, { allow: error.allow });
         if (error instanceof BaselineMoved) {
-          return json(409, { error: error.message, read: error.read, current: error.current });
+          return json(409, { error: error.message, read: error.read, current: error.current, clash: error.clash });
         }
         if (error instanceof HistoryWriteConflict) return json(409, { error: error.message });
         if (error instanceof ReviewError || error instanceof FoldedKey) return json(422, { error: error.message });

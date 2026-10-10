@@ -681,14 +681,15 @@ is none. Send it back with the decision. A baseline that moved since is not a
 conflict by itself: when every approval that moved it after this build ran
 changed regions none of this build's regions meets, the approval goes through.
 The service records nothing and answers 409 with
-`{"error":"…","read":…,"current":…}` only when they meet, when the baseline
-standing now was written by something that names no regions — a run's
+`{"error":"…","read":…,"current":…,"clash":"…"}` only when they meet, when the
+baseline standing now was written by something that names no regions — a run's
 `/baseline/put` — when a region list on either side was cut short, when the
 baseline you read has since been deleted, or when there was no baseline as you
 read it, since then both sides added the whole image. An approval whose own
-image already stands goes through. The sentence names the two baselines and, when it
-is one, the build whose change met yours; `read` and `current` are the two
-document digests, `null` for none. The version is the baseline standing when you
+image already stands goes through. The sentence names the two baselines and,
+when it is one, the build whose change met yours; `read` and `current` are the
+two document digests, `null` for none, and `clash` is why the two changes could
+not be told apart, as a clause. The version is the baseline standing when you
 read the build, not the one its run compared against, so it guards the time the
 page is open. The review pages send it, and on a 409 both the subject panel and
 the change page offer to reload what you were deciding.

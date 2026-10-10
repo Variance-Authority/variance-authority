@@ -136,6 +136,8 @@ export interface ReviewClient {
 export interface MovedBaseline {
   readonly read: string | null;
   readonly current: string | null;
+  /** Why the change it moved by could not be told apart from this one, when the service says. */
+  readonly clash?: string;
 }
 
 export class ReviewRequestError extends Error {
@@ -310,8 +312,9 @@ function movedIn(body: string): MovedBaseline | undefined {
     return undefined;
   }
   if (typeof parsed !== 'object' || parsed === null) return undefined;
-  const { read, current } = parsed as Record<string, unknown>;
-  return digestOrNone(read) && digestOrNone(current) ? { read, current } : undefined;
+  const { read, current, clash } = parsed as Record<string, unknown>;
+  if (!digestOrNone(read) || !digestOrNone(current)) return undefined;
+  return typeof clash === 'string' && clash.trim() !== '' ? { read, current, clash } : { read, current };
 }
 
 function digestOrNone(value: unknown): value is string | null {

@@ -392,6 +392,8 @@ describe('two tokens, and what each one may do', () => {
     // can print in its own words.
     expect(body['read']).toBeNull();
     expect(body['current']).toEqual(expect.any(String));
+    // And why the two changes could not be told apart, as a clause of its own.
+    expect(body['clash']).toBe('there is no telling where the two differ');
   });
 
   it('refuses a baseline version that is neither a digest nor null', async () => {

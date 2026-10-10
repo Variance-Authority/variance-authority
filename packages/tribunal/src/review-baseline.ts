@@ -116,6 +116,7 @@ export async function refuseMoved(
       'decide against the baseline standing now',
     read,
     current,
+    clash,
   );
 }
 

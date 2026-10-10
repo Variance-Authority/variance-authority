@@ -42,6 +42,8 @@ export class BaselineMoved extends ReviewError {
     message: string,
     readonly read: string | null,
     readonly current: string | null,
+    /** Why the two changes could not be told apart, as a clause. */
+    readonly clash: string,
   ) {
     super(message);
   }
