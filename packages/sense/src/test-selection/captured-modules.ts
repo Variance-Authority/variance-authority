@@ -58,7 +58,13 @@ export function planModule(
 ): PlannedModule | undefined {
   // A module outside the checkout has no project path to be marked under.
   const marks = unprobed && ((file: string) => insideRoot(root, file) && unprobed(file));
-  const accepts = marks === undefined ? include : (file: string) => marks(file) || include(file);
+  // A marked module stays in the checkout too: a map naming a source outside it
+  // would record the mark under a path that leaves it.
+  const pathMarked = marks?.(path) === true;
+  const accepts =
+    marks === undefined
+      ? include
+      : (file: string) => (marks(file) || include(file)) && (!pathMarked || insideRoot(root, file));
   const frame = rawFrame(code, path, accepts, original);
   if (frame === undefined) return undefined;
   const at = projectPath(root, path);

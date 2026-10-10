@@ -1,10 +1,10 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EVALUATING } from '../instrument/index.js';
-import { captureModule, deriveModules, markModule, pathOf } from './captured-modules.js';
+import { captureModule, deriveModules, markModule, pathOf, planModule } from './captured-modules.js';
 import { defaultInclude } from './instrumented-modules.js';
 
 /** The most reads the derivation had in flight at once. */
@@ -94,6 +94,31 @@ describe('a module marked as loaded', () => {
     const { root, file } = await checkout(SOURCE);
 
     expect(markModule(resolve(root, 'packages'), file, SOURCE, () => true)).toBeUndefined();
+  });
+
+  it('stays under its own name when its map names a source outside the checkout', async () => {
+    // A built file in the checkout whose map points at a sibling repository's
+    // source: the mark is recorded under the file that was named, never under a
+    // path that leaves the checkout.
+    root = await mkdtemp(resolve(tmpdir(), 'variance-captured-'));
+    const checkoutRoot = resolve(root, 'repo');
+    const file = resolve(checkoutRoot, 'dist', 'cart.js');
+    await mkdir(resolve(checkoutRoot, 'dist'), { recursive: true });
+    await mkdir(resolve(root, 'elsewhere'), { recursive: true });
+    await writeFile(resolve(root, 'elsewhere', 'cart.js'), SOURCE, 'utf8');
+    const built = `${SOURCE}//# sourceMappingURL=cart.js.map\n`;
+    await writeFile(file, built, 'utf8');
+    await writeFile(
+      `${file}.map`,
+      JSON.stringify({ version: 3, sources: ['../../elsewhere/cart.js'], mappings: 'AAAA;AACA;AACA' }),
+      'utf8',
+    );
+    const unprobed = (at: string) => at === file;
+
+    const plan = planModule(checkoutRoot, file, built, () => true, undefined, unprobed)!;
+
+    expect(plan.marked).toBe(true);
+    expect(plan.file).toBe('dist/cart.js');
   });
 
   it('is not instrumented when it is cut again from the checkout, though the text could carry probes', async () => {
