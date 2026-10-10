@@ -21,6 +21,7 @@ import {
   summaryStatements,
 } from './review-summary.js';
 import { ingestBuild } from './review-ingest.js';
+import { sameImage } from './same-image.js';
 import { sweepProject } from './review-sweep.js';
 import { ReviewError, instant, optionalText, text, type Row } from './review-rows.js';
 import type {
@@ -253,13 +254,21 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
       const subjects = rows('subjects').map((subject) =>
         toSubjectView(subject, decisions.get(text(subject, 'subject', 'a build subject')) ?? null),
       );
+      const variations = rows('variations').map(toVariation);
 
       return {
         ...summary,
         subjects,
         notObserved: rows('notObserved').map(toNotObserved),
         causes: docket(subjects),
-        variations: rows('variations').map(toVariation),
+        variations,
+        sameImage: sameImage(
+          rows('subjects').map((subject) => ({
+            subject: text(subject, 'subject', 'a build subject'),
+            after: optionalText(subject, 'after_key', 'a build subject'),
+          })),
+          variations,
+        ),
         reach: reachRow === undefined ? null : toReach(reachRow, rows('reached')),
         journeys: journeyRow === undefined ? null : toJourneys(journeyRow),
         previous: previous === undefined ? null : text(previous, 'build', 'a build'),

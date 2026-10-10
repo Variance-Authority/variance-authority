@@ -67,6 +67,9 @@ made, to recover from a network error.
   `viewer.tsx`, `history.tsx` — the pages
 - `packages/tribunal/src/ui/carried.tsx` — the other causes riding in the same
   candidate, named before the press
+- `packages/tribunal/src/ui/same-image.tsx` — the docket's line for stories of
+  one component that render one image, and the subject page's grid of its
+  component's stories
 - `packages/tribunal/src/ui/client.ts` — the JSON client, where every non-2xx
   throws rather than becoming an empty list
 - `packages/tribunal/src/node/ui-assets.ts` — the document that loads it, with the

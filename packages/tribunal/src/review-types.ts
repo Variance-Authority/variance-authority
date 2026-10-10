@@ -182,6 +182,15 @@ export interface BuildDetail extends BuildSummary {
   readonly variations: readonly VariationRecord[];
 
   /**
+   * Stories of one component whose candidates are the same image, byte for byte.
+   *
+   * Read from the store, not the report: an image is kept under its SHA-256, so
+   * two subjects holding one `after` object rendered the same PNG. Empty when no
+   * two stories of a component did. A subject with no candidate is in no group.
+   */
+  readonly sameImage: readonly SameImage[];
+
+  /**
    * What the commit reaches, and per subject whether it reaches that one.
    *
    * `null` when the run carried no diff — no ref to read against, or no file
@@ -352,6 +361,21 @@ export interface ReachView {
   readonly subjects?: Readonly<Record<string, SubjectReach>>;
   readonly whole?: string;
   readonly unscanned?: readonly string[];
+}
+
+/**
+ * Two or more stories of one component that rendered one image.
+ *
+ * Not a `VariationRecord` with `identical: true`. That one compares a pair the
+ * run linked, by declaration or by name, over the semantic tree; this compares
+ * every story of a component, linked or not, over the bytes. `dark-narrow` and
+ * `narrow-dark` are one render under two names and no link joins them.
+ */
+export interface SameImage {
+  /** The component, as the id names it: `story:cart-card` of `story:cart-card--item`. */
+  readonly family: string;
+  /** The subjects, in the family's lattice order. Always two or more. */
+  readonly subjects: readonly string[];
 }
 
 export interface Cause {
