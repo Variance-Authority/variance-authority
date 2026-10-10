@@ -9,6 +9,7 @@ import {
   instrumentModeOf,
   type ModuleId,
 } from './index.js';
+import probeLists from './probe-lists.cjs';
 import probeLog from './probe-log.cjs';
 
 /**
@@ -67,7 +68,7 @@ function recorder(): { root: unknown; read(id: ModuleId, count: number): Uint32A
     root: engine.root,
     read(id, count) {
       const out = new Uint32Array(count);
-      for (const entered of engine.lists(engine.read(bucket), true)) {
+      for (const entered of probeLists.lists(engine.read(bucket), true)) {
         if (entered.id !== id) continue;
         for (const ordinal of entered.hits) out[ordinal] = 1;
         for (const ordinal of entered.shared) out[ordinal] = (EVALUATING | 1) >>> 0;

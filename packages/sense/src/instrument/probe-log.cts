@@ -66,13 +66,14 @@
  * {@link createEngine} closes over everything it uses and names nothing from
  * this module, so its source is the page collector's too: `test-selection/probes.ts` sends
  * `createEngine.toString()` across the bundler. Node-only work — encoding
- * frames, keeping the file's union — lives with the callers in `test-selection/`.
+ * frames, keeping the file's union, a test runner's cuts — is the callers', or handed in.
  *
  * CommonJS for the reason `test-selection/journal-format.cts` is: Jest's setup file requires
  * it from inside the sandbox, from `node_modules`, untransformed.
  */
 
 import type { ModuleId } from './index.js';
+import type probeCuts = require('./probe-cuts.cjs');
 
 /** One caller's share of the log: a case, a journey, a file, a page between drains. */
 interface Bucket {
@@ -90,6 +91,8 @@ interface Bucket {
   open: boolean;
   /** Whether it has been read out and dropped. */
   closed: boolean;
+  /** Test lines cut in {@link L}, as `probe-cuts.cts` keeps them; null if none are kept, or after a kept read. */
+  cuts: number[] | null;
 }
 
 /**
@@ -98,8 +101,9 @@ interface Bucket {
  * @param scoped Whether the bucket follows an async scope. True makes every
  * probe call in and ask the resolver handed to `scope`, which is the price of
  * two scopes interleaving; false leaves the bucket to `use` alone.
+ * @param cuts What keeps a test runner's cuts; without it a cut does nothing.
  */
-function createEngine(scoped: boolean) {
+function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.createCuts>) {
   const EVALUATING = -2147483648;
   const INDEX = 0x7fffffff;
   const NO_FLAGS = new Uint8Array(0);
@@ -117,25 +121,20 @@ function createEngine(scoped: boolean) {
   // Scratch for compaction, a byte per region, zero between compactions.
   let seen = new Uint8Array(1 << 12);
   let total = 0;
+  // The test line each region of the last read was first reached under.
+  let lines: Int32Array | undefined;
 
   const rows: number[] = [];
   let sorted = new Int32Array(1 << 12);
   let generation = 0;
   const spare: Int32Array<ArrayBuffer>[] = [];
 
-  const ints = (from: Int32Array<ArrayBuffer>, length: number): Int32Array<ArrayBuffer> => {
+  /** `from`, or a copy of it at the next power of two that holds `length`. */
+  const grow = <T extends Int32Array<ArrayBuffer> | Uint8Array<ArrayBuffer>>(from: T, length: number): T => {
     let size = Math.max(from.length, 1);
     while (size < length) size *= 2;
     if (size === from.length) return from;
-    const grown = new Int32Array(size);
-    grown.set(from);
-    return grown;
-  };
-  const bytes = (from: Uint8Array<ArrayBuffer>, length: number): Uint8Array<ArrayBuffer> => {
-    let size = from.length;
-    while (size < length) size *= 2;
-    if (size === from.length) return from;
-    const grown = new Uint8Array(size);
+    const grown = new (from.constructor as new (size: number) => T)(size);
     grown.set(from);
     return grown;
   };
@@ -148,6 +147,7 @@ function createEngine(scoped: boolean) {
     key,
     open: true,
     closed: false,
+    cuts: cuts === undefined ? null : [],
   });
 
   // Where a probe writes when no caller's bucket is current: after a file's
@@ -221,7 +221,7 @@ function createEngine(scoped: boolean) {
       }
       rowEnd[row] = rowEnd[row]! + 1;
     }
-    if (sorted.length < end) sorted = ints(sorted, end);
+    if (sorted.length < end) sorted = grow(sorted, end);
     let next = 0;
     for (const row of rows) {
       rowStart[row] = next;
@@ -280,8 +280,12 @@ function createEngine(scoped: boolean) {
       const index = entry & INDEX;
       seen[index] = seen[index]! | (entry < 0 ? 2 : 1);
     }
+    const moved = bucket.cuts ?? [];
+    let cut = 1;
     let written = 0;
     for (let at = 0; at < end; at += 1) {
+      // A cut moves to where the first entry at or after it lands.
+      for (; cut < moved.length && moved[cut]! <= at; cut += 2) moved[cut] = written;
       const entry = log[at]!;
       const index = entry & INDEX;
       const way = entry < 0 ? 2 : 1;
@@ -290,6 +294,8 @@ function createEngine(scoped: boolean) {
       seen[index] = mark & ~way;
       if (rowLive[rowOf[index]!] === 1) log[written++] = entry;
     }
+    for (; cut < moved.length; cut += 2) moved[cut] = written;
+    cuts?.merge(moved);
     bucket.n = written;
     bucket.dense = written;
     if (live) {
@@ -306,8 +312,11 @@ function createEngine(scoped: boolean) {
     const live = bucket === current;
     if (live) segment();
     const log = live ? root.L : bucket.L;
-    sort(log, live ? root.n : bucket.n);
+    const end = live ? root.n : bucket.n;
+    lines = bucket.cuts === null ? undefined : cuts!.charge(log, end, bucket.cuts, INDEX, total);
+    sort(log, end);
     if (!keep) return;
+    bucket.cuts = null;
     let written = 0;
     for (const row of rows) {
       const base = rowBase[row]!;
@@ -333,7 +342,7 @@ function createEngine(scoped: boolean) {
         end = root.n;
       }
       if (end >= root.l) {
-        const log = ints(root.L, end + 1);
+        const log = grow(root.L, end + 1);
         root.L = log;
         root.l = log.length;
         current.L = log;
@@ -355,16 +364,16 @@ function createEngine(scoped: boolean) {
       rowFlags.push(new Uint8Array(count));
       if (scoped) rowGates.push(new Uint8Array(count));
       if (row >= rowBase.length) {
-        rowBase = ints(rowBase, row + 1);
-        rowMark = ints(rowMark, row + 1);
-        rowStart = ints(rowStart, row + 1);
-        rowEnd = ints(rowEnd, row + 1);
-        rowLive = bytes(rowLive, row + 1);
+        rowBase = grow(rowBase, row + 1);
+        rowMark = grow(rowMark, row + 1);
+        rowStart = grow(rowStart, row + 1);
+        rowEnd = grow(rowEnd, row + 1);
+        rowLive = grow(rowLive, row + 1);
       }
       rowBase[row] = total;
       rowLive[row] = 1;
-      rowOf = ints(rowOf, total + count);
-      seen = bytes(seen, total + count);
+      rowOf = grow(rowOf, total + count);
+      seen = grow(seen, total + count);
       rowOf.fill(row, total, total + count);
       total += count;
     }
@@ -396,33 +405,44 @@ function createEngine(scoped: boolean) {
     }
   };
 
+  // A cut test reached `line`: what the bucket logs from here on is charged to it.
+  const cut = (line: number): void => {
+    if (scoped) sync();
+    if (current !== idle && current.cuts !== null) cuts!.cut(current.cuts, line, root.n);
+  };
+
   // What the probes and a tap read, and nothing else: `a` the activation, a
   // number `use` moves on every switch, which the story tap reads; `s` the
   // scope check, null unless the bucket follows an async scope; `v` the
   // evaluating bit; `n`/`l`/`L` the log; `g` the slow write; `r`
-  // registration; `e`/`x` the evaluating depth. Built with every field in
+  // registration; `e`/`x` the evaluating depth; `c` a test line's cut. Built with every field in
   // place, so its shape never changes under the probes that read it. `s` is a
   // field of its own because an accessor is not inlined: it cost 6 ns a hit.
   const root = {
     a: activation,
     s: null as (() => void) | null,
-    v: 0, n: 0, l: idle.L.length, L: idle.L, g: push, r: register, e: raise, x: lower,
+    v: 0, n: 0, l: idle.L.length, L: idle.L, g: push, r: register, e: raise, x: lower, c: cut,
   };
 
-  const view = { rows, start: rowStart, end: rowEnd, sorted, ids: rowIds, counts: rowCounts };
+  const view = {
+    rows, start: rowStart, end: rowEnd, sorted, ids: rowIds, counts: rowCounts, base: rowBase, lines,
+  };
   const read = (bucket: Bucket, keep = true) => {
     settle(bucket, keep);
     view.start = rowStart;
     view.end = rowEnd;
     view.sorted = sorted;
+    view.base = rowBase;
+    view.lines = lines;
     return view;
   };
 
-  /** Read a bucket out and empty it in place, leaving it current if it was. */
+  /** Read a bucket out and empty it in place, leaving it current if it was, its last cut standing. */
   const take = (bucket: Bucket) => {
     const out = read(bucket, false);
     bucket.n = 0;
     bucket.dense = 0;
+    if (cuts !== undefined) bucket.cuts = cuts.after(bucket.cuts);
     if (bucket === current) {
       root.n = 0;
       segmentAt = 0;
@@ -459,27 +479,6 @@ function createEngine(scoped: boolean) {
       if (bucket.L.length <= 1 << 20 && spare.length < 8) spare.push(bucket.L);
       bucket.L = new Int32Array(0);
       return out;
-    },
-    /**
-     * A read-out as rows of ordinals: `shared` entered while a module
-     * evaluated, `again` those also entered while none did. `byRow` orders by
-     * the realm's registration rather than this bucket's first touch, so a page
-     * drained several times reports one order.
-     */
-    lists(out: typeof view, byRow: boolean): { id: ModuleId; hits: number[]; shared: number[]; again: number[] }[] {
-      const order = byRow ? [...out.rows].sort((left, right) => left - right) : out.rows;
-      return order.map((row) => {
-        const hits: number[] = [];
-        const shared: number[] = [];
-        const again: number[] = [];
-        for (let at = out.start[row]!; at < out.end[row]!; at += 1) {
-          const ordinal = out.sorted[at]! >>> 1;
-          if (hits[hits.length - 1] === ordinal) again.push(ordinal);
-          else hits.push(ordinal);
-          if (out.sorted[at]! & 1) shared.push(ordinal);
-        }
-        return { id: out.ids[row]!, hits, shared, again };
-      });
     },
   };
   Object.defineProperty(root, Symbol.for('variance-authority.test-selection.engine'), { value: api });

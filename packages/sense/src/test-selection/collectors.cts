@@ -18,6 +18,7 @@ import crypto = require('node:crypto');
 import journals = require('./journal-format.cjs');
 import eyesFrames = require('./eyes-frame.cjs');
 import preconditions = require('./case-preconditions.cjs');
+import probeCuts = require('../instrument/probe-cuts.cjs');
 import probeLog = require('../instrument/probe-log.cjs');
 import storyTap = require('../instrument/story-tap.cjs');
 import stories = require('../story/format.cjs');
@@ -151,7 +152,7 @@ function attach(holder: Holder, continuations: boolean, story = false): Engine {
     }
     return found;
   }
-  const engine = probeLog.createEngine(continuations);
+  const engine = probeLog.createEngine(continuations, probeCuts.createCuts());
   holder.__VA__ = story ? storyTap.createTap(engine, storyTap.TAPE_LIMIT).root : engine.root;
   return engine;
 }

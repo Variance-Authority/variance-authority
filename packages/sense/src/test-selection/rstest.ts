@@ -30,6 +30,7 @@ import { foldRun } from './selection-fold.js';
 import { removeSeamModules, reopenRun, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { attendingSource, browserSetupSource, caseGlobalsSource, setupSource } from './worker-source.js';
 import { recordFileFor } from './record-location.js';
+import { testFilesAt } from './test-files.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import { finishedCase } from './case-durations.js';
@@ -92,6 +93,14 @@ export interface RstestTestSelectionOptions {
    * concurrent. Leave it off the rest of the time.
    */
   readonly continuations?: boolean;
+  /**
+   * Whether each statement of a test or a hook is cut, so the record says which
+   * line of the test first reached each region its case entered. On by default.
+   * The cut is one call per statement the test runs, and it reaches the record
+   * only as a line per case; turn it off to record a suite exactly as it ran
+   * before cuts existed.
+   */
+  readonly cadence?: boolean;
 }
 
 /** What one test file's run left behind, as Rstest's `onTestRunEnd` reports it. */
@@ -194,6 +203,9 @@ export function withTestSelection(
   const globalSetup = new Set(array(config.globalSetup).map((file) => resolve(configRoot, file)));
   const chosen = options.include ?? defaultInclude;
   run.include = (file: string): boolean => !globalSetup.has(file) && chosen(file);
+  run.cadence = options.cadence === false
+    ? undefined
+    : testFilesAt(configRoot, undefined, config['include'] as readonly string[] | undefined);
 
   const setupFiles = array(config.setupFiles);
   // A setup entry may be a package — `dotenv/config` — rather than a file of

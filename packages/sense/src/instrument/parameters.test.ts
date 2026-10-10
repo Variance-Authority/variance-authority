@@ -1,6 +1,7 @@
 import { createContext, runInContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import { instrument } from './index.js';
+import probeLists from './probe-lists.cjs';
 import probeLog from './probe-log.cjs';
 
 /**
@@ -34,7 +35,7 @@ function recorder(): { root: unknown; entered(count: number): number[] } {
     root: engine.root,
     entered(count) {
       const out = Array.from({ length: count }, () => 0);
-      for (const list of engine.lists(engine.read(bucket), true)) {
+      for (const list of probeLists.lists(engine.read(bucket), true)) {
         for (const ordinal of [...list.hits, ...list.shared]) out[ordinal] = 1;
       }
       return out;

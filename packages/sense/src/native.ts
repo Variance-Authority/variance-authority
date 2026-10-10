@@ -130,6 +130,12 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   probeHeader(module: string, count: number): string;
   /** The instrumenter crate's `recipe()` for `presence`, or for `entries`. */
   probeRecipe(entries: boolean): string;
+  /**
+   * The test file with a cut before each statement of its test and hook
+   * bodies, the `mappings` back to `source` and the `[line, column, length]`
+   * shifts they were made from, or `null`: `native/instrument/src/cadence.rs`.
+   */
+  cadence(source: string, file: string): { code: string; mappings: string; shifts: number[] } | null;
   gitTree(root: string): NativeGitTree | null;
   /**
    * The alias table the `tsconfig` and `jsconfig` files among `paths` declare,

@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { createContext, runInContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import { EVALUATING, instrument } from './index.js';
+import probeLists from './probe-lists.cjs';
 import probeLog from './probe-log.cjs';
 
 /**
@@ -43,7 +44,7 @@ function readable(tape: ReturnType<ReturnType<typeof storyTap.createTap>['read']
 
 /** What each bucket's read-out holds, with the evaluating bit beside each ordinal. */
 function presence(engine: Engine, bucket: ReturnType<Engine['open']>): unknown {
-  return engine.lists(engine.read(bucket), true);
+  return probeLists.lists(engine.read(bucket), true);
 }
 
 describe('a story tap', () => {

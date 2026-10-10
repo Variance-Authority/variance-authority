@@ -329,7 +329,7 @@ and each name selects the tests recorded under it.
 ### Options on the Vitest seam
 
 The optional second argument accepts `root`, `suite`, `coverageFile`,
-`include`, `preconditions`, `mode`, `continuations`, and `selection`.
+`include`, `preconditions`, `mode`, `continuations`, `cadence`, and `selection`.
 
 | option | default | use it when |
 |---|---|---|
@@ -340,6 +340,7 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings or a fixture read with `fs` |
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
+| `cadence` | on | `false` leaves test files as you wrote them, and the record without the test line that reached each region ([below](#record-which-test-line-reached-a-region)) |
 | `selection` | read from `@variance-authority/cli` when `VARIANCE_AUTHORITY_SINCE` is set | you compute the selection yourself: a function returning the `SuiteSelection` whose `skip` the run removes |
 
 The config file Vite loaded, the local modules it imports and the configured
@@ -582,7 +583,7 @@ export default withTestSelection({
 ```
 
 The second argument accepts `root`, `suite`, `coverageFile`, `preconditions`,
-`mode`, `continuations`, and `selection`, with the meanings above. Jest does not report which
+`mode`, `continuations`, `cadence`, and `selection`, with the meanings above. Jest does not report which
 config file it loaded, so name it in `preconditions`. There is no `include`:
 product source is every JavaScript and TypeScript module the configuration's
 `testMatch` or `testRegex` does not name, less dependencies and built output that
@@ -744,7 +745,7 @@ export default defineConfig(withTestSelection({
 ```
 
 The second argument accepts `root`, `suite`, `coverageFile`, `include`,
-`preconditions`, `mode`, and `continuations`, with the meanings above. Rstest
+`preconditions`, `mode`, `continuations`, and `cadence`, with the meanings above. Rstest
 does not report which config file it loaded, so name it in `preconditions`. The
 loader runs ahead of SWC, on the text you wrote, so the lines a record carries
 are the ones you edited.
@@ -2077,6 +2078,48 @@ index records. Recording 4,011 cases over 364 test files of this repository
 produced 28.8 MB of the JSON above against a 681 KB snapshot. The index answers
 a coding agent asking which five of two hundred cases walked the branch you just
 changed; selecting test files over every region there is reads the snapshot.
+
+### Record which test line reached a region
+
+A case's crossings name the regions it reached, not the statement of the test
+that reached each one. Under the Vitest, Jest and Rstest seams every case also
+records, for each region it crossed, the line of the test statement that first
+reached it, and whether that statement was the case's own or a hook's. Those
+lines are the test's cadence: what each of its statements added to what the
+case reached.
+
+The seam's transform puts a call in front of every statement of a test or hook
+body in a test file. It goes into nested blocks but not into nested functions,
+so the callback you hand to `waitFor` belongs to the statement that hands it
+over. The call stores the length of the case's log beside the statement's line;
+it takes no snapshot and reads nothing. When the case closes, each region is
+charged to the last statement before its first entry:
+
+| The region was first reached by | It is recorded at |
+| --- | --- |
+| a statement of the case | that statement's line |
+| a `beforeEach` or another hook, and not by the case itself | the hook's statement, flagged as a hook's |
+| an import or top-level code, before any statement ran | line 0, flagged as a hook's |
+
+The transform finds a body by the registrar it is handed to: `it`, `test`,
+their `.each`, `.only` and `.skip`, and the four hooks. A body handed over by
+name, one a registrar from `test.extend` or a renamed import takes, and one a
+helper outside the test file writes, such as a shared conformance suite, run
+uncut, and their cases record no lines. So does every case a record written
+without them carried. The record keeps such a
+case apart from one that reached nothing: lines not recorded is not an empty
+answer. When a case's asynchronous work interleaves differently from run to
+run, the line recorded is the one this run reached the region from. Selection
+reads none of it: which cases run is still decided by the crossings.
+
+On this repository's 8,191 cases the lines add 105 KB to a 4.79 MB record,
+2.2%, and on MUI's `mui-material`, 4,822 cases, 66 KB to 2.70 MB, 2.4%. The
+suite's duration stays inside its run-to-run spread on both, over three runs
+each with and without them: 48.9–51.9 s against 48.8–56.3 s here, 16.2–16.5 s
+against 16.0–17.2 s on MUI.
+
+Pass `cadence: false` to leave test files as you wrote them and write no lines.
+A Jest journey run leaves test files as they are either way.
 
 ### Record the state each test ran under
 

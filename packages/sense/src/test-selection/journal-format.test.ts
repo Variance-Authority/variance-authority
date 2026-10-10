@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EVALUATING } from '../instrument/index.js';
 import journals from './journal-format.cjs';
 
-const { encodeJournal, encodeLog, decodeJournal } = journals;
+const { encodeJournal, encodeLog, decodeJournal, scanJournal } = journals;
 
 const counters = (values: readonly number[]): Uint32Array => Uint32Array.from(values);
 
@@ -56,6 +56,57 @@ describe('a journal as bytes', () => {
       { id: 'src/cart.ts', hits: [0, 1, 2], shared: [0, 1], loaded: [] },
       { id: 'src/cart.ts', hits: [0], shared: [], loaded: [] },
     ]);
+  });
+
+  it('carries the test line each region of a cut case was first reached under, beside its ordinal', () => {
+    // Two modules: `cart.ts` at log index 0, `total.ts` at 8. Ordinal 0 of
+    // `cart.ts` was entered both while it evaluated and after.
+    const lines = new Int32Array(16);
+    lines[0] = 4;
+    lines[2] = 7;
+    lines[8 + 1] = 9;
+    const frame = encodeLog('src/a.test.ts', {
+      rows: [0, 1],
+      start: Int32Array.of(0, 3),
+      end: Int32Array.of(3, 4),
+      sorted: Int32Array.of(0 << 1, (0 << 1) | 1, 2 << 1, 1 << 1),
+      ids: ['src/cart.ts', 'src/total.ts'],
+      base: Int32Array.of(0, 8),
+      lines,
+    });
+
+    expect(decodeJournal(frame).modules).toEqual([
+      { id: 'src/cart.ts', hits: [0, 2], shared: [0], loaded: [], lines: [4, 7] },
+      { id: 'src/cart.ts', hits: [0], shared: [], loaded: [], lines: [4] },
+      { id: 'src/total.ts', hits: [1], shared: [], loaded: [], lines: [9] },
+    ]);
+    const scanned: unknown[] = [];
+    const asked: unknown[] = [];
+    scanJournal(frame, {
+      test() {},
+      wants: (id, cut) => {
+        asked.push([id, cut]);
+        return id !== 'src/cart.ts';
+      },
+      module: (id, hits, _shared, _loaded, carried) => scanned.push([id, [...hits], carried && [...carried]]),
+    });
+    expect(scanned).toEqual([['src/total.ts', [1], [9]]]);
+    expect(asked).toEqual([['src/cart.ts', true], ['src/cart.ts', true], ['src/total.ts', true]]);
+    const uncut: unknown[] = [];
+    scanJournal(encodeJournal('src/a.test.ts', new Map([['src/cart.ts', counters([1])]])), {
+      test() {},
+      wants: (id, cut) => uncut.push([id, cut]) < 0,
+      module() {},
+    });
+    expect(uncut).toEqual([['src/cart.ts', false]]);
+  });
+
+  it('writes a case nothing cut as the frame it was before cuts, with no lines', () => {
+    const log = { rows: [0], start: Int32Array.of(0), end: Int32Array.of(1), sorted: Int32Array.of(1 << 1), ids: ['src/cart.ts'] };
+    const frame = encodeLog('src/a.test.ts', log);
+
+    expect(encodeLog('src/a.test.ts', { ...log, base: Int32Array.of(0) })).toEqual(frame);
+    expect(decodeJournal(frame).modules[0]).not.toHaveProperty('lines');
   });
 
   it('holds a module nothing entered, because the file still consumed it', () => {
