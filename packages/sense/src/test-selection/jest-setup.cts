@@ -38,6 +38,7 @@ import fs = require('node:fs');
 import crypto = require('node:crypto');
 import install = require('./jest-globals.cjs');
 import journalNames = require('./jest-journal-name.cjs');
+import caseOwner = require('./case-owner.cjs');
 import journals = require('./journal-format.cjs');
 import type { ModuleId } from '../instrument/index.js';
 
@@ -372,7 +373,7 @@ function scopeCase(body: CaseBody, declared: unknown, nextId: () => string): Cas
       : String(declared);
     enclosingCase += 1;
     try {
-      return scope.enter(journals.packCase(testPath ?? '', name, id, project), () => body.apply(this, args));
+      return scope.enter(caseOwner.packCase(testPath ?? '', name, id, project), () => body.apply(this, args));
     } finally {
       enclosingCase -= 1;
     }

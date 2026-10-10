@@ -1,6 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import caseOwner from './case-owner.cjs';
 import journals from './journal-format.cjs';
 import {
   JOURNEY_COOKIE,
@@ -75,7 +76,7 @@ describe('a head told which trace is running', () => {
         const frame = journals.decodeJournal(bytes.subarray(at + 4, at + 4 + length));
         at += 4 + length;
         const hits = frame.modules.reduce((sum, module) => sum + module.hits.length, 0);
-        const journey = journals.journeyOf(frame.testFile);
+        const journey = caseOwner.journeyOf(frame.testFile);
         journeys.set(journey, (journeys.get(journey) ?? 0) + hits);
       }
     }

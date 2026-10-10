@@ -11,6 +11,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { ModuleId } from '../instrument/index.js';
 import probeLog from '../instrument/probe-log.cjs';
+import caseOwner from './case-owner.cjs';
 import journalFormat from './journal-format.cjs';
 import type { JourneyCollector, JourneyTrace } from './journey.js';
 import { UNATTRIBUTED } from './stitch.js';
@@ -98,7 +99,7 @@ export function writeParts(
     ordinals.add(ordinal);
   };
   const owner = (journey: string): string =>
-    journalFormat.packJourney(journalFormat.packCase('', '', ''), journey);
+    caseOwner.packJourney(caseOwner.packCase('', '', ''), journey);
   const commonFrame = (): Uint8Array | undefined => {
     const bucket = buckets.get(UNATTRIBUTED);
     if (bucket !== undefined) {

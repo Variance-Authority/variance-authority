@@ -3,6 +3,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MARKDOWN, ROOT, lineOf, prose } from './markdown.js';
+import { MODULES } from './modules.js';
 
 /**
  * Where the documentation points, checked against what is there.
@@ -236,35 +237,22 @@ describe('every path named in prose exists', () => {
  * Close to the list `tools/unrun.mjs` scans for markers, and for its reason — a
  * comment is a comment whether it opens with `//` or `#`, and CI and the
  * container harness are where the stalest ones sit, because nobody rereads a
- * workflow the way they reread a page. Wider by a config's `.mts` and by the
- * `Dockerfile`, which carry comments about this tree and no markers.
+ * workflow the way they reread a page. Wider by the `Dockerfile`, which carries
+ * comments about this tree and no markers. The modules come from the shared
+ * list, so an extension added there is read here too.
  *
  * Not that file's own `tracked()`, which drops `tools/unrun.mjs` and
  * `tools/unrun.check.ts` so their spelled-out markers do not register as
  * markers. Both are full of paths, and skipping them would be a hole in this
  * rule rather than a feature of it.
  */
-const SOURCE: readonly string[] = execFileSync(
-  'git',
-  [
-    'ls-files',
-    '*.ts',
-    '*.tsx',
-    '*.mts',
-    '*.js',
-    '*.jsx',
-    '*.mjs',
-    '*.cjs',
-    '*.sh',
-    '*.yml',
-    '*.yaml',
-    '*Dockerfile',
-  ],
-  { cwd: ROOT, encoding: 'utf8' },
-)
-  .trim()
-  .split('\n')
-  .filter((file) => existsSync(join(ROOT, file)));
+const SOURCE: readonly string[] = [
+  ...MODULES,
+  ...execFileSync('git', ['ls-files', '*.sh', '*.yml', '*.yaml', '*Dockerfile'], { cwd: ROOT, encoding: 'utf8' })
+    .trim()
+    .split('\n')
+    .filter((file) => existsSync(join(ROOT, file))),
+];
 
 /** Files whose comments open with `#` and run to the end of the line. */
 const HASH = /(?:\.(?:sh|ya?ml)|Dockerfile)$/;
@@ -324,6 +312,10 @@ describe('every path named in a comment exists', () => {
     // below all pass, having read nothing.
     expect(SOURCE.length).toBeGreaterThan(100);
     expect([...CLAIMED.values()].flat().length).toBeGreaterThan(50);
+  });
+
+  it.each(['.mts', '.cts', '.cjs'])('reads the comments of %s modules too', (extension) => {
+    expect(SOURCE.some((file) => file.endsWith(extension))).toBe(true);
   });
 
   it.each(SOURCE)('%s', (file) => {

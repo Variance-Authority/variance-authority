@@ -15,6 +15,7 @@
 
 import async_hooks = require('node:async_hooks');
 import crypto = require('node:crypto');
+import caseOwner = require('./case-owner.cjs');
 import journals = require('./journal-format.cjs');
 import eyesFrames = require('./eyes-frame.cjs');
 import preconditions = require('./case-preconditions.cjs');
@@ -297,8 +298,8 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, roo
     // in the case index, and says how it settled. Only the file's own bucket
     // has nothing to write when it entered nothing.
     if (view.rows.length === 0 && settled === undefined && journey === undefined && !said?.length) return undefined;
-    const settledOwner = settled === undefined ? name : journals.settledCase(name, settled);
-    const owner = journey === undefined ? settledOwner : journals.packJourney(settledOwner, journey);
+    const settledOwner = settled === undefined ? name : caseOwner.settledCase(name, settled);
+    const owner = journey === undefined ? settledOwner : caseOwner.packJourney(settledOwner, journey);
     frames.push(journals.encodeLog(said === undefined ? owner : preconditions.packSaid(owner, said), view));
     foldInto(union, view);
     return view;
@@ -424,7 +425,7 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, roo
     enter, journey, phase, within, where, ...attention?.scope, begin, leave,
   };
 
-  const ambientKey = (testFile: string): string => journals.packCase(testFile, '', '');
+  const ambientKey = (testFile: string): string => caseOwner.packCase(testFile, '', '');
   return {
     scoped: true,
     seal(testFile) {

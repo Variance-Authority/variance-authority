@@ -117,6 +117,7 @@
  */
 
 import type { ModuleId } from '../instrument/index.js';
+import caseOwner from './case-owner.cjs';
 import journalFormat from './journal-format.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import { codeUnitOrder } from './instrumented-modules.js';
@@ -151,9 +152,9 @@ export const AMBIENT = '';
  * and a test name cannot contain.
  *
  * Both writers of a case frame are CommonJS inside somebody else's sandbox, so
- * the pair lives beside the codec and is answered for here.
+ * the pair lives in `case-owner.cts` and is answered for here.
  */
-export const packCase = journalFormat.packCase;
+export const packCase = caseOwner.packCase;
 
 export interface UnpackedCase {
   readonly file: string;
@@ -167,7 +168,7 @@ export interface UnpackedCase {
   readonly stopped?: boolean;
 }
 
-export const unpackCase: (packed: string) => UnpackedCase = journalFormat.unpackCase;
+export const unpackCase: (packed: string) => UnpackedCase = caseOwner.unpackCase;
 
 /**
  * Case frames as one file, each behind its own length.

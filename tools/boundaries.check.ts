@@ -2,12 +2,15 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { MODULES } from './modules.js';
 import {
   ALL,
   AMBIENT,
+  MODULE,
   REQUIRED_WITHOUT_IMPORT,
   PACKAGES,
   ROOT,
+  TEST_MODULE,
   declared,
   type Workspace,
 } from './workspaces.js';
@@ -43,6 +46,19 @@ import {
  */
 
 describe('a package declares what it imports', () => {
+  it.each(['a.mts', 'a.cts', 'a.cjs'])('reads the imports of %s too', (file) => {
+    expect(MODULE.test(file)).toBe(true);
+  });
+
+  it('reads the .cts modules a package keeps in src', () => {
+    const walked = ALL.flatMap((workspace) => workspace.files);
+    expect(walked.some((file) => /\/packages\/[^/]+\/src\/.*\.cts$/.test(file))).toBe(true);
+  });
+
+  it.each(['a.test.mts', 'a.spec.cts', 'a.measure.mts'])('holds %s to the test rule', (file) => {
+    expect(TEST_MODULE.test(file)).toBe(true);
+  });
+
   it.each(ALL.map((workspace) => [workspace.name, workspace] as const))(
     '%s imports nothing its manifest does not list',
     (_name, workspace) => {
@@ -191,15 +207,11 @@ function opening(workspace: Workspace): string {
 describe('source stays greppable', () => {
   const NUL = String.fromCharCode(0);
 
-  it.each(
-    execFileSync('git', ['ls-files', '*.ts', '*.tsx', '*.js', '*.jsx', '*.mjs', '*.cjs'], {
-      cwd: ROOT,
-      encoding: 'utf8',
-    })
-      .trim()
-      .split('\n')
-      .filter((file) => existsSync(join(ROOT, file))),
-  )('%s contains no literal NUL', (file) => {
+  it.each(['.cts', '.mts', '.cjs'])('reads %s modules too, so a NUL written in one is seen', (extension) => {
+    expect(MODULES.some((file) => file.endsWith(extension))).toBe(true);
+  });
+
+  it.each(MODULES)('%s contains no literal NUL', (file) => {
     const text = readFileSync(join(ROOT, file), 'utf8');
 
     // A `\u0000` escape is the same value and stays readable. `\0` is not the
