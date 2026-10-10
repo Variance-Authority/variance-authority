@@ -96,6 +96,19 @@ describe('a variation is shown as its two pictures', () => {
     expect(markup).not.toContain('alt="story:');
   });
 
+  it('draws both sides at one magnification, so a size change reads as one', () => {
+    // Two pictures each shrunk to fit their own tile differ everywhere, and the
+    // pair is read as a comparison. The box holding both is what is scaled.
+    const markup = draw(pair, [
+      { ...subject('story:product-card--control', { before: false, after: true, diff: false }), size: { width: 400, height: 300 } },
+      { ...subject('story:product-card--sale', { before: false, after: true, diff: false }), size: { width: 200, height: 300 } },
+    ]);
+
+    expect(markup).toContain('style="width:220px"');
+    expect(markup).toContain('style="width:110px"');
+    expect(markup).toContain('decoding="async"');
+  });
+
   it('draws one picture for a variation whose parent is not in this run', () => {
     const markup = draw(
       {

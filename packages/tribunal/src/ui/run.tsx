@@ -41,10 +41,10 @@ export function RunPage({
   /**
    * Taken rather than read from the address, because a host router may own it.
    *
-   * The only thing on this page that navigates is the settled panel's link into
-   * an absorbed subject, and a page that reached for `location` to render it
-   * would work in the Node service and push a second entry onto a Next app's
-   * history stack.
+   * What navigates on this page is the settled panel's link into an absorbed
+   * subject and each variation's pictures, and a page that reached for
+   * `location` to render them would work in the Node service and push a second
+   * entry onto a Next app's history stack.
    */
   readonly go: (route: Route) => void;
 }): ReactElement {

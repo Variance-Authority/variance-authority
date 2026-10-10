@@ -13,6 +13,7 @@ import type { ReactElement } from 'react';
 import type { SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import type { Route } from './route.js';
+import { Raster, type Size, union } from './plate.js';
 import { Go, Prose } from './shell.js';
 
 /**
@@ -133,6 +134,12 @@ export interface Pictures {
  * The list above says what the run measured; this is the comparison it measured,
  * which a reviewer otherwise makes by opening two pages and remembering one. The
  * parent comes first because the arm is read as the parent plus an axis.
+ *
+ * Both sides are scaled by one factor: the one that fits the box holding both
+ * into a tile. Each shrunk to its own tile, a narrower arm would be drawn larger
+ * than its parent and the pair would differ everywhere. A side whose size was
+ * never measured falls to the tile's width, as an unmeasured layer does on the
+ * plate.
  */
 function Pair({
   variation,
@@ -141,18 +148,53 @@ function Pair({
   readonly variation: VariationRecord;
   readonly pictures: Pictures;
 }): ReactElement {
+  const arm = sideOf(variation.subject, pictures.subjects);
+  const parent = variation.parent === undefined ? undefined : sideOf(variation.parent, pictures.subjects);
+  const box = union(parent?.size, arm.size);
+  const scale = box === undefined ? undefined : Math.min(TILE.width / box.width, TILE.height / box.height, 1);
+
   return (
     <ul className="va-variation-pair">
-      {variation.parent === undefined ? null : <Side key="parent" id={variation.parent} pictures={pictures} />}
-      <Side key="arm" id={variation.subject} pictures={pictures} />
+      {parent === undefined ? null : <Side key="parent" side={parent} scale={scale} pictures={pictures} />}
+      <Side key="arm" side={arm} scale={scale} pictures={pictures} />
     </ul>
   );
 }
 
-function Side({ id, pictures }: { readonly id: string; readonly pictures: Pictures }): ReactElement {
-  const { client, build, subjects, go } = pictures;
+/** The largest a side is drawn, in CSS pixels; the subject page reads it at size. */
+const TILE = { width: 220, height: 180 } as const;
+
+interface SideOf {
+  readonly id: string;
+  /** Absent when the run has no row for this subject: it was never read. */
+  readonly read: SubjectView | undefined;
+  readonly kind: 'after' | 'before' | undefined;
+  readonly size: Size | undefined;
+}
+
+/**
+ * The image that shows this subject: the candidate when the run kept one, the
+ * baseline when it kept only that, and nothing when it kept neither — with the
+ * dimensions that belong to that image, never the other one's.
+ */
+function sideOf(id: string, subjects: readonly SubjectView[]): SideOf {
   const read = subjects.find((each) => each.subject === id);
-  const kind = keptOf(read);
+  if (read?.has.after === true) return { id, read, kind: 'after', size: read.size };
+  if (read?.has.before === true) return { id, read, kind: 'before', size: read.baseline };
+  return { id, read, kind: undefined, size: undefined };
+}
+
+function Side({
+  side,
+  scale,
+  pictures,
+}: {
+  readonly side: SideOf;
+  readonly scale: number | undefined;
+  readonly pictures: Pictures;
+}): ReactElement {
+  const { client, build, go } = pictures;
+  const { id, read, kind, size } = side;
 
   return (
     <li>
@@ -164,23 +206,20 @@ function Side({ id, pictures }: { readonly id: string; readonly pictures: Pictur
           <span className="va-variation-none">{read === undefined ? 'not in this run' : 'no image kept'}</span>
         ) : (
           // The name beneath labels the link; an alt repeating it is read twice.
-          <img src={client.imageUrl(build, id, kind)} alt="" loading="lazy" />
+          <Raster
+            src={client.imageUrl(build, id, kind)}
+            alt=""
+            size={kind === 'after' ? size : undefined}
+            style={
+              size === undefined || scale === undefined
+                ? undefined
+                : { width: `${String(Math.round(size.width * scale))}px` }
+            }
+          />
         )}
         <span className="va-variation-name">{id}</span>
         {kind === 'before' ? <span className="va-how">baseline</span> : null}
       </Go>
     </li>
   );
-}
-
-/**
- * The image that shows this subject: the candidate when the run kept one, the
- * baseline when it kept only that, and nothing when it kept neither. The label
- * under a baseline says so, because it is the picture before this commit.
- */
-function keptOf(subject: SubjectView | undefined): 'after' | 'before' | undefined {
-  if (subject === undefined) return undefined;
-  if (subject.has.after) return 'after';
-  if (subject.has.before) return 'before';
-  return undefined;
 }

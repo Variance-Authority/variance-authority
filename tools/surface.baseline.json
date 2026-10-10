@@ -3644,6 +3644,7 @@
         "Origin": "interface",
         "Origins": "interface",
         "OriginsPanel": "function",
+        "Pictures": "interface",
         "REVIEW_STYLES": "const",
         "RegionOverlay": "function",
         "RegionTable": "function",
