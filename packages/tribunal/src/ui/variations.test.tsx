@@ -87,6 +87,18 @@ describe('a variation is shown as its two pictures', () => {
     expect(markup.match(/style="max-width:220px;max-height:180px"/g)).toHaveLength(2);
   });
 
+  it('bounds a side measured as empty by the tile, since no scale can come from it', () => {
+    // A recorded size of zero divides the tile by zero, and a width of NaN
+    // pixels is dropped, leaving the picture unbounded.
+    const markup = draw(pair, [
+      { ...subject('story:product-card--control', { before: false, after: true, diff: false }), size: { width: 0, height: 300 } },
+      subject('story:product-card--sale', { before: false, after: true, diff: false }),
+    ]);
+
+    expect(markup).not.toContain('NaN');
+    expect(markup.match(/style="max-width:220px;max-height:180px"/g)).toHaveLength(2);
+  });
+
   it('says the run kept no picture rather than drawing an empty frame', () => {
     // Two `unchanged` subjects keep nothing. A blank tile would read as a
     // render that came out blank, which is a different finding.

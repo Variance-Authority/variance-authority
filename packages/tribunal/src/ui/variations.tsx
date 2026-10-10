@@ -178,9 +178,14 @@ interface SideOf {
  */
 function sideOf(id: string, subjects: readonly SubjectView[]): SideOf {
   const read = subjects.find((each) => each.subject === id);
-  if (read?.has.after === true) return { id, read, kind: 'after', size: read.size };
-  if (read?.has.before === true) return { id, read, kind: 'before', size: read.baseline };
+  if (read?.has.after === true) return { id, read, kind: 'after', size: measured(read.size) };
+  if (read?.has.before === true) return { id, read, kind: 'before', size: measured(read.baseline) };
   return { id, read, kind: undefined, size: undefined };
+}
+
+/** A recorded size no scale can come from — an empty side — is no measurement. */
+function measured(size: Size | undefined): Size | undefined {
+  return size !== undefined && size.width > 0 && size.height > 0 ? size : undefined;
 }
 
 function Side({
