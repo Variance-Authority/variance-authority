@@ -14,6 +14,10 @@ const EYES_MAGIC: [u8; 8] = [0x56, 0x41, 0x45, 0x59, 0x53, 0x00, 0x00, 0x01];
 /// A module is named by its path: tag `1`, then the path. Tag `0`, a numbered
 /// module, is refused as damage — nothing writes one (ADR-0056, amended).
 const NAMED: u8 = 1;
+/// A named row of a cut case (`journal-format.cts`): a fourth list after the
+/// three, the test line each hit was first reached under. This fold carries no
+/// lines, so it reads the row as the named row it extends.
+const NAMED_LINED: u8 = 2;
 
 /// A module's repository-relative path.
 pub type ModuleId = String;
@@ -361,14 +365,19 @@ fn scan_journal(raw: &[u8], visitor: &mut impl Visitor) -> Result<(), String> {
     let count = read.number()?;
     let mut scratch = Vec::new();
     for _ in 0..count {
-        if read.byte()? != NAMED {
-            return Err(damaged());
-        }
+        let lined = match read.byte()? {
+            NAMED => false,
+            NAMED_LINED => true,
+            _ => return Err(damaged()),
+        };
         let id = read.text()?;
         if !visitor.wants(&id) {
             read.skip()?;
             read.skip()?;
             read.skip()?;
+            if lined {
+                read.skip()?;
+            }
             continue;
         }
         scratch.clear();
@@ -376,6 +385,14 @@ fn scan_journal(raw: &[u8], visitor: &mut impl Visitor) -> Result<(), String> {
         for start in &mut starts {
             *start = scratch.len();
             read.ordinals(&mut scratch)?;
+        }
+        // FIXME: the Jest journey artifact folds here and drops each case's lines (spec 0100).
+        if lined && read.number()? as usize != starts[1] - starts[0] {
+            return Err(damaged());
+        } else if lined {
+            for _ in starts[0]..starts[1] {
+                read.number()?;
+            }
         }
         visitor.module(
             &id,
@@ -471,3 +488,7 @@ fn damaged() -> String {
 fn damaged_cases() -> String {
     "not a variance-authority case journal".to_owned()
 }
+
+#[cfg(test)]
+#[path = "journey_journal_tests.rs"]
+mod tests;
