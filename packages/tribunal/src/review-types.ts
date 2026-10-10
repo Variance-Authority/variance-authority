@@ -136,7 +136,8 @@ export interface SubjectView {
   /**
    * The earlier builds of this project in which this subject kept the same
    * candidate, matched on its content key. Absent when the subject kept no
-   * candidate; `{ count: 0, builds: [] }` when no earlier build still held here
+   * candidate, and on an `unchanged` or `ignored` render, which no reviewer
+   * decides on; `{ count: 0, builds: [] }` when no earlier build still held here
    * kept that image.
    */
   readonly repeats?: Repeats;

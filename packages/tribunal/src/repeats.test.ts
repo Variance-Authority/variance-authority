@@ -117,12 +117,16 @@ describe('the earlier builds that kept the same image', () => {
     expect((await subject(review, 'ci-1001')).repeats).toEqual({ count: 0, builds: [] });
   });
 
-  it('is absent for a subject that kept no candidate', async () => {
+  it('is absent for a changed render that kept no candidate', async () => {
+    // A reviewer decides on it, but there is no image to match: absent, not a
+    // count of nothing.
     const { review } = await openReview();
     await push(review, 'ci-1000', '2026-06-01T09:00:00.000Z');
-    await push(review, 'ci-1001', '2026-06-01T10:00:00.000Z');
+    await review.ingest({ ...ingest(), build: 'ci-1001', report: report({ at: '2026-06-01T10:00:00.000Z' }), images: {} });
 
-    expect(await subject(review, 'ci-1001', UNCHANGED)).not.toHaveProperty('repeats');
+    const changed = await subject(review, 'ci-1001');
+    expect(changed.verdict).toBe('changed');
+    expect(changed).not.toHaveProperty('repeats');
   });
 
   it('is absent for a render nothing is decided on, though a push keeps its image', async () => {
