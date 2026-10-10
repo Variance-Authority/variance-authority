@@ -315,8 +315,27 @@ module.exports = {
     const done = transformer.process!(broken, resolve(root, 'src/broken.js'), transformOptions(root));
 
     expect(done.code.startsWith(`${broken}\n;`)).toBe(true);
-    expect(done.code).toContain(JSON.stringify(moduleId('src/broken.js', broken)));
+    expect(done.code).toContain(JSON.stringify(markedId('src/broken.js', broken)));
     expect(done.code.endsWith('__vaE();')).toBe(true);
+  });
+
+  it('marks a parseable module it handed back with no probe placed so that it reads back as not probed', async () => {
+    const root = await project('variance-jest-placing-parseable-');
+    // A transformer that skipped the module, for whatever reason: its text would cut into regions if read as probed.
+    await writeFile(
+      resolve(root, 'transformer.cjs'),
+      `module.exports = { senseRecipe: () => ${JSON.stringify(probeRecipe('presence'))}, process: (source) => ({ code: source }) };\n`,
+    );
+    const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs') });
+    await writeFile(resolve(root, 'src/pick.js'), RAW);
+
+    const done = transformer.process!(RAW, resolve(root, 'src/pick.js'), transformOptions(root));
+
+    const id = markedId('src/pick.js', RAW);
+    expect(done.code).toContain(JSON.stringify(id));
+    expect(done.code).not.toContain(JSON.stringify(moduleId('src/pick.js', RAW)));
+    expect((await deriveModules(root, [id], undefined)).get(id))
+      .toEqual(expect.objectContaining({ file: 'src/pick.js', instrumented: false, blocks: [] }));
   });
 
   it('leaves a module it handed back with its probes placed as the transformer wrote it', async () => {

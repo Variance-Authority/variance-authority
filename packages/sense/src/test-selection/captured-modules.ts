@@ -184,14 +184,17 @@ function markLoaded(source: string, id: ModuleId): string {
  *
  * The instrumenter crate places nothing in a module it cannot parse, and the
  * transformer runs that module as it is: unmarked, a test that loaded it would
- * not hold it. `id` is the one {@link planModule} chose and the transformer was
- * handed, so the reader parses the file again, fails again, and records the
- * module as not instrumented, as it does for one {@link placeModule} marked.
- * The probes write their id into the text, so its absence is the whole test,
- * and the mark follows the last line, so no mapping the transformer wrote moves.
+ * not hold it. The mark reports `id` as {@link markedId} spells it, `path@~digest`,
+ * because no probe was placed whatever the reason: under the plain `id` the
+ * transformer was handed, a text that does parse would be cut into regions
+ * again and read back as probed, with only its own region run. The probes write
+ * their id into the text, so its absence is the whole test, and the mark
+ * follows the last line, so no mapping the transformer wrote moves.
  */
 export function markUnplaced(code: string, id: ModuleId): string {
-  return code.includes(id) ? code : markLoaded(code, id);
+  if (code.includes(id)) return code;
+  const at = id.lastIndexOf('@');
+  return markLoaded(code, id.startsWith(MARKED, at + 1) ? id : `${id.slice(0, at)}@${MARKED}${id.slice(at + 1)}`);
 }
 
 /** The hex half of a text's digest: a digest has no `@` in it, so the last one in an id is the separator. */

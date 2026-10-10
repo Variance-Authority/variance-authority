@@ -599,9 +599,10 @@ set of ordinals, and every reader cuts the module again from the checkout:
 - **The digest has a `~` in front of it, as `path@~digest`.** The module ran
   with one mark at the end of its text and no probe inside it: a module the
   [`unprobed` option](../packages/sense/README.md) names, because its functions
-  run where a probe has nothing to report to, such as a page. The reader cuts
-  no regions and records the module as not instrumented, so a change to it
-  selects every subject that loaded it.
+  run where a probe has nothing to report to, such as a page, or a module a
+  Jest transformer that places its own probes handed back with none in it. The
+  reader cuts no regions and records the module as not instrumented, so a
+  change to it selects every subject that loaded it.
 
 So a transform reads nothing from the rest of the build: ten changed files out
 of two hundred thousand are rebuilt in parallel, in any order, by processes that
