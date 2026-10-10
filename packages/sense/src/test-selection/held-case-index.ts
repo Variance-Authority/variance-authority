@@ -1,4 +1,5 @@
 import { UNHEARD, preconditionStrings, preconditionWords } from './case-precondition-column.js';
+import type { CaseLines } from './case-lines.js';
 import type { CrossingSetsPool } from './crossing-sets.js';
 import { durationColumn, stoppedColumn, type SetColumns } from './execution-set-columns.js';
 import { moduleAt, openSetColumns, writeSetColumns, type SetExecutionModule } from './execution-set-format.js';
@@ -125,13 +126,15 @@ export type LaidTest = number | ExecutionTest;
 /**
  * Write a layer's output: what {@link encodeSetExecutionIndex} writes for the
  * same cases and modules, every carried string copied as stored bytes rather
- * than decoded and interned again. `modules` come in code-unit order of path.
+ * than decoded and interned again. `modules` come in code-unit order of path,
+ * and `lines`, where the layer carries any, name them by their place there.
  */
 export function writeLaid(
   held: HeldIndex,
   tests: readonly LaidTest[],
   modules: readonly LaidModule[],
   sets: CrossingSetsPool,
+  lines?: readonly (CaseLines | undefined)[],
 ): Buffer {
   const columns = held.columns;
   const marked = new Uint8Array(held.size);
@@ -260,5 +263,6 @@ export function writeLaid(
     testId, testFile, testName, testStopped, testDuration, testPreconditions,
     moduleFile, moduleBlocks,
     blockKind, blockName, blockPath, blockStart, blockEnd, blockSource, blockCalled, blockLoaded, blockOwner,
+    testLines: lines,
   }, sets);
 }

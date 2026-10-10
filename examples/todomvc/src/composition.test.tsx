@@ -4,6 +4,7 @@ import {
   attributeMovement,
   composeSubjects,
   componentInstances,
+  piecesOf,
   type SubjectComposition,
 } from '@variance-authority/core/attribute';
 import type { SemanticSnapshot, Viewport } from '@variance-authority/core/format';
@@ -120,25 +121,21 @@ describe('the suite as one graph', () => {
       'ds/button--danger',
     ]);
 
-    // Twenty-one chips across seven subjects and not one subject whose shallowest
-    // boundary is a `Chip`. Empty is a real answer, and it is the gap a reviewer
-    // looks for — this component is only ever seen through something else.
+    // Twenty-one chips across seven subjects, and only the chip story exists to
+    // show one: the pages hold chips beside everything else they hold.
     expect(entry('Chip')?.instances).toBe(21);
-    expect(entry('Chip')?.examples).toEqual([]);
+    expect(entry('Chip')?.examples).toEqual(['ds/chip--group']);
   });
 
-  it('gives a wrapped story to the wrapper, which is what the story is an example of', () => {
+  it('descends past a wrapper most of the suite mounts, to the thing the story exists to show', () => {
     // Three design-system stories open with a `Stack` laying out the thing they
-    // exist to show. The shallowest boundary is the wrapper, so that is whose
-    // example they are — and `Chip`, `Text` and `Toggle` each have none.
-    expect(entry('Stack')?.examples).toEqual([
-      'ds/text--scale',
-      'ds/toggle--states',
-      'ds/chip--group',
-    ]);
-    for (const name of ['Chip', 'Text', 'Toggle']) {
-      expect(entry(name)?.examples).toEqual([]);
-    }
+    // exist to show. Most of the suite mounts a `Stack`, so the chip and toggle
+    // stories are examples of the chip and the toggle. Most of the suite mounts
+    // a `Text` too, so the text story has nothing below the wrapper that is not
+    // structure, and stays the wrapper's.
+    expect(entry('Stack')?.examples).toEqual(['ds/text--scale']);
+    expect(entry('Toggle')?.examples).toEqual(['ds/toggle--states']);
+    expect(entry('Text')?.examples).toEqual([]);
   });
 
   it('records the graph downwards as edges between boundaries', () => {
@@ -272,6 +269,41 @@ describe('the echoes — the same rendering in two subjects', () => {
     expect(
       buttons[0]?.sites.every((site) => site.subject.startsWith('page/')),
     ).toBe(true);
+  });
+});
+
+describe('one subject, as the narrower subjects inside it', () => {
+  const PIECES = piecesOf(SUITE);
+
+  it('reads the populated page as the stories inside it, and what only it watches', () => {
+    // Five stories sit inside the populated page and render eleven of its
+    // fourteen renderings. The other three are components those stories mount
+    // and the page renders otherwise: a list that holds items, where the empty
+    // page's list holds none, and two toggles the done item does not show.
+    const page = PIECES.get('page/todos--populated');
+    expect(page?.pieces.map((piece) => [piece.subject, piece.shared, piece.footprint])).toEqual([
+      ['page/todos--empty', 9, 10],
+      ['page/footer--counts', 4, 4],
+      ['ds/chip--group', 3, 3],
+      ['ds/field--empty', 2, 2],
+      ['page/item--done', 2, 2],
+    ]);
+    expect([page?.footprint, page?.structure, page?.explained]).toEqual([14, 3, 11]);
+    expect(page?.own).toEqual([]);
+    expect(page?.inContext).toEqual([
+      { component: 'TodoList', renderings: 1, pieces: ['page/todos--empty'] },
+      { component: 'Toggle', renderings: 2, pieces: ['page/item--done'] },
+    ]);
+  });
+
+  it('reads the active filter as nearly all its own, because no chip story shows its chips', () => {
+    const page = PIECES.get('page/todos--active-filter');
+    expect(page?.pieces.map((piece) => piece.subject)).toEqual(['ds/field--empty']);
+    expect(page?.own.map((row) => row.component)).toContain('Chip');
+  });
+
+  it('has nothing to compare for a button story, whose only component is structure', () => {
+    expect(PIECES.get('ds/button--default')).toMatchObject({ footprint: 0, structure: 1, pieces: [] });
   });
 });
 

@@ -35,12 +35,13 @@ import { Impact } from './impact.js';
 import { originsOf } from './grouping.js';
 import { causeOf } from './lead.js';
 import { OriginsPanel } from './origins.js';
-import { SubjectRail } from './rail.js';
-import type { Order, Route } from './route.js';
+import { SubjectRail, queueOf } from './rail.js';
+import type { Order, Route, Task } from './route.js';
 import { RunPage } from './run.js';
 import { needsReview } from './settled.js';
 import { Go, Stalled, Topbar, Waiting, messageOf, type Loaded } from './shell.js';
 import { SubjectPanel } from './subject.js';
+import { Tasks, tasksOf } from './tasks.js';
 import { count, number } from './text.js';
 
 /** The four addresses that live inside one build. */
@@ -131,6 +132,51 @@ function Build({
   // Anchored on the change this render is filed under: on a page with no single
   // change, distance has nothing to be measured from.
   const anchor = subject === undefined ? undefined : causeOf(subject);
+  const tasks = tasksOf(reviewable, build.subjects, concerns.concerns);
+  const task = route.page === 'subject' ? route.task : undefined;
+  const chosen = task === undefined ? undefined : tasks[task];
+  // A task narrows the rail to its renders, and keeps the one on screen in its
+  // place until the reviewer moves: deciding it, or resolving its concern, takes
+  // it out of the task, and the row under the cursor vanishing would turn *next*
+  // into *first*. Still being read, a task lists only that render, so J walks
+  // nowhere it might not belong; one that could not be read narrows nothing,
+  // since an empty rail would say the task was done.
+  // Drawn in the order of the whole build, so a render leaving the task stays
+  // where it was rather than joining the end.
+  const members = typeof chosen === 'object' ? chosen : chosen === undefined && task !== undefined ? [] : undefined;
+  const whole = queueOf(build.subjects);
+  const listed =
+    members === undefined ? reviewable : whole.filter((each) => each === subject || members.includes(each));
+  // The bar walks the queue the rail draws, so *next* is the row below.
+  const queue = queueOf(listed);
+  const at = subject === undefined ? -1 : queue.indexOf(subject);
+  const toSubject = (next: string, within: Task | undefined): Route => ({
+    page: 'subject',
+    build: build.build,
+    subject: next,
+    ...(within === undefined ? {} : { task: within }),
+  });
+  // A render in the chosen task stays on screen; otherwise the task opens on its
+  // first render, so choosing a task never leaves the stage on one it does not
+  // list.
+  const choose = (next: Task | undefined): void => {
+    if (next === undefined) {
+      go(subject === undefined ? { page: 'build', build: build.build } : toSubject(subject.subject, undefined));
+      return;
+    }
+    const covered = tasks[next];
+    if (typeof covered !== 'object') return;
+    const kept = subject !== undefined && covered.includes(subject);
+    const first = whole.find((each) => covered.includes(each));
+    if (kept) go(toSubject(subject.subject, next));
+    else if (first !== undefined) go(toSubject(first.subject, next));
+  };
+  const place = {
+    ...(at < 0 ? {} : { at }),
+    of: queue.length,
+    previous: at > 0 ? queue[at - 1]?.subject : undefined,
+    next: queue[at + 1]?.subject,
+  };
 
   return (
     <div className="va-app">
@@ -161,10 +207,11 @@ function Build({
       ) : (
         <div className="va-body">
           <nav className="va-rail">
+            <Tasks tasks={tasks} chosen={task} onChoose={choose} />
             <Switch build={build.build} order={order} subjects={reviewable} route={route} go={go} />
             {route.page === 'subject' ? (
               <SubjectRail
-                subjects={reviewable}
+                subjects={listed}
                 causes={build.causes.length}
                 variations={build.variations.length}
                 selected={route.subject}
@@ -172,7 +219,7 @@ function Build({
                   go(
                     next === null
                       ? { page: 'build', build: build.build }
-                      : { page: 'subject', build: build.build, subject: next },
+                      : toSubject(next, task),
                   )
                 }
               />
@@ -195,6 +242,8 @@ function Build({
               subject={subject}
               {...(anchor === undefined ? {} : { anchor, far: distanceFrom(build, anchor) })}
               sourced={build.causes.some((cause) => cause.file !== undefined)}
+              place={place}
+              onGo={(next) => go(toSubject(next, task))}
               onDecided={reload}
               onConcerned={concerns.refresh}
             />
@@ -250,7 +299,7 @@ function Switch({
         </span>
       ) : (
         <Go
-          to={{ page: 'subject', build, subject: route.page === 'subject' ? route.subject : first }}
+          to={route.page === 'subject' ? route : { page: 'subject', build, subject: first }}
           go={go}
           className={route.page === 'subject' ? 'va-mode va-on' : 'va-mode'}
           title="One row per render, which is what the run measured"

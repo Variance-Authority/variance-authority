@@ -1,6 +1,7 @@
 /**
  * The segments of a source map's `mappings`, decoded into the fields a line
- * lookup needs. `sourceLines` in `source-lines.ts` is the only reader.
+ * lookup needs. `sourceLines` in `source-lines.ts` is the only reader; the
+ * digits are `cut-map.ts`'s as well.
  */
 
 export interface Segment {
@@ -79,14 +80,16 @@ function boundary(mappings: string, index: number): boolean {
   return index >= mappings.length || mappings[index] === ',' || mappings[index] === ';';
 }
 
+const CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
 const DIGITS = new Map<string, number>(
-  [...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'].map(
+  [...CHARACTERS].map(
     (character, value) => [character, value],
   ),
 );
 
 /** One base64 VLQ field, and where the next one starts. */
-function vlq(mappings: string, at: number): { readonly value: number; readonly next: number } {
+export function vlq(mappings: string, at: number): { readonly value: number; readonly next: number } {
   let result = 0;
   let shift = 0;
   let index = at;
@@ -102,4 +105,17 @@ function vlq(mappings: string, at: number): { readonly value: number; readonly n
 
   const negative = (result & 1) === 1;
   return { value: negative ? -(result >>> 1) : result >>> 1, next: index };
+}
+
+/** `value` as one base64 VLQ field. */
+export function vlqOf(value: number): string {
+  let rest = value < 0 ? (-value << 1) | 1 : value << 1;
+  let text = '';
+  do {
+    let digit = rest & 31;
+    rest >>>= 5;
+    if (rest > 0) digit |= 32;
+    text += CHARACTERS[digit];
+  } while (rest > 0);
+  return text;
 }

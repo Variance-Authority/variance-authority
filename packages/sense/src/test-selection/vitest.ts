@@ -2,6 +2,7 @@ import { existsSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
 import type { UserConfig } from 'vitest/config';
+import { cadence, type CutSourceMap } from '../instrument/cadence.js';
 import type { InstrumentMode } from '../instrument/index.js';
 import { captureModule, pathOf } from './captured-modules.js';
 import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
@@ -12,6 +13,7 @@ import { foldRun } from './selection-fold.js';
 import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
 import { removeSeamModules, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { recordFileFor, recordsAlone } from './record-location.js';
+import { testFilesAt } from './test-files.js';
 import { selectionReporter } from './vitest-reporter.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
@@ -75,6 +77,14 @@ export interface TestSelectionOptions {
    */
   readonly continuations?: boolean;
   /**
+   * Whether each statement of a test or a hook is cut, so the record says which
+   * line of the test first reached each region its case entered. On by default.
+   * The cut is one call per statement the test runs, and it reaches the record
+   * only as a line per case; turn it off to record a suite exactly as it ran
+   * before cuts existed.
+   */
+  readonly cadence?: boolean;
+  /**
    * The selection this run is handed, read once when Vitest first sorts its
    * files. A wrapping `sequence.sequencer` drops what it may skip and hands
    * the rest to the project's own, and stderr says `selected N of M`. Absent,
@@ -99,7 +109,7 @@ interface VitePlugin extends ConfigPlugin {
   readonly config: (config: TestConfig) => void;
   readonly transform: {
     readonly order: 'pre';
-    readonly handler: (code: string, id: string) => { code: string; map: null } | null;
+    readonly handler: (code: string, id: string) => { code: string; map: CutSourceMap | null } | null;
   };
   readonly closeBundle: () => Promise<void>;
   readonly watchChange: (id: string) => void;
@@ -175,7 +185,8 @@ export function withTestSelection(
     };
   }
 
-  const plugin = selectionPlugin(root, setupId, runnerId, globalSetup, run, include, mode, declared, settle);
+  const cut = options.cadence === false ? undefined : testFiles(config, configRoot);
+  const plugin = selectionPlugin(root, setupId, runnerId, globalSetup, run, include, mode, declared, settle, cut);
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
   const continuations = options.continuations === true;
@@ -296,6 +307,7 @@ function selectionPlugin(
   mode: InstrumentMode,
   declared: readonly string[],
   settle: (files: readonly FinishedFile[]) => Promise<void>,
+  cut: ((file: string) => boolean) | undefined,
 ): VitePlugin {
   const { modules } = run;
   let closing: Promise<void> | undefined;
@@ -368,12 +380,24 @@ function selectionPlugin(
       // A `globalSetup` file is refused by the file it is as well as by the name
       // `include` is asked about, which a build's map may have changed.
       if (file === setupId || file === runnerId || globalSetup.has(file)) return null;
+      // A test file is probed when `include` takes it, and then cut, so its
+      // case also says which of its lines was running. The file itself only —
+      // a query asks for a module built from it. Both keep every line where it
+      // was; the cut's map moves its columns back, so an inline snapshot is
+      // written into the call the test wrote.
+      const cutting = cut !== undefined && id === file && run.cases && cut(file);
+      const cutOf = (text: string) => {
+        const cutFile = cutting ? cadence(text, file) : undefined;
+        return cutFile === undefined ? undefined : { code: cutFile.code, map: cutFile.map };
+      };
       // Its probes report under the file the transform was handed: a source and
       // its build both answer to the name, each with its own regions, and the
       // fold joins them (see `joinReadings`). Vitest re-transforms every run in
       // this process, so the modules stay in this map.
       const captured = captureModule(root, file, code, include, mode);
-      if (captured === undefined) return null;
+      if (captured === undefined) {
+        return cutOf(code) ?? null;
+      }
       // Only the file itself: any query, such as `?raw`, asks for a module built
       // from it. In a page, `vi.mock` loads its mock under the file's name.
       // Otherwise its lines are not the author's, so it fails its importers.
@@ -385,7 +409,8 @@ function selectionPlugin(
         );
       }
       modules.set(captured.module.id, captured.module);
-      return captured.code === undefined ? null : { code: captured.code, map: null };
+      const probed = captured.code ?? code;
+      return cutOf(probed) ?? (probed === code ? null : { code: probed, map: null });
     } },
   };
 }
@@ -434,3 +459,12 @@ function array<T>(value: T | readonly T[] | undefined): T[] {
 }
 
 export { mergeCoverage } from './merge.js';
+
+/**
+ * Which files this configuration runs as tests: its `test.include` globs, under
+ * `test.dir` or the root, as Vitest's own search reads them.
+ */
+function testFiles(config: UserConfig, configRoot: string): (file: string) => boolean {
+  const test = config.test as { include?: readonly string[]; dir?: string } | undefined;
+  return testFilesAt(configRoot, test?.dir, test?.include);
+}

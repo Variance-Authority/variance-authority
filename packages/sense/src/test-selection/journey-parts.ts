@@ -10,7 +10,9 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { ModuleId } from '../instrument/index.js';
+import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
+import caseOwner from './case-owner.cjs';
 import journalFormat from './journal-format.cjs';
 import type { JourneyCollector, JourneyTrace } from './journey.js';
 import { UNATTRIBUTED } from './stitch.js';
@@ -98,12 +100,12 @@ export function writeParts(
     ordinals.add(ordinal);
   };
   const owner = (journey: string): string =>
-    journalFormat.packJourney(journalFormat.packCase('', '', ''), journey);
+    caseOwner.packJourney(caseOwner.packCase('', '', ''), journey);
   const commonFrame = (): Uint8Array | undefined => {
     const bucket = buckets.get(UNATTRIBUTED);
     if (bucket !== undefined) {
       buckets.delete(UNATTRIBUTED);
-      for (const module of engine.lists(engine.close(bucket), false)) {
+      for (const module of probeLists.lists(engine.close(bucket), false)) {
         for (const ordinal of module.hits) keep(module.id, ordinal);
       }
     }
@@ -122,7 +124,7 @@ export function writeParts(
     if (bucket === undefined) return undefined;
     buckets.delete(journey);
     const view = engine.close(bucket);
-    for (const module of engine.lists(view, false)) {
+    for (const module of probeLists.lists(view, false)) {
       for (const ordinal of module.shared) keep(module.id, ordinal);
     }
     return journalFormat.encodeLog(owner(journey), view);

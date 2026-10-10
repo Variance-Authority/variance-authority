@@ -9,10 +9,12 @@
  */
 
 import { useEffect, useRef, useState, type ReactElement } from 'react';
+import type { ConcernState } from '../concern-types.js';
 import type { Decision, SubjectView } from '../review-types.js';
+import { ActionBar, type Place } from './action-bar.js';
 import { BaselineMovedNotice, movedOf } from './baseline-moved.js';
 import type { MovedBaseline, ReviewClient } from './client.js';
-import { Concerns } from './concerns.js';
+import { Concerns, type Asked } from './concerns.js';
 import type { Ruler } from './distance.js';
 import { Findings } from './findings.js';
 import { glanceOf, type Blamed, type Glance } from './glance.js';
@@ -22,14 +24,17 @@ import { messageOf } from './shell.js';
 import { count, number, when } from './text.js';
 import { Viewer } from './viewer.js';
 
+export type { Place } from './action-bar.js';
+
 /**
  * One subject: the render on the left, everything that is not the render on the
- * right.
+ * right, and what can be done about it underneath both.
  *
  * The split is not decoration. A reviewer decides from the defect list, the
  * record and the sentence explaining the verdict, and on a full-page capture all
  * three sat nine thousand pixels below the thing they are about. They are a
- * column now, and it does not move when the picture does.
+ * column now, and it does not move when the picture does. The moves are a bar
+ * that does not move either — see [`action-bar.tsx`](./action-bar.tsx).
  */
 export function SubjectPanel({
   client,
@@ -39,6 +44,8 @@ export function SubjectPanel({
   anchor,
   far,
   sourced,
+  place,
+  onGo,
   onDecided,
   onConcerned,
 }: {
@@ -52,6 +59,10 @@ export function SubjectPanel({
   readonly far?: Ruler | undefined;
   /** Whether the run resolved any source file — see {@link RegionTable}. */
   readonly sourced?: boolean | undefined;
+  /** Where this render sits in the rail's queue, for the bar's position and its keys. */
+  readonly place?: Place | undefined;
+  /** Open another render of this build; without it the bar offers no way along. */
+  readonly onGo?: ((subject: string) => void) | undefined;
   /**
    * Reads the build again; the panel takes no decision until it has. It reports
    * its own failure and never rejects: a build that cannot be read again is the
@@ -67,7 +78,11 @@ export function SubjectPanel({
   // under it. Apart from `failed` because it is not a failure to retry: the page
   // is out of date, and the remedy is to read the subject again.
   const [moved, setMoved] = useState<MovedBaseline | null>(null);
+  const [asked, setAsked] = useState<Asked | undefined>(undefined);
+  const [writing, setWriting] = useState(false);
   const page = useRef<HTMLDivElement>(null);
+
+  const suspect = (state: ConcernState): void => setAsked((was) => ({ state, seq: (was?.seq ?? 0) + 1 }));
 
   // This panel used to be remounted per subject, which threw away the comparison
   // mode and the magnification along with everything else — sixty re-clicks to
@@ -114,6 +129,7 @@ export function SubjectPanel({
 
   return (
     <section className="va-subject">
+      <div className="va-subject-panes">
       <div className="va-stage va-scroll" ref={page}>
         <div className="va-page">
           <header className="va-subject-head">
@@ -136,6 +152,7 @@ export function SubjectPanel({
               {subject.decision.note === undefined ? null : <> — {subject.decision.note}</>}
             </p>
           )}
+          {subject.decision === null && failed === null ? <p className="va-note">Undecided.</p> : null}
           {failed === null ? null : <p className="va-failure">{failed}</p>}
           {moved === null ? null : (
             <BaselineMovedNotice
@@ -145,34 +162,22 @@ export function SubjectPanel({
               onReload={() => void reload()}
             />
           )}
-          <p className="va-actions">
-            <button
-              type="button"
-              className="va-approve"
-              disabled={busy || !subject.approvable}
-              onClick={() => void decide('approved')}
-              title={
-                subject.approvable
-                  ? 'Make this build’s candidate the baseline'
-                  : 'This run kept no candidate image, so there is nothing to promote. Approving would mean rendering one now, which is recording rather than promoting.'
-              }
-            >
-              Approve
-            </button>
-            <button type="button" disabled={busy} onClick={() => void decide('rejected')}>
-              Reject
-            </button>
-          </p>
           {subject.approvable ? null : (
-            <p className="va-note" style={{ marginTop: '0.5rem' }}>
-              No candidate was uploaded for this subject, so it cannot be approved here.
-            </p>
+            <p className="va-note">No candidate was uploaded for this subject, so it cannot be approved here.</p>
           )}
         </section>
 
         <section className="va-card">
           <h2>Concerns</h2>
-          <Concerns client={client} reviewer={reviewer} build={build} subject={subject} onChanged={onConcerned} />
+          <Concerns
+            client={client}
+            reviewer={reviewer}
+            build={build}
+            subject={subject}
+            asked={asked}
+            onWriting={setWriting}
+            onChanged={onConcerned}
+          />
         </section>
 
         <section className="va-card">
@@ -190,6 +195,17 @@ export function SubjectPanel({
           <SubjectHistory client={client} subject={subject} />
         </section>
       </aside>
+      </div>
+
+      <ActionBar
+        subject={subject}
+        place={place}
+        busy={busy}
+        writing={writing}
+        onDecide={(decision) => void decide(decision)}
+        onSuspect={suspect}
+        onGo={onGo}
+      />
     </section>
   );
 }

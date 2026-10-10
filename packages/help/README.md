@@ -82,7 +82,7 @@ npx variance-authority-help search viewport --from packages/app/ --just-answer
 
 The verbs each take the same arguments as the tool of the same name below:
 `packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `orient`,
-`slowest-tests`, `journey-map`, `stack`, `gaps`. An entrypoint is
+`slowest-tests`, `journey-map`, `test-composition`, `stack`, `gaps`. An entrypoint is
 one import specifier a package's `exports` map opens — `@scope/pkg` and
 `@scope/pkg/deep` are two of them. Add `--root <dir>` when you are not standing
 in the repository you are asking about.
@@ -154,6 +154,7 @@ stays available without taking space from the first answer.
 | `orient` / `docs_orient` | nothing, an area id, or files you already have as paths from the root | with no files, the code map `variance index` keeps beside the source index: areas of packages with their size, dependency layers, most-imported packages and the areas they import from. With files, the package each file is in with the names it imports from other packages and the names they import from it, the recorded test cases that ran each file, the functions in other files that call into it and those it calls, with how each call is known, the [package flows](https://variance-authority.dev/docs/orientation#choose-the-entrance-from-what-you-have) those cases take through it, and the narrower questions to ask next; `path:line` narrows the calls to the function holding that line |
 | `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have entered (`to`), and how many rows to list | the test files, then the test cases, the latest recorded run spent longest in, with the duration their runner reported, and how many recorded files and cases have none |
 | `journey-map` / `docs_journey_map` | one file, optionally words of the task | how many recorded tests entered that file, the paths through each of its functions, then the code beyond it those tests entered, nearest first |
+| `test-composition` / `docs_test_composition` | a test file, optionally the test's name or a word of it | the smaller tests whose recorded regions sit inside this test's (its pieces), the larger tests holding it (its wholes), and the regions no piece entered: modules only it enters, and paths through a piece's modules only it takes. Regions more than half the suite entered are counted apart as structure. [Ask what one test is made of](https://variance-authority.dev/docs/own-fewer-tests#ask-what-one-test-is-made-of) |
 | `stack` / `docs_stack` | a file or folder | every third-party package that location can already use: its role, how the owning manifest declares it, its version, how many times the code imports it, and each agent skill it ships in `skills/<name>/SKILL.md`, with the file to read. [Use the packages your project already installed](https://variance-authority.dev/docs/tech-stack) |
 | `gaps` / `docs_gaps` | nothing | names other packages import that carry no documentation |
 
@@ -346,7 +347,7 @@ npx variance-authority-help .
 
 The tools are named `docs_packages`, `docs_entrypoint`, `docs_symbol`,
 `docs_uses`, `docs_search`, `docs_grep`, `docs_orient`, `docs_slowest_tests`,
-`docs_journey_map`, `docs_stack` and `docs_gaps`, and they answer in the same
+`docs_journey_map`, `docs_test_composition`, `docs_stack` and `docs_gaps`, and they answer in the same
 words as the verbs above. `variance serve` serves the same tools under the same names,
 so a workspace with the CLI declares one server and asks it about both the run
 and the source.

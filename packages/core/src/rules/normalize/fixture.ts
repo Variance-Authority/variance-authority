@@ -146,6 +146,7 @@ export interface CaptureSpec {
   readonly subjectId?: string;
   readonly engine?: string;
   readonly fonts?: readonly string[];
+  readonly baseUrl?: string;
 }
 
 export function capture(spec: CaptureSpec): RawCapture {
@@ -165,6 +166,7 @@ export function capture(spec: CaptureSpec): RawCapture {
     },
     root: spec.root,
     inheritedSeed: spec.inheritedSeed ?? {},
+    ...(spec.baseUrl !== undefined ? { baseUrl: spec.baseUrl } : {}),
     diagnostics: [],
   };
 }

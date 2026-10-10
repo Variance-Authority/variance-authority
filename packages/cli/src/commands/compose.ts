@@ -3,6 +3,7 @@ import {
   composeSubjects,
   lexiconOfValues,
   lexiconValuesOf,
+  piecesOf,
   structureOf,
   type Divergence,
   type Echo,
@@ -122,6 +123,7 @@ export function compositionOf(input: ComposeInput): CompositionReport | undefine
   );
 
   const echoes = composition.echoes.map(echoRecord);
+  const pieces = piecesOf(present);
 
   return {
     subjects: composition.subjects,
@@ -131,10 +133,10 @@ export function compositionOf(input: ComposeInput): CompositionReport | undefine
     movements: attribution.movements.map((movement) =>
       movementRecord(movement, attribution.flakes, attribution.suspects),
     ),
-    structure: present.map((subject) => ({
-      subject: subject.subject,
-      rows: structureOf(subject),
-    })),
+    structure: present.map((subject) => {
+      const held = pieces.get(subject.subject);
+      return { subject: subject.subject, rows: structureOf(subject), ...(held === undefined ? {} : { pieces: held }) };
+    }),
     ...(echoes.length > MAX_ECHOES ? { truncated: { echoes: echoes.length - MAX_ECHOES } } : {}),
   };
 }

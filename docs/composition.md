@@ -242,8 +242,8 @@ at that depth. A story usually mounts one thing; a page mounts a layout that
 mounts several, and calling the first of them the subject's component would be
 picking a winner out of document order.
 
-**Structure** is counted, never listed: a component more than half the suite
-mounts. A harness wrapper, a theme or store provider, a portal root, a
+**Structure** is counted, never listed: a component more than half the suite's
+subjects mount, each subject counted once however many times it mounts it. A harness wrapper, a theme or store provider, a portal root, a
 higher-order component every screen is wrapped in — each is mounted by nearly
 every subject, and none of them is what any subject is about. Counting rather
 than recognising is what survives a real application: nothing here detects that
@@ -262,15 +262,18 @@ this names more subjects than the plain rule and never fewer.
 | subject | example of | what that means |
 |---|---|---|
 | `ds/button--default` | `Button` | an atom, shown directly |
-| `ds/chip--group` | `Stack` | a `Stack` laying out chips. `Chip` has 21 instances and no example of its own |
+| `ds/chip--group` | `Chip` | chips, under a `Stack` most of the suite mounts |
+| `ds/text--scale` | `Stack` | a `Stack` laying out text. `Text` has no example of its own |
 | `page/footer--counts` | `TodoFooter` | a molecule, shown directly |
 | `page/todos--populated` | `TodoApp` | the organism |
 
 `ds/text--scale`, `ds/toggle--states` and `ds/chip--group` all wrap their subject
-in a layout component, so all three are examples of `Stack`, and `Text`, `Toggle`
-and `Chip` have none. A change to any of the three is reviewed through whatever
-page contains it. That is one wrapper away from being fixed and it is invisible
-until the suite is joined to itself.
+in a `Stack`. Most of the suite mounts a `Stack`, so the descent passes it, and
+the chip and toggle stories are examples of `Chip` and `Toggle`. Most of the
+suite mounts a `Text` too, so below the text story's wrapper there is nothing
+that is not structure, and it stays an example of `Stack`. A change to `Text` is
+reviewed through whatever page contains it, which is invisible until the suite
+is joined to itself.
 
 The organism end shows the opposite result. `TodoApp` is too large to describe in
 full, and nobody would write a story for its internals. But it is a boundary with
@@ -481,6 +484,69 @@ Three absences, three sentences. A report with no structure section means the
 tier did not compose; for a subject the plan listed and the run did not observe,
 the tool prints that and points at `variance_explain_verdict`; for an id the run
 never planned, it lists what the run did plan and points at `variance_locate`.
+
+### One subject, as the narrower subjects inside it
+
+A page story holds the footer, which holds the chips, and each has a story of
+its own. What the page watches that they do not is what is left when you take
+them away, rendering by rendering. `variance_composition {subject}` ends with
+that answer. For `page/todos--populated`, the todo list with items in it:
+
+```
+a footprint of 14 renderings; 3 structural components, mounted by more than half the suite, are left out.
+pieces, smaller subjects inside it, most shared first:
+  page/todos--empty  (9 of its 10 renderings inside it)
+  page/footer--counts  (4 of its 4 renderings inside it)
+  ds/chip--group  (3 of its 3 renderings inside it)
+  ds/field--empty  (2 of its 2 renderings inside it)
+  page/item--done  (2 of its 2 renderings inside it)
+pieces render 11 of its 14 renderings. The other 3 no piece renders:
+  in context, components a piece renders another way:
+    TodoList  (1 rendering; page/todos--empty renders it otherwise)
+    Toggle  (2 renderings; page/item--done renders it otherwise)
+```
+
+A subject's **footprint** is the distinct renderings it has — a component and
+the digest of what it rendered — less structure. A **piece** is any smaller
+subject with at least nine tenths of its footprint inside this one: a component
+story, or another page. A **whole** is a larger one holding at least nine tenths
+of this one's, and a subject with exactly the same footprint is named as alike
+rather than as either. Pieces overlap, so their shared counts add up to more
+than the 11 renderings they cover together. The empty page is a piece of the
+populated one with one rendering to spare: its list, which has no items.
+
+What no piece renders splits by component:
+
+- **Its own** is a component no piece mounts. A larger subject, or one that
+  is not a piece, may still show it; nothing narrower inside this subject does,
+  so this subject is the narrowest that catches a change there.
+- **In context** is a component a piece mounts and this subject renders another
+  way. The populated page's list has items and the empty page's does not; two of
+  its toggle renderings are states the done item does not show. A change to
+  either is the populated page's to catch.
+
+`page/todos--active-filter` is at the other end. `ds/chip--group` mounts the
+same `Chip`, but its chips render a selection the filter page's do not, so less
+than nine tenths of it is inside the page and it is not a piece. The page's only
+piece is `ds/field--empty`, and nearly all of it is its own.
+
+The run computes this once over every composed subject and writes it on each
+subject's record in the report's `structure` section, as `pieces`, because the
+echo list is capped and a reader without the snapshots could not rebuild it.
+The tool answers one subject. To read every page at once, walk the field in the
+parsed report:
+
+```ts
+for (const { subject, pieces } of report.composition?.structure ?? []) {
+  if (pieces === undefined || pieces.footprint === 0) continue;
+  const left = pieces.footprint - pieces.explained;
+  console.log(`${subject}: ${left} of ${pieces.footprint} renderings no piece renders`);
+}
+```
+
+A page with nothing left is one its pieces render entirely. A subject whose pieces render all of it is not therefore
+redundant: the arrangement between the pieces is not a rendering of any one
+component.
 
 ### The subject you can only describe
 

@@ -66,6 +66,8 @@ export interface ReadJournal {
     readonly shared: readonly number[];
     /** Entered before the file's first test ran: a consequence of loading, not of a test. */
     readonly loaded: readonly number[];
+    /** The test line each of `hits` was first reached under, one to one; absent where the case was not cut. */
+    readonly lines?: readonly number[];
   }>;
 }
 

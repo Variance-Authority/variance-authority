@@ -26,7 +26,8 @@ import { carriedSources } from './carried-sources.js';
 import { caseSectionsOf, withCaseSections } from './case-record.js';
 import { layerCaseIndex } from './case-layer.js';
 import { commitRunsFile, readCommitRuns, writeCommitRuns, type CommitRuns, type StandingEntry } from './commit-runs.js';
-import { decodeSetExecutionIndex, encodeOwnedSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
+import { linesOf } from './case-lines.js';
+import { decodeSetExecutionIndex, encodeOwnedSetExecutionIndex, openSetColumns, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes } from './eyes-record.js';
 import { decodeTestCoverage } from './format.js';
 import { layerTestCoverage } from './format-layer.js';
@@ -192,9 +193,22 @@ export function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array
         return test === undefined ? [] : [{ ...crossing, test }];
       }),
     }));
-    return blocks.some((block) => block.crossings.length > 0) ? [{ module: { ...module, blocks }, owner: opened.modules[place]?.owner }] : [];
+    return blocks.some((block) => block.crossings.length > 0) ? [{ module: { ...module, blocks }, owner: opened.modules[place]?.owner, place }] : [];
   });
-  const fresh = encodeOwnedSetExecutionIndex({ tests: cases, modules: kept.map(({ module }) => module) }, kept.map(({ owner }) => owner));
+  // A kept case's lines name its modules by place, so they follow the kept modules.
+  const table = openSetColumns(own)?.testLines;
+  const moved = new Map(kept.map(({ place }, to) => [place, to]));
+  const lines = table === undefined ? undefined : [...at.keys()].map((position) => {
+    const held = linesOf(table, position);
+    return held === undefined ? undefined : {
+      ...held,
+      segments: new Map([...held.segments].flatMap(([place, segment]) => {
+        const to = moved.get(place);
+        return to === undefined ? [] : [[to, segment] as const];
+      })),
+    };
+  });
+  const fresh = encodeOwnedSetExecutionIndex({ tests: cases, modules: kept.map(({ module }) => module) }, kept.map(({ owner }) => owner), lines);
   return layerCaseIndex(milestone, fresh, { ran: tests, finished: tests, present: () => true }).merged;
 }
 

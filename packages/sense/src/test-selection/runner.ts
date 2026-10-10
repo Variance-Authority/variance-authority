@@ -33,6 +33,7 @@ import { registerHooks, type ModuleHooks } from 'node:module';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
+import caseOwner from './case-owner.cjs';
 import { captureModule } from './captured-modules.js';
 import collectors from './collectors.cjs';
 import journalFormat from './journal-format.cjs';
@@ -303,7 +304,7 @@ export function observeTestFile(file: string): TestFileObserver | undefined {
       loaded ??= collector.seal(testFile);
       const declared = typeof name === 'string' ? name : name.join(' > ');
       return (globalThis as unknown as Scoped)[CASE_SCOPE].enter(
-        journalFormat.packCase(testFile, declared, String(ordinal++)),
+        caseOwner.packCase(testFile, declared, String(ordinal++)),
         body,
       );
     },

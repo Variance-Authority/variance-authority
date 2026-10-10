@@ -54,6 +54,7 @@ mod index_turn;
 mod instrument;
 mod journey;
 mod journey_columns;
+mod journey_compose;
 mod journey_forks;
 mod journey_format;
 mod journey_graph;

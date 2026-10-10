@@ -25,7 +25,11 @@ Out: **echoes** — one rendering with sites in more than one subject; **diverge
 rendering; and one movement per moved component, carrying its rung, the other
 subjects it moved in, and the **held** control group beside a count of what that
 control was drawn from. Plus two shortlists: the movements a **second reading**
-already found unstable, and the ones worth reading twice.
+already found unstable, and the ones worth reading twice. And per **subject**,
+its **pieces**: the smaller subjects with nine tenths of their renderings inside
+it, the larger ones holding nine tenths of its own, and what no piece renders,
+split into components only it mounts and components a piece renders another
+way.
 
 ## Depends on
 
@@ -92,6 +96,15 @@ control was drawn from is carried beside it, because zero means *nothing to
 compare against* and four with an empty list means *four were compared and every
 one of them moved too*, and those are opposite findings.
 
+Pieces are subtraction over renderings less structure: a component more than
+half the subjects mount is counted apart, once per subject however often one
+subject mounts it, or every page would hold every story. Containment is nine
+tenths rather than all, so one rendering of difference does not hide a piece.
+They are computed once per run over every composed subject and carried per
+subject, because the echo list is capped and a reader without the snapshots
+could not rebuild them. A subject its pieces render entirely is not redundant:
+the arrangement between the pieces is not a rendering of any one component.
+
 An unexplained movement is not a flake. It is a statement about the evidence
 this run assembled, not about the subject, and settling one is
 [stability](../../stability/README.md)'s instrument.
@@ -111,6 +124,8 @@ this run assembled, not about the subject, and settling one is
 - `packages/core/src/attribute/because.ts` — the sentence an unexplained
   movement carries
 - `packages/core/src/attribute/boundary.ts` — where a boundary is placed
+- `packages/core/src/attribute/subject-pieces.ts` — `piecesOf`; pieces, wholes
+  and the residue, per subject
 - `packages/cli/src/commands/compose.ts` — `compositionOf`; the run-level
   assembly and what reaches the artifact
 

@@ -1,4 +1,5 @@
 import type { BoundaryRow, CompositionReport, RunReport } from '@variance-authority/report';
+import { recallPieces } from './recall-pieces.js';
 
 /**
  * One subject, read from the inside: the recall the run wrote down per subject.
@@ -8,7 +9,8 @@ import type { BoundaryRow, CompositionReport, RunReport } from '@variance-author
  * boundaries it stands for. The echoes follow because they are what makes a
  * subject's composition worth knowing during a review: a rendering this subject
  * shares with the design-system story is a diff to read once, and the row that
- * holds it is the row to read it at.
+ * holds it is the row to read it at. Its pieces close it: the narrower subjects
+ * inside it, and what is left that only it watches.
  *
  * Three different absences, three sentences. A report from before the run
  * recorded structure has nothing per subject and says so; a subject the run did
@@ -71,6 +73,7 @@ export function recall(report: RunReport, composed: CompositionReport, subject: 
               (echo.example === undefined ? '' : ` (example ${echo.example})`),
           ),
         ].join('\n'),
+    record.pieces === undefined ? '' : recallPieces(record.pieces),
   ]
     .filter((section) => section !== '')
     .join('\n\n');

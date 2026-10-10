@@ -3,7 +3,7 @@ import { SHORTHAND_PROPERTIES } from '@variance-authority/core/rules';
 import { evaluateMedia, evaluateSupports, type ConditionEnvironment } from './media.js';
 import { splitSelectorList, specificityOf, type Specificity } from './specificity.js';
 import { items, propertyNames } from './dom-list.js';
-import { lastCompound } from './selector-parts.js';
+import { lastCompound, splitPseudoElement } from './selector-parts.js';
 import { STABILIZE_ATTRIBUTE } from './stabilize.js';
 
 /**
@@ -29,6 +29,13 @@ export interface IndexedRule {
   readonly specificity: Specificity;
   readonly order: number;
   readonly declarations: readonly Declaration[];
+  /**
+   * What the originating element must match: the branch without its trailing
+   * pseudo-element, or the branch itself when it styles an element.
+   */
+  readonly host: string;
+  /** The pseudo-element the rule styles, as `::before`; absent when it styles an element. */
+  readonly pseudo?: string;
   /** Rightmost simple selector, used to avoid testing every rule on every node. */
   readonly key: string;
   /** Some condition around this rule could not be evaluated with certainty. */
@@ -233,6 +240,8 @@ export function indexStyleSheets(
       if (declarations.length === 0) continue;
 
       for (const branch of splitSelectorList(rule.selectorText)) {
+        const split = splitPseudoElement(branch);
+        const host = split?.host ?? branch;
         const indexed: IndexedRule = {
           sheet,
           selector: rule.selectorText,
@@ -240,7 +249,9 @@ export function indexStyleSheets(
           specificity: specificityOf(branch),
           order: (order += 1),
           declarations,
-          key: rightmostKey(branch),
+          host,
+          ...(split ? { pseudo: split.pseudo } : {}),
+          key: rightmostKey(host),
           uncertain,
         };
 
