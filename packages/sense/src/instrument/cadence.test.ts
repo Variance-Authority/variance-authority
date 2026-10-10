@@ -1,7 +1,8 @@
 import { createRequire } from 'node:module';
 import { createContext, runInContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
-import { cadence, instrument } from './index.js';
+import { cadence } from './cadence.js';
+import { instrument } from './index.js';
 import probeCuts from './probe-cuts.cjs';
 import probeLog from './probe-log.cjs';
 

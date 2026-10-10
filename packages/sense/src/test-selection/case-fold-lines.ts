@@ -13,10 +13,8 @@ import { isWritten } from './written-lines.js';
  * region's set takes its own line, else its file's, and goes to that case's
  * builder: the lines are never held for the run's whole test-by-region product.
  *
- * A case has lines when its own frames were cut, or when they logged nothing
- * and some frame of its file was: the transform cuts a whole file or none of
- * it. Any other is a case whose lines were not recorded, such as one a helper
- * outside its file declared, whose body ran uncut.
+ * Only a case `linedCases` names has lines; any other is a case whose lines
+ * were not recorded.
  */
 export class FoldLines {
   readonly #lined: Uint8Array;
@@ -63,6 +61,21 @@ export class FoldLines {
     return this.#builders.map((builder, test) =>
       this.#lined[test] === 1 ? (builder ?? new CaseLinesBuilder()).finish() : undefined);
   }
+}
+
+/**
+ * 1 for each case with lines, or undefined where none has: one whose own
+ * frames were cut, or that logged nothing in a file some frame was cut in, the
+ * transform cutting a whole file or none of it. A case whose own frames logged
+ * uncut ran a body from another file — a helper outside it declared the case —
+ * and has none.
+ */
+export function linedCases(
+  cases: readonly { readonly file: string; readonly cut?: boolean; readonly uncut?: boolean }[],
+  cutFiles: ReadonlySet<string>,
+): Uint8Array | undefined {
+  const lined = Uint8Array.from(cases, ({ file, cut, uncut }) => (cut === true || (uncut !== true && cutFiles.has(file)) ? 1 : 0));
+  return lined.includes(1) ? lined : undefined;
 }
 
 /** The first test of each test's file, which an ambient frame's lines are kept under. */

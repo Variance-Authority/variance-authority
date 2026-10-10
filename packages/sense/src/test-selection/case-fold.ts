@@ -2,7 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { FreshCases, LaidRun } from './case-landing.js';
 import type { ModuleId } from '../instrument/index.js';
-import { FoldLines, fileStarts, writtenPlaces } from './case-fold-lines.js';
+import { FoldLines, fileStarts, linedCases, writtenPlaces } from './case-fold-lines.js';
 import { CrossingSets } from './crossing-sets.js';
 import { scanJournal, type JournalVisitor } from './crossing-fold.js';
 import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
@@ -45,7 +45,7 @@ export interface CaseRun {
   readonly testsByFile: ReadonlyMap<string, readonly [number, number]>;
   /** The cases that opened Eyes journals and what they handed over; absent when none did. */
   readonly eyes?: EyesSection;
-  /** 1 for each test whose own frame or whose file's ambient frame was cut; absent when no frame was. */
+  /** 1 for each test with lines, by `linedCases`; absent when no frame was cut. */
   readonly lined?: Uint8Array;
 }
 
@@ -94,10 +94,7 @@ export async function inspectCaseRun(
   const moduleIds = new Set<ModuleId>();
   // What Eyes handed each case, by coordinate key, in the order it arrived.
   const looked = new Map<string, Omit<RecordedEyes, 'case'>[]>();
-  // The test files a frame was cut in, and the frame being scanned. The
-  // transform cuts a file or leaves it whole, so a case of a cut file whose
-  // own bucket reached nothing still has lines; one whose bucket logged with
-  // no cut ran a body from another file, and has none.
+  // The test files a frame was cut in, and the frame being scanned: a case, or a file's ambient frame.
   const cutFiles = new Set<string>();
   let scanning: Coordinate | string = '';
   let frame = 0;
@@ -149,14 +146,8 @@ export async function inspectCaseRun(
         wants(id, cut) {
           moduleIds.add(id);
           const frameOf = scanning;
-          if (typeof frameOf === 'string') {
-            if (cut) cutFiles.add(frameOf);
-          } else if (cut) {
-            frameOf.cut = true;
-            cutFiles.add(frameOf.file);
-          } else {
-            frameOf.uncut = true;
-          }
+          if (cut) cutFiles.add(typeof frameOf === 'string' ? frameOf : frameOf.file);
+          if (typeof frameOf !== 'string') frameOf[cut ? 'cut' : 'uncut'] = true;
           return false;
         },
         module() { /* refused above */ },
@@ -186,8 +177,7 @@ export async function inspectCaseRun(
     testsByFile.set(tests[first]!.file, [first, last]);
     first = last;
   }
-  const lined = Uint8Array.from(ordered, (coordinate) =>
-    (coordinate.cut === true || (coordinate.uncut !== true && cutFiles.has(coordinate.file)) ? 1 : 0));
+  const lined = linedCases(ordered, cutFiles);
   const eyes = looked.size === 0 ? undefined : {
     watched: [...looked.keys()].map((key) => ids.get(key)!),
     journals: [...looked].flatMap(([key, rows]) => rows.map((row) => ({ case: ids.get(key)!, ...row }))),
@@ -195,7 +185,7 @@ export async function inspectCaseRun(
   return {
     root, paths, tests, frameTests, moduleIds: [...moduleIds], testsByFile,
     ...(eyes === undefined ? {} : { eyes }),
-    ...(lined.includes(1) ? { lined } : {}),
+    ...(lined === undefined ? {} : { lined }),
   };
 }
 

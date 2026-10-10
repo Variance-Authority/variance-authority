@@ -18,7 +18,7 @@
  * reporter's empty-record note is what the user reads.
  */
 
-import { cadence } from '../instrument/index.js';
+import { cadence } from '../instrument/cadence.js';
 import { captureModule } from './captured-modules.js';
 import { cleanId } from './instrumented-modules.js';
 import { runOf } from './selection-run.js';

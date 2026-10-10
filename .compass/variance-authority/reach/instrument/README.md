@@ -94,6 +94,8 @@ silently dropping evidence.
   reader of a module parses it in
 - `packages/sense/native/instrument/src/cadence.rs` — the cuts placed in a
   test file's test and hook bodies
+- `packages/sense/src/instrument/cadence.ts` — the seams' call into it, kept
+  off the published `instrument` entry
 - `packages/sense/src/instrument/probe-cuts.cts` — a cut at run time: the
   current bucket's log length beside the line
 - `packages/sense/src/test-selection/jest-transform.ts` — the handoff: a
