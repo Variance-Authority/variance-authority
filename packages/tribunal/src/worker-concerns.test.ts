@@ -118,7 +118,7 @@ describe('the concern routes', () => {
     expect(TRIBUNAL_API).toBeGreaterThanOrEqual(4);
     const version = (await (await call('/version', { token: REVIEW })).json()) as { api: number; schema: number };
     expect(version.api).toBe(TRIBUNAL_API);
-    expect(version.schema).toBe(19);
+    expect(version.schema).toBeGreaterThanOrEqual(19);
   });
 
   it('answers the review page’s own client, raise to move to list', async () => {

@@ -10,6 +10,7 @@ import type {
   SensitivityLedger,
   SubjectReach,
   VariationRecord,
+  VariationStep,
 } from '@variance-authority/report';
 import { asksRepeats } from './repeats.js';
 import {
@@ -177,6 +178,7 @@ export function toVariation(row: Row): VariationRecord {
   const components = optionalText(row, 'components', what);
   const digest = optionalText(row, 'digest', what);
   const how = optionalText(row, 'how', what);
+  const step = stepOf(optionalText(row, 'step', what));
 
   return {
     subject: text(row, 'subject', what),
@@ -188,7 +190,30 @@ export function toVariation(row: Row): VariationRecord {
     ...(components !== undefined ? { components: JSON.parse(components) as string[] } : {}),
     ...(digest !== undefined ? { digest } : {}),
     ...(how === 'declared' || how === 'named' ? { how } : {}),
+    ...(step !== undefined ? { step } : {}),
   };
+}
+
+/**
+ * A stored step, read back only when it is the whole coordinate.
+ *
+ * A step missing a value cannot place a subject, and placing it anyway would
+ * put a picture in the wrong cell of a grid somebody reads as a comparison. So
+ * anything short of three strings reads as no step, and the page draws the
+ * pair as a pair.
+ */
+function stepOf(stored: string | undefined): VariationStep | undefined {
+  if (stored === undefined) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stored);
+  } catch {
+    return undefined;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return undefined;
+  const { axis, from, to } = parsed as Record<string, unknown>;
+  if (typeof axis !== 'string' || typeof from !== 'string' || typeof to !== 'string') return undefined;
+  return { axis, from, to };
 }
 
 /**
