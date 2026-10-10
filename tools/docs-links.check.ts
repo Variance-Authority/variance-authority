@@ -251,6 +251,7 @@ const SOURCE: readonly string[] = execFileSync(
     '*.ts',
     '*.tsx',
     '*.mts',
+    '*.cts',
     '*.js',
     '*.jsx',
     '*.mjs',
@@ -324,6 +325,10 @@ describe('every path named in a comment exists', () => {
     // below all pass, having read nothing.
     expect(SOURCE.length).toBeGreaterThan(100);
     expect([...CLAIMED.values()].flat().length).toBeGreaterThan(50);
+  });
+
+  it.each(['.mts', '.cts', '.cjs'])('reads the comments of %s modules too', (extension) => {
+    expect(SOURCE.some((file) => file.endsWith(extension))).toBe(true);
   });
 
   it.each(SOURCE)('%s', (file) => {

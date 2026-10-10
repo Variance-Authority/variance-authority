@@ -10,6 +10,7 @@ import {
   PACKAGES,
   ROOT,
   declared,
+  sourceFiles,
   type Workspace,
 } from './workspaces.js';
 
@@ -44,6 +45,11 @@ import {
  */
 
 describe('a package declares what it imports', () => {
+  it.each(['.mts', '.cts', '.cjs'])('reads the imports of %s modules too', (extension) => {
+    const walked = ALL.flatMap((workspace) => sourceFiles(workspace.dir));
+    expect(walked.some((file) => file.endsWith(extension))).toBe(true);
+  });
+
   it.each(ALL.map((workspace) => [workspace.name, workspace] as const))(
     '%s imports nothing its manifest does not list',
     (_name, workspace) => {

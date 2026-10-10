@@ -65,6 +65,10 @@ describe('the ledger is discovered', () => {
     expect(COMMENTS.length).toBeGreaterThan(5);
   });
 
+  it.each(['.mts', '.cts', '.cjs'])('reads %s modules for markers too', (extension) => {
+    expect(tracked().some((file: string) => file.endsWith(extension))).toBe(true);
+  });
+
   it('finds todo tests', () => {
     expect(TODOS.length).toBeGreaterThan(5);
   });

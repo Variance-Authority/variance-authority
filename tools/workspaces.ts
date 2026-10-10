@@ -89,7 +89,7 @@ export function sourceFiles(dir: string, out: string[] = []): string[] {
     // `import()`s it and an adopter reaches for the extension that says so — and
     // leaving them out meant the one file this repository holds up as *the* thing
     // an adopter writes was invisible to every import rule below.
-    else if (/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(entry.name)) out.push(path);
+    else if (/\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(entry.name)) out.push(path);
   }
   return out;
 }
