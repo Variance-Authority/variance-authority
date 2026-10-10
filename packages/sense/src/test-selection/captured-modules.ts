@@ -178,6 +178,22 @@ function markLoaded(source: string, id: ModuleId): string {
   return `${source}\n;${probeRuntime(id, 1)}__vaE();`;
 }
 
+/**
+ * A text a transformer that places the probes itself handed back, with
+ * {@link markLoaded}'s mark at its end when no probe for `id` is in it.
+ *
+ * The instrumenter crate places nothing in a module it cannot parse, and the
+ * transformer runs that module as it is: unmarked, a test that loaded it would
+ * not hold it. `id` is the one {@link planModule} chose and the transformer was
+ * handed, so the reader parses the file again, fails again, and records the
+ * module as not instrumented, as it does for one {@link placeModule} marked.
+ * The probes write their id into the text, so its absence is the whole test,
+ * and the mark follows the last line, so no mapping the transformer wrote moves.
+ */
+export function markUnplaced(code: string, id: ModuleId): string {
+  return code.includes(id) ? code : markLoaded(code, id);
+}
+
 /** The hex half of a text's digest: a digest has no `@` in it, so the last one in an id is the separator. */
 function digestOf(code: string): string {
   const digest = digestString(code);

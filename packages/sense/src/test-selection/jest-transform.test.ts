@@ -302,6 +302,50 @@ module.exports = {
     expect(handed.source).toContain(JSON.stringify(markedId('src/pick.js', RAW)));
   });
 
+  it('marks a module it handed back with no probe placed, as the crate leaves one it cannot parse', async () => {
+    const root = await project('variance-jest-placing-');
+    // The crate places nothing in a text it cannot parse, and the transformer runs the text as it is.
+    await writeFile(
+      resolve(root, 'transformer.cjs'),
+      `module.exports = { senseRecipe: () => ${JSON.stringify(probeRecipe('presence'))}, process: (source) => ({ code: source }) };\n`,
+    );
+    const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs') });
+    const broken = 'export const = ;\n';
+
+    const done = transformer.process!(broken, resolve(root, 'src/broken.js'), transformOptions(root));
+
+    expect(done.code.startsWith(`${broken}\n;`)).toBe(true);
+    expect(done.code).toContain(JSON.stringify(moduleId('src/broken.js', broken)));
+    expect(done.code.endsWith('__vaE();')).toBe(true);
+  });
+
+  it('leaves a module it handed back with its probes placed as the transformer wrote it', async () => {
+    const root = await placing(OURS);
+    const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs') });
+
+    const done = await transformer.processAsync!(RAW, resolve(root, 'src/pick.js'), transformOptions(root));
+
+    expect(done.code).not.toContain('__vaE();');
+  });
+
+  it('reads `unprobed` as Jest reads `testMatch`, so a negated glob leaves a module probed', async () => {
+    const root = await placing(OURS);
+    const transformer = await createTransformer({
+      root,
+      transformer: resolve(root, 'transformer.cjs'),
+      unprobed: [`${root}/src/*.js`, `!${root}/src/pick.js`],
+    });
+
+    const kept = transformer.process!(RAW, resolve(root, 'src/pick.js'), transformOptions(root));
+    const marked = transformer.process!(RAW, resolve(root, 'src/other.js'), transformOptions(root));
+
+    expect(JSON.parse(kept.code)).toEqual({
+      source: RAW,
+      probes: { file: 'src/pick.js', module: moduleId('src/pick.js', RAW), mode: 'presence' },
+    });
+    expect((JSON.parse(marked.code) as { probes: unknown }).probes).toBeNull();
+  });
+
   it('is handed nothing to place in a test file', async () => {
     const root = await placing(OURS);
     const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs') });

@@ -66,7 +66,8 @@ export interface JestTestSelectionOptions {
    * Globs naming product source no probe may sit in: a module whose functions
    * cross into a page as text, where the first probe would throw. Relative
    * globs resolve against the root, as `preconditions` do; a module matches
-   * under the path Jest hands the transform or the source its map names. Each
+   * under the path Jest hands the transform or the source its map names, and
+   * a glob that opens on `!` leaves out what it matches, as in `testMatch`. Each
    * is marked as loaded at its end instead of probed, and an edit to it
    * selects every test that loaded it.
    */
@@ -295,7 +296,10 @@ export function withTestSelection(
   const inline = inlineProjects(config);
   const mode = options.mode;
   const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
-  const placing = { mode, unprobed: options.unprobed?.map((glob) => resolve(rootDir, glob)) };
+  // A negated glob stays negated: `!` is Jest's, not part of the path.
+  const unprobed = options.unprobed?.map((glob) =>
+    glob.startsWith('!') ? `!${resolve(rootDir, glob.slice(1))}` : resolve(rootDir, glob));
+  const placing = { mode, unprobed };
   const projects = inline?.map((project) =>
     instrumented(project, root, projectRoot(project, rootDir), placing, declared));
   const preconditions = [

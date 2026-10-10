@@ -22,7 +22,9 @@
  * instrumenter crate the package ships — says so with `senseRecipe`, and is
  * then handed each module untouched, with {@link SenseProbes} saying where its
  * probes go. A module `unprobed` names is marked here and handed over without
- * them, since the mark is not a probe the crate places.
+ * them, since the mark is not a probe the crate places. A module it hands back
+ * with no probe in it, which is what the crate leaves of one it cannot parse,
+ * is marked after the transform.
  */
 
 import { createHash } from 'node:crypto';
@@ -32,7 +34,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import picomatch from 'picomatch';
 import { probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';
-import { placeModule, planModule } from './captured-modules.js';
+import { markUnplaced, placeModule, planModule } from './captured-modules.js';
 import { defaultInclude } from './instrumented-modules.js';
 import type { SelectionTransformerConfig } from './jest.js';
 import type { TransformSourceMap } from './source-lines.js';
@@ -168,7 +170,7 @@ export async function createTransformer(
     processAsync: async (source, path, options) => {
       if (innerProcessAsync === undefined) return { code: place(root, path, options, source, how) };
       const handed = places ? handOver(root, path, forInner(options), source, how) : undefined;
-      if (handed !== undefined) return innerProcessAsync(source, path, handed);
+      if (handed !== undefined) return marked(await innerProcessAsync(source, path, handed), handed);
       return innerProcessAsync(place(root, path, options, source, how), path, forInner(options));
     },
   };
@@ -177,7 +179,7 @@ export async function createTransformer(
     transformer.process = (source, path, options) => {
       if (innerProcess === undefined) return { code: place(root, path, options, source, how) };
       const handed = places ? handOver(root, path, forInner(options), source, how) : undefined;
-      if (handed !== undefined) return innerProcess(source, path, handed);
+      if (handed !== undefined) return marked(innerProcess(source, path, handed), handed);
       return innerProcess(place(root, path, options, source, how), path, forInner(options));
     };
   }
@@ -231,16 +233,20 @@ function handOver(
   return plan.marked ? undefined : { ...options, senseProbes: { file: plan.file, module: plan.id, mode } };
 }
 
+/** What a transformer that places the probes made of a module it was handed probes for, marked when it placed none. */
+function marked(done: JestTransformedSource, handed: JestTransformRequest): JestTransformedSource {
+  const id = handed.senseProbes?.module;
+  return id === undefined ? done : { ...done, code: markUnplaced(done.code, id) };
+}
+
 /** The file as Jest read it is the text it handed over; any other is read from disk. */
 function originalOf(path: string, source: string): (at: string) => string {
   return (at) => (at === path ? source : readFileSync(at, 'utf8'));
 }
 
-/** The `unprobed` globs as one predicate over absolute paths, matched the way Jest matches `testMatch`. */
+/** The `unprobed` globs as one predicate over absolute paths, read as Jest reads `testMatch` ({@link globMatcher}). */
 function unprobedMatcher(globs: readonly string[] | undefined): ((file: string) => boolean) | undefined {
-  if (globs === undefined || globs.length === 0) return undefined;
-  const match = picomatch([...globs], { dot: true });
-  return (file) => match(file.replaceAll(/\\(?![$()+.?^{}])/g, '/'));
+  return globs === undefined || globs.length === 0 ? undefined : globMatcher(globs);
 }
 
 /** What Jest hashes when a transformer declares no key of its own. */
@@ -259,9 +265,8 @@ function defaultKey(source: string, path: string, options: JestTransformRequest)
 const testMatchers = new Map<string, (path: string) => boolean>();
 
 /**
- * Jest's own reading of `testMatch` and `testRegex`: a glob list where a path
- * must match one positive pattern and no negated one, dotfiles included, and a
- * regex list where any pattern decides.
+ * Jest's own reading of `testMatch` and `testRegex`: a glob list read by
+ * {@link globMatcher}, and a regex list where any pattern decides.
  */
 function isTestFile(path: string, config: JestProjectConfig): boolean {
   const globs = config.testMatch ?? [];
@@ -269,19 +274,25 @@ function isTestFile(path: string, config: JestProjectConfig): boolean {
   const identity = JSON.stringify([globs, regexes]);
   let matcher = testMatchers.get(identity);
   if (matcher === undefined) {
-    const positive = globs.filter((glob) => !glob.startsWith('!')).map((glob) => picomatch(glob, { dot: true }));
-    const negative = globs.filter((glob) => glob.startsWith('!')).map((glob) => picomatch(glob.slice(1), { dot: true }));
+    const matches = globMatcher(globs);
     const patterns = regexes.map((regex) => new RegExp(regex));
-    matcher = (candidate) => {
-      const slashed = candidate.replaceAll(/\\(?![$()+.?^{}])/g, '/');
-      return (
-        (positive.some((match) => match(slashed)) && !negative.some((match) => match(slashed))) ||
-        patterns.some((pattern) => pattern.test(candidate))
-      );
-    };
+    matcher = (candidate) => matches(candidate) || patterns.some((pattern) => pattern.test(candidate));
     testMatchers.set(identity, matcher);
   }
   return matcher(path);
+}
+
+/**
+ * Jest's reading of a glob list: a path matches one positive pattern and no
+ * negated one, dotfiles included, with a Windows separator read as `/`.
+ */
+function globMatcher(globs: readonly string[]): (path: string) => boolean {
+  const positive = globs.filter((glob) => !glob.startsWith('!')).map((glob) => picomatch(glob, { dot: true }));
+  const negative = globs.filter((glob) => glob.startsWith('!')).map((glob) => picomatch(glob.slice(1), { dot: true }));
+  return (path) => {
+    const slashed = path.replaceAll(/\\(?![$()+.?^{}])/g, '/');
+    return positive.some((match) => match(slashed)) && !negative.some((match) => match(slashed));
+  };
 }
 
 /**

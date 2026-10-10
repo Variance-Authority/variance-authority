@@ -259,6 +259,17 @@ describe('withTestSelection for Jest', () => {
     });
   });
 
+  it('keeps a negated unprobed glob negated when it resolves it under rootDir', () => {
+    const configured = withTestSelection(
+      { rootDir: '/repo', transform: { '\\.tsx?$': '@swc/jest' } },
+      { coverageFile: 'coverage.bin', unprobed: ['src/page/**', '!src/page/keep.ts'] },
+    );
+
+    expect(configured.transform).toEqual({
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest', unprobed: ['/repo/src/page/**', '!/repo/src/page/keep.ts'] }],
+    });
+  });
+
   it('refuses a project named by path rather than instrumenting half the run', () => {
     expect(() => withTestSelection({ projects: ['<rootDir>/packages/node'] }, { coverageFile: 'coverage.bin' }))
       .toThrow(/named by path/);
