@@ -408,17 +408,20 @@ cannot do three of these, so the collector applies them through the browser:
 
 - **the pointer** is moved to `(-1, -1)` once per page, before the first
   navigation. `(0, 0)` is not enough, because content at the top left stays
-  hovered there;
+  hovered there. On a page your test goes on using, it is moved there again
+  before every observation, which costs a frame each, and it is not put back:
+  a menu a script opened on hover is closed for your test's next step;
 - **the motion preference and the clock** are set before the first navigation,
   so the page's first script already reads them. Both stay set across
   navigations. The reading records the motion preference among the conditions
   its `@media` rules are resolved against, so a `prefers-reduced-motion` block
-  is read as the browser drew it. A host that declares its own
-  `prefers-reduced-motion` condition keeps its value, and the browser is asked
-  for that one instead;
+  is read as the browser drew it, and a `no-preference` block is not read at
+  all. A host that declares its own `prefers-reduced-motion` condition keeps
+  its value, and the browser is asked for that one instead;
 - **focus** is released in the page, right before the subject is read. On a
   page your test or agent goes on using, it goes back to the same element once
-  the reading, and any screenshot of it, is taken.
+  the reading, and any screenshot of it, is taken. What the page's blur
+  handlers did meanwhile, such as a validate-on-blur error, stays.
 
 The clock is `Date` and nothing else. A script added before the page's own
 replaces `new Date()`, `Date()` and `Date.now()` with one instant, and gives the
@@ -435,7 +438,12 @@ reads your clock.
 
 A fixed `Date` costs code that measures elapsed time with it. A debounce or a
 throttle timed with `Date.now()`, lodash's `debounce` among them, sees no time
-pass and never fires. Leave `freeze-clock` out of a page that waits on one
+pass and never fires, and a loop that waits for `Date.now()` to pass a mark
+never ends. The default instant is in the past, while the browser's cookie
+store keeps real time: a cookie your page's script sets with an expiry counted
+from `Date.now()` is already expired and is not stored, so a consent banner
+your test dismissed comes back after the next navigation. Leave `freeze-clock`
+out of such a page, or set an instant near today
 ([turning one off](#turning-one-off)).
 
 The default instant is `2024-06-15T12:00:00.000Z`. At noon UTC it is the same

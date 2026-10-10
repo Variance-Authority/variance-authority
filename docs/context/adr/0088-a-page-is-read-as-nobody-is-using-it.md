@@ -56,17 +56,34 @@ part of the environment key.**
   `@variance-authority/playwright-test` sets them through `driveBeforeTest`,
   before the test body runs; it leaves `no-hover` out, because a test moves the
   pointer as it goes, and moves the pointer off the page through
-  `driveBeforeRead` before each observation instead.
+  `driveBeforeRead` before each observation instead. That move costs a frame,
+  ~14 ms, on every observation: measured in Chromium, `:hover` matches nothing
+  from script after a Playwright hover, so the page cannot say the move is not
+  needed. The pointer is not put back, and the move fires `mouseleave`: a menu
+  a script opened on hover is closed for the test's next step.
 - **The motion preference has one owner.** With `reduced-motion` applied, the
   reading declares `prefers-reduced-motion: reduce` among the conditions its
   `@media` rules are resolved against, so a rule the live page applied is read
   as applied. A host that declares its own `prefers-reduced-motion` keeps it,
   and the browser is asked for that value, so the declaration and the
-  emulation cannot disagree.
+  emulation cannot disagree; a declared `no-preference` drops the
+  `reduced-motion` id, so the recipe does not claim a hold the page never had.
+- **Reduced motion is on, and the other branch is unread by default.** Every
+  rule under `@media (prefers-reduced-motion: no-preference)`, and every script
+  that switches on the preference, is left out of the default reading, so a
+  regression there is not seen. That is the price of the one trick that
+  reaches a script animation, which no stylesheet stops. ADR-0012 §5 asks for
+  the gap to stay visible, and it is: `reduced-motion` is in the recorded
+  recipe and its digest, and the media features the reading resolves against
+  say `reduce`. A project whose motion branch is the one under review leaves
+  `reduced-motion` out of its list, or declares `no-preference`.
 - **Focus is given back.** A host that reads a page somebody goes on using —
   the fixture's test, an agent's browser, a Vitest browser test — returns focus
   to the element that held it once the reading, and any screenshot of it, is
-  taken. A collector that owns its page does not.
+  taken. A collector that owns its page does not. Only focus is given back:
+  the blur ran the page's `blur` and `focusout` handlers, and what they did — a
+  validate-on-blur error, a combobox closed — stays, while the refocus runs the
+  `focus` handlers again.
 - **The clock is `Date` alone.** A script added before the page's own replaces
   `new Date()`, `Date()` and `Date.now()`, and gives the same instant to
   `Intl.DateTimeFormat`'s `format()` and `formatToParts()` without a date.
@@ -90,9 +107,11 @@ part of the environment key.**
   another.
 - **The timezone and the locale are pinned, and in the environment key.** The
   collectors' harness and the renderer open each page in the timezone and
-  locale the project declares, or in `UTC` and `en-US`, never the host's. The
-  `variance` fixture opens a test's page in `UTC` when the suite declares no
-  `timezoneId`, and Playwright Test already defaults the locale to `en-US`.
+  locale the project declares, or in `UTC` and `en-US`, never the host's.
+  `varianceFixtures` redefines Playwright's `timezoneId` as `UTC` when the
+  suite declares none, so every test of a suite extended with it opens in
+  `UTC`, including a test that never calls `variance`. Playwright Test already
+  defaults the locale to `en-US`.
   `createVariance` reads a page the caller opened and cannot pin it; it keys
   whatever that page runs in. Both values are environment inputs and enter both
   digests, the full and the semantic, because text is laid out and another date
@@ -148,6 +167,14 @@ part of the environment key.**
 - **A `Date` that advances from the fixed instant.** A debounce would fire, but
   the time a component prints would then depend on how long the page took to
   reach it, which is the second reading the trick exists to remove.
+- **Reduced motion off, as Chromatic leaves it.** The `no-preference` branch
+  would be read, and a script animation would run into every reading, with no
+  trick that reaches it.
+- **`DEFAULT_NOW` in the future.** A cookie the page sets with an expiry
+  counted from `Date.now()` would be stored, and a client that compares a
+  token's `exp` with `Date.now()` would refuse today's tokens as expired. One
+  of the two breaks whichever side of today the instant sits on; a past one
+  keeps "expired" stable across runs.
 - **The host's timezone and locale, keyed.** Every reading on a laptop outside
   `UTC` would be `incomparable` against a baseline made in CI, which is a
   baseline nobody can check locally.
@@ -179,9 +206,22 @@ results can stop getting them after the upgrade, with nothing in the failure
 naming the clock. The documentation and the changeset name the cost and the way
 out: `varianceStabilize: DEFAULT_STABILIZE.filter((id) => id !== 'freeze-clock')`.
 
+A fixed `Date` also stalls code that waits on it: a loop that spins until
+`Date.now()` passes a mark never ends and hangs the page, and an animation
+timed by `Date`, such as jQuery's `animate`, never calls its `complete`.
+
+`DEFAULT_NOW` is in the past, and the browser's cookie store keeps real time.
+A cookie a page script sets with an expiry counted from `Date.now()`, such as
+js-cookie's `Cookies.set(key, value, { expires: 365 })`, expires in 2025 and
+is never stored: a consent banner the test dismissed comes back after the next
+navigation, and a client-side "remember me" does not stick. A client that
+checks a token's `nbf` or `iat` against `Date.now()` can refuse a token issued
+today. Cookies a server sets keep real time and are not affected. The way out
+is a `varianceNow` near today, or `freeze-clock` left out.
+
 A test that asserts a date formatted in the host's timezone, on a host outside
 `UTC`, reads `UTC` after the upgrade; a `timezoneId` in the suite's `use` keeps
-its own.
+its own. That reaches every test of a suite extended with `varianceFixtures`.
 
 Not closed:
 

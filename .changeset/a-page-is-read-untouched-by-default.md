@@ -21,17 +21,23 @@ change.
 The standard collection recipe now also holds:
 
 - `no-hover`: the pointer is moved to `(-1, -1)`, off the page, once per page
-  before it loads. A test that observes after hovering has it moved again before
-  each observation.
+  before it loads. On the `variance` fixture's page it is moved again before
+  every observation, a frame each, and not put back: a menu a script opened on
+  hover is closed for your test's next step.
 - `no-focus`: whatever holds focus is blurred before the subject is read,
   including an element inside a shadow root. On a page your test or agent goes
   on using, focus goes back to that element once the reading and any screenshot
-  of it are taken, so a test types where it left off.
+  of it are taken, so a test types where it left off. The blur still ran the
+  page's blur handlers, and what they did, such as a validate-on-blur error,
+  stays.
 - `reduced-motion`: the browser reports `prefers-reduced-motion: reduce`, which
   stops the script animations of a page that honours it, and the reading
   declares the same preference among the conditions its `@media` rules are
   resolved against. A `prefers-reduced-motion` condition you declare through
-  `createHarness`'s `features` wins, and the browser is asked for that value.
+  `createHarness`'s `features` wins, and the browser is asked for that value;
+  a declared `no-preference` is not recorded as `reduced-motion`. Rules under
+  `@media (prefers-reduced-motion: no-preference)` are not read by default;
+  leave `reduced-motion` out to read them.
 - `freeze-clock`: `Date` reads one instant. A script added before the page's
   own replaces `new Date()`, `Date()` and `Date.now()`, and gives the same
   instant to `Intl.DateTimeFormat`'s `format()` and `formatToParts()` called
@@ -40,7 +46,12 @@ The standard collection recipe now also holds:
   clock is installed, so `page.clock` stays yours, and a clock your test
   installs replaces the fixed `Date`; the reading still records `freeze-clock`,
   so leave it out of the list when your test owns the clock. `Temporal.Now` and
-  `Date` inside a worker are not fixed.
+  `Date` inside a worker are not fixed. The default instant is in the past, and
+  the browser's cookie store keeps real time: a cookie your page's script sets
+  with an expiry counted from `Date.now()` is already expired and is not
+  stored, so a dismissed consent banner can come back after the next
+  navigation. Set `varianceNow` or `now` near today, or leave `freeze-clock`
+  out.
 
 The render and layout recipes gain `no-focus` alone, because a painted document
 still honours a collected `autofocus`. The other three have nothing to act on
