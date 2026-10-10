@@ -18,7 +18,7 @@
  * reporter's empty-record note is what the user reads.
  */
 
-import { cadence } from '../instrument/cadence.js';
+import { cadence, type CutSourceMap } from '../instrument/cadence.js';
 import { captureModule } from './captured-modules.js';
 import { cleanId } from './instrumented-modules.js';
 import { runOf } from './selection-run.js';
@@ -34,7 +34,7 @@ export interface SelectionLoaderContext {
   /** The file on disk, without a bundler's query suffix. */
   readonly resourcePath: string;
   readonly getOptions: () => SelectionLoaderOptions;
-  readonly callback: (error: null, code: string) => void;
+  readonly callback: (error: null, code: string, map?: CutSourceMap) => void;
 }
 
 /**
@@ -61,9 +61,12 @@ function instrumentModule(this: SelectionLoaderContext, code: string): void {
   if (captured !== undefined) run.modules.set(captured.module.id, captured.module);
   const probed = captured?.code ?? code;
   // A test file is then cut, so its case also says which of its lines was
-  // running. With no map: every probe and cut sits on the line it reports, so
-  // SWC's map from this text is a map from the file on disk.
-  this.callback(null, run.cases && run.cadence?.(file) === true ? cadence(probed, file) ?? probed : probed);
+  // running. Every probe and cut sits on the line it reports, so SWC's map from
+  // this text names the file's lines; the cut's map moves its columns back, so
+  // an inline snapshot is written into the call the test wrote.
+  const cut = run.cases && run.cadence?.(file) === true ? cadence(probed, file) : undefined;
+  if (cut === undefined) this.callback(null, probed);
+  else this.callback(null, cut.code, cut.map);
 }
 
 // Named here and exported as the default, because a loader is named by path:

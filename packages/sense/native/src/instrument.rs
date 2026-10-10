@@ -78,9 +78,19 @@ pub fn probe_recipe(entries: bool) -> String {
     recipe(if entries { Mode::Entries } else { Mode::Presence })
 }
 
+/// A cut test file, the `mappings` of the map back to the text it was handed,
+/// and the `[line, column, length]` shifts they were made from.
+#[napi(object)]
+pub struct Cadence {
+    pub code: String,
+    pub mappings: String,
+    pub shifts: Vec<u32>,
+}
+
 /// A test file with a cut before each statement of its test and hook bodies,
 /// or `null` when it does not parse or holds none: `cadence.rs`.
 #[napi]
-pub fn cadence(source: String, file: String) -> Option<String> {
+pub fn cadence(source: String, file: String) -> Option<Cadence> {
     variance_sense_instrument::cadence(&source, &file)
+        .map(|cut| Cadence { code: cut.code, mappings: cut.mappings, shifts: cut.shifts })
 }

@@ -25,6 +25,7 @@
 //! collectors read.
 
 mod cadence;
+mod cadence_map;
 mod cut;
 mod dialect;
 /// The digest every stored text is named by; [`module_id`] is the one a
@@ -34,7 +35,7 @@ pub mod digest;
 mod header;
 mod walk;
 
-pub use cadence::cadence;
+pub use cadence::{cadence, Cadence};
 pub use header::EVALUATING;
 
 /// How many regions a module is cut into.

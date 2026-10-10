@@ -2,7 +2,7 @@ import { existsSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
 import type { UserConfig } from 'vitest/config';
-import { cadence } from '../instrument/cadence.js';
+import { cadence, type CutSourceMap } from '../instrument/cadence.js';
 import type { InstrumentMode } from '../instrument/index.js';
 import { captureModule, pathOf } from './captured-modules.js';
 import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
@@ -109,7 +109,7 @@ interface VitePlugin extends ConfigPlugin {
   readonly config: (config: TestConfig) => void;
   readonly transform: {
     readonly order: 'pre';
-    readonly handler: (code: string, id: string) => { code: string; map: null } | null;
+    readonly handler: (code: string, id: string) => { code: string; map: CutSourceMap | null } | null;
   };
   readonly closeBundle: () => Promise<void>;
   readonly watchChange: (id: string) => void;
@@ -383,17 +383,20 @@ function selectionPlugin(
       // A test file is probed when `include` takes it, and then cut, so its
       // case also says which of its lines was running. The file itself only —
       // a query asks for a module built from it. Both keep every line where it
-      // was.
+      // was; the cut's map moves its columns back, so an inline snapshot is
+      // written into the call the test wrote.
       const cutting = cut !== undefined && id === file && run.cases && cut(file);
-      const cutOf = (text: string) => (cutting ? cadence(text, file) : undefined);
+      const cutOf = (text: string) => {
+        const cutFile = cutting ? cadence(text, file) : undefined;
+        return cutFile === undefined ? undefined : { code: cutFile.code, map: cutFile.map };
+      };
       // Its probes report under the file the transform was handed: a source and
       // its build both answer to the name, each with its own regions, and the
       // fold joins them (see `joinReadings`). Vitest re-transforms every run in
       // this process, so the modules stay in this map.
       const captured = captureModule(root, file, code, include, mode);
       if (captured === undefined) {
-        const cutCode = cutOf(code);
-        return cutCode === undefined ? null : { code: cutCode, map: null };
+        return cutOf(code) ?? null;
       }
       // Only the file itself: any query, such as `?raw`, asks for a module built
       // from it. In a page, `vi.mock` loads its mock under the file's name.
@@ -407,8 +410,7 @@ function selectionPlugin(
       }
       modules.set(captured.module.id, captured.module);
       const probed = captured.code ?? code;
-      const text = cutOf(probed) ?? probed;
-      return text === code ? null : { code: text, map: null };
+      return cutOf(probed) ?? (probed === code ? null : { code: probed, map: null });
     } },
   };
 }

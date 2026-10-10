@@ -30,7 +30,8 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import picomatch from 'picomatch';
-import { cadence } from '../instrument/cadence.js';
+import { cadence, type CutTestFile } from '../instrument/cadence.js';
+import { behindCut, inlineBehindCut } from './cut-map.js';
 import { probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { captureModule, planModule } from './captured-modules.js';
 import { defaultInclude } from './instrumented-modules.js';
@@ -137,8 +138,19 @@ export async function createTransformer(
   }
   const excluded = new Set((config.exclude ?? []).map((file) => resolve(file)));
   const cuts = config.cadence !== false;
-  const textOf = (source: string, path: string, options: JestTransformRequest): string =>
-    cuts && isTestFile(path, options.config) ? cadence(source, path) ?? source : source;
+  const cutOf = (source: string, path: string, options: JestTransformRequest): CutTestFile | undefined =>
+    cuts && isTestFile(path, options.config) ? cadence(source, path) : undefined;
+  // The project's transformer maps the cut text, so its map is moved back to
+  // the file on disk: Jest writes an inline snapshot into the call a frame
+  // names, by line and column, and refuses a file whose calls it cannot find.
+  // A transformer that returns no map, `@swc/jest` among them, leaves it inline.
+  const behind = (transformed: JestTransformedSource, cut: CutTestFile | undefined): JestTransformedSource => {
+    if (cut === undefined) return transformed;
+    if (transformed.map == null || transformed.map === '') {
+      return { ...transformed, code: inlineBehindCut(transformed.code, cut.shifts) };
+    }
+    return { ...transformed, map: behindCut(transformed.map, cut.shifts) };
+  };
   const forInner = (options: JestTransformRequest): JestTransformRequest => ({
     ...options,
     ...(innerConfig === undefined ? {} : { transformerConfig: innerConfig }),
@@ -168,22 +180,38 @@ export async function createTransformer(
     getCacheKeyAsync: async (source, path, options) =>
       keyOf(source, path, options, await innerKeyAsync?.(source, path, forInner(options))),
     processAsync: async (source, path, options) => {
-      const text = textOf(source, path, options);
-      if (innerProcessAsync === undefined) return { code: place(root, path, options, text, mode, excluded) };
-      if (places) return innerProcessAsync(text, path, handOver(root, path, forInner(options), text, mode, excluded));
-      return innerProcessAsync(place(root, path, options, text, mode, excluded), path, forInner(options));
+      const cut = cutOf(source, path, options);
+      const text = cut?.code ?? source;
+      if (innerProcessAsync === undefined) return bare(root, path, options, text, mode, excluded, cut);
+      if (places) return behind(await innerProcessAsync(text, path, handOver(root, path, forInner(options), text, mode, excluded)), cut);
+      return behind(await innerProcessAsync(place(root, path, options, text, mode, excluded), path, forInner(options)), cut);
     },
   };
   const innerProcess = inner?.process?.bind(inner);
   if (inner === undefined || innerProcess !== undefined) {
     transformer.process = (source, path, options) => {
-      const text = textOf(source, path, options);
-      if (innerProcess === undefined) return { code: place(root, path, options, text, mode, excluded) };
-      if (places) return innerProcess(text, path, handOver(root, path, forInner(options), text, mode, excluded));
-      return innerProcess(place(root, path, options, text, mode, excluded), path, forInner(options));
+      const cut = cutOf(source, path, options);
+      const text = cut?.code ?? source;
+      if (innerProcess === undefined) return bare(root, path, options, text, mode, excluded, cut);
+      if (places) return behind(innerProcess(text, path, handOver(root, path, forInner(options), text, mode, excluded)), cut);
+      return behind(innerProcess(place(root, path, options, text, mode, excluded), path, forInner(options)), cut);
     };
   }
   return transformer;
+}
+
+/** What no wrapped transformer touches: the probes, or the cut and its map. */
+function bare(
+  root: string,
+  path: string,
+  options: JestTransformRequest,
+  text: string,
+  mode: InstrumentMode,
+  excluded: ReadonlySet<string>,
+  cut: CutTestFile | undefined,
+): JestTransformedSource {
+  const code = place(root, path, options, text, mode, excluded);
+  return cut === undefined ? { code } : { code, map: JSON.stringify(cut.map) };
 }
 
 /**

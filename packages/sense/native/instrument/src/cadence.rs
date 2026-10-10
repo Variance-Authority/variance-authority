@@ -3,7 +3,8 @@
 
 //!
 //! The call is `__vaC(line)`, inserted on the statement's own line in front of
-//! it, so the text keeps every line and only columns move, as with the probes.
+//! it, so the text keeps every line and only columns move, and the map in
+//! `cadence_map.rs` moves them back.
 //! It stops at a nested function — the callback an `act` or a `waitFor` is
 //! handed is part of the statement that hands it — and it goes into a nested
 //! block, since a statement inside an `if` of the test is still the test's.
@@ -23,7 +24,16 @@ use oxc_ast_visit::{walk, Visit};
 use oxc_parser::Parser;
 use oxc_span::GetSpan;
 
+use crate::cadence_map::mappings;
 use crate::dialect::dialect;
+
+/// A cut test file, with the `mappings` of its source map and the shifts they
+/// were made from: `cadence_map.rs`.
+pub struct Cadence {
+    pub code: String,
+    pub mappings: String,
+    pub shifts: Vec<u32>,
+}
 
 /// The calls whose function argument is a test or a hook body, by the name
 /// the callee chain starts from: `it.each(…)(…)` and `test.only(…)` start from
@@ -36,7 +46,7 @@ const DECLARATION: &str =
 
 /// The test file with a cut before each statement of its test and hook bodies,
 /// or nothing when it does not parse or holds no such body.
-pub fn cadence(source: &str, file: &str) -> Option<String> {
+pub fn cadence(source: &str, file: &str) -> Option<Cadence> {
     let allocator = Allocator::new();
     let source_type = dialect(file).unwrap_or_default();
     let parsed = Parser::new(&allocator, source, source_type).parse();
@@ -60,7 +70,8 @@ pub fn cadence(source: &str, file: &str) -> Option<String> {
         read = *at as usize;
     }
     code.push_str(&source[read..]);
-    Some(code)
+    let (mappings, shifts) = mappings(source, &cuts.edits);
+    Some(Cadence { code, mappings, shifts })
 }
 
 struct Cuts {
@@ -205,7 +216,7 @@ mod tests {
     use super::*;
 
     fn cut(source: &str) -> String {
-        cadence(source, "a.test.ts").expect("it parses and has a test")
+        cadence(source, "a.test.ts").expect("it parses and has a test").code
     }
 
     #[test]
@@ -275,19 +286,19 @@ mod tests {
 
     #[test]
     fn a_file_with_no_test_body_or_no_parse_is_left_alone() {
-        assert_eq!(cadence("export const a = 1;\n", "a.test.ts"), None);
-        assert_eq!(cadence("it('t', () => {", "a.test.ts"), None);
+        assert!(cadence("export const a = 1;\n", "a.test.ts").is_none());
+        assert!(cadence("it('t', () => {", "a.test.ts").is_none());
     }
 
     #[test]
     fn jsx_in_a_test_parses_by_extension() {
-        let out = cadence("it('t', () => {\n  render(<A />);\n});\n", "a.test.tsx").expect("tsx parses");
+        let out = cadence("it('t', () => {\n  render(<A />);\n});\n", "a.test.tsx").expect("tsx parses").code;
         assert!(out.contains("__vaC(2);render(<A />);"), "{out}");
     }
 
     #[test]
     fn jsx_in_a_javascript_test_parses() {
-        let out = cadence("it('t', () => {\n  render(<A />);\n});\n", "a.test.js").expect("js parses with jsx");
+        let out = cadence("it('t', () => {\n  render(<A />);\n});\n", "a.test.js").expect("js parses with jsx").code;
         assert!(out.contains("__vaC(2);render(<A />);"), "{out}");
     }
 }
