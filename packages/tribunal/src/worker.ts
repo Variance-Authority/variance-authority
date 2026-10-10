@@ -57,6 +57,7 @@ import {
   createAttestedRoutes,
   type AttestedRoute,
 } from './worker-attested.js';
+import { CONCERNS_PATH, createConcernRoutes, type ConcernRoute } from './worker-concerns.js';
 import { SHARE_PREFIX, createShareRoutes, type ShareRoute } from './worker-share.js';
 
 /**
@@ -191,6 +192,7 @@ export function createTribunal(options: TribunalOptions): Tribunal {
   const review = createReviewStore(options);
   const share = createShareRoutes(options);
   const attested = createAttestedRoutes(review);
+  const concerns = createConcernRoutes(options);
   const retentionDays = options.retentionDays ?? 30;
 
   return {
@@ -208,7 +210,12 @@ export function createTribunal(options: TribunalOptions): Tribunal {
       }
 
       try {
-        return await route({ baselines, history, review, attested, share, retentionDays }, granted, url, request);
+        return await route(
+          { baselines, history, review, attested, share, concerns, retentionDays },
+          granted,
+          url,
+          request,
+        );
       } catch (error) {
         if (error instanceof BadRequest) return json(400, { error: error.message });
         if (error instanceof Forbidden) return json(403, { error: error.message });
@@ -231,6 +238,7 @@ interface Surfaces {
   readonly review: ReturnType<typeof createReviewStore>;
   readonly attested: AttestedRoute;
   readonly share: ShareRoute;
+  readonly concerns: ConcernRoute;
   readonly retentionDays: number;
 }
 
@@ -390,6 +398,7 @@ async function route(
   }
 
   // ---------------------------------------------------------------- review
+  if (path === CONCERNS_PATH || path.startsWith(`${CONCERNS_PATH}/`)) return surfaces.concerns(granted, url, request);
   if (path === '/review/builds' && request.method === 'POST') {
     // The one review route the ingest token owns, and the only one it owns:
     // posting a build is what CI does, and everything else on this surface is
@@ -483,15 +492,13 @@ async function route(
       `${CACHE_FIND_PATH}, ${CACHE_PUT_PATH}), the history routes (${OBSERVATIONS_PATH}, ` +
       `${APPROVALS_PATH}, ${CURRENT_PATH}, ${LAST_CHANGED_PATH}, ${CHURN_PATH}, ` +
       `${FLAKINESS_PATH}, ${VALUE_JOURNEY_PATH}, ${REACH_PATH}), /review/builds, /review/have, ` +
-      `${CHANGELOG_PATH}, ${DECISIONS_PATH} and the share under ${SHARE_PREFIX}. ` +
+      `${CHANGELOG_PATH}, ${DECISIONS_PATH}, ${CONCERNS_PATH} and the share under ${SHARE_PREFIX}. ` +
       `${VERSION_PATH} says which API ` +
       'version this is: a path from a different one is a client and a service that disagree ' +
       'about a recorded shape',
   });
 }
 
-/** Re-exported so a Worker entry can recognise a store failure without a second import. */
+/** Re-exported so an entry can recognise a store failure, and read the contract the router answers with. */
 export { RasterStoreError };
-
-/** Re-exported so an entry, and a test, can read the contract the router answers with. */
 export { TRIBUNAL_API, VERSION_PATH, serviceVersion, type ServiceVersion } from './version.js';

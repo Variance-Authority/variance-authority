@@ -28,6 +28,7 @@ import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { BuildDetail } from '../review-types.js';
 import { ChangePanel } from './change.js';
 import type { ReviewClient } from './client.js';
+import { ConcernTallyLine, useConcernTally } from './concerns.js';
 import { useCrossing, type Crossing } from './crossing.js';
 import { distanceFrom } from './distance.js';
 import { Impact } from './impact.js';
@@ -117,6 +118,7 @@ function Build({
   readonly reload: () => void;
 }): ReactElement {
   const crossing = useCrossing(client, build);
+  const concerns = useConcernTally(client, build.build);
   const order: Order = (route.page === 'build' ? route.order : undefined) ?? 'story';
 
   const { origins } = originsOf(build);
@@ -141,6 +143,7 @@ function Build({
         <span className={build.pending > 0 ? 'va-pill va-warn' : 'va-pill va-good'}>
           {build.pending > 0 ? `${number(build.pending)} awaiting review` : 'settled'}
         </span>
+        <ConcernTallyLine tally={concerns.tally} />
         <span className="va-topbar-meta">
           <code className="va-commit">{build.commit.slice(0, 8)}</code>
           {build.branch === undefined ? null : <span>{build.branch}</span>}
@@ -193,6 +196,7 @@ function Build({
               {...(anchor === undefined ? {} : { anchor, far: distanceFrom(build, anchor) })}
               sourced={build.causes.some((cause) => cause.file !== undefined)}
               onDecided={reload}
+              onConcerned={concerns.refresh}
             />
           ) : open !== undefined ? (
             <ChangePanel

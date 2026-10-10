@@ -32,8 +32,8 @@ the token a developer's machine reads a share with.
 **The share token reads what review settled, and never decides.**
 
 - `attested()` admits the review token and the share token, and refuses the
-  ingest token. It guards `GET /review/changelog` and `GET /review/decisions`
-  and nothing that writes.
+  ingest token. It guards `GET /review/changelog`, `GET /review/decisions` and
+  `GET /review/concerns`, and nothing that writes.
 - A route that writes a decision or a concern keeps `requires(granted,
   'review')`, so the share token reaching it is a 403, as before.
 - `GET /review/decisions` names a build, a subject or both, and reads at most
@@ -54,8 +54,8 @@ CLI and the MCP server take it from the `share` declaration, and every example
 shows `{ "env": "VARIANCE_SHARE_TOKEN" }`. A literal in a committed config file
 is a token in every clone.
 
-**The API version moves to 4**, because a CLI reading through these routes
-against a deployment at 3 gets a 403 or a 404 and has to say why.
+**The API version moves to 5**, because a CLI reading through these routes
+against a deployment at 4 gets a 403 or a 404 and has to say why.
 
 ## Consequences
 
@@ -67,7 +67,7 @@ against a deployment at 3 gets a 403 or a 404 and has to say why.
   nothing about who may decide changed. The exception is a Node deployment bound
   to loopback, which grants `review` to a request with no token: an agent on that
   machine decides by sending none, as it could before.
-- A share token handed out before API 4 reads reviewer names and notes once the
+- A share token handed out before API 5 reads reviewer names and notes once the
   deployment is redeployed. There is no setting to withhold it; an operator who
   does not want an existing holder to read them rotates the share token first.
 - Only a share stored at the deployment supplies the token that reads it. A

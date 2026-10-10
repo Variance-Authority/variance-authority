@@ -108,12 +108,15 @@
     "!dist/**/*.d.ts.map",
     "!dist/native",
     "mark.svg",
+    "native/instrument/Cargo.toml",
+    "native/instrument/build.rs",
+    "native/instrument/src/*.rs",
     "scripts/overhead.mjs",
     "scripts/probe-write.mjs"
   ],
   "scripts": {
     "build": "tsc --build && node native/build.mjs",
-    "test:native": "cargo test --manifest-path native/Cargo.toml --lib --locked",
+    "test:native": "cargo test --manifest-path native/Cargo.toml --workspace --lib --locked && node native/consumer.mjs",
     "storage": "node scripts/storage.mjs",
     "overhead": "node scripts/overhead.mjs",
     "probe-write": "node scripts/probe-write.mjs",

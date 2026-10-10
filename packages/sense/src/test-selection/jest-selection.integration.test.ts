@@ -27,6 +27,10 @@ afterAll(async () => {
 
 /** One run of the Jest fixture, handed `skip`: what it printed and which test files it recorded. */
 async function run(name: string, skip: readonly string[], ...args: string[]) {
+  return runWith(name, { FIXTURE_SKIP: JSON.stringify(skip) }, ...args);
+}
+
+async function runWith(name: string, fixtureEnv: Record<string, string>, ...args: string[]) {
   const coverageFile = resolve(directory, `${name}.bin`);
   const { stdout, stderr } = await execute(
     process.execPath,
@@ -38,7 +42,7 @@ async function run(name: string, skip: readonly string[], ...args: string[]) {
         VARIANCE_AUTHORITY_COVERAGE: coverageFile,
         VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'jest-cache'),
         VARIANCE_AUTHORITY_CACHE: resolve(directory, name),
-        FIXTURE_SKIP: JSON.stringify(skip),
+        ...fixtureEnv,
       },
     },
   );
@@ -69,6 +73,48 @@ describe('a Jest run handed a selection', () => {
 
     expect(stdout).not.toContain('alpha.case.ts');
     expect(stdout).toContain('beta.case.ts');
+  }, 60_000);
+});
+
+describe('a Jest run handed the cases to skip in a file it runs', () => {
+  // Two files, two workers, and a Jest cache with no times in it, which Jest
+  // would otherwise read as fast tests and run in band: the cut reaches a
+  // worker the filter's process forked.
+  it('runs the other cases of that file, in a worker, and records the file incomplete', async () => {
+    const report = resolve(directory, 'cut.json');
+    await runWith('cut', {
+      FIXTURE_SKIP: JSON.stringify(FOUND.filter((file) => !/alpha|beta/.test(file))),
+      FIXTURE_CASES: JSON.stringify({ [at('test/alpha.case.ts')]: ['ran after the project\'s own setup file'] }),
+      VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'jest-cache-cut'),
+    }, '--maxWorkers=2', '--json', '--outputFile', report);
+    const { testResults } = JSON.parse(await readFile(report, 'utf8')) as {
+      testResults: { name: string; assertionResults: { title: string; status: string }[] }[];
+    };
+    const alpha = testResults.find((file) => file.name.endsWith('alpha.case.ts'))!;
+    const recorded = decodeTestCoverage(await readFile(resolve(directory, 'cut.bin'))).tests;
+
+    expect(alpha.assertionResults.map(({ title, status }) => [title, status])).toEqual([
+      ['takes the alpha path', 'passed'],
+      ['ran after the project\'s own setup file', 'pending'],
+      ['is skipped, and so never reaches the B branch this file is not selected for', 'pending'],
+    ]);
+    expect(recorded.map(({ file, complete }) => ({ file, complete }))).toEqual([
+      { file: at('test/alpha.case.ts'), complete: false },
+      { file: at('test/beta.case.ts'), complete: true },
+    ]);
+  }, 60_000);
+});
+
+describe('a Jest run whose cut is gone', () => {
+  // A Jest started by a test inherits the variable, and the run that wrote the
+  // cut removes the file when it completes.
+  it('runs every case, as a run with no cut does', async () => {
+    const { ran } = await runWith('gone', {
+      FIXTURE_SKIP: JSON.stringify([]),
+      VARIANCE_AUTHORITY_TEST_SELECTION_CUT: resolve(directory, 'no-such-cut.json'),
+    });
+
+    expect(ran).toEqual(FOUND);
   }, 60_000);
 });
 

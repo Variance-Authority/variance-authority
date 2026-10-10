@@ -27,11 +27,11 @@ pub struct Precondition {
 }
 
 /// What a frame owner says its case arranged: `None` when a writer that never
-/// listened wrote it, empty when the case said nothing. `saidOf` in `case-preconditions.cts`.
+/// listened wrote it — the field empty or missing — and empty when the case
+/// said nothing, `[]`. `saidOf` in `case-preconditions.cts`.
 pub fn said_of(packed: &str) -> Result<Option<Vec<Precondition>>, String> {
     match packed.split('\0').nth(5) {
-        None => Ok(None),
-        Some("") => Ok(Some(Vec::new())),
+        None | Some("") => Ok(None),
         Some(field) => parsed(field, damaged_cases).map(Some),
     }
 }

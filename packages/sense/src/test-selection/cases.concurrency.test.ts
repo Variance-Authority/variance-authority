@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
-import { PROBE_RUNTIME } from '../instrument/index.js';
+import { probeRuntime } from '../instrument/index.js';
 import journals from './journal-format.cjs';
 
 /**
@@ -27,8 +27,7 @@ const nap = (ms: number): Promise<void> => new Promise((wake) => setTimeout(wake
  * imports do.
  */
 function probeIn(holder: object): Probe {
-  const runtime = PROBE_RUNTIME.replace('.r("",0)', '.r("m",8)');
-  expect(runtime).not.toBe(PROBE_RUNTIME);
+  const runtime = probeRuntime('m', 8);
   return new Function('globalThis', `${runtime}__vaE();return __va;`)(holder) as Probe;
 }
 

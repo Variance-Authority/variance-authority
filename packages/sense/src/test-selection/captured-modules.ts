@@ -19,7 +19,7 @@ import { digestString } from '../digest.js';
 import { instrument, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { recordedBlocks } from './coverage-rows.js';
 import { isMissing, projectPath, type CapturedModule } from './instrumented-modules.js';
-import { handedTexts, rawFrame } from './source-lines.js';
+import { handedTexts, rawFrame, type RawFrame } from './source-lines.js';
 
 /** A module cut into regions, and the text that carries its probes. */
 export interface Captured {
@@ -31,27 +31,48 @@ export interface Captured {
 }
 
 /**
- * Cut one module, as a transform is handed it, and place its probes.
+ * Where one module's probes go, as a transform is handed it.
  *
  * `path` is the absolute file the text came from, and `code` that text before
  * any other transform touched it. The id the probes report is the file's
  * repository-relative path and the digest of `code`, `path@digest`: all the
- * join needs to cut the same module again. `undefined` when `include` refuses
- * the module under every name {@link rawFrame} could give it.
+ * join needs to cut the same module again. `file` is the project path the
+ * regions are read under, whose extension decides how the text is parsed.
+ * `undefined` when `include` refuses the module under every name
+ * {@link rawFrame} could give it.
  */
+export function planModule(
+  root: string,
+  path: string,
+  code: string,
+  include: (file: string) => boolean,
+  original: (path: string) => string = (at) => readFileSync(at, 'utf8'),
+): PlannedModule | undefined {
+  const frame = rawFrame(code, path, include, original);
+  if (frame === undefined) return undefined;
+  return { frame, file: projectPath(root, frame.file), id: moduleId(projectPath(root, path), code) };
+}
+
+/** What {@link planModule} decided: the file the regions are read under, and the id the probes report. */
+export interface PlannedModule {
+  readonly frame: RawFrame;
+  readonly file: string;
+  readonly id: ModuleId;
+}
+
+/** Cut one module, as a transform is handed it, and place its probes where {@link planModule} put them. */
 export function captureModule(
   root: string,
   path: string,
   code: string,
   include: (file: string) => boolean,
   mode: InstrumentMode | undefined,
-  original: (path: string) => string = (at) => readFileSync(at, 'utf8'),
+  original?: (path: string) => string,
 ): Captured | undefined {
-  const frame = rawFrame(code, path, include, original);
-  if (frame === undefined) return undefined;
-  const { sourceDigest, file: wrote } = frame;
-  const file = projectPath(root, wrote);
-  const id = moduleId(projectPath(root, path), code);
+  const plan = planModule(root, path, code, include, original);
+  if (plan === undefined) return undefined;
+  const { frame, file, id } = plan;
+  const { sourceDigest } = frame;
   const done = instrument(code, file, id, mode === undefined ? {} : { mode });
   return {
     module: done === undefined

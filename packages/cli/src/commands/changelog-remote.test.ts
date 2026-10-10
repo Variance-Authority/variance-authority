@@ -107,12 +107,12 @@ describe('the changelog of a remote store', () => {
     await expect(refused).rejects.toThrow(/"env"/);
   });
 
-  it('relays a refusal and points at the share token and API 4, because CI sets the share variable to the ingest one', async () => {
+  it('relays a refusal and points at the share token and API 5, because CI sets the share variable to the ingest one', async () => {
     const { fetch } = answering(403, { error: 'CI holds the ingest token' });
     const refused = readRemoteChangelog({ config: config(), deployment: DEPLOYMENT, fetch });
     await expect(refused).rejects.toThrow(/answered 403: CI holds the ingest token/);
     await expect(refused).rejects.toThrow(/the share token/);
-    await expect(refused).rejects.toThrow(/API 4/);
+    await expect(refused).rejects.toThrow(/API 5/);
   });
 
   it('says why a read was not made, and never answers it with an empty history', async () => {
@@ -139,7 +139,7 @@ describe('the changelog of a remote store', () => {
   it('names an older deployment by its 404', async () => {
     const { fetch } = answering(404, { error: 'no route' });
     await expect(readRemoteChangelog({ config: config(), deployment: DEPLOYMENT, fetch })).rejects.toThrow(
-      /API 4/,
+      /API 5/,
     );
   });
 });

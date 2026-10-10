@@ -126,7 +126,8 @@ function gaps(out: Writer, ordinals: Uint32Array, count: number): void {
 /**
  * A probe log's read-out: which rows, in order, and where each row's entries
  * sit in `sorted`. Each entry is an ordinal shifted left one, with the
- * evaluating bit below it. `instrument/probe-log.cts` makes these.
+ * evaluating bit below it, and an ordinal entered both ways is two entries,
+ * the clear one first. `instrument/probe-log.cts` makes these.
  */
 interface LogRows {
   readonly rows: readonly number[];
@@ -137,46 +138,54 @@ interface LogRows {
 }
 
 /**
- * {@link encodeJournal} of a case's bucket, read from the probe log directly.
+ * A case's bucket as a frame, read from the probe log directly.
  *
- * The bytes are the ones `encodeJournal(name, counters)` writes for the same
- * bucket: modules in the order the bucket first entered them, ordinals rising,
- * and no `loaded` list, because a case frame has none. Writing from the log
- * skips building a counter array per module per case only to scan it for the
- * few entries that are set.
+ * Modules in the order the bucket first entered them, ordinals rising, and no
+ * `loaded` list, because a case frame has none. A module the case entered both
+ * while a module evaluated and after — the one its inline require evaluated,
+ * then called — gets a second row of those ordinals as entered after, which a
+ * reader folds as it folds any row. Writing from the log skips a counter array.
  */
 function encodeLog(name: string, log: LogRows): Buffer {
   const out = new Writer();
   for (const byte of MAGIC) out.byte(byte);
   out.text(name);
-  out.number(log.rows.length);
   const { start, end, sorted } = log;
-  for (const row of log.rows) {
+  // Whether an entry is the evaluating half of an ordinal entered both ways.
+  const again = (at: number, from: number): boolean => at > from && sorted[at - 1] === (sorted[at]! ^ 1);
+  // Entered once or the first of two (`ONCE`), while evaluating (`EARLY`), or the second (`AGAIN`).
+  const takes = (at: number, from: number, kind: number): boolean =>
+    kind === EARLY ? (sorted[at]! & 1) === 1 : again(at, from) === (kind === AGAIN);
+  const ordinals = (from: number, to: number, kind: number): void => {
+    let count = 0;
+    for (let at = from; at < to; at += 1) if (takes(at, from, kind)) count += 1;
+    out.number(count);
+    let last = 0;
+    for (let at = from; at < to; at += 1) {
+      if (!takes(at, from, kind)) continue;
+      out.number((sorted[at]! >>> 1) - last);
+      last = sorted[at]! >>> 1;
+    }
+  };
+  const twice = log.rows.map((row) => sorted.subarray(start[row]!, end[row]!).some((_, at) => again(start[row]! + at, start[row]!)));
+  out.number(log.rows.length + twice.filter(Boolean).length);
+  log.rows.forEach((row, index) => {
     out.byte(NAMED);
     out.text(log.ids[row]!);
-    const from = start[row]!;
-    const to = end[row]!;
-    out.number(to - from);
-    let last = 0;
-    let early = 0;
-    for (let at = from; at < to; at += 1) {
-      const ordinal = sorted[at]! >>> 1;
-      out.number(ordinal - last);
-      last = ordinal;
-      early += sorted[at]! & 1;
-    }
-    out.number(early);
-    last = 0;
-    for (let at = from; at < to; at += 1) {
-      if ((sorted[at]! & 1) === 0) continue;
-      const ordinal = sorted[at]! >>> 1;
-      out.number(ordinal - last);
-      last = ordinal;
-    }
+    ordinals(start[row]!, end[row]!, ONCE);
+    ordinals(start[row]!, end[row]!, EARLY);
     out.number(0);
-  }
+    if (!twice[index]) return;
+    out.byte(NAMED);
+    out.text(log.ids[row]!);
+    ordinals(start[row]!, end[row]!, AGAIN);
+    out.number(0);
+    out.number(0);
+  });
   return out.done();
 }
+
+const [ONCE, EARLY, AGAIN] = [0, 1, 2];
 
 /** A frame back as rows. Throws on anything that does not end where it says. */
 function decodeJournal(raw: Uint8Array): ReadJournal {
@@ -393,50 +402,78 @@ const AMBIENT = '';
  * this package generates for Vitest — and this is the one file of the seam they
  * can already reach.
  */
-function packCase(file: string, name: string, id: string): string {
-  return `${file}\u0000${name}\u0000${id}`;
+function packCase(file: string, name: string, id: string, project?: string): string {
+  const packed = `${file}\u0000${name}\u0000${id}`;
+  return project === undefined || project === '' ? packed : withField(packed, PROJECT, project);
+}
+
+/**
+ * The fields after the coordinate, by position.
+ *
+ * Each is set by its index, never appended, so a writer that knows only some
+ * of them leaves the others empty and every reader finds each where it looks.
+ * The JVM agent writes a part owner as `\0\0\0\0<journey>` and relies on it.
+ */
+const SETTLED = 3;
+const JOURNEY = 4;
+// Field 5 is what the case said, set by `case-preconditions.cts`.
+/**
+ * The project that ran the case — Vitest's, Jest's or Playwright's name for one
+ * configured run of a test file. Absent when the run names none, so a case of a
+ * single unnamed project packs as it always has.
+ */
+const PROJECT = 6;
+
+function withField(packed: string, at: number, value: string): string {
+  const fields = packed.split('\u0000');
+  while (fields.length <= at) fields.push('');
+  fields[at] = value;
+  return fields.join('\u0000');
 }
 
 /**
  * How a frame says whether its case's journey ended.
  *
- * A fourth field rather than a second coordinate: the case is the same case
- * whichever way it settled, so the three fields a reader joins frames on are
+ * A field of its own rather than a second coordinate: the case is the same case
+ * whichever way it settled, so the fields a reader joins frames on are
  * untouched. A frame written before the case settled, or by a writer that
- * cannot see settling, has no fourth field, and says nothing.
+ * cannot see settling, leaves it empty, and says nothing.
  */
 const FINISHED = 'finished';
 const STOPPED = 'stopped';
 
 function settledCase(packed: string, stopped: boolean): string {
-  return `${packed}\u0000${stopped ? STOPPED : FINISHED}`;
+  return withField(packed, SETTLED, stopped ? STOPPED : FINISHED);
 }
 
-function unpackCase(packed: string): { file: string; name: string; id: string; stopped?: boolean } {
+function unpackCase(packed: string): { file: string; name: string; id: string; project?: string; stopped?: boolean } {
   const parts = packed.split('\u0000');
-  const coordinate = { file: parts[0] ?? packed, name: parts[1] ?? AMBIENT, id: parts[2] ?? AMBIENT };
-  if (parts[3] === STOPPED) return { ...coordinate, stopped: true };
-  if (parts[3] === FINISHED) return { ...coordinate, stopped: false };
+  const project = parts[PROJECT];
+  const coordinate = {
+    file: parts[0] ?? packed,
+    name: parts[1] ?? AMBIENT,
+    id: parts[2] ?? AMBIENT,
+    ...(project === undefined || project === '' ? {} : { project }),
+  };
+  if (parts[SETTLED] === STOPPED) return { ...coordinate, stopped: true };
+  if (parts[SETTLED] === FINISHED) return { ...coordinate, stopped: false };
   return coordinate;
 }
 
 /**
- * A coordinate that handed out a journey id, as a fifth field.
+ * A coordinate that handed out a journey id.
  *
- * It follows the settling, which stays empty when the case has not settled, so
- * a reader that knows four fields reads the case and its settling unchanged.
- * The fold reads the fifth to join what ran beyond a fence under that id — a
- * part frame is owned by `\0\0\0\0<journey>`, no case of its own — back to
- * the case that sent it.
+ * The fold reads it to join what ran beyond a fence under that id — a part
+ * frame is owned by `\0\0\0\0<journey>`, no case of its own — back to the case
+ * that sent it.
  */
 function packJourney(packed: string, journey: string): string {
-  const fields = packed.split('\u0000').length;
-  return `${packed}${'\u0000'.repeat(Math.max(1, 5 - fields))}${journey}`;
+  return withField(packed, JOURNEY, journey);
 }
 
 /** The journey a frame owner carries; empty when it carries none. */
 function journeyOf(packed: string): string {
-  return packed.split('\u0000')[4] ?? '';
+  return packed.split('\u0000')[JOURNEY] ?? '';
 }
 
 /**

@@ -93,6 +93,16 @@ recorded run, as [sharding](../../docs/sharding.md) shows. Watch mode does not s
 `@variance-authority/cli` has to be installed in the project; when the checkout cannot resolve it, the run fails and the message
 names the package.
 
+`VARIANCE_AUTHORITY_GRAIN=case` also skips, inside each selected file, the
+cases that entered none of the changed regions. The sequencer writes their
+names to one file before any worker starts, and the case runner marks them
+skipped in `onCollected`, as `it.skip` would; under Jest, a `jest-circus`
+`run_start` handler does the same. Nothing reaches argv. A file runs whole
+whenever the record cannot say which cases the change reached, and a file run
+in part is recorded incomplete, so the next selection runs it whole, and while
+some test last ran at an earlier commit than the latest run, every file runs
+whole. File grain is the default; any value other than `file` or `case` fails the run.
+
 ### Ask for the skip list yourself
 
 A runner with no seam, or a program that decides for itself, reads the same
@@ -653,6 +663,64 @@ modules by path, and you can name them yourself:
 `@variance-authority/sense/jest-globals`,
 `@variance-authority/sense/jest-setup`, and
 `@variance-authority/sense/jest-reporter`.
+
+### Place the probes from your own Rust transform
+
+Wrapped as above, the probes go into the text before your transformer sees it.
+When that transformer is your own Rust — over swc, oxc or anything else — it can
+place them itself, inside its own pipeline. The package ships the instrumenter
+as a Rust crate, the code its own addon runs, so a project that installed sense
+already has the version its runtime reads:
+
+```toml
+# Cargo.toml
+[dependencies]
+variance-sense-instrument = { path = "node_modules/@variance-authority/sense/native/instrument" }
+```
+
+Your transformer declares the recipe it was built with, and the wrapper then
+hands it each module as Jest read it, with `options.senseProbes` saying where
+the probes go:
+
+```js
+// transformer.cjs, around your addon
+const native = require('./transform.node');
+
+module.exports = {
+  senseRecipe: (mode) => native.senseRecipe(mode),
+  process: (source, path, options) => ({ code: native.transform(source, path, options.senseProbes) }),
+};
+```
+
+```rust
+use variance_sense_instrument::{instrument, recipe, Mode};
+
+/// `options.senseProbes`, as your binding hands it over.
+pub struct SenseProbes {
+    pub file: String,
+    pub module: String,
+    pub mode: String,
+}
+
+fn sense_recipe(mode: &str) -> String {
+    recipe(if mode == "entries" { Mode::Entries } else { Mode::Presence })
+}
+
+fn with_probes(source: String, probes: Option<SenseProbes>) -> String {
+    let Some(p) = probes else { return source };
+    let mode = if p.mode == "entries" { Mode::Entries } else { Mode::Presence };
+    instrument(&source, &p.file, &p.module, mode).map_or(source, |done| done.code)
+}
+```
+
+Run `instrument` before your own parse: every probe stays on its line, and the
+text stays the language it was. `senseProbes` is absent for a test file, a file
+outside product source and a file Jest loads before the collector exists, and
+`instrument` returns nothing for a text it cannot parse; either way the module
+runs without probes. The wrapper compares `senseRecipe` with this package's
+recipe when Jest loads it, and refuses one built from other sources of the
+crate, naming both; a `senseRecipe` that answers nothing for the mode leaves
+the transformer a plain one, given the text with the probes already in.
 
 ## Cut an Rstest run down to a diff
 
@@ -1926,9 +1994,24 @@ test/checkout.test.tsx > checkout > submits
 A name is the coordinate, so the identity is the name and not the runner's
 positional id, which changes the moment a case is inserted above it. Two cases
 in one file may share a coordinate; the repeat is numbered, so the second reads
-`<coordinate>#1`. Any other producer of an `ExecutionIndex` — and anything
-joining against one, such as an Eyes journal read by `variance distill` — has to
-key the same test by the same string.
+`<coordinate>#1`. A case run by a named project carries the project's name in
+front, the way Vitest prints it:
+`|compiled| test/checkout.test.tsx > checkout > submits`. The name is the one
+the runner gives the project:
+
+| Runner | The project's name |
+| --- | --- |
+| Vitest | `test.name`, else its `package.json` name or directory; an inline project without one is named by its place in the list |
+| Jest | `displayName`, a string or its `name` |
+| Playwright | `name` |
+
+So a file two projects both run is two cases, and a run filtered to one project
+(`--project`, `--selectProjects`) or split into shards names each case the same
+as a full run. A project without a name keeps the plain coordinate, and so does
+every Rstest case: its case context does not name the project. Any other
+producer of an
+`ExecutionIndex` — and anything joining against one, such as an Eyes journal
+read by `variance distill` — has to key the same test by the same string.
 
 A case owns a crossing when the probe fired while that case was the one
 running, not inside a start-and-stop bracket around it. A suite runs its cases

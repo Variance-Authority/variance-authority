@@ -33,6 +33,13 @@ export interface ExecutedModule {
    * subject's and the join gives them to every subject the run drained.
    */
   readonly shared: readonly number[];
+  /**
+   * The ordinals among `shared` entered again once no module was evaluating:
+   * a function the top level called and the subject called afterwards. The
+   * subject earned these as it would had the module evaluated before its
+   * window opened. Absent where nothing was entered both ways.
+   */
+  readonly again?: readonly number[];
 }
 
 /** Everything a page entered between two drains. */

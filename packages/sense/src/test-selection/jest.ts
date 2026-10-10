@@ -23,11 +23,13 @@
  *   a test-selection run still folds its file-level journals into its snapshot.
  */
 
+import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
 import { placingSequencer } from './jest-placing.js';
+import { projectNamed } from './jest-projects.js';
 import { selectingFilter } from './jest-selection.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
@@ -223,6 +225,16 @@ export const CONTINUATIONS_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_CONTINU
  */
 export const STORY_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_STORY';
 
+/**
+ * The global a project's sandbox reads its own name from, set in that project's
+ * `globals` and read by `jest-setup.cts` when it names a case.
+ *
+ * Through `globals` because a worker learns which project it runs a file for
+ * from nothing else the sandbox can reach: `expect.getState()` names the file
+ * and the case, and the same file under two projects is the same path.
+ */
+const PROJECT_GLOBAL = 'variance-authority.project';
+
 /** Jest's pattern for the modules it transforms when nothing is configured. */
 const DEFAULT_PATTERN = '\\.[jt]sx?$';
 
@@ -298,7 +310,9 @@ export function withTestSelection(
     ...(projects === undefined ? instrumented(config, root, rootDir, mode, declared) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
-    ...(selection === undefined ? {} : selectingFilter(config, { root, rootDir, selection })),
+    ...(selection === undefined ? {} : selectingFilter(config, {
+      root, rootDir, selection, cutFile: resolve(dirname(coverageFile), `.cut-${process.pid}-${randomUUID()}.json`),
+    })),
     ...placingSequencer(config, { root, rootDir, times }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, {
       ...reporter,
@@ -420,10 +434,12 @@ function instrumented(
     ]),
   );
 
+  const project = projectNamed(config['displayName']);
   return {
     ...config,
     rootDir,
     transform,
+    ...(project === undefined ? {} : { globals: { ...(config['globals'] as object | undefined), [PROJECT_GLOBAL]: project } }),
     setupFiles: [SELECTION_GLOBALS, ...(config.setupFiles ?? [])],
     setupFilesAfterEnv: [...(config.setupFilesAfterEnv ?? []), SELECTION_SETUP],
   };

@@ -190,13 +190,35 @@ describe('the share token reads what review settled', () => {
     expect((await call('/review/changelog', SHARE, {})).status).toBe(405);
   });
 
-  it.todo('reads the concerns raised on a build, and cannot raise or move one — needs the concerns route');
+  it('reads the concerns raised on a build, and cannot raise or move one', async () => {
+    variancePrecondition({ token: 'share' });
+    await decided();
+    const raised = await call('/review/concerns', REVIEW, {
+      build: 'ci-2',
+      subject: 'story:a',
+      title: 'Total moved below the fold',
+      by: 'marina',
+    });
+    expect(raised.status).toBe(201);
+    const { concern } = (await raised.json()) as { concern: { id: number } };
+
+    const read = await call('/review/concerns?build=ci-2', SHARE);
+    expect(read.status).toBe(200);
+    const shared = (await read.json()) as { concerns: { title: string }[]; tally: unknown };
+    expect(shared.concerns.map((each) => each.title)).toEqual(['Total moved below the fold']);
+    expect(shared).toEqual(await (await call('/review/concerns?build=ci-2', REVIEW)).json());
+
+    const raising = await call('/review/concerns', SHARE, { build: 'ci-2', subject: 'story:a', title: 'x', by: 'agent' });
+    expect(raising.status).toBe(403);
+    const moving = await call(`/review/concerns/${concern.id}`, SHARE, { state: 'resolved', by: 'agent' });
+    expect(moving.status).toBe(403);
+  });
 });
 
 describe('the ingest token reads none of it', () => {
-  it('is refused the changelog and the decision history, and is told why', async () => {
+  it('is refused the changelog, the decision history and the concerns, and is told why', async () => {
     variancePrecondition({ token: 'ingest' });
-    for (const path of ['/review/changelog', '/review/decisions']) {
+    for (const path of ['/review/changelog', '/review/decisions', '/review/concerns']) {
       const response = await call(path, INGEST);
       expect([path, response.status]).toEqual([path, 403]);
       const text = await response.text();

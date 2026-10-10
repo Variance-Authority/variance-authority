@@ -1,7 +1,8 @@
 # Selection wiring: what the run rests on, and what it costs
 
-Read this when a selection came back whole, when a config file you changed
-selected nothing, or when a recorded run times out.
+Read this before you write a suite's `before` or `relations` in
+`variance.config.json`, when a selection came back whole, when a config file you
+changed selected nothing, or when a recorded run times out.
 
 ## Declare the files the run rests on
 
@@ -13,21 +14,42 @@ it is yours to take: which paths govern a run is a fact about the repository.
 
 Take it in this order, and read rather than assume:
 
-1. **The harness.** Whatever starts the suite: `vitest.config.*`,
+1. **How the suite reaches the code.** A test that imports what it tests — a
+   unit test, a component test, a Playwright component test that mounts — is
+   reached by import, and the suite keeps `relations`, its default. A test that
+   drives the code from another process — Playwright or Cypress over a running
+   app or a built Storybook, which names a story by the id in its URL — has no
+   import to walk, so give the suite `"relations": false`. Its record then
+   answers for every file it measured, and the build it drives must carry
+   `testSelectionProbes()` for it to measure any. A file it did not measure,
+   such as one added after the recording, selects nothing and `select` names it
+   declined.
+2. **The harness.** Whatever starts the suite: `vitest.config.*`,
    `jest.config.*`, `playwright.config.*`, and any file they extend. Confirm
    from `package.json`'s `scripts` which one runs, and follow a `--config` flag
    if there is one.
-2. **What the harness names but does not import**: `setupFiles`,
-   `globalSetup`, `setupFilesAfterEnv`, `testEnvironment`, `moduleNameMapper`
-   targets. A config that `import`s its setup already covers it; one that names
-   it as a string does not, so that path is its own entry.
-3. **The build the tests run through**: `vite.config.*`, `next.config.*`,
+3. **What the harness names but does not import.** A config names these as
+   strings, and a string is not an import. The integrations already record some
+   of them on every test they ran: the Vitest integration records the config
+   file, the local modules it imports, `setupFiles`, `snapshotSerializers` and
+   the `diff` file; the Jest integration records `testEnvironment`,
+   `setupFiles` and `setupFilesAfterEnv`, when they are files of the
+   repository; the Rstest integration records `setupFiles`. The rest is yours:
+   `globalSetup` in every runner, Jest's `globalTeardown`, Jest's and Rstest's
+   config file, `moduleNameMapper` and `transform` targets, and everything a
+   Playwright config names. Name a recorded file too when its change must run
+   every test file: a recorded file reruns only the recorded tests that declared
+   it, and a `before` entry also runs the tests no recording has seen.
+4. **The build the tests run through**: `vite.config.*`, `next.config.*`,
    `webpack.config.*`, `babel.config.*`, `postcss.config.*`,
-   `tailwind.config.*`, whichever the suite goes through. A formatter or linter
-   config does not belong here; nothing it sets changes a render.
-4. **The environment**: `.nvmrc`, the file behind the `engines` block if there
+   `tailwind.config.*`, whichever the suite goes through. For a suite over the
+   app, the app's entry, such as `src/main.tsx`. For a suite over Storybook,
+   `.storybook/`, which holds `main.*`, the preview and `preview-head.html`. A
+   formatter or linter config does not belong here; nothing it sets changes a
+   render.
+5. **The environment**: `.nvmrc`, the file behind the `engines` block if there
    is one, the CI workflow directory, a `Dockerfile` the suite runs inside.
-5. **Nothing else.** A README, a changelog, an editor setting and a fixture JSON
+6. **Nothing else.** A README, a changelog, an editor setting and a fixture JSON
    are not entry points. Adding them buys whole runs and no information.
 
 Write them into `variance.config.json` as repository-root-relative paths. A
@@ -38,7 +60,12 @@ entry point:
 {
   "before": [".github/workflows", ".nvmrc"],
   "suites": {
-    "unit": { "kind": "unit", "before": ["vitest.config.ts", "vitest.setup.ts"] }
+    "unit": { "kind": "unit", "before": ["vitest.config.ts", "vitest.global-setup.ts"] },
+    "stories": {
+      "kind": "e2e",
+      "relations": false,
+      "before": ["playwright.config.ts", "e2e/global-setup.ts", ".storybook"]
+    }
   },
   "source": { "dirs": ["src"], "relations": true }
 }
@@ -53,7 +80,10 @@ needs `source.relations: true` for it.
 Then check the answer rather than trust the list. Run `variance select` over a
 diff that changes the setup file, and confirm it skips nothing and names the
 file; run `variance run --since <ref>` over a diff that changes a workflow and
-one ordinary component, and confirm the run comes back whole. A note naming entries the scan does not have is normal for
+one ordinary component, and confirm the run comes back whole. For a suite with
+`"relations": false`, after a recorded run, run `variance select --suite <name>` over a diff that adds
+a source file, and confirm it names the file declined rather than selecting by
+import. A note naming entries the scan does not have is normal for
 a `.nvmrc` or a workflow, which have nothing under them to read. It is not
 normal for the harness config: it means the setup files below it still narrow to
 nothing, and the usual cause is a path that does not exist or an extension the
@@ -92,7 +122,9 @@ does not list, such as a README or a fixture, appears under `unread` and selects
 nothing: if the suite reads that file without importing it, declare it as a
 precondition. One it lists whose importers include nothing measured selects
 nothing and is not reported. A bumped package selects the tests of its measured
-importers; one with none selects nothing and is not reported.
+importers; one with none selects nothing and is not reported. In a suite with
+`"relations": false` the graph is not asked: an unmeasured path selects nothing
+and is reported as declined.
 
 ## A recorded run costs memory, not time
 

@@ -28,7 +28,7 @@ import type { ShareConfig } from './config-share.js';
  * number is the contract, and the contract is the thing a deployment can be
  * older than.
  */
-export const NEEDS_API = 4;
+export const NEEDS_API = 5;
 
 const require = createRequire(import.meta.url);
 
@@ -117,7 +117,7 @@ const ADDED: readonly { readonly api: number; readonly share: boolean; readonly 
     symptom: 'The deployment answers 404 under /share/, so the share this project stores there holds nothing',
   },
   {
-    api: 4,
+    api: 5,
     share: true,
     symptom:
       'The deployment refuses the share token at /review/changelog and has no /review/decisions, so ' +
@@ -135,7 +135,7 @@ function missing(api: number | undefined, share: boolean): string {
 /**
  * Whether `share` is an `http` share stored at the deployment `endpoint` names,
  * which is the one case where a deployment older than API 3 costs this project
- * its share, and one older than API 4 costs it reading what review settled. Scheme and host are compared as `URL` spells them, and trailing
+ * its share, and one older than API 5 costs it reading what review settled. Scheme and host are compared as `URL` spells them, and trailing
  * slashes are ignored.
  */
 export function shareAt(share: ShareConfig | undefined, endpoint: string): boolean {

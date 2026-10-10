@@ -95,13 +95,13 @@ function errorOf(body: string): string {
 function hintFor(status: number): string {
   if (status === 401 || status === 403) {
     return (
-      'What review settled is read with the share token, from a deployment at API 4 or later: an older ' +
+      'What review settled is read with the share token, from a deployment at API 5 or later: an older ' +
       'one refuses the share token here, and every one refuses the ingest token, which CI often sets ' +
       'the share variable to'
     );
   }
   if (status === 404) {
-    return 'Nothing there serves this route: the endpoint is not a review deployment, or it is one older than API 4';
+    return 'Nothing there serves this route: the endpoint is not a review deployment, or it is one older than API 5';
   }
   return 'The deployment refused the reading; its answer above says why';
 }

@@ -9,7 +9,7 @@ import {
   openStage,
   type ExecutionJournal,
 } from '@variance-authority/sense/journal';
-import { readTestCoverage } from '@variance-authority/sense/test-selection';
+import { caseIndexOf, coveringTests, readTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it, vi } from 'vitest';
 import { varianceCompletedFixtures } from './completed.js';
 import {
@@ -310,6 +310,46 @@ describe('a worker that is one of several', () => {
     });
   });
 
+  // `price` is region 1. The page's top level calls it once as the module
+  // evaluates, and the case calls it again. Whether the evaluation fell in the
+  // case's window, in a drain of its own, or in an earlier drain of the case,
+  // the case's call is the case's.
+  it('credits a case with what it called in a module that evaluated inside it, as an eager load does', async () => {
+    const evaluating = { instrumentation: INSTRUMENTATION, modules: [{ id: '', hits: [0, 1], shared: [0, 1] }] };
+    const calling = { instrumentation: INSTRUMENTATION, modules: [{ id: '', hits: [1], shared: [] }] };
+    const inline = { instrumentation: INSTRUMENTATION, modules: [{ id: '', hits: [0, 1], shared: [0, 1], again: [1] }] };
+    const windows = {
+      eager: [[evaluating, false], [calling, true]],
+      inline: [[inline, true]],
+      'read twice': [[evaluating, true], [calling, true]],
+    } as const;
+    const readings: Record<string, readonly string[]> = {};
+    for (const [mode, drains] of Object.entries(windows)) {
+      await inRoot(async (root) => {
+        const coverageFile = resolve(root, 'coverage.bin');
+        const { cacheRoot, id } = await instrumented(root);
+        const owner = 'tests/checkout.spec.ts';
+        const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
+        for (const [journal, inCase] of drains) {
+          const modules = journal.modules.map((module) => ({ ...module, id }));
+          await recorder.note(
+            pageReporting({ ...journal, modules }),
+            owner,
+            inCase ? { name: 'pays with a saved card', id: 'one' } : undefined,
+          );
+        }
+        await recorder.close();
+        const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
+        readings[mode] = coveringTests(index, { file: 'price.js', line: 2 }).map((test) => test.name);
+      });
+    }
+    expect(readings).toEqual({
+      eager: ['pays with a saved card'],
+      inline: ['pays with a saved card'],
+      'read twice': ['pays with a saved card'],
+    });
+  });
+
   it('records what the runner timed for each attempt, on the case and on its file', async () => {
     await inRoot(async (root) => {
       const coverageFile = resolve(root, 'coverage.bin');
@@ -374,6 +414,17 @@ describe('a worker that is one of several', () => {
         file: resolve(process.cwd(), 'tests/checkout.spec.ts'),
         testId: 'abc123',
       } as unknown as TestInfo),
-    ).toEqual({ name: 'checkout > pays with a saved card', id: 'abc123' });
+    ).toEqual({ name: 'checkout > pays with a saved card', id: 'abc123', project: 'chromium' });
+  });
+
+  it('names no project for a test of the unnamed one', () => {
+    expect(
+      testOf({
+        titlePath: ['', 'tests/checkout.spec.ts', 'pays'],
+        project: { name: '' },
+        file: resolve(process.cwd(), 'tests/checkout.spec.ts'),
+        testId: 'abc123',
+      } as unknown as TestInfo),
+    ).toEqual({ name: 'pays', id: 'abc123' });
   });
 });

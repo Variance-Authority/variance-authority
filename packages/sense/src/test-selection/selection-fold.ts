@@ -101,8 +101,13 @@ export function foldRun(
     // A file the run read twice is one record, and every row is read in it.
     const joined = joinReadings(modules);
     const journals = joinedJournals(placed.journals, joined.readings);
+    // A file the selection ran in part is incomplete too: the cases it skipped
+    // keep the reach they had. See `case-cut.ts`.
+    // FIXME: so the next selection runs that file whole, and a loop of edits
+    // alternates cut and whole runs of it; the record would have to keep the
+    // skipped cases' reach for the file to read whole after a cut.
     const files = finished.map((file) =>
-      unplaced.has(projectPath(root, file.filepath)) ? { ...file, complete: false } : file);
+      unplaced.has(projectPath(root, file.filepath)) || run.cut.has(file.filepath) ? { ...file, complete: false } : file);
     // A journal names modules by id, so nothing here re-keys paths; the id is
     // what the map is keyed by too.
     const rows = journals.map((journal) => ({
@@ -167,6 +172,8 @@ export function foldRun(
     await rm(runDirectory, { recursive: true, force: true });
     await rm(caseDirectory, { recursive: true, force: true });
     await rm(run.finishedDirectory, { recursive: true, force: true });
+    await rm(run.cutFile, { force: true });
+    run.cut.clear();
   };
 
   return async (files: readonly FinishedFile[]): Promise<void> => {

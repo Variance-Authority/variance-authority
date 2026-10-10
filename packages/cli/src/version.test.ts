@@ -93,10 +93,11 @@ describe('knowing which halves are talking', () => {
     // so a push there says nothing rather than asking for a redeploy.
     expect(versionNote({ known: true, api: 2 }, false)).toBeUndefined();
 
-    // API 3 predates the share token reading what review settled; only a
-    // project whose share token is for this deployment would read with it.
-    expect(versionNote({ known: true, api: 3 }, true)).toContain('refuses the share token');
-    expect(versionNote({ known: true, api: 3 }, false)).toBeUndefined();
+    // API 4 keeps concerns but predates the share token reading what review
+    // settled; only a project whose share token is for this deployment would
+    // read with it.
+    expect(versionNote({ known: true, api: 4 }, true)).toContain('refuses the share token');
+    expect(versionNote({ known: true, api: 4 }, false)).toBeUndefined();
   });
 
   it('counts a share as stored at the deployment only when it is an http share under its endpoint', () => {

@@ -865,20 +865,21 @@ your machine needs. The names below are the deployment's settings, not yours:
   share token. The deployment sets it as `VARIANCE_TRIBUNAL_SHARE_TOKEN`,
   `SHARE_TOKEN` or `shareToken`. It reads `/share/` and `GET /version`, and a
   publish with it answers 403 before any byte is stored. It also reads what
-  review settled — the changelog of approved baselines and every decision — for
-  `variance changelog` and `variance ask decisions`, and it never decides.
+  review settled — the changelog of approved baselines, every decision, and the
+  concerns reviewers raised — for `variance changelog`, `variance ask decisions`
+  and `GET /review/concerns`, and it never decides or raises a concern.
 - **The review token is refused under `/share/`** with 403. It is the token a
   reviewer approves and rejects with, and nothing that reads a share holds it.
 
 **Then check the deployment's API.** The share needs `"api": 3` or higher, and
-reading what review settled needs `"api": 4`:
+reading what review settled needs `"api": 5`:
 
 ```bash
 curl -s -H "Authorization: Bearer $VARIANCE_SHARE_TOKEN" https://variance.example.com/version
 ```
 
 ```text
-{"service":"variance-authority-tribunal","api":4,"schema":18}
+{"service":"variance-authority-tribunal","api":5,"schema":19}
 ```
 
 `/version` answers any of the deployment's tokens and refuses any other with
@@ -905,7 +906,7 @@ your `review.endpoint` or your `remote` `baselines.endpoint` names, when your
 `share.endpoint` is under it. It prints the decisions on that subject, a line
 saying there are none, or why the deployment refused: a 403 that names the ingest
 token when the variable holds CI's token, or a 404 when the deployment serves an
-API older than 4.
+API older than 5.
 
 An older deployment answers 404 under `/share/`. A lookup then prints *nothing
 is published there*, and a publish writes nothing. `variance push` to that

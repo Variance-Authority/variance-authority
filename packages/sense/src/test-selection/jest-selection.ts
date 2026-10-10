@@ -26,6 +26,7 @@
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CUT_VARIABLE, cutOf, writeCut } from './case-cut.js';
 import { projectPath } from './instrumented-modules.js';
 import { selectedLines, type SuiteSelection } from './suite-selection.js';
 
@@ -44,6 +45,11 @@ export interface SelectingFilterOptions {
   /** The configuration's `rootDir`, which a project filter's path is relative to. */
   readonly rootDir: string;
   readonly selection: () => Promise<SuiteSelection>;
+  /**
+   * Where to write the cases the selection skips in the files it keeps, for
+   * the workers; absent, every kept file runs whole. See `case-cut.ts`.
+   */
+  readonly cutFile?: string;
   /** The command line, read for `--watch`, `--filter` and `--skipFilter` only. */
   readonly argv?: readonly string[];
   readonly say?: (line: string) => void;
@@ -78,13 +84,23 @@ export function selectingFilter(
   const own = typeof config.filter === 'string' ? ownFilter(config.filter, options.rootDir) : undefined;
   let read: Promise<SuiteSelection> | undefined;
   let told = false;
+  const cut = new Map<string, readonly string[]>();
   const filter = async (testPaths: readonly string[]): Promise<{ filtered: string[] }> => {
     const found = own === undefined ? [...testPaths] : await own(testPaths);
     const selection = await (read ??= options.selection());
     const lines = selectedLines(selection, found.map((path) => projectPath(options.root, path)));
     for (const line of told ? lines.slice(0, 1) : lines) say(line);
     told = true;
-    return { filtered: found.filter((path) => !selection.skip.has(projectPath(options.root, path))) };
+    const filtered = found.filter((path) => !selection.skip.has(projectPath(options.root, path)));
+    // Called once per project: what each keeps is added to the one cut, which
+    // is on disk, and named in the environment, before any worker forks.
+    const cases = options.cutFile === undefined ? new Map() : cutOf(selection, filtered, options.root);
+    if (cases.size > 0) {
+      for (const [file, names] of cases) cut.set(file, names);
+      writeCut(options.cutFile!, cut);
+      process.env[CUT_VARIABLE] = options.cutFile;
+    }
+    return { filtered };
   };
   (globalThis as { [HANDED]?: { filter: typeof filter } })[HANDED] = { filter };
   return { filter: SELECTION_FILTER };

@@ -23,19 +23,21 @@ export type { SearchGeneration };
  * The loose pass reads a term dictionary written with the same tokenizer and
  * term rule MiniSearch was given, so the set it answers is the set MiniSearch
  * would have answered without building an index per question
- * ([`loose.ts`](./tools/loose.ts)).
+ * ([`loose.ts`](./tools/loose.ts)). The dictionary holds each token whole and,
+ * when the token is written in several words, each word, so `select test
+ * files` reaches `selectTestFiles`.
  */
 
 // The layout is written by `help_search.rs` in the sense addon.
 const MAGIC = 0x53484156; // "VAHS", little-endian
-const VERSION = 1;
+const VERSION = 2;
 const NONE = 0xffffffff;
 
 /** The tokenizer MiniSearch applies by default, which the loose pass was built with. */
 export const SPACE_OR_PUNCTUATION = /[\n\r\p{Z}\p{P}]+/u;
 
-/** The term rule the loose pass gave MiniSearch: short terms dropped, the rest lowercased. */
-export function termsOf(text: string): readonly string[] {
+/** A query's terms: the tokens it was typed in, short ones dropped, the rest lowercased. */
+export function tokensOf(text: string): readonly string[] {
   const found: string[] = [];
   for (const token of text.split(SPACE_OR_PUNCTUATION)) {
     if (token.length >= 2) found.push(token.toLowerCase());
