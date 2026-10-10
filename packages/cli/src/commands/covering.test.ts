@@ -7,7 +7,8 @@ import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { encodeExecutionIndex } from '@variance-authority/sense/test-selection';
+import { digestString } from '@variance-authority/core/format';
+import { encodeExecutionIndex, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
 import { refold } from './covering-reach.js';
 import { indexOutput } from './index-command.js';
@@ -43,6 +44,27 @@ async function columnIndexFile(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'variance-covering-'));
   const file = join(dir, 'cases.bin');
   await writeFile(file, encodeExecutionIndex(INDEX));
+  return file;
+}
+
+/**
+ * {@link INDEX} as a record's cases, beside the record a run leaves when it
+ * loaded `src/stabilize.ts` without instrumenting it: a row with no blocks,
+ * and a precondition of the one test file that loaded it.
+ */
+async function recordFile(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'variance-covering-'));
+  const file = join(dir, 'coverage.bin');
+  const held = (name: string) => ({ name, digest: digestString(name) });
+  await writeTestCoverage(file, {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    tests: [
+      { file: 'total.test.ts', complete: true, preconditions: [held('total.test.ts'), held('src/stabilize.ts')] },
+      { file: 'flow.test.tsx', complete: true, preconditions: [held('flow.test.tsx')] },
+    ],
+    modules: [{ file: 'src/stabilize.ts', sourceDigest: digestString('stabilize'), instrumented: false, blocks: [] }],
+  }, { index: encodeExecutionIndex(INDEX) });
   return file;
 }
 
@@ -120,11 +142,24 @@ describe('asking which tests entered a line', () => {
     await expect(asked).rejects.not.toThrow(/record spells it/);
   });
 
-  it('says a module the recording left uninstrumented has no answer, as one the run never loaded has none', async () => {
-    const execution = await indexFile();
+  it('answers a module the run loaded without instrumenting with the test files that loaded it, which a change to it selects', async () => {
+    const execution = await recordFile();
 
-    await expect(covering(parse(['--file', 'src/stabilize.ts', '--execution', execution])))
-      .rejects.toThrow(/never loaded, or loaded without instrumenting it, has no answer here/);
+    const answer = await covering(parse(['--file', 'src/stabilize.ts', '--execution', execution]));
+
+    expect(answer.preconditionOf).toEqual(['total.test.ts']);
+    expect(formatCovering(answer, 'text')).toBe(
+      'src/stabilize.ts is a precondition of 1 test file, and a change to it selects every one: the run loaded it ' +
+        'without instrumenting it, or the suite declares it, so no line of it has a recorded case.\n  total.test.ts\n',
+    );
+    expect(formatCovering(answer, 'refs')).toBe('src/stabilize.ts precondition of: total.test.ts; no recorded line\n');
+  });
+
+  it('still refuses a file the run never loaded, where the same record holds one it loaded uninstrumented', async () => {
+    const execution = await recordFile();
+
+    await expect(covering(parse(['--file', 'src/never.ts', '--execution', execution])))
+      .rejects.toThrow(/is not in the index at/);
   });
 
   it('separates a line nothing recorded from a line nothing covered', async () => {

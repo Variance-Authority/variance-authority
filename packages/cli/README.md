@@ -396,6 +396,17 @@ variance covering --file src/checkout/total.ts --function applyDiscount --format
 Each test file is named once, with its cases under it. Over a whole file, a
 range walked by the same cases as the one before is folded into one line.
 
+A module the run loaded without instrumenting it, such as one your suite's
+`include` leaves out or one named in `unprobed`, has no recorded line. It is a
+precondition of every test file that loaded it, and `variance select` selects
+all of them on a change to it, so `covering` names those files and no case:
+
+```text
+src/format/stabilize.ts is a precondition of 4 test files, and a change to it selects every one: the run loaded it without instrumenting it, or the suite declares it, so no line of it has a recorded case.
+  src/render-cache.test.ts
+  …
+```
+
 When the root `variance.config.json` declares
 [suites](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite),
 `covering` reads every suite's record and answers under each suite's name and
@@ -422,9 +433,10 @@ the name is named as sharing it, not as the path the record spells.
 
 In JSON the answer is a `suites` list. Each entry is that suite's own answer
 with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`
-or to `unloaded`, for a file the suite never loaded or did not instrument. An
-`unloaded` entry carries `spelled`, the recorded paths that are this path under
-another root, only when there is one. `--suite <name>` reads one record alone, answers in the shape a
+or to `unloaded`, for a file the suite never loaded. An `unloaded` entry
+carries `spelled`, the recorded paths that are this path under another root,
+only when there is one. A file the suite loaded without instrumenting it is
+answered with `preconditionOf`, the test files that loaded it. `--suite <name>` reads one record alone, answers in the shape a
 repository with one record does, and so gives a suite's refusal in full.
 
 `--format refs` is the same answer for an agent, which pays for every repeated

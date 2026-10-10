@@ -95,7 +95,9 @@ they stop and list the suites.
 `variance covering` asks the other question, which suites ran this code, so it
 reads every declared suite's record and answers under each suite's name and
 kind. Suites that never loaded the file are named together after the answers,
-and a suite with no recording yet says so. A payment module your unit suite
+and a suite with no recording yet says so. A suite that loaded the file without
+instrumenting it names the test files that loaded it, which are the ones a
+change to it selects, and no line. A payment module your unit suite
 walked and your visual suite never loaded reads as exactly that. `--suite
 <name>` asks one record alone.
 

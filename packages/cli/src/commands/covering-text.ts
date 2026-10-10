@@ -14,6 +14,7 @@ import {
 import type { CoveringFile } from './covering-files.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
+import { preconditionText } from './covering-unloaded.js';
 import { formatCoveringRefs } from './covering-refs.js';
 import { heldText, type CaseTwin } from '@variance-authority/sense/test-selection';
 import { caseNameOf, twinText, whereText } from './covering-where.js';
@@ -33,6 +34,7 @@ function said(block: string): readonly string[] {
 
 function text(answer: Covering): string {
   if (answer.changed !== undefined) return sinceText(answer, answer.changed);
+  if (answer.preconditionOf !== undefined) return preconditionText(answer.file ?? '', answer.preconditionOf);
   if (answer.frame === 'stale') return staleText(answer);
   if (answer.ranges !== undefined) return wholeFile(answer, answer.ranges);
 

@@ -1,16 +1,24 @@
 // compass: variance-authority.reach
 
 /**
- * The refusal for a file a record does not hold.
+ * The answer for a file a record holds no line of: the test files that loaded
+ * it, or a refusal when none did.
+ *
+ * A module the run loaded without instrumenting it has a row with no blocks,
+ * and every test file that loaded it holds it as a precondition. That is what
+ * `variance select` reads for it, so a change to it selects every one of those
+ * files whole, and `covering` names the same files from the same table
+ * (`testsGovernedBy`). No case and no line is named: nothing measured them.
  *
  * A path given to `covering` is usually the right file and the wrong root: the
  * record spells a module the way the run saw it, and a reader who pasted an
- * editor path is one prefix away. The sentence points at recorded files that
- * are this one under another root. The refusal also carries them as data, so a
+ * editor path is one prefix away. The refusal points at recorded files that
+ * are this one under another root. It also carries them as data, so a
  * caller tells a suite that tests other code from one that most likely ran this
  * file, without reading the sentence.
  */
 
+import { askCoverageFile, testsGovernedBy } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 
 /** A record that never loaded the file, with the paths it holds of the same file under another root. */
@@ -29,11 +37,44 @@ export function unloadedFile(file: string, from: string, files: readonly string[
   return new UnloadedFile(
     `\`${file}\` is not in the index at \`${from}\`, which holds ${files.length} file${
       files.length === 1 ? '' : 's'
-    }. A file the run never loaded, or loaded without instrumenting it, has no answer here, and that is a different statement from no test covering it. ${
+    }. A file the run never loaded has no answer here, and that is a different statement from no test covering it. ${
       spelling(file, files)
     }`,
     rooted(file, files),
   );
+}
+
+/**
+ * The test files the record at `from` holds `file` as a precondition of, in
+ * code-unit order: the ones that loaded it without instrumenting it, or that
+ * declare it. Empty when none does, and when `from` is not a record, such as an
+ * index a foreign tool wrote, which carries no preconditions.
+ *
+ * A test file is a precondition of itself, and is not named for that.
+ */
+export function preconditionOf(file: string, from: string): readonly string[] {
+  try {
+    return askCoverageFile(from, (coverage) => {
+      const tests: string[] = [];
+      for (const test of testsGovernedBy(coverage, [file]).tests.keys()) {
+        const own = coverage.string(coverage.testPath.at(test));
+        if (own !== file) tests.push(own);
+      }
+      return tests.sort();
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** {@link preconditionOf} said for a person, the files one to a line. */
+export function preconditionText(file: string, tests: readonly string[]): string {
+  return [
+    `${file} is a precondition of ${tests.length} test file${tests.length === 1 ? '' : 's'}, and a change to it ` +
+      'selects every one: the run loaded it without instrumenting it, or the suite declares it, so no line of it ' +
+      'has a recorded case.',
+    ...tests.map((test) => `  ${test}`),
+  ].join('\n');
 }
 
 /**

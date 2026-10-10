@@ -52,6 +52,9 @@ function bodyOf(answer: Covering, table: Table): readonly string[] {
     }
     return lines;
   }
+  if (answer.preconditionOf !== undefined) {
+    return [`${answer.file} precondition of: ${answer.preconditionOf.join(', ')}; no recorded line`];
+  }
   if (answer.ranges !== undefined) {
     return [
       `${answer.file} — ${answer.ranges.length} recorded range${answer.ranges.length === 1 ? '' : 's'}${

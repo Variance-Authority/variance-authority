@@ -49,8 +49,9 @@ yet. Suites that never loaded the file are named together on the last line,
 covers it*. A suite whose record holds this path under another root, such as
 `apps/shop/src/checkout/total.ts` for `src/checkout/total.ts`, keeps its full block among the
 answers: it most likely ran the file. When no suite answers, each block says why
-in full, with the record it read and the recorded files of the same name, since
-a wrong path is then the likely cause. `--format refs` answers the same way.
+in full, with the record it read and the recorded paths that are this one under
+another root, since a wrong path is then the likely cause. A recorded file that
+only shares the name is named as sharing it, not as the spelling. `--format refs` answers the same way.
 `--suite <name>` reads one suite's record alone, so gives its refusal in full,
 and is refused beside `--execution`. Under `--format json` the answer is
 `{"file": …, "suites": [...]}`, with `since` in place of `file` for a diff. Each
@@ -58,6 +59,11 @@ entry is that suite's answer with `suite` and `kind` added, or `{suite, kind,
 refused, reason}` for a suite that could not answer. An `unloaded` entry adds
 `spelled`, the recorded paths that are this path under another root, only when
 there is one.
+
+A module the run loaded without instrumenting it has no recorded line, and is
+not refused: the answer is `preconditionOf`, every test file that loaded it, and
+no case. Those are the files `variance select` selects on a change to it, whole.
+`--line` and `--function` get the same answer, since no line of it was measured.
 
 ## Nothing recorded is refused, not empty
 
