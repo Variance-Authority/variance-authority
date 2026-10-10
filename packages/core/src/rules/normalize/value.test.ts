@@ -26,8 +26,8 @@ describe('matchingParen', () => {
 });
 
 describe('canonicalizeTokens', () => {
-  it('keeps a quoted url() payload whole when it holds a parenthesis', () => {
-    expect(canonicalizeTokens('url("a)b.png") no-repeat')).toBe('url("a)b.png") no-repeat');
+  it('keeps a quoted url() payload whole, its case included, when it holds a parenthesis', () => {
+    expect(canonicalizeTokens('url("A)B.PNG") no-repeat')).toBe('url("A)B.PNG") no-repeat');
   });
 
   it('keeps an unclosed url() as written', () => {
