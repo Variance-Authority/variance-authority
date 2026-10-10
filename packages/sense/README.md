@@ -39,8 +39,9 @@ npm install --save-dev @variance-authority/sense
 ```
 
 Node 22.15 or newer. Vitest (`^2.1.9 || ^3.0.0 || ^4.0.0`) and Jest
-(`^30.0.0`) are optional peer dependencies: install the runner whose seam you
-use, and your own copy is the one that runs. Under an older Jest, a
+(`^30.0.0`, with the `@jest/globals` and `jest-circus` it installs) are
+optional peer dependencies: install the runner whose seam you use, and your own
+copy is the one that runs. Under an older Jest, a
 configuration that selects throws while it loads and names the version it
 found. Storybook and Playwright come from sibling packages rather than from
 here, and are covered below.
