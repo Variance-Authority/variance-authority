@@ -168,6 +168,11 @@ describe('the words a content says', () => {
     expect(readContent(`attr(data-missing) "x"`, host())).toEqual({ text: 'x' });
   });
 
+  it('reads only CSS whitespace as a gap, so a no-break space is part of the name it sits in', () => {
+    expect(readContent('attr(data-unit\u00a0)', host())).toEqual({ unresolved: ['attr()'] });
+    expect(readContent('"a"\u00a0"b"', host())).toEqual({ unresolved: ['\u00a0'] });
+  });
+
   it('leaves out the alternative text after a slash, which is not painted', () => {
     expect(readContent(`"★" / "starred"`, host())).toEqual({ text: '★' });
   });

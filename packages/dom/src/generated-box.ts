@@ -105,14 +105,14 @@ export type ContentReading = { readonly text: string } | { readonly unresolved: 
 export function readContent(content: string, host: Element): ContentReading {
   const words: string[] = [];
   const unresolved: string[] = [];
-  const token = /\s*(?:"((?:[^"\\]|\\[\s\S])*)(?:"|$)|'((?:[^'\\]|\\[\s\S])*)(?:'|$)|(\/)|([\w-]+)\(|([^\s"'(/]+))/y;
+  const token = /[ \t\n\r\f]*(?:"((?:[^"\\]|\\[\s\S])*)(?:"|$)|'((?:[^'\\]|\\[\s\S])*)(?:'|$)|(\/)|([\w-]+)\(|([^ \t\n\r\f"'(/]+))/y;
   let at = 0;
 
   while (at < content.length) {
     token.lastIndex = at;
     const found = token.exec(content);
     if (!found) {
-      const rest = content.slice(at).trim();
+      const rest = trimCss(content.slice(at));
       if (rest !== '') unresolved.push(rest);
       break;
     }
@@ -125,7 +125,7 @@ export function readContent(content: string, host: Element): ContentReading {
       break;
     } else if (fn !== undefined) {
       const close = matchingParen(content, at - 1);
-      const argument = content.slice(at, close).trim();
+      const argument = trimCss(content.slice(at, close));
       at = close + 1;
       const name = fn.toLowerCase();
       if (name === 'attr' && /^[\w-]+$/.test(argument)) words.push(host.getAttribute(argument) ?? '');
@@ -136,6 +136,11 @@ export function readContent(content: string, host: Element): ContentReading {
   }
 
   return unresolved.length > 0 ? { unresolved: [...new Set(unresolved)] } : { text: words.join('') };
+}
+
+/** CSS whitespace is space, tab and the line breaks; a no-break space is not, though `\s` and `trim()` read it as one. */
+function trimCss(text: string): string {
+  return text.replace(/^[ \t\n\r\f]+|[ \t\n\r\f]+$/g, '');
 }
 
 function unescape(string: string): string {
