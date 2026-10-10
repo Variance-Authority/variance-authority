@@ -93,7 +93,9 @@ export function ActionBar({
       <p className="va-scope">
         <span className="va-scope-label">Selected</span>
         <b title={subject.subject}>{subject.subject}</b>
-        <span>
+        {/* Shrinks before the place in the queue does: a long component name
+            costs its own tail, never the 2 of 5 beside it. */}
+        <span className="va-scope-cause" title={cause}>
           {cause ?? 'no component named'}
           {subject.regions.length === 0 ? '' : ` · ${count(subject.regions.length, 'region')}`}
         </span>

@@ -13,6 +13,7 @@ export const ACTION_STYLES = `
 .va-scope { align-items: baseline; display: flex; flex: 1 1 14rem; font-size: 0.82rem; gap: 0.7rem; min-width: 0; white-space: nowrap; }
 .va-scope b { font-family: var(--va-mono); font-size: 0.8rem; font-weight: 600; min-width: 4rem; overflow: hidden; text-overflow: ellipsis; }
 .va-scope span { color: var(--va-ink-2); flex: none; }
+.va-scope .va-scope-cause { flex: 0 1 auto; min-width: 3rem; overflow: hidden; text-overflow: ellipsis; }
 .va-scope .va-scope-label { color: var(--va-ink-3); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; }
 .va-actionbar-acts { align-items: center; display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 0.4rem; min-width: 0; }
 .va-actionbar-acts button { align-items: center; display: inline-flex; font-weight: 600; gap: 0.45rem; white-space: nowrap; }
