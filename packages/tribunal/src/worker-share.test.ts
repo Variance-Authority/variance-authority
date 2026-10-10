@@ -275,7 +275,7 @@ describe('who opens the share', () => {
     });
   });
 
-  it('keeps the share token out of every route that is not the share', async () => {
+  it('keeps the share token out of every route it does not read', async () => {
     variancePrecondition({ token: 'share' });
     for (const path of ['/review/builds', CHURN_PATH, '/baseline/find']) {
       const response = await worker.fetch(

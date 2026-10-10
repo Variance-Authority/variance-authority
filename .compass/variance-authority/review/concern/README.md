@@ -46,9 +46,11 @@ not, and the retention sweep does not remove it — a suspicion that expired wit
 its build would be a suspicion nobody followed up. Its region does expire: it is
 a place on the image of the build it was raised in.
 
-Raising, moving and reading are the review credential's, as deciding and the
-rest of the review surface are: a concern is what a person wrote, and the
-ingest credential lives where a failing job prints its environment.
+Raising and moving are the review credential's, as deciding is: a concern is
+what a person wrote, and the ingest credential lives where a failing job prints
+its environment. Reading is the share token's too, so an agent and
+`variance ask concerns` see what reviewers flagged without a credential that
+could flag or decide.
 
 The trail is append-only. A concern's state is its latest step, and a reopened
 concern keeps the resolution it was reopened from.

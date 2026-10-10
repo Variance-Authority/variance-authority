@@ -84,6 +84,7 @@ describe('the server `variance serve` starts', () => {
     expect(names).toContain('docs_search');
     expect(names).toContain('docs_packages');
     expect(names).toContain('variance_costs');
+    expect(names).toContain('variance_decisions');
   });
 
   it('answers a source question from the checkout it was started in', async () => {
@@ -163,6 +164,75 @@ describe('`variance serve` in a checkout with no report', () => {
   });
 });
 
+describe('what review settled, over `variance serve`', () => {
+  it('is read from the review deployment with the share token, and a refusal does not close the connection', async () => {
+    const asked: { method: string; url: string; authorization: string | undefined }[] = [];
+    let refuse = false;
+    const deployment = createServer((request, response) => {
+      asked.push({ method: request.method ?? '', url: request.url ?? '', authorization: request.headers.authorization });
+      response.setHeader('content-type', 'application/json');
+      if (refuse) {
+        response.statusCode = 403;
+        response.end(JSON.stringify({ error: 'that token does not read here' }));
+        return;
+      }
+      response.end(JSON.stringify(
+        request.url?.startsWith('/review/concerns?') === true
+          ? {
+            concerns: [{
+              id: 3, build: 'ci-1', subject: 'story:a', title: 'The border is clipped', evidence: [], by: 'anton',
+              at: '2026-06-01T10:00:00.000Z', state: 'open', events: [{ state: 'open', by: 'anton', at: '2026-06-01T10:00:00.000Z' }],
+            }],
+          }
+          : { decisions: [{ build: 'ci-1', subject: 'story:a', decision: 'approved', by: 'marina', at: '2026-06-02T10:00:00.000Z' }] },
+      ));
+    });
+    await new Promise<void>((listening) => deployment.listen(0, '127.0.0.1', listening));
+    const endpoint = `http://127.0.0.1:${String((deployment.address() as AddressInfo).port)}`;
+    const checkout = await mkdtemp(join(tmpdir(), 'variance-serve-decisions-'));
+    await writeRunReport(join(checkout, 'report.json'), REPORT);
+    await writeFile(
+      join(checkout, 'variance.config.json'),
+      JSON.stringify({
+        project: 'mounted',
+        profile: 'chromium',
+        viewport: { width: 256, height: 96, deviceScaleFactor: 1, colorScheme: 'light' },
+        retention: 'ephemeral',
+        subjects: { kind: 'collector', collector: 'collector/index.mjs' },
+        fonts: ['Arial/600/normal/system'],
+        report: 'report.json',
+        review: { endpoint, token: { env: 'VARIANCE_REVIEW_INGEST_TOKEN' } },
+        share: { kind: 'http', endpoint: `${endpoint}/share`, token: { env: 'VARIANCE_SHARE_TOKEN' } },
+      }),
+    );
+    const server = session(checkout, { VARIANCE_SHARE_TOKEN: 'share-secret', VARIANCE_REVIEW_INGEST_TOKEN: 'ingest-secret' });
+    try {
+      const answer = await server.request<Answer>('tools/call', { name: 'variance_decisions', arguments: { subject: 'story:a' } });
+      expect(answer.content[0]!.text).toContain('2026-06-02T10:00:00.000Z  approved  story:a  ci-1  marina');
+      const flagged = await server.request<Answer>('tools/call', { name: 'variance_concerns', arguments: { subject: 'story:a' } });
+      expect(flagged.content[0]!.text).toContain('  #3  open  story:a  ci-1  "The border is clipped"');
+      expect(asked).toEqual([
+        { method: 'GET', url: '/review/decisions?subject=story%3Aa&limit=20', authorization: 'Bearer share-secret' },
+        { method: 'GET', url: '/review/concerns?subject=story%3Aa', authorization: 'Bearer share-secret' },
+      ]);
+
+      refuse = true;
+      const refused = await server.request<Answer & { readonly isError?: boolean }>('tools/call', {
+        name: 'variance_decisions',
+        arguments: { subject: 'story:a' },
+      });
+      expect(refused.isError).toBe(true);
+      expect(refused.content[0]!.text).toMatch(/answered 403: that token does not read here/);
+      const after = await server.request<Answer>('tools/call', { name: 'variance_summary' });
+      expect(after.content[0]!.text).not.toBe('');
+    } finally {
+      server.close();
+      await new Promise((done) => deployment.close(done));
+      await rm(checkout, { recursive: true, force: true });
+    }
+  });
+});
+
 interface Answer {
   readonly content: readonly { readonly text: string }[];
 }
@@ -219,7 +289,7 @@ async function ask<Result>(method: string, params?: Record<string, unknown>, cwd
  * One `variance serve` process, asked one request at a time over the life of
  * the connection, as an agent asks it.
  */
-function session(cwd = workspace): {
+function session(cwd = workspace, variables: Readonly<Record<string, string>> = {}): {
   request<Result>(method: string, params?: Record<string, unknown>): Promise<Result>;
   close(): void;
 } {
@@ -229,7 +299,7 @@ function session(cwd = workspace): {
   const child = spawn(process.execPath, [BIN, 'serve'], {
     cwd,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...env, NO_COLOR: '1', VARIANCE_AUTHORITY_CACHE: join(cwd, 'cache') },
+    env: { ...env, ...variables, NO_COLOR: '1', VARIANCE_AUTHORITY_CACHE: join(cwd, 'cache') },
   });
   const waiting = new Map<number, { resolve(result: unknown): void; reject(error: Error): void }>();
   let ended: Error | undefined;

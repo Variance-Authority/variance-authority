@@ -105,7 +105,8 @@ export interface TribunalChangelogQuery {
   readonly since?: string;
 }
 
-const DEFAULT_LIMIT = 500;
+/** How many approvals one reading returns unless it asks for fewer, and the most it may ask for. */
+export const CHANGELOG_LIMIT = 500;
 
 /**
  * Freeze the explanation of one approval.
@@ -167,7 +168,7 @@ export async function readChangelog(
   project: string,
   query: TribunalChangelogQuery = {},
 ): Promise<TribunalChangelog> {
-  const limit = query.limit ?? DEFAULT_LIMIT;
+  const limit = query.limit ?? CHANGELOG_LIMIT;
   const conditions = ['project = ?'];
   const bindings: D1Value[] = [project];
 

@@ -154,13 +154,13 @@ variance layers  [--against <index>] [--root <path>] [--format text|markdown|jso
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
-variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
+variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]
 variance story   [--file <text>] [--name <text>] [--label <label>] [--in <package or file> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
-variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]
+variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev|instant>]
 variance journeys [--config <path> | --suite <name>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
@@ -241,6 +241,8 @@ variance ask changes --component Toggle
 variance ask describe --subject story:card
 variance ask search --query viewport    # the code, not the run: no report and no config needed
 variance ask costs --from src           # where the suite's time goes under src, from the mainline's published times
+variance ask decisions --subject story:card   # what reviewers decided on it, read with the share token
+variance ask concerns --build ci-42           # what reviewers flagged as suspect on the subjects that build showed, and why
 ```
 
 `ask` calls the tools `serve` serves and prints what they return. The same
@@ -1306,6 +1308,15 @@ one prints no such line.
 `--subject` narrows to one subject id, `--since <rev>` reads forward from a tag
 or a SHA, `--limit` caps how many commits are read.
 
+A `remote` store's baselines are not commits, so its history is the record the
+deployment made when a reviewer approved them. `variance changelog` reads it
+from the deployment with your share token, which reads what review settled and
+never decides; declare the share as
+`{ "kind": "http", "endpoint": "<deployment>/share", "token": { "env": "VARIANCE_SHARE_TOKEN" } }`.
+The same filters narrow it, `--since` takes an instant there rather than a
+revision, and `--limit` caps how many approvals are read. Each change reads in
+the columns above, with the builds that carried it and who approved it.
+
 Three failure modes are handled explicitly:
 
 - **git missing, no repository, or an unresolvable revision** each exit `2`
@@ -1313,10 +1324,9 @@ Three failure modes are handled explicitly:
   "nothing has changed since the last baseline."
 - **A shallow clone bounds what can be read.** CI checkouts at depth 1 see one
   commit; the output prints a `note:` saying what it could not see.
-- **Stores whose baselines are not commits are refused by name.** Under
-  `ephemeral` retention there is no baseline to explain; behind a `remote`
-  store the explanation lives in that service's record instead, and this
-  command reads only the log of a checkout.
+- **A project that keeps no baselines is refused by name.** Under `ephemeral`
+  retention there is no baseline to explain, and an empty history would read
+  as a broken writer.
 
 ### Journeys: which part of a module two subjects took differently
 

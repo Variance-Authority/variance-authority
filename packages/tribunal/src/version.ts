@@ -42,13 +42,16 @@ import { SCHEMA_VERSION } from './schema.js';
  *   its store, and the optional share token that only reads it.
  * - **4** — concerns under `/review/concerns`: what a reviewer suspects about a
  *   render, kept apart from the decision on its baseline.
+ * - **5** — `GET /review/decisions`, the decision history, newest first; the
+ *   share token reads it, `GET /review/changelog` and `GET /review/concerns`,
+ *   and the ingest token reads none of them.
  *
  * A client that speaks 2 against a service that speaks 1 works, slowly and with
  * that identity caveat. A client that speaks 1 against a service that speaks 2
  * works, and sends more than it needs to. Neither is an error; both are worth a
  * line on the way past.
  */
-export const TRIBUNAL_API = 4;
+export const TRIBUNAL_API = 5;
 
 export const VERSION_PATH = '/version';
 

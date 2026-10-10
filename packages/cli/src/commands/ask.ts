@@ -10,7 +10,7 @@ import { inputFor, questionFor, questionOf, refuseWords, type Question } from '.
 import { grep, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
-import { readTree, type CostsSubject, type Tree } from '@variance-authority/mcp/tools';
+import { readTree, type CostsSubject, type Reviewed, type ReviewTool, type Tree } from '@variance-authority/mcp/tools';
 import { questions } from './ask-questions.js';
 import { grepSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
@@ -100,6 +100,8 @@ export interface AskRequest {
   readonly claims?: string;
   readonly test?: string;
   readonly state?: string;
+  /** `--build <id>`: a review build, for the questions about what reviewers decided and flagged. */
+  readonly build?: string;
   readonly file?: string;
   readonly files?: readonly string[];
   /** `--area <id>`: the page of the code map `orient` prints. */
@@ -151,6 +153,8 @@ export interface AskRequest {
   readonly look?: (at: string) => Promise<VantageReading>;
   /** What each subject cost: the mainline's times, or the named reports'. Absent, `costs` is refused. */
   readonly costs?: () => Promise<CostsSubject>;
+  /** What a review tool's call names, read from its deployment. Absent, every question about review is refused. */
+  readonly review?: <Subject extends Reviewed>(tool: ReviewTool<Subject>, input: Readonly<Record<string, unknown>>) => Promise<Subject>;
   /** How the checkout is read. Injected so the source path is testable without a repository. */
   readonly source?: (root: string, options?: SourceReadOptions) => Promise<Sourced>;
 }
@@ -158,7 +162,7 @@ export interface AskRequest {
 /** The flags every question is spelled with, whichever subject answers it. */
 type Flagged = Pick<
   AskRequest,
-  | 'subject' | 'subjects' | 'component' | 'rule' | 'shape' | 'test' | 'state' | 'file' | 'files' | 'area'
+  | 'subject' | 'subjects' | 'component' | 'rule' | 'shape' | 'test' | 'state' | 'build' | 'file' | 'files' | 'area'
   | 'name' | 'package' | 'subpath' | 'query'
   | 'under' | 'above' | 'inside' | 'beside' | 'leftOf' | 'rightOf' | 'on'
   | 'from' | 'to' | 'limit' | 'offset'
@@ -198,6 +202,16 @@ export async function ask(request: AskRequest): Promise<string> {
     const input = inputFor(question.costs, flagged(request));
     if (request.costs === undefined) throw new OperatorError('`costs` needs a config: the times are kept under its project');
     return `${question.costs.run(await request.costs(), input)}\n`;
+  }
+  if (question.review !== undefined) {
+    const input = inputFor(question.review, flagged(request));
+    refuseWords(question.tool, request.reports);
+    if (request.review === undefined) {
+      throw new OperatorError(
+        `\`${request.question}\` needs a config: it names the deployment and the share token that reads it`,
+      );
+    }
+    return `${question.review.run(await request.review(question.review, input), input)}\n`;
   }
   if (request.changedFile !== undefined || request.taintFile !== undefined) {
     const flag = request.changedFile !== undefined ? '--changed-file' : '--taint-file';
@@ -423,6 +437,7 @@ function flagged(request: Flagged): Readonly<Record<string, unknown>> {
     shape: request.shape,
     test: request.test,
     state: request.state,
+    build: request.build,
     file: request.file,
     files: request.files,
     area: request.area,

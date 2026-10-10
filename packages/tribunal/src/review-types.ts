@@ -44,6 +44,20 @@ export interface DecisionRecord {
   readonly at: string;
 }
 
+/** One decision in the history, with the build and subject it was made on. */
+export interface DecisionEntry extends DecisionRecord {
+  readonly build: string;
+  readonly subject: string;
+}
+
+/** Which decisions to read. Both filters narrow; neither set reads the project's. */
+export interface DecisionsQuery {
+  readonly build?: string;
+  readonly subject?: string;
+  /** How many, newest first. 200 when unset. */
+  readonly limit?: number;
+}
+
 export interface BuildSummary {
   readonly project: string;
   readonly build: string;
@@ -417,6 +431,12 @@ export interface ReviewStore {
     readonly by: string;
     readonly note?: string;
   }): Promise<DecisionRecord>;
+  /**
+   * Every decision recorded, newest first, including the ones a later decision
+   * reversed. The build page shows the current decision per subject; this is the
+   * history behind it, and it outlives the build, as the table it reads does.
+   */
+  decisions(query?: DecisionsQuery): Promise<readonly DecisionEntry[]>;
   /**
    * Why the baselines are what they are — every approval, grouped by what changed.
    *

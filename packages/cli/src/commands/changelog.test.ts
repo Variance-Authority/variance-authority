@@ -6,7 +6,7 @@ import { parseCommitMessage } from '@variance-authority/report';
 import type { ChangelogCommit } from '@variance-authority/store/changelog';
 import { OperatorError } from '../exit.js';
 import type { Config } from '../config.js';
-import { changelogRootFor, formatChangelog } from './changelog.js';
+import { changelogStoreFor, formatChangelog } from './changelog.js';
 import { writeAcceptMessage } from './accept-message.js';
 import type { CliRunReport } from './run.js';
 
@@ -14,10 +14,10 @@ import type { CliRunReport } from './run.js';
  * The two ends of the git-LFS half: writing an explanation somebody can commit,
  * and reading one back without pretending an unanswerable question was answered.
  *
- * The refusals are the substance. A project whose baselines live behind an
- * endpoint, or that keeps none at all, has a real changelog somewhere else or has
- * none to have — and printing an empty history for either is how an operator
- * concludes the writer is broken.
+ * The refusal is the substance. A project that keeps no baselines has no
+ * changelog to have, and printing an empty history for it is how an operator
+ * concludes the writer is broken. A project whose baselines live behind an
+ * endpoint has its changelog there, and is sent to read it.
  */
 
 function config(overrides: Partial<Config> = {}): Config {
@@ -56,23 +56,23 @@ function report(): CliRunReport {
 
 describe('which stores can be asked', () => {
   it('refuses a project that keeps no baselines, rather than reporting none were updated', () => {
-    expect(() => changelogRootFor(config({ retention: 'ephemeral' }))).toThrow(OperatorError);
-    expect(() => changelogRootFor(config({ retention: 'ephemeral' }))).toThrow(
+    expect(() => changelogStoreFor(config({ retention: 'ephemeral' }))).toThrow(OperatorError);
+    expect(() => changelogStoreFor(config({ retention: 'ephemeral' }))).toThrow(
       /keeps no baselines/,
     );
   });
 
-  it('refuses a remote store by name, because its record is not in this checkout', () => {
-    expect(() =>
-      changelogRootFor(
-        config({ baselines: { kind: 'remote', endpoint: 'https://tribunal.example' } } as Partial<Config>),
+  it('asks a remote store\'s deployment, because that is where its approvals were recorded', () => {
+    expect(
+      changelogStoreFor(
+        config({ baselines: { kind: 'remote', endpoint: 'https://tribunal.example/' } } as Partial<Config>),
       ),
-    ).toThrow(/https:\/\/tribunal.example/);
+    ).toEqual({ deployment: 'https://tribunal.example' });
   });
 
   it('reads a directory store, which is a git store whenever the directory is committed', () => {
-    expect(changelogRootFor(config({ baselines: { kind: 'directory', root: 'shots' } } as Partial<Config>))).toBe(
-      'shots',
+    expect(changelogStoreFor(config({ baselines: { kind: 'directory', root: 'shots' } } as Partial<Config>))).toEqual(
+      { root: 'shots' },
     );
   });
 });

@@ -1,7 +1,7 @@
 import { CONCERN_STATES, type ConcernRegion, type ConcernState } from './concern-types.js';
 import { createConcernStore, regionOf, type ConcernStore } from './concerns.js';
 import type { D1Like } from './bindings.js';
-import { requires, type Granted } from './worker-auth.js';
+import { attested, requires, type Granted } from './worker-auth.js';
 import { BadRequest, MethodNotAllowed, asRecordBody, describe, json, optional, string } from './worker-http.js';
 
 /**
@@ -14,12 +14,15 @@ import { BadRequest, MethodNotAllowed, asRecordBody, describe, json, optional, s
  * POST /review/concerns/<id>                     → { concern }
  * ```
  *
- * ## The review token's, both ways
+ * ## Raised by the review token, read by the share token too
  *
  * Writing is the review token's, as deciding is: a concern is a person saying
- * "this looks wrong". Reading is too, as the rest of the review surface is,
- * because what a concern holds is what a person wrote, and the ingest token
- * lives where a failing job prints its environment.
+ * "this looks wrong". Reading is also the share token's, as the changelog and
+ * the decision history are ([`worker-attested.ts`](./worker-attested.ts)): an
+ * agent working on the change reads what a reviewer suspects without any path
+ * to raise or move a concern. The ingest token reads none of it, because what a
+ * concern holds is what a person wrote, and the ingest token lives where a
+ * failing job prints its environment.
  */
 
 /** Every route in this file is this path or under it, and nothing else in the router is. */
@@ -38,7 +41,7 @@ export function createConcernRoutes(options: {
     const path = url.pathname;
 
     if (path === CONCERNS_PATH && request.method === 'GET') {
-      requires(granted, 'review', path);
+      attested(granted, path);
       const build = optional(url, 'build');
       const subject = optional(url, 'subject');
       const state = optional(url, 'state');

@@ -106,6 +106,22 @@ Button
 - **`changelog --shape <digest>` or `--subjects <id>,…` — before proposing an
   accept, and never after.** It previews what accepting that selection would
   write down, and which subjects it would refuse.
+- **`decisions --subject <id>` or `--build <id>` — before proposing an accept
+  of something a reviewer already looked at.** Every approval and rejection the
+  review deployment recorded, newest first, with who made it and their note; the
+  first row for a subject and build is the one that stands. It reads with the
+  share token, which never decides, so nothing you ask here approves or rejects
+  anything. A 403 naming the ingest token means `VARIANCE_SHARE_TOKEN` holds
+  CI's token, not the share token.
+- **`concerns --build <id>` or `--subject <id>` — before changing a render a
+  reviewer flagged, or proposing its baseline.** What reviewers suspect without
+  having decided: each concern's title, its state (`open`, `investigating`,
+  `resolved`), the region and component it is about, what the reviewer pointed
+  at, and every step since with its note and hypothesis. `--build` reads the
+  concerns on every subject that build showed, whichever build raised them, and
+  counts them by state; `--state open` keeps the ones nobody has picked up. It
+  reads the same deployment with the same share token as `decisions`, so nothing
+  you ask here raises, moves or resolves a concern.
 
 ## `ask diff` has two subjects
 

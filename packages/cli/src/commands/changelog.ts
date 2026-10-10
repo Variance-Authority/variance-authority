@@ -12,15 +12,16 @@ import { OperatorError } from '../exit.js';
  * remember. Where baselines are files in this repository the answer is already
  * here: `accept` wrote it into the commit message, and this reads it back out.
  *
- * ## What it will not do
+ * ## Where the history is
  *
- * It will not answer for a store whose baselines are not commits. Under
- * `ephemeral` retention there is no baseline to explain; under a `remote` store
- * the baselines live behind an endpoint and the explanation went to that
- * service's record rather than to this checkout's log. Both refuse **by name**
- * rather than printing an empty history, because an operator who reads "no
- * baseline updates" about a project that updates baselines weekly will go looking
- * for a bug in the writer, and the bug is that they asked the wrong store.
+ * A store whose baselines are commits keeps its history in the checkout's log.
+ * A `remote` store's baselines live behind an endpoint, and their explanation
+ * is the record that deployment made when a reviewer approved them: this asks
+ * it, with the share token, which reads what review settled and never decides.
+ * Under `ephemeral` retention there is no baseline to explain, and that is
+ * refused **by name** rather than printed as an empty history, because an
+ * operator who reads "no baseline updates" about a project that updates
+ * baselines weekly will go looking for a bug in the writer.
  *
  * ## Filters narrow, they never explain
  *
@@ -37,14 +38,16 @@ export interface ChangelogViewOptions {
   readonly subject?: string;
 }
 
+/** Where a project's baseline history is kept: a checkout's log, or a deployment's record. */
+export type ChangelogStore = { readonly root: string } | { readonly deployment: string };
+
 /**
- * The baseline root to read the log of, or a refusal naming the store.
+ * Where to read the history from, or a refusal naming why there is none.
  *
- * Refused here rather than in `readChangelog`, because "this backend does not
- * keep its explanations in commits" is a fact about how this project is
- * configured, and the reader is a thing that runs `git log`.
+ * Decided here rather than in `readChangelog`, because which record explains a
+ * baseline is a fact about how this project is configured.
  */
-export function changelogRootFor(config: Config): string {
+export function changelogStoreFor(config: Config): ChangelogStore {
   if (config.retention === 'ephemeral') {
     throw new OperatorError(
       'this project keeps no baselines (`retention: "ephemeral"`), so no baseline was ever ' +
@@ -58,33 +61,25 @@ export function changelogRootFor(config: Config): string {
     throw new OperatorError('`durable` retention needs a `baselines` store, and none is set');
   }
 
-  if (baselines.kind === 'remote') {
-    throw new OperatorError(
-      `baselines for this project live at ${baselines.endpoint}, not in this repository, so ` +
-        'their explanations were recorded by that service rather than in a commit here. Ask it ' +
-        'for the history; this command reads the log of a checkout',
-    );
-  }
-
-  return baselines.root;
+  if (baselines.kind === 'remote') return { deployment: baselines.endpoint.replace(/\/+$/, '') };
+  return { root: baselines.root };
 }
 
 /**
  * Read the repository's account of its own baselines.
  *
- * Thin on purpose: the reading is `store`'s, the refusal above is the config's,
- * and what is left here is turning a store-level `Unreadable` into the tool's own
- * operator error so a missing `git` exits 2 with a sentence rather than 0 with an
- * empty list.
+ * Thin on purpose: the reading is `store`'s, the choice of store is the
+ * config's, and what is left here is turning a store-level `Unreadable` into the
+ * tool's own operator error so a missing `git` exits 2 with a sentence rather
+ * than 0 with an empty list.
  */
 export async function changelog(options: {
-  readonly config: Config;
+  readonly root: string;
   readonly limit?: number;
   readonly since?: string;
 }): Promise<{ readonly commits: readonly ChangelogCommit[]; readonly bounded: readonly string[] }> {
-  const root = changelogRootFor(options.config);
   const answer = await readChangelog({
-    root,
+    root: options.root,
     cwd: process.cwd(),
     ...(options.limit !== undefined ? { limit: options.limit } : {}),
     ...(options.since !== undefined ? { since: options.since } : {}),

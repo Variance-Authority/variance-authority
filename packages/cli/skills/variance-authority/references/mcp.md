@@ -10,7 +10,7 @@ itself. Each tool returns the same text as the command, from the same function.
 All of them speak MCP over stdio.
 
 ```bash
-variance serve [--config <path>] [--just-answer]    # @variance-authority/cli: the run's variance_* tools, variance_costs and the docs_* tools
+variance serve [--config <path>] [--just-answer]    # @variance-authority/cli: the run's variance_* tools, variance_costs, variance_decisions, variance_concerns and the docs_* tools
 variance-authority-mcp <run-report.json>            # @variance-authority/mcp: the report is the argument
 variance-authority-mcp --watch                      # the live run; prints its address to stderr
 variance-authority-help [root] [--just-answer]      # @variance-authority/help: the docs_* tools only

@@ -24,12 +24,12 @@ function answering(payload: unknown, status = 200): typeof globalThis.fetch {
 describe('knowing which halves are talking', () => {
   it('reads the API version a deployment states', async () => {
     const reached = await reach(
-      answering({ service: 'variance-authority-tribunal', api: 3, schema: 17 }),
+      answering({ service: 'variance-authority-tribunal', api: NEEDS_API, schema: 17 }),
       'https://review.example/api',
       'ingest-token-0123',
     );
 
-    expect(reached).toEqual({ known: true, api: 3, schema: 17 });
+    expect(reached).toEqual({ known: true, api: NEEDS_API, schema: 17 });
     // And the agreement is silent: a tool that announces every normal state is
     // a tool whose output people stop reading.
     expect(versionNote(reached, true)).toBeUndefined();
@@ -92,6 +92,12 @@ describe('knowing which halves are talking', () => {
     // A project whose share is not at this deployment loses nothing at API 2,
     // so a push there says nothing rather than asking for a redeploy.
     expect(versionNote({ known: true, api: 2 }, false)).toBeUndefined();
+
+    // API 4 keeps concerns but predates the share token reading what review
+    // settled; only a project whose share token is for this deployment would
+    // read with it.
+    expect(versionNote({ known: true, api: 4 }, true)).toContain('refuses the share token');
+    expect(versionNote({ known: true, api: 4 }, false)).toBeUndefined();
   });
 
   it('counts a share as stored at the deployment only when it is an http share under its endpoint', () => {
