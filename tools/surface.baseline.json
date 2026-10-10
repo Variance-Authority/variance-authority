@@ -279,6 +279,7 @@
         "Viewport": "interface",
         "Wiring": "interface",
         "accessibilitySnapshot": "function",
+        "assetUrl": "function",
         "canonicalNumber": "function",
         "canonicalize": "function",
         "conflicts": "function",
