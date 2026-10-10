@@ -89,6 +89,13 @@ describe('a module marked as loaded', () => {
 
     expect(markModule(root, file, SOURCE, () => false)).toBeUndefined();
   });
+
+  it('is not marked when it lies outside the checkout, though the predicate names it', async () => {
+    const { root, file } = await checkout(SOURCE);
+
+    expect(markModule(resolve(root, 'packages'), file, SOURCE, () => true)).toBeUndefined();
+  });
+
   it('is not instrumented when it is cut again from the checkout, though the text could carry probes', async () => {
     const { root, file } = await checkout(SCRIPT);
     const marked = markModule(root, file, SCRIPT, defaultInclude)!;

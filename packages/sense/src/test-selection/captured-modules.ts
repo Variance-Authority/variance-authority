@@ -18,7 +18,7 @@ import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrument, probeRuntime, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { recordedBlocks } from './coverage-rows.js';
-import { isMissing, projectPath, type CapturedModule } from './instrumented-modules.js';
+import { insideRoot, isMissing, projectPath, type CapturedModule } from './instrumented-modules.js';
 import { handedTexts, rawFrame, type RawFrame } from './source-lines.js';
 
 /** A module cut into regions, and the text that carries its probes. */
@@ -42,8 +42,9 @@ export interface Captured {
  * repository-relative path and the digest of `code`, `path@digest`: all the
  * join needs to cut the same module again. `file` is the project path the
  * regions are read under, whose extension decides how the text is parsed.
- * A module `unprobed` names, under the name it was handed or the one its frame
- * reads under, is marked as loaded instead, and its id is {@link markedId}.
+ * A module inside `root` that `unprobed` names, under the name it was handed or
+ * the one its frame reads under, is marked as loaded instead, and its id is
+ * {@link markedId}.
  * `undefined` when neither `include` nor `unprobed` accepts the module under
  * any name {@link rawFrame} could give it.
  */
@@ -55,13 +56,15 @@ export function planModule(
   original: (path: string) => string = readOriginal,
   unprobed?: (file: string) => boolean,
 ): PlannedModule | undefined {
-  const accepts = unprobed === undefined ? include : (file: string) => unprobed(file) || include(file);
+  // A module outside the checkout has no project path to be marked under.
+  const marks = unprobed && ((file: string) => insideRoot(root, file) && unprobed(file));
+  const accepts = marks === undefined ? include : (file: string) => marks(file) || include(file);
   const frame = rawFrame(code, path, accepts, original);
   if (frame === undefined) return undefined;
   const at = projectPath(root, path);
   // `unprobed` wins, because a probe in a module whose functions leave the
   // process throws where it lands.
-  const marked = unprobed !== undefined && (unprobed(frame.file) || unprobed(path));
+  const marked = marks !== undefined && (marks(frame.file) || marks(path));
   return { frame, file: projectPath(root, frame.file), id: marked ? markedId(at, code) : moduleId(at, code), marked };
 }
 
