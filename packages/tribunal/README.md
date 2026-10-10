@@ -258,7 +258,7 @@ be requested anonymously.
 | `POST /review/have` | ingest | given image digests, which of them this deployment already has, so a push uploads only the rest |
 | `GET /review/builds[?limit]` | review | recent builds |
 | `GET /review/builds/{id}` | review | one build: its subjects, their verdicts, their regions, the docket |
-| `POST /review/builds/{id}/subjects/{subject}/decision` | review | `{"decision":"approved"\|"rejected","by":"…","note":"…"}` |
+| `POST /review/builds/{id}/subjects/{subject}/decision` | review | `{"decision":"approved"\|"rejected","by":"…","note":"…","baselineVersion":"…"}`. 409 when the subject's baseline is no longer `baselineVersion`, below |
 | `GET /review/builds/{id}/subjects/{subject}/{before\|after\|diff}.png` | review | one image, immutable and cacheable |
 | `GET /review/changelog[?component&subject&since&limit]` | review | every approval, grouped by shape |
 | `POST /review/sweep[?days=N]` | review | retention, below |
@@ -621,6 +621,19 @@ returned `'review'` would be a published approve button.
 that build's uploaded candidate the baseline, through the same `RasterStore` the
 next run reads. A subject whose candidate was never uploaded **cannot be
 approved**.
+
+**A decision is taken against the baseline you read.** Each subject a build
+answers with carries `baselineVersion`: the document digest of the baseline an
+approval would replace, or `null` when there is none. Send it back with the
+decision. When that baseline has been replaced since, by an approval from
+another build or by a run's `/baseline/put`, the service records nothing and
+answers 409 with `{"error":"…","read":…,"current":…}`: a sentence naming the
+baseline you read and the one there now, and the same two document digests as
+values, `null` for none. The version is the baseline standing when you read the
+build, not the one its run compared against, so it guards the time the page is
+open. The review pages send it, and on a 409 both the subject panel and the
+change page offer to reload what you were deciding. A decision without
+`baselineVersion` is not checked.
 
 **A store failure is never a verdict.** Every D1 and R2 failure raises
 `RasterStoreError` instead of returning a value; `null` is reserved for *the

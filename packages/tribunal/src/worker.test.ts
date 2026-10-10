@@ -373,6 +373,34 @@ describe('two tokens, and what each one may do', () => {
     expect(response.status).toBe(422);
     expect(await response.text()).toMatch(/did not upload a candidate/);
   });
+
+  it('answers 409, naming what moved, to a decision about a baseline that has since changed', async () => {
+    await call('/review/builds', { token: INGEST, body: build });
+    await call('/review/builds', { token: INGEST, body: { ...build, build: 'ci-2' } });
+    const decide = (id: string, body: Record<string, unknown>) =>
+      call(`/review/builds/${id}/subjects/story:a/decision`, { token: REVIEW, body });
+
+    expect((await decide('ci-2', { decision: 'approved', by: 'anton' })).status).toBe(200);
+    const stale = await decide('ci-1', { decision: 'approved', by: 'marina', baselineVersion: null });
+
+    expect(stale.status).toBe(409);
+    const body = (await stale.json()) as Record<string, unknown>;
+    expect(body['error']).toMatch(/story:a.*moved/);
+    // The baseline the page read and the one standing now, as values a page
+    // can print in its own words.
+    expect(body['read']).toBeNull();
+    expect(body['current']).toEqual(expect.any(String));
+  });
+
+  it('refuses a baseline version that is neither a digest nor null', async () => {
+    await call('/review/builds', { token: INGEST, body: build });
+
+    const refused = await call('/review/builds/ci-1/subjects/story:a/decision', {
+      token: REVIEW,
+      body: { decision: 'approved', by: 'marina', baselineVersion: 7 },
+    });
+    expect(refused.status).toBe(400);
+  });
 });
 
 describe('saying what this deployment is', () => {

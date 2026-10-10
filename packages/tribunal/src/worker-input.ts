@@ -79,6 +79,35 @@ export function asDecision(value: unknown): Decision {
 }
 
 /**
+ * A decision as posted: what was decided, by whom, an optional note, and the
+ * baseline version the reviewer's page read.
+ *
+ * The version is kept apart by presence. A body without the key is a client
+ * that predates it and is not checked; `null` is a page that read no baseline,
+ * and is refused once one exists.
+ */
+export function asDecisionBody(body: Readonly<Record<string, unknown>>): {
+  decision: Decision;
+  by: string;
+  note?: string;
+  baselineVersion?: string | null;
+} {
+  const version = body['baselineVersion'];
+  if (version !== undefined && version !== null && (typeof version !== 'string' || version === '')) {
+    throw new BadRequest(
+      `\`baselineVersion\` must be the document digest the page read, or null for no baseline; ` +
+        `received ${describe(version)}`,
+    );
+  }
+  return {
+    decision: asDecision(body['decision']),
+    by: string(body, 'by', 'the decision'),
+    ...(typeof body['note'] === 'string' && body['note'] !== '' ? { note: body['note'] } : {}),
+    ...(version === undefined ? {} : { baselineVersion: version }),
+  };
+}
+
+/**
  * A build, checked before any of it is stored.
  *
  * The report itself is handed to `review.ingest` as-is rather than rebuilt field

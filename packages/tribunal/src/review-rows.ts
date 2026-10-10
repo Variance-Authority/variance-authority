@@ -20,7 +20,31 @@
  * "Cloudflare is down" for a reviewer who clicked approve on the wrong subject.
  */
 export class ReviewError extends Error {
-  override readonly name = 'ReviewError';
+  override readonly name: string = 'ReviewError';
+}
+
+/**
+ * A decision refused because the baseline it was taken against has since been
+ * replaced: another build promoted the subject while the reviewer was reading.
+ *
+ * A `ReviewError` the caller can recover from by reading again, which is why the
+ * Worker answers it 409 rather than 422. The request was well formed and would
+ * have been right a moment earlier.
+ *
+ * The message is a whole sentence for a caller that prints it; `read` and
+ * `current` are the same two facts for a page that says them in its own words.
+ * Each is the document the baseline was painted from, `null` for none.
+ */
+export class BaselineMoved extends ReviewError {
+  override readonly name = 'BaselineMoved';
+
+  constructor(
+    message: string,
+    readonly read: string | null,
+    readonly current: string | null,
+  ) {
+    super(message);
+  }
 }
 
 export type Row = Record<string, unknown>;

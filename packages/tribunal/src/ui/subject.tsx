@@ -10,7 +10,8 @@
 
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import type { Decision, SubjectView } from '../review-types.js';
-import type { ReviewClient } from './client.js';
+import { BaselineMovedNotice, movedOf } from './baseline-moved.js';
+import type { MovedBaseline, ReviewClient } from './client.js';
 import { Concerns } from './concerns.js';
 import type { Ruler } from './distance.js';
 import { Findings } from './findings.js';
@@ -51,12 +52,21 @@ export function SubjectPanel({
   readonly far?: Ruler | undefined;
   /** Whether the run resolved any source file — see {@link RegionTable}. */
   readonly sourced?: boolean | undefined;
-  readonly onDecided: () => void;
+  /**
+   * Reads the build again; the panel takes no decision until it has. It reports
+   * its own failure and never rejects: a build that cannot be read again is the
+   * page's to say, with its own retry, and the panel it replaces goes with it.
+   */
+  readonly onDecided: () => void | Promise<void>;
   /** Told after a concern on this subject was raised or moved. */
   readonly onConcerned?: (() => void) | undefined;
 }): ReactElement {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  // What moved, when the service refused a decision because the baseline moved
+  // under it. Apart from `failed` because it is not a failure to retry: the page
+  // is out of date, and the remedy is to read the subject again.
+  const [moved, setMoved] = useState<MovedBaseline | null>(null);
   const page = useRef<HTMLDivElement>(null);
 
   // This panel used to be remounted per subject, which threw away the comparison
@@ -67,20 +77,36 @@ export function SubjectPanel({
   useEffect(() => {
     setBusy(false);
     setFailed(null);
+    setMoved(null);
     page.current?.scrollTo({ top: 0 });
   }, [subject.subject]);
 
   const decide = async (decision: Decision): Promise<void> => {
     setBusy(true);
     setFailed(null);
+    setMoved(null);
     try {
-      await client.decide(build, subject.subject, decision, reviewer);
-      onDecided();
+      await client.decide(build, subject.subject, decision, reviewer, undefined, subject.baselineVersion);
+      await onDecided();
     } catch (error) {
       // Kept on the page rather than swallowed. A decision that silently did not
       // land is a reviewer who believes a baseline was promoted and a next run
       // that reports the same change again.
-      setFailed(messageOf(error));
+      const refused = movedOf(error);
+      if (refused === undefined) setFailed(messageOf(error));
+      else setMoved(refused);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Until the build answers again the page still holds the version it read, and
+  // a decision taken in between would send it and be refused a second time.
+  const reload = async (): Promise<void> => {
+    setMoved(null);
+    setBusy(true);
+    try {
+      await onDecided();
     } finally {
       setBusy(false);
     }
@@ -111,6 +137,14 @@ export function SubjectPanel({
             </p>
           )}
           {failed === null ? null : <p className="va-failure">{failed}</p>}
+          {moved === null ? null : (
+            <BaselineMovedNotice
+              moved={moved}
+              reload="Reload this subject"
+              busy={busy}
+              onReload={() => void reload()}
+            />
+          )}
           <p className="va-actions">
             <button
               type="button"

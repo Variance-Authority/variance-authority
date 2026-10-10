@@ -115,7 +115,7 @@ function Build({
   readonly build: BuildDetail;
   readonly route: BuildRoute;
   readonly go: (route: Route) => void;
-  readonly reload: () => void;
+  readonly reload: () => Promise<void>;
 }): ReactElement {
   const crossing = useCrossing(client, build);
   const concerns = useConcernTally(client, build.build);

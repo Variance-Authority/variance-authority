@@ -14,7 +14,8 @@ is yes, promotes the **candidate** that run already uploaded.
 ## Inputs and outputs
 
 In: a build, a subject, an answer, the name of the person giving it, and
-optionally their sentence about why.
+optionally their sentence about why and the version of the **baseline** they
+read: its document digest, or nothing for no baseline.
 
 Out: the recorded decision. On an approval it also writes a **baseline** through
 [retention](../../retention/README.md)'s store, and one changelog row explaining
@@ -52,6 +53,13 @@ Promotion precedes the record of it. The other order can leave an approval on th
 page whose baseline was never written, and the next run reports the same change
 again with the reviewer's name already against it.
 
+A decision is taken against the baseline the reviewer read. When it carries a
+version and the baseline an approval would replace is no longer that one —
+another build's approval or a run's own write replaced it — the decision is
+refused before anything is promoted or recorded, with a sentence naming both and
+the two versions beside it, so a page can say them in its own words. A decision
+without a version is not checked.
+
 Nothing is written for a rejection. It is recorded as a decision, but no baseline
 changed, and a changelog carrying rejections would answer *why does this baseline
 look like this* with entries about baselines that are not there.
@@ -69,7 +77,10 @@ path, which is [report](../../report/README.md)'s.
   row. `buildContext` reads the commit and the intent at approval time rather than
   joining them later
 - `packages/tribunal/src/review-write.ts` — `promote`, which is what local
-  acceptance means when it is a click; `store`, the one write on the way in
+  acceptance means when it is a click; `promotedIdentity`, the identity it files
+  under; `store`, the one write on the way in
+- `packages/tribunal/src/review-baseline.ts` — the version each subject of a
+  build carries, and `refuseMoved`, the refusal of a decision whose baseline moved
 - `packages/tribunal/src/changelog.ts` — `recordApproval` and `readChangelog`. The
   regions, the commit, the intent and the reviewer are copies rather than a join,
   because the build expires and the explanation of a baseline has to last exactly
