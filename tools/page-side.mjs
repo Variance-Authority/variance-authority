@@ -25,10 +25,13 @@ import { relative, resolve } from 'node:path';
  * at the first probe, which is exactly the failure the product chose to keep.
  *
  * `tools/page-side.check.ts` holds the other end, which is the direction nothing
- * else watches: an entry that has stopped being true costs a module its
- * measurement, silently and for as long as nobody looks. So every entry must
- * name a module that is there, and every entry in {@link CROSSES} must still
- * contain the call that put it there.
+ * else watches: an entry that has stopped being true costs a module its lines,
+ * silently and for as long as nobody looks. A module in {@link CROSSES} or
+ * {@link SERIALIZED} is only marked as loaded, so a change to it selects every
+ * test that loaded it; one in {@link RUNTIME} is neither probed nor marked, so
+ * a change to it is answered by the import graph. So every entry must name a
+ * module that is there, and every entry in {@link CROSSES} must still contain
+ * the call that put it there.
  *
  * Written as extensionless repository-relative stems, because the same module
  * arrives at the runner twice — once as the `src` its own package's tests
