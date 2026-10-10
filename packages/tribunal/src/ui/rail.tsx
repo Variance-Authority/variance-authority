@@ -18,6 +18,24 @@ import { causeOf } from './lead.js';
 import { briefly, count } from './text.js';
 
 /**
+ * The rail read top to bottom: verdicts in the order they first appear, largest
+ * difference first inside each.
+ *
+ * One order for the list and for the bar's *next*, so the key a reviewer presses
+ * lands on the row below the one they are on and never somewhere the rail is not.
+ */
+export function queueOf<Each extends Pick<SubjectView, 'verdict' | 'changedPixels'>>(
+  subjects: readonly Each[],
+): readonly Each[] {
+  const groups = [...new Set(subjects.map((subject) => subject.verdict))];
+  return groups.flatMap((verdict) =>
+    subjects
+      .filter((each) => each.verdict === verdict)
+      .sort((left, right) => right.changedPixels - left.changedPixels),
+  );
+}
+
+/**
  * Every subject worth a decision, grouped by verdict and readable at a glance.
  *
  * The rail exists so that choosing what to look at costs a glance rather than a
@@ -38,7 +56,8 @@ export function SubjectRail({
   readonly selected: string | null;
   readonly onSelect: (subject: string | null) => void;
 }): ReactElement {
-  const groups = [...new Set(subjects.map((subject) => subject.verdict))];
+  const queue = queueOf(subjects);
+  const groups = [...new Set(queue.map((subject) => subject.verdict))];
 
   return (
     <div className="va-rail-list va-scroll">
@@ -56,9 +75,7 @@ export function SubjectRail({
       </button>
 
       {groups.map((verdict) => {
-        const rows = subjects
-          .filter((each) => each.verdict === verdict)
-          .sort((left, right) => right.changedPixels - left.changedPixels);
+        const rows = queue.filter((each) => each.verdict === verdict);
 
         return (
           <section key={verdict}>

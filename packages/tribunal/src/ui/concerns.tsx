@@ -18,6 +18,15 @@ import { when } from './text.js';
 
 export { evidenceFor } from './concern-form.js';
 
+/**
+ * A request from outside the card to open its form, in a state. `seq` counts the
+ * requests, so asking twice for the same state is still two requests.
+ */
+export interface Asked {
+  readonly state: ConcernState;
+  readonly seq: number;
+}
+
 type Loaded =
   | { readonly kind: 'loading' }
   | { readonly kind: 'failed'; readonly message: string }
@@ -29,17 +38,22 @@ export function Concerns({
   reviewer,
   build,
   subject,
+  asked,
   onChanged,
 }: {
   readonly client: ReviewClient;
   readonly reviewer: string;
   readonly build: string;
   readonly subject: SubjectView;
+  /** The bar under the page asking for the form, and the state to start it in. */
+  readonly asked?: Asked | undefined;
   /** Told after every concern that landed, so a count elsewhere can follow. */
   readonly onChanged?: (() => void) | undefined;
 }): ReactElement {
   const [loaded, setLoaded] = useState<Loaded>({ kind: 'loading' });
   const [writing, setWriting] = useState(false);
+  const [startAs, setStartAs] = useState<ConcernState>('open');
+  const card = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   // The subject on screen. The page keeps this panel from subject to subject, so
@@ -62,6 +76,15 @@ export function Concerns({
       live = false;
     };
   }, [client, subject.subject]);
+
+  // Only a new request opens the form: the panel outlives the subject, and the
+  // last request is still in its props when the reviewer moves to the next one.
+  useEffect(() => {
+    if (asked === undefined) return;
+    setStartAs(asked.state);
+    setWriting(true);
+    card.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [asked]);
 
   /**
    * Put a written concern where the list had it, or at the end when it is new.
@@ -108,7 +131,7 @@ export function Concerns({
     void write(() => client.moveConcern(concern.id, { state, by: reviewer }));
 
   return (
-    <div className="va-concerns">
+    <div className="va-concerns" ref={card}>
       {failed === null ? null : <p className="va-failure">{failed}</p>}
       {loaded.kind === 'loading' ? <p className="va-note">Reading concerns…</p> : null}
       {loaded.kind === 'failed' ? <p className="va-failure">{loaded.message}</p> : null}
@@ -133,12 +156,20 @@ export function Concerns({
           build={build}
           reviewer={reviewer}
           busy={busy}
+          initial={startAs}
           onSave={(input) => void save(input)}
           onCancel={() => setWriting(false)}
         />
       ) : (
         <p className="va-actions">
-          <button type="button" className="va-suspicious" onClick={() => setWriting(true)}>
+          <button
+            type="button"
+            className="va-suspicious"
+            onClick={() => {
+              setStartAs('open');
+              setWriting(true);
+            }}
+          >
             Looks suspicious
           </button>
         </p>

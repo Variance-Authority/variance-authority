@@ -354,8 +354,17 @@ drifts in nineteen runs out of twenty. Two numbers are drawn as missing rather
 than as zero: a flake rate is **absent** until a run has read every subject
 twice, and a coverage that was never stated is unknown rather than clean.
 
+Every move on a subject sits in one bar under the picture, beside what it acts
+on: the subject, the component it names as the cause, its regions, and where it
+stands in the rail — *2 of 5*, or *not in the queue* for one opened by a link.
+Single keys reach the moves that cost nothing to undo: <kbd>J</kbd> and
+<kbd>K</kbd> walk the rail in the order it is drawn, <kbd>F</kbd> opens a
+concern and <kbd>I</kbd> opens one already under investigation. *Approve* and
+*Reject* have no key, because a key that promotes a baseline is a key pressed by
+accident. No key fires while a field has the caret or a modifier is held.
+
 A render you would not approve and cannot yet call wrong has a third answer.
-*Looks suspicious*, under the decision on a subject page, raises a **concern**: a
+*Looks suspicious*, in the bar or under the subject's concerns, raises a **concern**: a
 title, the region you mean or the whole render, the components, files or the
 baseline you are pointing at, a note and your hypothesis. It moves between
 open, investigating and resolved, each step with a name on it. It stays on the

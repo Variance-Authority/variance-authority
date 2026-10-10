@@ -35,7 +35,7 @@ import { Impact } from './impact.js';
 import { originsOf } from './grouping.js';
 import { causeOf } from './lead.js';
 import { OriginsPanel } from './origins.js';
-import { SubjectRail } from './rail.js';
+import { SubjectRail, queueOf } from './rail.js';
 import type { Order, Route } from './route.js';
 import { RunPage } from './run.js';
 import { needsReview } from './settled.js';
@@ -131,6 +131,15 @@ function Build({
   // Anchored on the change this render is filed under: on a page with no single
   // change, distance has nothing to be measured from.
   const anchor = subject === undefined ? undefined : causeOf(subject);
+  // The bar walks the queue the rail draws, so *next* is the row below.
+  const queue = queueOf(reviewable);
+  const at = subject === undefined ? -1 : queue.indexOf(subject);
+  const place = {
+    ...(at < 0 ? {} : { at }),
+    of: queue.length,
+    previous: at > 0 ? queue[at - 1]?.subject : undefined,
+    next: queue[at + 1]?.subject,
+  };
 
   return (
     <div className="va-app">
@@ -195,6 +204,8 @@ function Build({
               subject={subject}
               {...(anchor === undefined ? {} : { anchor, far: distanceFrom(build, anchor) })}
               sourced={build.causes.some((cause) => cause.file !== undefined)}
+              place={place}
+              onGo={(next) => go({ page: 'subject', build: build.build, subject: next })}
               onDecided={reload}
               onConcerned={concerns.refresh}
             />
