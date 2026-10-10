@@ -81,15 +81,16 @@ pub fn cadence(source: &str, file: &str, awaited: bool) -> Option<Cadence> {
     Some(Cadence { code, mappings, shifts })
 }
 
-/// `__vaC`, which hands the collector the line, and with `awaited` the file and
-/// back whatever the collector returns for the cut to wait on.
+/// `__vaC`, which hands the collector the line, and with `awaited` the file. An
+/// awaited cut waits only on what a collector returned, kept on `__vaC.w`, so a
+/// body in a realm with no recording takes no turn it did not take as written.
 fn declaration(file: &str, awaited: bool) -> String {
     if !awaited {
         return DECLARATION.to_string();
     }
     let mut named = String::new();
     json_string(&mut named, file);
-    format!(";function __vaC(l){{var r=globalThis.__VA__;if(r!=null&&typeof r.c===\"function\")return r.c(l,{named})}}")
+    format!(";function __vaC(l){{var r=globalThis.__VA__;__vaC.w=r!=null&&typeof r.c===\"function\"?r.c(l,{named}):void 0;return __vaC.w!=null}}")
 }
 
 struct Cuts {
@@ -103,8 +104,8 @@ struct Cuts {
 impl Cuts {
     fn cut(&mut self, at: u32) {
         let line = self.lines.at(at);
-        let wait = if self.waits { "await " } else { "" };
-        self.edits.push((at, format!("{wait}__vaC({line});")));
+        let wait = if self.waits { "&&await __vaC.w" } else { "" };
+        self.edits.push((at, format!("__vaC({line}){wait};")));
     }
 
     fn body(&mut self, function: &Argument) {
@@ -116,8 +117,8 @@ impl Cuts {
                     None => {
                         let span = arrow.body.span();
                         let line = self.lines.at(span.start);
-                        let wait = if self.waits { "await " } else { "" };
-                        self.edits.push((span.start, format!("({wait}__vaC({line}),")));
+                        let wait = if self.waits { "&&await __vaC.w" } else { "" };
+                        self.edits.push((span.start, format!("(__vaC({line}){wait},")));
                         self.edits.push((span.end, ")".to_string()));
                     }
                 }
@@ -352,10 +353,10 @@ mod tests {
     #[test]
     fn an_awaited_cut_waits_in_an_async_body_and_names_its_file() {
         let out = awaited("test('t', async ({ page }) => {\n  await page.goto('/');\n  check();\n});\ntest('s', () => {\n  go();\n});\ntest('c', async () => page.click());\n");
-        assert!(out.contains("  await __vaC(2);await page.goto('/');\n  await __vaC(3);check();\n"), "{out}");
+        assert!(out.contains("  __vaC(2)&&await __vaC.w;await page.goto('/');\n  __vaC(3)&&await __vaC.w;check();\n"), "{out}");
         assert!(out.contains("  __vaC(6);go();"), "a body that cannot wait is cut as it was: {out}");
-        assert!(out.contains("async () => (await __vaC(8),page.click())"), "{out}");
-        assert!(out.contains("return r.c(l,\"/repo/e2e/a.spec.ts\")"), "{out}");
+        assert!(out.contains("async () => (__vaC(8)&&await __vaC.w,page.click())"), "{out}");
+        assert!(out.contains("r.c(l,\"/repo/e2e/a.spec.ts\")"), "{out}");
         assert_eq!(out.lines().count(), 8);
     }
 

@@ -194,6 +194,26 @@ describe('an awaited cut, for a collector outside the test realm', () => {
       'cut 4 /repo/e2e/a.spec.ts', 'drained 4', 'step 3',
     ]);
   });
+
+  it('waits on nothing where no collector answers, so the body keeps its own turns', async () => {
+    const test = cadence(
+      "test('t', async () => {\n  queueMicrotask(() => step('queued'));\n  step(3);\n});\n",
+      '/repo/e2e/a.spec.ts',
+      { awaited: true },
+    );
+    const said: string[] = [];
+    let body: Promise<void> | undefined;
+    const context = createContext({
+      queueMicrotask,
+      test: (_: string, run: () => Promise<void>) => {
+        body = run();
+      },
+      step: (what: string | number) => said.push(`step ${what}`),
+    });
+    runInContext(test!.code, context, { filename: '/repo/e2e/a.spec.ts' });
+    await body;
+    expect(said).toEqual(['step 3', 'step queued']);
+  });
 });
 
 describe('a test body registered under another name', () => {

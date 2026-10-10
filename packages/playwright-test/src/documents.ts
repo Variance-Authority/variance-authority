@@ -30,6 +30,7 @@ import type {
   PlaywrightTestArgs,
   PlaywrightWorkerArgs,
   Request,
+  TestInfo,
 } from '@playwright/test';
 import type { RecorderFixture } from './completed.js';
 import { testOf } from './execution.js';
@@ -56,13 +57,15 @@ export const varianceDocumentFixtures: Fixtures<
     }
     const owner = varianceRecorder.owner(testInfo);
     const documents = watchDocuments(context);
+    const statements = drainEachStatement(context, varianceRecorder, owner, testInfo);
     await use(context);
     documents.stop();
+    const line = await statements.stop();
     let lost = documents.lost();
     for (const page of context.pages()) {
       for (const frame of page.frames()) {
         try {
-          await varianceRecorder.note(frame, owner, testOf(testInfo));
+          await varianceRecorder.note(frame, owner, testOf(testInfo), line);
         } catch {
           // A frame detached between listing and draining, or a document torn
           // down mid-evaluation: its window is gone, which is the same fact as
@@ -74,6 +77,99 @@ export const varianceDocumentFixtures: Fixtures<
     if (lost) varianceRecorder.mark(owner, false);
   },
 };
+
+/**
+ * How long a statement waits for the documents to be drained before it goes on
+ * without them. A drain is one evaluation per frame and takes milliseconds; one
+ * that takes longer is held up by the page — an open `alert` blocks every
+ * evaluation until the test answers it, and the statement that would answer it
+ * is the one waiting.
+ */
+const STATEMENT_WAIT_MS = 1000;
+
+interface Statements {
+  /** Stop draining per statement; resolves to the line the rest is charged to. */
+  readonly stop: () => Promise<number | undefined>;
+}
+
+/**
+ * Drain every document before each statement of the running spec, so each
+ * region its case entered is charged to the test line whose statement first
+ * reached it.
+ *
+ * The spec was compiled with the cadence plugin ([`cadence-babel.cts`](./cadence-babel.cts)),
+ * which awaits what `__VA__.c(line, file)` returns before each statement of an
+ * async test or hook body. A spec compiled without it never calls this, and
+ * every region it reached is ambient. A body declared in another file names
+ * that file and is not waited on: its work is charged to the spec's statement
+ * that called it.
+ *
+ * A drain that does not finish in {@link STATEMENT_WAIT_MS} leaves the case's
+ * lines from there on unknown: every region drained after it is ambient,
+ * because which statement reached it is no longer known. A drain that fails is
+ * passed over — a document that went away is the document watch's to report,
+ * and the teardown drain is the one that decides.
+ */
+function drainEachStatement(
+  context: BrowserContext,
+  recorder: NonNullable<RecorderFixture['varianceRecorder']>,
+  owner: string,
+  testInfo: TestInfo,
+): Statements {
+  type Cut = (line: number, file: string) => unknown;
+  const realm = globalThis as { __VA__?: { c?: Cut } };
+  const held = realm.__VA__;
+  const outer = held?.c;
+  const subject = testOf(testInfo);
+  let last: number | undefined;
+  let late = false;
+  let draining: Promise<void> = Promise.resolve();
+
+  const drain = (line: number | undefined) => async () => {
+    for (const page of context.pages()) {
+      for (const frame of page.frames()) {
+        try {
+          await recorder.note(frame, owner, subject, late ? undefined : line);
+        } catch {
+          // Answered by the document watch and the teardown drain.
+        }
+      }
+    }
+  };
+  const c: Cut = (line, file) => {
+    const theirs = outer?.(line, file);
+    if (file !== testInfo.file) return theirs;
+    const reached = last;
+    last = line;
+    draining = draining.then(drain(reached));
+    const drained = draining;
+    const waited = new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        late = true;
+        resolve();
+      }, STATEMENT_WAIT_MS);
+      timer.unref();
+      void drained.then(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+    return theirs === undefined || theirs === null ? waited : Promise.all([theirs, waited]);
+  };
+
+  if (held === undefined) realm.__VA__ = { c };
+  else held.c = c;
+
+  return {
+    stop: async () => {
+      if (held === undefined) delete realm.__VA__;
+      else if (outer === undefined) delete held.c;
+      else held.c = outer;
+      await draining;
+      return late ? undefined : last;
+    },
+  };
+}
 
 interface Watch {
   /** Whether any document the test ran in was gone before it could be drained. */

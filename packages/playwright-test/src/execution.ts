@@ -28,6 +28,7 @@ import {
   stagingDirectory,
   type CasePrecondition,
   type EvaluatingPage,
+  type ExecutionJournal,
   type InstrumentMode,
   type ObservedCase,
   type ObservedEyes,
@@ -99,6 +100,15 @@ export interface ExecutionRecording {
    * this a commit that edits one selects nothing at all.
    */
   readonly preconditions?: readonly string[];
+  /**
+   * Whether each statement of a test or a hook is cut, so the record says which
+   * line of the test first reached each region its case entered. On by default.
+   * Each statement of an async body waits while the page is drained, which is
+   * one round trip to every frame per statement; turn it off to record a suite
+   * exactly as it ran before cuts existed. `withTestSelection` reads it, since
+   * the cut is a Babel plugin Playwright compiles every spec with.
+   */
+  readonly cadence?: boolean;
 }
 
 /** One worker's accumulation, drained per observation and written once. */
@@ -110,8 +120,14 @@ export interface ExecutionRecorder {
    * `subject` names the individual test the window belongs to, for a run
    * recording cases. Without it the crossings join the file and nothing finer,
    * which is what selection reads either way.
+   *
+   * `line` is the test line whose statement ran since the drain before, for a
+   * case whose file was cut: each region the window holds that the case has
+   * not reached under an earlier line is charged to it. A case drained without
+   * one carries no lines, and a region drained without one before its first is
+   * ambient.
    */
-  readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest) => Promise<void>;
+  readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest, line?: number) => Promise<void>;
   /**
    * Mint this execution's journey and put it on the page's context.
    *
@@ -192,6 +208,9 @@ export function createExecutionRecorder(
   // three coordinates because a test retried in the same worker drains twice
   // and is one case.
   const cases = new Map<string, { readonly of: Omit<ObservedCase, 'journal'>; readonly hits: Accumulated }>();
+  // The line that first reached each region of a case, by the key `cases`
+  // uses, then module and ordinal: present only for a case drained with one.
+  const reached = new Map<string, Map<string, Map<number, number>>>();
   const heads = recording.heads ?? [];
   const minted = new Map<string, string>();
   // The case each journey was minted for, where the run records cases: a head
@@ -238,7 +257,7 @@ export function createExecutionRecorder(
       const key = caseKey(owner, subject.id);
       looked.set(key, [...(looked.get(key) ?? []), ...(journal === undefined ? [] : [{ attempt, journal }])]);
     },
-    note: async (page, owner, subject) => {
+    note: async (page, owner, subject, line) => {
       const journal = await drainExecution(page);
       if (journal === undefined) return;
       seen = true;
@@ -247,7 +266,9 @@ export function createExecutionRecorder(
       absorb(accumulated, journal);
       owners.set(owner, accumulated);
       if (subject === undefined) return;
-      absorb(caseOf(owner, subject), journal);
+      const held = caseOf(owner, subject);
+      if (line !== undefined) charge(caseKey(owner, subject.id), held, journal.modules, line);
+      absorb(held, journal);
     },
 
     join: async (page, owner, origin, subject) => {
@@ -355,6 +376,33 @@ export function createExecutionRecorder(
     return held.hits;
   }
 
+  /**
+   * Charge each region a window holds to `line`, unless the case reached it
+   * before: under an earlier line, or under none, which is ambient and stays so.
+   */
+  function charge(key: string, before: Accumulated, modules: ExecutionJournal['modules'], line: number): void {
+    const held = reached.get(key) ?? new Map<string, Map<number, number>>();
+    reached.set(key, held);
+    for (const module of modules) {
+      const ordinals = held.get(module.id) ?? new Map<number, number>();
+      held.set(module.id, ordinals);
+      const seen = before.hits.get(module.id);
+      for (const ordinal of module.hits) if (seen?.has(ordinal) !== true) ordinals.set(ordinal, line);
+    }
+  }
+
+  /** The lines a case was drained with, as {@link ObservedCase.lines} carries them. */
+  function linesOf(key: string): ObservedCase['lines'] {
+    const held = reached.get(key);
+    if (held === undefined) return undefined;
+    return [...held]
+      .filter(([, ordinals]) => ordinals.size > 0)
+      .map(([id, ordinals]) => {
+        const sorted = [...ordinals].sort(([left], [right]) => left - right);
+        return { id, hits: sorted.map(([ordinal]) => ordinal), lines: sorted.map(([, at]) => at) };
+      });
+  }
+
   /** Every case this worker could name, as the index reads them. */
   function observedCases(): readonly ObservedCase[] {
     return [...cases].map(([key, held]) => {
@@ -362,12 +410,14 @@ export function createExecutionRecorder(
       const duration = spent.get(key);
       const eyes = looked.get(key);
       const said = listener === undefined ? undefined : (heard.get(key) ?? []);
+      const lines = linesOf(key);
       return {
         ...held.of,
         ...(said === undefined ? {} : { said }),
         ...(settled === undefined ? {} : { stopped: settled }),
         ...(duration === undefined ? {} : { duration }),
         ...(eyes === undefined ? {} : { eyes }),
+        ...(lines === undefined ? {} : { lines }),
         journal: journalOf(held.hits),
       };
     });
