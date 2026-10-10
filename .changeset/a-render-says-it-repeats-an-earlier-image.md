@@ -5,8 +5,8 @@
 A subject page says when an earlier build kept the same image
 
 Each subject that kept a candidate now has `repeats` on its view: the earlier
-builds of the project in which the same subject kept the same candidate, matched
-on its content key, each with the decision it ended on. `count` is every such
+builds of the project, rendered by the same identity, in which the same subject
+kept the same candidate, matched on its content key, each with the decision it ended on. `count` is every such
 build, and `builds` names up to eight, the decided ones first. The field is
 absent when the subject kept no candidate, and `{ count: 0, builds: [] }` when
 no earlier build kept that image.

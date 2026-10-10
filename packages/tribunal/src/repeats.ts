@@ -8,12 +8,15 @@ export const NAMED = 8;
 
 /**
  * For every subject of one build that kept a candidate, the earlier builds of
- * this project in which the same subject kept the same candidate.
+ * this project and this render identity in which the same subject kept the same
+ * candidate. A baseline is kept per identity, so a decision made on another
+ * engine or platform moved another baseline, and says nothing about this one.
  *
  * A candidate's key is the SHA-256 of its bytes, so an equal key is the same
  * picture, and nothing new is stored to answer this. `build_subjects_after`
  * finds the rows with a key, which sweep added for its own reasons; the
- * decision each build ended on is the newest `seq` under `decisions_latest`.
+ * decision each build ended on is the newest `seq` under `decisions_latest`, as
+ * `latestDecisionsStatement` reads it for one build.
  * Earlier is the order `previous` uses, `(at_ms, rowid)`, so two builds pushed
  * in one millisecond are still one before the other.
  *
@@ -45,6 +48,7 @@ export function repeatsStatement(db: D1Like, project: string, build: string): D1
             AND there.project = here.project
             AND there.subject = here.subject
            CROSS JOIN builds earlier ON earlier.project = there.project AND earlier.build = there.build
+            AND earlier.identity_digest = this.identity_digest
            LEFT JOIN decisions d ON d.seq = (
              SELECT MAX(seq) FROM decisions
               WHERE project = there.project AND build = there.build AND subject = there.subject)

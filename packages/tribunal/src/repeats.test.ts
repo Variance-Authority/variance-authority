@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ReviewStore } from './review.js';
 import type { SubjectView } from './review-types.js';
 import { createReviewStore } from './review.js';
-import { CANDIDATE, PREVIOUS, image, ingest, openReview, report } from './__fixtures__/review.js';
+import { CANDIDATE, IDENTITY, PREVIOUS, image, ingest, openReview, report } from './__fixtures__/review.js';
 
 /**
  * The earlier builds of this project that kept the image a subject renders now.
@@ -148,6 +148,22 @@ describe('the earlier builds that kept the same image', () => {
       }),
       images: { [UNCHANGED]: base.images[CHANGED]! },
     });
+    await push(review, 'ci-1001', '2026-06-01T10:00:00.000Z');
+
+    expect((await subject(review, 'ci-1001')).repeats).toEqual({ count: 0, builds: [] });
+  });
+
+  it('counts no build rendered by another identity, whose decision moved another baseline', async () => {
+    // A baseline is kept per identity: the same bytes approved on another engine
+    // never became this identity's baseline, and rejected there say nothing here.
+    const { review } = await openReview();
+    const base = ingest();
+    await review.ingest({
+      ...base,
+      build: 'ci-1000',
+      report: report({ at: '2026-06-01T09:00:00.000Z', identity: { ...IDENTITY, engine: 'chromium@132.0.0' } }),
+    });
+    await review.decide({ build: 'ci-1000', subject: CHANGED, decision: 'rejected', by: 'marina' });
     await push(review, 'ci-1001', '2026-06-01T10:00:00.000Z');
 
     expect((await subject(review, 'ci-1001')).repeats).toEqual({ count: 0, builds: [] });

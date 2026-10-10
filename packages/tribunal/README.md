@@ -356,7 +356,9 @@ twice, and a coverage that was never stated is unknown rather than clean.
 
 A subject whose candidate is the same image an earlier build kept says so under
 its decision. A candidate is stored under the SHA-256 of its bytes, so two builds
-that kept one key for a subject kept one picture. The line names the earlier
+that kept one key for a subject kept one picture. Only builds rendered by the
+same identity count: a baseline is kept per identity, so a decision made on
+another engine or platform says nothing about this one. The line names the earlier
 build, links to the subject there, and gives the decision made on it with who
 made it. **An image an earlier build rejected** is drawn as a failure: it is a
 render you already rejected, not a new defect. **An image an earlier build
