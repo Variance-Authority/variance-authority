@@ -21,3 +21,17 @@ describe('an asset key and the URL its bytes are kept under', () => {
     expect(assetUrl('/icon.svg', 'about:blank')).toBe('/icon.svg');
   });
 });
+
+describe('pageOrigin', () => {
+  it('answers the origin of an http or https page, port included', () => {
+    expect(pageOrigin('http://127.0.0.1:4001/nested/page.html')).toBe('http://127.0.0.1:4001');
+    expect(pageOrigin('https://example.test/')).toBe('https://example.test');
+  });
+
+  it('answers no origin for a page served by no http origin, or a base that does not parse', () => {
+    expect(pageOrigin(undefined)).toBeUndefined();
+    expect(pageOrigin('about:blank')).toBeUndefined();
+    expect(pageOrigin('file:///tmp/page.html')).toBeUndefined();
+    expect(pageOrigin('not a url')).toBeUndefined();
+  });
+});

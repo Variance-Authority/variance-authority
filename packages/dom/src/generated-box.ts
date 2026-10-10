@@ -98,18 +98,24 @@ export type ContentReading = { readonly text: string } | { readonly unresolved: 
  * or nothing when it has none — which is what an engine paints for both.
  * Alternative text after `/` is for assistive technology and is not painted.
  * Anything else — `counter()`, `open-quote`, `var()`, `url()`, an `attr()` with
- * a type or a fallback — is named in `unresolved`, each once, in order.
+ * a type or a fallback — is named in `unresolved`, each once, in order, and
+ * so is the rest of a value this reader cannot split into those parts. A
+ * string left open runs to the end of the value, as CSS syntax closes it.
  */
 export function readContent(content: string, host: Element): ContentReading {
   const words: string[] = [];
   const unresolved: string[] = [];
-  const token = /\s*(?:"((?:[^"\\]|\\[\s\S])*)"|'((?:[^'\\]|\\[\s\S])*)'|(\/)|([\w-]+)\(|([^\s"'(/]+))/y;
+  const token = /\s*(?:"((?:[^"\\]|\\[\s\S])*)(?:"|$)|'((?:[^'\\]|\\[\s\S])*)(?:'|$)|(\/)|([\w-]+)\(|([^\s"'(/]+))/y;
   let at = 0;
 
   while (at < content.length) {
     token.lastIndex = at;
     const found = token.exec(content);
-    if (!found) break;
+    if (!found) {
+      const rest = content.slice(at).trim();
+      if (rest !== '') unresolved.push(rest);
+      break;
+    }
     at = token.lastIndex;
     const [, double, single, slash, fn, other] = found;
 
@@ -134,7 +140,11 @@ export function readContent(content: string, host: Element): ContentReading {
 
 function unescape(string: string): string {
   return string.replace(/\\(?:([0-9a-f]{1,6})[ \t\n]?|(\n)|([\s\S]))/gi, (_, hex, newline, other) => {
-    if (hex !== undefined) return String.fromCodePoint(Number.parseInt(hex, 16) || 0xfffd);
+    if (hex !== undefined) {
+      const code = Number.parseInt(hex, 16);
+      const names = code > 0 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff);
+      return String.fromCodePoint(names ? code : 0xfffd);
+    }
     if (newline !== undefined) return '';
     return other as string;
   });

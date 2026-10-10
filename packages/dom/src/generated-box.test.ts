@@ -149,6 +149,20 @@ describe('the words a content says', () => {
     expect(readContent(`""`, host())).toEqual({ text: '' });
   });
 
+  it('reads an escape that names no character as the replacement character, as CSS syntax does', () => {
+    expect(readContent(String.raw`"\0"`, host())).toEqual({ text: '\ufffd' });
+    expect(readContent(String.raw`"\110000"`, host())).toEqual({ text: '\ufffd' });
+    expect(readContent(String.raw`"\D800"`, host())).toEqual({ text: '\ufffd' });
+  });
+
+  it('reads a string the value leaves open to the end, as CSS syntax closes it', () => {
+    expect(readContent(`"New`, host())).toEqual({ text: 'New' });
+  });
+
+  it('names what it cannot read as a part, rather than dropping it', () => {
+    expect(readContent(`"a" ( "b"`, host())).toEqual({ unresolved: ['( "b"'] });
+  });
+
   it("reads attr() from the element, and an attribute it lacks as nothing", () => {
     expect(readContent(`"(" attr(data-unit) ")"`, host())).toEqual({ text: '(items)' });
     expect(readContent(`attr(data-missing) "x"`, host())).toEqual({ text: 'x' });
