@@ -11,6 +11,7 @@ import type {
   SubjectReach,
   VariationRecord,
 } from '@variance-authority/report';
+import { asksRepeats } from './repeats.js';
 import {
   ReviewError,
   number,
@@ -105,6 +106,7 @@ export function toSubjectView(
   const relaxed = optionalText(row, 'relaxed', what);
   const moved = optionalText(row, 'moved', what);
   const after = optionalText(row, 'after_key', what);
+  const verdict = text(row, 'verdict', what) as ObservationRecord['verdict'];
   const width = row['candidate_width'];
   const height = row['candidate_height'];
   const wasWide = row['baseline_width'];
@@ -112,7 +114,7 @@ export function toSubjectView(
 
   return {
     subject: text(row, 'subject', what),
-    verdict: text(row, 'verdict', what) as ObservationRecord['verdict'],
+    verdict,
     because: text(row, 'because', what),
     changedPixels: number(row, 'changed_pixels', what),
     regions: JSON.parse(text(row, 'regions', what)) as RegionRecord[],
@@ -146,9 +148,10 @@ export function toSubjectView(
     ...(typeof wasWide === 'number' && typeof wasTall === 'number'
       ? { baseline: { width: wasWide, height: wasTall } }
       : {}),
-    // Only a kept candidate has a key to look for. A subject without one is not
-    // a subject whose image was never seen before; the question has no answer.
-    ...(after !== undefined ? { repeats } : {}),
+    // Only a kept candidate has a key to look for, and only a render a reviewer
+    // decides on asks for it. Without either, the image was not never seen
+    // before; the question was not asked.
+    ...(after !== undefined && asksRepeats(verdict) ? { repeats } : {}),
   };
 }
 

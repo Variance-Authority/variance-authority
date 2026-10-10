@@ -2,10 +2,9 @@
  * One line in a subject's Decision card: an earlier build kept this same image.
  *
  * The decision made there leads, because it is what a reviewer acts on here. A
- * rejected image that is back is a known defect, drawn as a failure. An approved
- * image is promoted to the baseline, so when it was approved before this build
- * ran and this render differs from the baseline, the baseline has changed since,
- * and the subject renders one image and then another in turn.
+ * rejected image that is back is a known defect. An approved image is promoted to
+ * the baseline, so one approved before this build ran, on a render that still
+ * differs from its baseline, is drawn as a warning.
  */
 
 import type { ReactElement, ReactNode } from 'react';
@@ -49,23 +48,25 @@ export function Repeated({
 }
 
 function classOf(lead: RepeatedIn, subject: SubjectView, ran: string): string {
-  if (lead.decision?.decision === 'rejected') return 'va-failure';
+  if (lead.decision?.decision === 'rejected') return 'va-note va-rejected';
   if (movedSince(lead, subject, ran)) return 'va-note va-warned';
   return 'va-note';
 }
 
 /**
- * Whether the baseline moved away from an approved image before this build ran.
+ * Whether this build differs from its baseline though the image was approved
+ * before it ran.
  *
- * An approval made after this build ran replaced the baseline this build was
- * compared to, so its difference from that baseline is the one the approval
- * answered, not a new one.
+ * The line states that and no cause: the render may alternate, a change may have
+ * been reverted, or the baseline moved again. An approval made after this build
+ * ran replaced the baseline this build was compared to, so its difference is
+ * the one the approval answered, not a new one.
  */
 function movedSince(lead: RepeatedIn, subject: SubjectView, ran: string): boolean {
   const decision = lead.decision;
   return (
     decision?.decision === 'approved' &&
-    subject.verdict === 'changed' &&
+    (subject.verdict === 'changed' || subject.verdict === 'incomparable') &&
     Date.parse(decision.at) < Date.parse(ran)
   );
 }
@@ -86,8 +87,8 @@ function sentence(lead: RepeatedIn, subject: SubjectView, ran: string, build: Re
   if (movedSince(lead, subject, ran)) {
     return (
       <>
-        Build {build} approved this image {who}, and the baseline has changed since. Either the
-        render is unstable, or a change was reverted.
+        Build {build} approved this image {who} before this build ran, and this build still
+        differs from its baseline.
       </>
     );
   }

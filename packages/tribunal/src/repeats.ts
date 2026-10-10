@@ -7,7 +7,7 @@ import type { RepeatedIn, Repeats } from './review-types.js';
 export const NAMED = 8;
 
 /**
- * For every subject of one build that kept a candidate, the earlier builds of
+ * For every subject of one build that kept a candidate a reviewer decides on, the earlier builds of
  * this project and this render identity in which the same subject kept the same
  * candidate. A baseline is kept per identity, so a decision made on another
  * engine or platform moved another baseline, and says nothing about this one.
@@ -19,6 +19,11 @@ export const NAMED = 8;
  * `latestDecisionsStatement` reads it for one build.
  * Earlier is the order `previous` uses, `(at_ms, rowid)`, so two builds pushed
  * in one millisecond are still one before the other.
+ *
+ * Only a render a reviewer decides on asks. A push keeps an unchanged subject's
+ * image too, as a second copy of its baseline, so that key is the same in every
+ * build since the baseline was set: asked of it, the lookup would join every
+ * retained build for nearly every subject, to say what the verdict already does.
  *
  * The joins are `CROSS JOIN` because SQLite runs those in the order written.
  * Left to choose, without statistics, it starts from every subject row of the
@@ -53,6 +58,7 @@ export function repeatsStatement(db: D1Like, project: string, build: string): D1
              SELECT MAX(seq) FROM decisions
               WHERE project = there.project AND build = there.build AND subject = there.subject)
           WHERE here.project = ? AND here.build = ? AND here.after_key IS NOT NULL
+            AND here.verdict NOT IN ('unchanged', 'ignored')
             AND (earlier.at_ms, earlier.rowid) < (this.at_ms, this.rowid)
        )
         WHERE place <= ?
@@ -64,8 +70,9 @@ export function repeatsStatement(db: D1Like, project: string, build: string): D1
 /**
  * The rows of {@link repeatsStatement}, by subject.
  *
- * A subject with a candidate and no row here kept an image that no earlier build
- * still on record kept; the caller answers that with an empty {@link Repeats}.
+ * A subject a reviewer decides on, with a candidate and no row here, kept an
+ * image that no earlier build still on record kept; the caller answers that with
+ * an empty {@link Repeats}.
  */
 export function repeatsFrom(rows: readonly Row[]): ReadonlyMap<string, Repeats> {
   const found = new Map<string, { count: number; builds: RepeatedIn[] }>();
@@ -81,6 +88,15 @@ export function repeatsFrom(rows: readonly Row[]): ReadonlyMap<string, Repeats> 
     found.set(subject, entry);
   }
   return found;
+}
+
+/**
+ * Whether a render with this verdict asks which earlier builds kept its image:
+ * only one a reviewer decides on. Its SQL twin is the `verdict` filter in
+ * {@link repeatsStatement}.
+ */
+export function asksRepeats(verdict: string): boolean {
+  return verdict !== 'unchanged' && verdict !== 'ignored';
 }
 
 /** What a subject that kept a candidate says when no earlier build kept it. */

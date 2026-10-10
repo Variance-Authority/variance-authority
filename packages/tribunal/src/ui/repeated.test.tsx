@@ -8,8 +8,8 @@ import { SubjectPanel } from './review.js';
  * The line on a subject page that names an earlier build with the same image.
  *
  * The decision made there leads the line, because it is what changes this one:
- * a rejected image that is back is a known defect, and an approved image that
- * differs from today's baseline means the subject renders two images in turn.
+ * a rejected image that is back is a known defect, and an image approved before
+ * this build ran that still differs from the baseline is worth a second look.
  */
 
 const CLIENT = createReviewClient({ endpoint: '/api', token: 'unused-in-a-static-render' });
@@ -73,23 +73,28 @@ const APPROVED: Repeats = {
 };
 
 describe('an image an earlier build kept', () => {
-  it('says a rejected image is back, with who rejected it and why, as a failure', () => {
+  it('says a rejected image is back, with who rejected it and why', () => {
     const markup = page(subject({ repeats: REJECTED }));
 
-    expect(markup).toContain('va-failure');
+    expect(markup).toContain('va-rejected');
     expect(markup).toContain('This is the image');
     expect(markup).toContain('href="/builds/ci-1000/subjects/story%3Acard"');
     expect(markup).toContain('rejected (anton · ');
     expect(markup).toContain('the toggle lost its focus ring');
   });
 
-  it('says an approved image that differs from the baseline means two images in turn', () => {
+  it('warns that an image approved before this build ran still differs from the baseline', () => {
     const markup = page(subject({ repeats: APPROVED }));
 
     expect(markup).toContain('va-warned');
     expect(markup).toContain('approved this image (anton · ');
-    expect(markup).toContain('and the baseline has changed since');
-    expect(markup).toContain('the render is unstable, or a change was reverted');
+    expect(markup).toContain('before this build ran, and this build still differs from its baseline');
+  });
+
+  it('warns as well when this render cannot be compared with the baseline', () => {
+    const markup = page(subject({ verdict: 'incomparable', repeats: APPROVED }));
+
+    expect(markup).toContain('va-warned');
   });
 
   it('says only that it was approved when the approval came after this build ran', () => {
@@ -100,7 +105,7 @@ describe('an image an earlier build kept', () => {
     const markup = page(subject({ repeats: { count: 1, builds: [later] } }));
 
     expect(markup).toContain('approved this image');
-    expect(markup).not.toContain('changed since');
+    expect(markup).not.toContain('still differs');
     expect(markup).not.toContain('va-warned');
   });
 
@@ -108,7 +113,7 @@ describe('an image an earlier build kept', () => {
     const markup = page(subject({ verdict: 'unchanged', repeats: APPROVED }));
 
     expect(markup).toContain('approved this image');
-    expect(markup).not.toContain('changed since');
+    expect(markup).not.toContain('still differs');
   });
 
   it('says an earlier build kept it without a decision', () => {

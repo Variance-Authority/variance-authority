@@ -125,6 +125,27 @@ describe('the earlier builds that kept the same image', () => {
     expect(await subject(review, 'ci-1001', UNCHANGED)).not.toHaveProperty('repeats');
   });
 
+  it('is absent for a render nothing is decided on, though a push keeps its image', async () => {
+    // A push sends an unchanged subject's image too, as a second copy of the
+    // baseline, so its key is the same in every build since the baseline was
+    // set. Asked of it, the lookup would join every retained build per subject.
+    const kept = async (build: string, at: string): Promise<void> => {
+      const base = ingest();
+      await review.ingest({
+        ...base,
+        build,
+        report: report({ at }),
+        images: { ...base.images, [UNCHANGED]: { after: { ...base.images[CHANGED]!.after!, bytes: PREVIOUS } } },
+      });
+    };
+    const { review } = await openReview();
+    await kept('ci-1000', '2026-06-01T09:00:00.000Z');
+    await kept('ci-1001', '2026-06-01T10:00:00.000Z');
+
+    expect(await subject(review, 'ci-1001', UNCHANGED)).not.toHaveProperty('repeats');
+    expect((await subject(review, 'ci-1001')).repeats?.count).toBe(1);
+  });
+
   it('counts neither another subject nor another project that kept the same bytes', async () => {
     const { db, bucket, review } = await openReview();
     const other = createReviewStore({
