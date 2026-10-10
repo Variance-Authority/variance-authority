@@ -302,6 +302,7 @@
         "hideScrollbars": "const",
         "holdAnimations": "const",
         "identityDigest": "function",
+        "intersectionArea": "function",
         "interventionById": "function",
         "jsxSourceOf": "function",
         "keyedByPosition": "function",
