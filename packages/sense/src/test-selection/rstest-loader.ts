@@ -18,6 +18,7 @@
  * reporter's empty-record note is what the user reads.
  */
 
+import { cadence } from '../instrument/index.js';
 import { captureModule } from './captured-modules.js';
 import { cleanId } from './instrumented-modules.js';
 import { runOf } from './selection-run.js';
@@ -40,7 +41,8 @@ export interface SelectionLoaderContext {
  * Place probes on one module Rspack is about to bundle, and record what they
  * mean.
  *
- * A module this run has no business in — the seam's own setup shim, anything
+ * A test file is cut instead, unless the run turns cuts off. A module this
+ * run has no business in — the seam's own setup shim, anything
  * the `include` predicate refuses, a build whose snapshot names no run — is
  * handed back exactly as it arrived.
  */
@@ -53,6 +55,12 @@ function instrumentModule(this: SelectionLoaderContext, code: string): void {
   // by path rather than by the shape of its name.
   if (run === undefined || run.shims.has(file)) {
     this.callback(null, code);
+    return;
+  }
+  // A test file is cut rather than probed: nothing enters it, and what it
+  // carries is which of its lines was running.
+  if (run.cases && run.cadence?.(file) === true) {
+    this.callback(null, cadence(code, file) ?? code);
     return;
   }
   const captured = captureModule(run.root, file, code, run.include, run.mode);

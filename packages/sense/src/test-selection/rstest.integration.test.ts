@@ -7,7 +7,10 @@ import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
+import { lineAt, linesOf } from './case-lines.js';
+import { recordedCases } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
+import { openSetColumns } from './execution-set-format.js';
 
 // The story format is a CommonJS sandbox module whose own requires resolve only
 // once built, so it is read from `dist/` as the seam itself loads it.
@@ -129,6 +132,14 @@ describe('the Rstest integration', () => {
     // credited with holds the file's evaluation, not its branches.
     expect(walking('A')).toEqual([at('test/alpha.case.ts > takes the alpha path')]);
     expect(walking('B')).toEqual([at('test/beta.case.ts > takes the beta path')]);
+
+    // The test's own statement on line 5 is what took the alpha turn.
+    const bytes = await readFile(coverageFile);
+    const alpha = index.tests.findIndex((test) => test.id === at('test/alpha.case.ts > takes the alpha path'));
+    const module = index.modules.indexOf(decide!);
+    const turn = source.slice(0, source.indexOf("return 'A'")).split('\n').length;
+    const block = decide!.blocks.findLastIndex((candidate) => candidate.startLine <= turn && turn <= candidate.endLine);
+    expect(lineAt(linesOf(openSetColumns(recordedCases(bytes))!.testLines, alpha)!, module, block)).toEqual({ line: 5, ambient: false });
   }, 120_000);
 
   it('names a case declared with the realm\'s registrars, the spelling the other configurations never take', async () => {

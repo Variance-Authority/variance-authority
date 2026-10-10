@@ -14,6 +14,8 @@ import { deviationOfTests, narrowByExecution, selectTestFiles } from './index.js
 import { withTestSelection } from './vitest.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { caseIndexOf } from './case-record.js';
+import { lineAt, linesOf } from './case-lines.js';
+import { openSetColumns } from './execution-set-format.js';
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -363,7 +365,7 @@ describe('the Vitest integration', () => {
     async function record(
       config: string,
       env: Readonly<Record<string, string>> = {},
-    ): Promise<{ coverage: Buffer; index?: ExecutionIndex; output: string }> {
+    ): Promise<{ coverage: Buffer; index?: ExecutionIndex; cases?: Uint8Array; output: string }> {
       const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
       temporary.push(directory);
       const coverageFile = resolve(directory, 'coverage.bin');
@@ -387,7 +389,7 @@ describe('the Vitest integration', () => {
       return {
         coverage,
         output: `${stdout}${stderr}`,
-        ...(index === undefined ? {} : { index: decodeExecutionIndex(index) }),
+        ...(index === undefined ? {} : { index: decodeExecutionIndex(index), cases: index }),
       };
     }
 
@@ -414,6 +416,22 @@ describe('the Vitest integration', () => {
         'decide > takes the alpha branch',
         'decide > takes the gamma branch',
       ]);
+    }, 20_000);
+
+    it('says which line of each case reached the branch it took', async () => {
+      const { index, cases } = await record('vitest.config.ts');
+      if (index === undefined) throw new Error('the run wrote no execution index');
+
+      const table = openSetColumns(cases!)!.testLines;
+      const module = index.modules.findIndex((entry) => entry.file === cased('src/decide.ts'));
+      const reaching = (name: string, line: number) => {
+        const test = index.tests.findIndex((entry) => entry.name === name);
+        const block = index.modules[module]!.blocks.findLastIndex((entry) => entry.startLine <= line && line <= entry.endLine);
+        return lineAt(linesOf(table, test)!, module, block);
+      };
+      expect(reaching('decide > takes the alpha branch', 3)).toEqual({ line: 6, ambient: false });
+      expect(reaching('decide > takes the gamma branch', 6)).toEqual({ line: 10, ambient: false });
+      expect(reaching('decide > falls through to B', 8)).toEqual({ line: 14, ambient: false });
     }, 20_000);
 
     it('names the same cases without an async context, which is the default', async () => {
