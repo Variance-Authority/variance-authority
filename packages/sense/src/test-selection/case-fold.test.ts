@@ -201,6 +201,24 @@ describe('the bounded case fold', () => {
     });
   });
 
+  it('records lines for a case of a cut file whose own bucket reached nothing', async () => {
+    const cases = await directory();
+    const file = '/repo/test/branch.test.ts';
+    await writeFile(resolve(cases, 'worker.vac'), packFrames([
+      // An import reaches region 1 before any hook or test statement runs.
+      journalFormat.encodeLog(packCase(file, AMBIENT, AMBIENT), logged([['src/branch.ts', [[1, 0]]]], false)),
+      journalFormat.encodeLog(packCase(file, 'one', '1'), logged([['src/branch.ts', [[2, 6]]]])),
+      journalFormat.encodeLog(packCase(file, 'two', '2'), logged([], false)),
+    ]));
+    const modules = new Map([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 3)]]);
+
+    const folded = await foldCaseRun(await inspectCaseRun(cases, '/repo'), modules, 64);
+
+    const two = linesOf(openSetColumns(folded.bytes)!.testLines, 1);
+    expect(two).toBeDefined();
+    expect(lineAt(two!, 0, 1)).toEqual({ line: 0, ambient: true });
+  });
+
   it('records no lines for a run nothing cut', async () => {
     const cases = await directory();
     await writeFile(resolve(cases, 'worker.vac'), packFrames([

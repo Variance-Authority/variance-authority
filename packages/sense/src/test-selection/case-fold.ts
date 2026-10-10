@@ -64,8 +64,6 @@ interface Coordinate extends CaseCoordinate {
   said?: Said;
   /** Every frame written under this coordinate, in replay order. */
   readonly frames: number[];
-  /** Whether a frame of the case was cut at its statements. */
-  cut?: boolean;
 }
 
 /**
@@ -92,7 +90,9 @@ export async function inspectCaseRun(
   const moduleIds = new Set<ModuleId>();
   // What Eyes handed each case, by coordinate key, in the order it arrived.
   const looked = new Map<string, Omit<RecordedEyes, 'case'>[]>();
-  // The test files whose ambient frame was cut, and the frame being scanned.
+  // The test files a frame was cut in, and the frame being scanned. The
+  // transform cuts a file or leaves it whole, so a case of a cut file whose
+  // own bucket reached nothing still has lines.
   const cutFiles = new Set<string>();
   let scanning: Coordinate | string = '';
   let frame = 0;
@@ -144,8 +144,7 @@ export async function inspectCaseRun(
         wants(id, cut) {
           moduleIds.add(id);
           const frameOf = scanning;
-          if (cut && typeof frameOf === 'string') cutFiles.add(frameOf);
-          else if (cut && typeof frameOf !== 'string') frameOf.cut = true;
+          if (cut) cutFiles.add(typeof frameOf === 'string' ? frameOf : frameOf.file);
           return false;
         },
         module() { /* refused above */ },
@@ -175,7 +174,7 @@ export async function inspectCaseRun(
     testsByFile.set(tests[first]!.file, [first, last]);
     first = last;
   }
-  const lined = Uint8Array.from(ordered, (coordinate) => (coordinate.cut === true || cutFiles.has(coordinate.file) ? 1 : 0));
+  const lined = Uint8Array.from(ordered, (coordinate) => (cutFiles.has(coordinate.file) ? 1 : 0));
   const eyes = looked.size === 0 ? undefined : {
     watched: [...looked.keys()].map((key) => ids.get(key)!),
     journals: [...looked].flatMap(([key, rows]) => rows.map((row) => ({ case: ids.get(key)!, ...row }))),

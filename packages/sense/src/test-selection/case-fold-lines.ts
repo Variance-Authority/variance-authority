@@ -13,8 +13,8 @@ import { isWritten } from './written-lines.js';
  * region's set takes its own line, else its file's, and goes to that case's
  * builder: the lines are never held for the run's whole test-by-region product.
  *
- * Only a case whose own frame or whose file's ambient frame was cut has lines;
- * any other is a case whose lines were not recorded.
+ * Only a case of a file some frame was cut in has lines, the transform cutting
+ * a whole file or none of it; any other is a case whose lines were not recorded.
  */
 export class FoldLines {
   readonly #lined: Uint8Array;
