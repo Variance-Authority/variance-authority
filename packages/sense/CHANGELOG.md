@@ -1,5 +1,1371 @@
 # @variance-authority/sense
 
+## 0.15.0
+
+### Minor Changes
+
+- b834b44: A case names its preconditions
+
+  `variancePrecondition({ name: value })`, from `@variance-authority/sense/precondition`,
+  says what state a case arranged: `variancePrecondition({ network: 'mocked', 'seeded-cart': true })`.
+  A value is a string, number or boolean. Said in a case body it is the case's;
+  said in a `beforeEach` it is the case the hook runs for, at the level of the
+  `describe` that declared it. The body overrides a `beforeEach` and an inner
+  `describe`'s overrides an outer one's; two values said at one level are kept as
+  a contradiction. A call where no case is running — a `describe` callback, a
+  `beforeAll` or `afterAll`, a file's top level, work that outlives its case —
+  throws with its call site. Each value lands on the case's row in `coverage.bin`
+  with the `file:line` of the call. Vitest, Jest and Rstest listen under
+  `withTestSelection` and their seams, and Playwright under its fixture. Without a
+  recording the call returns, and the entry imports nothing. A precondition never
+  selects or excludes a test.
+
+  `ExecutionTest.preconditions` holds the row, each entry with the level it was
+  said at: empty for a case that said nothing, absent for a record nobody
+  listened to. `PreconditionValue` types a value.
+  `listenForPreconditions`, `PreconditionListener` and `PreconditionStanding`,
+  from `@variance-authority/sense/journal`, let a runner seam listen, and
+  `createExecutionRecorder` takes the standing case as a third argument.
+
+  `variance covering --where <name>[=<value>]` keeps the cases that said it, and
+  repeats to require several. A record made before cases said anything is refused
+  as unmeasured. Every case line prints what it said and where, and where
+  `names.axes` declares the name, the case one step toward the axis's base is
+  named as its twin.
+- 9c8f81d: A selection skips the cases a change did not reach, under `VARIANCE_AUTHORITY_GRAIN=case`
+
+  A selected test file ran every case it declares, though the record knew which
+  of them entered the changed code. With `VARIANCE_AUTHORITY_GRAIN=case`, the
+  Jest and Vitest seams skip the cases of each selected file that entered none of
+  the changed regions. The worker marks them skipped through the runner's own
+  task modes, as `it.skip` would, so nothing reaches argv. The stderr line counts
+  them: `selected 2 of 340, skipping 31 cases in 2 of them`.
+
+  A file runs whole whenever the record cannot say which cases a change reached:
+  the test file changed, a reason other than a region selected it, the region ran
+  while its module loaded, or no recorded case entered it. A case that shares its
+  full name with a reached case runs too. A file run in part is recorded
+  incomplete, so the next selection runs it whole. A selection in which some test
+  last ran at an earlier commit than the latest run, as one does after a commit
+  between runs, runs every file whole. File grain stays the default,
+  and any value other than `file` or `case` fails the run.
+
+  `SuiteSelection` gains `cases`, each test file run in part to the names of the
+  cases it may skip, and `variance`'s `selectSuite` takes `grain`.
+- 29a82be: A commit between partial runs no longer widens the selection to every test of a changed file
+
+  A test a partial run leaves out stands at the commit it last ran at. What
+  changed between that commit and the record's was charged whole for it, so one
+  commit made between two runs selected every test that loaded a file it touched,
+  whatever the edit was. In this repository, two committed edits to `columns.ts`
+  with a partial run between them selected 291 of the unit suite's 678 test files.
+  They now select the 4 that entered the regions the edits changed.
+
+  `variance select` and `askPerStand` now read that change from both texts, the
+  way a change in the tree is read. The record's text is the old side, so the
+  change lands on the regions the test's rows hold. A test still runs for an edit
+  to a region it entered, and no longer for one elsewhere in the same file. The
+  merge base with a ref named on purpose is still read whole, and so is a file a
+  later run landed over an uncommitted edit to, whose rows for the test were
+  never re-cut onto the record's text.
+
+  `Stand` gains `changed`, every file changed from the stand to the record's
+  commit. `whole` holds only what a stand charges whole, and is empty for a stand
+  the runs recorded. `askPerStand` hands its selector a `StandQuestion` in place
+  of the files to charge whole and the stand's commit, so a selector passed to it
+  is rewritten to read the question; `standDiff` writes the change a `stand`
+  question reads, and a `stand` question is read without the texts a landing
+  kept.
+- 8dbc834: The components a module declares are read from its code. A declaration written
+  in a block comment, a JSDoc example or a template literal no longer names a
+  component, so a commented-out `function Retired()` no longer makes its file
+  the one that declares `Retired`. A name is declared by a statement of the
+  module itself: a function, class or binding inside a function body belongs to
+  that function and no longer counts. An `export async function Page()`, an
+  abstract class, a generator, a second name in `const A = 1, B = 2`, and a name
+  that starts with a non-ASCII capital or carries a `$` are now declared too.
+
+  `variance run`, `variance collect`, the Storybook collector and the route
+  collector resolve a component to its `file:line` from the same reading, through
+  `indexDeclarations`, which `sense` now exports. What that changes in the index
+  they build from `source.dirs`:
+
+  - The line is the first line of the declaring statement. A decorated class
+    sits at its first decorator, or at its `export` when the decorator is written
+    above the `export`, and a second name in a multi-line `const` at the line of
+    the `const`.
+  - `.d.ts` files, and test, spec and story files your own `exclude` lets
+    through, declare nothing.
+  - A file the parser cannot read declares nothing, where the text scan found
+    the components in it. That covers a Flow-annotated `.js` file, and a `.vue`,
+    `.svelte` or `.mdx` file you add to a collector's `extensions`, which is
+    parsed as TSX and fails. The index built from `source.dirs` or a collector's
+    `source` does not say so: the file's components are missing, and nothing
+    names the file. Only `sense`'s source index, for a file it records, names the
+    parse error in that file's record.
+  - Building the index needs `sense`'s native addon, which ships for macOS on
+    arm64, Linux on x64 and arm64 with glibc, and Windows on x64. On any other
+    machine, including an Intel Mac, an Alpine image and Windows on arm64, a
+    configured `source.dirs` fails at its first file and names why the addon did
+    not load, where the text scan ran anywhere. The route collector depends on
+    `sense` for it.
+
+  `indexSource` is removed from `@variance-authority/core/attribute`. Build a
+  `SourceIndex` with `indexDeclarations` from `@variance-authority/sense`, or
+  write one as plain data: a map from component name to `{ file, line, via }`.
+  `SourceRef['via']` loses `'declared'`, which nothing produced, and
+  `readCapture` in `@variance-authority/unit-test` refuses a capture whose source
+  index carries it.
+
+  The source index format moves to version 18, so an index written before this
+  release is rebuilt once instead of keeping the names it read from comments.
+- fd7ad21: `variance distill --file <path>` without `--test` reads the whole test file: the
+  modules it loaded before its first case that no case entered, and those only
+  some of its cases entered, each with its length in lines. A runner evaluates a
+  test file's imports once, when it loads the file, so the file pays for each of
+  these whichever cases use it.
+  The fix is at the import that brought a module in, in the test file or a module
+  it used, not a mock of the listed path.
+  `--file` alone used to read the file's only case; name it with `--test` for
+  that reading.
+
+  The reading needs the coverage rows of a recorded run, and is refused for a
+  case index named with `--execution`. It reads as unmeasured when a case
+  stopped or did not say whether it finished, or when the file's coverage row is
+  incomplete, as it is once source changed since the run; run the file again. A
+  module that declares no function below
+  its top level, such as a barrel or a file of constants, is not counted.
+
+  `@variance-authority/distill` exports `distillFile` and
+  `formatFileDistillation`. `@variance-authority/sense/test-selection` exports
+  `decodeTestCoverage`, for a caller that already holds the record's bytes.
+- 76e7340: `variance layers --against` names a package that started or stopped importing another package and kept its layer. `layerMoves` returns these packages as `held`. A package that appeared or vanished is now named with its layer and every package it imports, and `layerMoves` returns it as a `LayerPresence` rather than a bare name. So every package edge that a change adds or removes is reported once, whether or not a layer moved.
+- ec42738: `variance distill --file` holds the test file's mocks against the file graph,
+  whatever the record says. A mock of a module the file does not load, directly
+  or through anything it imports, is an error: delete it. A mock of a module more
+  than two imports away, past the subject's imports, is a warning naming the file
+  that imports it. A file reading carries them as `mocks`, each `unloaded` or
+  `beyond` with its `hops` and `importer`. `shadowReach` in
+  `@variance-authority/sense/taint` gives each module a file shadows its shortest
+  distance from the file along runtime edges, and `mayMock` says whether a file's
+  text may mock at all.
+- 86bd9f5: `variance ask stack`, and `docs_stack` on the MCP server, list the agent
+  skills an installed package ships. A skill is a `skills/<name>/SKILL.md` beside the package's
+  `package.json`, the layout TanStack Intent set for npm. Each is listed under
+  its package with its name, the file to read and the first sentence of the
+  description in its front matter. Nothing is installed or copied: your agent reads the file from
+  `node_modules`, at the version you installed. A `SKILL.md` deeper inside a
+  package is not listed.
+
+  The dependency lexicon moves to version 9 and records each package's skills.
+  A lexicon written before this release still answers, and `stack` says that
+  skills were not read until `variance index` refreshes it.
+- 5c5b2f6: A review says what it read
+
+  `variance review --format markdown` names what it read: the commit reviewed, the commit the change starts from, the commit the cases ran at, and the commit of each recording coverage is compared with. On a pull request CI checks out GitHub's merge of it, so the comment names the pull request's head and the merge it was tested as, and says it describes an earlier commit once the head moves on. Each changed place links to its lines at the commit reviewed.
+
+  Each changed region is `new`, `modified` or `moved`, in place of `written`: moved when the lines the change wrote are text the diff removed, and `movedFrom` names the file it came from. `changedLineCases` counts the cases that ran a changed line, as `variance covering --line` names them for each one, beside `cases`, which counts the cases that entered the region. Changed functions are one table with both counts, how the edit wrote each, and the first three test files; the cases by title stay in `review.json`. The cases added and removed come first, and a legend explains the marks. The Mermaid graph of changed functions follows the table, folded, and gives each function its edit and both counts.
+
+  Coverage changes are said in plain words, each signed by what it does to the count: `+51 newly run · −2 no longer run · +19 run in 22 added regions`. The markdown prints a suite's count at the base and now beside those parts, and says so when they do not add up. The review no longer folds in the source no suite recorded; `variance coverage` still prints it.
+
+  `hunksOf` is exported from `@variance-authority/sense/test-selection`, the hunks of a diff under the names `changedLines` gives. `workingTreeChanges` is exported from `@variance-authority/sense`, the paths the working tree disagrees with `HEAD` about.
+- d584e71: A snapshot names the case it was taken in, and what that case had arranged
+
+  A snapshot taken with the Playwright `variance` fixture now carries `case`: the
+  spec file, the declaration path and `testInfo.testId` — the case id the record
+  already keeps — and the preconditions the case had said with
+  `variancePrecondition` by the moment its document was captured, each with its
+  call site. A call made after the capture, while the snapshot is still being
+  compared, lands on the case's row and not on the snapshot.
+  `VarianceRuntime.arranged` is the read `observeLocator` makes at capture. The same line closes a failing `toBeUnchanged` message and is added as
+  a `variance` annotation that Playwright's report shows under the test, passing
+  or not. Without `varianceExecution` nothing listens: no annotation is added,
+  and a failing message reads *preconditions unmeasured* rather than *nothing
+  arranged*.
+
+  `PreconditionListener.held(key)` returns what a running case has said so far,
+  resolved as its row would be, without taking it from the row.
+  `@variance-authority/sense/journal` exports `CasePrecondition` and
+  `preconditionText`, the one rendering `variance covering`, `variance review` and
+  the snapshot share: `flag=ff-on (spec.ts:9)`, a bare `true` as its name, a
+  contradiction with both values. `ExecutionRecorder.arranged(owner, test)` reads a case's view
+  from a Playwright worker's recorder.
+- 14aefbf: Ask what one test, or one story, checks that the narrower ones inside it do
+  not.
+
+  - `variance ask test-composition --file <test> --name <words>`, and
+    `docs_test_composition`, read one recorded test as the smaller tests whose
+    regions sit inside its own, the larger tests holding it, and the regions no
+    smaller test entered: modules only it enters, and paths through a smaller
+    test's module only it takes.
+  - `variance_composition {subject}` closes with the same reading for a story:
+    the smaller stories inside it, the larger ones holding it, and what no
+    smaller story renders — components only it mounts, and components a smaller
+    story renders another way. The run carries it per subject in the report's
+    structure section; `piecesOf` in `@variance-authority/core/attribute`
+    computes it.
+  - A component mounted by more than half the suite's subjects is structure. A
+    subject that mounts a component many times now counts once, where every
+    mount used to count: a chip story is an example of the chip again when the
+    pages around it mount chips many times over.
+- bd56956: `variance distill --file` says, under an import a used file writes, where that
+  file references what it imports, and what to change: delete an import it never
+  references; move a reference that runs when it loads, such as a map of
+  components, into the function that needs it; move the functions no case of the
+  test file ran out of the file, or import lazily inside them, with how many of
+  the test files that load the file run one; make lazy a reference a case ran
+  without calling into the module. A re-exported import is left to the file's
+  importers. A reference on a line the record keeps no region for, or a file with
+  a `require` or `import()` no name traces, reads as unmeasured.
+
+  `@variance-authority/sense/test-selection` exports `importReferences`, which
+  lists each reference a file makes to what it imports by the repository file the
+  import resolves to, and `innermostAt`. `distillFile` takes an optional
+  `references` lookup beside `imports`, and an import cause carries `charge`.
+- 3f998fa: `atDistance` returns a test with no measured hop count with the one range that
+  holds the furthest hop the reading measured, or with an open range such as `3-`
+  when nothing was measured. Ranges that cover every hop without overlapping, such
+  as `0-2` and `3-`, return each such test once. Before, every range whose top was
+  at or past the furthest hop returned it, so when nothing was measured beyond two
+  hops both `0-2` and `3-` did. A caller that runs only an open range starting
+  past the furthest hop, such as `3-` when the furthest is 2, now gets none of
+  them; `remaining` follows `atDistance`. The signature is unchanged.
+- 1fd0cf7: `variance ask packages` (`docs_packages`) counts and lists no import site: one
+  row per published specifier, one per package that declares no entry with how
+  many of its names and files other packages import by path, under the heading
+  "N packages that declare no entry are imported by path", and per package the
+  number of imports from other packages that reach past a published entrypoint.
+  It ends with the `variance ask entrypoint --package <name>` questions behind
+  those counts.
+
+  `variance ask entrypoint --package <name>` (`docs_entrypoint`) asked by a
+  package's name now also counts the imports that reach past its entry, or, for a
+  package that declares no entry, the imports of its files by path, one row per
+  file: its specifier, how many names are taken from it and how many files import
+  it, the most imported first. Asked by one of those specifiers, it counts the
+  imports written as it per name, each name with how many files import it, where
+  it listed every import with the importer's file and line, and names `uses` on
+  the first name for its sites. Under a package that
+  declares no entry, a specifier's count is of distinct names taken in distinct
+  files, where every import of a name was counted again: fifty files importing
+  one name read "50 names" and now read "1 name". Asked by the name of a package
+  whose `exports` opens only subpaths, it lists the specifiers the package opens
+  where it used to refuse with "does not open `.`". `--subpath .` answers exactly
+  as the package name alone, where it left out the imports past the entry, or
+  refused for a package that opens only subpaths.
+
+  An import into a published package whose declared entry leads to no source
+  file, such as a `main` naming a build output the checkout does not hold, is
+  kept, where every one was dropped and `variance ask entrypoint` said no other
+  package imports it. An import that names a declared entry is counted as an
+  import of an entry this reading could not follow to a source file, not as one
+  reaching past the entry; only an import past every declared entry reaches past
+  it. `variance ask packages` counts those packages and their imports,
+  `variance ask entrypoint` counts them, and `uses` and `symbol` answer for the
+  names taken from them. `landing` says where one import between packages
+  lands: opened by an entry, at a declared entry the reading could not follow,
+  past every declared entry, or by path into a package that declares none.
+  `Help` and `Usage` carry the imports of an entry the reading could not follow as
+  `unfollowed`, and `gatheringUsage` is the one place a `Usage` is gathered.
+
+  `variance ask entrypoint` on a package that declares no entry says it has "no
+  `exports`, `main`, `types` or `typings`", where it left out `typings`, the
+  fourth key read for an entry, and says so of one no other package imports too,
+  where it said that package "opens no entry". A manifest that writes
+  `"exports": null` is read as one that writes no `exports`, as Node reads it: its
+  `main` opens the bare name, and without a `main`, `types` or `typings` it
+  declares no entry. `Offering` and `Documented` carry whether a
+  manifest declares an entry as `entry`, read from the whole manifest whichever
+  keys `declared` records.
+
+  On a repository whose packages declare no entry, `variance ask packages` went
+  from 200,330 lines in 29.9 to 45.9 seconds to 1,339 lines in half a second,
+  `variance ask entrypoint --package @kbn/core` went from 23,463 lines to 13, and
+  `variance ask entrypoint --package @kbn/core/server` answers in 241 lines, one
+  per name.
+
+  Breaking:
+
+  - `variance ask entrypoint --package <name>` (`docs_entrypoint`) counts the
+    imports past a package's entry, or of its files by path, one row per file, and
+    asked by one of those specifiers counts its imports per name. It printed
+    every import with the importer's file and line; `variance ask uses --name
+    <name> --package <specifier>` lists those for one name.
+  - `readUnentered` and `publishes` are removed from
+    `@variance-authority/package/help`. `readImportTargets` reads the published
+    packages, the ones that declare no entry and the specifiers each published
+    manifest declares, in one pass.
+  - `readHelp` from `@variance-authority/sense` takes those three as its third
+    argument, `{ published, unentered, declared }`, where it took the packages
+    that declare no entry; the native `read_help` it calls takes `published` and
+    `declared` as two more arguments.
+  - `Offering` and `Documented` carry `entry`, and `Help` and `Usage` carry
+    `unfollowed`: a value built by hand adds them.
+- f1c1b64: A bumped package and a moved manifest are read as the repository files they
+  change, once, before anything else is asked. `beyondReach` in
+  `@variance-authority/core/relate` walks a bump through the install to the first
+  files whose runtime imports load it, and stops there: a test that entered
+  anything further along evaluated that file on the way. A moved manifest becomes
+  every file beside it. `variance select`, `variance reach` and `variance run
+  --since` hand those files on as changed whole, so the suite's `before` and the
+  record answer for them as they do for an edited file.
+
+  `before` now holds files alone. A bump of a package your setup imports runs the
+  whole suite and names the setup file, not the package. `changedBefore` takes the
+  changed files only, and `BeforeReach.packages` is gone.
+
+  The `packages` option of `narrowByJourneys`, `narrowByExecution` and
+  `selectJourneyFile` is removed: pass the files `beyondReach` returns, each with
+  no line ranges.
+- 3e6a370: A run's cases travel in its record
+
+  The case index, the cases a run replaced and the run that replaced them are
+  sections of `coverage.bin`, no longer a `coverage.bin.cases.bin` beside it. The
+  one file is landed, layered, seeded, repinned, sharded and shared by the same
+  rules and under the same lock as the coverage it was recorded with, so the two
+  always answer for the same runs. A share, a seed or a fetch carries the index
+  and drops the replaced cases and the run that names them, which belong to the
+  machine that ran.
+
+  A record that carries cases is format 10, and a reader that knows only coverage
+  refuses it rather than misreading it. A record without cases keeps format 9. A
+  `coverage.bin.cases.bin` left from an earlier run is not read; the next run
+  writes its cases into the record.
+
+  The `executionFile` option is removed from `withTestSelection`, the Jest and
+  rstest seams, `startRecording`, the Playwright reporter and the Storybook
+  collector, along with the JSON it could write. `decodeExecutionIndex`,
+  `readExecutionIndex`, `variance covering --against`, `variance review` and
+  `distill --execution` read the index out of a record; JSON stays readable as
+  the spelling a foreign tool supplies. `landCaseIndexes` is replaced by
+  `landCases`, which returns the sections for the record you write, and
+  `lastCaseRunOf` reads the run they name. `caseLayerFiles` and
+  `executionIndexBytes`, which named and read the file beside the record, are
+  removed. `CaseSections`, `caseSectionsAt`, `caseSectionsOf`, `caseIndexOf`,
+  `recordedCases`, `withCaseSections`, `keepsCases` and `sharedRecord` read and
+  write the sections.
+- 988d0a2: An export's doc comment can declare its role with `@testOnly` or `@production`, and `variance restrictions` checks it with no `.relations.json`. It lists every shipped file that imports a `@testOnly` export, directly or through re-exports; every `@production` export that only tests import; and every export that declares both. What a `*.stories.*`, `*.story.*` or `*.examples.*` file imports from its own directory or below is held to its role as shipped code is, while what it imports from elsewhere stays test code; the code map counts `*.examples.*` files as tests. `Export.roles` gives the declared roles, and `declaredRoles()` runs the check. The source index format is version 16, so `variance index` rebuilds it once.
+- cdf87c6: Distill writes a row a test file
+
+  `variance distill --format jsonl` writes the scope reading one line a test file:
+  its suite, its `cases`, what it `loaded` (modules that declare a function, and
+  their lines), and of that what no case of it entered as `unentered`, or
+  `withheld` with the reason. A suite that kept no record is named on stderr.
+  `--test` and `--file` refuse it. `scopeRows` from `@variance-authority/distill`
+  yields the same rows, and `FileDistillation.lines` sums the lines of what a file
+  loaded.
+
+  A script that reads a record too large to decode reads it with the CLI's own
+  readers: `recordedExecutionFile` from `@variance-authority/cli` names the record
+  `distill` and `covering` read, and `@variance-authority/sense/test-selection`
+  exports `openSetColumns` with its `SetColumns`, `TestColumns` and `StringTable`
+  types for the case index, and `BLOCK_KINDS` for the region kinds of an opened
+  snapshot.
+- 0a41a23: Eyes journals travel in the record
+
+  A run that opts into Eyes writes each case's journal into `coverage.bin`, in an
+  `eyes` section keyed by the case's id and its attempt, so a journal joins its
+  case exactly and a retried case keeps every attempt. The attempt counts from 1
+  (Playwright's `retry + 1`) and is a column of its own, never part of the id. A
+  run that did not opt in writes no section. Source paths in a journal are
+  relative to the repository root, as the case index's are.
+
+  The Playwright fixture and `watchTest` hand their journal to the case the
+  recording runs, never to `testInfo.testId`. The RTL `watchTest`, given no id,
+  returns the journal and hands it to the running case where the recording seam's
+  case scope takes one. The Vitest, Jest and Rstest seams hold each attempt's case
+  from before its `beforeEach` until after its `afterEach`, so a journal closed
+  in teardown lands under that case and attempt. A run that opts in lists every case it watched in
+  the section, so a watched case that handed no journal reads apart from a case
+  whose run did not opt in. Two different journals for one case and attempt keep
+  the one whose JSON sorts first, and the run still records.
+
+  A journal stays on the machine that ran it. It leaves with the record, through
+  `variance share` or an `actions-cache` carry, and each says so: a share names
+  every suite entry whose record carried journals, and a carry save notes each
+  suite whose record goes into the cache with them. `sharedRecord` keeps the
+  section, and drops one that is unreadable or of a newer version at the
+  crossing, keeping the rest of the record. A repin keeps the journals of every
+  case its index keeps.
+
+  `variance distill` reads the checkout's own record, or the one `--execution`
+  names, and prints every attempt of the case. It refuses an id the record does
+  not hold and shows the ids it does. `--eyes` is removed, and so are the
+  `@variance-authority/eyes/collect` and `@variance-authority/eyes/reporter`
+  entries (`writeEyesArchive`, `gatherEyesArchive`, `recordEyesTest`,
+  `resetEyesJournals`, `EYES_JOURNAL_SUFFIX`, the Eyes reporter and
+  `EyesReporterOptions`). `eyesJournal` and `EyesJournal` give a test's journal,
+  and `parseEyesJournal` reads one back. In `@variance-authority/distill`,
+  `DistillInput` takes `execution` always and `eyes` as `EyesAttempt` rows, and
+  `Distillation` reports `attempts` as `AttemptAttention` in place of
+  `attention`, `joined` and `available`; `watched` names the cases a run that
+  opted in watched, and distill says which of them kept no journal. The sense
+  test-selection entry adds `keepsEyes`, `recordedEyesAt`, `recordedEyesOf`, `RecordedEyes`,
+  `ObservedEyes`, `EyesSection` and `encodeAsSetExecutionIndex`. In
+  `@variance-authority/mcp`, `serveEyesRecord` replaces `serveEyesArchive` and
+  serves the journals a record keeps, read by `readEyesRecord` off one read of
+  the record. A record a later run wrote without Eyes leaves it no journals to
+  answer from; `readEyesRecord` refuses such a record with `RecordKeepsNoEyes`.
+  `EyesArchive` carries `watched`, which `createEyesArchive` takes and
+  `parseEyesArchive` reads, so the MCP `distill` tool tells an unwatched case
+  from a watched one that kept no journal. That tool needs the runtime journey
+  and reads a case by its exact id.
+
+  Under Rstest, a case declared `it(name, options, fn)` is recorded per case, as
+  `it(name, fn)` already was.
+- f9486f1: A base your clone cannot diff from is refused rather than compared. `variance
+  coverage` against a base, `variance covering --against` and `--cases last`, and
+  `variance review` with `--against` or `--coverage` exit 2 with an `undiffed`
+  refusal when the base names no commit, or names one this clone does not have.
+  The message names the commit and how to get it: `git fetch origin <sha>`, or
+  `fetch-depth: 0` on `actions/checkout`. A review job in CI fails with it rather
+  than posting a comment that compared regions which may not be the same code.
+  They used to pair those regions by their place among regions of one name, which
+  reads a function written between two siblings as one losing every case and
+  another gaining them.
+
+  `covering --since --against` refuses the same way when git cannot say what the
+  base's branch changed after the base was recorded, which a shallow clone cannot
+  answer, instead of comparing without leaving those files out.
+
+  `--cases last` after a second run at one commit that ran a test file again is
+  refused too: that run's replaced cases mix the commit's own cases with the ones
+  they replaced, so they name no commit to diff from. The first run after a commit
+  compares with the last run at the commit before.
+
+  `caseMotion` and `coverageChange` take `diff` as a required option; it is the
+  only way they pair regions.
+- 36c40d5: `@variance-authority/sense/test-selection` reads the `names` grammar
+
+  The `names.axes` grammar is now exported from `@variance-authority/sense/test-selection`:
+  `parseNameGrammar`, which checks a `names` value and throws `NameGrammarError` naming
+  the field, `nameIndex` and `structuralParent` for a subject id, and
+  `heldValues`, `outsideVocabulary` and `caseTwins` for what a case said on the same
+  axes. `variance run` pairs a subject with its parent, and `variance covering
+  --where` reads a case's axis and twin, through this one implementation, so a
+  reader outside the CLI holds a case to the same vocabulary and base. The config
+  refuses what it refused, with the same messages.
+- 05996d4: A record without coverage
+
+  A run that keeps its cases and instruments no module writes `coverage.bin` with
+  its case sections and none of the coverage sections. A record already at the
+  path keeps its coverage as it was, under the new run's cases; a run that keeps
+  no cases and instruments nothing writes nothing. A file it could not finish
+  measuring is still recorded incomplete, which selects it. Its warning now says
+  the run recorded no coverage and narrows no later selection.
+
+  Such a record is unmeasured, not a record of tests that reach nothing.
+  `readTestCoverage` refuses it with `RecordWithoutCoverage`, and selection
+  narrows nothing over it: `variance select` skips nothing and says the record
+  holds no coverage, `variance run --since` runs every test file, and
+  `variance journeys` carries no partings, and `yarn test:since` runs the whole
+  slice and says why. Landing shards with `variance journeys` folds them over no
+  coverage and keeps the record's cases; a shard that holds cases and no coverage folds
+  nothing and lands its cases, and landed where no coverage stands it writes a
+  record of cases and no coverage. A shard that names no last run, as one that
+  crossed a checkout does, lands its cases for the files they are of.
+  `variance share` publishes such a record under the commit its cases were
+  recorded at, without the whole-run check a record that narrows would need, and
+  a mainline fetch keeps it as the base. A worktree seeds from it and lays it with
+  its cases and no runs record. A record that holds some coverage sections and
+  not the others is still refused as broken.
+
+  `recordOfCases` writes a record from case sections alone, and
+  `withoutCoverage` answers from a record's header whether it holds no coverage.
+- d317459: `importReferences` says what the file exports, `exports`: every value name,
+  `default` included, absent where an `export *` leaves the set to another file
+  or the file exports no value as a module does.
+- 8187fb1: `variance select` starts fewer git processes and waits on fewer of them in
+  turn:
+
+  - Where the clone keeps its shallow list is asked once per run, not once per
+    distance counted.
+  - A record made at the merge base is zero commits away, and counting that
+    starts no git process.
+  - The two directions of a distance are counted at once, and alongside the
+    shallow-list lookup.
+  - Whether each commit this checkout ran tests at is on the branch is asked
+    once per commit, and all of them at once.
+  - The merge base with the mainline is asked once, not again for each distance
+    measured from it.
+  - The top of the checkout is asked once for every diff and commit read from it.
+  - The changed files and the untracked ones are listed at once, and the
+    untracked ones diffed a few at a time.
+  - Every changed `package.json`, and the lockfile at each commit a group of
+    tests last ran at, is read by one `git cat-file --batch`, not a `git show`
+    apiece.
+  - `textAtRecording` reads the paths a jump ahead left unasked in one more
+    window, not a process apiece, and asks whether the checkout is a partial
+    clone once rather than for each window that answers a path missing.
+  - `repositoryRoot` answers a directory holding `.git` without starting git,
+    unless `GIT_DIR` or `GIT_WORK_TREE` is set.
+
+  `@variance-authority/sense` exports `textsAt`, which reads paths at several
+  commits from one `git cat-file --batch`.
+- a9f503d: `variance select --at-distance <hops>` cuts the selection to one leg: the
+  selected test files that many imports from the change. The selected files
+  outside the leg join the skip list, so `0-2` and then `3-` run every selected
+  file in one of the two.
+
+  A leg is still a skip list. A selection that declines to narrow skips nothing
+  in any leg. A test the change did not enter and the record holds incomplete
+  runs in the leg of the shortest import path it ran to a changed file it
+  loaded. One with no such path, such as a file whose every case skipped and
+  that loaded nothing changed, runs only in the open leg, the one with no upper
+  bound. A test new since the recording is named nowhere, so it runs in every
+  leg. The execution narrowing names the incomplete tests as `incomplete`. A
+  test the change entered by no import it executed has no hop count, and runs in
+  the one leg that holds the furthest hop measured, or in the open leg when
+  nothing was measured. stderr counts the tests the change entered at each hop
+  count, names the leg that runs those with none, counts the incomplete tests the
+  leg runs by their path, and names how many selected files the leg left and the
+  command that runs them. `--format json` gives the leg as `leg`, those files as
+  `left`, and each entered or placed test's hops, bearing and, where none was
+  measured, the reason as `distances`. A leg over a journey file is refused,
+  because a journey file records no imports to count hops by.
+- 9c73e12: A Rust transform can place sense's probes itself
+
+  The package now ships its instrumenter as a Rust crate, at
+  `node_modules/@variance-authority/sense/native/instrument`: the code its own
+  addon runs, so a project with sense installed has the version its runtime
+  reads. A pipeline over swc, oxc or anything else links it as a Cargo path
+  dependency and calls `instrument`, `module_id` and `recipe`.
+
+  The Jest transformer hands such a pipeline the module untouched. A wrapped
+  transformer that answers `senseRecipe(mode)` is given `options.senseProbes` —
+  the file, the module id and the mode — for each module that would have carried
+  probes, and places them itself. The recipe is the instrumentation id and one
+  digest of the header and of the crate's sources and manifest; one that is not this package's is
+  refused when the transformer loads, naming both. A transformer without
+  `senseRecipe` is given text with the probes already in, as before.
+
+  `PROBE_RUNTIME` from `@variance-authority/sense/instrument` is replaced by
+  `probeRuntime(module, count)`, the header one module carries, and
+  `probeRecipe(mode)`, the recipe a Rust build is checked against. The header is
+  written in one place, the crate, and is byte for byte what it was.
+- bd98c3a: `--shard` in Vitest and Jest is placed by recorded time, and `variance shards` says how many to start
+
+  A Vitest or Jest config wrapped by `withTestSelection` now places the files of
+  `--shard k/n` by the time each took on the last recorded run, rather than
+  leaving the runner to divide them by count. Each shard computes the whole
+  placement from the same record and keeps its own part: files go longest first
+  to the shard with the least time so far, and a file the record has not seen is
+  priced at the median of the ones it has. The run says on stderr which record
+  placed it and what each shard was given:
+
+  ```text
+  variance-authority: shard 1/2 by the times recorded at 8e3b0f0e9028: 1 of 5 files, 9.0 s (shards 400 ms to 9.0 s)
+  ```
+
+  When the times cannot be read, the runner's own split runs instead, and the
+  line says why. A failed read never fails the run. A Jest config that names no
+  `testSequencer` finds Jest's own through Jest, so a layout that does not hoist
+  `@jest/test-sequencer`, as pnpm does not, runs as before. Under
+  `VARIANCE_AUTHORITY_SINCE`, only the files the selection keeps are placed.
+
+  `variance shards --setup <seconds>` prints how many shards a recorded suite is
+  worth, and with `--format json` a `matrix` of `k/n` strings for a CI job to
+  start. Every shard is charged its setup, so a shard is added only when it
+  shortens the wait by more than it spends, and the count stops at the slowest
+  test file, which the answer names with its slowest case. `--budget` asks for
+  the fewest shards that finish within it, `--workers` divides a shard's share
+  among its runner's workers, and `--since` leaves out what the change lets the
+  run skip, so a change that reaches no test answers `0 shards`. `--collected
+  <file>`, the runner's list of test files, counts a test file the record has not
+  seen, priced at the median.
+
+  It always answers, and names what it could not weigh, in `notes` under
+  `--format json`. Without `--setup` the count weighs no setup. A budget no
+  longer than the setup is out of reach at any count, and the answer is the count
+  that finishes soonest, with `why` set to `setup over budget`. `--since` without
+  `--collected` counts only recorded files and never answers fewer than one
+  shard, and `--at-distance` without `--since` counts the whole suite. With
+  nothing recorded it answers one shard until `--unrecorded <n>` names the count
+  to start.
+
+  `@variance-authority/core/shard` is the placement and the count, which
+  `variance run --shard` places stories and routes by too.
+  `@variance-authority/sense` exports `recordedTimes` and `fileCases`, and
+  `@variance-authority/cli` exports `suiteTimes`.
+- af6b022: `before` moves out of `source` and is declared where the suite is. The top-level
+  `before` is what every suite rests on — a CI workflow, a `.nvmrc` — and a
+  suite's own `before`, beside its `kind`, is its runner config and its setup
+  files, each listed, since a config names its setup as a string and a string is
+  not an import. `variance select` now reads both for the suite it reads: each
+  entry is walked down the file graph, and a change to any file it reaches, a
+  `package.json` whose `exports`, `main` or `type` moved over one of those files,
+  or a bump of a package those files import, runs the whole suite and names what
+  moved. A directory in either list is walked from every file under it. `select
+  --execution` reads the same lists for the suite `--suite` names, the only one
+  declared, or every declared suite when none is named; beside a snapshot
+  `--execution`, `--suite` is refused, since both name the record. A manifest move
+  is read when the diff leaves every lockfile alone. A
+  config below the repository root inherits the root's `before`, as it inherits
+  its suites. A suite that declares nothing has nothing before its reach, and
+  `select` says so.
+  `variance run --since` reads the top-level list as it read `source.before`.
+
+  `source.before` is refused: move it to the top level.
+- 8be004e: A suite may decline the import graph: `"relations": false` beside its `kind`.
+  A changed file its record measured is answered by the record, as before; one it
+  did not measure — a file added since the run, a stylesheet — is answered by the
+  first tests that import it, unless the suite declines relations, and then it
+  selects nothing in that suite. An end-to-end suite imports none of the app it
+  drives, so the graph names none of its tests; it lists what it rests on in its
+  own `before` instead. `variance select`, `select --execution` and `variance run
+  --since` name each declined file, and `select --json` carries them as
+  `declined`, apart from `unread`.
+
+  `narrowByExecution`, `narrowByJourneys` and `selectJourneyFile` take
+  `unmeasured: 'nothing'` to decline, and their narrowing carries `declined`
+  when they do. `unmeasuredOf(suite)` reads it off a declared suite.
+- 4fe70b5: `variance ask symbol` and `ask uses` answer a name a file exports and no entry publishes
+
+  They used to refuse it. `symbol` gives the file and line that export it, the
+  line as the checkout holds it, and how many imports resolved to that file, one
+  count per file when several export the name. An installed name it matches is
+  said after it, since a file that passes an installed binding on exports it.
+  `uses` lists each of those imports, within the package as well as from another
+  one, read from the source index; an import through an `export *` file and a
+  call through a qualified path are not counted. A name nothing exports is still refused.
+  `@variance-authority/sense` adds `importersOf`, every import of a name out of
+  given files that the source index resolved.
+- 4799688: The checkout says what the probes meant: no build writes module records
+
+  A probe names the file it was placed on and the digest of that text,
+  `path@digest`. When a run is folded, each module the journals name is cut again
+  from the file in the checkout. A file whose text still matches is read on its
+  own regions; a file that has moved on since the build reads as one whose reach
+  is not known, which selects every test that entered it; a file that is gone
+  counts the same way. Nothing is written beside the build, and nothing under the
+  cache's `test-selection/<key>/<label>/` is read.
+
+  Breaking:
+
+  - `testSelectionProbes()` takes no `cacheRoot`. Its `label` names the journey
+    head and nothing else.
+  - `recordExecution()` takes no `label` and no `heads`.
+  - The Jest journeys options (`withJourneyCoverage`) take no `heads`.
+  - `jestStore` is removed from `@variance-authority/sense/jest`.
+  - `instrumentModule(code, file)` takes no options: call it first, on the file as
+    it is on disk.
+  - A journal names a module by `path@digest`. A driver that writes its own
+    journal builds the id with `moduleId(path, code)` from
+    `@variance-authority/sense/journal`.
+- ebff21a: A Vitest or Jest configuration wrapped by `withTestSelection` runs only the test
+  files a change reached when `VARIANCE_AUTHORITY_SINCE` is set:
+
+  ```bash
+  VARIANCE_AUTHORITY_SINCE= npx vitest run
+  ```
+
+  The runner drops the files the selection skips before it shards, sorts or lists
+  them: Vitest through a wrapping `sequence.sequencer`, Jest 30 through a `filter`
+  module chained after the project's own. No path travels through argv, the
+  environment or a file. Set and empty, the variable reads the base from the
+  record; set to a ref, that ref is the base when the record names no commit.
+  `VARIANCE_AUTHORITY_AT_DISTANCE` cuts the selection to a range of import hops,
+  as `variance select --at-distance` does.
+
+  The run prints what it read on stderr: `selected 12 of 672`, `selected none of
+  672`, or `declined:` and the reason every file runs. A test file the record never
+  saw runs. Watch mode does not select, nor does Jest under `--filter` or
+  `--skipFilter`, and each says so. A Vitest run whose selection is empty passes.
+
+  The reading is `selectSuite` from `@variance-authority/cli`, the function
+  `variance select` prints, so the project installs the cli to select. It is
+  resolved from the configuration's directory, so a package can hold the cli as
+  its own devDependency. `@variance-authority/sense` declares `jest ^30.0.0` as an
+  optional peer beside Vitest: Jest 29 reads the files a filter keeps as none, so
+  a configuration that selects under it throws while it loads and names the
+  version.
+
+  A change to a source file now reaches the tests that loaded only its built
+  copy when the record holds the file under both names, in `variance select` as
+  in the runner. The `tsconfig` that builds the package says which recorded names
+  are built from which source.
+
+  `variance select --format vitest` and `--format jest` are deprecated, and say so
+  on stderr: they put the selection on the runner's command line, which a large
+  one outgrows. They are removed in a later minor release. `--format plain` and
+  `--format json` stay.
+
+### Patch Changes
+
+- b7a15dd: A region an edit above it moved is no longer reported as lost
+
+  The case index keeps each module at the lines it was recorded at. The snapshot
+  moves a module it carries to the text on disk. When a module went unrecorded
+  across an edit above one of its regions, the before layer stood at the old
+  lines but named the new text. `variance review` then paired a row with the
+  region now on its old line. A case that still called its callback read as
+  `Lost every case` on one line and gained on the next. Now, when a run records
+  the module from the text the before layer names, the before layer is cut at
+  the lines the run recorded. When the two texts number their regions
+  differently, the module is named under no text. A review then lists it as not
+  compared, with the cases before recorded over another text, instead of
+  inventing a loss. A landing of several shards keeps the lines an earlier shard
+  recorded when a later shard, which did not record the module, retires cases of
+  it. Cases of a test file the run did not run land on the module's new regions
+  only where the two texts number them alike.
+
+  A callback no longer passes its cases to a sibling of the same name when one
+  recording holds a region the other lacks. Callbacks of one name and path are
+  told apart only by their order, so a cut missing the first `map` callback of a
+  function numbered the second one first, and its cases landed on the first.
+  `variance review` then reported the region lost, in a file nobody changed. Now,
+  where two recordings hold such a name a different number of times, a callback's
+  cases land only on the one at its own lines. When a held callback finds none
+  there, the module is listed as not compared.
+- 4799688: A module your suite loads as both TypeScript and its `tsc` build keeps the cases recorded on it
+
+  The source and its build are recorded under one path, and a merge keeps only the
+  regions both readings cut. They did not cut the same ones. `tsc` erases the
+  `import type` lines above a module's first import, so the build's module opened
+  lower than the source's. It also maps the closing `)` of a call written over
+  several lines to the line of the last argument, so an `await` on that call
+  ended a line short. The module region and those `await` regions fell out of
+  the merge, together with every case recorded on them. In this repository's own
+  unit suite that dropped all 606 crossings carried for one such module. A
+  build is now recorded at its source's regions, and so is any code a runner's
+  transform hands over with a source map. A build that cut a region its source
+  has not, such as a helper a bundler wrote, keeps its regions where its map puts
+  them, and only its module region takes the source's lines, so an `await` the
+  map closed a line short can still fall out there.
+
+  Every seam, and the fold that cuts a module again from the checkout, cuts it
+  through one function, so a module and its build carry one cut, and a build
+  walks its source once more to get it. Coverage written before this release
+  still holds the old cut. For a module loaded both ways, the first run layered
+  over it is expected to drop what it carried, and the next record holds the
+  source's cut; a module whose regions only moved lines is carried as before.
+- 00a4b3e: The probes go in first, and a workspace library loaded from its build is recorded as its source
+
+  Every seam now places its probes on the text you wrote, before any other
+  transform: `testSelectionProbes` and the Vitest plugin at `enforce: 'pre'`, the
+  Jest transformer ahead of the one it wraps, and the Rstest loader ahead of SWC.
+  A record is named after the file, digested as its text and placed on its own
+  lines, so nothing a compiler writes — decorator helpers, a generated
+  constructor — is recorded, and Jest stack traces keep their lines.
+
+  A module that ends in a `//# sourceMappingURL=` comment naming a sibling map of
+  exactly one source outside `node_modules` is recorded as that source, on its
+  lines, when `include` accepts it: `ui/dist/Button.js` counts as
+  `ui/src/Button.ts`. A library an application imports through its `tsc` build
+  is now recorded by a Vite dev server and by `vite build` alike, where before the
+  default include refused it. Anything else — an inline map, a bundle's many
+  sources, a map that cannot be read — is recorded under its own name.
+- eb7c1bc: A case run by a named project carries the project's name in its id
+
+  A test file run by two projects — two Vitest projects, two Jest `projects`, two
+  Playwright projects — runs once under each, and the case index numbered the
+  second copy, so `variance covering` listed
+  `greets by name [test/greet.case.ts > greets by name#1]` with nothing to say
+  which project the `#1` was. The index now carries the project each case ran
+  under and spells the case by it, as Vitest prints it:
+  `|compiled| test/greet.case.ts > greets by name`. The name is the case's own,
+  so a run filtered to one project (`--project`, `--selectProjects`), or a shard,
+  gives a case the same id a full run does. A repeated name inside one project is
+  still numbered.
+
+  The project's name is the one the runner gives it: Vitest's `test.name`, its
+  `package.json` name or its directory, and an inline project without one by its
+  place in the list; Jest's `displayName`; Playwright's project `name`. A Jest
+  run whose projects share a test file also records that file once, rather than
+  failing to write the record, and records it partial when one of those projects
+  skipped every test in it.
+
+  When you upgrade: every case of a named project changes id once, on the first
+  record after upgrading, and history joined by id restarts for those cases.
+  Reordering an unnamed inline Vitest project list renames its cases. A project
+  without a name keeps the plain coordinate, and so does every Rstest case.
+- 409d7ba: A case that evaluates a module through an inline require keeps what it entered afterwards
+
+  Under Jest's inline requires a module evaluates inside the first case that reads
+  one of its bindings. That case lost every region it entered both while the
+  module evaluated and after it, such as the function a higher-order component
+  returned, so a change there selected only the cases after it. The record of a
+  run with inline requires is now the record of the same run without them: what
+  ran while the module evaluated is flagged as loaded, and the case keeps its own
+  crossings.
+
+  A page or story case reads the same way. When a module evaluates inside the
+  case's own drain, or in an earlier drain of the same case, the case keeps the
+  calls it made into the module afterwards. Joining a case's drains keeps a region
+  that one drain entered while the module evaluated and another entered plainly.
+
+  A case that ran and crossed nothing is now named in the case index, with how it
+  settled, instead of being left out.
+- 596743a: The skill reads the state each covering test ran under
+
+  The `variance-authority` skill has a `case-preconditions` reference: which tests
+  ran a function with discounted prices mocked, the state each test covering a
+  function ran under, a test's flag-off twin, how a test helper records the state
+  it sets, and what to do when `--where` answers unmeasured. The skill's config
+  table and its `covering` reference say that `covering` reads `names` from the
+  root `variance.config.json`. The `@variance-authority/sense` and
+  `@variance-authority/cli` READMEs say a case precondition records the state a
+  test ran under, and link to the public case preconditions page; the
+  `@variance-authority/playwright-test` README links to the renamed section.
+- 8c9ce5f: `variance ask symbol` answers an installed name from its declaration first. A
+  package whose main entry declares the name is no longer also reported through
+  its other entry points that declare nothing: `ask symbol --name config
+  --package dotenv` prints `dotenv · config [function]` and its signature, without
+  the `dotenv/config` and `dotenv/lib/*` entries and their README passages above
+  it. A package that declares nothing still points to its README, now after any
+  declared match. Its entry points are listed one per line, with the README path
+  and passage printed once below them instead of once per entry point.
+  Only entry points of the same installed copy are left out: a second copy of the
+  same version, in another workspace, that declares nothing still points to its
+  README.
+- f8e70fe: `variance select --execution` runs every test `variance covering --line` names for a changed line
+
+  A journey file selected the cases that entered the innermost region holding a
+  changed line, and nothing else. A line that opens a region carries the text of
+  the region around it, so a change to the condition in `if (ready) {` skipped
+  every case that evaluated `ready` and never took the branch, while `variance
+  covering --line` named those cases for the same line. Each changed line is now
+  charged as `covering --line` and file-level `select` charge it: the innermost
+  region, the region around it when the line opens one, and the `else` nobody
+  wrote on the brace that closes a branch. `narrowByJourneys` and
+  `selectJourneyFile` give the same answer, with the addon and without it.
+- 0b57de8: A landing names every case its shards ran as the last run
+
+  After `variance journeys --suite` (or `landCases`) lands several shards of one
+  run, the record's last-run layer names the cases every shard recorded. It named
+  only the last shard's, so `variance covering --cases last` on a landed record
+  answered from that shard alone. A case a later shard retired is not named.
+- 14c2790: `variance covering --line` names every case an edit to that line selects
+
+  A line such as `if (observer) {` opens a branch and also holds the condition
+  the region around it evaluates. `variance select` charged an edit to that line
+  to both regions. `variance covering --line` read only the branch, so it named
+  the cases that took the branch and said they were the only ones that could
+  have reached the line, while every case that evaluated the condition and went
+  the other way was selected by the edit. `covering` now reads a line by the
+  rule `select` charges it by when it reads the coverage record, so the two
+  agree there; `select --execution`, which narrows by recorded journeys, still
+  charges the branch alone and can select fewer cases. A line that opens a branch or
+  a function, or closes a function, also answers with the region around it. The brace that
+  closes a branch also names the cases that took the `else` nobody wrote, which
+  the recording places on that line. A line inside a branch answers with the
+  branch alone. `coveringTests`, `coveringTestsInFile` and `testsReaching` answer
+  the same way, and so do the import hops of `covering --hops` and
+  `--at-distance`. `testsReaching` asked by a branch path still names only the
+  tests that took the branch, and it now refuses a `line` given with a
+  `function`, as `variance covering` already did: the two address a region two
+  ways.
+- 0fc98d7: A base row on a region of another path is not read as motion
+
+  When the diff carried a base row onto lines where no region now has its
+  structural path, case motion took whichever region stood there: a base
+  `if#0/then` that landed on `if#1/then` was compared with it, and review said
+  that branch lost every case it had. Now a row pairs with a region of its own
+  path, or with the same branch renumbered or nested deeper by an edit inside its
+  function, before it. Any other row is not compared: `CaseMotion.mismatched`
+  names it with the region it landed on, coverage counts neither of them deleted
+  or written, and `variance covering` and `variance review` list it as not
+  compared.
+
+  A row an edit touched pairs only with a region of the same branch, so a `then`
+  never pairs with an `else`.
+- f4cf1fc: A Vitest run that loads one module as its source and as its build — a package's
+  own tests import `src/cart.ts` while another package's reach it as
+  `dist/cart.js` — records the same regions for it on every run. Both readings
+  are named `src/cart.ts`, and the record used to be whichever the runner
+  transformed last, so its regions and digests changed between runs over the same
+  code and tests. The source reading is now the record whenever the run loaded it,
+  which is the record a run that never loads the build writes too.
+
+  In watch mode, a rerun keeps the readings of the files that did not change and
+  drops the reading of each file that did, along with every build's reading of a
+  source that did. The record never describes text that is no longer on disk.
+- 501e096: A scan root below the top of its checkout reads the edits under it
+
+  `git status --porcelain` and `git hash-object --stdin-paths` both spell paths
+  from the top of the checkout, whatever directory they run in. The scan's git
+  tree, native and JavaScript alike, and `gitDigests` keyed their paths from the
+  scan root and passed both sides through unchanged, so for a root such as
+  `packages/app` an edited file kept its committed digest, a
+  deleted or renamed-away file kept a digest for bytes that are gone, and an
+  untracked file got none. A known-change list from such a root failed to hash at
+  all. Each path git reports is cut to the scan root, one outside it is dropped,
+  and each path handed to `hash-object` is spelled from the top again, so every
+  digest under a nested root names the bytes on disk.
+- afab7a0: A region a run cut that the record never held takes the cases around it
+
+  When a run lands into a record whose case index cut a module into fewer
+  regions, as a file read through its source in one run and through its build in
+  another is, every region the run cut new used to keep only the run's own cases
+  and lose the record's. The coverage rows already gave such a region the tests of
+  the region around it, so `variance covering` and CI's evidence comment named
+  fewer cases on those lines than selection charges. The case index now gives the
+  region the cases and the load flag of the nearest region around it that the
+  record held, by the rule the rows follow.
+
+  The case index records each region's owner, the region around it that the
+  rows already name, in an optional `blocks.owner` column of the same format
+  version. Every case index a run of this version lays into the record writes it,
+  a browser driver's included. A run's index without it, a shard recorded by an
+  older build or spelled as rows, names no owner: a region it cut that the record
+  never held takes nothing from around it.
+- 073c96b: A run of a few test files over an edited module demotes the tests the edit
+  reached, and no others
+
+  A partial run lands over the record at the text it ran, so the next selection
+  reads no diff for the edited module. Whether a test the record carried from
+  before the edit runs again then depends only on whether the landing marked it
+  incomplete. Two things went wrong there.
+
+  - **A module the run did not load.** The landing re-cut its rows onto the new
+    text and kept every test on them whole. If you edited a function body and
+    then ran only some other test, the next selection skipped the tests on that
+    function. These tests are now marked incomplete: tests on a region whose
+    text moved, tests on a region the new text gained, and tests left with no
+    region.
+  - **An edit that runs nothing differently.** A type annotation, a type-only
+    import or a comment moves the digests of the regions around it. The landing
+    marked every test on those regions, so one type change and a run of one test
+    file sent hundreds of tests back to run. In this repository it was 261 tests.
+
+  Both landing paths, for a module the run loaded and for one it did not, now
+  read the edit the way selection reads a diff, from the two texts of the
+  module. An edit selection reads as running nothing differently marks no test.
+  An edit inside function bodies marks the tests on the regions it moved. An
+  edit to what the module does as it loads, such as a moved value or a changed
+  import, still marks every test that loaded the module. If either text cannot
+  be read, every test on a moved region is marked.
+
+  The selector prints `none (the record was taken over this text)` for a file
+  whose last run was recorded over its current text. The JSON reading is `none`
+  with `kept: true`. `none — the runtime text is equal` is printed only when the
+  parser compared both texts and found them equal.
+- 5757e7c: The mainline's record fetched last stands until a nearer one can exist, not
+  for 10 minutes. The line keeps only its newest record, and the nearest a
+  checkout can use is the one at `HEAD`'s merge base with the mainline. A record
+  at or past that merge base is read without asking the remote, and so is one
+  fetched while the merge base was the one it is now. After a pull or a rebase
+  moves the merge base, the line is asked once. `variance select` and
+  `test:since` therefore stop waiting on the remote every 10 minutes in an edit
+  loop, and every job of a CI run reads the same record however far apart the
+  jobs start.
+
+  `FetchedMainline.base` keeps the merge base the line was asked at, in
+  `fetched.json`. `earlier.reused` on a `MainlineRecord` says why the record
+  stands: `'nearest'` at or past the merge base, `'asked'` when the line was
+  asked at this merge base. The reader's note says the same. A line's answer
+  that it gave no record still stands for 10 minutes.
+- 29d0bf1: `textAtRecording` reads the paths a caller asks about outside the set it named without starting a git process for each one. From the second such path at a commit, the commit's tree is listed once, and a path whose bytes on disk hash to the commit's blob is read from disk. Any other path is still read from git. The window over the named set is not moved by an outside path, so the named paths keep being read in batches. On this repository it saved `variance select --suite unit` 222 git processes and about 1.6 s. The texts it returns are unchanged.
+- 5eca879: A module's `require` calls are read from the code. A `require('...')` written
+  in a comment, a string or a template's text is no longer a request, so a
+  comment such as `// require('...')` no longer adds a third-party package named
+  `...`. `` require(`./plain`) `` and `` import(`./plain`) `` are read like their
+  quoted forms, and `import('a' + 'b')` is a load this cannot read rather than a
+  request for `a' + 'b`. `module.require('x')` is a request for `x`, and another
+  object's `require` method is not. `import x = require('y')` is read as a
+  request for `y`.
+
+  A declaration package's `export =` is read from the code as well, so an
+  `export = name` inside a comment publishes nothing, and `export=Name` or
+  `export = Name` without a semicolon publishes its namespace. An `export =`
+  inside a `declare module "x" { … }` body names a namespace or an
+  `import x = require('y')` from that body or from the top of the file.
+
+  The source index format moves to version 17, so an index written before this
+  release is rebuilt once instead of keeping the requests it read from comments.
+  The dependency lexicon moves to version 8: an older lexicon still answers
+  questions, and the next `variance index` rewrites it in full instead of
+  carrying its entries forward.
+- ac60045: A recorded run keeps the install it ran on
+
+  When a run lands, the lockfiles and `package.json` files that differ from its
+  commit are kept beside the module texts a run already keeps, and
+  `coverage.runs.json` names them under `installed`, `{}` when the run ran on the
+  commit's own install. Runs at one commit over two different installs name none,
+  and neither does a recording made before this field existed: nothing is assumed
+  about an install no run recorded, nor a value there that is not an install.
+  A test a later run leaves standing keeps the install it ran on in its
+  `standing` entry, for as long as it stands there. `standsAt` hands the install
+  to the selection when every test it reads at the journal's commit ran in those
+  runs, and each stand carries the install all of its tests ran on. A newer
+  snapshot that moves the runs record to its own commit drops the install the
+  record kept, which was measured against the commit it named before.
+- fa48984: A Vitest, Rstest, Jest or Playwright Test run removes the scratch it made and
+  nothing else. It no longer prunes the rest of the cache once a day as it ends,
+  so whichever run finished first no longer clears what other runs left. Run
+  `variance prune` to clear it, or let `variance run` do it at its end.
+- a9e72ea: Loading a Vitest config that uses `withTestSelection` does less before the first test runs:
+
+  - Importing `@variance-authority/sense/vitest` no longer loads the package's whole index, or `oxc-parser` and `oxc-resolver` with their native bindings, which nothing in the seam uses. The import takes about 20 ms instead of 34 ms.
+  - In a git worktree, `git rev-parse` runs once instead of twice. The primary checkout's cache directory is read from the worktree's git layout, which already names that checkout's root. The directories are unchanged.
+- 211bbcd: Shards landed with `variance journeys <shard>...` keep the install they ran on
+
+  Each shard's seam keeps the lockfiles and manifests that differed from its
+  commit in the runs record beside its snapshot. The landing kept none of that,
+  so `variance select` after it compared the install from the commit. A bump the
+  shards had already run on, not yet committed, read as moved, and every test
+  that loaded the package ran again. Now the landing reads each shard's
+  `coverage.runs.json` and records the install they all name. A shard whose runs
+  record is missing, does not name its snapshot's commit, or did not observe
+  every test its snapshot holds names no install, and neither do shards that ran
+  on different installs: the landing then keeps none, and a later selection
+  compares from the commit. `@variance-authority/sense` exports `shardsInstall`,
+  the rule the landing reads them by.
+- 0d89fcb: A shard of a run that selects nothing records the files it ran and nothing else
+
+  A Vitest or Jest shard places its files by the times the mainline's record
+  holds, and reading them can fetch that record into the shard's cache. The fold
+  then laid it under the shard's run, so every shard's record held every test
+  file of the mainline, and `variance journeys` refused to fold them: a test file
+  belongs to one shard. A shard of a run that selects nothing now lands on no
+  base, so the shards fold over the base as one unsharded run would have landed.
+  A selected shard still records over the base its selection was cut from.
+- cbe5a7c: `sourceCut` is exported from `@variance-authority/sense/test-selection`: it cuts a text into the rows a seam records for it, with the digests a landing compares when it cuts the text again.
+- 59e34f6: A test that loaded a build of a types-only module stays recorded whole after a run that did not load it
+
+  For a module that declares only types, `tsc` writes `export {};` and a source
+  map with no positions in it. Variance Authority records that build under its own
+  path. A Vite dev server hands the build to the plugin with its
+  `sourceMappingURL` comment blanked, and the record took its digest from that
+  blanked text, which matches no file on disk. A later run that did not load the
+  build checked the digest against the file on disk and treated the build as
+  edited. It cut the build again and demoted every test that had loaded it. The
+  next run of those tests recorded the blanked text again, so the cycle repeated
+  with every run that skipped them. In this repository, each run after a one-line
+  edit demoted the 98 test files that load `packages/core/dist/artifact.js`, and
+  the run after it ran all 98 again.
+
+  A module recorded under its own path is now digested and cut from the file on
+  disk. Blanking the comment moves no offset and no line, so its regions are the
+  same. Coverage written before this release still holds the old digest. The first
+  run that lands over it demotes the tests on such a module one last time.
+- e87d26a: `distanceFromView` and `distanceByExecution` also place a test the record
+  holds incomplete and the diff did not enter, by the shortest import path it
+  ran to a changed file it loaded. So `distances` can hold a test outside
+  `narrowing.entered`. A test with no such path is left out of `distances`.
+- 2ba40f7: An execution index is told JSON or columns by its frame, not its first byte
+
+  A JSON execution index that opens on a tab, a carriage return or a byte order
+  mark now reads as JSON; it was taken for columns and refused as "not a
+  variance-authority execution index". `isEncodedExecutionIndex` now answers
+  true for bytes framed as a column file — a header length that fits and a JSON
+  header naming a version and its sections — whatever the low byte of that
+  length is, and otherwise looks for `{` past a byte order mark and JSON
+  whitespace.
+- 879baa1: Undoing an edit to a module your tests ran now selects those tests
+
+  A run over an uncommitted edit records the edited text, and the next selection
+  reads your change from that text. When you put the file back the way the commit
+  has it, the diff from the commit no longer names the file, so the selection
+  never read it and skipped the tests that had run the edit: you could edit a
+  module, run the tests it reached, put it back, and the next run selected none
+  of them. A module whose rows were recorded over a kept text, and that the diff
+  does not name, is read from that text to the commit's, so putting it back
+  selects the same tests the edit did. A patch handed in with `--diff` is still
+  read as the whole change.
+- b7297e0: Another build of an unedited module no longer sends its tests back to run
+
+  A module your suite loads both as source and as its package's built output is
+  recorded once, under the source's path, but each build cut its regions with
+  digests of its own text. Layering a run that loaded one build over a record
+  that held the other read every region as edited and marked every carried test
+  that crossed them incomplete, so the next selection ran them all: one test file
+  layered over a full record of this repository's unit suite sent half of the
+  suite's files back. A region now counts as edited only when the module's source text
+  changed, and a run layered over the other build keeps the carried tests whole.
+- cb8a52f: A source index another release wrote is no longer reported as damaged
+
+  After an upgrade, the first command that read the source index said it was
+  damaged and read only up to its first bad segment, and in CI it refused with
+  the same words. The segments were whole: an earlier release had written them in
+  another format version. Now the reader names both versions, for example that
+  the index was written in format version 15 and this release reads version 18.
+  On a workstation it rebuilds the index and says so, and `variance index` prints
+  `source index rebuilt over one written in format version 15`. In CI the refusal
+  names both versions and asks you to run `variance index` with this release
+  before the command that reads it. `ask orient --files` over such an index says
+  which version wrote it and that `variance index` rebuilds it.
+- 525d1a6: A changed value that a file converts at top level as it loads is read as a load
+  of that file, so the tests that load it are selected. `const doubled = feature * 2`,
+  `` `${feature}` ``, `-feature`, `feature == 1`, `key in feature`,
+  `feature instanceof Base` and `{ [feature]: true }` each convert the value, and
+  the conversion can throw or run the value's own `valueOf`, `toString` or
+  `Symbol.toPrimitive` when the file loads — `1n * 2` throws. A test file holding
+  one is selected even when nothing reads the binding afterwards. A plain copy, an
+  object value, `===`, `!==`, `!`, `typeof`, `??` and a condition convert nothing
+  and still select only the tests that read the binding.
+- 73f40a8: `variance_changed_tests` prints what each case said, with the call that said it, on the case's line, as `variance covering --since` does.
+
+  `variance covering` prints what each case said, and its twin, in every answer that lists cases. The `--since` text carries them on each case line, and the whole-file and plain `--line` or `--function` answers print each case's twin without `--where`; under `--format json` the answer carries `twins` in every form. A twin comes from the case's own test file, and a large set prints as its count and the first three names. `--where` counts out of the cases that covered what you asked about, not the whole record. When a case says one value twice, the row keeps the site that said it first. The `afterEach` warning, the invalid-value warning and the misplaced-call error name the call site from the checkout, as the row does, under every host that knows the checkout, including a runner built on `@variance-authority/sense/runner`.
+- 5cd0075: The first run laid over a record that crossed a checkout — a seeded worktree, a
+  mainline record fetched in CI, a shared one — names the commit that record's
+  coverage stands at as the commit of the cases it replaced. A crossed record keeps
+  its cases and drops the run that wrote them, so that commit used to go unnamed,
+  and `variance review` and `covering --cases last` after the CI record job folded
+  its shards over the mainline's record had no commit to diff the replaced cases
+  from.
+- 10336d0: A file a package's `exports`, `main`, `module` or `bin` names now ships in the
+  code map whatever its name says, and so does every file it loads. A package
+  that publishes `./src/jest.ts` as `./jest`, or `./src/playwright.ts` as
+  `./playwright`, used to have it read as a test because a runner is named on
+  the path, which left it out of the package's closure in `variance layers` and
+  out of the shipped files a transitive rule in `variance restrictions` starts
+  from. A package whose manifest names none of its files still starts at the
+  files its own code never imports, and a test file is still not one of them. A
+  package inside a test's fixtures directory ships nothing, as before.
+- d2010f9: A Vitest run that loads one module as its source and as its build credits each
+  test with the regions it ran. Both readings are recorded under `src/cart.ts`,
+  and reading the build's crossings against the source's region table credited a
+  test that ran the build with a branch it never took. Each
+  reading's probes report under the file the transform was handed, and the record
+  holds the regions both readings cut, with each reading's crossings read through
+  its own table.
+- e57edf9: An `else if` transformed by esbuild is recorded on the line it was written on.
+  esbuild opens the `else` line with the origin of the `if` above it and gives the
+  nested `if` none, so the `else` region was recorded from the line above, held
+  the nested region strictly inside it, and a line query on the `else if` line
+  answered without the tests that ran the `else`. The same module loaded through
+  its build was recorded on the right line, so the answer changed with which of
+  the two a run transformed last.
+- 951a696: Every shard of a landing is compared with the base, and a module cut from another text is unmeasured
+
+  When `variance journeys --suite` (or `landCases`) lands several shards at one
+  commit, every shard's before layer is now cut from the case index the landing
+  began with. A later shard's was cut from the index the earlier shards had
+  already laid, where the modules they recorded stand at the new text. The layer
+  was still named at the base commit, so `variance review` and `covering --cases
+  last` paired those rows through the diff onto the wrong regions, and reported
+  cases that had not moved as lost.
+
+  The record's last-run layer now names the text each before module was cut from
+  (`beforeTexts`). A module whose text at the base commit is another one is not
+  compared, and the motion lists it as `Not compared, the cases before were
+  recorded over another text than <commit> holds`. A record written before this
+  names no texts, and is compared as it was.
+- 3208693: Landing a run asks `git status` which files moved in the same shape the scan asks it, so a checkout with git's untracked cache turned on answers from the cache instead of reading every directory again. On a 41,000-file checkout with the cache in its index, the question takes about 53 ms instead of 100 ms. The texts a landing keeps are unchanged.
+- 2831390: Landing a run no longer reads the preconditions of tests that the run did not touch. Their names and digests are carried over by dictionary id, as untouched module rows already are, so a one-file run now spends about half as long layering the coverage record. The bytes it writes are unchanged.
+- c95307c: Landing a run no longer decodes the cases and regions of the case index that the run did not touch. A carried case or region is copied by dictionary id, and each test file the index holds is checked once rather than once per case, so laying a one-file run over a 6,800-case index takes about 55 ms instead of 95 ms. The preconditions of a carried case are copied by id too, rather than parsed and spelled again, so the landing's cost no longer grows with how many distinct preconditions the index holds. A later shard of a landing reads only the modules of the landing's first index that a shard recorded, rather than every module it holds. The bytes it writes are unchanged.
+
+  The native case fold now spells a precondition's number as `JSON.stringify` does: `0.000001` rather than `1e-6`, and `123456789012345680000` rather than `1.2345678901234568e20`. Every writer of the case index now stores a case's preconditions in the same spelling.
+- 71c765f: A case that work outlived is one row in a Jest journey artifact
+
+  A case is written when it settles, so work still running after it arrives as a
+  second frame under the same file, name and id. The native fold behind Jest
+  journey artifacts wrote that frame as a second case, `file > name#1`, and
+  charged its coverage and what it said there. It now joins every frame of a case
+  into one row, as the JavaScript fold does: the regions any frame entered,
+  `stopped` only when no frame finished, and what every frame said. A stitch of
+  shard artifacts carries the same rows.
+- 2cf7575: Reading the recorded text in a partial clone now works on Git before 2.44, including the 2.43 that Ubuntu 24.04 ships. That Git exits at the first object it would have fetched instead of answering `missing`, and every module read as unverified; now the paths are fetched together in one request.
+- d043a1b: A mainline publish with `--collected` retires every test file the record holds
+  and the runner no longer collects: its row, what it crossed, its cases and
+  their Eyes journals leave the published record, and `variance share --suite`
+  says how many it retired and names one. A record is laid over the one before
+  it, so a test file that was deleted, renamed or moved to another suite kept its
+  row in every record after, and every reader carried it: `variance select` read
+  each file changed since it last ran as changed for it. A runner list that
+  names none of the record's test files is refused, rather than retiring every
+  row.
+  `collectedRecord` in `@variance-authority/sense/test-selection` makes the cut.
+- f11d94e: A region written between two siblings no longer costs its neighbours their
+  cases. `variance coverage`, `variance covering` and `variance review` pair each
+  base region with the region its lines moved to through the diff from the commit
+  the base was recorded at, rather than by its place
+  among regions of the same name. Three `.filter` callbacks where there were two
+  used to report the last one as having lost every case and a new one as having
+  gained them; it now reports the inserted callback as written and nothing lost.
+
+  `caseMotion` and `coverageChange` take the diff as `diff`, read by
+  `hunksByFile` from `@variance-authority/sense/test-selection`.
+
+  A diff read from a directory reached through a symbolic link, as every
+  temporary directory on macOS is, now names its files from that directory rather
+  than climbing out of the link and back in, which matched nothing.
+- 4a8be98: Selection reads `module.require('x')` as the load it is. A file that calls
+  `module.require` is now a file with a load no name traces, as a bare
+  `require` already was, so when a module it imports changes, its tests are
+  selected instead of passed over for reading none of the changed names.
+  Another object's `require` method is still not a load. The module reader and
+  the readers of a changed value now ask one definition of what a require is.
+
+  The dependency lexicon parses a declaration file that publishes no names once,
+  not twice: the `export =` reading asks the tree the module record was read
+  from.
+- 8bf5143: An edit to a module loaded as both source and build selects by region again
+
+  Each region's digest is now cut from the lines of source it maps to, not from
+  the text a build emitted, so the source and the build of one module record the
+  same digests. Before, after a real edit to such a module, comparing the two
+  builds' digests read every region as edited and selected every test that loaded
+  the module. Records written before this release compare once against the new
+  digests: the first edit to a module after upgrading selects every test that
+  entered it.
+- d1789f5: Printed messages say what was recorded
+
+  A Playwright test's precondition line reads `ran under network=mocked` instead of
+  `arranged network=mocked`, and `no preconditions recorded` instead of `nothing
+  arranged`. With `varianceExecution` off it reads `so no variancePrecondition call
+  was recorded`. `variance review` prints `nothing records where this change
+  starts`, `variance journey` prints that the execution journal `has no entry for
+  this run’s subjects`, and the Vitest selection reason reads `worker reported
+  which files passed`.
+- 0eb4156: A cache prune that cannot remove an entry now says so. `applyPrune` returns each such entry in `unremoved`, with its error, and `prunedLine` prints one line for it: `cache: could not remove <path>, <rule>: <error>`. `variance prune` exits 2 when any entry stayed, where it used to print `cache: nothing to prune` and exit 0.
+- 89d177b: A region that a test file which did not run still reaches no longer reads as having lost every case
+
+  When only some test files ran at a commit, `variance review` and `variance covering --cases last` compared only the cases of the files that ran. Two kinds of region were reported wrongly. A region the files that ran stopped reaching read as `lost`, and the review said "Lost every case against the base", though test files that did not run still reached it. A region those other files had reached all along read as `gained` as soon as a file that ran reached it too.
+
+  The cases of test files that did not run at the commit keep their earlier recordings, and they now count at both ends of the comparison. A region they reach keeps them: it reads as `thinned` when only one case is left, and as unchanged otherwise. A case recorded by any run at the commit is not counted this way. Each test file's own reach is still reported. `caseMotion` takes these cases as `retained`.
+- 98b31be: Two callbacks on one line stay two regions when a run reads the module twice
+
+  When a run loads one module as its source and as its build, the two readings
+  are joined into one record. A region the two readings share is matched by its
+  kind, name, path and lines, and two callbacks handed to one call on one line —
+  `items.find(a) ?? items.find(b)` — match on all of them: both are
+  `f/find.arg0`. The join kept the first and landed every crossing of the second
+  on it, so the record held one region where the code has two. The tests that
+  reached only the second callback were credited to the first, and a review
+  reported the second as code no case ran, while the function it alone calls
+  was reached. Regions of one shape are now matched by their place among each
+  other, the n-th onto the n-th, in the record a run writes, in case indexes
+  merged across shards and in the journeys stitched from a run's stores.
+- dcb6301: A shard that cut unchanged text differently keeps every other file's cases
+
+  When you land shards with `variance journeys --suite`, or a runner lands a run
+  into its record, a module the run recorded from the same source text as the
+  record keeps the cases the record held for it, by address, as its coverage rows
+  already did. Before this fix, the cases were dropped wherever the two cuts
+  numbered a site's seats differently. The same text is cut differently when a run
+  reads a file through both its source and its build: that run keeps only the
+  regions both readings cut alike, such as a multi-line `await`. The dropped cases
+  belonged to test files the shard never ran. CI's coverage comment then reported
+  hundreds of regions as having lost every case on a pull request that did not
+  touch those files.
+
+  When the texts differ, or one side's text is not known, the numbering still
+  decides, as before. `landCases` and `layCases` take the text each held module
+  was cut from as a new last argument, which `textsOf(coverage)` builds. A run's
+  `modules` on `LaidRun` give its own texts, and `CaseRunFiles.sameText` passes
+  the answer to `layerCaseIndex`.
+- 4fe70b5: `variance ask search` finds a name from the words it is written in
+
+  A query of several words matches a name when each word matches one of the
+  words the name is written in, split at a change of case or between a letter and
+  a digit, so `kept reading` finds `keptReading` and `parse http response` finds
+  `parseHTTPResponse`. A search index written before this is encoded again on
+  the next read.
+- 316e56f: A function written in front of an anonymous one no longer takes its tests
+
+  An anonymous function is addressed by its place among its siblings. When you
+  write a new one in front of a recorded one and run only the new test, the run
+  used to carry the older tests' crossings by address onto the new function, and
+  the function they ran read as entered by nobody. A run landed over such a shift
+  now carries nothing across it, in the record and in the case index alike, and
+  the tests that were on the module are run again, as a merged record already
+  did.
+- 3c91236: `variance select` decodes a path once per recording it reads. Finding a file's row searched the sorted path column and decoded every row it probed, and every search probes the same rows first, so one selection decoded the same few thousand rows tens of thousands of times. Whether a mock disowns a crossing now asks whether the test mocks the file before it reads which tests crossed the block, and a column read again in the run it read last no longer moves that run to the back of its cache. On a recording of 200,000 modules and 2,000 test files, answering a diff of 100 scattered files takes 27 ms instead of 117 ms on an M4 Max, with the same answer.
+- f049a42: `variance select` reads each importer once per selection
+
+  A changed file with no instrumented row is answered by the nearest files that
+  import it, and a file many changed files reach was read again for each of them:
+  two binary searches over the record's paths, each decoding a path at every
+  step, then the crossings of its rows. It is read once, and every changed file
+  that reaches it gets that answer under its own trail. The mocks a selection
+  checks are read once per selection rather than once for the rows and again for
+  the walk, and a test's path is decoded once per test rather than once per
+  crossing.
+- efaac7f: A selection reads the recorded texts of the files it checks, and not the rest of the diff
+
+  `narrowByExecution` checks each changed module that has a recorded row against
+  the text at the record's commit. Before, the reader from `textAtRecording`
+  fetched texts over the whole diff. It read files that no test ran and that
+  nothing would ask about, so it started more `git cat-file` processes than the
+  check needed. Now the selection passes `sourceAt` a third argument, `asking`.
+  It holds every changed path the selection reads a text under, and it is
+  complete before the first ask. The reader fetches those paths together and
+  nothing else. On a diff where most changed files have no row, `variance select`
+  starts fewer `git` processes, and its answer is the same. A `sourceAt` you
+  write yourself can ignore `asking`.
+- 8694a2d: A run whose workers finish in a different order now folds the same way. The test-file journals Jest and Vitest workers write, the trees a Vitest case runner writes, and the contributions staged Playwright and Jest workers leave were read in whatever order the file system listed them, and the fold sums durations, joins what each case said it arranged and keeps one fixture digest per name in the order it reads. The same run could record a different duration, precondition or head order each time it ran. Each is now read in an order decided by what it holds, which no worker's finishing time changes.
+- afa40da: Stitched shards keep two cases that share a name apart. A shard that ran only the second of them numbered it as the first, so the stitch joined them and the first case took the second's regions and preconditions. Each shard artifact now carries the runner's id for each case. The stitch joins cases by that id and numbers the union as one fold over every shard would.
+
+  A fold now refuses a file where a repeated name would be numbered onto a case literally named that way, such as a second `pays` and a case named `pays#1`. The error names the file and both names.
+- 163ba37: A recorded Vitest 4.1 run no longer prints `Importing from "vitest/runners" is
+  deprecated since Vitest 4.1` once for each test file. The case runner extends
+  the `TestRunner` that Vitest 4.1 exports from `vitest`, and imports
+  `vitest/runners` only on Vitest 2, 3 and 4.0, whose root does not export it.
+- 55f1bc9: The Playwright and Vitest integrations keep the render cache out of the baseline directory
+
+  The store the `variance` fixture opens, the store `createVariance` and `observe`
+  open, and the store the Vitest plugin opens all paint into `renders/` in the
+  checkout's cache, where `variance run` paints. Each one prunes that directory by
+  the rules `variance run` applies: the fixture when a worker tears down, a
+  `createVariance` session when it closes, once per process, and the Vitest
+  plugin when the run closes. The baseline directory holds baselines only, so the
+  `.variance/baselines/**/by-document/` line in `.gitignore` and a store built only
+  to set `cacheRoot` are no longer needed: delete any `by-document/` directory
+  left under your baseline root, since nothing prunes it there. A `store` you pass
+  in is unchanged. Finding the cache reads the root `variance.config.json` the
+  way `variance run` does, so a file that is not JSON, or a `cacheRoot` that is
+  not a path, now fails the fixture and the plugin as it fails the CLI.
+
+  `renderCacheIn(cache)` from `@variance-authority/store/durable` returns the
+  `renders` directory inside a cache directory, so a store you build can share
+  that cache and its bound. `cacheRootFor` from the new
+  `@variance-authority/sense/cache-root` entry finds the checkout's cache without
+  loading the rest of Sense. `@variance-authority/vitest-browser` now depends on
+  `@variance-authority/sense` for it, which installs Sense's parser and resolver
+  with the plugin; the plugin does not load them.
+- bcc9eaa: The README leads with the runner selecting itself, and the skill shows the edit loop
+
+  `@variance-authority/sense`'s README now opens with a wrapped Vitest or Jest
+  run that leaves out what a diff cannot reach once `VARIANCE_AUTHORITY_SINCE` is
+  set, and the selection API follows as the way to ask for the skip list
+  yourself. Its retirement paragraph describes how a run over an edited module
+  reads the edit from both texts, rather than marking every test that ran it.
+
+  The `variance-authority` skill's test-selection reference adds the loop an agent
+  runs after each edit, nearest tests first, and says that a wrapped runner
+  resolves `@variance-authority/cli` from the project.
+- 8af638a: A module your own `enforce: 'pre'` plugin compiles is recorded on the lines you wrote
+
+  `withTestSelection` placed its plugin after yours. Vite runs the `enforce: 'pre'`
+  plugins in the order of the array, so a compiler of yours in that group, such as
+  `vite-plugin-solid`, rewrote a module before the seam read it, and every region
+  of that module was recorded on the compiled text's lines. A Solid component came
+  out a line or more off, and its digest did not match the file on disk. The
+  seam's transform now asks Vite to run first, so it reads each file ahead of every
+  transform that does not ask the same, wherever its plugin sits: yours, and those
+  a root config puts ahead of a project's under `extends`.
+
+  A `load` hook, or a transform of another plugin that also asks to run first and
+  sits ahead of the seam, still hands it changed text. Each test file that imports
+  such a module now fails with an error that names the module, rather than
+  recording it on lines you did not write. Let that file load as it is on disk, or
+  leave it out of `include`. A variant of a file, such as `?raw` or any other
+  query, is not the file and is not refused, and neither is a file whose
+  `sourceMappingURL` comments Vite blanked after reading its map. When your files
+  run in a page, `vi.mock` loads its mock under the file's own name, so there such
+  a module goes through as it came and is not recorded.
+
+  The same blanking reaches Storybook's probes: a module whose inline map comment,
+  or a map in another directory, Vite blanked was recorded as not instrumented,
+  and is now recorded on the file's own lines.
+- 24a1932: `covering --where` narrows the cases listed, not the state
+
+  `variance covering --where` reads the state of a line, a function, a range of
+  the file or a changed region over every case that covered it, and lists only
+  the cases that said what was asked. A line three cases ran no longer reads
+  `alone`, or *the only case that could have*, because `--where` kept one of
+  them; a region a stopped case could have reached stays a hole when `--where`
+  leaves that case out. `stopped` names every case that could have reached it and
+  stopped first, since it is the evidence for the state. In the whole-file text, a
+  range none of the kept cases covered says so rather than that no named test
+  covered it.
+
+  `formatCoveringChange` takes an optional `state` on each region and words the
+  region from it: a region only an unlisted case ran reads *covered only by cases
+  not listed here*, not as a hole, and is not counted as nothing covered.
+
 ## 0.14.0
 
 ### Minor Changes

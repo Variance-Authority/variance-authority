@@ -1,5 +1,331 @@
 # @variance-authority/playwright-test
 
+## 0.15.0
+
+### Minor Changes
+
+- b834b44: A case names its preconditions
+
+  `variancePrecondition({ name: value })`, from `@variance-authority/sense/precondition`,
+  says what state a case arranged: `variancePrecondition({ network: 'mocked', 'seeded-cart': true })`.
+  A value is a string, number or boolean. Said in a case body it is the case's;
+  said in a `beforeEach` it is the case the hook runs for, at the level of the
+  `describe` that declared it. The body overrides a `beforeEach` and an inner
+  `describe`'s overrides an outer one's; two values said at one level are kept as
+  a contradiction. A call where no case is running — a `describe` callback, a
+  `beforeAll` or `afterAll`, a file's top level, work that outlives its case —
+  throws with its call site. Each value lands on the case's row in `coverage.bin`
+  with the `file:line` of the call. Vitest, Jest and Rstest listen under
+  `withTestSelection` and their seams, and Playwright under its fixture. Without a
+  recording the call returns, and the entry imports nothing. A precondition never
+  selects or excludes a test.
+
+  `ExecutionTest.preconditions` holds the row, each entry with the level it was
+  said at: empty for a case that said nothing, absent for a record nobody
+  listened to. `PreconditionValue` types a value.
+  `listenForPreconditions`, `PreconditionListener` and `PreconditionStanding`,
+  from `@variance-authority/sense/journal`, let a runner seam listen, and
+  `createExecutionRecorder` takes the standing case as a third argument.
+
+  `variance covering --where <name>[=<value>]` keeps the cases that said it, and
+  repeats to require several. A record made before cases said anything is refused
+  as unmeasured. Every case line prints what it said and where, and where
+  `names.axes` declares the name, the case one step toward the axis's base is
+  named as its twin.
+- ee79f41: A `variancePrecondition` said in a Playwright `beforeEach` sits at the level of
+  the `describe` that declared the hook, as it does under Vitest, Jest and Rstest:
+  `0` at the top of the file, one deeper for each `describe` around it. A
+  `beforeEach` inside a `describe` overrides one at the top of the file for the
+  same name, where both were read at the case's innermost `describe` and kept as a
+  contradiction. A helper that declares a `beforeEach` from one line in a
+  `describe` and again in one inside it is placed at the depth of the one running.
+
+  Playwright does not publish which `describe` declared a hook, so a recording
+  worker reads it from Playwright's internals: run on 1.62.1, and read in the
+  source of 1.58, 1.59 and 1.63, whose test loader sits at either of two paths. A
+  Playwright that lacks one of them fails every recorded test at setup, naming
+  the internal and its version, rather than placing a `beforeEach` precondition at
+  a guessed level.
+- d584e71: A snapshot names the case it was taken in, and what that case had arranged
+
+  A snapshot taken with the Playwright `variance` fixture now carries `case`: the
+  spec file, the declaration path and `testInfo.testId` — the case id the record
+  already keeps — and the preconditions the case had said with
+  `variancePrecondition` by the moment its document was captured, each with its
+  call site. A call made after the capture, while the snapshot is still being
+  compared, lands on the case's row and not on the snapshot.
+  `VarianceRuntime.arranged` is the read `observeLocator` makes at capture. The same line closes a failing `toBeUnchanged` message and is added as
+  a `variance` annotation that Playwright's report shows under the test, passing
+  or not. Without `varianceExecution` nothing listens: no annotation is added,
+  and a failing message reads *preconditions unmeasured* rather than *nothing
+  arranged*.
+
+  `PreconditionListener.held(key)` returns what a running case has said so far,
+  resolved as its row would be, without taking it from the row.
+  `@variance-authority/sense/journal` exports `CasePrecondition` and
+  `preconditionText`, the one rendering `variance covering`, `variance review` and
+  the snapshot share: `flag=ff-on (spec.ts:9)`, a bare `true` as its name, a
+  contradiction with both values. `ExecutionRecorder.arranged(owner, test)` reads a case's view
+  from a Playwright worker's recorder.
+- 3e6a370: A run's cases travel in its record
+
+  The case index, the cases a run replaced and the run that replaced them are
+  sections of `coverage.bin`, no longer a `coverage.bin.cases.bin` beside it. The
+  one file is landed, layered, seeded, repinned, sharded and shared by the same
+  rules and under the same lock as the coverage it was recorded with, so the two
+  always answer for the same runs. A share, a seed or a fetch carries the index
+  and drops the replaced cases and the run that names them, which belong to the
+  machine that ran.
+
+  A record that carries cases is format 10, and a reader that knows only coverage
+  refuses it rather than misreading it. A record without cases keeps format 9. A
+  `coverage.bin.cases.bin` left from an earlier run is not read; the next run
+  writes its cases into the record.
+
+  The `executionFile` option is removed from `withTestSelection`, the Jest and
+  rstest seams, `startRecording`, the Playwright reporter and the Storybook
+  collector, along with the JSON it could write. `decodeExecutionIndex`,
+  `readExecutionIndex`, `variance covering --against`, `variance review` and
+  `distill --execution` read the index out of a record; JSON stays readable as
+  the spelling a foreign tool supplies. `landCaseIndexes` is replaced by
+  `landCases`, which returns the sections for the record you write, and
+  `lastCaseRunOf` reads the run they name. `caseLayerFiles` and
+  `executionIndexBytes`, which named and read the file beside the record, are
+  removed. `CaseSections`, `caseSectionsAt`, `caseSectionsOf`, `caseIndexOf`,
+  `recordedCases`, `withCaseSections`, `keepsCases` and `sharedRecord` read and
+  write the sections.
+- 0a41a23: Eyes journals travel in the record
+
+  A run that opts into Eyes writes each case's journal into `coverage.bin`, in an
+  `eyes` section keyed by the case's id and its attempt, so a journal joins its
+  case exactly and a retried case keeps every attempt. The attempt counts from 1
+  (Playwright's `retry + 1`) and is a column of its own, never part of the id. A
+  run that did not opt in writes no section. Source paths in a journal are
+  relative to the repository root, as the case index's are.
+
+  The Playwright fixture and `watchTest` hand their journal to the case the
+  recording runs, never to `testInfo.testId`. The RTL `watchTest`, given no id,
+  returns the journal and hands it to the running case where the recording seam's
+  case scope takes one. The Vitest, Jest and Rstest seams hold each attempt's case
+  from before its `beforeEach` until after its `afterEach`, so a journal closed
+  in teardown lands under that case and attempt. A run that opts in lists every case it watched in
+  the section, so a watched case that handed no journal reads apart from a case
+  whose run did not opt in. Two different journals for one case and attempt keep
+  the one whose JSON sorts first, and the run still records.
+
+  A journal stays on the machine that ran it. It leaves with the record, through
+  `variance share` or an `actions-cache` carry, and each says so: a share names
+  every suite entry whose record carried journals, and a carry save notes each
+  suite whose record goes into the cache with them. `sharedRecord` keeps the
+  section, and drops one that is unreadable or of a newer version at the
+  crossing, keeping the rest of the record. A repin keeps the journals of every
+  case its index keeps.
+
+  `variance distill` reads the checkout's own record, or the one `--execution`
+  names, and prints every attempt of the case. It refuses an id the record does
+  not hold and shows the ids it does. `--eyes` is removed, and so are the
+  `@variance-authority/eyes/collect` and `@variance-authority/eyes/reporter`
+  entries (`writeEyesArchive`, `gatherEyesArchive`, `recordEyesTest`,
+  `resetEyesJournals`, `EYES_JOURNAL_SUFFIX`, the Eyes reporter and
+  `EyesReporterOptions`). `eyesJournal` and `EyesJournal` give a test's journal,
+  and `parseEyesJournal` reads one back. In `@variance-authority/distill`,
+  `DistillInput` takes `execution` always and `eyes` as `EyesAttempt` rows, and
+  `Distillation` reports `attempts` as `AttemptAttention` in place of
+  `attention`, `joined` and `available`; `watched` names the cases a run that
+  opted in watched, and distill says which of them kept no journal. The sense
+  test-selection entry adds `keepsEyes`, `recordedEyesAt`, `recordedEyesOf`, `RecordedEyes`,
+  `ObservedEyes`, `EyesSection` and `encodeAsSetExecutionIndex`. In
+  `@variance-authority/mcp`, `serveEyesRecord` replaces `serveEyesArchive` and
+  serves the journals a record keeps, read by `readEyesRecord` off one read of
+  the record. A record a later run wrote without Eyes leaves it no journals to
+  answer from; `readEyesRecord` refuses such a record with `RecordKeepsNoEyes`.
+  `EyesArchive` carries `watched`, which `createEyesArchive` takes and
+  `parseEyesArchive` reads, so the MCP `distill` tool tells an unwatched case
+  from a watched one that kept no journal. That tool needs the runtime journey
+  and reads a case by its exact id.
+
+  Under Rstest, a case declared `it(name, options, fn)` is recorded per case, as
+  `it(name, fn)` already was.
+
+### Patch Changes
+
+- eb7c1bc: A case run by a named project carries the project's name in its id
+
+  A test file run by two projects — two Vitest projects, two Jest `projects`, two
+  Playwright projects — runs once under each, and the case index numbered the
+  second copy, so `variance covering` listed
+  `greets by name [test/greet.case.ts > greets by name#1]` with nothing to say
+  which project the `#1` was. The index now carries the project each case ran
+  under and spells the case by it, as Vitest prints it:
+  `|compiled| test/greet.case.ts > greets by name`. The name is the case's own,
+  so a run filtered to one project (`--project`, `--selectProjects`), or a shard,
+  gives a case the same id a full run does. A repeated name inside one project is
+  still numbered.
+
+  The project's name is the one the runner gives it: Vitest's `test.name`, its
+  `package.json` name or its directory, and an inline project without one by its
+  place in the list; Jest's `displayName`; Playwright's project `name`. A Jest
+  run whose projects share a test file also records that file once, rather than
+  failing to write the record, and records it partial when one of those projects
+  skipped every test in it.
+
+  When you upgrade: every case of a named project changes id once, on the first
+  record after upgrading, and history joined by id restarts for those cases.
+  Reordering an unnamed inline Vitest project list renames its cases. A project
+  without a name keeps the plain coordinate, and so does every Rstest case.
+- 409d7ba: A case that evaluates a module through an inline require keeps what it entered afterwards
+
+  Under Jest's inline requires a module evaluates inside the first case that reads
+  one of its bindings. That case lost every region it entered both while the
+  module evaluated and after it, such as the function a higher-order component
+  returned, so a change there selected only the cases after it. The record of a
+  run with inline requires is now the record of the same run without them: what
+  ran while the module evaluated is flagged as loaded, and the case keeps its own
+  crossings.
+
+  A page or story case reads the same way. When a module evaluates inside the
+  case's own drain, or in an earlier drain of the same case, the case keeps the
+  calls it made into the module afterwards. Joining a case's drains keeps a region
+  that one drain entered while the module evaluated and another entered plainly.
+
+  A case that ran and crossed nothing is now named in the case index, with how it
+  settled, instead of being left out.
+- 596743a: The skill reads the state each covering test ran under
+
+  The `variance-authority` skill has a `case-preconditions` reference: which tests
+  ran a function with discounted prices mocked, the state each test covering a
+  function ran under, a test's flag-off twin, how a test helper records the state
+  it sets, and what to do when `--where` answers unmeasured. The skill's config
+  table and its `covering` reference say that `covering` reads `names` from the
+  root `variance.config.json`. The `@variance-authority/sense` and
+  `@variance-authority/cli` READMEs say a case precondition records the state a
+  test ran under, and link to the public case preconditions page; the
+  `@variance-authority/playwright-test` README links to the renamed section.
+- fa48984: A Vitest, Rstest, Jest or Playwright Test run removes the scratch it made and
+  nothing else. It no longer prunes the rest of the cache once a day as it ends,
+  so whichever run finished first no longer clears what other runs left. Run
+  `variance prune` to clear it, or let `variance run` do it at its end.
+- 9bb6f47: An `incomparable` verdict names what differs, and a recipe change can be re-baselined
+
+  The reason now names only the identity fields that differ between the baseline
+  and this run, and says whether they are the machine (renderer, engine, platform,
+  scale, fonts) or only variance-authority's recipe (the stabilization or
+  rasterization digest). It used to print both identities in full and blame the
+  machine either way. A refusal no longer says pixels are machine-bound and
+  the two not comparable: it says nothing was compared because this tool
+  compares images only within one identity, and that nothing measured whether
+  another machine paints the same pixels. `incomparableBecause` and its `IncomparableSides` wording,
+  whose `replaceable` says whether the reason may offer a re-baseline, are
+  exported from `@variance-authority/raster` for a caller that writes the same
+  sentence.
+
+  When only the recipe differs, which an upgrade or a changed renderer option does
+  on an unchanged machine, the run still paints each subject. The reason says
+  whether the document is the one the baseline was painted from. If it is, only
+  the recipe moved: review the images and adopt them with `variance accept --all`,
+  or with `--update-snapshots` in Playwright or `--update` in Vitest. If the
+  document changed too, the new image is a change no comparison has read, and the
+  reason says so. Before, the run left no image, so `accept` had nothing to
+  promote and the old baselines had to be deleted by hand.
+
+  The refusal stands for another machine's baseline, for a side that recorded no
+  recipe digest, and for an identity that differs in a field this version does
+  not name: in each, nothing shows the machine is the same. `settle` takes the
+  run's identity as an optional third argument, as before, and refuses a recipe
+  re-baseline when it is absent.
+
+  `variance accept --all` skips an `incomparable` subject unless its
+  `signals.document` is `unchanged` and its `signals.identity` is `recipe`, names
+  the command that adopts it alone, and
+  exits non-zero as for any refusal; `variance accept <subject>` adopts it. A
+  report written before the signal was carried is skipped too. In
+  `@variance-authority/report`, `promotionOf` takes a `PromotionOptions` with
+  `bulk` for that rule, `bulkSkips` answers the rule alone, and the refusal for a
+  subject with no image now says the baseline is another machine's or cannot be
+  shown to be this machine's. In `@variance-authority/playwright-test`,
+  `--update-snapshots=changed` skips the same subject and `=all` adopts it;
+  `VarianceRun` carries `overwriting`, set under `=all`.
+  `@variance-authority/playwright-test` now depends on
+  `@variance-authority/report` and asks `bulkSkips`, so the two cannot adopt
+  different images. Deferred capture paints against an older recipe, so both flags
+  have an image to adopt. In-place mode's `=changed` now also skips another
+  machine's image, which it used to write over the baseline; `=all` still writes
+  it, as naming the subject does.
+
+  An incomparable observation from `@variance-authority/observe` carries
+  `signals.document`, saying whether the document is the one the baseline was
+  painted from, and `signals.identity`, `recipe` when only the recipe digests
+  differ and `machine` otherwise, as `recipeOnly`, now exported from
+  `@variance-authority/raster`, answers it. `signals.pixels` is optional,
+  since no pixels were compared.
+  TypeScript code that reads `Observation.signals.pixels` must now handle it
+  being absent.
+
+  `@variance-authority/vitest-browser` asks `bulkSkips` too, and now depends on
+  `@variance-authority/report`: Vitest's `--update` reaches every selected test,
+  so it skips the same `incomparable` subjects. It used to promote every candidate
+  it painted, including another machine's image and a re-painted recipe whose
+  document moved. A plugin declared `accept: true` still adopts them.
+
+  `variance ask summary` prints a reason that several subjects share once, with a
+  count, and lists the subjects under it, so an upgrade that leaves every subject
+  `incomparable` reads as one line rather than one per subject. It groups the
+  same way the pull-request comment does, through `byReason`, exported from
+  `@variance-authority/report`.
+- d1789f5: Printed messages say what was recorded
+
+  A Playwright test's precondition line reads `ran under network=mocked` instead of
+  `arranged network=mocked`, and `no preconditions recorded` instead of `nothing
+  arranged`. With `varianceExecution` off it reads `so no variancePrecondition call
+  was recorded`. `variance review` prints `nothing records where this change
+  starts`, `variance journey` prints that the execution journal `has no entry for
+  this run’s subjects`, and the Vitest selection reason reads `worker reported
+  which files passed`.
+- 4799688: The checkout says what the probes meant: no build writes module records
+
+  A probe names the file it was placed on and the digest of that text,
+  `path@digest`. When a run is folded, each module the journals name is cut again
+  from the file in the checkout. A file whose text still matches is read on its
+  own regions; a file that has moved on since the build reads as one whose reach
+  is not known, which selects every test that entered it; a file that is gone
+  counts the same way. Nothing is written beside the build, and nothing under the
+  cache's `test-selection/<key>/<label>/` is read.
+
+  Breaking:
+
+  - `testSelectionProbes()` takes no `cacheRoot`. Its `label` names the journey
+    head and nothing else.
+  - `recordExecution()` takes no `label` and no `heads`.
+  - The Jest journeys options (`withJourneyCoverage`) take no `heads`.
+  - `jestStore` is removed from `@variance-authority/sense/jest`.
+  - `instrumentModule(code, file)` takes no options: call it first, on the file as
+    it is on disk.
+  - A journal names a module by `path@digest`. A driver that writes its own
+    journal builds the id with `moduleId(path, code)` from
+    `@variance-authority/sense/journal`.
+- 55f1bc9: The Playwright and Vitest integrations keep the render cache out of the baseline directory
+
+  The store the `variance` fixture opens, the store `createVariance` and `observe`
+  open, and the store the Vitest plugin opens all paint into `renders/` in the
+  checkout's cache, where `variance run` paints. Each one prunes that directory by
+  the rules `variance run` applies: the fixture when a worker tears down, a
+  `createVariance` session when it closes, once per process, and the Vitest
+  plugin when the run closes. The baseline directory holds baselines only, so the
+  `.variance/baselines/**/by-document/` line in `.gitignore` and a store built only
+  to set `cacheRoot` are no longer needed: delete any `by-document/` directory
+  left under your baseline root, since nothing prunes it there. A `store` you pass
+  in is unchanged. Finding the cache reads the root `variance.config.json` the
+  way `variance run` does, so a file that is not JSON, or a `cacheRoot` that is
+  not a path, now fails the fixture and the plugin as it fails the CLI.
+
+  `renderCacheIn(cache)` from `@variance-authority/store/durable` returns the
+  `renders` directory inside a cache directory, so a store you build can share
+  that cache and its bound. `cacheRootFor` from the new
+  `@variance-authority/sense/cache-root` entry finds the checkout's cache without
+  loading the rest of Sense. `@variance-authority/vitest-browser` now depends on
+  `@variance-authority/sense` for it, which installs Sense's parser and resolver
+  with the plugin; the plugin does not load them.
+
 ## 0.14.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

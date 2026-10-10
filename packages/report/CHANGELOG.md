@@ -1,5 +1,151 @@
 # @variance-authority/report
 
+## 0.15.0
+
+### Minor Changes
+
+- 14aefbf: Ask what one test, or one story, checks that the narrower ones inside it do
+  not.
+
+  - `variance ask test-composition --file <test> --name <words>`, and
+    `docs_test_composition`, read one recorded test as the smaller tests whose
+    regions sit inside its own, the larger tests holding it, and the regions no
+    smaller test entered: modules only it enters, and paths through a smaller
+    test's module only it takes.
+  - `variance_composition {subject}` closes with the same reading for a story:
+    the smaller stories inside it, the larger ones holding it, and what no
+    smaller story renders — components only it mounts, and components a smaller
+    story renders another way. The run carries it per subject in the report's
+    structure section; `piecesOf` in `@variance-authority/core/attribute`
+    computes it.
+  - A component mounted by more than half the suite's subjects is structure. A
+    subject that mounts a component many times now counts once, where every
+    mount used to count: a chip story is an example of the chip again when the
+    pages around it mount chips many times over.
+- da0cdbc: `variance collect` writes the suite index without a visual run: no baseline,
+  no comparison, no image. Each CI job collects its shard into a part, and
+  `variance collect merge evidence-*.json --out suite.index` folds them:
+
+  ```bash
+  variance collect --shard 1/4 --workers 2 --out evidence-1.json
+  variance collect merge evidence-*.json --out suite.index
+  ```
+
+  Each part records its plan, its build (Storybook digest, commit, and every
+  source file under `source.dirs` as it is on disk), the config that shaped the
+  reading, the environment its engine reported, and an outcome for every
+  subject its shard owns. The merge refuses parts from different builds, plans,
+  configs or environments, a missing or repeated shard, and sharded and
+  unsharded parts together, and names the shard to collect again. While any subject failed, it leaves the index at `--out` as it was,
+  writes `<out>.incomplete`, and exits `2`.
+
+  The suite index is version 2: it carries landmarks, the file that declares
+  each subject, fields the reading did not reach apart from fields it read as
+  empty, coverage with the reason each subject was not observed in a run
+  report's words, and the build it came from. Version 1 indexes still open, without those facts.
+
+  `variance run --workers` keeps where every worker located a component. Before,
+  the report's lexicon carried only the last worker's locations, so a component
+  another worker located fell back to the source scan's candidates.
+
+  `variance share` refuses an unsharded part beside sharded ones, and two
+  unsharded parts, rather than composing them into one index. A suite part that
+  exists but cannot be read stops the command with its path.
+
+### Patch Changes
+
+- 5e70b52: The adjudicate count line names each count by the verdict its claim line prints: `overreached` and `unobservable`, where it said `over-reaching` and `unchecked`.
+- cb8a52f: A source index another release wrote is no longer reported as damaged
+
+  After an upgrade, the first command that read the source index said it was
+  damaged and read only up to its first bad segment, and in CI it refused with
+  the same words. The segments were whole: an earlier release had written them in
+  another format version. Now the reader names both versions, for example that
+  the index was written in format version 15 and this release reads version 18.
+  On a workstation it rebuilds the index and says so, and `variance index` prints
+  `source index rebuilt over one written in format version 15`. In CI the refusal
+  names both versions and asks you to run `variance index` with this release
+  before the command that reads it. `ask orient --files` over such an index says
+  which version wrote it and that `variance index` rebuilds it.
+- 9bb6f47: An `incomparable` verdict names what differs, and a recipe change can be re-baselined
+
+  The reason now names only the identity fields that differ between the baseline
+  and this run, and says whether they are the machine (renderer, engine, platform,
+  scale, fonts) or only variance-authority's recipe (the stabilization or
+  rasterization digest). It used to print both identities in full and blame the
+  machine either way. A refusal no longer says pixels are machine-bound and
+  the two not comparable: it says nothing was compared because this tool
+  compares images only within one identity, and that nothing measured whether
+  another machine paints the same pixels. `incomparableBecause` and its `IncomparableSides` wording,
+  whose `replaceable` says whether the reason may offer a re-baseline, are
+  exported from `@variance-authority/raster` for a caller that writes the same
+  sentence.
+
+  When only the recipe differs, which an upgrade or a changed renderer option does
+  on an unchanged machine, the run still paints each subject. The reason says
+  whether the document is the one the baseline was painted from. If it is, only
+  the recipe moved: review the images and adopt them with `variance accept --all`,
+  or with `--update-snapshots` in Playwright or `--update` in Vitest. If the
+  document changed too, the new image is a change no comparison has read, and the
+  reason says so. Before, the run left no image, so `accept` had nothing to
+  promote and the old baselines had to be deleted by hand.
+
+  The refusal stands for another machine's baseline, for a side that recorded no
+  recipe digest, and for an identity that differs in a field this version does
+  not name: in each, nothing shows the machine is the same. `settle` takes the
+  run's identity as an optional third argument, as before, and refuses a recipe
+  re-baseline when it is absent.
+
+  `variance accept --all` skips an `incomparable` subject unless its
+  `signals.document` is `unchanged` and its `signals.identity` is `recipe`, names
+  the command that adopts it alone, and
+  exits non-zero as for any refusal; `variance accept <subject>` adopts it. A
+  report written before the signal was carried is skipped too. In
+  `@variance-authority/report`, `promotionOf` takes a `PromotionOptions` with
+  `bulk` for that rule, `bulkSkips` answers the rule alone, and the refusal for a
+  subject with no image now says the baseline is another machine's or cannot be
+  shown to be this machine's. In `@variance-authority/playwright-test`,
+  `--update-snapshots=changed` skips the same subject and `=all` adopts it;
+  `VarianceRun` carries `overwriting`, set under `=all`.
+  `@variance-authority/playwright-test` now depends on
+  `@variance-authority/report` and asks `bulkSkips`, so the two cannot adopt
+  different images. Deferred capture paints against an older recipe, so both flags
+  have an image to adopt. In-place mode's `=changed` now also skips another
+  machine's image, which it used to write over the baseline; `=all` still writes
+  it, as naming the subject does.
+
+  An incomparable observation from `@variance-authority/observe` carries
+  `signals.document`, saying whether the document is the one the baseline was
+  painted from, and `signals.identity`, `recipe` when only the recipe digests
+  differ and `machine` otherwise, as `recipeOnly`, now exported from
+  `@variance-authority/raster`, answers it. `signals.pixels` is optional,
+  since no pixels were compared.
+  TypeScript code that reads `Observation.signals.pixels` must now handle it
+  being absent.
+
+  `@variance-authority/vitest-browser` asks `bulkSkips` too, and now depends on
+  `@variance-authority/report`: Vitest's `--update` reaches every selected test,
+  so it skips the same `incomparable` subjects. It used to promote every candidate
+  it painted, including another machine's image and a re-painted recipe whose
+  document moved. A plugin declared `accept: true` still adopts them.
+
+  `variance ask summary` prints a reason that several subjects share once, with a
+  count, and lists the subjects under it, so an upgrade that leaves every subject
+  `incomparable` reads as one line rather than one per subject. It groups the
+  same way the pull-request comment does, through `byReason`, exported from
+  `@variance-authority/report`.
+- ef496ad: READMEs name what the program does
+
+  The package READMEs, and the `@variance-authority/vantage` and
+  `@variance-authority/playwright-test` descriptions, no longer write a test, a
+  record or a run as something that says, asks or knows. Each sentence names what
+  the program does: a command prints, a record holds a field, a test runs or
+  covers. Where a value is filled in from configuration or a default rather than
+  recorded, the README says so. Four renamed headings change their anchors:
+  `help`'s "Where the declaration is undocumented", `playwright`'s "Where a
+  component is declared, read from the engine", `storybook`'s "What a pass sends
+  the preview" and `sense`'s "Correct what a file's text declares it imports".
+
 ## 0.14.0
 
 ### Patch Changes
