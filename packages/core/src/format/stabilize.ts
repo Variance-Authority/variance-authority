@@ -186,7 +186,52 @@ export const waitForFonts: Intervention = {
   settle: async (target) => {
     await target.evaluate(async () => {
       const view = globalThis as unknown as PageGlobals;
-      await view.document.fonts?.ready;
+      const fonts = view.document.fonts;
+      if (fonts === undefined) return;
+      // Bounded as `waitForImages` is: a font request that never answers neither
+      // loads nor fails, so `ready` never settles. Refused at the same 15000ms,
+      // naming each face still loading by family and the source its rule asked for.
+      let timer: unknown;
+      const expired = new Promise<never>((_, reject) => {
+        timer = view.setTimeout(() => {
+          const unquoted = (family: string): string => family.trim().replace(/^(["'])(.*)\1$/, '$2');
+          const sources = new Map<string, string[]>();
+          type Rules = PageGlobals['document']['styleSheets'][number]['cssRules'];
+          const visit = (rules: Rules): void => {
+            for (const rule of Array.from(rules)) {
+              if (rule.cssRules !== undefined) visit(rule.cssRules);
+              // Only a `@font-face` rule carries `src`; a style rule reads empty.
+              const source = rule.style?.getPropertyValue('src') ?? '';
+              if (source === '') continue;
+              const family = unquoted(rule.style!.getPropertyValue('font-family'));
+              sources.set(family, [...(sources.get(family) ?? []), source]);
+            }
+          };
+          for (const sheet of Array.from(view.document.styleSheets)) {
+            try {
+              visit(sheet.cssRules);
+            } catch {
+              // A cross-origin sheet hides its rules; its faces are named by family alone.
+            }
+          }
+          const stuck = Array.from(fonts).filter((face) => face.status === 'loading');
+          const named = stuck.map((face) => {
+            const asked = sources.get(unquoted(face.family));
+            return asked === undefined ? face.family : `${face.family} from ${asked.join(' or ')}`;
+          });
+          reject(
+            new Error(
+              `${stuck.length} web font(s) had not loaded after 15000ms, and neither answered ` +
+                `nor failed: ${named.join('; ')}`,
+            ),
+          );
+        }, 15000);
+      });
+      try {
+        await Promise.race([fonts.ready, expired]);
+      } finally {
+        view.clearTimeout(timer);
+      }
     });
   },
 };

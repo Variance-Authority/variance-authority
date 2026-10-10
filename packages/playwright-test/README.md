@@ -456,6 +456,12 @@ round-trip. Set it to `1` to make a subject which moves at all a
 failure. A subject that never holds still is still refused, and the refusal
 prints how many attempts bought nothing.
 
+Comparing the two reads misses a subject that changed and changed back between
+them, so the page also records every change to the subject from the first read
+to the confirming one. Any change counts as movement, except inside a
+`data-variance-ignore` region or a write that sets the value already there, and
+the refusal names the element and attribute or text that changed.
+
 ## Record what each spec executed
 
 `variance run --since <ref>` and `variance select --since <ref>` skip specs whose

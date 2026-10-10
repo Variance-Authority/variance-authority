@@ -122,7 +122,7 @@ what already happened to your subject.
 | trick | absorbs | and the limit, stated here rather than found later |
 |---|---|---|
 | `pin-animations` | CSS animations and transitions, held at their first frame | the first frame is where a fade-in is *invisible* — deterministic, and not where a user sees the component. CSS stops CSS: `requestAnimationFrame` writing inline styles keeps running |
-| `wait-for-fonts` | a font arriving after the subject was read | `document.fonts.ready` covers loads that have *started*; a font requested lazily by a later interaction is not in it |
+| `wait-for-fonts` | a font arriving after the subject was read | `document.fonts.ready` covers loads that have *started*; a font requested lazily by a later interaction is not in it. A font still loading after 15 s fails the subject, and the error names its family, and its source when a same-origin stylesheet declares it |
 | `wait-for-images` | an image whose intrinsic size had not landed | `document.images` at one moment. Anything appended during the wait is missed — the wire covers that |
 | `hide-scrollbars` | a platform and preference difference, and the reflow at the overflow threshold | headless Chromium uses overlay scrollbars, so the classic scrollbar flake does not reproduce in CI at all |
 | `hide-caret` | a cursor blinking on its own schedule | a screenshot option, so it applies at render and not at collection — a tier that never rasterizes cannot see a caret and must not pay to hide it |

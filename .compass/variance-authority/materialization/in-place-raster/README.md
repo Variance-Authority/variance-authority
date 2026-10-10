@@ -52,7 +52,10 @@ under the hold that is already there and only the caret is hidden.
 It never retries to make a subject agree. Independent screenshots are required to
 agree with each other and a disagreement is refused by name, because an image of
 something that was moving becomes a baseline that never corresponded to a state
-of the product.
+of the product. Agreement is not enough on its own: the page records every
+change to the subject from the read before the screenshots to the read after
+them, so a state that came and went between the two is retried, then refused
+by name.
 
 ## Implementation coordinates
 
@@ -61,6 +64,8 @@ composes and the repeated screenshots it requires to agree.
 `packages/playwright-test/src/fixture.ts` — `InPlaceCaptureOptions`, the launch
 the caller is required to describe, and `MaterializationOptions`, the choice
 between this path and a deferred render.
+`packages/playwright-test/src/watch.ts` — `watch` and `takeWatch`, the page's
+record of what changed in the subject between the two reads.
 
 ## Diagram
 

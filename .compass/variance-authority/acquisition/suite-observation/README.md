@@ -80,6 +80,7 @@ being embedded.
 - `packages/playwright-test/src/fixture.ts` — `observeLocator` and the fixture surface
 - `packages/playwright-test/src/direct.ts` — a session held across several observations
 - `packages/playwright-test/src/in-place.ts` — the suite's own browser as the source of pixels
+- `packages/playwright-test/src/watch.ts` — `watch` and `takeWatch`, the page agent's record of what changed in the subject between two reads
 - `packages/vitest-browser/src/observe.ts` — `observeSubject`, the read performed in the subject's own realm
 - `packages/vitest-browser/src/node.ts` — `varianceCommands`, the judging half on the runner's side
 

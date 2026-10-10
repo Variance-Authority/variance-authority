@@ -48,7 +48,12 @@ export interface SettleTarget {
  */
 export interface PageGlobals {
   readonly document: {
-    readonly fonts?: { readonly ready: Promise<unknown> };
+    readonly fonts?: {
+      readonly ready: Promise<unknown>;
+      [Symbol.iterator](): Iterator<{ readonly family: string; readonly status: string }>;
+    };
+    /** Read to name a web font by where it was asked for; a cross-origin sheet throws. */
+    readonly styleSheets: ArrayLike<{ readonly cssRules: ArrayLike<PageCssRule> }>;
     readonly images: ArrayLike<{
       readonly complete: boolean;
       readonly currentSrc: string;
@@ -59,6 +64,12 @@ export interface PageGlobals {
   };
   setTimeout(handler: () => void, ms: number): unknown;
   clearTimeout(handle: unknown): void;
+}
+
+/** A rule as a settle step reads it: its declarations, and the rules it groups. */
+interface PageCssRule {
+  readonly style?: { getPropertyValue(property: string): string };
+  readonly cssRules?: ArrayLike<PageCssRule>;
 }
 
 export interface Intervention {

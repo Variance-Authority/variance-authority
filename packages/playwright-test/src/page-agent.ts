@@ -10,6 +10,7 @@ import {
 } from '@variance-authority/react';
 import type { DeclaredComponents, SuspenseSettlement } from '@variance-authority/react';
 import { recipeOf } from '@variance-authority/core/format';
+import { takeWatch } from './watch.js';
 import type {
   Digest,
   RawCapture,
@@ -131,9 +132,19 @@ export interface Acquired {
     readonly marker: string;
     readonly previous?: string;
   }[];
+
+  /**
+   * What changed in the subject since `watch` was called on it, outside the
+   * regions it marks ignored. Absent when nothing was watching.
+   */
+  readonly mutated?: readonly string[];
 }
 
 export async function acquire(root: Element, request: AcquireRequest): Promise<string> {
+  // Before anything here awaits or writes: the settle steps below edit the
+  // subject themselves, and a watch still running would record them.
+  const mutated = takeWatch();
+
   // First of everything, because it decides what the rest of it is looking at.
   // Ahead of stabilization deliberately — content that arrives late brings its
   // own images and fonts, and a `waitForImages` that ran before them waited for
@@ -209,11 +220,15 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
       ...(held.digest === undefined ? {} : { digest: held.digest }),
     },
     accessibilityPortals,
+    ...(mutated === undefined ? {} : { mutated }),
   });
 }
 
 export interface InstalledAgent {
   readonly acquire: (root: Element, request: AcquireRequest) => Promise<string>;
+  /** Record changes to the subject until the next `acquire` or `unwatch`. */
+  readonly watch: (root: Element) => void;
+  readonly unwatch: () => void;
   readonly version: string;
   /** What `createDeclarationReader` reads, keyed on `AGENT` rather than `AGENT_GLOBAL`. */
   readonly declared: DeclaredComponents;
