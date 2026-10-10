@@ -98,7 +98,7 @@ describe('a review of what a change did, after the run that recorded it', () => 
 
     // The test file sits under no manifest, so the root's directory is its package.
     expect(answer.areas).toEqual([
-      { package: '@o/total', path: 'src', functions: 2, reaches: { near: 1, unwalked: 1 }, tests: ['.'], reached: ['.'] },
+      { package: '@o/total', path: 'src', functions: 2, reaches: { near: 1, unwalked: 1 }, tests: ['.'], importers: 1 },
     ]);
   });
 

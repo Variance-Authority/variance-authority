@@ -105,7 +105,7 @@ export const MARK: Readonly<Record<Reach, string>> = {
   unknown: '🔴',
 };
 
-/** What each mark says, once, above the first place it is used. */
+/** What each mark says, once, under the first table that uses it. */
 const LEGEND = '🟢 a test importing the file ran it · 🟡 only tests further away ran it · 🟠 tests outside the import graph ran it · ' +
   '⚪ ran only while its module loaded · 🔴 no case ran it';
 

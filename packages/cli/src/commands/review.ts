@@ -137,8 +137,11 @@ export interface ReviewArea {
   readonly reaches: Partial<Record<Reach, number>>;
   /** The packages whose test files entered them, its own included, in code-unit order. */
   readonly tests: readonly string[];
-  /** The other packages holding a file that imports its changed files, through any number of imports, in code-unit order. */
-  readonly reached: readonly string[];
+  /**
+   * How many other packages hold a file that imports its changed files, through any number of imports. A count, not the
+   * names: next to a hub, the names run into the thousands for every package the change touches.
+   */
+  readonly importers: number;
 }
 
 /** A changed file one or more tests declare as a precondition: before the reach of any import. */

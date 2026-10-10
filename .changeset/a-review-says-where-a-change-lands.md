@@ -17,8 +17,7 @@ with its changed functions counted by mark, the packages whose tests ran them
 | `@acme/cart` | 3 | 🟢 2 · 🔴 1 | own, `@acme/checkout` | 4 |
 | `@acme/money` | 1 | 🟡 1 | `@acme/cart` | 12 |
 
-Packages with code no case ran come first. The table keeps 10 rows in a
+Packages with code no case ran come first. The table stays within 10 rows in a
 repository of any size: past that, the packages whose every changed function a
-test importing its file ran fold into one row, and the rest into another.
-`review.json` lists every package under `areas`, with the names of the packages
-that import it.
+test importing its file ran fold into one row, and the packages that do not fit
+above it into another. `review.json` lists every package under `areas`.

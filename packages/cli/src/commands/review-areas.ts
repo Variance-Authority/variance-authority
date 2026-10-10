@@ -12,7 +12,8 @@
  * The table is bounded whatever the repository's size: the packages with code
  * no nearby test ran come first, and once there are more packages than rows,
  * the ones whose every function a nearby test ran are folded into one row, and
- * the rest past the budget into another. The JSON keeps every package.
+ * the rest past the budget into another, both counted in it. The JSON keeps
+ * every package.
  */
 
 import { relative, resolve } from 'node:path';
@@ -40,7 +41,13 @@ export function areasOf(
 ): readonly ReviewArea[] {
   const top = resolve(root);
   const names = new Map<string, string>();
-  const homeOf = (file: string): string => packageOf(top, file) ?? top;
+  const homes = new Map<string, string>();
+  // One walk a package names the same importers again and again: a file's package is looked up once.
+  const homeOf = (file: string): string => {
+    let home = homes.get(file);
+    if (home === undefined) homes.set(file, (home = packageOf(top, file) ?? top));
+    return home;
+  };
   const nameOf = (home: string): string => {
     let name = names.get(home);
     if (name === undefined) names.set(home, (name = packageName(top, home)));
@@ -68,10 +75,10 @@ export function areasOf(
     .map(([home, { functions, tests, changed }]): ReviewArea => {
       const reaches: Partial<Record<Reach, number>> = {};
       for (const reach of functions.values()) reaches[reach] = (reaches[reach] ?? 0) + 1;
-      const reached = new Set<string>();
+      const importers = new Set<string>();
       for (const file of dependents(changed)) {
         const at = homeOf(file);
-        if (at !== home) reached.add(nameOf(at));
+        if (at !== home) importers.add(at);
       }
       return {
         package: nameOf(home),
@@ -79,7 +86,7 @@ export function areasOf(
         functions: functions.size,
         reaches: Object.fromEntries(REACHES.filter((reach) => reaches[reach] !== undefined).map((reach) => [reach, reaches[reach]])),
         tests: [...tests].sort(codeUnitOrder),
-        reached: [...reached].sort(codeUnitOrder),
+        importers: importers.size,
       };
     })
     .sort((left, right) => codeUnitOrder(left.path, right.path));
@@ -102,24 +109,26 @@ export function areasMarkdown(areas: readonly ReviewArea[] | undefined, mark: (r
     '|---|--:|---|---|--:|',
   ];
   const row = (area: ReviewArea): string =>
-    `| \`${area.package}\` | ${area.functions} | ${tally(area.reaches, mark)} | ${testedFrom(area)} | ${area.reached.length} |`;
+    `| \`${area.package}\` | ${area.functions} | ${tally(area.reaches, mark)} | ${testedFrom(area)} | ${area.importers} |`;
   if (ranked.length <= ROWS) return [...lines, ...ranked.map(row)];
 
   const gaps = ranked.filter((area) => away(area) > 0);
   const quiet = ranked.filter((area) => away(area) === 0);
-  lines.push(...gaps.slice(0, ROWS).map(row));
-  if (gaps.length > ROWS) lines.push(folded(gaps.slice(ROWS), packages(gaps.length - ROWS), mark));
-  if (quiet.length > 0) lines.push(folded(quiet, `${packages(quiet.length)}, every function ${mark('near')}`, mark));
+  // The fold rows are rows too: the quiet one when there is any, the overflow one when the gaps do not fit beside it.
+  const room = ROWS - (quiet.length > 0 ? 1 : 0);
+  const shown = gaps.length <= room ? gaps.length : room - 1;
+  lines.push(...gaps.slice(0, shown).map(row));
+  if (shown < gaps.length) lines.push(folded(gaps.slice(shown), packages(gaps.length - shown, true), mark));
+  if (quiet.length > 0) lines.push(folded(quiet, `${packages(quiet.length, shown > 0)}, every function ${mark('near')}`, mark));
   return [...lines, '', 'Each package is in the review\'s JSON, under `areas`.'];
 }
 
-/** Several packages on one row: their functions and marks summed, and the packages importing any of them counted once. */
+/** Several packages on one row: their functions and marks summed. Their importers are left blank, since a sum would count a package importing two of them twice. */
 function folded(areas: readonly ReviewArea[], label: string, mark: (reach: Reach) => string): string {
   const reaches: Partial<Record<Reach, number>> = {};
   for (const area of areas) for (const reach of REACHES) reaches[reach] = (reaches[reach] ?? 0) + (area.reaches[reach] ?? 0);
   const functions = areas.reduce((sum, area) => sum + area.functions, 0);
-  const reached = new Set(areas.flatMap((area) => area.reached)).size;
-  return `| ${label} | ${functions} | ${tally(reaches, mark)} | | ${reached} |`;
+  return `| ${label} | ${functions} | ${tally(reaches, mark)} | | |`;
 }
 
 /** The functions by mark, in the marks' order: the reaches one mark stands for are summed under it. */
@@ -150,6 +159,6 @@ function away(area: ReviewArea): number {
   return area.functions - (area.reaches.near ?? 0);
 }
 
-function packages(count: number): string {
-  return `${count} more package${count === 1 ? '' : 's'}`;
+function packages(count: number, more: boolean): string {
+  return `${count}${more ? ' more' : ''} package${count === 1 ? '' : 's'}`;
 }
