@@ -81,6 +81,8 @@ describe('withJourneyCoverage for Jest', () => {
     expect(() => withJourneyCoverage({ rootDir }, { journeyFile: 'journeys.bin', trace: '@sentry/node' }))
       .toThrow(/is not a path/);
   });
+
+  it.todo('marks the modules `unprobed` names as loaded, as withTestSelection does — needs `unprobed` on JestJourneyCoverageOptions');
 });
 
 async function project(): Promise<string> {
