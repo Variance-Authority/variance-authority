@@ -82,11 +82,43 @@ printed and the styles the motion preference chose are part of the record.
 
 **In-place capture** in `@variance-authority/playwright-test` takes the
 screenshot from the page your test is using
-([when to choose it](cases.md#existing-playwright-test)). Pass
-`materialization: { kind: 'in-place', … }` and a `stabilize` list without
-`no-hover` to `createVariance` or `observe`, hover the element in your test,
-then observe: the image shows its `:hover` style. Leave `no-focus` out and focus
-the element, and the image shows its focus ring.
+([when to choose it](cases.md#existing-playwright-test)). Hover the element
+in your test, then observe it with a list that leaves `no-hover` out, and the
+image shows its `:hover` style:
+
+```ts
+import { test } from '@playwright/test';
+import {
+  assertUnchanged,
+  CHROMIUM_RASTER_ARGS,
+  createVariance,
+  DEFAULT_STABILIZE,
+} from '@variance-authority/playwright-test';
+
+test('checkout, hovered', async ({ page }, testInfo) => {
+  const variance = await createVariance(page, testInfo, {
+    materialization: {
+      kind: 'in-place',
+      browser: { headless: true, launchArgs: CHROMIUM_RASTER_ARGS },
+    },
+  });
+  try {
+    const checkout = page.getByRole('button', { name: 'Checkout' });
+    await checkout.hover();
+    assertUnchanged(
+      await variance.observe(checkout, {
+        stabilize: DEFAULT_STABILIZE.filter((id) => id !== 'no-hover'),
+      }),
+    );
+  } finally {
+    await variance.close();
+  }
+});
+```
+
+For a focus ring, call `focus()` instead and leave `no-focus` out. The
+`browser` you declare must match the launch in your Playwright configuration,
+as [in-place capture](../packages/playwright-test/README.md) describes.
 
 ## What you can configure
 
@@ -98,7 +130,8 @@ once you need it.
 | observe a subject untouched | `stabilize: []` | [observing a subject untouched](#observing-a-subject-untouched) |
 | choose the tricks yourself | `stabilize: ['pin-animations', …]` | [what runs, and what it absorbs](#what-runs-and-what-it-absorbs) |
 | hide decorative images | `stabilize: [… , 'hide-presentational-images']` | [the half the wire cannot decide](#and-the-half-the-wire-cannot-decide) |
-| turn one trick off, to read a hover, a focus, live motion or the real clock | your own `stabilize` list, which replaces the default: every trick you keep, without that one | [turning one off](#turning-one-off) |
+| turn one trick off, to read live motion or the real clock | your own `stabilize` list, which replaces the default: every trick you keep, without that one | [turning one off](#turning-one-off) |
+| see a hover or a focus ring in the screenshot | in-place capture, and a `stabilize` list without `no-hover` or `no-focus` | [what reaches the image](#what-reaches-the-image) |
 | fix the clock at another instant | `now: '2030-01-01T09:00:00Z'` | [hover, focus, motion and the clock](#hover-focus-motion-and-the-clock) |
 | serve some images as nothing | `blank` rules | [some images can be served as nothing](#some-images-can-be-served-as-nothing) |
 | stop hashing asset bytes | `network: false` / `hashAssets: false` | [what the wire costs](#what-the-wire-costs) |
