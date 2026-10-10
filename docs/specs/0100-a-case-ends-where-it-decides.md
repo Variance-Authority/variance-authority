@@ -20,7 +20,8 @@ that ADR-0086 decides and pull request 274 is landing, together with the
 per-region case count it uses to set structure apart.
 **Narrows:** [ADR-0056](../context/adr/0056-a-journey-is-the-places-visited.md)
 decision 1 — a journey records the places a case visited and never their order —
-for the test-runner seams only, by an ADR that lands with item 2.
+for the test-runner seams only, by
+[ADR-0087](../context/adr/0087-a-case-records-the-test-line-that-reached-each-region.md).
 
 ## Purpose
 
@@ -183,11 +184,14 @@ readers walk every case.
    frame stores the line table and the per-region index above. A hook's
    statements cut the log its crossings already go to, which
    [`cases.ts`](../../packages/sense/src/test-selection/cases.ts) makes the
-   file's ambient bucket. Test-composition's answer adds the test line that
-   reached each rarest region, and lists equally rare regions by that line,
-   latest first, as an order to read them in rather than a pick. A record
-   written without cuts reads as *lines not recorded*, never as every region
-   charged to one line.
+   file's ambient bucket. The seam's options take `cadence: false` to leave
+   test files uncut. The record lands first, with nothing reading it but the
+   layer that carries it; the reader lands with item 1, whose leaf it is
+   written beside. Test-composition's answer adds the test line that reached
+   each rarest region, and lists equally rare regions by that line, latest
+   first, as an order to read them in rather than a pick. A record written
+   without cuts reads as *lines not recorded*, never as every region charged
+   to one line.
 
 ## Acceptance
 
@@ -214,8 +218,8 @@ On this repository, after `yarn test:unit`:
 7. The pull request that lands item 1 states, for MUI, how many cases have one
    rarest region. The pull request that lands item 2 states the size the cuts
    add to `coverage.bin` and the time they add to the suite, on this repository
-   and on MUI, and lands only if the size stays under 2% of `coverage.bin` on
-   both.
+   and on MUI. Neither may double what it adds to, and both are kept as small
+   as the cuts allow.
 
 ## What it does not do
 
