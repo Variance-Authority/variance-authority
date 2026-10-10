@@ -105,6 +105,14 @@ describe('a line asked of a repository that declares suites', () => {
     expect(answer.out).not.toContain('is not in the index');
   });
 
+  it('says a suite that has never run after every answer, since it is no answer about the file', async () => {
+    const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', root]);
+
+    expect(answer.out.startsWith('unit (unit):\n')).toBe(true);
+    expect(answer.out.indexOf('checkout (e2e): nothing is recorded')).toBeGreaterThan(answer.out.indexOf('unit (unit):'));
+    expect(answer.out.indexOf('checkout (e2e): nothing is recorded')).toBeLessThan(answer.out.indexOf('Not loaded by'));
+  });
+
   it('counts a suite that holds the file and refuses the line as one that answered', async () => {
     const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '3', '--root', root]);
 

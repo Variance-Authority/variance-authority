@@ -94,10 +94,11 @@ async function askSuite(request: ParsedCovering, suite: DeclaredSuite): Promise<
 /**
  * Say either answer in the shape the caller asked for.
  *
- * Once any suite said something about the file, one that never loaded it is
- * named on one line after every answer, without its record's path or size: the
- * reader came for the answer, and a suite that tests other code is the common
- * case, not a finding. When none loaded it, each suite's refusal is the answer, and is
+ * Once any suite said something about the file, the answers come first. A suite
+ * that has never run follows them, and one that never loaded the file is named
+ * on the closing line without its record's path or size: the reader came for
+ * the answer, and a suite that tests other code is the common case, not a
+ * finding. When none loaded it, each suite's refusal is the answer, and is
  * printed in full with the spelling it points at. JSON carries every refusal
  * whole either way.
  */
@@ -106,19 +107,20 @@ export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: 
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
 
   const named = (one: SuiteAnswer): string => `${one.suite} (${one.kind})`;
-  const unloaded = (one: SuiteAnswer): boolean => 'refused' in one && one.refused === 'unloaded';
+  const refused = (one: SuiteAnswer, kind: 'unloaded' | 'unrecorded'): boolean =>
+    'refused' in one && one.refused === kind;
+  const say = (one: SuiteAnswer): string => {
+    const head = `${named(one)}:`;
+    if ('reason' in one) return `${head} ${one.reason}\n`;
+    const body = formatCovering(one, format);
+    return `${head}\n${format === 'refs' ? body : body.replace(/^(?=.)/gmu, '  ')}`;
+  };
   // A refusal about a line or a function the suite holds is an answer about the file; never loading it, or never running, is not.
-  const loaded = answer.suites.some((one) =>
-    !('reason' in one) || (one.refused !== 'unloaded' && one.refused !== 'unrecorded'));
-  const said = answer.suites
-    .filter((one) => !(loaded && unloaded(one)))
-    .map((one) => {
-      const head = `${named(one)}:`;
-      if ('reason' in one) return `${head} ${one.reason}\n`;
-      const body = formatCovering(one, format);
-      return `${head}\n${format === 'refs' ? body : body.replace(/^(?=.)/gmu, '  ')}`;
-    });
-  const away = loaded ? answer.suites.filter(unloaded).map(named) : [];
+  const answered = answer.suites.filter((one) => !refused(one, 'unloaded') && !refused(one, 'unrecorded'));
+  if (answered.length === 0) return answer.suites.map(say).join('\n');
+
+  const said = [...answered, ...answer.suites.filter((one) => refused(one, 'unrecorded'))].map(say);
+  const away = answer.suites.filter((one) => refused(one, 'unloaded')).map(named);
   if (away.length > 0) {
     said.push(
       `Not loaded by ${away.join(', ')}: a run that never loaded the file has no answer about it, ` +
