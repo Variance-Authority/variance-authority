@@ -708,8 +708,8 @@ text stays the language it was. `senseProbes` is absent for a test file, a file
 outside product source and a file Jest loads before the collector exists, and
 `instrument` returns nothing for a text it cannot parse; either way the module
 runs without probes. Jest compares `senseRecipe` with this package's recipe when
-it loads the transformer, and refuses one built against another version of
-the crate, naming both.
+it loads the transformer, and refuses one whose instrumentation or header is
+not this package's, naming both.
 
 ## Cut an Rstest run down to a diff
 

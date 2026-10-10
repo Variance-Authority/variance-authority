@@ -25,6 +25,9 @@
 //! collectors read.
 
 mod cut;
+/// The digest every stored text is named by; [`module_id`] is the one a
+/// pipeline needs.
+#[doc(hidden)]
 pub mod digest;
 mod header;
 mod walk;
