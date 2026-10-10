@@ -120,9 +120,12 @@ export async function stableRaster(
  * The timezone and locale the page under test runs in.
  *
  * Asked of the page, because it is the page's own: a suite that set
- * `timezoneId` or `locale` in its Playwright config gets those, and one that
- * did not gets the host's. Either way the text it lays out was formatted in
- * them, so both keys and the render that paints it carry them.
+ * `timezoneId` or `locale` gets those, and a page the fixtures handed a suite
+ * that set neither runs in `UTC`, pinned by `varianceRendererFixtures`, and
+ * `en-US`, Playwright Test's default. A page handed to `createVariance` runs in
+ * whatever its caller's context opened it in, the host's timezone when that
+ * context set none. Either way the text it lays out was formatted in them, so
+ * both keys and the render that paints it carry them.
  *
  * Source, not a function, for the reason {@link PROBE_FONTS} gives.
  */

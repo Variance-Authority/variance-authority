@@ -120,7 +120,9 @@ export async function createVariance(
 
   // Open an owned renderer only after page setup can no longer fail. Before
   // this point no session exists whose `close` the caller could reach. It
-  // paints in the timezone and locale this page runs in.
+  // paints in the timezone and locale this page runs in. The page is the
+  // caller's, opened before this call, so its region is theirs too; nothing
+  // here can pin it, and a context that set no `timezoneId` runs in the host's.
   const renderer =
     materialization.kind === 'deferred'
       ? options.renderer ?? (await createPlaywrightRenderer(await regionOf(page)))

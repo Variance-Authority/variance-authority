@@ -3,6 +3,7 @@ import type {
   Locator,
   Page,
   PlaywrightTestArgs,
+  PlaywrightTestOptions,
   PlaywrightWorkerArgs,
 } from '@playwright/test';
 import { hashComponents, overlaySourceIndex } from '@variance-authority/core/attribute';
@@ -162,7 +163,7 @@ export interface VarianceRuntime {
 export const varianceFixtures: Fixtures<
   VarianceFixtures,
   VarianceWorkerFixtures,
-  PlaywrightTestArgs,
+  PlaywrightTestArgs & PlaywrightTestOptions,
   PlaywrightWorkerArgs
 > = {
   ...varianceWireFixtures,

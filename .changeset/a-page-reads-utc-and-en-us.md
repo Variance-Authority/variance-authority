@@ -23,6 +23,9 @@ in `variance.config.json` (`"timezoneId": "Europe/Berlin"`, `"locale":
 "de-DE"`) and the collectors and the renderer pin that instead; an unknown
 timezone or a malformed language tag is refused by its field.
 `createHarness` and `createPlaywrightRenderer` take the same two options.
+`@variance-authority/core/format` exports their type, `PageRegion`, and
+`@variance-authority/playwright` exports `pinnedRegion`, which fills in `UTC`
+and `en-US` for a field left out.
 
 Both are part of the environment key, and the renderer's pair is part of
 `RenderIdentity.rasterization`. A capture read in another timezone or language
@@ -31,8 +34,13 @@ baseline painted in another, with the reason naming `rasterization`, rather
 than `changed`.
 
 `@variance-authority/playwright-test` paints each test in the timezone and
-locale its page runs in: whatever the Playwright project or `test.use` sets, and
-the host's when neither does. `varianceRenderer` is now a test fixture, chosen
+locale its page runs in: whatever the Playwright project or `test.use` sets.
+When neither sets a `timezoneId`, `varianceFixtures` opens the page in `UTC`
+rather than the host's, so a laptop and a runner in UTC read it under one key;
+Playwright Test already opens it in `en-US` when nothing sets a `locale`. A page
+you hand to `createVariance` is read and painted in whatever its own context
+opened it in, which is the host's timezone when that context set none: open the
+context with `timezoneId: 'UTC'` to match. `varianceRenderer` is now a test fixture, chosen
 by the page, and `varianceRenderers` is the worker's set of renderers, one per
 timezone and locale; a project that overrode `varianceRenderer` at worker scope
 overrides it at test scope instead.

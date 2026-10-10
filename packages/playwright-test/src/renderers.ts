@@ -1,5 +1,6 @@
 /**
- * The renderer a test's document is painted by, chosen by the page it came from.
+ * The renderer a test's document is painted by, chosen by the page it came from,
+ * and the timezone that page opens in when the suite declares none.
  *
  * A page's scripts format its dates and numbers in the timezone and locale the
  * page runs in, and the renderer runs those scripts again, so the two must
@@ -12,10 +13,22 @@
  * Renderers are still one per worker per region, never one per test: a launch
  * and first navigation cost two orders of magnitude more than a warm render
  * (journal 0007), and nearly every suite runs in one region.
+ *
+ * A suite that declares no `timezoneId` gets `UTC`, not the host's. Playwright
+ * Test opens a context in the host's timezone when nothing sets one, so a page
+ * read on a laptop in Sydney and one read on a CI runner in UTC would carry
+ * different keys and read `incomparable`. Its `locale` needs no pin: Playwright
+ * Test already defaults it to `en-US`, the default the collectors pin.
  */
 
-import type { Fixtures, PlaywrightTestArgs, PlaywrightWorkerArgs } from '@playwright/test';
+import type {
+  Fixtures,
+  PlaywrightTestArgs,
+  PlaywrightTestOptions,
+  PlaywrightWorkerArgs,
+} from '@playwright/test';
 import type { PageRegion } from '@variance-authority/core/format';
+import { pinnedRegion } from '@variance-authority/playwright';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import type { Renderer } from '@variance-authority/raster';
 import { regionOf } from './in-place.js';
@@ -39,9 +52,15 @@ export interface VarianceRendererWorkerFixtures {
 export const varianceRendererFixtures: Fixtures<
   VarianceRendererFixtures,
   VarianceRendererWorkerFixtures,
-  PlaywrightTestArgs,
+  PlaywrightTestArgs & PlaywrightTestOptions,
   PlaywrightWorkerArgs
 > = {
+  // Depends on its own name, so it receives the value Playwright resolved —
+  // `use`, a project's `use`, or `contextOptions` — and pins only its absence.
+  timezoneId: async ({ timezoneId }, use) => {
+    await use(timezoneId ?? pinnedRegion({}).timezoneId);
+  },
+
   varianceRenderers: [
     // Playwright reads this parameter's destructured names to discover a
     // fixture's dependencies, and rejects a parameter it cannot destructure. An
