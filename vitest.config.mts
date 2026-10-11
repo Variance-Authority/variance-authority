@@ -95,8 +95,9 @@ const shared = defineConfig({
     // A temporary directory of each test's own, so the machine's index turn a
     // test takes is its own and no other test's or developer's index waits on
     // it, or it on them. The file says why a turn made the recording depend on
-    // scheduling.
-    setupFiles: ['tools/temporary-per-test.ts', 'tools/no-selection-in-tests.ts'],
+    // scheduling. Neither the selection that chose a test nor the CI job that
+    // runs it reaches the test's environment; each file says why.
+    setupFiles: ['tools/temporary-per-test.ts', 'tools/no-selection-in-tests.ts', 'tools/no-ci-in-tests.ts'],
   },
   esbuild: {
     jsx: 'automatic',

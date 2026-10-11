@@ -42,6 +42,15 @@ describe('the commit a review read', () => {
     expect((await reviewedCommit(root, {}))?.blob).toBe(`https://github.com/o/r/blob/${commit}/app`);
   });
 
+  it('runs in a worker that holds no CI job, so the default env names no pull request under any event', async () => {
+    // The default is `process.env`, and a test's is never the CI job's: a push and a pull request run the same lines.
+    const { root, commit } = await repository();
+    process.chdir(root);
+
+    expect(Object.keys(process.env).filter((name) => name.startsWith('GITHUB_'))).toEqual([]);
+    expect(await reviewedCommit(root)).toEqual({ commit, parents: [] });
+  });
+
   it('names a pull request head only on a pull request event, even when the event file names one', async () => {
     const { root, commit } = await repository();
     process.chdir(root);

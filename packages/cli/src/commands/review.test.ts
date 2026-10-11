@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   caseSectionsAt,
   commitRunsFile,
@@ -27,8 +27,6 @@ function parse(argv: readonly string[]) {
 
 describe('a review of what a change did, after the run that recorded it', () => {
   const cwd = process.cwd();
-  // A review reads the pull request it runs for from CI's event, so these tests run as if outside CI.
-  beforeEach(() => vi.stubEnv('GITHUB_ACTIONS', ''));
   afterEach(() => {
     process.chdir(cwd);
     vi.unstubAllEnvs();

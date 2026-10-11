@@ -293,13 +293,11 @@ function session(cwd = workspace, variables: Readonly<Record<string, string>> = 
   request<Result>(method: string, params?: Record<string, unknown>): Promise<Result>;
   close(): void;
 } {
-  // Nothing from the host's CI: which line a reader reads is decided by the
-  // checkout here, not by the pull request this suite happens to run for.
-  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GITHUB_')));
+  // The worker's env holds no CI job (`tools/no-ci-in-tests.ts`), so the server reads the branch the test gives it.
   const child = spawn(process.execPath, [BIN, 'serve'], {
     cwd,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...env, ...variables, NO_COLOR: '1', VARIANCE_AUTHORITY_CACHE: join(cwd, 'cache') },
+    env: { ...process.env, ...variables, NO_COLOR: '1', VARIANCE_AUTHORITY_CACHE: join(cwd, 'cache') },
   });
   const waiting = new Map<number, { resolve(result: unknown): void; reject(error: Error): void }>();
   let ended: Error | undefined;
