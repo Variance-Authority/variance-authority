@@ -619,8 +619,9 @@ freeze it from the test. Masking the element is the answer, and
 [`ignores.md`](ignores.md) is where that rule is written down.
 
 **A browser or OS version.** Not this list. You do not freeze those, you declare
-them: they are in the environment key, so a run on a different engine is a
-separate baseline rather than a difference, and the
+them: they are in the renderer identity. A new browser build is compared with
+the baseline and named as the cause of what moved, a different engine or
+platform keeps a baseline of its own, and the
 [table above](#the-causes-and-who-deals-with-each) has the rest.
 
 This changes the `Dates, clocks, dynamic content` row

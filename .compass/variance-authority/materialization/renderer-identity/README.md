@@ -17,7 +17,7 @@ In: the engine and its build, the platform, the declared fonts, the digest of th
 **stabilization recipe** the page is held still with, and the digest of the
 ordered rasterization arguments — the launch flags and the screenshot options, in
 the order they were given. Out: a **renderer identity**, the sentence that
-describes one for a reader of a refusal, and the same identity rebuilt field by
+describes one for a reader of a comparison, and the same identity rebuilt field by
 field off a wire or a disk.
 
 ## Depends on
