@@ -5,7 +5,7 @@ import { CHROMIUM_PROFILE, JSDOM_PROFILE, type Viewport } from '@variance-author
 import { normalize } from '@variance-authority/core/rules';
 import { collect } from './collect.js';
 import { indexStyleSheets } from './css-index.js';
-import { stabilizeForObservation } from './index.js';
+import { stabilizeAsRequested, stabilizeForObservation } from './index.js';
 
 /**
  * The claim under test is ADR-0003's headline, and it is the one M0 could not
@@ -315,6 +315,56 @@ describe('profile detection', () => {
     });
     expect(photographed.ids).toContain('hide-caret');
     photographed.release();
+  });
+
+  it('records a driver trick only when a driver says it applied it', async () => {
+    // A page cannot emulate a media feature, fix its own clock before its own
+    // scripts ran, or move a pointer. A host with no driver therefore leaves
+    // those ids out of what it records, and the digest says the page was held
+    // less still than the recipe asked — rather than claiming a hold it never had.
+    const undriven = await stabilizeForObservation(document, { profile: CHROMIUM_PROFILE });
+    expect(undriven.ids).toContain('no-focus');
+    expect(undriven.ids).not.toContain('no-hover');
+    expect(undriven.ids).not.toContain('reduced-motion');
+    expect(undriven.ids).not.toContain('freeze-clock');
+    undriven.release();
+
+    const driven = await stabilizeForObservation(document, {
+      profile: CHROMIUM_PROFILE,
+      driven: ['no-hover', 'reduced-motion', 'freeze-clock'],
+    });
+    expect(driven.ids).toEqual(expect.arrayContaining(['no-hover', 'reduced-motion', 'freeze-clock']));
+    expect(driven.digest).not.toBe(undriven.digest);
+    driven.release();
+  });
+
+  it('gives focus back to the element it took it from, and to nothing a later one took', async () => {
+    document.body.innerHTML = '<input id="name"><input id="email">';
+    const name = document.getElementById('name') as HTMLInputElement;
+    const email = document.getElementById('email') as HTMLInputElement;
+    name.focus();
+
+    const held = await stabilizeForObservation(document, { profile: CHROMIUM_PROFILE });
+    expect(held.ids).toContain('no-focus');
+    expect(document.activeElement).toBe(document.body);
+    held.refocus();
+    expect(document.activeElement).toBe(name);
+    held.release();
+
+    const again = await stabilizeForObservation(document, { profile: CHROMIUM_PROFILE });
+    email.focus();
+    again.refocus();
+    expect(document.activeElement).toBe(email);
+    again.release();
+  });
+
+  it('refuses a request naming a trick nothing answers to', async () => {
+    // A page agent is handed the recipe by name, since an intervention carries
+    // functions and cannot cross. The ids it applies are pinned in a browser,
+    // by the collectors' own tests; jsdom reaches none of them.
+    await expect(stabilizeAsRequested(document, { stabilize: ['no-such-trick'] })).rejects.toThrow(
+      /no stabilization trick is called `no-such-trick`/,
+    );
   });
 
   it('never lets a caller claim a rung the host cannot observe', async () => {

@@ -55,6 +55,8 @@ export async function acquirePresentation(
     ...(request.fonts === undefined ? {} : { fonts: request.fonts }),
     ...(held.digest === undefined ? {} : { stabilization: held.digest }),
   });
+  // The page is the agent's, and it goes on using it.
+  held.refocus();
   const current = ++sequence;
   const portals = portalRoots.map((portal, index) => {
     const previous = portal.getAttribute(PRESENTATION_ROOT_ATTRIBUTE);

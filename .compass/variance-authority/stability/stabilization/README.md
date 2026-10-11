@@ -47,8 +47,12 @@ are **reported**, never silently resolved.
 
 The damage is taken as far from the product as it can be. Injected CSS and
 browser screenshot options come first — nothing in the product imports them and
-deleting this deletes the intervention; a contract the subject implements is
-real design damage and is reserved
+deleting this deletes the intervention. What only the browser can change comes
+next and is asked of the driver: the motion preference is emulated and the
+pointer is moved off the page. One runtime substitution is made, and narrowly:
+`Date` alone reads one instant, replaced by a script added before the page's
+own, while timers, frames and `performance` stay the browser's. A contract the
+subject implements is real design damage and is reserved
 for what the outside genuinely cannot know. Each is scoped to the tier that can
 observe what it fixes, so a reader with no layout engine waits for nothing.
 
@@ -67,22 +71,32 @@ carries, what box it fills — is not guessed here.
 The recipe changes identity rather than changing a **verdict**. A baseline read
 untouched and one read held still are two baselines, so a run under a different
 recipe is **incomparable** instead of presenting the intervention as a
-regression. The injected sheet marks itself and is skipped by the collector, so
+regression. The fixed instant is part of the clock trick's id, so it is part of
+the identity too. A trick only a driver can apply is recorded only by a host
+that applied it. The injected sheet marks itself and is skipped by the collector, so
 the tool's own rules never enter a capture, never match a node, and never
 appear in anybody's attribution.
 
 ## Implementation coordinates
 
+- `packages/core/src/format/drive.ts` — the tricks a browser driver applies:
+  `noHover`, `reducedMotion`, the clock (`freezeClock`, `freezeClockAt`, whose
+  id carries its instant, and `freezeDate`, the script it adds), and
+  `noFocus`; `UNTOUCHED`, the four in every default collection recipe;
+  `driveBeforeLoad`, `driveBeforeRead`, and `forDriver`, which keeps only the
+  driver tricks a host applied. Listed in `tools/page-side.mjs`, because its
+  functions are shipped to the page as source.
 - `packages/core/src/format/intervention.ts` — the `Intervention` value: id,
   `needs` tier, `governs` property, `because`, and one of css, screenshot
-  options or a settle step.
+  options, a settle step or a driver request.
 - `packages/core/src/format/stabilize.ts` — the vocabulary and the recipes
   (`holdAnimations`, `pinAnimations`, `hideCaret`, `hideScrollbars`,
   `hidePresentationalImages`, `waitForFonts`, `waitForImages`;
   `SEMANTIC_RECIPE`, `LAYOUT_RECIPE`, `RASTER_RECIPE`, `COLLECT_RECIPE`), plus
   `forTier`, `conflicts`, `settleRecipe` and `recipeDigest` — sorted, so
   composition order does not change identity.
-- `packages/dom/src/stabilize.ts` — `stabilizeForObservation` and
+- `packages/dom/src/stabilize.ts` — `stabilizeForObservation`,
+  `stabilizeAsRequested` for a recipe that crossed into the page as ids, and
   `STABILIZE_ATTRIBUTE`: one idempotent sheet, applied before the settle steps,
   left in place between subjects because removing it restarts every animation.
 - `packages/playwright/src/network.ts` — routing as an intervention and as a

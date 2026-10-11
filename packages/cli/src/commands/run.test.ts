@@ -478,4 +478,18 @@ describe('storeFor', () => {
     // Only the tracking entry the store writes on the way in.
     expect(await readdir(root)).toEqual(['.gitattributes']);
   });
+
+  it('keeps it out of a committed baseline directory too, in the cache the integrations share', async () => {
+    const root = await directory('variance-baselines-');
+    const cache = await directory('variance-cache-');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', cache);
+
+    const store = await storeFor(configOf({ baselines: { kind: 'directory', root } }));
+    const raster = rasterFor(documentFor('fixture:a'), IDENTITY);
+    await store.renderCache.put(raster);
+
+    expect(await store.renderCache.get(raster.documentDigest, raster.identity)).not.toBeNull();
+    expect(await readdir(cache)).toEqual(['renders']);
+    expect(await readdir(root)).toEqual([]);
+  });
 });

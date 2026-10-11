@@ -28,7 +28,8 @@
  * cycle terminates the same way any revisit does.
  */
 
-import { EDGE_KINDS, RUNTIME_EDGES, type Adjacency, type EdgeKind, type NodeId, type Relations } from './graph.js';
+import { carried, inIdOrder, WHOLE } from './carried.js';
+import type { Adjacency, EdgeKind, NodeId, Relations } from './graph.js';
 import { narrowed } from './narrow.js';
 
 /**
@@ -83,8 +84,7 @@ export function dependentsOf(
   options: TraversalOptions = {},
 ): Traversal {
   if (options.moved !== undefined && relations.uses !== undefined) {
-    const allowed = allowedKinds(options.through);
-    return narrowed(relations.dependents, relations.names, seeds, options.moved, relations.uses, allowed, options.avoid);
+    return narrowed(relations.dependents, relations.names, seeds, options.moved, relations.uses, options);
   }
   return search(relations.dependents, relations.names.length, seeds, options);
 }
@@ -114,11 +114,8 @@ export function trailOf(traversal: Traversal, id: NodeId): readonly NodeId[] {
 }
 
 /**
- * Breadth-first over one direction, from every seed at once.
- *
- * A plain array as the queue with a moving head rather than `shift()`, which is
- * `O(n)` per call in every engine that does not special-case it and turns a
- * linear traversal quadratic on the graphs this exists for.
+ * Breadth-first over one direction, from every seed at once, carrying the whole
+ * of each node to everything one edge away ([`carried.ts`](./carried.ts)).
  *
  * Breadth-first rather than depth-first for the trail's sake: the parent
  * recorded is then the one on a *shortest* path, so the explanation a run prints
@@ -130,52 +127,11 @@ function search(
   seeds: Iterable<NodeId>,
   options: TraversalOptions,
 ): Traversal {
-  const mask = new Uint8Array(nodes);
   const via = new Int32Array(nodes).fill(-1);
-  const queue: NodeId[] = [];
-
-  const avoided = new Uint8Array(nodes);
-  for (const id of options.avoid ?? []) if (id >= 0 && id < nodes) avoided[id] = 1;
-
-  for (const seed of seeds) {
-    if (seed < 0 || seed >= nodes || mask[seed] === 1 || avoided[seed] === 1) continue;
-    mask[seed] = 1;
-    queue.push(seed);
-  }
-
-  const allowed = allowedKinds(options.through);
-
-  for (let head = 0; head < queue.length; head += 1) {
-    const node = queue[head]!;
-    const end = adjacency.offset[node + 1]!;
-
-    for (let at = adjacency.offset[node]!; at < end; at += 1) {
-      if (allowed[adjacency.kind[at]!] !== 1) continue;
-
-      const next = adjacency.target[at]!;
-      if (mask[next] === 1 || avoided[next] === 1) continue;
-
-      mask[next] = 1;
-      via[next] = node;
-      queue.push(next);
-    }
-  }
-
-  // `queue` is in visit order, which depends on seed order. The result is in id
-  // order instead, so a report built from it is byte-stable whatever order the
-  // caller listed its changed files in.
-  const visited: NodeId[] = [];
-  for (let id = 0; id < nodes; id += 1) if (mask[id] === 1) visited.push(id);
-
-  return { mask, via, nodes: visited };
+  const whole = function* () {
+    for (const seed of seeds) yield [seed, WHOLE] as const;
+  };
+  const { mask } = carried(adjacency, whole(), {}, { ...options, via });
+  return { mask, via, nodes: inIdOrder(mask) };
 }
 
-/** A kind filter as a byte lookup. */
-function allowedKinds(through: Iterable<EdgeKind> | undefined): Uint8Array {
-  const allowed = new Uint8Array(EDGE_KINDS.length);
-  for (const kind of through ?? RUNTIME_EDGES) {
-    const at = EDGE_KINDS.indexOf(kind);
-    if (at !== -1) allowed[at] = 1;
-  }
-  return allowed;
-}

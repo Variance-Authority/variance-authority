@@ -127,8 +127,8 @@ describe('a line asked of a repository that declares suites', () => {
     const answer = await ask(['covering', '--file', 'src/charge.ts', '--root', root]);
 
     expect(answer.code).toBe(0);
-    expect(answer.out).toMatch(/^stories \(visual\): `src\/charge\.ts` is not in the index at `[^`]+\/suites\/stories\/[^`]+`, which holds 1 file\./mu);
-    expect(answer.out).toMatch(/^unit \(unit\): `src\/charge\.ts` is not in the index at .* Nothing recorded ends in `charge\.ts`\.$/mu);
+    expect(answer.out).toMatch(/^stories \(visual\): `src\/charge\.ts` is not in the index at `[^`]+\/suites\/stories\/[^`]+`, which holds 1 file, each named from the repository root\./mu);
+    expect(answer.out).toMatch(/^unit \(unit\): `src\/charge\.ts` is not in the index at .* no test covering it\.$/mu);
     expect(answer.out).not.toContain('Not loaded by');
   });
 
@@ -156,7 +156,7 @@ describe('a line asked of a repository that declares suites', () => {
   });
 });
 
-describe('a suite that recorded the file under another root', () => {
+describe('a suite that recorded another path of the same name', () => {
   // Each repository records the payment module's case in the unit suite unless
   // told otherwise, and the visual suite records the path it is given.
   const made: string[] = [];
@@ -171,39 +171,35 @@ describe('a suite that recorded the file under another root', () => {
   }
   afterAll(() => Promise.all(made.map((at) => rm(at, { recursive: true, force: true }))));
 
-  it('keeps its refusal whole beside a suite that answered, since it most likely ran the file', async () => {
+  it('is a suite that never loaded the file when it holds a longer path ending in the asked one', async () => {
     const at = await repository('packages/shop/src/pay.ts');
     const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', at]);
 
-    expect(answer.out).toMatch(/^stories \(visual\): `src\/pay\.ts` is not in the index at .* The record spells it `packages\/shop\/src\/pay\.ts`\.$/mu);
-    expect(answer.out).not.toContain('Not loaded by');
+    expect(answer.out.endsWith(`\n${NOT_LOADED('stories (visual)')}\n`)).toBe(true);
+    expect(answer.out).not.toContain('packages/shop/src/pay.ts');
   });
 
-  it('carries that path for a program, beside the refusal', async () => {
+  it('carries no other path for a program, beside the refusal', async () => {
     const at = await repository('packages/shop/src/pay.ts');
     const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', at, '--format', 'json']);
 
     const said = JSON.parse(answer.out) as { suites: Record<string, unknown>[] };
-    expect(said.suites.find((one) => one['suite'] === 'stories')).toMatchObject({ refused: 'unloaded', spelled: ['packages/shop/src/pay.ts'] });
-    expect(said.suites.find((one) => one['suite'] === 'checkout')).not.toHaveProperty('spelled');
+    expect(Object.keys(said.suites.find((one) => one['suite'] === 'stories') ?? {}).sort()).toEqual(['kind', 'reason', 'refused', 'suite']);
+    expect(answer.out).not.toContain('packages/shop/src/pay.ts');
   });
 
   it('is a suite that tests other code when only the file name matches', async () => {
     const at = await repository('lib/pay.ts');
-    const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', at, '--format', 'json']);
-    const text = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', at]);
+    const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', at]);
 
-    const said = JSON.parse(answer.out) as { suites: Record<string, unknown>[] };
-    expect(said.suites.find((one) => one['suite'] === 'stories')).not.toHaveProperty('spelled');
-    expect(text.out.endsWith(`\n${NOT_LOADED('stories (visual)')}\n`)).toBe(true);
+    expect(answer.out.endsWith(`\n${NOT_LOADED('stories (visual)')}\n`)).toBe(true);
   });
 
-  it('carries a shorter recorded path the asked one ends in, a record rooted deeper', async () => {
+  it('is a suite that never loaded the file when it holds a shorter path the asked one ends in', async () => {
     const at = await repository('src/pay.ts', 'packages/shop/src/pay.ts');
-    const answer = await ask(['covering', '--file', 'packages/shop/src/pay.ts', '--line', '12', '--root', at, '--format', 'json']);
+    const answer = await ask(['covering', '--file', 'packages/shop/src/pay.ts', '--line', '12', '--root', at]);
 
-    const said = JSON.parse(answer.out) as { suites: Record<string, unknown>[] };
-    expect(said.suites.find((one) => one['suite'] === 'stories')).toMatchObject({ spelled: ['src/pay.ts'] });
+    expect(answer.out.endsWith(`\n${NOT_LOADED('stories (visual)')}\n`)).toBe(true);
   });
 
   it('is a suite that tests other code when it holds the file name at its root', async () => {
@@ -224,7 +220,7 @@ describe('a suite that recorded the file under another root', () => {
     const at = await repository('packages/shop/src/pay.ts', 'src/Button.tsx');
     const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', at]);
 
-    expect(answer.out).toMatch(/^unit \(unit\): `src\/pay\.ts` is not in the index at .* Nothing recorded ends in `pay\.ts`\.$/mu);
+    expect(answer.out).toMatch(/^unit \(unit\): `src\/pay\.ts` is not in the index at .* no test covering it\.$/mu);
     expect(answer.out).not.toContain('Not loaded by');
   });
 });

@@ -24,6 +24,8 @@ async function acquireFor(request: CaptureRequest): Promise<string> {
     viewport: request.viewport,
     engine: request.engine,
     ...(request.fonts !== undefined ? { fonts: request.fonts } : {}),
+    ...(request.timezoneId !== undefined ? { timezoneId: request.timezoneId } : {}),
+    ...(request.locale !== undefined ? { locale: request.locale } : {}),
     roots: STORY_ROOTS,
   });
 }

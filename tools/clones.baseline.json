@@ -127,13 +127,6 @@
   },
   {
     "files": [
-      "packages/core/src/relate/narrow.ts",
-      "packages/core/src/relate/reach.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/core/src/rules/normalize/alias.ts",
       "packages/session/src/reads.ts"
     ],
@@ -347,7 +340,7 @@
       "packages/route-collector/src/page-agent.ts",
       "packages/storybook-collector/src/page-agent.ts"
     ],
-    "count": 4
+    "count": 3
   },
   {
     "files": [
@@ -367,13 +360,6 @@
     "files": [
       "packages/route-collector/src/source.ts",
       "packages/storybook-collector/src/source.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
-      "packages/route-collector/src/world.ts",
-      "packages/storybook-collector/src/world.ts"
     ],
     "count": 1
   },

@@ -1,6 +1,16 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
-import type { RawCapture, Viewport } from '@variance-authority/core/format';
+import {
+  driveBeforeLoad,
+  featuresOf,
+  forDriver,
+  type PageRegion,
+  type RawCapture,
+  type Recipe,
+  type Viewport,
+} from '@variance-authority/core/format';
 import { AGENT_GLOBAL, type CaptureRequest, type PageAgent } from './agent.js';
+import { observeNetwork, type NetworkObservation, type NetworkOptions } from './network.js';
+import { pinnedRegion } from './viewport.js';
 
 /**
  * A persistent Chromium harness: one browser, one page, one navigation, one
@@ -22,7 +32,7 @@ import { AGENT_GLOBAL, type CaptureRequest, type PageAgent } from './agent.js';
  * `unchanged` verdict vacuous, which is exactly the failure ADR-0003 is about.
  */
 
-export interface HarnessOptions {
+export interface HarnessOptions extends PageRegion {
   /** Page to navigate to, once. `file://` is fine and needs no server. */
   readonly url: string;
 
@@ -42,8 +52,20 @@ export interface HarnessOptions {
 
   /** See {@link CaptureRequest.fonts}. Omitted means the capture says so. */
   readonly fonts?: readonly string[];
+  /**
+   * Media features the project declares, such as `prefers-reduced-motion`.
+   * A declared motion preference is the one {@link HarnessOptions.stabilize}'s
+   * `reduced-motion` emulates.
+   */
   readonly features?: Readonly<Record<string, string>>;
   readonly assets?: Readonly<Record<string, string>>;
+
+  /**
+   * The stabilization recipe whose driver tricks — reduced motion, a fixed
+   * clock, the pointer off the page — are applied before the first navigation.
+   * Absent drives nothing. The ids applied are {@link Harness.driven}.
+   */
+  readonly stabilize?: Recipe;
 
   /** Defaults to `fixture:<subject>`, matching the JSDOM measurement. */
   readonly subjectId?: (subject: string) => string;
@@ -72,12 +94,24 @@ export interface Harness {
   readonly engine: string;
 
   /**
+   * The timezone and locale the page was opened in, as they land in the
+   * environment key: the declared pair, or `UTC` and `en-US`.
+   */
+  readonly region: Required<PageRegion>;
+
+  /**
    * Render `(subject, variant)` in the shared page and return its capture.
    *
    * Sequential by contract. Two concurrent calls would render two subjects into
    * one document and let one decide the other's verdict.
    */
   capture(subject: string, variant: string): Promise<RawCapture>;
+
+  /**
+   * The driver tricks applied before the first navigation, for the page agent
+   * to keep in the recipe it records. Empty when nothing was driven.
+   */
+  readonly driven: readonly string[];
 
   /** Console errors the page reported, in order. Empty is the expected case. */
   pageErrors(): readonly string[];
@@ -93,7 +127,8 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
   const errors: string[] = [];
 
   try {
-    const context = await newContext(browser, options.viewport);
+    const region = pinnedRegion(options);
+    const context = await newContext(browser, options.viewport, region);
     const page = await context.newPage();
 
     // A bundle that throws leaves the agent global undefined, and the failure
@@ -104,6 +139,12 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
       if (message.type() === 'error') errors.push(message.text());
     });
 
+    // Before `prepare` and the first navigation, because all three driver
+    // tricks survive one and the page's first script already reads the clock
+    // and the motion preference.
+    const driven =
+      options.stabilize === undefined ? [] : await driveBeforeLoad(options.stabilize, page, options.features);
+    const features = featuresOf(forDriver(options.stabilize ?? [], driven), options.features);
     if (options.prepare !== undefined) await options.prepare(page);
 
     await page.goto(options.url, { waitUntil: 'load' });
@@ -114,7 +155,9 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
 
     return {
       engine,
+      region,
       page,
+      driven,
       pageErrors: () => [...errors],
       async capture(subject, variant) {
         return evaluateCapture(page, {
@@ -123,8 +166,9 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
           subjectId: subjectId(subject),
           viewport: options.viewport,
           engine,
+          ...region,
           ...(options.fonts ? { fonts: options.fonts } : {}),
-          ...(options.features ? { features: options.features } : {}),
+          ...(features ? { features } : {}),
           ...(options.assets ? { assets: options.assets } : {}),
         });
       },
@@ -138,6 +182,28 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
     await browser.close();
     throw error;
   }
+}
+
+/**
+ * A harness whose page is watched by {@link observeNetwork} from before its
+ * first navigation, when `network` asks for it; absent watches nothing.
+ *
+ * The observation is the caller's to close, before the harness: it outlives the
+ * harness's `prepare`, which is where it has to start, because a watcher
+ * installed after `goto` has missed every asset the document pulled in.
+ */
+export async function createObservedHarness(
+  options: Omit<HarnessOptions, 'prepare'>,
+  network: NetworkOptions | undefined,
+): Promise<{ readonly harness: Harness; readonly network?: NetworkObservation }> {
+  let observation: NetworkObservation | undefined;
+  const harness = await createHarness({
+    ...options,
+    prepare: async (page): Promise<void> => {
+      if (network !== undefined) observation = await observeNetwork(page, network);
+    },
+  });
+  return observation === undefined ? { harness } : { harness, network: observation };
 }
 
 /**
@@ -161,15 +227,20 @@ export async function captureOnce(
   }
 }
 
-async function newContext(browser: Browser, viewport: Viewport): Promise<BrowserContext> {
+async function newContext(
+  browser: Browser,
+  viewport: Viewport,
+  region: Required<PageRegion>,
+): Promise<BrowserContext> {
   return browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: viewport.deviceScaleFactor,
     // Declared, never inherited from the host OS. The same case must not render
     // on a white canvas here and a black one on someone else's machine; that is
     // an undeclared render input, and the environment key can only cover inputs
-    // somebody decided (spec §11.1).
+    // somebody decided (spec §11.1). The timezone and the language likewise.
     colorScheme: viewport.colorScheme,
+    ...region,
   });
 }
 

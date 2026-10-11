@@ -47,7 +47,7 @@
  */
 
 import { extname } from 'node:path';
-import { idOf, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { NOTHING, WHOLE, idOf, type NodeId, type Relations } from '@variance-authority/core/relate';
 import { native } from '../addon.js';
 import type { NativeModuleReaders, NativeScanner } from '../native.js';
 import { MODULE_EXTENSIONS } from '../read.js';
@@ -315,9 +315,13 @@ function readValues(
   // test: every test that loaded it crossed its rows, whatever edge it came by.
   const covered = new Set<number>();
   const declaring = relations.names[id];
-  walkImporters(relations, id, moved, (importer, carried) =>
-    readImporter(context, importer, carried, verdict.gone, reader, importer === declaring ? new Set() : covered),
-  );
+  walkImporters(relations, id, moved, (importer, carried) => {
+    const audience = importer === declaring ? new Set<number>() : covered;
+    if (carried !== WHOLE) return readImporter(context, importer, carried, verdict.gone, reader, audience);
+    // It reads the file, not a name: every name in it moved for it.
+    answerWhole(context, importer, measured(context, importer, audience), (at, block) => reader(first!, at, block));
+    return NOTHING;
+  });
 
   // A test that loaded the declaring file through no importer the reading
   // followed reached it by an edge the graph does not hold. It is named, not
@@ -351,22 +355,7 @@ function readImporter(
   covered: Set<number>,
 ): ReadonlyMap<string, string> {
   const { coverage, options, knownAs } = context;
-  const rowsOf = new Map<string, readonly number[]>();
-  let test: number | undefined;
-  for (const name of knownAs(importer)) {
-    test ??= findTest(coverage, name);
-    const rows = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
-    if (rows.length > 0) rowsOf.set(name, rows);
-  }
-  if (test !== undefined) covered.add(test);
-  for (const rows of rowsOf.values()) {
-    for (const module of rows) {
-      for (let block = coverage.moduleBlocks.at(module); block < coverage.moduleBlocks.at(module + 1); block += 1) {
-        for (const entered of coverage.crossings.members(coverage.blockSet.at(block))) covered.add(entered);
-      }
-    }
-  }
-
+  const { rowsOf, test } = measured(context, importer, covered);
   const origin = (name: string): string => moved.get(name) ?? name;
   const [first] = moved.keys();
   // A test file carries no row, so its text needs no frame: nothing is charged
@@ -378,9 +367,7 @@ function readImporter(
 
   if (found === null) {
     // Not proved, no text, or not parsed: the importer as a whole is what can be said.
-    if (rowsOf.size > 0) chargeModule(context, importer, rowsOf, (at, block) => reader(origin(first!), at, block));
-    else if (test === undefined) context.whole(importer, reader(origin(first!), importer));
-    else context.pick(test, reader(origin(first!), importer));
+    answerWhole(context, importer, { rowsOf, test }, (at, block) => reader(origin(first!), at, block));
     return new Map();
   }
   if (rowsOf.size === 0 && test === undefined) return readUnmeasured(found, moved);
@@ -404,6 +391,42 @@ function readImporter(
     if (!passed.has(name)) passed.set(name, origin(from));
   }
   return passed;
+}
+
+/** An importer's instrumented rows under each of its names, and its test when it is one, marked `covered`. */
+function measured(context: ReadingContext, importer: string, covered: Set<number>) {
+  const { coverage, knownAs } = context;
+  const rowsOf = new Map<string, readonly number[]>();
+  let test: number | undefined;
+  for (const name of knownAs(importer)) {
+    test ??= findTest(coverage, name);
+    const rows = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
+    if (rows.length > 0) rowsOf.set(name, rows);
+  }
+  if (test !== undefined) covered.add(test);
+  for (const rows of rowsOf.values()) {
+    for (const module of rows) {
+      for (let block = coverage.moduleBlocks.at(module); block < coverage.moduleBlocks.at(module + 1); block += 1) {
+        for (const entered of coverage.crossings.members(coverage.blockSet.at(block))) covered.add(entered);
+      }
+    }
+  }
+  return { rowsOf, test };
+}
+
+/**
+ * An importer answered as a whole: every test that loaded its row, the test it
+ * is, or — with neither — every test the graph says loaded it.
+ */
+function answerWhole(
+  context: ReadingContext,
+  importer: string,
+  { rowsOf, test }: ReturnType<typeof measured>,
+  reason: (at: string, block?: number) => ReturnType<Reader>,
+): void {
+  if (rowsOf.size > 0) chargeModule(context, importer, rowsOf, reason);
+  else if (test === undefined) context.whole(importer, reason(importer));
+  else context.pick(test, reason(importer));
 }
 
 /**

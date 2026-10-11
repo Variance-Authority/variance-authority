@@ -10,6 +10,9 @@ export type { SnapshotCase } from './arranged.js';
 export type { Evidence, Observed } from './evidence.js';
 export { varianceFixtures } from './fixture.js';
 export type { VarianceFixtures, VarianceRuntime, VarianceWorkerFixtures } from './fixture.js';
+export { DEFAULT_STABILIZE } from '@variance-authority/core/format';
+export { driveBeforeTest } from './drive.js';
+export type { VarianceDriveFixtures } from './drive.js';
 export type { VarianceOptions, InPlaceCaptureOptions, MaterializationOptions } from './options.js';
 export { assertUnchanged, toBeUnchanged, varianceMatchers } from './matcher.js';
 export type { UnchangedOptions } from './matcher.js';
@@ -33,6 +36,8 @@ export type {
   VarianceVantageFixtures,
   VarianceVantageWorkerFixtures,
 } from './vantage.js';
+export { varianceRendererFixtures } from './renderers.js';
+export type { RendererPool, VarianceRendererFixtures, VarianceRendererWorkerFixtures } from './renderers.js';
 export { varianceWireFixtures } from './wire.js';
 export type { VarianceWireFixtures } from './wire.js';
 export { CHROMIUM_RASTER_ARGS } from '@variance-authority/playwright/renderer';

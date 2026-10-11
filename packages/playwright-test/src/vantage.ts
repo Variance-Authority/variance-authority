@@ -71,6 +71,7 @@ import {
   type Waited,
   type WaitOptions,
 } from '@variance-authority/vantage';
+import { repositoryRoot } from '@variance-authority/sense/test-selection';
 import { ownerOf } from './execution.js';
 
 /** What a test author calls to be seen. */
@@ -218,7 +219,7 @@ export const varianceVantageFixtures: Fixtures<
 
   varianceWatched: [
     async ({ varianceVantage }, use, testInfo) => {
-      const file = ownerOf(process.cwd(), testInfo);
+      const file = ownerOf(repositoryRoot(process.cwd()), testInfo);
       varianceVantage?.opened(testInfo.testId, {
         title: titleOf(testInfo, file),
         file,

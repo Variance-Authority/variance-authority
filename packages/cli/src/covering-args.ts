@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { checkoutPath } from '@variance-authority/sense';
 import { distanceRange } from '@variance-authority/sense/test-selection';
 import { noPositionals, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
@@ -40,7 +41,7 @@ export interface WhereCondition {
 
 /** A question about one piece of source. */
 export interface CoveringAt extends CoveringSource {
-  /** The source file the question is about, as the index spells it. */
+  /** The source file the question is about, named from the repository root. */
   readonly file: string;
   /** `--line <n>`: one line of it. Alternative to `--function`. */
   readonly line?: number;
@@ -173,9 +174,10 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
     );
   }
 
+  const source = executionAnd(flags);
   return {
-    ...executionAnd(flags),
-    file,
+    ...source,
+    file: fromRoot(file, source.root),
     ...(line === undefined ? {} : { line }),
     ...(functionName === undefined ? {} : { function: functionName }),
     ...(atDistance === undefined ? {} : { atDistance }),
@@ -183,6 +185,20 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
     ...(flags.present.has('--hops') ? { hops: true as const } : {}),
     ...(text === undefined ? {} : { text }),
   };
+}
+
+/**
+ * `--file` as the record names it: from the root, with `/` between segments.
+ *
+ * A relative path is read from the root and an absolute one, as an editor
+ * copies it, from `/`; `./` and `..` are collapsed. That is the same path in
+ * another syntax. Nothing is matched by name, so a path that leaves the root is
+ * refused rather than climbed out of.
+ */
+function fromRoot(file: string, root: string): string {
+  const asked = checkoutPath(root, file);
+  if ('outside' in asked) throw new OperatorError(`\`--file\`: ${asked.outside}`);
+  return asked.path;
 }
 
 /**

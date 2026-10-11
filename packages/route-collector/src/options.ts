@@ -199,6 +199,16 @@ export interface RouteCollectorOptions {
   readonly stabilize?: readonly string[];
 
   /**
+   * The instant `Date` reads on every page, as an ISO 8601 instant with its
+   * zone. Defaults to `DEFAULT_NOW`, noon UTC on 15 June 2024.
+   *
+   * Applied by the `freeze-clock` trick, so a `stabilize` list without it
+   * leaves the clock running and this unused. A time with no zone is refused
+   * before a browser opens: it names a different instant on every machine.
+   */
+  readonly now?: string;
+
+  /**
    * Milliseconds to wait for a route's Suspense boundaries. Defaults to 5000.
    *
    * Separate from `readyTimeoutMs` because it answers a separate question. A
