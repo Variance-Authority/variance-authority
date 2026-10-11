@@ -186,6 +186,7 @@ export {
   type LastCaseRun,
   type ModuleTexts,
 } from './case-landing.js';
+export { casesCutApart, type IndexedCut } from './case-index-cut.js';
 export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordOfCases, recordedCases, recordedEyesAt, recordedEyesOf, sharedRecord, withCaseSections, withoutCoverage, type CaseSections } from './case-record.js';
 export { collectedRecord } from './collected-record.js';
 export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';
