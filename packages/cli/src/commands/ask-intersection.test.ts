@@ -54,6 +54,12 @@ describe('ask intersection over a checkout', () => {
     expect(text).not.toContain('src/old/selectors.ts —');
   });
 
+  it('crosses the files that import a name, at the lines that do', async () => {
+    const text = await ask('uses --name selectBalance', 'discover --path ^src/Wallet');
+    expect(text).toContain('1 file in all of them.');
+    expect(text).toContain('src/Wallet.ts — 1: line 1 · 2: the file');
+  });
+
   it.skipIf(!RG)('reads the names a question needs, and the tree another needs', async () => {
     const text = await ask("discover --declares '^selectBalance$'", 'grep --query state --from src/Wallet.ts');
     expect(text).toContain('1 file in all of them.');
