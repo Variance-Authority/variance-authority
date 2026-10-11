@@ -89,7 +89,8 @@ crossing uses a transport before its coverage joins its test file.
   so its text belongs to the enclosing region and carries no probe across. A
   declaration exists from its block's start, so one written after a branch
   that can leave opens a region probed there instead of joining the
-  continuation its text sits in.
+  continuation its text sits in, and one under a `case` opens a region probed
+  in the `switch`'s discriminant instead of joining its case.
 - A bare `if` whose `else` is synthesized must not rebind a dangling `else`
   further out.
 

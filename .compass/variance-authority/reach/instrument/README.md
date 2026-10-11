@@ -78,11 +78,12 @@ first probe, which makes an incomplete configuration visible rather than
 silently dropping evidence. The exception is the one a module's own text
 declares: a function it hands to a page through a serializing call, written at
 the call or bound in the module, is found from the call and left without a
-region, so its text belongs to the enclosing region and the rest of the module
+probe, so its text belongs to the enclosing region and the rest of the module
 keeps its probes. A declaration is hoisted, so one written after a branch that
-can leave opens a region probed where its block starts, and its text is charged
-to every test that entered the block. A function written in another module and sent from this one
-cannot be seen from either text, and stays the configuration's to exclude.
+can leave, or under any case of a `switch`, opens a region probed where its
+block is entered, and its text is charged to every test that entered the block.
+A function written in another module and sent from this one cannot be seen from
+either text, and stays the configuration's to exclude.
 
 ## Implementation coordinates
 

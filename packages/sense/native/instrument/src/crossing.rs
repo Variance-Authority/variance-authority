@@ -6,8 +6,8 @@
 //! throws at the first one. So the walk places nothing inside a function this
 //! finds, and keeps probing the rest of the module: the text of a crossing
 //! function belongs to the region around it, the way any other expression's
-//! text does, or, for a declaration after a branch, to the block it is hoisted
-//! to (`walk.rs`).
+//! text does, or, for a declaration after a branch or under a `case`, to the
+//! block it is hoisted to (`walk.rs`).
 //!
 //! What crosses is decided by the call, not by the function. [`CROSSINGS`]
 //! names each method that serializes an argument and which argument it is,

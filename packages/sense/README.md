@@ -1793,9 +1793,12 @@ That function gets no probes; an edit inside it is charged to the region around
 it, which is the module's when it is declared at the top level. A function
 declaration exists from the moment its block starts, so when you write one after
 an early `return`, it gets a region probed where the block starts: an edit
-inside it reaches the tests that returned early too. A function you import and pass, take as a parameter, or build
-with `new Function` is not found, so leave the module that writes it
-uninstrumented: out of the seam's `include`, or not passed to `instrument`.
+inside it reaches the tests that returned early too. Every `case` of a `switch`
+is one block, so a declaration under one case is charged to the tests that
+reached the `switch`, whichever case they took. A function you import and pass,
+take as a parameter, or build with `new Function` is not found, so leave the
+module that writes it uninstrumented: out of the seam's `include`, or not passed
+to `instrument`.
 
 The third argument is the id the probes report, and defaults to the file. When
 the journals go to `recordExecution`, pass `moduleId(file, sourceText)` from

@@ -126,7 +126,8 @@
  * call or bound in the module to a function, by a declaration or a variable,
  * that is never reassigned. It gets no probe, and its text belongs to the
  * region around it — except a declaration written after a branch that can
- * leave, which exists from its block's start and gets a region probed there. A
+ * leave or under a `case`, which exists from its block's start and gets a
+ * region probed where the block is entered. A
  * function written in another module and sent from this one is not visible
  * here, and the module that wrote it stays uninstrumented.
  */

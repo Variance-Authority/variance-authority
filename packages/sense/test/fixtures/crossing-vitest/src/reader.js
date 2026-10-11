@@ -23,3 +23,15 @@ export function size(page, early) {
     return document.items.length;
   }
 }
+
+export function kind(page, which) {
+  switch (which) {
+    case 'count':
+      return page.evaluate(countKinds);
+    default:
+      function countKinds() {
+        return document.items.length;
+      }
+      return 0;
+  }
+}

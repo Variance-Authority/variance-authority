@@ -27,6 +27,11 @@ import { selectTestFiles } from './index.js';
  * takes. Its text sits after that return, where the test never arrives, so an
  * edit inside it reaches the test only when it is charged to the entry of the
  * function that declares it.
+ *
+ * Every `case` of a `switch` shares one block, so `countKinds`, written under
+ * `default`, exists in the `case` that hands it over. An edit inside it reaches
+ * the test that took that case only when it is charged to the region the
+ * `switch` is reached in.
  */
 
 const execute = promisify(execFile);
@@ -72,6 +77,7 @@ describe('a function handed to a page', () => {
       ?.blocks.map((block) => [block.kind, block.name, block.testFiles]);
     const all = [
       named('test/count.test.js'),
+      named('test/kind.test.js'),
       named('test/label.test.js'),
       named('test/size.test.js'),
       named('test/title.test.js'),
@@ -86,6 +92,10 @@ describe('a function handed to a page', () => {
       ['branch', 'size', []],
       ['continuation', 'size', []],
       ['function', 'size/countAll', [named('test/size.test.js')]],
+      ['function', 'kind', [named('test/kind.test.js')]],
+      ['case', 'kind', [named('test/kind.test.js')]],
+      ['case', 'kind', []],
+      ['function', 'kind/countKinds', [named('test/kind.test.js')]],
     ]);
 
     const inline = edited(2, '  return page.evaluate(() => document.title);', '  return page.evaluate(() => document.title.trim());');
@@ -100,5 +110,8 @@ describe('a function handed to a page', () => {
 
     const hoisted = edited(23, '    return document.items.length;', '    return document.items.length - 1;');
     await expect(selectTestFiles(coverageFile, hoisted)).resolves.toEqual([named('test/size.test.js')]);
+
+    const otherCase = edited(33, '        return document.items.length;', '        return document.items.length - 1;');
+    await expect(selectTestFiles(coverageFile, otherCase)).resolves.toEqual([named('test/kind.test.js')]);
   }, 20_000);
 });

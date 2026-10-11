@@ -184,6 +184,23 @@ mod tests {
     }
 
     #[test]
+    fn a_declaration_in_one_case_is_entered_with_the_switch_that_holds_every_case() {
+        let source = "export function f(page, x) {\n  switch (x) {\n    case 1: return page.evaluate(probe);\n    default: function probe() { return 1 }\n  }\n}\n";
+        let out = cut::cut(source, "f.ts", false).expect("it parses");
+        assert!(out.code.contains("function probe() { return 1 }"));
+        let entry = out.blocks.iter().position(|block| block.name == "f").expect("f has a region");
+        let probe = out.blocks.iter().position(|block| block.name == "f/probe").expect("the declaration has a region");
+        assert_eq!(out.blocks[probe].owner, Some(entry as u32));
+        // Probed as the switch is reached, before any case is chosen.
+        assert!(out.code.contains(&format!("switch (__va({probe}),x)")));
+        // Ahead of an `await` the discriminant opens with, outside what it resumes with.
+        let source = "outer: switch (await page.kind) {\n  case 1: page.evaluate(probe); break outer;\n  default: function probe() { return 1 }\n}\n";
+        let out = cut::cut(source, "f.ts", false).expect("it parses");
+        let probe = out.blocks.iter().position(|block| block.name == "probe").expect("the declaration has a region");
+        assert!(out.code.contains(&format!("outer: switch (__va({probe}),__vaR(await page.kind")));
+    }
+
+    #[test]
     fn a_module_probes_its_crossing_declaration_after_its_imports_and_ahead_of_an_await() {
         let source = "import { page } from './page';\nawait page.evaluate(probe);\nif (page.closed) throw 0;\nexport function probe() { return 1 }\n";
         let out = cut::cut(source, "f.ts", false).expect("it parses");

@@ -56,7 +56,9 @@
 //! continuation the test that left never reached. Such a declaration opens the
 //! region it would have as a function, owned by the region its block is
 //! entered with and probed where the block's statements start, ahead of
-//! anything that can leave. Nothing is placed in its text.
+//! anything that can leave. Nothing is placed in its text. Every case of a
+//! `switch` is one block, so a declaration under any case is charged to the
+//! region the `switch` is reached in, and probed in its discriminant.
 //!
 //! ## Offsets
 //!
@@ -141,8 +143,10 @@ pub struct Walker {
     path: String,
     owner: u32,
     hint: Option<String>,
-    /// The crossing declaration the statement being walked is, when its text sits in a continuation.
+    /// The crossing declaration the statement being walked is, when control can skip its text.
     declared: Option<hoisted::Declared>,
+    /// The slot a `switch` hands the case it walks next: every case is its block.
+    cased: Option<hoisted::Slot>,
 }
 
 impl Walker {
@@ -158,6 +162,7 @@ impl Walker {
             owner: 0,
             hint: None,
             declared: None,
+            cased: None,
         }
     }
 
@@ -193,11 +198,15 @@ impl Walker {
     }
 
     pub fn list(&mut self, statements: &[Statement], path: &str, owner: u32) {
-        let slot = self.slot(statements);
+        // A case's declarations are its switch's, whatever precedes them.
+        let (slot, cased) = match self.cased.take() {
+            Some(slot) => (Some(slot), true),
+            None => (self.slot(statements, owner), false),
+        };
         let mut current = owner;
         for (index, statement) in statements.iter().enumerate() {
-            if let (Some(slot), Some(span), true) = (slot, self.declaration(statement), current != owner) {
-                self.declared = Some(hoisted::Declared { span, owner, slot });
+            if let (Some(slot), Some(span), true) = (slot, self.declaration(statement), cased || current != owner) {
+                self.declared = Some(hoisted::Declared { span, slot });
             }
             let decision = self.at(path, current, |w| w.statement(statement));
             self.declared = None;
@@ -277,7 +286,7 @@ impl Walker {
     ///
     /// A function whose text leaves this realm holds nothing: its text, nested
     /// functions and all, is the enclosing region's, unless it is a declaration
-    /// in a continuation, which opens a region with nothing in it. It still
+    /// in a continuation or a case, which opens a region with nothing in it. It still
     /// takes its name, so every other function keeps the address it would have.
     fn entered(&mut self, span: Span, own: Option<String>, params: &FormalParameters, body: Body, arrow: bool) {
         let hint = self.hint.take();
@@ -290,7 +299,7 @@ impl Walker {
         };
         if self.crossing.contains(&(span.start, span.end)) {
             if let (Some(declared), Some(end)) = (self.declared.take_if(|it| it.span == (span.start, span.end)), end) {
-                self.hoisted(declared, params.span.start, end);
+                self.hoisted(declared.slot, params.span.start, end);
             }
             self.scopes.pop();
             return;

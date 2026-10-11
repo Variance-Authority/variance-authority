@@ -17,8 +17,9 @@ to `evaluate`, `evaluateAll`, `evaluateHandle`, `evaluateOnNewDocument`,
 declared in the same module, gets no probes. The rest of the module is probed as
 before, and an edit inside the function is charged to the region around it. A
 function declaration exists from the moment its block starts, so one written
-after a `return` is charged to the tests that entered the block, the early
-leavers included. A function imported from another module and sent from
+after a `return`, or under another `case` of the `switch` that sends it, is
+charged to the tests that entered the block, the early leavers and the other
+cases included. A function imported from another module and sent from
 this one is not found, and the module that writes it still needs leaving out.
 
 The instrumentation ids are now `sense:instrument/presence-v6` and
