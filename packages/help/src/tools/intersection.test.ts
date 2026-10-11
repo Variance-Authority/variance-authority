@@ -64,6 +64,8 @@ beforeAll(() => {
       reads('src/Wallet.tsx', 'src/store/selectors.ts'),
       reads('src/store/selectors.ts'),
       reads('src/old/selectors.ts'),
+      // No reader claims it, so it has no names to read, rather than names unread.
+      reads('README.md'),
     ],
     root,
   );

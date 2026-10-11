@@ -57,10 +57,12 @@ async function drawn(index?: string): Promise<SourceNames | undefined> {
 
 describe('readTree over a checkout the graph reads', () => {
   it('declares what a file does not export', async () => {
+    reread.length = 0;
     expect((await drawn())?.get('src/theme.ts')?.declared).toEqual([
       { name: 'ThemeContext', line: 1 },
       { name: 'useTheme', line: 2 },
     ]);
+    expect(reread.flat()).toContain('src/theme.ts');
   }, 120_000);
 
   it('declares it when `variance index` wrote the rows the tree is read back from', async () => {

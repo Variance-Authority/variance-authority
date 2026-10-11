@@ -1,6 +1,8 @@
+import { extname } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { SourceNames, Tool, Tree } from '@variance-authority/mcp/tools';
 import { entryPoints, pathsOf, refusalFor, startPointArg } from '@variance-authority/mcp/tools';
+import { READABLE } from '@variance-authority/sense';
 import { ripgrep } from './ripgrep.js';
 import { importsOf as importersOf } from './unpublished.js';
 
@@ -55,13 +57,14 @@ const imports = (count: number): string => `${count} ${count === 1 ? 'import' : 
 const none = (): readonly string[] => [];
 
 /**
- * The files the tree holds and the names do not: a file whose names the scan
- * could not hand over is unknown, never a file that declares and imports
- * nothing, so a name operand says how many there are.
+ * The files a reader claims and the names do not hold: a file whose names the
+ * scan could not hand over is unknown, never a file that declares and imports
+ * nothing, so a name operand says how many there are. A file no reader claims,
+ * a README or a manifest, has no names to read and is not counted.
  */
 function unreadOf(tree: Tree, names: SourceNames): string {
   let unread = 0;
-  for (const file of tree.files) if (!names.has(file)) unread += 1;
+  for (const file of tree.files) if (READABLE.has(extname(file)) && !names.has(file)) unread += 1;
   return unread === 0 ? '' : ` — the names of ${counted(unread)} were not read`;
 }
 
