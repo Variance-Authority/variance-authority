@@ -74,8 +74,7 @@ const ANIMATED_PAGE = `<!doctype html><html><head><style>
  * After `load` because a font the parser meets holds `load` itself, and the
  * navigation's own timeout then refuses the route. One applied by a script is
  * what a component mounted late looks like, and it reaches `fonts.ready` with
- * the request still open. A second face is declared in a stylesheet the page
- * imports, whose rules are reached through the import rather than the page's own.
+ * the request still open. A second is declared in a sheet the page imports.
  */
 const LATE_FONT_PAGE = `<!doctype html><html><head><style>
   @import url(/faces.css);
@@ -85,6 +84,7 @@ const LATE_FONT_PAGE = `<!doctype html><html><head><style>
 </style></head><body><main id="app"><p>Hello</p><span>there</span></main>
 <script>addEventListener('load', () => document.body.classList.add('mounted'));</script>
 </body></html>`;
+const FACES = "@font-face { font-family: Imported; src: url(/imported.woff2) format('woff2'); }";
 
 /**
  * The same four-second loop, driven from script and only for a visitor who did
@@ -150,12 +150,8 @@ beforeAll(async () => {
   if (!BROWSER_AVAILABLE) return;
 
   server = createServer((request, response) => {
-    if (request.url === '/stalled.woff2' || request.url === '/imported.woff2') return;
-    if (request.url === '/faces.css') {
-      const face = "@font-face { font-family: Imported; src: url(/imported.woff2) format('woff2'); }";
-      response.writeHead(200, { 'content-type': 'text/css' }).end(face);
-      return;
-    }
+    if (request.url?.endsWith('.woff2')) return;
+    if (request.url === '/faces.css') return void response.end(FACES);
     const page =
       request.url === '/motion'
         ? MOTION_PAGE
@@ -362,10 +358,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('what the default recipe leaves waiting', ()
     const collector: Collector = await (
       await routeCollector({ routes: { 'page/late-font': `${base}/late-font` }, roots: ['#app'] })
     )({
-      config: {
-        viewport: { width: 800, height: 600, deviceScaleFactor: 1, colorScheme: 'light' },
-        fonts: [],
-      },
+      config: { viewport: { width: 800, height: 600, deviceScaleFactor: 1, colorScheme: 'light' }, fonts: [] },
       plan: { subjects: [{ subject: { id: 'page/late-font', kind: 'route' } }], notObserved: [], warnings: [] },
     });
 
@@ -382,10 +375,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('what the default recipe leaves waiting', ()
       // Named by its family and the source its rule asked for, so the request
       // that never answered can be found. The 15000ms bound is fixed in the
       // trick, not a parameter, so this test pays it.
-      expect(outcome).toMatchObject({
-        ok: false,
-        because: expect.stringMatching(/Stalled from url\(.*\/stalled\.woff2/),
-      });
+      expect(outcome).toMatchObject({ ok: false, because: expect.stringMatching(/Stalled from url\(.*\/stalled\.woff2/) });
       expect(outcome).toMatchObject({ because: expect.stringMatching(/Imported from url\(.*\/imported\.woff2/) });
     } finally {
       await collector.close();
