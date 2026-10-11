@@ -178,6 +178,7 @@ export { sharedPreconditions, testsGovernedBy } from './lookup.js';
 export { withIndexLock } from './index-lock.js';
 export { landCases, lastCaseRunOf, textsOf, type CaseLanding, type LaidRun, type LandedShard, type LastCaseRun, type ModuleTexts } from './case-landing.js';
 export { casesCutApart, type IndexedCut } from './case-index-cut.js';
+export { followRows } from './case-cuts.js';
 export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordOfCases, recordedCases, recordedEyesAt, recordedEyesOf, sharedRecord, withCaseSections, withoutCoverage, type CaseSections } from './case-record.js';
 export { collectedRecord } from './collected-record.js';
 export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';

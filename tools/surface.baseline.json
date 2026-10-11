@@ -2968,6 +2968,7 @@
         "encodeExecutionIndex": "function",
         "finalizeJestJourneys": "function",
         "foldTestCoverage": "function",
+        "followRows": "function",
         "formatCoveringChange": "function",
         "groupByDistance": "function",
         "heldCommitRuns": "function",

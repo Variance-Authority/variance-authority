@@ -129,6 +129,8 @@ import preconditions from './case-preconditions.cjs';
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
 import type { CaseLines } from './case-lines.js';
+import type { CoverageBlock, WrittenLines } from './index.js';
+import type { SetExecutionModule } from './execution-set-format.js';
 import { linesAcross, linesOverIndex, type ReachedLines } from './reached-lines.js';
 
 /**
@@ -426,13 +428,28 @@ export function ownedExecutionIndexFrom(
   return { index, owners, lines: linesOverIndex(ordered.map((journal) => journal.lines), lined) };
 }
 
+/** A region of a module's row, as much of it as the case index keeps. */
+export type CutRegion = Pick<CoverageBlock, 'ordinal' | 'owner' | 'kind' | 'name' | 'path' | 'source'> & WrittenLines;
+
+/**
+ * The cut a case index holds of a module's row: the regions with a place, at
+ * their lines, and each one's owner among them. A region the transform wrote
+ * without an origin has no place, so the index has no row for it.
+ */
+export function indexCut(blocks: readonly CutRegion[]): Pick<SetExecutionModule, 'blocks'> & { readonly owner: Uint32Array } {
+  return {
+    blocks: blocks.filter(isWritten).map(({ kind, name, path, startLine, endLine, source }) => ({ kind, name, path, startLine, endLine, source })),
+    owner: keptOwners(blocks),
+  };
+}
+
 /**
  * Each written region's owner, as its position among the written regions: the
  * owner its row names, or the nearest one up its owners that was written where
  * the transform wrote that one. {@link NO_OWNER} where none up to the module
  * root was.
  */
-export function keptOwners(blocks: CapturedModule['blocks']): Uint32Array {
+export function keptOwners(blocks: readonly (Pick<CoverageBlock, 'ordinal' | 'owner'> & WrittenLines)[]): Uint32Array {
   const byOrdinal = new Map(blocks.map((block) => [block.ordinal, block]));
   const keptAt = new Map<number, number>();
   for (const block of blocks) if (isWritten(block)) keptAt.set(block.ordinal, keptAt.size);

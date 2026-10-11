@@ -36,7 +36,8 @@ import { landingRecord } from './suite-record.js';
  * the shard's record, and those are laid over the target's in the same order
  * and written into the record the landing writes; a shard that kept none takes
  * the target's with it, so nobody reads cases the snapshot has replaced. See
- * `landCases`.
+ * `landCases`. A module whose rows the landing re-cut to another text has its
+ * held cases laid onto the same cut (`followRows`).
  *
  * A shard whose run instrumented nothing holds its cases and no coverage. It is
  * unmeasured, so it folds nothing and moves no runs record, and its cases are
@@ -159,15 +160,18 @@ export async function landJourneys(
     const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
     const landed = folded === undefined ? previous : selection.mergeCoverage(previous, folded);
     const runs = folded === undefined ? undefined : selection.commitRunsAfter(previous, held, folded, installed);
-    // The index beside the snapshot was cut from the texts the snapshot names.
-    const { landing: cases, sections } = selection.landCases(
+    // The index beside the snapshot was cut from the texts the snapshot names,
+    // and a module no shard recorded is laid onto the cut its rows landed at.
+    const texts = selection.textsOf(previous);
+    const { landing: cases, sections: laid } = selection.landCases(
       at,
       selection.caseSectionsAt(at),
       root,
       read,
-      selection.textsOf(previous),
+      texts,
       previous?.commit,
     );
+    const sections = selection.followRows(laid, landed, texts);
     // Shards that measured nothing and kept no case this build reads, over no
     // coverage, leave nothing to write: the target stays as it was.
     const kept = landed !== undefined || Object.values(sections).some((part) => part !== undefined);
