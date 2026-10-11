@@ -22,6 +22,10 @@ export interface IndexedCut extends Cut {
   readonly file: string;
 }
 
+// FIXME: an edit that moves no region's lines leaves both cuts alike, and the
+// index then passes for the snapshot's text when it was cut at another. The
+// index carrying the text each module was recorded from, as `relined` asks
+// too, would answer this by digest.
 /**
  * The files of `modules` the case index cut at other text than the snapshot
  * of the record at `coverageFile`: some region of theirs stands at other
@@ -32,10 +36,6 @@ export interface IndexedCut extends Cut {
  * by {@link cutAlike}, the test a run lays its cases over a module by. A file
  * the snapshot holds no row for has nothing to compare with and is not one.
  */
-// FIXME: an edit that moves no region's lines leaves both cuts alike, and the
-// index then passes for the snapshot's text when it was cut at another. The
-// index carrying the text each module was recorded from, as `relined` asks
-// too, would answer this by digest.
 export function casesCutApart(coverageFile: string, modules: readonly IndexedCut[]): ReadonlySet<string> {
   if (modules.length === 0) return new Set();
   return askCoverageFile(coverageFile, (coverage) => {
