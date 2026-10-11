@@ -21,7 +21,7 @@ use sha2::{Digest, Sha256};
 use crate::compact::Layer;
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
-use crate::help_usage::{importers, usage, IndexedUsage, NameUse, NamedExport};
+use crate::help_usage::{importers, usage, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::tree;
 
@@ -91,10 +91,12 @@ fn reading(root: &str, index: &str, opened: &[String], published: &[String], une
 }
 
 /// Every import of `name` out of one of `files`, which are repo-relative, by
-/// any file of the chain at `index`, relative imports included; `None` when
-/// there is no index. `key` is the specifier as the importing file wrote it.
+/// any file of the chain at `index`, relative imports included, and through
+/// each file that passes it on with `export … from`, which is named in
+/// `through` and is no use; `None` when there is no index. A use's `key` is the
+/// specifier as the importing file wrote it, and its `name` the name it takes.
 #[napi]
-pub fn importers_of(root: String, index: String, files: Vec<String>, name: String) -> napi::Result<Option<Vec<NameUse>>> {
+pub fn importers_of(root: String, index: String, files: Vec<String>, name: String) -> napi::Result<Option<Importers>> {
     opened_chain(&index, |layers| importers(&root, layers, &files, &name))
 }
 

@@ -8,18 +8,19 @@
  * The Help value records the imports that cross a package, and an import within
  * one is most of what an unpublished name has. So the imports come from the
  * source index, which holds every file's requests and what each resolved to:
- * an import counts when it resolved to a file that exports the name.
+ * an import counts when it resolved to a file that exports the name, or to a
+ * file that passes it on with `export … from`, which is followed and is no use.
  */
 
 // compass: variance-authority.report.agent-surface
 
-import type { Help, Named, Use } from '@variance-authority/package/help';
+import type { Help, Named, Taken } from '@variance-authority/package/help';
 import { importersOf } from '@variance-authority/sense';
 import { useOf } from '../refresh-native.js';
 import { importsByPath } from './by-path.js';
 
 /** What an import count leaves out: a use that names the export without importing it. */
-export const UNCOUNTED = 'an import through an `export *` file and a call through a qualified path are not counted';
+export const UNCOUNTED = 'a read through an `export * as` namespace and a call through a qualified path are not counted';
 
 /** Every export of `name` from ordinary source, in `within` when one is named. */
 export function exportsNamed(help: Help, name: string, within: string | undefined): readonly Named[] {
@@ -64,23 +65,36 @@ export function exportedAt(exported: readonly Named[]): string {
   return `${first.at}:${first.line}${more}`;
 }
 
-/**
- * Every import of `name` out of a file in `exported`, read off the source index
- * of `root`; `undefined` when no index is published.
- */
-export function importsOf(root: string, exported: readonly Named[], name: string): readonly Use[] | undefined {
-  const found = importersOf(root, [...new Set(exported.map((held) => held.at))], name);
-  return found?.map(useOf);
-}
+/** One use the source index resolved, with the specifier its file wrote. */
+export type IndexedUse = Taken & { readonly specifier: string };
 
-/** Why the source index cannot say who imports an export. */
-export function indexUnread(root: string | undefined): string {
-  return root === undefined
-    ? 'this host named no checkout to read the source index of'
-    : 'no source index is published; run `variance index`';
+/**
+ * What the source index says about the imports of one name out of a set of
+ * files: each use with the name it takes, and every file that passes the name
+ * on with `export … from`; or why it could not be read.
+ */
+export type Within =
+  | { readonly uses: readonly IndexedUse[]; readonly through: readonly string[] }
+  | { readonly unread: string };
+
+/**
+ * Every import of `name` out of one of `files`, or out of a file that passes it
+ * on from one, read off the source index of `root`, or why that index says
+ * nothing: no checkout named, none published, or one that does not read.
+ */
+export function importsOf(root: string | undefined, files: readonly string[], name: string): Within {
+  if (root === undefined) return { unread: 'this host named no checkout to read the source index of' };
+  let read: ReturnType<typeof importersOf>;
+  try {
+    read = importersOf(root, files, name);
+  } catch (error) {
+    return { unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
+  }
+  if (read === undefined) return { unread: 'no source index is published; run `variance index`' };
+  return { uses: read.uses.map((use) => ({ name: use.name, specifier: use.key, ...useOf(use) })), through: read.through };
 }
 
 /** The refusal when the imports cannot be read: the export is known, the index that holds its importers is not. */
-export function indexMissing(name: string, exported: readonly Named[], root: string | undefined): string {
-  return `\`${name}\` is exported, without being published, at ${exportedAt(exported)}; who imports it is read from the source index, and ${indexUnread(root)}.`;
+export function indexMissing(name: string, exported: readonly Named[], unread: string): string {
+  return `\`${name}\` is exported, without being published, at ${exportedAt(exported)}; who imports it is read from the source index, and ${unread}.`;
 }

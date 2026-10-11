@@ -1,9 +1,9 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Opening, Use } from '@variance-authority/package/help';
-import { how, sitesByPath } from './by-path.js';
+import { how, ownerOf, sitesByPath } from './by-path.js';
 import { entriesNamed, isPackage, unfound } from './find.js';
-import { UNCOUNTED, exportedAt, exportsNamed, importsOf, indexMissing, indexUnread } from './unpublished.js';
+import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 
 /**
  * `docs_uses` — how this repository actually writes a name.
@@ -47,15 +47,25 @@ import { UNCOUNTED, exportedAt, exportsNamed, importsOf, indexMissing, indexUnre
  * deep import — past the entry its package declares — or an import from a
  * package that declares none.
  *
- * ## An unpublished export is answered
+ * ## An import within the package is a site
  *
- * A name a file exports and no entry publishes is answered from the source
- * index: every import, within its package or across one, that resolved to a
- * file exporting it.
+ * The Help value records the imports that cross a package. The rest are read
+ * off the source index: every import that resolved to the file declaring the
+ * name, or to a file that passes it on with `export … from`, which is followed
+ * under the name it exports and is not itself a use. An import of the name
+ * under another name says which. A name a file exports and no entry publishes
+ * is answered from there alone. Asked for one specifier of a package, an
+ * import through another specifier of it is left to that one.
+ *
+ * An index that is missing or does not read leaves the imports by package path
+ * standing, and the answer says the rest were not read and why.
  */
 
-/** A site, and how it names the module it imports when that is a file path. */
-type Site = Use & { readonly how?: string };
+/**
+ * A site, how it names the module it imports when that is a file path, and
+ * the name it takes when that is known.
+ */
+type Site = Use & { readonly how?: string; readonly name?: string };
 
 /** How many leading path segments two files share. */
 export function sharedSegments(left: string, right: string): number {
@@ -79,18 +89,33 @@ function order(sites: readonly Site[], from: string | undefined): readonly Site[
   );
 }
 
-function listed(sites: readonly Site[], heading: string): readonly string[] {
+/** The sites of `name` under `heading`, each marked with the name it takes when a re-export renamed it. */
+function listed(sites: readonly Site[], heading: string, name: string): readonly string[] {
   if (sites.length === 0) return [];
 
   const shown = sites.slice(0, CAP);
   const rest = sites.length - shown.length;
+  const renamed = (use: Site): string => (use.name === undefined || use.name === name ? '' : ` (as ${use.name})`);
   return [
     '',
     heading,
     '',
-    ...shown.map((use) => `${use.at}:${use.line} — ${use.by}${use.how ?? ''}${use.type ? ' (type only)' : ''}${held(use)}`),
+    ...shown.map((use) => `${use.at}:${use.line} — ${use.by}${use.how ?? ''}${renamed(use)}${use.type ? ' (type only)' : ''}${held(use)}`),
     ...(rest > 0 ? [`… and ${rest} more.`] : []),
   ];
+}
+
+/**
+ * Whether a use the source index resolved is one `wanted` answers for. Asked
+ * for one specifier of a package, an import through another specifier of that
+ * package is that door's, not this one's; a relative import, and any import
+ * when the package is asked for by name, is the declaration's own.
+ */
+function throughDoor(use: IndexedUse, wanted: string | undefined): boolean {
+  if (wanted === undefined) return true;
+  const owner = ownerOf(wanted);
+  if (owner === wanted || use.specifier.startsWith('.')) return true;
+  return ownerOf(use.specifier) !== owner || use.specifier === wanted;
 }
 
 /** Where a name read off a module held whole was loaded, and when. */
@@ -101,26 +126,27 @@ function held(use: Use): string {
     : ` (namespace, line ${use.through.line})`;
 }
 
-/** Every site of one name, across every door it is published from, without duplicates. */
+/**
+ * Every site of one name, across every door it is published from, without
+ * duplicates. A line the Help value records in a file that passes the name on,
+ * and that the source index does not read as an import of it, is the
+ * re-export, which is no use.
+ */
 function sitesOf(
   found: readonly (readonly [Documented, Opening, Entry])[],
   byPath: readonly Site[],
   within: readonly Site[],
+  passing: Within | undefined,
 ): readonly Site[] {
   const seen = new Set<string>();
   const sites: Site[] = [];
+  const through = passing !== undefined && 'through' in passing ? new Set(passing.through) : new Set<string>();
+  const indexed = new Set(passing !== undefined && 'uses' in passing ? passing.uses.map((use) => `${use.at}:${use.line}`) : []);
 
-  for (const [, , entry] of found) {
-    for (const use of entry.sites) {
-      const key = `${use.at}:${use.line}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      sites.push(use);
-    }
-  }
-  for (const use of [...byPath, ...within]) {
+  const recorded = [...found.flatMap(([, , entry]) => entry.sites), ...byPath];
+  for (const [index, use] of [...recorded, ...within].entries()) {
     const key = `${use.at}:${use.line}`;
-    if (seen.has(key)) continue;
+    if (seen.has(key) || (index < recorded.length && through.has(use.at) && !indexed.has(key))) continue;
     seen.add(key);
     sites.push(use);
   }
@@ -132,8 +158,9 @@ export const uses: Tool<Help> = {
   description:
     'Every file:line in the workspace that imports one exported name, including reads through ' +
     '`import()` or `import * as`, marked with the line that loads the module, and imports that ' +
-    'name the file by path, marked as such. A name exported and not published is answered from ' +
-    'the source index, imports within its package included. Stories and tests are listed apart. `from`, the file ' +
+    'name the file by path, marked as such. Imports within the exporting package are read from the ' +
+    'source index, through each `export … from` that passes the name on, marked `(as x)` where one renames it, so a ' +
+    'name exported and not published is answered too. Stories and tests are listed apart. `from`, the file ' +
     'you are in, sorts sites by shared path.',
   inputSchema: {
     type: 'object',
@@ -170,16 +197,32 @@ export const uses: Tool<Help> = {
       .map((site) => ({ ...site.taken, how: how(site) }));
     const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
     if (found.length === 0 && byPath.length === 0 && exported.length === 0) throw new Error(unfound(help, name, wanted));
-    const root = invocation?.root;
-    const within = exported.length === 0 || root === undefined ? undefined : importsOf(root, exported, name);
-    if (exported.length > 0 && within === undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, root));
+    // The Help value holds the imports that cross a package; the rest are read
+    // off the source index, out of the file that declares the name. The index
+    // follows each `export … from` that passes it on, so an import through a
+    // barrel is listed and the barrel is not, and a same-named export of
+    // another file is not this name.
+    // A published name is read from its entry file as well as its declaration:
+    // an entry that renames it, `export { greet as salute }`, passes on a name
+    // the declaring file never exports.
+    const local =
+      found.length === 0
+        ? [...new Set(exported.map((held) => held.at))]
+        : [...new Set(found.flatMap(([, opening, entry]) => [entry.at, opening.source]))];
+    const read = local.length === 0 ? undefined : importsOf(invocation?.root, local, name);
+    const unread = read !== undefined && 'unread' in read ? read.unread : undefined;
+    const within = read !== undefined && 'uses' in read ? read.uses.filter((use) => throughDoor(use, wanted)) : undefined;
+    if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
 
-    const sites = sitesOf(found, byPath, within ?? []);
+    const sites = sitesOf(found, byPath, within ?? [], read);
     if (sites.length === 0 && exported.length > 0) {
       return `\`${name}\` is exported, without being published, at ${exportedAt(exported)}, and nothing in this workspace imports it; ${UNCOUNTED}.`;
     }
+    if (sites.length === 0 && unread !== undefined) {
+      return `\`${name}\` is published and no other package imports it; the imports within its own package are read from the source index, and ${unread}.`;
+    }
     if (sites.length === 0) {
-      return `\`${name}\` is published and nothing in this workspace imports it. docs_symbol has its signature and what is written above it.`;
+      return `\`${name}\` is published and nothing in this workspace imports it; ${UNCOUNTED}. docs_symbol has its signature and what is written above it.`;
     }
 
     const sorted = order(sites, from);
@@ -199,11 +242,12 @@ export const uses: Tool<Help> = {
     return [
       `\`${name}\` is imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}${published}${loaded}`,
       nearest,
-      ...listed(stories, 'Stories:'),
-      ...listed(tests, 'Tests:'),
-      ...listed(source, 'Source:'),
+      ...listed(stories, 'Stories:', name),
+      ...listed(tests, 'Tests:', name),
+      ...listed(source, 'Source:', name),
       // The imports by package path are in the Help value; the rest are not.
-      ...(exported.length > 0 && within === undefined ? [`\nImports that do not name a package path are not listed: ${indexUnread(root)}.`] : []),
+      ...(unread === undefined ? [] : [`\nImports that do not name a package path are not listed: ${unread}.`]),
+      ...(within === undefined ? [] : [`\n${UNCOUNTED.charAt(0).toUpperCase()}${UNCOUNTED.slice(1)}.`]),
     ].join('\n');
   },
 };

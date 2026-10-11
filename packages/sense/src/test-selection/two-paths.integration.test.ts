@@ -17,6 +17,12 @@ import { narrowByExecution } from './index.js';
  * `ceiling.ts`, which hands it on as `ceiling`. A change to `LIMIT` reaches
  * `gauge.ts` one import out carrying `LIMIT`, which it never reads, and two
  * imports out carrying `ceiling`, which `full` reads. `label` reads neither.
+ *
+ * A declaring file is a path to itself. `cap.ts` reads its own `LIMIT` through
+ * `import * as self`, and `clamp.ts` reads its own `MAX` as `M`, imported back
+ * from `most.ts`, which re-exports it. `meter.ts` reads its own `TOTAL` as
+ * `sum` from `lib/sum.ts`, which the recording does not instrument, and `meter.test.js`
+ * loads it by a specifier the scan cannot read.
  */
 
 const execute = promisify(execFile);
@@ -79,5 +85,37 @@ describe('a module reached by two importers', () => {
     expect(narrowing.because.find((cause) => cause.test === tests('full')[0])?.via).toContainEqual(
       expect.objectContaining({ kind: 'reader', name: 'LIMIT', file: bounds, reader: named('src/gauge.ts') }),
     );
+  });
+});
+
+describe('a declaring file that reads its own value through an import', () => {
+  it('charges a read through a namespace import of itself', async () => {
+    const cap = named('src/cap.ts');
+    const narrowing = await narrowByExecution(coverageFile, await edit(cap, 'LIMIT = 10', 'LIMIT = 20'), {
+      relations,
+      sourceAt,
+    });
+    expect(narrowing.readings).toEqual([{ file: cap, verdict: 'values', names: ['LIMIT'], unseen: [] }]);
+    expect(narrowing.entered).toEqual(tests('cap'));
+  });
+
+  it('charges a read under an alias, imported back from a file that re-exports it', async () => {
+    const clamp = named('src/clamp.ts');
+    const narrowing = await narrowByExecution(coverageFile, await edit(clamp, 'MAX = 10', 'MAX = 20'), {
+      relations,
+      sourceAt,
+    });
+    expect(narrowing.readings).toEqual([{ file: clamp, verdict: 'values', names: ['MAX'], unseen: [] }]);
+    expect(narrowing.entered).toEqual(tests('clamp'));
+  });
+
+  it('still names a test that loaded it by an edge the graph lacks', async () => {
+    const meter = named('src/meter.ts');
+    const narrowing = await narrowByExecution(coverageFile, await edit(meter, 'TOTAL = 10', 'TOTAL = 20'), {
+      relations,
+      sourceAt,
+    });
+    expect(narrowing.readings).toEqual([{ file: meter, verdict: 'values', names: ['TOTAL'], unseen: tests('meter') }]);
+    expect(narrowing.entered).toEqual(tests('meter'));
   });
 });

@@ -17,11 +17,19 @@ export type Carried = ReadonlyMap<string, string>;
  * and every file behind an importer about the names that importer hands on.
  * `visit` reads one importer, by path, and returns the names it hands on.
  *
+ * The declaring file is an importer like any other: one that imports itself,
+ * or imports a moved name back from a file that hands it on, is asked about
+ * it, since its own reading follows only the names it declares.
+ *
  * An importer reached again by another path is asked about the names that path
  * carries and no earlier one did, and about nothing when there are none. A name
  * is asked once per importer, since a reader matches an imported name whatever
  * module it came from, and the names asked of a file only grow: the walk ends,
  * and visits each importer at most once per distinct name that reaches it.
+ *
+ * Every direct importer is asked, whatever names it binds: a caller that counts
+ * the tests behind the importers it was shown as explained relies on seeing
+ * every edge into `id`.
  */
 export function walkImporters(
   relations: Relations,
@@ -29,7 +37,7 @@ export function walkImporters(
   moved: Carried,
   visit: (importer: string, moved: Carried) => Carried,
 ): void {
-  const asked = new Map<NodeId, Set<string>>([[id, new Set(moved.keys())]]);
+  const asked = new Map<NodeId, Set<string>>();
   let wave: Array<{ readonly id: NodeId; readonly moved: Carried }> = [{ id, moved }];
   while (wave.length > 0) {
     const next: typeof wave = [];
@@ -60,12 +68,15 @@ function unaskedAt(asked: Map<NodeId, Set<string>>, importer: NodeId, moved: Car
   return unasked;
 }
 
-/** The files that load this one at runtime, one edge away: a type-only import loads nothing. */
+/**
+ * The files that load this one at runtime, one edge away: a type-only import
+ * loads nothing. A file that imports itself is among them.
+ */
 function directImporters(relations: Relations, id: NodeId): readonly NodeId[] {
   const { offset, target, kind } = relations.dependents;
   const importers: NodeId[] = [];
   for (let edge = offset[id]!; edge < offset[id + 1]!; edge += 1) {
-    if (LOADS[kind[edge]!] === 1 && target[edge] !== id) importers.push(target[edge]!);
+    if (LOADS[kind[edge]!] === 1) importers.push(target[edge]!);
   }
   return importers;
 }

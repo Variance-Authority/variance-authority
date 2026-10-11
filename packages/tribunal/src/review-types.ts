@@ -152,6 +152,15 @@ export interface SubjectView {
    * width would read as identical everywhere except a hairline at the edge.
    */
   readonly baseline?: { readonly width: number; readonly height: number };
+  /**
+   * The document digest of the baseline an approval of this subject would
+   * replace, read when this view was. `null` when there is none yet.
+   *
+   * Echoed back on a decision, which is refused when the baseline is no longer
+   * this one. Absent from a view that did not read it, and a decision without it
+   * is not checked.
+   */
+  readonly baselineVersion?: string | null;
   /** `true` when the candidate carries the sidecar an approval would promote. */
   readonly approvable: boolean;
   readonly decision: DecisionRecord | null;
@@ -433,6 +442,14 @@ export interface ReviewStore {
     readonly decision: Decision;
     readonly by: string;
     readonly note?: string;
+    /**
+     * The {@link SubjectView.baselineVersion} the decision was taken against.
+     * When given on an approval and no longer current, the approval is refused
+     * with `BaselineMoved` and nothing is recorded, but only where the
+     * approvals that moved it changed a region this build changed too.
+     * Omitted, or on a rejection, nothing is checked.
+     */
+    readonly baselineVersion?: string | null;
   }): Promise<Decided>;
   /**
    * Every decision recorded, newest first, including the ones a later decision

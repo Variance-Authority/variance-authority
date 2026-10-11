@@ -270,8 +270,9 @@ function readsModules(scanner: NativeScanner | undefined): scanner is ModuleScan
 /**
  * Charge a changed value to its readers: in the declaring file, and one file
  * deep through every direct importer — further only where an importer hands
- * the value on. Returns the tests that loaded the declaring file through no
- * importer followed, when importers were followed from a file with a row.
+ * the value on, and back into the declaring file where an import brings it
+ * there. Returns the tests that loaded the declaring file through no importer
+ * followed, when importers were followed from a file with a row.
  */
 function readValues(
   context: ReadingContext,
@@ -308,9 +309,12 @@ function readValues(
     return undefined;
   }
 
+  // The declaring file, asked as an importer of its own names, speaks for no
+  // test: every test that loaded it crossed its rows, whatever edge it came by.
   const covered = new Set<number>();
+  const declaring = relations.names[id];
   walkImporters(relations, id, moved, (importer, carried) =>
-    readImporter(context, importer, carried, verdict.gone, reader, covered),
+    readImporter(context, importer, carried, verdict.gone, reader, importer === declaring ? new Set() : covered),
   );
 
   // A test that loaded the declaring file through no importer the reading

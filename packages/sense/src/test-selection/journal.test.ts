@@ -25,6 +25,7 @@ import {
   forgetThePage,
   inRoot,
 } from './__fixtures__/browser-page.js';
+import { inTurn, TURNS_TEST_TIMEOUT_MS } from './__fixtures__/lock-turns.js';
 
 afterEach(forgetThePage);
 
@@ -408,15 +409,16 @@ describe('a browser run records what it executed', () => {
       const plain = realm.collector.drain();
 
       // Two Playwright workers are two processes over one index. Unlocked, the
-      // later rename would carry only what its own reader saw.
-      const [first, second] = await Promise.all([
-        recordExecution({
+      // later rename would carry only what its own reader saw. Both start at
+      // once and both find the index held; they are let in one at a time.
+      const [first, second] = await inTurn(coverageFile, [
+        () => recordExecution({
           root,
           cacheRoot,
           coverageFile,
           subjects: [{ owner: 'tests/premium.spec.ts', journal: premium }],
         }),
-        recordExecution({
+        () => recordExecution({
           root,
           cacheRoot,
           coverageFile,
@@ -434,7 +436,7 @@ describe('a browser run records what it executed', () => {
         'tests/premium.spec.ts',
       ]);
     });
-  });
+  }, TURNS_TEST_TIMEOUT_MS);
 
   it('lets a story file select the story, through a precondition nothing enters', async () => {
     await inRoot(async (root) => {
