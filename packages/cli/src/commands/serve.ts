@@ -185,6 +185,9 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
   // should not pay for a scan it never uses.
   let report = await readRunReport(path);
   let help: Help | undefined;
+  // FIXME: no names are handed to `intersection` here. The reading may come
+  // from the published snapshot, which holds no parses, so its `imports` and
+  // `declares` operands are refused over MCP and answered by `variance ask`.
   let tree: Tree | undefined;
 
   return serveTools<Bench>({

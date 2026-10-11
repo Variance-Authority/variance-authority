@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
-import { readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
-import { answerSearch, grep, journeyMapTool, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
+import { readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
+import { answerSearch, grep, intersection, journeyMapTool, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
 import { readTree, startPointArg, stringArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
@@ -78,6 +78,16 @@ export async function grepSource(root: string, input: Readonly<Record<string, un
   // the sentence that says so, and a call with no start point needs none.
   const tree = grep.wants?.(input) === true ? await readTree({ root, index: sourceIndexPath(root) }).catch(() => undefined) : undefined;
   return { answer: () => grep.run(undefined, input, { ...(tree === undefined ? {} : { tree }), root }), at: undefined };
+}
+
+/**
+ * `intersection` reads no workspace value either, but every one of its sets
+ * needs the tree, and `imports` and `declares` need each file's names, which
+ * only the scan that draws the tree holds.
+ */
+export async function intersectionSource(root: string, input: Readonly<Record<string, unknown>>): Promise<Answering> {
+  const read = await readNamedTree(root);
+  return { answer: () => intersection.run(undefined, input, { ...read, root }), at: undefined };
 }
 
 /**

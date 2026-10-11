@@ -12,6 +12,7 @@ import {
 } from '@variance-authority/core/relate';
 import { relative } from 'node:path';
 import { costsFrom } from './hops.js';
+import { namesOf, type FileNames, type SourceNames } from './names.js';
 
 /**
  * The source tree, as the one thing allowed to say whether a path exists.
@@ -268,6 +269,13 @@ export interface TreeOptions {
    * run pays a map lookup per unchanged file rather than a parse.
    */
   readonly index?: string;
+  /**
+   * Receives every file's names, read off the parses that drew the tree, once
+   * the scan is done. Asked for only by a question that names a name: holding
+   * them costs a map the size of the tree, which a question about paths would
+   * pay for nothing.
+   */
+  readonly names?: (names: SourceNames) => void;
 }
 
 /**
@@ -292,12 +300,15 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
   }
 
   const source = options.index === undefined ? undefined : await scanner.openSourceIndex(options.index);
+  const names = options.names === undefined ? undefined : new Map<string, FileNames>();
   const records = await scanner.scanRelations({
     root: options.root,
     dirs: options.dirs ?? ['.'],
     ...(source === undefined ? {} : { cache: source.cache, reuse: source.reuse }),
+    ...(names === undefined ? {} : { indexed: (file, parsed, targets) => names.set(file, namesOf(parsed, targets)) }),
   });
   await source?.save();
+  if (names !== undefined) options.names?.(names);
 
   return treeOf(records, options.root);
 }

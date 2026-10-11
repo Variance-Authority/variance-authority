@@ -134,6 +134,26 @@ describe('parseArgs', () => {
     });
   });
 
+  it('reads the sets an intersection crosses, each by its own flag', () => {
+    expect(parseArgs([
+      'ask', 'intersection', '--from', 'src/TopNav.tsx', '--imports', 'react#createContext',
+      '--declares', 'theme|user', '--path', 'src/', '--text', 'dark',
+      '--except-from', 'a.ts', '--except-to', 'b.ts', '--except-imports', 'c', '--except-declares', 'd', '--except-path', 'e',
+    ])).toMatchObject({
+      question: 'intersection',
+      from: 'src/TopNav.tsx',
+      imports: 'react#createContext',
+      declares: 'theme|user',
+      path: 'src/',
+      text: 'dark',
+      exceptFrom: 'a.ts',
+      exceptTo: 'b.ts',
+      exceptImports: 'c',
+      exceptDeclares: 'd',
+      exceptPath: 'e',
+    });
+  });
+
   it('leaves the ask question absent when none was named, which lists them', () => {
     expect(parseArgs(['ask'])).toEqual({
       command: 'ask',

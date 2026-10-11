@@ -4,6 +4,7 @@ import { workspaceGeneration } from './read.js';
 import { entrypoint } from './tools/entrypoint.js';
 import { gaps } from './tools/gaps.js';
 import { grep } from './tools/grep.js';
+import { intersection } from './tools/intersection.js';
 import { journeyMapTool } from './tools/journey-map.js';
 import { testCompositionTool } from './tools/test-composition.js';
 import { orient } from './tools/orient.js';
@@ -35,6 +36,12 @@ import { uses } from './tools/uses.js';
  * the only thing added is the fact ripgrep cannot hold: which files a start
  * point reaches. It comes after `docs_search` because a name is the cheaper
  * answer, and a pattern is what is left when nothing is named.
+ *
+ * `docs_intersection` crosses what the questions above answer one at a time:
+ * the files a path reaches, that import a name, that declare one, whose path
+ * or text matches — each read whole, and only the files in every one of them
+ * answered. It comes after `docs_grep` because each of its sets is a question
+ * that could be asked alone, and is worth asking alone first.
  *
  * `docs_orient` is the widest, and comes after both for the same reason: it
  * starts from files the tools above found and answers with everything around
@@ -73,7 +80,7 @@ function dated(tool: Tool<Help>): Tool<Help> {
 
 /** The source-orientation tools shared by shell dispatch and the server. */
 export const HELP_TOOLS: readonly Tool<Help>[] =
-  [packages, entrypoint, symbol, uses, search, grep, orient, slowestTests, journeyMapTool, testCompositionTool, stack, gaps];
+  [packages, entrypoint, symbol, uses, search, grep, intersection, orient, slowestTests, journeyMapTool, testCompositionTool, stack, gaps];
 
 const DATED_HELP_TOOLS = HELP_TOOLS.map(dated);
 
@@ -87,7 +94,7 @@ export const HELP: Served<Help> = {
   tools: DATED_HELP_TOOLS,
 };
 
-export { entrypoint, gaps, grep, journeyMapTool, orient, packages, search, slowestTests, stack, symbol, testCompositionTool, uses };
+export { entrypoint, gaps, grep, intersection, journeyMapTool, orient, packages, search, slowestTests, stack, symbol, testCompositionTool, uses };
 export { formatOrientation, type OrientReading } from './tools/orient-format.js';
 export { answerSearch, searchIndexOf } from './tools/search.js';
 export type {

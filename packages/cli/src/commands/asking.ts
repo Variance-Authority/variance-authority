@@ -159,6 +159,15 @@ const PLACEHOLDER: Readonly<Record<string, string>> = {
   on: '<words>',
   from: '<path>',
   to: '<path>',
+  imports: '<module#name>',
+  declares: '<regex>',
+  path: '<regex>',
+  text: '<pattern>',
+  exceptFrom: '<path>',
+  exceptTo: '<path>',
+  exceptImports: '<module#name>',
+  exceptDeclares: '<regex>',
+  exceptPath: '<regex>',
   limit: '<n>',
 };
 

@@ -1,5 +1,6 @@
 import type { RunReport } from '@variance-authority/report';
 import type { Tree } from './tree.js';
+import type { SourceNames } from './names.js';
 
 /**
  * The contract every tool implements, and the untyped boundary it sits behind.
@@ -58,6 +59,12 @@ export interface ToolInvocation<Subject> {
    * answered from something that is not a tree.
    */
   readonly tree?: Tree;
+  /**
+   * Every file's declared and imported names, read off the same scan as the
+   * tree, where the host read them. Absent means none were read, and a question
+   * that names a name is refused rather than answered as though no file had one.
+   */
+  readonly names?: SourceNames;
   /**
    * The checkout the host answers about, as the host was told it.
    *
