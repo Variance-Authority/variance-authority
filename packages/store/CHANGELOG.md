@@ -1,5 +1,102 @@
 # @variance-authority/store
 
+## 0.15.0
+
+### Minor Changes
+
+- d5cc0c3: A baseline painted under another identity is compared, and the identity is the cause
+
+  There is no `incomparable` verdict: a subject with two images is always
+  compared, and reads `unchanged`, `changed`, `new` or `ignored`. When the two
+  were painted under different identities, such as another browser version,
+  platform, scale factor, font stack or recipe of this tool, the observation
+  carries `signals.identity` (`recipe` or `machine`) and `signals.moved`, each
+  moved field with both values, and its `because` opens with that cause. A
+  `changed` subject fails the gate whatever its cause, and `variance accept --all`,
+  Playwright Test's `--update-snapshots` and Vitest's `--update` adopt it like any
+  other change. An `unchanged` subject under a moved identity is re-stamped
+  under this run's identity by the same three, so an upgrade is named once rather
+  than on every later run. A re-stamp approves nothing: `variance accept` counts
+  it in `restamped` and its summary, not among the accepted subjects or the
+  commit message, and the `variance_changelog` preview says so. A durable store's
+  `put` moves a baseline along its line, one engine family on one platform at one
+  scale: the line's older copy is removed, so a lookup never compares against a
+  superseded image, while a matrix of engines or machines keeps one baseline
+  each. A lookup that misses its own identity reads its line first. `variance_explain` names the moved identity as the
+  cause of a change, and the tribunal no longer counts or lists an
+  `incomparable` verdict. `@variance-authority/raster` exports `identityCause`,
+  which says whether two identities differ in the recipe alone or in the machine,
+  with its `IdentityCause` and `ComparedSides` types. `variance doctor` reports a
+  store painted by another machine as `PAINTED ELSEWHERE` and exits `0`: the run
+  compares it. Its `baselines.comparable` field is now `baselines.paintedHere`.
+  The pull-request comment groups these
+  subjects under "Painted under another identity", one line per identity that
+  moved. Its section for subjects with no image to point at is headed "Nothing to
+  point at", which was "Not compared".
+
+### Patch Changes
+
+- e963cba: A directory line's lock stays its writer's for as long as the writer works
+
+  A publish to a directory line keeps its lock fresh while it writes, so a write
+  that runs past a minute is no longer taken for a dead writer's and written over.
+  A writer that has gone 45 s without freshening its lock gives it up before
+  another writer could take it for dead: it writes no manifest and answers that the line moved,
+  so the publish reads the line again. It asks once the manifest is staged, so
+  nothing but the rename that commits it follows the answer. The same holds for a writer whose lock is
+  gone, or whose freshening landed too late to count. When two writers find one dead
+  writer's lock, one removes it and the other waits for the lock that writer
+  makes.
+
+  A dead writer's lock, or a dead writer's claim on one, that the file system will
+  not let a writer claim or remove, and a lock whose age it will not tell, now
+  answer as `refused` (or `unreachable`) at once, with what the file system said,
+  instead of retrying without a pause or waiting the lock out as if it were held.
+  A writer that gives its lock up because the file system refused to freshen it
+  answers the same way, instead of reporting that the line moved, and leaves no
+  staged manifest behind.
+- 1707076: A publish to a git share whose line moved while the push was in flight reads
+  the line again and decides again, as it already did when the line had moved
+  before the push started. A hosted remote refuses that push at its own ref
+  update, `[remote rejected]`, and the publish used to report that refusal as
+  `nothing published … failed to push some refs`. A refused push is now a lost
+  race when the remote holds the line at a commit other than the one the publish
+  started from. The publish reports any other refusal as before.
+- ef496ad: READMEs name what the program does
+
+  The package READMEs, and the `@variance-authority/vantage` and
+  `@variance-authority/playwright-test` descriptions, no longer write a test, a
+  record or a run as something that says, asks or knows. Each sentence names what
+  the program does: a command prints, a record holds a field, a test runs or
+  covers. Where a value is filled in from configuration or a default rather than
+  recorded, the README says so. Four renamed headings change their anchors:
+  `help`'s "Where the declaration is undocumented", `playwright`'s "Where a
+  component is declared, read from the engine", `storybook`'s "What a pass sends
+  the preview" and `sense`'s "Correct what a file's text declares it imports".
+- 12dc597: A push the share remote refuses now says why: the reason git reports for the refused ref and every `remote:` line the remote's hooks printed, in place of git's "failed to push some refs".
+- 55f1bc9: The Playwright and Vitest integrations keep the render cache out of the baseline directory
+
+  The store the `variance` fixture opens, the store `createVariance` and `observe`
+  open, and the store the Vitest plugin opens all paint into `renders/` in the
+  checkout's cache, where `variance run` paints. Each one prunes that directory by
+  the rules `variance run` applies: the fixture when a worker tears down, a
+  `createVariance` session when it closes, once per process, and the Vitest
+  plugin when the run closes. The baseline directory holds baselines only, so the
+  `.variance/baselines/**/by-document/` line in `.gitignore` and a store built only
+  to set `cacheRoot` are no longer needed: delete any `by-document/` directory
+  left under your baseline root, since nothing prunes it there. A `store` you pass
+  in is unchanged. Finding the cache reads the root `variance.config.json` the
+  way `variance run` does, so a file that is not JSON, or a `cacheRoot` that is
+  not a path, now fails the fixture and the plugin as it fails the CLI.
+
+  `renderCacheIn(cache)` from `@variance-authority/store/durable` returns the
+  `renders` directory inside a cache directory, so a store you build can share
+  that cache and its bound. `cacheRootFor` from the new
+  `@variance-authority/sense/cache-root` entry finds the checkout's cache without
+  loading the rest of Sense. `@variance-authority/vitest-browser` now depends on
+  `@variance-authority/sense` for it, which installs Sense's parser and resolver
+  with the plugin; the plugin does not load them.
+
 ## 0.14.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

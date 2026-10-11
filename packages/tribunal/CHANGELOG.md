@@ -1,5 +1,185 @@
 # @variance-authority/tribunal
 
+## 0.15.0
+
+### Minor Changes
+
+- 4b232c9: Reviewers can flag a render as suspicious without deciding it
+
+  A subject page gains *Looks suspicious*, which raises a concern: a title, the
+  region (with its component) or the whole render, evidence — the components, files or baseline you
+  point at — a note and a hypothesis. A concern moves between open,
+  investigating and resolved with a name on each step, stays on the subject with
+  its trail across builds, and survives the retention sweep. Approving never resolves a concern,
+  and resolving one approves nothing. The build header counts the concerns its
+  subjects carry.
+
+  The routes are `GET` and `POST /review/concerns` and `POST
+  /review/concerns/<id>`, all three the review token's. `/version` reports API 4
+  and schema 19; apply migration `0017_concerns.sql` before deploying.
+  `createConcernStore` and the concern types are exported from
+  `@variance-authority/tribunal/review`, and `Concerns`,
+  `ConcernTrail`, `ConcernTallyLine` and `useConcernTally` from
+  `@variance-authority/tribunal/ui`.
+- 4da7b9a: An approval is taken against the baseline it read, the way a merge reads code
+
+  Each subject on a build page now carries `baselineVersion`: the document digest
+  of the baseline an approval would replace, or `null` when there is none. A
+  baseline that moved after the page was read does not block by itself: when the
+  approvals that moved it changed regions none of this build's regions meets, the
+  approval goes through. It is refused with a 409, and nothing is recorded, only
+  when they meet, when a run's `/baseline/put` wrote what stands, or when there
+  was no baseline as the page was read. The answer names what you read, what is
+  there now and the build whose change met yours, as a sentence, as `read` and
+  `current` digests, and as a `clash` clause. The review pages send the version
+  with every decision and, on a 409, say "The baseline changed while you were
+  reviewing" with both digests shortened and where the two changes met, and a
+  button that reloads the subject or the change. A rejection, or a decision
+  without `baselineVersion`, is not checked.
+- d5cc0c3: A baseline painted under another identity is compared, and the identity is the cause
+
+  There is no `incomparable` verdict: a subject with two images is always
+  compared, and reads `unchanged`, `changed`, `new` or `ignored`. When the two
+  were painted under different identities, such as another browser version,
+  platform, scale factor, font stack or recipe of this tool, the observation
+  carries `signals.identity` (`recipe` or `machine`) and `signals.moved`, each
+  moved field with both values, and its `because` opens with that cause. A
+  `changed` subject fails the gate whatever its cause, and `variance accept --all`,
+  Playwright Test's `--update-snapshots` and Vitest's `--update` adopt it like any
+  other change. An `unchanged` subject under a moved identity is re-stamped
+  under this run's identity by the same three, so an upgrade is named once rather
+  than on every later run. A re-stamp approves nothing: `variance accept` counts
+  it in `restamped` and its summary, not among the accepted subjects or the
+  commit message, and the `variance_changelog` preview says so. A durable store's
+  `put` moves a baseline along its line, one engine family on one platform at one
+  scale: the line's older copy is removed, so a lookup never compares against a
+  superseded image, while a matrix of engines or machines keeps one baseline
+  each. A lookup that misses its own identity reads its line first. `variance_explain` names the moved identity as the
+  cause of a change, and the tribunal no longer counts or lists an
+  `incomparable` verdict. `@variance-authority/raster` exports `identityCause`,
+  which says whether two identities differ in the recipe alone or in the machine,
+  with its `IdentityCause` and `ComparedSides` types. `variance doctor` reports a
+  store painted by another machine as `PAINTED ELSEWHERE` and exits `0`: the run
+  compares it. Its `baselines.comparable` field is now `baselines.paintedHere`.
+  The pull-request comment groups these
+  subjects under "Painted under another identity", one line per identity that
+  moved. Its section for subjects with no image to point at is headed "Nothing to
+  point at", which was "Not compared".
+- 67884ff: A subject page says when an earlier build kept the same image
+
+  Each subject a reviewer decides on that kept a candidate now has `repeats` on
+  its view: the earlier builds of the project, rendered by the same identity, in
+  which the same subject kept the same candidate, matched on its content key, each
+  with the decision it ended on. `count` is every such build, and `builds` names up
+  to eight, the decided ones first. The field is absent on an `unchanged` or
+  `ignored` subject and on one that kept no candidate, and `{ count: 0, builds: [] }`
+  when no earlier build kept that image.
+
+  The subject page names the earlier build in its Decision card and links to it. An
+  image an earlier build rejected is drawn as a rejection. An image approved before
+  this build ran, on a render that still differs from its baseline, is drawn as a
+  warning that states just that.
+
+  Approving an image whose latest earlier decision rejected it records the
+  approval and opens a concern naming the build that rejected it, with that
+  rejection's note. The approval is not refused: accepting a known defect is how
+  the change it blocks gets merged. `decide` answers with a `Decided`, a
+  `DecisionRecord` that carries the concern's id as `concern` when one was opened.
+
+  No upload field and no migration: the candidate's key and the decisions are
+  already stored, and the existing index on `after_key` answers the lookup.
+- f411190: A subject page puts every move in one bar under the picture, with a key for each
+
+  The moves on a subject used to sit at whatever height their card had in the
+  right-hand column: *Approve* and *Reject* at the top, *Looks suspicious* one
+  card down, and the way to the next render back in the rail. A bar under the
+  picture now holds all of them. It names what is selected: the subject, the
+  component the analysis named as its cause, its regions, and its place in the
+  rail (*2 of 5*, or *not in the queue*).
+
+  <kbd>J</kbd> and <kbd>K</kbd> walk the rail in the order it is drawn.
+  <kbd>F</kbd> opens a concern and <kbd>I</kbd> opens one already under
+  investigation, as the bar's *Investigate* does. On an open form either
+  key sets its state and keeps what was typed. *Approve* and *Reject* stay buttons
+  with no key. No key fires while a modifier is held, while the focus is in a text
+  field or anywhere in a form, or as a held key repeats, and J and K wait while the
+  concern form is open. A slider such as the wipe keeps the keys. Caps Lock
+  does not change what a key does, and on a non-Latin layout the keys are the
+  ones in the same place. *Keys off*, at the end of the bar, turns every
+  single-letter key off and is remembered by the browser.
+
+  Below 60rem the subject now takes the full width under the rail, rather than a
+  sliver beside it.
+- 045767a: The docket names stories of one component that render the same image
+
+  Two stories whose candidates are byte for byte one image show nothing in a
+  diff: both are `new`, or both changed the same way, and neither is red. Such a
+  story is a flag value that reaches no pixel, or one state under two names. A
+  build now carries `sameImage`, the groups of two or more stories of one
+  component whose candidates are stored under one key, read from the keys the
+  build already holds. The run uploads nothing new. A component is the part of
+  the subject id before the first `--`, and no group crosses one. A story that
+  settled on its baseline's digest kept no candidate and is in no group, so a
+  pair is named only on a build where both are new or both changed.
+
+  The docket counts these variations and links each group. A subject page lays its
+  component's stories side by side, in the order the journeys panel draws them, and
+  marks the ones that are one picture.
+
+  The journeys panel now orders two stories with names of one length by code unit
+  rather than by locale, so the panel and the docket list a group in one order.
+- 29abf64: The rail opens with the work a build still asks for
+
+  A build's header said how many renders awaited a decision and how many
+  concerns stood, and neither number led anywhere. Finding the renders with an
+  open concern meant reading every row of the rail. The rail now opens with four tasks:
+  **Unreviewed**, **Open**, **Investigating** and **Resolved**. Each counts the
+  renders it covers — *Unreviewed* what the header's *awaiting review* counts — and choosing one narrows the rail and the bar's
+  <kbd>J</kbd> and <kbd>K</kbd> to them; the render on screen keeps its place
+  until you move on, even once deciding it takes it out of the task. The header
+  now reads `concerns: 2 open · …`, since it counts concerns and the tasks
+  count renders. The bar's *Flag as investigating* is now *Investigate*, the
+  word the concern's own button uses. The address keeps the task, as
+  `?task=open`. A concern task also lists renders the build left unchanged,
+  when an earlier build's concern still stands on them. When concerns could not
+  be read, those tasks show `?` and say why, not zero.
+- f65a928: The share token reads what review settled, and never decides
+
+  A Tribunal deployment now serves `GET /review/changelog`, the new
+  `GET /review/decisions` and `GET /review/concerns` to the share token as well as
+  the review token, and refuses the ingest token there with 403. Every route that
+  decides, or raises or moves a concern, still wants the review token. The
+  deployment's API is 5. A share token you already handed
+  out reads reviewer names and notes once you redeploy.
+
+  `variance changelog` on a `remote` store reads the deployment's changelog with
+  the share token instead of refusing; `--since` takes an instant there.
+  `variance ask decisions` and the MCP tool `variance_decisions` on
+  `variance serve` list the approvals and rejections on a subject or a build,
+  newest first, with who made each and their note. Declare the share token as `{ "env": "VARIANCE_SHARE_TOKEN" }`.
+- 7bc33d0: The run page draws a family that varies on exactly two axes as a grid: the axis the name format lists first down, the other across, the base in the corner, and a combination nothing in the family is at as an empty cell that names its two values. Placement reads only the records' `step`, stored in a new `build_variations.step` column (migration `0018_variation-step.sql`); a family with a link the name format did not read stays as pairs. A variation picture too large for its tile at quarter size is drawn at a quarter and cropped to its top-left corner, labelled so, rather than shrunk until the sampler chooses its rows.
+- f079bcb: The run page draws each variation as its two pictures, parent first, each linked to its subject's page; a variation whose parent this run did not observe draws only its own. `Variations` takes an optional `pictures` prop with the client, build, subjects and `go`; without it the list stays names only.
+
+### Patch Changes
+
+- 242e449: The change page separates a reading mark from the sentence before it
+
+  On the change page, the run's sentence about why a component moved and the mark
+  saying how its render has read before printed as one line, as in
+  `…to reach the first rungnobody has read this render twice yet`. A ` · ` now
+  stands between them.
+- ef496ad: READMEs name what the program does
+
+  The package READMEs, and the `@variance-authority/vantage` and
+  `@variance-authority/playwright-test` descriptions, no longer write a test, a
+  record or a run as something that says, asks or knows. Each sentence names what
+  the program does: a command prints, a record holds a field, a test runs or
+  covers. Where a value is filled in from configuration or a default rather than
+  recorded, the README says so. Four renamed headings change their anchors:
+  `help`'s "Where the declaration is undocumented", `playwright`'s "Where a
+  component is declared, read from the engine", `storybook`'s "What a pass sends
+  the preview" and `sense`'s "Correct what a file's text declares it imports".
+
 ## 0.14.0
 
 ### Patch Changes

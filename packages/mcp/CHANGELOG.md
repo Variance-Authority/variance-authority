@@ -1,5 +1,242 @@
 # @variance-authority/mcp
 
+## 0.15.0
+
+### Minor Changes
+
+- 4426cef: A file argument names one file, spelled from the checkout
+
+  `variance_run_signals` kept every test whose spec file contained the `file`
+  argument, so `tests/cart.spec.ts` also took `tests/cart.spec.tsx`, and `cart`
+  took both. It now keeps the tests of the one file named, spelled as the listing
+  spells it, from the repository root: `tests/../tests/cart.spec.ts` and an
+  absolute path name `tests/cart.spec.ts`. Through `variance ask run-signals`, a
+  relative path is read from the directory the question is asked in, as a shell
+  reads it; through `variance-authority-mcp --watch`, from the repository root. A
+  path outside the checkout is refused.
+
+  The `varianceWatched` Playwright fixture names each watched test's file from
+  the repository root, as the rest of the record does, rather than from the directory the runner was
+  started in: a suite run from `packages/web` lists `packages/web/tests/cart.spec.ts`,
+  not `tests/cart.spec.ts`. The watcher and `variance ask` take their checkout from
+  git the same way.
+
+  `variance distill --from` reads its directory from `--root`, the working
+  directory by default, and spells it the same way. An absolute
+  directory, or one with `..` in it, names the directory it resolves to instead of
+  finding no test file under it, and a directory outside the checkout, which was
+  answered as holding no test file, is refused.
+- d5cc0c3: A baseline painted under another identity is compared, and the identity is the cause
+
+  There is no `incomparable` verdict: a subject with two images is always
+  compared, and reads `unchanged`, `changed`, `new` or `ignored`. When the two
+  were painted under different identities, such as another browser version,
+  platform, scale factor, font stack or recipe of this tool, the observation
+  carries `signals.identity` (`recipe` or `machine`) and `signals.moved`, each
+  moved field with both values, and its `because` opens with that cause. A
+  `changed` subject fails the gate whatever its cause, and `variance accept --all`,
+  Playwright Test's `--update-snapshots` and Vitest's `--update` adopt it like any
+  other change. An `unchanged` subject under a moved identity is re-stamped
+  under this run's identity by the same three, so an upgrade is named once rather
+  than on every later run. A re-stamp approves nothing: `variance accept` counts
+  it in `restamped` and its summary, not among the accepted subjects or the
+  commit message, and the `variance_changelog` preview says so. A durable store's
+  `put` moves a baseline along its line, one engine family on one platform at one
+  scale: the line's older copy is removed, so a lookup never compares against a
+  superseded image, while a matrix of engines or machines keeps one baseline
+  each. A lookup that misses its own identity reads its line first. `variance_explain` names the moved identity as the
+  cause of a change, and the tribunal no longer counts or lists an
+  `incomparable` verdict. `@variance-authority/raster` exports `identityCause`,
+  which says whether two identities differ in the recipe alone or in the machine,
+  with its `IdentityCause` and `ComparedSides` types. `variance doctor` reports a
+  store painted by another machine as `PAINTED ELSEWHERE` and exits `0`: the run
+  compares it. Its `baselines.comparable` field is now `baselines.paintedHere`.
+  The pull-request comment groups these
+  subjects under "Painted under another identity", one line per identity that
+  moved. Its section for subjects with no image to point at is headed "Nothing to
+  point at", which was "Not compared".
+- 23d783b: `variance story`, `variance journeys`, `variance distill` and the test tools read a file and a name exactly
+
+  `variance story --file` and `--name` kept every story whose test file path or
+  test name held the text you typed, so `--file a.test.ts` also kept
+  `data.test.ts`, and `--name adds` kept `data > adds one`. `--in` kept every
+  step whose file held its text, and `variance journeys --file` kept a module
+  whose path ended with, or whose name held, the text in any case. Each now
+  names one thing. `--file` and `--in` are a path in the checkout, read as
+  `variance covering --file` and `variance distill --file` read one, and a path outside the checkout is refused
+  as one. `--name` is the test's whole name as the runner reports it, its
+  `describe` blocks and its own name joined with ` > `. When nothing is that
+  path or name, the answer says so, and `variance story` alone lists the stories
+  that are written.
+
+  `variance distill --test` took a case's id, its whole title, or any part of
+  the title in any case, so `--test submits` read `checkout > submits` when it
+  was the only title holding the word. It now takes the id or the whole title,
+  `--test 'checkout > submits'`, and a part of either is answered as no case.
+  `variance_test_signals` (`variance ask test-signals --test`) and
+  `variance_test_attention` did the same and now take the id or the whole title
+  too.
+
+  The steps through one workspace package, which `--in @acme/ui` used to open by
+  matching the package name as text, are now `variance story --package @acme/ui`.
+- 14aefbf: Ask what one test, or one story, checks that the narrower ones inside it do
+  not.
+
+  - `variance ask test-composition --file <test> --name <words>`, and
+    `docs_test_composition`, read one recorded test as the smaller tests whose
+    regions sit inside its own, the larger tests holding it, and the regions no
+    smaller test entered: modules only it enters, and paths through a smaller
+    test's module only it takes.
+  - `variance_composition {subject}` closes with the same reading for a story:
+    the smaller stories inside it, the larger ones holding it, and what no
+    smaller story renders — components only it mounts, and components a smaller
+    story renders another way. The run carries it per subject in the report's
+    structure section; `piecesOf` in `@variance-authority/core/attribute`
+    computes it.
+  - A component mounted by more than half the suite's subjects is structure. A
+    subject that mounts a component many times now counts once, where every
+    mount used to count: a chip story is an example of the chip again when the
+    pages around it mount chips many times over.
+- 42599cc: `variance ask discover` answers the files in every one of several sets
+
+  Each set is read whole, with no cap: what a path reaches (`--from`) or what
+  reaches it (`--to`), who imports a name (`--imports module#name`, through the
+  barrels that pass it on when the module is a file, as `ask uses` reads it), who
+  declares a name matching a pattern (`--declares`), and a path pattern (`--path`). Each
+  has an `--except-` twin that takes its files out, and `--text` runs ripgrep over
+  the files the other sets kept. The answer lists the files nearest the paths
+  first, each with the line that put it in each set.
+
+  `readTree` hands each file's declared and imported names to a `names` callback
+  during the same scan, read off the parse it already made; a file whose parse
+  holds no declarations, as on a checkout large enough for the addon to read
+  whole, is read again for them, and the source index keeps what that read
+  found. `readNamedTree` takes the question and reads names only for an operand
+  that needs them. Over MCP,
+  `docs_discover` answers `from`, `to`, `path` and a name imported out of a
+  repository file, and refuses `declares` and any other `imports`, because the
+  reading an MCP host serves holds no names.
+- 0a41a23: Eyes journals travel in the record
+
+  A run that opts into Eyes writes each case's journal into `coverage.bin`, in an
+  `eyes` section keyed by the case's id and its attempt, so a journal joins its
+  case exactly and a retried case keeps every attempt. The attempt counts from 1
+  (Playwright's `retry + 1`) and is a column of its own, never part of the id. A
+  run that did not opt in writes no section. Source paths in a journal are
+  relative to the repository root, as the case index's are.
+
+  The Playwright fixture and `watchTest` hand their journal to the case the
+  recording runs, never to `testInfo.testId`. The RTL `watchTest`, given no id,
+  returns the journal and hands it to the running case where the recording seam's
+  case scope takes one. The Vitest, Jest and Rstest seams hold each attempt's case
+  from before its `beforeEach` until after its `afterEach`, so a journal closed
+  in teardown lands under that case and attempt. A run that opts in lists every case it watched in
+  the section, so a watched case that handed no journal reads apart from a case
+  whose run did not opt in. Two different journals for one case and attempt keep
+  the one whose JSON sorts first, and the run still records.
+
+  A journal stays on the machine that ran it. It leaves with the record, through
+  `variance share` or an `actions-cache` carry, and each says so: a share names
+  every suite entry whose record carried journals, and a carry save notes each
+  suite whose record goes into the cache with them. `sharedRecord` keeps the
+  section, and drops one that is unreadable or of a newer version at the
+  crossing, keeping the rest of the record. A repin keeps the journals of every
+  case its index keeps.
+
+  `variance distill` reads the checkout's own record, or the one `--execution`
+  names, and prints every attempt of the case. It refuses an id the record does
+  not hold and shows the ids it does. `--eyes` is removed, and so are the
+  `@variance-authority/eyes/collect` and `@variance-authority/eyes/reporter`
+  entries (`writeEyesArchive`, `gatherEyesArchive`, `recordEyesTest`,
+  `resetEyesJournals`, `EYES_JOURNAL_SUFFIX`, the Eyes reporter and
+  `EyesReporterOptions`). `eyesJournal` and `EyesJournal` give a test's journal,
+  and `parseEyesJournal` reads one back. In `@variance-authority/distill`,
+  `DistillInput` takes `execution` always and `eyes` as `EyesAttempt` rows, and
+  `Distillation` reports `attempts` as `AttemptAttention` in place of
+  `attention`, `joined` and `available`; `watched` names the cases a run that
+  opted in watched, and distill says which of them kept no journal. The sense
+  test-selection entry adds `keepsEyes`, `recordedEyesAt`, `recordedEyesOf`, `RecordedEyes`,
+  `ObservedEyes`, `EyesSection` and `encodeAsSetExecutionIndex`. In
+  `@variance-authority/mcp`, `serveEyesRecord` replaces `serveEyesArchive` and
+  serves the journals a record keeps, read by `readEyesRecord` off one read of
+  the record. A record a later run wrote without Eyes leaves it no journals to
+  answer from; `readEyesRecord` refuses such a record with `RecordKeepsNoEyes`.
+  `EyesArchive` carries `watched`, which `createEyesArchive` takes and
+  `parseEyesArchive` reads, so the MCP `distill` tool tells an unwatched case
+  from a watched one that kept no journal. That tool needs the runtime journey
+  and reads a case by its exact id.
+
+  Under Rstest, a case declared `it(name, options, fn)` is recorded per case, as
+  `it(name, fn)` already was.
+- f65a928: The share token reads what review settled, and never decides
+
+  A Tribunal deployment now serves `GET /review/changelog`, the new
+  `GET /review/decisions` and `GET /review/concerns` to the share token as well as
+  the review token, and refuses the ingest token there with 403. Every route that
+  decides, or raises or moves a concern, still wants the review token. The
+  deployment's API is 5. A share token you already handed
+  out reads reviewer names and notes once you redeploy.
+
+  `variance changelog` on a `remote` store reads the deployment's changelog with
+  the share token instead of refusing; `--since` takes an instant there.
+  `variance ask decisions` and the MCP tool `variance_decisions` on
+  `variance serve` list the approvals and rejections on a subject or a build,
+  newest first, with who made each and their note. Declare the share token as `{ "env": "VARIANCE_SHARE_TOKEN" }`.
+- c337278: The share token reads what reviewers flagged, and why
+
+  `variance ask concerns` and the MCP tool `variance_concerns` on `variance serve`
+  list the concerns reviewers raised on a render: the title, the state (open,
+  investigating or resolved), the region and component it is about, what the
+  reviewer pointed at, and every step since with its note and hypothesis.
+  `--subject` or `--build` names which; `--build` reads the concerns on every
+  subject the build showed, whichever build raised them, and counts them by state;
+  `--state` keeps one state. It reads the same deployment with the same share token
+  as `variance ask decisions`, and raises, moves or resolves nothing.
+
+  Every tool in `REVIEW_TOOLS` is a `ReviewTool`, naming the route its subject is
+  read from and the query a call sends there, so a host reads each one the same way.
+- 8187fb1: `didYouMean` and `nearest` are exported from `@variance-authority/core` and no
+  longer from `@variance-authority/mcp/tools`. Import them from
+  `@variance-authority/core`. A mistyped command or flag is refused, with the
+  nearest right one, without loading the MCP server's tools.
+
+### Patch Changes
+
+- 73f40a8: `variance_changed_tests` prints what each case said, with the call that said it, on the case's line, as `variance covering --since` does.
+
+  `variance covering` prints what each case said, and its twin, in every answer that lists cases. The `--since` text carries them on each case line, and the whole-file and plain `--line` or `--function` answers print each case's twin without `--where`; under `--format json` the answer carries `twins` in every form. A twin comes from the case's own test file, and a large set prints as its count and the first three names. `--where` counts out of the cases that covered what you asked about, not the whole record. When a case says one value twice, the row keeps the site that said it first. The `afterEach` warning, the invalid-value warning and the misplaced-call error name the call site from the checkout, as the row does, under every host that knows the checkout, including a runner built on `@variance-authority/sense/runner`.
+- 9bb6f47: A moved identity names only the fields that differ
+
+  When the baseline was painted under another identity, the `because` sentence
+  names only the identity fields that differ between the baseline and this run,
+  and says whether they are the machine (renderer, engine, platform, scale, fonts)
+  or only variance-authority's recipe (the stabilization or rasterization digest).
+  `recipeOnly`, exported from `@variance-authority/raster`, answers which.
+
+  An observation from `@variance-authority/observe` carries `signals.document`,
+  saying whether the document is the one the baseline was painted from, so a
+  recipe change over an unchanged document reads apart from one that moved the
+  page too. `signals.pixels` is optional, since a subject that occupies no pixels
+  has none to measure; TypeScript code that reads `Observation.signals.pixels`
+  must handle it being absent.
+
+  `variance ask summary` prints a reason that several subjects share once, with a
+  count, and lists the subjects under it, so an upgrade that moves every subject
+  reads as one line rather than one per subject. It groups the same way the
+  pull-request comment does, through `byReason`, exported from
+  `@variance-authority/report`.
+- ef496ad: READMEs name what the program does
+
+  The package READMEs, and the `@variance-authority/vantage` and
+  `@variance-authority/playwright-test` descriptions, no longer write a test, a
+  record or a run as something that says, asks or knows. Each sentence names what
+  the program does: a command prints, a record holds a field, a test runs or
+  covers. Where a value is filled in from configuration or a default rather than
+  recorded, the README says so. Four renamed headings change their anchors:
+  `help`'s "Where the declaration is undocumented", `playwright`'s "Where a
+  component is declared, read from the engine", `storybook`'s "What a pass sends
+  the preview" and `sense`'s "Correct what a file's text declares it imports".
+
 ## 0.14.0
 
 ### Patch Changes
