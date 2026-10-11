@@ -703,7 +703,8 @@ below is one stage of that call.
    without `sourceAt`, whose hunks do not apply to the recorded text, whose
    text does not parse, or on a machine without the scanner's native addon is
    charged by its lines, and `readings` records which. Two parses per side per
-   changed file, and one parse per importer of a moved value.
+   changed file, and one parse per importer of a moved value, plus one more each
+   time another path reaches that importer with a name no earlier path brought.
 4. **Lines to blocks.** Each charged line costs one scan of the module's
    blocks, O(B). Every synthesized region containing the line is charged. Source
    regions containing it are grouped by span, and the narrowest group is
