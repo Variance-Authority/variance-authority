@@ -63,5 +63,5 @@ describe('siblings told apart only by occurrence, one taken out in front and one
   // region stands where the newer text put one and the cut reads as alike.
   // Paired by occurrence, alpha lands on beta's body (FIXME in
   // `region-landing.ts`).
-  it.todo('carries neither effect\'s cases onto the one at its occurrence when an older text put both effects at the lines the recorded one does');
+  it.todo('carries neither effect\'s cases onto the one at its occurrence when an older text put both effects at the lines the recorded one does — needs the case index to record each region\'s digest');
 });
