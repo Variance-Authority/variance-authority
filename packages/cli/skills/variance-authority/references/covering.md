@@ -49,8 +49,11 @@ yet. Suites that never loaded the file are named together on the last line,
 covers it*. A suite whose record holds this path under another root, such as
 `apps/shop/src/checkout/total.ts` for `src/checkout/total.ts`, keeps its full block among the
 answers: it most likely ran the file. When no suite answers, each block says why
-in full, with the record it read and the recorded files of the same name, since
-a wrong path is then the likely cause. `--format refs` answers the same way.
+in full, with the record it read and the recorded paths that are this one under
+another root, since a wrong path is then the likely cause. A recorded file that
+shares only the name is named as sharing it, not as the spelling, and the
+`--cases` refusal for a test file the index holds no case of reads the same.
+`--format refs` answers the same way.
 `--suite <name>` reads one suite's record alone, so gives its refusal in full,
 and is refused beside `--execution`. Under `--format json` the answer is
 `{"file": …, "suites": [...]}`, with `since` in place of `file` for a diff. Each
