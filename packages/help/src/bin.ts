@@ -122,7 +122,7 @@ if (asking(verb) && verb !== undefined) {
     const answer = tool === search
       ? (format === 'json' ? askSearchJson : askSearch)(await readSearchForAnswer(root, reading), ownArgs, () => tree)
       : tool === intersection
-        ? intersection.run(undefined, inputFrom(tool, ownArgs), { ...(await readNamedTree(root)), root })
+        ? intersection.run(undefined, inputFrom(tool, ownArgs), { ...(await readNamedTree(root, inputFrom(tool, ownArgs))), root })
         : ask(await readWorkspaceForAnswer(root, reading), verb, ownArgs, () => tree, root);
 
     process.stdout.write(`${answer}\n`);

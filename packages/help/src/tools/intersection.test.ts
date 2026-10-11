@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FileNames, FileRecord, SourceNames, Tree } from '@variance-authority/mcp/tools';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { intersection } from './intersection.js';
+import { intersection, readsNames } from './intersection.js';
 
 /**
  * Each operand is a set of files, read whole, and the answer is the files in
@@ -142,6 +142,12 @@ describe('intersection of whole sets', () => {
 
   it('asks its host for the tree whatever it was given, since every set is read from it', () => {
     expect(intersection.wants?.({ declares: 'x' })).toBe(true);
+  });
+
+  it('asks for the names only when a set is read off them', () => {
+    expect(readsNames({ from: ['src/TopNav.tsx'], path: 'theme', text: 'x', exceptFrom: ['src/a.ts'], exceptPath: 'old' })).toBe(false);
+    for (const key of ['imports', 'exceptImports']) expect(readsNames({ [key]: ['react'] })).toBe(true);
+    for (const key of ['declares', 'exceptDeclares']) expect(readsNames({ [key]: 'x' })).toBe(true);
   });
 
   it('says so when nothing is in all of them', () => {

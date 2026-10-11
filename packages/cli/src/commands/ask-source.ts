@@ -86,7 +86,7 @@ export async function grepSource(root: string, input: Readonly<Record<string, un
  * which only the scan that draws the tree holds.
  */
 export async function intersectionSource(root: string, input: Readonly<Record<string, unknown>>): Promise<Answering> {
-  const read = await readNamedTree(root);
+  const read = await readNamedTree(root, input);
   return { answer: () => intersection.run(undefined, input, { ...read, root }), at: undefined };
 }
 

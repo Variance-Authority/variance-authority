@@ -2,8 +2,8 @@
 
 Eight questions read a workspace's manifests and source: `packages`,
 `entrypoint`, `symbol`, `uses`, `search`, `grep`, `intersection` and `gaps`. Each answer
-read from a workspace generation names its UTC time; `grep` and `intersection`
-read the checkout as it is, and name none. They describe source, not a
+read from a workspace generation names its UTC time; `variance ask grep` and
+`variance ask intersection` read the checkout as it is, and name none. They describe source, not a
 build or a generated site, and they need no run and no config. For where a file
 sits and what runs it, read [orient](orient.md).
 

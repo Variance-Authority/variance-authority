@@ -226,6 +226,15 @@ function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names:
 }
 
 /**
+ * Whether a call names an operand read off the names. A question about paths
+ * alone reads the tree and nothing else: on a large checkout the names cost a
+ * second read of every file for its declarations.
+ */
+export function readsNames(input: Readonly<Record<string, unknown>>): boolean {
+  return ['imports', 'exceptImports', 'declares', 'exceptDeclares'].some((key) => input[key] !== undefined);
+}
+
+/**
  * Typed over nothing, like `grep`: the tree and the names arrive on the
  * invocation, and the text is ripgrep's.
  */
