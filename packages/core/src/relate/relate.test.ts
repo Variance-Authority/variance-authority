@@ -152,6 +152,49 @@ describe('the graph', () => {
   });
 });
 
+describe('a walk over cycles and mocks', () => {
+  it('visits a file that imports itself once, and starts every trail at the seed a cycle returns to', () => {
+    const relations = relationsOfFiles([
+      {
+        file: 'a.ts',
+        edges: [
+          { to: 'a.ts', kind: 'imports' },
+          { to: 'b.ts', kind: 'imports' },
+        ],
+      },
+      { file: 'b.ts', edges: [{ to: 'a.ts', kind: 'imports' }] },
+      { file: 'c.ts', edges: [{ to: 'b.ts', kind: 'imports' }] },
+    ]);
+    const id = (name: string) => idOf(relations, 'file', name)!;
+    const traversal = dependentsOf(relations, [id('a.ts')]);
+
+    expect(traversal.nodes.map((node) => relations.names[node])).toEqual(['a.ts', 'b.ts', 'c.ts']);
+    expect(trailOf(traversal, id('a.ts')).map((node) => relations.names[node])).toEqual(['a.ts']);
+    expect(trailOf(traversal, id('c.ts')).map((node) => relations.names[node])).toEqual(['a.ts', 'b.ts', 'c.ts']);
+    expect(dependenciesOf(relations, [id('c.ts')]).nodes.map((node) => relations.names[node])).toEqual([
+      'a.ts',
+      'b.ts',
+      'c.ts',
+    ]);
+  });
+
+  it('never enters a node it was told to avoid, a seed included, nor what reaches the seed only through it', () => {
+    const relations = relationsOfFiles([
+      ...SUITE,
+      { file: 'src/App.tsx', edges: [{ to: 'src/Button.tsx', kind: 'imports' }] },
+    ]);
+    const id = (name: string) => idOf(relations, 'file', name)!;
+    const names = (nodes: readonly number[]) => nodes.map((node) => relations.names[node]);
+
+    expect(names(dependentsOf(relations, [id('src/util.ts')], { avoid: [id('src/Button.tsx')] }).nodes)).toEqual([
+      'src/Clock.tsx',
+      'src/util.ts',
+      'Clock',
+    ]);
+    expect(dependentsOf(relations, [id('src/util.ts')], { avoid: [id('src/util.ts')] }).nodes).toEqual([]);
+  });
+});
+
 describe('what a change affects', () => {
   it('reaches a component through a stylesheet nothing declares anything in', () => {
     // The case the whole feature exists for. `tokens.css` declares no component,

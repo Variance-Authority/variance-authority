@@ -66,6 +66,55 @@ describe('a changed module with no row, asked of the files that import it', () =
     });
   });
 
+  it('walks a cycle back to the changed module once, and stops at the row behind it', () => {
+    const relations = relationsOf({
+      relations: [
+        imports('src/between.ts', 'src/rules.ts'),
+        imports('src/rules.ts', 'src/between.ts'),
+        imports('src/decide.ts', 'src/between.ts'),
+      ],
+    });
+    const trail = ['src/rules.ts', 'src/between.ts', 'src/decide.ts'];
+
+    expect(narrowByExecutionFromView(view(), diff('src/rules.ts'), { relations })).toMatchObject({
+      entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
+      because: [
+        { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail }] },
+        { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail }] },
+      ],
+    });
+  });
+
+  it('does not ask a changed module that imports itself about itself', () => {
+    const relations = relationsOf({
+      relations: [imports('src/rules.ts', 'src/rules.ts'), imports('test/aaa.test.ts', 'src/rules.ts')],
+    });
+
+    expect(narrowByExecutionFromView(view(), diff('src/rules.ts'), { relations })).toMatchObject({
+      entered: ['test/aaa.test.ts'],
+      because: [{ test: 'test/aaa.test.ts', via: [{ kind: 'importer', trail: ['src/rules.ts', 'test/aaa.test.ts'] }] }],
+    });
+  });
+
+  it('explains a test by the shortest chain when two reach its row', () => {
+    const relations = relationsOf({
+      relations: [
+        imports('src/between.ts', 'src/rules.ts'),
+        imports('src/decide.ts', 'src/between.ts'),
+        imports('src/decide.ts', 'src/rules.ts'),
+      ],
+    });
+    const trail = ['src/rules.ts', 'src/decide.ts'];
+
+    expect(narrowByExecutionFromView(view(), diff('src/rules.ts'), { relations })).toMatchObject({
+      entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
+      because: [
+        { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail }] },
+        { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail }] },
+      ],
+    });
+  });
+
   it('selects nothing for a module whose every chain ends where nothing was recorded', () => {
     // `src/other.ts` imports rules, has no row, and nothing imports it. Without
     // a graph the file is a path nothing holds, and reported; with one it is

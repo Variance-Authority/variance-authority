@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { walkImporters, type Carried } from './importer-walk.js';
 
 const file = (name: string) => ({ kind: 'file', name }) as const;
-const imports = (from: string, to: string) => ({ from: file(from), to: file(to), kind: 'imports' }) as const;
+const imports = (from: string, to: string, kind: 'imports' | 'type' = 'imports') =>
+  ({ from: file(from), to: file(to), kind }) as const;
 
 /** Each visit as `importer: names`, in the order the walk asked them. */
 function walk(relations: Relations, from: string, moved: Carried, hands: (importer: string, moved: Carried) => Carried) {
@@ -74,6 +75,12 @@ describe('the walk against the arrows', () => {
     const relations = relationsOf({ relations: [imports('b.ts', 'a.ts'), imports('c.ts', 'b.ts')] });
 
     expect(walk(relations, 'a.ts', total, () => new Map())).toEqual(['b.ts: total']);
+  });
+
+  it('never asks a file that imports only types from it', () => {
+    const relations = relationsOf({ relations: [imports('b.ts', 'a.ts', 'type'), imports('c.ts', 'a.ts')] });
+
+    expect(walk(relations, 'a.ts', total, onward)).toEqual(['c.ts: total']);
   });
 
   it('asks only files, never another kind of node that depends on one', () => {
