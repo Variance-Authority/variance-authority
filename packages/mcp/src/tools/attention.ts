@@ -42,7 +42,7 @@ export const attention: Tool<EyesArchive> = {
 };
 
 /** The one Eyes test with this id or whole title, or the sentence explaining why there is not one. */
-export function locateEyesTest(archive: EyesArchive, asked: string): EyesTestAttention | string {
+function locate(archive: EyesArchive, asked: string): EyesTestAttention | string {
   const byId = archive.tests.find((test) => test.id === asked);
   if (byId !== undefined) return byId;
   const exact = archive.tests.filter((test) => test.title === asked);
@@ -77,10 +77,6 @@ function listing(archive: EyesArchive): string {
     ...archive.tests.map((test) =>
       `  ${test.complete ? 'complete' : 'partial'} — ${test.title} — ${test.file ?? 'file not supplied'} [${test.id}]`),
   ].join('\n');
-}
-
-function locate(archive: EyesArchive, asked: string): EyesTestAttention | string {
-  return locateEyesTest(archive, asked);
 }
 
 function optionalPhase(input: Readonly<Record<string, unknown>>): EyesPhase | undefined {
