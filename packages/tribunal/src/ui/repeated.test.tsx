@@ -99,12 +99,6 @@ describe('an image an earlier build kept', () => {
     expect(markup).toContain('before this build ran, and this build still differs from its baseline');
   });
 
-  it('warns as well when this render cannot be compared with the baseline', () => {
-    const markup = page(subject({ verdict: 'incomparable', repeats: APPROVED }));
-
-    expect(markup).toContain('va-warned');
-  });
-
   it('says only that it was approved when the approval came after this build ran', () => {
     // This build was compared before anybody approved the image, against the
     // baseline the approval then replaced: its difference says nothing new.

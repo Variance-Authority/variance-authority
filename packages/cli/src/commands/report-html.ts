@@ -255,7 +255,6 @@ function census(report: CliRunReport, docket: Docket): string {
   const segments: [string, number][] = [
     ['changed', counted.get('changed') ?? 0],
     ['new', counted.get('new') ?? 0],
-    ['incomparable', counted.get('incomparable') ?? 0],
     ['failed', docket.failed.length],
     ['ignored', counted.get('ignored') ?? 0],
     ['excluded', docket.excluded],

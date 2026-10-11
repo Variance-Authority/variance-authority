@@ -190,12 +190,7 @@ describe('the rail and the report agree on what is green', () => {
     // The tribunal's own filter was `!== unchanged`, which put every subject an
     // ignore had already decided into the list of things awaiting a decision —
     // under a pill saying the build was settled.
-    expect(['changed', 'new', 'incomparable', 'unstable'].map(needsReview)).toEqual([
-      true,
-      true,
-      true,
-      true,
-    ]);
+    expect(['changed', 'new', 'unstable'].map(needsReview)).toEqual([true, true, true]);
     expect(['unchanged', 'ignored'].map(needsReview)).toEqual([false, false]);
   });
 

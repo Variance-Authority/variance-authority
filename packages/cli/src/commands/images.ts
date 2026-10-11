@@ -95,7 +95,7 @@ export async function images(
     //
     // What it costs: a baseline promoted from this sidecar records no
     // accessibility evidence, so a later run that does have a snapshot calls the
-    // axis `incomparable` rather than `unchanged`. That is the safe direction —
+    // axis `changed` rather than `unchanged`. That is the safe direction —
     // the alternative is a stale tree asserted as current — which is why this is
     // a gap and not a defect. Closing it means the collector acquiring the
     // snapshot; every layer downstream of here already carries it.
@@ -148,7 +148,7 @@ export async function images(
   // for every subject in order to serve the few that write a diff would have
   // given back exactly what `describe` was adopted to save.
   //
-  // After the verdict check on purpose: `unchanged`, `new` and `incomparable`
+  // After the verdict check on purpose: `unchanged` and `new`
   // never write a `before.png`, so for them this read would be pure waste.
   const stored = (await deps.store.find(key, renderer.identityFor(document)))?.raster;
   // A baseline that occupies no pixels is not a `before` anybody can look at, and

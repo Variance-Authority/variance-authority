@@ -23,8 +23,8 @@ import { waitForFonts, waitForImages } from './waits.js';
  *
  * A recipe can be filtered by tier, so the structure-and-style rung waits for
  * nothing; composed from another project's tricks alongside these; digested, so
- * a baseline made under one recipe is `incomparable` with a run made under
- * another rather than `changed`; and checked for tricks that fight each other.
+ * a run under another recipe than its baseline names the recipe as the cause;
+ * and checked for tricks that fight each other.
  *
  * ## Where the damage lands
  *
@@ -375,7 +375,7 @@ export async function settleRecipe(recipe: Recipe, target: SettleTarget): Promis
  *
  * Sorted, so the order tricks were composed in does not change the identity —
  * only which ones are present. Folded into `RenderIdentity`, which is what makes
- * a cross-recipe comparison report `incomparable` instead of inventing a
+ * a cross-recipe comparison name the recipe as its cause instead of inventing a
  * component to blame.
  */
 export function recipeDigest(recipe: Recipe): Digest {

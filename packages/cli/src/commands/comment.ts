@@ -9,6 +9,7 @@ import {
   foldBlocks,
   leadBlocks,
   metaBlocks,
+  moveBlocks,
   skippedBlocks,
   warningBlocks,
   withoutCauseBlocks,
@@ -200,6 +201,7 @@ export function renderComment(options: CommentOptions): string {
   const blocks = [
     COMMENT_MARKER,
     ...leadBlocks(docket, options, pictures),
+    ...moveBlocks(docket, limits),
     ...warningBlocks(report, docket),
     ...driftBlocks(report, limits),
     ...coverageBlocks(report, docket, limits),

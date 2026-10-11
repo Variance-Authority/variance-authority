@@ -32,7 +32,7 @@ several sections.
 | --- | --- |
 | **subject** | One named UI state you asked for and can ask for again — a story, route, fixture, or value — under an id that survives a rename. `story:components-button--primary` is one. |
 | **observation profile** | What the capture surface was *able* to see, independent of what it found. Two ship: `jsdom` resolves roles, accessible names and author-declared style but has no layout engine and paints nothing; `chromium` adds the resolved cascade, real box geometry and pixels. Set it with `--profile` or in configuration. A profile that cannot see a band says so rather than reporting the band `unchanged`. |
-| **painter** | The machine-and-software identity that produced an image: renderer (`playwright-chromium@1.49.0`, `remote:render.internal`), engine build, OS and architecture, device scale factor, the fonts the renderer actually had, and digests of what it did to the page before reading it and of its pixel-affecting launch settings. Every field is hashed into one **identity digest**. A *painter partition* is the set of images stored under one such digest — two painters never diff against each other. `variance doctor` prints your identity and every identity your baseline root and render cache already keep. |
+| **painter** | The machine-and-software identity that produced an image: renderer (`playwright-chromium@1.49.0`, `remote:render.internal`), engine build, OS and architecture, device scale factor, the fonts the renderer actually had, and digests of what it did to the page before reading it and of its pixel-affecting launch settings. Every field is hashed into one **identity digest**. A *painter partition* is the set of images stored under one such digest. Two painters' images are still compared, and the fields that differ are named as the cause of what moved. `variance doctor` prints your identity and every identity your baseline root and render cache already keep. |
 | **band** | The kind of difference a change lands in. There are five, ordered loudest first: `a11y`, `geometry`, `token`, `content`, `texture`. The order is rarity — an accessible name almost never changes and is a defect when it does; anti-aliasing changes constantly and never matters. A set of bands collapses to the loudest one present, never to a default. |
 
 ### Things a run records
@@ -43,7 +43,7 @@ several sections.
 | **observation** | One subject's result: its id, the verdict, one sentence saying why, the comparison, the attributed regions with their components and `file:line`, whether the image was painted or came from the cache, fonts the document declared and the renderer lacked, the independently measured signals, and what your ignores absorbed. This is what `report.observations` is a list of. |
 | **block** | One region of a module's text that control runs under exactly one condition — a condition the region around it does not imply. A function body, a branch arm, a loop body, a `catch`, the module's top level. Running a `try` body follows from running the code around it, so it is no block; running its `catch` does not, so it is. Ternaries and short-circuit operators stay inside the region that encloses them. This is not statement coverage under another name. The **block universe** is the whole set the instrument cut for one checkout under one instrumentation recipe. |
 | **crossing** | One test covering one block. The [execution record](execution-record.md) is the whole set of crossings your suite produced, in one binary file. It is a relation, not a chronology. |
-| **verdict** | The one word an observation assigns its subject: `unchanged`, `changed`, `new`, `incomparable`, or `ignored`. [Verdicts](#verdicts) below defines each one. |
+| **verdict** | The one word an observation assigns its subject: `unchanged`, `changed`, `new`, or `ignored`. [Verdicts](#verdicts) below defines each one. |
 | **content digest** | A hash of bytes or of a structured value: a document digest, `<checkout-digest>`, `<repository-digest>`, an identity digest, a snapshot's `renderHash`. Equal content digests mean the same input. |
 | **component digest** | One hashed dimension of a component instance: `structure`, `semantics`, `text`, `style`, and — only under a profile with a layout engine — `geometry`. Equal component digests are a match, never a resemblance. A baseline saves these so a later run can settle a subject on hashes instead of pixels. |
 
@@ -101,11 +101,10 @@ and no other:
 
 | `verdict` | What it means |
 | --- | --- |
-| `unchanged` | The stored baseline and the new capture were comparable, and nothing differs. |
+| `unchanged` | The stored baseline and the new capture were compared, and nothing differs. |
 | `changed` | Pixels moved. The report names the region, the component and the `file:line`. |
 | `new` | The subject was captured and no approved baseline exists. |
 | `ignored` | Pixels moved, and every one of them fell inside a subtree your `ignore` rules excluded. Green, and a separate word from `unchanged`, so a report can be asked how much of its green was earned and how much was declared. |
-| `incomparable` | The comparison was refused because the two images were not painted under the same identity. The report names which fields differ, and whether they are the machine or only the recipe. It is not zero difference. |
 
 A subject the run could not observe at all gets no verdict. It goes in
 `notObserved` under one of three kinds — `excluded` by configuration, `failed`
@@ -114,7 +113,10 @@ a report whose `notObserved` is absent entirely cannot be read as a clean run.
 
 Beside the verdict, `signals` shows what each boundary independently measured:
 `document` is `unchanged` or `changed`; `pixels` adds `unobservable` for a
-subject that occupies no pixels; `accessibility` adds `incomparable`. For a
+subject that occupies no pixels; `accessibility` is `unchanged` or `changed`.
+When the two images were painted under different identities, `identity` says
+whether only the recipe moved (`recipe`) or anything else did (`machine`), and
+`moved` lists each field with both values, baseline first. For a
 subject that occupies no pixels on either side, `document` is read through the
 component hashes, so a random class name or id your harness puts on each mount
 does not move it; for every other subject it covers every byte of markup.
@@ -418,15 +420,14 @@ you can check.
 
 **Images join on painter identity.** The producer is the renderer; the
 identity is the digest of renderer, engine, platform, device scale factor,
-fonts, and the two stabilization digests. When a run reports `incomparable`,
-that is this join failing: the baseline was written under one identity and this
-run painted under another. The reason names the fields that differ. When they
-are only the recipe — `stabilization` or `rasterization`, moved by an upgrade or
-a changed renderer option on the same machine — the run still painted every
-subject. Where the reason also says the document is the one the baseline was
-painted from, `variance accept --all` re-baselines after you review the images;
-where it says the document changed too, `--all` skips the subject, and you
-review its image as a change and accept it by its id.
+fonts, and the two stabilization digests. When a reason opens with a moved
+identity, that is this join failing: the baseline was written under one
+identity and this run painted under another, and the two images were compared
+all the same. The reason names the fields that moved. When they are only the
+recipe — `stabilization` or `rasterization`, moved by an upgrade or a changed
+renderer option on the same machine — review the changes and re-baseline with
+`variance accept --all`; the reason also says whether the document is the one
+the baseline was painted from, so a page that moved too reads apart.
 Otherwise run `variance doctor`. It prints your current
 identity, then every identity your baseline root stores and every identity in
 your render cache, with an arrow on yours. If the arrow points at an identity

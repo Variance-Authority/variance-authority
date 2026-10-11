@@ -129,7 +129,7 @@ against these values and the result is written into the capture.
 | field | what it decides |
 | --- | --- |
 | `width`, `height` | CSS pixels. Width, height and orientation queries resolve against them, and the later paint uses them. |
-| `deviceScaleFactor` | The pixel density of the painted image, and what `resolution` and device-pixel-ratio queries resolve against. `2` gives a 2× image of the same CSS pixels. It is part of the identity a baseline is stored under, so changing it moves the subject into a partition where nothing has been approved yet. |
+| `deviceScaleFactor` | The pixel density of the painted image, and what `resolution` and device-pixel-ratio queries resolve against. `2` gives a 2× image of the same CSS pixels. It is part of the identity a baseline is stored under, so changing it compares the subject with the old image and names the scale factor as the cause, until you accept. |
 | `colorScheme` | `light` or `dark`, and what `prefers-color-scheme` resolves to. A dark reading of the same component is a second subject with an id of its own. |
 
 ### What the capture has to include
@@ -216,7 +216,7 @@ export default captureCollector({ directory: CAPTURES });
 | `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. That is why the first run reports `new`: nothing is stored yet, so there is nothing to compare against and the candidate is waiting for you to accept it. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent — a config that sets both is refused rather than silently storing nothing. |
 | `subjects.kind` | Where the run gets its subject list. `collector` is a module like the one above. The alternatives are `storybook`, which reads a built story index, and `list`, where you write the ids down yourself. |
 | `baselines.kind` | Where approved images live: `directory` is files you commit, `lfs` is the same files through the Git LFS filter, `remote` is a deployment and a token with nothing in the repository. No default — see [baseline placement](placement.md). |
-| `fonts` | Fonts this machine is asserted to have, each as `family/weight/style/hash`. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. Defaults to `[]`, which asserts nothing: two machines with different cuts of Inter then produce the same identity, compare, and report the difference as a component change. Naming them makes that a refused comparison instead. |
+| `fonts` | Fonts this machine is asserted to have, each as `family/weight/style/hash`. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. Defaults to `[]`, which asserts nothing: two machines with different cuts of Inter then produce the same identity, compare, and report the difference as a component change. Naming them makes the fonts the named cause instead. |
 | `report` | Where `run` writes, and where `report` and `accept` read. Defaults to `.variance/report.json`. |
 
 ### Commit the approved images

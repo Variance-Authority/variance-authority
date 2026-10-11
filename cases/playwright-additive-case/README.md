@@ -51,7 +51,7 @@ passing.
 A **subject id** is one named UI state you asked for and can ask for again —
 here `cart/empty`, passed as `subjectId`. A **baseline** is the last image of that
 subject you approved; later runs compare against it. A **verdict** is what the
-comparison returned: `unchanged`, `changed`, `new`, `incomparable`.
+comparison returned: `unchanged`, `changed`, `new`, `ignored`.
 
 ## What you see
 

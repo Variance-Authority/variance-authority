@@ -102,7 +102,7 @@ export function ledgerOf(
   );
 
   for (const observation of observations) {
-    // `new` and `incomparable` compared nothing, so nothing could be absorbed.
+    // `new` compared nothing, so nothing could be absorbed.
     // Counting them would make an untested rule indistinguishable from a stale
     // one — see `IgnoreUsage.comparedIn`.
     const compared = COMPARED.includes(observation.verdict);
@@ -149,7 +149,7 @@ export function ledgerOf(
     // *Resolved nowhere* is decided by collection alone: the selector matched no
     // element in any subject, which is true whatever the verdicts were. *Resolved
     // and took nothing* needs a comparison to have happened, because a subject
-    // that is `new` or `incomparable` compared no pixels — so an ignore over it
+    // that is `new` compared no pixels — so an ignore over it
     // had nothing to absorb, and calling that dead tells an operator to delete
     // their config on the run that proves least about it.
     dead: summarized
@@ -254,8 +254,8 @@ export function summarizeLedger(ledger: IgnoreLedger | undefined): readonly stri
 /**
  * Verdicts that mean a comparison actually happened.
  *
- * `new` has no baseline and `incomparable` refused, so neither compared a pixel.
- * Both are legitimate outcomes and neither is evidence about an ignore.
+ * `new` has no baseline, so it compared no pixel. It is a legitimate outcome and
+ * no evidence about an ignore.
  */
 const COMPARED: readonly string[] = ['unchanged', 'changed', 'ignored'];
 

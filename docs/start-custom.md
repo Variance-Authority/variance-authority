@@ -64,10 +64,11 @@ rules that actually apply to it, the inherited values in force at its root, and
 the viewport those were resolved against. That bundle is a **render document**,
 and it is data — JSON, no live page, no handle to anything.
 
-`variance run` opens Chromium once and paints every document the collector
-returned. Splitting it this way is what makes the comparison meaningful: two
-screenshots are only comparable when the same engine on the same platform at the
-same pixel density produced them, so every image in the project is painted in
+`variance run` opens the configured engine, Chromium unless `browser` says
+otherwise, once and paints every document the collector returned. Splitting it
+this way is what makes the comparison meaningful: a difference between two
+screenshots can be attributed to the code only when the same engine on
+the same platform at the same pixel density produced them, so every image in the project is painted in
 one place, no matter which of the seven integrations acquired it. Your harness
 can be jsdom, a string template, or anything that produces markup, and it never
 needs a browser of its own.
@@ -325,13 +326,13 @@ against this file's directory rather than the working directory.
 | `project` | The label this project's rows are filed under in a shared history store. Required even with no history configured. |
 | `profile` | What the run is *capable* of observing — `jsdom` or `chromium`. `jsdom` means structure, ARIA and declared style; `chromium` adds computed style, layout and geometry, and is only honest if your collector read inside a real browser. It does not decide what paints. Set it to match where you acquired. |
 | `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). The fallback for a subject whose planned entry sets no viewport of its own. Keep it equal to the viewport your collector acquires at, since that is what media queries were resolved against. |
-| `timezoneId`, `locale` | The timezone and language the renderer paints in, `UTC` and `en-US` when unset. Your collector's own process keeps the host's unless you pin it to the same pair, as the list above says. Both are part of the render identity, so changing one makes every image `incomparable` against a baseline painted under the other. `accept --all` adopts a subject whose document did not move; one whose document moved too is adopted by `accept <subject-id>` once you have looked ([the first loop](#run-the-first-loop)). |
+| `timezoneId`, `locale` | The timezone and language the renderer paints in, `UTC` and `en-US` when unset. Your collector's own process keeps the host's unless you pin it to the same pair, as the list above says. Both are part of the render identity, so changing one names the moved pair as the cause of every change against a baseline painted under the other. Review the changes and adopt them with `accept --all` ([the first loop](#run-the-first-loop)). |
 | `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent and your `collect` must return `before`. Setting both is refused. |
 | `subjects.kind` | `list` — the ids are in this file. `storybook` — read them from a built story index. `collector` — your `plan()` discovers them, and the config stops being the statement of what is watched. |
 | `baselines.kind` | `directory` — files you commit. `lfs` — the same files through the Git LFS filter. `remote` — an endpoint and a token, with nothing in the repository. No default; see [baseline placement](placement.md). |
 | `fonts` | Fonts this machine is asserted to have, each as `family/weight/style/hash` — a bare family name is refused. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. `[]` asserts nothing, which is correct for the example (it declares `system-ui` and no web fonts) and wrong for a subject with a web font: two machines with different cuts of Inter would then produce the same identity, compare, and report the difference as a regression. |
 | `report` | Where `run` writes and where `report` and `accept` read. Defaults to `.variance/report.json`. Candidate images land beside it. |
-| `browser` | Which engine paints: `chromium` (default), `firefox`, or `webkit`. It is part of the key baselines are stored under, so switching it moves every subject into a partition where nothing is approved yet. |
+| `browser` | Which engine paints: `chromium` (default), `firefox`, or `webkit`. It is part of the identity baselines are stored under, so switching it compares every subject against the other engine's image, with the engine named as the cause, until you accept. |
 
 `profile: "jsdom"` costs you one thing, and the run prints that on every line of
 output: jsdom has no layout engine, so a changed region can be located in the
@@ -357,10 +358,11 @@ rather than the directory, and git still descends:
 ```
 
 Inside that root, images are filed under the identity of the machine that
-painted them — `v1-297753c4…/receipt%2Fempty.png` — and a run only compares
-against its own partition. So baselines approved on your laptop are not the ones
-CI compares against: a Linux runner finds none under its identity and reports
-every subject `new`. Paint in one place that both use, which in practice means
+painted them — `v1-297753c4…/receipt%2Fempty.png`. A run compares against its
+own partition first and otherwise against whichever identity painted the subject,
+naming the machine as the cause. So baselines approved on your laptop are
+compared with a Linux runner's pixels, and the platform's font and antialiasing
+differences come back as changes. Paint in one place that both use, which in practice means
 running `variance run` inside the same container image locally and in CI.
 `variance doctor` is the readback: it lists each identity in the root and prints
 whether this machine's is one of them.
@@ -423,8 +425,8 @@ has no way to take an image you already made.
 
 `@variance-authority/observe` is the comparison on its own. Hand it two images,
 or one image and a baseline you looked up yourself, and it answers `new`,
-`changed`, `unchanged`, `ignored`, or `incomparable` with the differing regions
-and a sentence saying why. What you keep is everything around it: storing
+`changed`, `unchanged` or `ignored` with the differing regions and a sentence
+saying why, opening with the painter when the two were painted by different ones. What you keep is everything around it: storing
 baselines, deciding what approval means, writing the report, and choosing the
 process exit code. There is no `accept` command on this path, because that
 belongs to the CLI you are not using.

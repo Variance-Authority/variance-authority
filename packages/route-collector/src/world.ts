@@ -42,8 +42,8 @@ export interface RouteWorldRecipe {
    *
    * Absent is `network: false`, and it belongs to the recipe rather than being
    * defaulted here: a world that watched the wire compared against one that did
-   * not would produce two different environment keys and report `incomparable`
-   * where the run asked about order.
+   * not would produce two different environment keys and blame the wire for
+   * every change where the run asked about order.
    */
   readonly network?: NetworkOptions;
 }

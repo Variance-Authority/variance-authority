@@ -436,8 +436,9 @@ a diff touches.
   URL already identifies the bytes.
 - **The browser is missing:** run `npx playwright install chromium`, then
   `npx variance doctor` again.
-- **A rerun reports `incomparable`:** the approved image was stored under a
-  different identity than this machine produces. `npx variance doctor` lists the
+- **A rerun reports every story `changed`, a moved identity first:** the
+  approved image was stored under a different identity than this machine
+  produces. `npx variance doctor` lists the
   identities the baseline root stores.
 
 ## Boundaries

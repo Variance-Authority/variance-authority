@@ -182,7 +182,7 @@ function Verdicts({ build }: { readonly build: BuildSummary }): ReactElement {
       </span>
       <span className="va-counts">
         {build.verdicts.changed} changed · {build.verdicts.new} new ·{' '}
-        {build.verdicts.incomparable} incomparable · {build.verdicts.ignored} ignored ·{' '}
+        {build.verdicts.ignored} ignored ·{' '}
         {build.verdicts.unchanged} unchanged
       </span>
     </p>

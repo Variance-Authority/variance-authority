@@ -2,7 +2,7 @@ import type { CaptureArtifact } from '@variance-authority/core';
 import { hashComponents } from '@variance-authority/core/attribute';
 import type { Raster } from '@variance-authority/core/format';
 import {
-  incomparableBecause,
+  identityCause,
   type BaselineKey,
   type RasterStore,
   type Renderer,
@@ -10,12 +10,12 @@ import {
 import { declaredIgnores } from './decide.js';
 import {
   documentMoved,
-  identityMoved,
   observeAgainstBaseline,
-  observeRasters,
   type CompareInputs,
   type Observation,
+  withCause,
 } from './observe.js';
+import { decideRasters } from './unpictured.js';
 
 /** A stored-baseline observation whose candidate may already be a raster. */
 export interface ObserveCaptureOptions extends CompareInputs {
@@ -96,24 +96,9 @@ export async function observeCaptureAgainstBaseline(
     };
   }
 
-  if (!found.comparable) {
-    return {
-      subject: artifact.subject.id,
-      verdict: 'incomparable',
-      because: incomparableBecause(
-        { identity: found.storedUnder, documentDigest: found.raster.documentDigest },
-        candidate,
-      ),
-      regions: [],
-      rendered: false,
-      missingFonts: candidate.missingFonts,
-      signals: {
-        document: documentMoved(found.raster, candidate),
-        identity: identityMoved(found.storedUnder, candidate.identity),
-      },
-      ...declaredField,
-    };
-  }
-
-  return await observeRasters(artifact.subject.id, found.raster, candidate, inputs);
+  return withCause(
+    await decideRasters(artifact.subject.id, found.raster, candidate, false, inputs),
+    identityCause(found.storedUnder, candidate.identity),
+    documentMoved(found.raster, candidate),
+  );
 }

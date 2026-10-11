@@ -213,8 +213,8 @@ const SCENARIOS: readonly Scenario[] = [
   },
   {
     name: 'a baseline from another machine',
-    verdict: 'incomparable',
-    changed: undefined,
+    verdict: 'unchanged',
+    changed: 0,
     prepare: (store) => store.put({ subject: 's' }, baseline(RUNNER)),
     document: SAME,
   },
@@ -364,10 +364,10 @@ describe('switching where baselines are kept', () => {
     });
   });
 
-  it('explains an incomparable baseline by naming the machine that wrote it', async () => {
-    // The verdict alone is not the deliverable. A wrong-machine run has to be one
-    // sentence with a platform in it, or it is a mass failure nobody can attribute
-    // — which is the whole reason `find` looks under other identities at all.
+  it('names the machine that wrote a baseline from another machine as the cause', async () => {
+    // The verdict alone is not the deliverable. A wrong-machine run has to carry
+    // the platform that moved, or an avalanche is a mass failure nobody can
+    // attribute — which is the whole reason `find` looks under other identities.
     for (const implementation of IMPLEMENTATIONS) {
       const store = await implementation.open();
       await store.put({ subject: 's' }, baseline(RUNNER));
@@ -379,6 +379,7 @@ describe('switching where baselines are kept', () => {
 
       expect(observation.because).toContain('linux/x64');
       expect(observation.because).toContain('darwin/arm64');
+      expect(observation.signals?.identity).toBe('machine');
     }
   });
 

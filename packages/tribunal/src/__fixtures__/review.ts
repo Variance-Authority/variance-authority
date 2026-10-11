@@ -167,7 +167,7 @@ export async function openReview(
 export async function decideEverything(review: ReviewStore, build = 'ci-1001'): Promise<void> {
   const detail = await review.build(build);
   for (const subject of detail?.subjects ?? []) {
-    if (!['changed', 'new', 'incomparable'].includes(subject.verdict)) continue;
+    if (!['changed', 'new'].includes(subject.verdict)) continue;
     await review.decide({ build, subject: subject.subject, decision: 'rejected', by: 'marina' });
   }
 }

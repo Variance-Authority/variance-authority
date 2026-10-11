@@ -40,7 +40,7 @@ const detail = (subjects: readonly SubjectView[], sameImage: readonly SameImage[
     at: '2026-06-01T12:00:00.000Z',
     identity: { engine: 'chromium@131' },
     retention: 'durable',
-    verdicts: { changed: 0, unchanged: 0, new: subjects.length, incomparable: 0, ignored: 0 },
+    verdicts: { changed: 0, unchanged: 0, new: subjects.length, ignored: 0 },
     decided: 0,
     pending: subjects.length,
     coverage: { stated: true, failed: 0, excluded: 0, unreached: 0 },

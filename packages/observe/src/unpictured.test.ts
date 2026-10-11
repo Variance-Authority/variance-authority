@@ -171,12 +171,11 @@ describe('a subject with no pixels', () => {
     });
   });
 
-  // Not `incomparable`. Nothing about the two records is mismatched — same
-  // painter, same subject, same kind of evidence — and a subject that started or
-  // stopped painting is the most reviewable thing that can happen to it: a portal
-  // that broke, or a child that finally arrived. Filing that under the verdict
-  // nobody reviews would lose the one finding.
-  it('reports gaining pixels as a change, not as an incomparable pair', async () => {
+  // Nothing about the two records is mismatched — same painter, same subject,
+  // same kind of evidence — and a subject that started or stopped painting is
+  // the most reviewable thing that can happen to it: a portal that broke, or a
+  // child that finally arrived.
+  it('reports gaining pixels as a change', async () => {
     const result = await observeRasters('AlertTitle', empty('v1:same'), painted('v1:same'));
 
     expect(result).toMatchObject({ verdict: 'changed', signals: { pixels: 'changed' } });

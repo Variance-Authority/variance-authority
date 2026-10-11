@@ -66,8 +66,8 @@ hands the agreeing image to the same comparison.
 - a changed region names the component that drew it — and, on Chromium, the
   `file:line` it was declared at — in the failure message, with no image opened;
 - an image painted under a different browser, platform, scale factor or font
-  stack comes back `incomparable`, naming what differs, rather than as a wall of
-  red pixels;
+  stack is compared and names what moved as the cause, rather than leaving a
+  wall of red pixels unexplained;
 - the document, the pixels and the accessibility tree are three separate
   results, so a role or accessible name that changed without repainting anything
   still comes back `changed`;

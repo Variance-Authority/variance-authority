@@ -132,7 +132,7 @@ export interface Described {
    *
    * Empty is the answer, never absent. A transport that omits it must fail
    * rather than default: a missing verdict-bearing field silently read as `[]`
-   * is how `stabilization` once made every subject `incomparable` forever.
+   * is how `stabilization` once refused every subject forever.
    */
   readonly missingFonts: readonly string[];
 
@@ -387,7 +387,7 @@ export function neverFails(cache: RenderCache): RenderCache {
  * through this codec on the way to the candidate sidecar and came back without
  * it, `accept` stored the baseline under the shortened digest, and the next
  * `run` looked up under the full one — found a baseline under a *sibling*
- * identity, and reported `incomparable` in a sentence that named the same
+ * identity, and refused it in a sentence that named the same
  * machine on both sides. Every run, forever, with no way to act on it.
  *
  * It survived every test because no test ever crossed the codec with a

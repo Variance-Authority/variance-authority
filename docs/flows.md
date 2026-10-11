@@ -16,14 +16,16 @@ identified by a stable id such as `checkout/empty`. A run renders each subject,
 captures a **reading** — the markup, the CSS that applied, the boxes it
 produced, and where available the image — and compares that reading against the
 subject's stored baseline to produce a verdict: `unchanged`, `changed`, `new`,
-or `incomparable`.
+or `ignored`.
 
 Where you keep the baseline does not make that verdict more correct. What
-decides whether two readings are comparable is **renderer identity** — the
+decides whether a difference between two readings is the code's is **renderer
+identity** — the
 engine, platform, scale, font declarations, and rasterization inputs that
 painted them, covered under [where the renderer
 runs](#the-other-machine-question-where-the-renderer-runs) below — and the
-evidence each reading actually captured. Deployment decides who keeps the
+evidence each reading actually captured. Two readings under different identities
+are still compared, and the identity that moved is named as the cause. Deployment decides who keeps the
 baseline, where review happens, and whether the comparison stays available long
 enough to answer questions across runs.
 
@@ -279,11 +281,11 @@ in a proxy you operate. The remote machine must also be able to resolve the
 resources the captured document embeds or references. A resource the renderer
 cannot load is a collection or render failure, not an empty image.
 
-Moving the renderer to another machine does not by itself make readings
-incomparable — a different engine, platform, scale factor, font declaration, or
-rasterization input does. A run that finds a baseline under an incompatible
-identity reports `incomparable` and names what differs, rather than reporting a
-change in the subject.
+Moving the renderer to another machine does not by itself move a reading's
+identity — a different engine, platform, scale factor, font declaration, or
+rasterization input does. A run that finds a baseline under another identity
+compares the two images and names what moved as the cause, before any component
+in the subject.
 
 ## Choose the smallest complete flow
 

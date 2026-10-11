@@ -252,30 +252,29 @@ describe('renderComment', () => {
     expect(body).toContain('cannot be read as a pass');
   });
 
-  it('reports an incomparable subject rather than letting it read as no difference', () => {
-    // The comparison was refused, so nothing is known. Grouping by the reason
-    // keeps 300 of these to one line without discarding the sentence.
+  it('groups subjects painted under another identity by what moved, changed or not', () => {
+    // An upgrade moves the whole suite: one line per move with its count, so the
+    // few regressions are not read one sentence at a time (ADR-0090).
+    const signals = { identity: 'machine' as const, moved: ['engine chromium@131 → chromium@132'] };
+    const changed = (subject: string, pixels: number) => ({
+      subject, verdict: 'changed' as const, because: `${pixels} pixel(s) differ`, changedPixels: pixels,
+      regions: [{ x: 0, y: 0, width: pixels, height: 1, pixels, cause: false }], signals,
+    });
     const body = renderComment({
       report: reportOf([
-        {
-          subject: 'story:a',
-          verdict: 'incomparable',
-          because: 'a baseline exists but was rendered by another machine',
-          changedPixels: 0,
-          regions: [],
-        },
-        {
-          subject: 'story:b',
-          verdict: 'incomparable',
-          because: 'a baseline exists but was rendered by another machine',
-          changedPixels: 0,
-          regions: [],
-        },
+        changed('story:a', 40),
+        changed('story:b', 12),
+        { subject: 'story:c', verdict: 'unchanged', because: 'no pixels differ', changedPixels: 0, regions: [], signals },
+        { ...changed('story:d', 3), verdict: 'ignored' as const },
       ]),
     });
 
-    expect(body).toContain('**incomparable** — 2 subject(s)');
-    expect(body).toContain('rendered by another machine');
+    expect(body).toContain('### Painted under another identity');
+    // An ignored subject moved where the project said not to look: not one the
+    // upgrade left alone.
+    expect(body).toContain(
+      '**engine chromium@131 → chromium@132** — 2 of 4 subject(s) changed: `story:a`, `story:b`; 1 ignored by an ignore or a sensitivity',
+    );
   });
 
   it('says a region was ranked by area when the semantic tier named no cause', () => {

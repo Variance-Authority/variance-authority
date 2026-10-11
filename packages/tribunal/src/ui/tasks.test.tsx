@@ -47,7 +47,7 @@ function build(subjects: readonly SubjectView[] = SUBJECTS): BuildDetail {
     at: '2026-06-01T12:00:00.000Z',
     identity: { renderer: 'playwright-chromium', engine: 'chromium@131' } as never,
     retention: 'durable',
-    verdicts: { changed: 3, unchanged: 1, new: 0, incomparable: 0, unstable: 0, ignored: 0, failed: 0 },
+    verdicts: { changed: 3, unchanged: 1, new: 0, unstable: 0, ignored: 0, failed: 0 },
     decided: 1,
     pending: 2,
     coverage: { stated: true, failed: 0, excluded: 0, unreached: 0 },

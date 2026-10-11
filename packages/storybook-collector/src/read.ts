@@ -33,7 +33,8 @@ export interface Reading {
    *
    * A second static server would answer on a second port, which changes every
    * asset URL, which changes the environment key — so the clean collection would
-   * come back `incomparable` and the run would learn nothing about order.
+   * come back changed everywhere, with the port as the cause, and the run would
+   * learn nothing about order.
    */
   readonly baseUrl: string;
   readonly roots: readonly string[];

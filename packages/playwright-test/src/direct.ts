@@ -36,7 +36,7 @@ export interface CreateVarianceOptions {
   readonly tests?: boolean | ExecutionRecording;
   /**
    * Directory to write the compared images into, for every subject a person
-   * would stop on -- `changed`, `incomparable`, and `ignored`.
+   * would stop on -- `changed` and `ignored`.
    *
    * Off by default, and off is a real choice: the images are the largest thing a
    * run can produce, and a suite that reads the verdict in CI and never opens a
@@ -60,7 +60,7 @@ export interface DirectObservationOptions extends VarianceOptions {
   readonly tests?: boolean | ExecutionRecording;
   /**
    * Directory to write the compared images into, for every subject a person
-   * would stop on -- `changed`, `incomparable`, and `ignored`.
+   * would stop on -- `changed` and `ignored`.
    *
    * Off by default, and off is a real choice: the images are the largest thing a
    * run can produce, and a suite that reads the verdict in CI and never opens a

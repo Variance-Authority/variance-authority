@@ -70,8 +70,8 @@ carries, what box it fills — is not guessed here.
 
 The recipe changes identity rather than changing a **verdict**. A baseline read
 untouched and one read held still are two baselines, so a run under a different
-recipe is **incomparable** instead of presenting the intervention as a
-regression. The fixed instant is part of the clock trick's id, so it is part of
+recipe names the recipe as the cause of whatever moved instead of presenting the
+intervention as a regression. The fixed instant is part of the clock trick's id, so it is part of
 the identity too. A trick only a driver can apply is recorded only by a host
 that applied it. The injected sheet marks itself and is skipped by the collector, so
 the tool's own rules never enter a capture, never match a node, and never

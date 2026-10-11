@@ -212,8 +212,8 @@ chromium_('one build, served twice', () => {
     // origin nobody chose. The author wrote `/hero.png`; the engine computes
     // `url("http://127.0.0.1:<port>/hero.png")` and the wire records the
     // absolute URL. If either reaches an identity, the same bytes on disk are a
-    // different baseline on every run — `incomparable`, or a change, with no
-    // edit anywhere. The document digest addresses the render cache, so a port
+    // different baseline on every run — a change blamed on a moved identity, with
+    // no edit anywhere. The document digest addresses the render cache, so a port
     // that reached it would repaint every page on every run.
     const site = mkdtempSync(join(tmpdir(), 'variance-port-'));
     writeFileSync(join(site, 'hero.png'), HERO);

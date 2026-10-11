@@ -41,10 +41,11 @@ import { briefly, count, number } from './text.js';
 /**
  * The four states, and the two counts that keep them honest.
  *
- * `unplaced` and `incomparable` exist so the four quadrants add up to the suite
+ * `unplaced` and `uncrossed` exist so the four quadrants add up to the suite
  * without any of them absorbing a subject nobody can classify. A baseline that
  * recorded no component list cannot be put on either axis, and a subject that is
- * new or that nothing could compare has no *moved* to speak of. Folding either
+ * new, or moved only inside a region the project excluded, has no visible
+ * *moved* to speak of. Folding either
  * into the quiet quadrant would make the one nobody reads the place uncertainty
  * goes to die.
  */
@@ -62,7 +63,7 @@ export interface Crossing {
    */
   readonly unreachedSkipped: number;
   readonly unplaced: number;
-  readonly incomparable: number;
+  readonly uncrossed: number;
 }
 
 export function crossReach(
@@ -76,7 +77,7 @@ export function crossReach(
   const unreachedMoved: SubjectView[] = [];
   let unreachedStill = 0;
   let unplaced = 0;
-  let incomparable = 0;
+  let uncrossed = 0;
 
   for (const subject of subjects) {
     const entry = placed?.[subject.subject];
@@ -86,13 +87,13 @@ export function crossReach(
       (entry.reached ? reachedMoved : unreachedMoved).push(subject);
     } else if (subject.verdict === 'unchanged') {
       // `changed` and `unchanged` are the only verdicts describing a pair this
-      // run actually compared. A new subject has no baseline to have moved from,
-      // and an incomparable one is a comparison that did not happen — neither
+      // run actually compared in view. A new subject has no baseline to have
+      // moved from, and an ignored one moved only where nobody looks — neither
       // belongs on an axis called moved.
       if (entry.reached) reachedStill.push(subject);
       else unreachedStill += 1;
     } else {
-      incomparable += 1;
+      uncrossed += 1;
     }
   }
 
@@ -103,7 +104,7 @@ export function crossReach(
     unreachedStill,
     unreachedSkipped: notObserved.filter((entry) => entry.kind === 'unreached').length,
     unplaced,
-    incomparable,
+    uncrossed,
   };
 }
 
@@ -312,12 +313,13 @@ function Trails({ reach }: { readonly reach: ReachView }): ReactElement | null {
  * The subjects the crossing could not seat, said rather than absorbed.
  *
  * Two different silences, kept as two. A subject whose baseline carries no
- * component list is one this surface cannot answer for; a new or incomparable
- * subject is one where the question does not apply. Printing a single number for
- * both would invite the reader to fix the wrong thing.
+ * component list is one this surface cannot answer for; a new subject, or one
+ * that moved only where an ignore or a sensitivity let it, is one where the
+ * question does not apply. Printing a single number for both would invite the
+ * reader to fix the wrong thing.
  */
 function Unplaced({ crossing }: { readonly crossing: Crossing }): ReactElement | null {
-  if (crossing.unplaced + crossing.incomparable === 0) return null;
+  if (crossing.unplaced + crossing.uncrossed === 0) return null;
 
   return (
     <p className="va-note va-reach-note">
@@ -328,11 +330,11 @@ function Unplaced({ crossing }: { readonly crossing: Crossing }): ReactElement |
           list.{' '}
         </>
       )}
-      {crossing.incomparable === 0 ? null : (
+      {crossing.uncrossed === 0 ? null : (
         <>
-          {count(crossing.incomparable, 'subject')}{' '}
-          {crossing.incomparable === 1 ? 'was' : 'were'} new or could not be compared, so there is
-          no moved-or-still to cross.
+          {count(crossing.uncrossed, 'subject')}{' '}
+          {crossing.uncrossed === 1 ? 'was' : 'were'} new or moved only where an ignore or a
+          sensitivity let it, so there is no moved-or-still to cross.
         </>
       )}
     </p>

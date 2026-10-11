@@ -113,16 +113,17 @@ regions the sentence counts are clusters of adjacent changed pixels, found by
 geometry alone. To get components and file lines instead of coordinates, take
 the baseline path below and supply a snapshot.
 
-Change one of the two painter strings and the same call returns `incomparable`
-rather than a diff across two painters:
+Change one of the two painter strings and the same call still compares the
+pixels, and names the painter that moved as the cause before the diff:
 
 ```
-ios:checkout: incomparable — the before image and the after image differ in the
-machine that painted them (renderer, engine, platform
-declared:ios-simulator-17.4 → declared:figma-export); images are compared only
-within one identity, so nothing here was compared; another machine may paint
-the same pixels or different ones, and nothing measured which
+ios:checkout: changed — the before image and the after image were painted under
+different identities (renderer, engine, platform declared:ios-simulator-17.4 →
+declared:figma-export); 192 pixels differ across 2 regions
 ```
+
+The observation carries the same cause as `signals.identity: 'machine'` and
+`signals.moved`, one entry per field that moved, before image first.
 
 The reason names only the fields that differ. When those are only the recipe —
 the stabilization or rasterization digest, which an upgrade of this package or a
@@ -202,9 +203,10 @@ const candidate = await store.renderCache.get(
 );
 ```
 
-The baseline lookup looks under `renderer.identityFor(document)`. A baseline
-found under any other identity comes back `incomparable`; it is never diffed and
-blamed on the subject.
+The baseline lookup looks under `renderer.identityFor(document)` first. A
+baseline found under any other identity is diffed all the same, and the identity
+that moved is named as the cause, so a font stack is never blamed on the
+subject.
 
 ## Choose the entrypoint
 
@@ -231,15 +233,23 @@ this package.
 
 | Verdict | Meaning | What to do |
 | --- | --- | --- |
-| `unchanged` | Comparable images, no changed pixels. | Continue without review. |
-| `changed` | A comparable image differs. `regions` gives as much attribution as the snapshot and source you supplied allow. | Present the evidence and require review. |
-| `new` | No baseline exists for this key and this renderer. | Review and explicitly approve or reject. Not green. |
-| `incomparable`, machine | The two sides were painted by different machines — a baseline from another renderer, engine, platform, scale or font set, or two rasters from two declared painters (images handed in with the name of the tool that made them). | Nothing was compared, so the verdict says nothing about the pixels: the other machine may paint the same image or a different one. Compare where the baseline was painted, or keep a separate baseline for this machine. |
-| `incomparable`, recipe | One machine, and only variance-authority's recipe digest moved, as an upgrade does. The reason says whether the document is the one the baseline was painted from. | Same document: review the new images and adopt them with `variance accept --all`. Changed document: review it as a change, then accept it by name; `variance accept --all` skips it. |
+| `unchanged` | No changed pixels. | Continue without review. |
+| `changed` | The image differs. `regions` gives as much attribution as the snapshot and source you supplied allow. | Present the evidence and require review. |
+| `new` | No baseline exists for this key. | Review and explicitly approve or reject. Not green. |
 | `ignored` | Pixels changed, and every one fell inside a declared exclusion or sensitivity. | Continue, and record that the green result rested on a rule. |
 
-`unchanged` is never available for `incomparable`: a difference that could not
-be observed is not reported as no difference.
+Any of the first two can carry a moved identity as its cause.
+`signals.identity` is `machine` when the two sides were painted by different
+machines — a baseline from another renderer, engine, platform, scale or font
+set, or two rasters from two declared painters (images handed in with the name
+of the tool that made them) — and `recipe` when only variance-authority's recipe
+digest moved, as an upgrade does. `signals.moved` lists each field with both
+values, and `because` opens with the same list. A `changed` subject under a
+moved machine may be the machine and not your code: compare where the baseline
+was painted, or keep a separate baseline for this machine. Under a moved recipe,
+review the new images and adopt them with `variance accept --all`;
+`signals.document` says whether your document moved too. An `unchanged` subject
+under a moved identity is evidence the move did not touch it.
 
 ## What else an observation reports
 
@@ -298,9 +308,9 @@ measures displacement.
 - **Everything is `new`.** Confirm the baseline key and
   `renderer.identityFor(document)` match the values in use when the approved
   baseline was written.
-- **Everything is `incomparable`.** Compare the reported identities. Browser,
-  platform, scale, font declarations and stabilization inputs partition
-  baselines on purpose.
+- **Everything is `changed` with a moved identity.** Compare the reported
+  identities. Browser, platform, scale, font declarations and stabilization
+  inputs partition baselines on purpose; pin one painter for every run.
 - **Regions have coordinates but no components.** Supply the semantic snapshot
   from the same render.
 - **Components have no source lines.** Supply a matching `SourceIndex`.

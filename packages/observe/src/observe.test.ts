@@ -37,11 +37,17 @@ const MACHINE: RenderIdentity = {
 };
 
 /** White, opaque, and identical every time, so a comparison of it with itself is empty. */
-const IMAGE = ((): string => {
+const IMAGE = filled(0xff);
+
+/** Black, so a comparison with {@link IMAGE} moves every pixel. */
+const DARK = filled(0x00);
+
+function filled(value: number): string {
   const image = new PNG({ width: 20, height: 20 });
-  image.data.fill(0xff);
+  image.data.fill(value);
+  for (let i = 3; i < image.data.length; i += 4) image.data[i] = 0xff;
   return PNG.sync.write(image).toString('base64');
-})();
+}
 
 function viewportAt(deviceScaleFactor: number): Viewport {
   return { width: 100, height: 100, deviceScaleFactor, colorScheme: 'light' };
@@ -65,7 +71,10 @@ function documentAt(deviceScaleFactor: number): RenderDocument {
  * A renderer that behaves the way every real one does: machine identity up
  * front, the document's scale folded in at render time.
  */
-function fakeRenderer(machine: RenderIdentity = MACHINE): Renderer & { calls: number } {
+function fakeRenderer(
+  machine: RenderIdentity = MACHINE,
+  bytes: string = IMAGE,
+): Renderer & { calls: number } {
   const renderer = {
     identity: machine,
     calls: 0,
@@ -79,7 +88,7 @@ function fakeRenderer(machine: RenderIdentity = MACHINE): Renderer & { calls: nu
         identity: renderer.identityFor(document),
         width: 20,
         height: 20,
-        bytes: IMAGE,
+        bytes,
         missingFonts: [],
       };
     },
@@ -102,8 +111,8 @@ describe('a durable observation above 1x', () => {
     // The raster is stamped with the document's scale, so a 2x baseline is
     // stored under a 2x identity. Looking it up under the renderer's
     // machine-level identity asks for 1x, misses the run's own write, and then
-    // locates it as a *sibling* identity — reporting `incomparable` on every
-    // run, forever, in a sentence that blames the machine for a key mismatch.
+    // locates it as a *sibling* identity — blaming a moved scale on every run,
+    // forever, for what is a key mismatch.
     const store = createDurableStore(root);
     const renderer = fakeRenderer();
     const document = documentAt(2);
@@ -115,13 +124,10 @@ describe('a durable observation above 1x', () => {
     expect(observation.verdict).toBe('unchanged');
   });
 
-  it('still refuses a 1x baseline from a 2x run, and names the scale it ran at', async () => {
-    // The refusal has to survive the fix. A retina laptop and a 1x runner paint
-    // different images of the same markup, so comparing them is a diff of the
-    // machines and `unchanged` is never available for it. The sentence has to
-    // quote the scale this run actually rendered at, not the renderer's
-    // placeholder 1 — a report that says "1x" of a 2x run sends the reader
-    // hunting for a machine difference that is not there.
+  it('compares a 1x baseline with a 2x run, and names the scale it ran at as the cause', async () => {
+    // A retina laptop and a 1x runner may paint different images of the same
+    // markup. Whether they did is what the comparison answers; the scale is
+    // why, and the sentence quotes the scale this run actually rendered at.
     const store = createDurableStore(root);
     const renderer = fakeRenderer();
 
@@ -133,24 +139,24 @@ describe('a durable observation above 1x', () => {
       { renderer, store },
     );
 
-    expect(observation.verdict).toBe('incomparable');
-
-    // The scale on each side, and only the scale: it is the one field that
-    // moved, and a sentence describing both machines in full makes the reader
-    // find it by diffing two parentheses.
+    // The fake paints one image at every scale, so nothing moved — and the
+    // run says so, with what moved between the two identities.
+    expect(observation.verdict).toBe('unchanged');
+    expect(observation.signals).toMatchObject({ identity: 'machine', moved: ['scale 1x → 2x'] });
     expect(observation.because).toContain('scale 1x → 2x');
     expect(observation.because).not.toContain('chromium@131.0.0');
-    expect(observation.because).toContain('nothing here was compared');
-    expect(observation.because).not.toMatch(/machine-bound|not comparable/);
+    expect(observation.because).not.toContain('nothing here was compared');
   });
 
-  it('calls a recipe-only difference a re-baseline and names the command', async () => {
-    // The MUI upgrade: one machine, one engine, one scale, and a rasterization
-    // key that moved because this tool changed what it digests. Blaming the
-    // machine sends the reader to compare two laptops that are the same laptop.
+  it('compares across a recipe change and shows the pixels that moved', async () => {
+    // An upgrade of this tool: one machine, a rasterization key that moved.
+    // Every subject is compared, so the few the upgrade moved are visible.
     const store = createDurableStore(root);
     const before = fakeRenderer({ ...MACHINE, rasterization: 'v1:8040e1a2e35d148b301ebd30e5ed66c6' });
-    const after = fakeRenderer({ ...MACHINE, rasterization: 'v1:54323cded938fde38b41cdd3865368fe' });
+    const after = fakeRenderer(
+      { ...MACHINE, rasterization: 'v1:54323cded938fde38b41cdd3865368fe' },
+      DARK,
+    );
 
     await store.put({ subject: 's' }, await before.render(documentAt(1)));
 
@@ -160,14 +166,13 @@ describe('a durable observation above 1x', () => {
       { renderer: after, store },
     );
 
-    expect(observation.verdict).toBe('incomparable');
-    // Carried, so a bulk accept adopts this and not another machine's image.
-    expect(observation.signals).toMatchObject({ document: 'unchanged', identity: 'recipe' });
+    expect(observation.verdict).toBe('changed');
+    expect(observation.comparison).toBeDefined();
+    expect(observation.signals).toMatchObject({
+      identity: 'recipe',
+      moved: ['rasterization e5ed66c6 → 865368fe'],
+    });
     expect(observation.because).toContain('rasterization e5ed66c6 → 865368fe');
-    expect(observation.because).toContain('same machine');
-    expect(observation.because).toContain('only the recipe moved');
-    expect(observation.because).toContain('`variance accept --all`');
-    expect(observation.because).not.toContain('machine-bound');
   });
 
   it('gives every subject without a baseline the same reason, so a docket groups them', async () => {
@@ -226,10 +231,9 @@ describe('a durable observation above 1x', () => {
     ).not.toHaveProperty('components');
   });
 
-  it('refuses an existing raster from a machine with another font, and names that font alone', async () => {
-    // A raster captured elsewhere arrives already painted, so nothing here can
-    // repaint it under the baseline's machine. The refusal names the font that
-    // moved rather than both font lists, and says whether the document moved.
+  it('compares an existing raster from a machine with another font, and names that font alone', async () => {
+    // A raster captured elsewhere arrives already painted. It is compared with
+    // the baseline all the same, and the font that moved is named as the cause.
     const store = createDurableStore(root);
     const document = documentAt(1);
     await store.put({ subject: 's' }, await fakeRenderer().render(document));
@@ -246,14 +250,12 @@ describe('a durable observation above 1x', () => {
     const observation = await observeCaptureAgainstBaseline(artifact, { subject: 's' }, { store });
 
     expect(observation).toMatchObject({
-      verdict: 'incomparable',
+      verdict: 'unchanged',
       rendered: false,
-      signals: { document: 'unchanged', identity: 'machine' },
+      signals: { identity: 'machine', moved: ['fonts +Roboto/400/normal/def'] },
     });
     expect(observation.because).toContain('fonts +Roboto/400/normal/def');
     expect(observation.because).not.toContain('Inter/400/normal/abc');
-    expect(observation.because).toContain('nothing here was compared');
-    expect(observation.because).not.toMatch(/machine-bound|not comparable/);
   });
 
   it('refuses value material instead of treating it as an unchanged raster', async () => {
