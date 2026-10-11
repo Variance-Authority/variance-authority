@@ -90,11 +90,50 @@ describe('variance_run_signals', () => {
   it('narrows by state and by file, and says what there is when nothing matches', () => {
     expect(runSignals.run(RUNNING, { state: 'passed' })).toContain('cart is empty at first');
     expect(runSignals.run(RUNNING, { state: 'passed' })).not.toContain('checkout settles');
-    expect(runSignals.run(RUNNING, { file: 'cart' })).toContain('cart is empty at first');
+    expect(runSignals.run(RUNNING, { file: 'tests/cart.spec.ts' })).toContain('cart is empty at first');
 
     const none = runSignals.run(RUNNING, { state: 'skipped' });
     expect(none).toContain('No test here matches state skipped');
     expect(none).toContain('passed, running');
+  });
+
+  it('narrows to the one file named, never to a file whose name contains it', () => {
+    // Two names are two files. A substring took `tests/cart.spec.tsx` with
+    // `tests/cart.spec.ts`, and `cart` with both, and an agent reading the
+    // listing cannot see that a second file answered.
+    const two: VantageState = {
+      forgotten: 0,
+      tests: [
+        test({ id: 'ts', title: 'cart adds', file: 'tests/cart.spec.ts' }),
+        test({ id: 'tsx', title: 'cart renders', file: 'tests/cart.spec.tsx' }),
+      ],
+    };
+
+    const exact = runSignals.run(two, { file: 'tests/cart.spec.ts' });
+    expect(exact).toContain('cart adds');
+    expect(exact).not.toContain('cart renders');
+
+    const part = runSignals.run(two, { file: 'cart' });
+    expect(part).toContain('No test here matches file cart.');
+    expect(part).not.toContain('cart adds');
+  });
+
+  it('reads the file the way the record spells it, from the checkout it was given', () => {
+    const root = '/work/shop';
+    for (const asked of ['./tests/cart.spec.ts', 'tests/../tests/cart.spec.ts', '/work/shop/tests/cart.spec.ts']) {
+      const text = runSignals.run(RUNNING, { file: asked }, { root });
+      expect(text).toContain('cart is empty at first');
+      expect(text).not.toContain('checkout settles');
+    }
+
+    const none = runSignals.run(RUNNING, { file: './tests/gone.spec.ts' }, { root });
+    expect(none).toContain('No test here matches file tests/gone.spec.ts.');
+  });
+
+  it('refuses a file outside the checkout rather than answering that nothing matched', () => {
+    expect(() => runSignals.run(RUNNING, { file: '/elsewhere/cart.spec.ts' }, { root: '/work/shop' })).toThrow(
+      '/elsewhere/cart.spec.ts is outside the checkout at /work/shop, and the suite running there reports only files inside it.',
+    );
   });
 
   it('refuses an argument a model made up', () => {

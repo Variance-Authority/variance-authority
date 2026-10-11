@@ -16,7 +16,7 @@ mock of the listed path. It needs a recorded run, not `--execution` JSON, and is
 withheld when a case stopped or the file's coverage row is incomplete; run the
 file again. Name neither `--test` nor `--file`, and distill reads every test
 file of the record the same way, or with `--from <dir>` every one under a
-directory from the repository root, and ranks each import by the lines it loads
+directory named from the repository root or from `/`, and ranks each import by the lines it loads
 for nothing, counted once in every test file it reaches: the heaviest import
 across a package or a suite. With no `--suite`, that reading takes every
 declared suite and names one that has not recorded. `--root` (default: the working

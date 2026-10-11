@@ -341,8 +341,9 @@ is for one file, and every test file the import reaches stops paying.
 
 You choose the scope:
 
-- **`--from <dir>`** reads the test files under a directory spelled from the
-  repository root: a folder or a package.
+- **`--from <dir>`** reads the test files under a directory, a folder or a
+  package, named from the repository root or from `/`. A directory outside the
+  checkout is refused.
 - **`--suite <name>`** alone reads every test file of one suite.
 - **Nothing** reads every test file of every declared suite, and names a
   declared suite that has not recorded. On a small project that is one answer
