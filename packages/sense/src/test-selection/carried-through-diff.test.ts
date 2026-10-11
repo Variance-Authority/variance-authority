@@ -180,7 +180,7 @@ describe('the cases of a mainline run, carried onto a local leg through the edit
   it('hands the effect written behind the survivor no case of the one that was deleted', async () => {
     const { cases } = await landBoth(TWO_EFFECTS, SWAPPED);
 
-    expect(cases['third();']).not.toContain(caseOf(ONE));
+    expect(cases['third();']).not.toContain(caseOf(TWO));
   });
 
   it('carries no case onto the effect whose body was edited, nor onto the function around it', async () => {
@@ -197,6 +197,6 @@ describe('the cases of a mainline run, carried onto a local leg through the edit
     const { cases } = await landBoth(TWO_EFFECTS, SWAPPED, { commitBase: false });
 
     expect(cases['second();']).toEqual([caseOf(TWO)]);
-    expect(cases['third();']).not.toContain(caseOf(ONE));
+    expect(cases['third();']).not.toContain(caseOf(TWO));
   });
 });

@@ -130,6 +130,9 @@ function followCuts(previous: Uint8Array, cuts: RowCuts, edit: EditOf): Buffer |
   const onto = new Map<number, SetExecutionModule>();
   for (const row of rows) {
     const cut = cutAt.get(held.columns.moduleFile[row]!);
+    // FIXME: lines are the only evidence a held module already stands at its
+    // rows. A body edited in place moves no line, so its cases stay on the
+    // edited region. See the todo in `land-carried-index.test.ts`.
     if (cut !== undefined && !cutAlike(held.module(row), cut)) onto.set(row, cut);
   }
   if (onto.size === 0) return undefined;

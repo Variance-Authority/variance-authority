@@ -76,8 +76,9 @@ afterEach(async () => {
   await rm(home, { recursive: true, force: true });
 });
 
-describe('landJourneys over a module a shard recorded at another text and kept no case of', () => {
-  it('lays the cases the record held of it onto the lines its rows were landed at', async () => {
+/** The record's cases of `FILE` after a shard recorded it at `text` (the checkout's `source`) and kept no case of it. */
+async function landedAt(source: string, text: Text) {
+  {
     const { dir } = await published(home, { publish: false, record: wholeRecord });
     await mkdir(join(dir, 'test'), { recursive: true });
     for (const test of [ONE, TWO, THREE]) await writeFile(join(dir, test), '', 'utf8');
@@ -119,7 +120,7 @@ describe('landJourneys over a module a shard recorded at another text and kept n
       commit: first,
       tests: [whole(THREE)],
       modules: [
-        rows(MOVED, { module: [THREE], a: [], b: [] }),
+        rows(text, { module: [THREE], a: [], b: [] }),
         {
           file: OTHER,
           sourceDigest: 'other',
@@ -130,18 +131,33 @@ describe('landJourneys over a module a shard recorded at another text and kept n
     }, {
       index: encodeExecutionIndex({ tests: [caseOf(THREE)], modules: [{ file: OTHER, blocks: [block('module', '', [1, 1], [0])] }] }),
     });
-    await writeFile(mathFile, MOVED_TEXT, 'utf8');
+    await writeFile(mathFile, source, 'utf8');
     await landJourneys(dir, [shard], into);
 
-    const functions = (blocks: readonly { readonly kind: string; readonly name: string; readonly startLine?: number; readonly endLine?: number }[]) =>
-      blocks.filter((region) => region.kind === 'function').map((region) => `${region.name} ${region.startLine}-${region.endLine}`);
     const landed = (await readTestCoverage(into)).modules.find((module) => module.file === FILE)!;
-    const index = decodeExecutionIndex(caseSectionsAt(into).index!);
+    return { landed, index: decodeExecutionIndex(caseSectionsAt(into).index!) };
+  }
+}
+
+const functions = (blocks: readonly { readonly kind: string; readonly name: string; readonly startLine?: number; readonly endLine?: number }[]) =>
+  blocks.filter((region) => region.kind === 'function').map((region) => `${region.name} ${region.startLine}-${region.endLine}`);
+
+describe('landJourneys over a module a shard recorded at another text and kept no case of', () => {
+  it('lays the cases the record held of it onto the lines its rows were landed at', async () => {
+    const { landed, index } = await landedAt(MOVED_TEXT, MOVED);
+
     expect(landed.sourceDigest).toBe(MOVED.digest);
     expect(functions(landed.blocks)).toEqual(['a 3-5', 'b 7-9']);
     expect(functions(index.modules.find((module) => module.file === FILE)!.blocks)).toEqual(functions(landed.blocks));
     expect(coveringTests(index, { file: FILE, line: MOVED.b[0] + 1 }).map((test) => test.id)).toEqual([caseOf(TWO).id]);
   });
+
+  // FIXME: a module the run did not record, whose rows are re-cut to a text that
+  // edits a body in place, keeps its held cases when no line moved: `cutAlike`
+  // reads the held cut as already standing at the rows. The cases of `two`, which
+  // ran `b`, stay on `b`; they should drop. Needs the landing to name the modules
+  // the run laid, so a held one is followed through the edit whatever its lines.
+  it.todo('keeps no case on a region edited in place, though no line moved');
 });
 
 describe('followRows over a held index in the row spelling', () => {
