@@ -1,9 +1,10 @@
 ---
 '@variance-authority/cli': minor
 '@variance-authority/distill': minor
+'@variance-authority/mcp': minor
 ---
 
-`variance story`, `variance journeys` and `variance distill` read a file and a name exactly
+`variance story`, `variance journeys`, `variance distill` and the test tools read a file and a name exactly
 
 `variance story --file` and `--name` kept every story whose test file path or
 test name held the text you typed, so `--file a.test.ts` also kept
@@ -21,6 +22,9 @@ that are written.
 the title in any case, so `--test submits` read `checkout > submits` when it
 was the only title holding the word. It now takes the id or the whole title,
 `--test 'checkout > submits'`, and a part of either is answered as no case.
+`variance_test_signals` (`variance ask test-signals --test`) and
+`variance_test_attention` did the same and now take the id or the whole title
+too.
 
 The steps through one workspace package, which `--in @acme/ui` used to open by
 matching the package name as text, are now `variance story --package @acme/ui`.

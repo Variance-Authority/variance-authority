@@ -18,7 +18,7 @@ export const attention: Tool<EyesArchive> = {
   inputSchema: {
     type: 'object',
     properties: {
-      test: { type: 'string', description: 'A test id, exact title, or unambiguous title part.' },
+      test: { type: 'string', description: 'A test id or whole title.' },
       phase: { enum: ['arrange', 'act', 'assert'], description: 'Optional authored AAA phase.' },
     },
     additionalProperties: false,
@@ -41,16 +41,14 @@ export const attention: Tool<EyesArchive> = {
   },
 };
 
+/** The one Eyes test with this id or whole title, or the sentence explaining why there is not one. */
 export function locateEyesTest(archive: EyesArchive, asked: string): EyesTestAttention | string {
   const byId = archive.tests.find((test) => test.id === asked);
   if (byId !== undefined) return byId;
   const exact = archive.tests.filter((test) => test.title === asked);
   if (exact.length === 1) return exact[0]!;
-  const lowered = asked.toLowerCase();
-  const partial = archive.tests.filter((test) => test.title.toLowerCase().includes(lowered));
-  if (partial.length === 1) return partial[0]!;
-  if (partial.length === 0) return `No Eyes test matches ${asked}. ${archive.tests.length} test(s) are recorded.`;
-  return `${partial.length} Eyes tests match ${asked}; ask by id:\n${partial.map((test) => `  ${test.title} [${test.id}]`).join('\n')}`;
+  if (exact.length === 0) return `No Eyes test has the id or title ${asked}. ${archive.tests.length} test(s) are recorded.`;
+  return `${exact.length} Eyes tests are titled ${asked}; ask by id:\n${exact.map((test) => `  ${test.title} [${test.id}]`).join('\n')}`;
 }
 
 export function phasedAttention(entries: readonly Attention[]): readonly { phase: Phase; entry: Attention }[] {

@@ -158,19 +158,24 @@ describe('variance_test_signals', () => {
     expect(text).toContain('Still running');
   });
 
-  it('takes an id, a whole title, or enough of one', () => {
-    for (const asked of ['t1', 'checkout settles', 'settles']) {
+  it('takes an id or a whole title, never a part of one', () => {
+    for (const asked of ['t1', 'checkout settles']) {
       expect(testSignals.run(RUNNING, { test: asked })).toContain('checkout settles —');
+    }
+    for (const asked of ['settles', 'Checkout settles', 't']) {
+      const text = testSignals.run(RUNNING, { test: asked });
+      expect(text).toContain(`No test here has the id or title ${asked}.`);
+      expect(text).toContain('  checkout settles [t1]');
     }
   });
 
-  it('asks for an id rather than guessing between two matches', () => {
+  it('asks for an id when two tests share a whole title', () => {
     const two: VantageState = {
       forgotten: 0,
-      tests: [test({ id: 'a', title: 'cart adds' }), test({ id: 'b', title: 'cart removes' })],
+      tests: [test({ id: 'a', title: 'cart adds' }), test({ id: 'b', title: 'cart adds' })],
     };
-    const text = testSignals.run(two, { test: 'cart' });
-    expect(text).toContain('2 tests match cart');
+    const text = testSignals.run(two, { test: 'cart adds' });
+    expect(text).toContain('2 tests are titled cart adds');
     expect(text).toContain('[a]');
     expect(text).toContain('[b]');
   });
@@ -208,7 +213,7 @@ describe('variance_test_signals', () => {
 
   it('names what has reported when the test asked for has not', () => {
     const text = testSignals.run(RUNNING, { test: 'nothing like this' });
-    expect(text).toContain('No test here matches nothing like this');
+    expect(text).toContain('No test here has the id or title nothing like this');
     expect(text).toContain('[passed-one]');
   });
 });

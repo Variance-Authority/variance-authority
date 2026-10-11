@@ -187,7 +187,6 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
   };
 }
 
-
 /**
  * Read `--at-distance`, or say what it should have been.
  *
