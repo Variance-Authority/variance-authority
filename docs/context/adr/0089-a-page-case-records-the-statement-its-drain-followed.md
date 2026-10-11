@@ -48,6 +48,9 @@ charged to the statement that ran just before the drain that first found it.**
    statement go on, and from there the case's regions are drained without a
    line. A page can hold every evaluation, an open `alert` until the test
    answers it, and the statement that would answer it is the one waiting.
+   Teardown waits the same second for the last statement's drain; a page
+   still holding it would hold the teardown drain too, so that drain is
+   skipped and the case is marked incomplete.
 4. **Only the running spec is cut.** A body declared in another file is not
    waited on, and what it reached is charged to the spec statement that called
    it.

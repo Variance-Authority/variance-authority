@@ -15,7 +15,9 @@ Sense's `dist/` to `build.external`, which Playwright would otherwise load as
 CommonJS. Over a probed Storybook build the lines add 2.4% to the record, and
 the duration stays inside its run-to-run spread. Draining before each statement
 also reads a document before a `goto` replaces it, so a case's crossings now
-include what that document reached. A drain, the teardown's included, no longer
+include what that document reached. A test that ends while the page still
+holds a drain, as an open `alert` does, is recorded incomplete instead of
+waiting for its timeout. A drain, the teardown's included, no longer
 shows as an `Evaluate` step in the report, the trace or the inspector.
 `ExecutionRecorder.note` takes the optional `line` a drain followed. Pass
 `cadence: false` to compile specs as Playwright would and write no lines. `@variance-authority/sense/instrument`

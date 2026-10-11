@@ -592,9 +592,12 @@ where you wrote it.
 Each statement waits at most a second for its drain. One held up longer by the
 page, as an open `alert` holds every evaluation until the test answers it, lets
 the statement go on, and from there the case's regions are recorded without a
-line. Its crossings are recorded either way. A drain is not a step, so the
-report, the trace and the inspector show none of them, and a wait shows in the
-trace only as a gap of up to a second before the statement.
+line. Its crossings are recorded either way, unless the page still holds the
+drain when the test ends: the teardown drain would wait on it too, so it is
+skipped and the case is recorded incomplete, which the next selection runs. A
+drain is not a step, so the report, the trace and the inspector show none of
+them, and a wait shows in the trace only as a gap of up to a second before the
+statement.
 
 The plugin requires Sense's compiled `dist/`, and Playwright compiles every
 file outside `node_modules` it loads as CommonJS, which a workspace-linked

@@ -60,9 +60,11 @@ export const varianceDocumentFixtures: Fixtures<
     const statements = drainEachStatement(context, varianceRecorder, owner, testInfo);
     await use(context);
     documents.stop();
-    const line = await statements.stop();
-    let lost = documents.lost();
-    for (const page of context.pages()) {
+    const { line, stalled } = await statements.stop();
+    // A page that held the statements' drain holds this one too, and the test's
+    // timeout is all that would end it: the case is not believed whole instead.
+    let lost = documents.lost() || stalled;
+    for (const page of stalled ? [] : context.pages()) {
       for (const frame of page.frames()) {
         try {
           await varianceRecorder.note(frame, owner, testOf(testInfo), line);
@@ -88,8 +90,23 @@ export const varianceDocumentFixtures: Fixtures<
 const STATEMENT_WAIT_MS = 1000;
 
 interface Statements {
-  /** Stop draining per statement; resolves to the line the rest is charged to. */
-  readonly stop: () => Promise<number | undefined>;
+  /**
+   * Stop draining per statement; resolves to the line the rest is charged to,
+   * and whether the page held the last drain past {@link STATEMENT_WAIT_MS}.
+   */
+  readonly stop: () => Promise<{ readonly line: number | undefined; readonly stalled: boolean }>;
+}
+
+/** Whether `work` settles within {@link STATEMENT_WAIT_MS}. */
+function settlesInTime(work: Promise<void>): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), STATEMENT_WAIT_MS);
+    timer.unref();
+    void work.then(() => {
+      clearTimeout(timer);
+      resolve(true);
+    });
+  });
 }
 
 /**
@@ -145,17 +162,8 @@ function drainEachStatement(
     const reached = last;
     last = line;
     draining = draining.then(drain(reached));
-    const drained = draining;
-    const waited = new Promise<void>((resolve) => {
-      const timer = setTimeout(() => {
-        late = true;
-        resolve();
-      }, STATEMENT_WAIT_MS);
-      timer.unref();
-      void drained.then(() => {
-        clearTimeout(timer);
-        resolve();
-      });
+    const waited = settlesInTime(draining).then((inTime) => {
+      if (!inTime) late = true;
     });
     return theirs === undefined || theirs === null ? waited : Promise.all([theirs, waited]);
   };
@@ -168,8 +176,9 @@ function drainEachStatement(
       if (held === undefined) delete realm.__VA__;
       else if (outer === undefined) delete held.c;
       else held.c = outer;
-      await draining;
-      return late ? undefined : last;
+      const stalled = !(await settlesInTime(draining));
+      if (stalled) late = true;
+      return { line: late ? undefined : last, stalled };
     },
   };
 }
