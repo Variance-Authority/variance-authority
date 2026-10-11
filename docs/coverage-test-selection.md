@@ -428,7 +428,9 @@ Some reads cannot be placed in one function, and those charge the whole module:
 
 The search goes one import deep: it looks in the files that import the declaring
 file, and further only through a file that re-exports the name, such as a
-barrel with `export { MAX_ITEMS } from "./limits"`. Names are matched by
+barrel with `export { MAX_ITEMS } from "./limits"`. `limits.ts` is one of those
+files when it imports its own value back, as a namespace of itself or through
+such a barrel, under any local name. Names are matched by
 spelling, without resolving scopes. A parameter named `MAX_ITEMS` counts as a
 read, which selects more tests and never fewer. A test that loaded `limits.ts`
 through an import the file graph does not list is printed by name as `unseen`

@@ -687,8 +687,9 @@ below is one stage of that call.
    nothing. `bodies` — what the module does as it loads and every binding's
    value are equal — charges the regions around the lines and never the
    module's own region. `values` charges the same regions, and every region
-   that reads a binding whose value moved: in the file, and in each direct
-   importer on a runtime edge, further only through a re-export. A read at
+   that reads a binding whose value moved: in the file, under its own name or
+   through an import that brings it back, and in each direct importer on a
+   runtime edge, further only through a re-export. A read at
    load charges that module, and an importer that hands a namespace on whole
    charges its module. An import that binds a name is a use by the functions
    that read it, so an import added to a file charges those functions and not
