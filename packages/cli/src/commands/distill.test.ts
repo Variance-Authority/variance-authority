@@ -140,11 +140,11 @@ describe('the CLI distillation boundary', () => {
       .toContain('the record keeps no Eyes journal for this case.');
   });
 
-  it('names the case by its file and a part of its title, and reads its journals by id', async () => {
+  it('names the case by its file and its whole title, and reads its journals by id', async () => {
     const root = checkout();
     await recorded(root, [{ case: CASE, attempt: 1, journal: clicked('src/cart.tsx') }]);
 
-    const answer = await run(['distill', '--file', 'test/cart.spec.ts', '--test', 'one item', '--format', 'json']);
+    const answer = await run(['distill', '--file', 'test/cart.spec.ts', '--test', 'adds one item', '--format', 'json']);
 
     expect(answer.code).toBe(EXIT_CLEAN);
     expect(JSON.parse(answer.out).test.id).toBe(CASE);
@@ -159,7 +159,7 @@ describe('the CLI distillation boundary', () => {
       const alone = await run(['distill', '--file', file, '--format', 'json']);
       expect(alone.err).toBe('');
       expect(JSON.parse(alone.out).file).toBe('test/cart.spec.ts');
-      const narrowed = await run(['distill', '--file', file, '--test', 'one item', '--format', 'json']);
+      const narrowed = await run(['distill', '--file', file, '--test', 'adds one item', '--format', 'json']);
       expect(JSON.parse(narrowed.out).test.id).toBe(CASE);
     }
   });

@@ -184,15 +184,16 @@ describe('the recorded partings a run can reach', () => {
     );
   });
 
-  it('narrows by file and says so when the filter is what emptied the answer', () => {
-    const kept = journeysOf(reading({ file: 'cartcard' }));
-    expect(kept.modules).toHaveLength(1);
+  it('narrows to the file at the path --file names, and says so when that file is not among the partings', () => {
+    const kept = journeysOf(reading({ file: 'app/src/components/CartCard.tsx' }));
+    expect(kept.modules.map((module) => module.file)).toEqual(['app/src/components/CartCard.tsx']);
 
-    const none = journeysOf(reading({ file: 'MainNav' }));
-    expect(none.modules).toEqual([]);
-    expect(none.notes).toContainEqual(
-      expect.stringContaining('1 module parted and none of them matches --file MainNav'),
-    );
+    // A file is its whole path: one whose path holds what was asked, in any case, is another file.
+    for (const other of ['CartCard', 'cartcard', 'src/components/CartCard.tsx', 'app/src/components/cartcard.tsx']) {
+      const none = journeysOf(reading({ file: other }));
+      expect(none.modules).toEqual([]);
+      expect(none.notes).toContainEqual(`1 module parted, and ${other}, the path --file named, is not one of them`);
+    }
   });
 
   it('counts what a cap left out', () => {

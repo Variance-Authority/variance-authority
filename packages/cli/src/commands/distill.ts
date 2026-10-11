@@ -20,7 +20,6 @@ import {
   type ScopeRecord,
   type ScopeRow,
 } from '@variance-authority/distill';
-import { checkoutPath } from '@variance-authority/sense';
 import {
   declaredSuites,
   decodeTestCoverage,
@@ -32,13 +31,14 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { mayMock, shadowReach } from '@variance-authority/sense/taint';
 import { messageOf } from '../config-values.js';
+import { checkoutFile } from '../checkout-file.js';
 import { OperatorError } from '../exit.js';
 import { executionIndexOf, recordedExecutionFile } from './execution-input.js';
 import { relationsFor } from './source-graph.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
 
 export interface DistillOptions {
-  /** The case's id, its exact title, or a part of the title. */
+  /** The case's id, or its whole title. */
   readonly test?: string;
   /**
    * The test file's path, from `root` or from the file system's root, which
@@ -68,7 +68,7 @@ export interface DistillOptions {
  */
 export async function distillFiles(options: DistillOptions): Promise<Distillation | FileDistillation | ScopeDistillation> {
   if (options.test === undefined && options.file === undefined) return distillRecords(options);
-  const file = options.file === undefined ? undefined : recordedPath(options.root, options.file);
+  const file = options.file === undefined ? undefined : checkoutFile(options.root, options.file);
   const record = options.execution ?? (await recordedExecutionFile(options.root, options.suite));
   // One read: the index and the journals are then one run's, whatever lands between.
   const bytes = await recordAt(record);
@@ -99,13 +99,6 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
     if (error instanceof OperatorError) throw error;
     throw new OperatorError(error instanceof Error ? error.message : String(error));
   }
-}
-
-/** `file` spelled as the record spells its rows, repository-relative with `/`, or the refusal of a path outside `root`. */
-function recordedPath(root: string, file: string): string {
-  const asked = checkoutPath(root, file);
-  if ('outside' in asked) throw new OperatorError(asked.outside);
-  return asked.path;
 }
 
 /**

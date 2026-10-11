@@ -27,8 +27,8 @@ export interface EyesAttempt {
 
 export interface DistillInput {
   /**
-   * The case to read: its id as the record's case index spells it, its exact
-   * title, or a part of the title only one case has. Absent, `file` has to name
+   * The case to read: its id as the record's case index spells it, or its
+   * whole title, when one case has it. Absent, `file` has to name
    * a file with one case.
    */
   readonly test?: string;

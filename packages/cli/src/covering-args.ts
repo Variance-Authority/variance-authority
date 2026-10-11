@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
-import { checkoutPath } from '@variance-authority/sense';
 import { distanceRange } from '@variance-authority/sense/test-selection';
 import { noPositionals, type Flags } from './args.js';
+import { checkoutFile } from './checkout-file.js';
 import { OperatorError } from './exit.js';
 import type { CoveringFormat } from './commands/covering.js';
 import { oneRecord } from './commands/suite-record.js';
@@ -177,7 +177,7 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
   const source = executionAnd(flags);
   return {
     ...source,
-    file: fromRoot(file, source.root),
+    file: checkoutFile(source.root, file, '--file'),
     ...(line === undefined ? {} : { line }),
     ...(functionName === undefined ? {} : { function: functionName }),
     ...(atDistance === undefined ? {} : { atDistance }),
@@ -185,20 +185,6 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
     ...(flags.present.has('--hops') ? { hops: true as const } : {}),
     ...(text === undefined ? {} : { text }),
   };
-}
-
-/**
- * `--file` as the record names it: from the root, with `/` between segments.
- *
- * A relative path is read from the root and an absolute one, as an editor
- * copies it, from `/`; `./` and `..` are collapsed. That is the same path in
- * another syntax. Nothing is matched by name, so a path that leaves the root is
- * refused rather than climbed out of.
- */
-function fromRoot(file: string, root: string): string {
-  const asked = checkoutPath(root, file);
-  if ('outside' in asked) throw new OperatorError(`\`--file\`: ${asked.outside}`);
-  return asked.path;
 }
 
 /**

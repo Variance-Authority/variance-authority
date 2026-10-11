@@ -141,7 +141,7 @@ describe('a story read as a route', () => {
         'story  src/cart.test.ts > cart > removes the last item',
         '  goes through 5 files in 300 steps',
         '  drawn by files: by declarations it would be 7798 characters, and a story is kept under 5000;',
-        '  narrow it with --in <package or file> or --around <step>, or read every step with --whole',
+        '  narrow it with --in <file>, --package <name> or --around <step>, or read every step with --whole',
         '',
         '  src/a.ts  steps 1-150',
         '  src/b.ts  steps 151-300',
@@ -157,8 +157,8 @@ describe('a story read as a route', () => {
         'story  src/cart.test.ts > cart > removes the last item',
         '  goes through 2 files in 302 steps',
         '  drawn by steps: by every step it would be 8882 characters, and a story is kept under 5000;',
-        '  narrow it with --in <package or file> or --around <step>, or read every step with --whole',
-        '  passed through @acme/ui, one line for each series of steps in a row there; open one with --in <package>',
+        '  narrow it with --in <file>, --package <name> or --around <step>, or read every step with --whole',
+        '  passed through @acme/ui, one line for each series of steps in a row there; open one with --package <name>',
         ...KEY,
         '',
         '  in src: app.ts',
@@ -171,8 +171,8 @@ describe('a story read as a route', () => {
     );
   });
 
-  it('opens a package with --in, and picks the level again inside what it opened', () => {
-    const opened = JSON.parse(formatStory({ route: APP, packages: PACKAGES, zoom: { in: '@acme/ui' } }, 'json'));
+  it('opens a package with --package, and picks the level again inside what it opened', () => {
+    const opened = JSON.parse(formatStory({ route: APP, packages: PACKAGES, zoom: { package: '@acme/ui' } }, 'json'));
     expect(opened).toMatchObject({ package: 'app', reading: { level: 'files' }, finer: { level: 'declarations' } });
     expect(opened.reading.files.map((file: { package: string }) => file.package)).toEqual(['app', '@acme/ui']);
     // Back and forth into three hundred files of the design system fits no level finer than its packages.
@@ -191,10 +191,10 @@ describe('a story read as a route', () => {
   });
 
   it('reads the steps through one file with the step either side, and names the steps it leaves out', () => {
-    expect(formatStory({ route: ROUTE, zoom: { in: 'cart.test' } }, 'text')).toBe(
+    expect(formatStory({ route: ROUTE, zoom: { in: 'src/cart.test.ts' } }, 'text')).toBe(
       [
         ...HEAD,
-        '  the steps through the package or file matching `cart.test`, and the step either side of each run of them',
+        '  the steps through the file `src/cart.test.ts`, and the step either side of each run of them',
         ...KEY,
         ...FILES,
         '  before the test',
@@ -205,8 +205,18 @@ describe('a story read as a route', () => {
         '',
       ].join('\n'),
     );
-    expect(formatStory({ route: ROUTE, zoom: { in: 'basket' } }, 'text')).toBe(
-      [...HEAD, '', '  the test goes through no package or file matching `basket`', ''].join('\n'),
+    // A file is its whole path: one whose path holds what was asked is another file.
+    expect(formatStory({ route: ROUTE, zoom: { in: 'cart.test' } }, 'text')).toBe(
+      [...HEAD, '', '  the test does not go through the file `cart.test`', ''].join('\n'),
+    );
+  });
+
+  it('reads a package only from --package, by its name', () => {
+    expect(formatStory({ route: APP, packages: PACKAGES, zoom: { in: '@acme/ui' } }, 'text')).toContain(
+      '  the test does not go through the file `@acme/ui`',
+    );
+    expect(formatStory({ route: APP, packages: PACKAGES, zoom: { package: '@acme' } }, 'text')).toContain(
+      '  the test does not go through the package `@acme`',
     );
   });
 
@@ -294,8 +304,12 @@ describe('a story read as a route', () => {
     });
   });
 
-  it('takes one of --in, --around and --whole', () => {
+  it('takes one of --in, --package, --around and --whole', () => {
     expect(parseArgs(['story', '--around', '4'])).toMatchObject({ command: 'story', zoom: { around: 4 } });
+    expect(parseArgs(['story', '--package', '@acme/ui'])).toMatchObject({ command: 'story', zoom: { package: '@acme/ui' } });
+    expect(() => parseArgs(['story', '--in', 'src/cart.ts', '--package', '@acme/ui'])).toThrow(
+      '--in and --package each choose how much of the route to read; name one',
+    );
     expect(() => parseArgs(['story', '--in', 'cart', '--whole'])).toThrow(
       '--in and --whole each choose how much of the route to read; name one',
     );

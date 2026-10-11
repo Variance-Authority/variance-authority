@@ -469,9 +469,10 @@ told it one run too late.
 `variance_run_signals` takes `state`, `file` and `limit`, and marks a running
 test with `▸` and a stopped one as `waiting`. `file` is one spec file, by its
 path from the checkout the server was started in or from `/`; a path outside
-that checkout is refused. `variance_test_signals` takes `test` — an id from the listing, a
-title, or enough of one to be unambiguous; where it is not unambiguous, the
-answer is the candidates and their ids. `variance_self` takes nothing.
+that checkout is refused. `variance_test_signals` takes `test` — an id from the listing, or
+a whole title; where two tests share that title, the answer is both and their
+ids, and where none has it, the answer is every test that has reported.
+`variance_self` takes nothing.
 
 `variance_self` is the one that separates the two reasons an answer is empty:
 nothing has run yet, or something ran and reported somewhere else. A connection

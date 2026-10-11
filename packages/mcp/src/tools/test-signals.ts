@@ -23,7 +23,7 @@ export const testSignals: Tool<VantageState> = {
     properties: {
       test: {
         type: 'string',
-        description: 'A test id from variance_run_signals, or part of its title.',
+        description: 'A test id from variance_run_signals, or its whole title.',
       },
     },
     required: ['test'],
@@ -37,26 +37,22 @@ export const testSignals: Tool<VantageState> = {
   },
 };
 
-/** The one test meant, or the sentence explaining why it is not one test. */
+/** The one test with this id or whole title, or the sentence explaining why there is not one. */
 function locate(state: VantageState, asked: string): WatchedTest | string {
   const byId = state.tests.find((test) => test.id === asked);
   if (byId !== undefined) return byId;
 
   const byTitle = state.tests.filter((test) => test.title === asked);
   if (byTitle.length === 1 && byTitle[0] !== undefined) return byTitle[0];
-
-  const lowered = asked.toLowerCase();
-  const partial = state.tests.filter((test) => test.title.toLowerCase().includes(lowered));
-  if (partial.length === 1 && partial[0] !== undefined) return partial[0];
-  if (partial.length === 0) {
+  if (byTitle.length === 0) {
     return [
-      `No test here matches ${asked}. ${state.tests.length} test(s) have reported:`,
+      `No test here has the id or title ${asked}. ${state.tests.length} test(s) have reported:`,
       ...state.tests.map((test) => `  ${test.title} [${test.id}]`),
     ].join('\n');
   }
   return [
-    `${partial.length} tests match ${asked}; ask for one by id:`,
-    ...partial.map((test) => `  ${test.title} [${test.id}]`),
+    `${byTitle.length} tests are titled ${asked}; ask for one by id:`,
+    ...byTitle.map((test) => `  ${test.title} [${test.id}]`),
   ].join('\n');
 }
 

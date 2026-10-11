@@ -4,7 +4,7 @@
 only the declared suites, to find the record `--suite` names; a checkout that
 has never configured this tool gets the same answer. Its input is one record:
 the one `covering` reads, the declared suite's `--suite` names, or the file
-`--execution` names. `--test` takes a case id, an exact title or a part of one,
+`--execution` names. `--test` takes a case id or a whole title,
 and `--file` the test file's path, relative to `--root` or absolute; give either
 or both. `--file` names that file alone: a recorded path that contains it or
 ends in it is another file, and a path outside `--root` is refused. More than
@@ -31,7 +31,7 @@ same deterministic reading of one case, and needs its test id; the file reading
 is the CLI's.
 
 ```bash
-variance distill --file test/checkout.test.tsx --test submits
+variance distill --file test/checkout.test.tsx --test 'checkout > submits'
 ```
 
 ## How much each test file loads for nothing
