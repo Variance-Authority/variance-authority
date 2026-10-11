@@ -58,7 +58,8 @@ const NAMESPACE = '*';
  * A declaration is the file's own: its symbols, and the names it exports
  * without a `from`. `export { x } from './y'` forwards a name `./y` declares,
  * so it is the import below, not a declaration here — counting it would answer
- * *where is `x` declared* with every barrel it passes through.
+ * *where is `x` declared* with every barrel it passes through. So does
+ * `export default x` when `x` is imported: the default is `./y`'s declaration.
  */
 export function namesOf(parsed: Parsed, targets: readonly (string | undefined)[]): FileNames {
   const declared: DeclaredName[] = [];
@@ -68,9 +69,12 @@ export function namesOf(parsed: Parsed, targets: readonly (string | undefined)[]
     seen.add(name);
     declared.push({ name, line });
   };
+  const bound = new Set(parsed.requests.flatMap((request) => request.bindings.map((binding) => binding.local)));
   for (const symbol of parsed.symbols ?? []) declare(symbol.name, symbol.line);
   for (const exported of parsed.exports ?? []) {
-    if (exported.exported !== undefined && exported.from === undefined) declare(exported.exported, exported.line);
+    if (exported.exported === undefined || exported.from !== undefined) continue;
+    if (exported.local !== undefined && bound.has(exported.local)) continue;
+    declare(exported.exported, exported.line);
   }
 
   const imported: ImportedName[] = [];

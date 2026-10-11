@@ -26,6 +26,7 @@ const PARSED: Parsed = {
     { value: './theme', kind: 'imports', line: 2, bindings: [{ imported: '*', local: 'theme', type: false, line: 2 }] },
     { value: './side-effect.css', kind: 'imports', line: 3, bindings: [] },
     { value: './forwarded', kind: 'imports', line: 9, bindings: [] },
+    { value: './store', kind: 'imports', line: 4, bindings: [{ imported: 'selectBalance', local: 'selectBalance', type: false, line: 4 }] },
   ],
   members: [{ request: 1, name: 'dark', line: 6 }],
   symbols: [
@@ -37,13 +38,14 @@ const PARSED: Parsed = {
     { exported: 'useTheme', line: 7 },
     { exported: 'Palette', line: 8 },
     { exported: 'Forwarded', from: './forwarded', line: 9 },
+    { exported: 'default', local: 'selectBalance', line: 10 },
   ],
 } as unknown as Parsed;
 
 describe('namesOf', () => {
-  const names = namesOf(PARSED, ['node_modules/react/index.js', 'src/theme.ts', 'src/side-effect.css', 'src/forwarded.ts']);
+  const names = namesOf(PARSED, ['node_modules/react/index.js', 'src/theme.ts', 'src/side-effect.css', 'src/forwarded.ts', 'src/store.ts']);
 
-  it('declares its own symbols and exports once each, never a forwarded one', () => {
+  it('declares its own symbols and exports once each, never a forwarded or re-exported import', () => {
     expect(names.declared).toEqual([
       { name: 'ThemeContext', line: 5 },
       { name: 'useTheme', line: 7 },
