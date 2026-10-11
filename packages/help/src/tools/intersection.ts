@@ -51,6 +51,20 @@ const counted = (count: number): string => `${count} ${count === 1 ? 'file' : 'f
 const imports = (count: number): string => `${count} ${count === 1 ? 'import' : 'imports'}`;
 const none = (): readonly string[] => [];
 
+/**
+ * The files the tree holds and the names do not: a file whose names the scan
+ * could not hand over is unknown, never a file that declares and imports
+ * nothing, so a name operand says how many there are.
+ */
+function unreadOf(tree: Tree, names: SourceNames): string {
+  let unread = 0;
+  for (const file of tree.files) if (!names.has(file)) unread += 1;
+  return unread === 0 ? '' : ` — the names of ${counted(unread)} were not read`;
+}
+
+/** `react/jsx-runtime` is `react`; `./store/selectors` is not `./store`. */
+const isBare = (spec: string): boolean => !spec.startsWith('.') && !spec.startsWith('/');
+
 /** One or several values, said as a string or an array. */
 function listArg(input: Readonly<Record<string, unknown>>, name: string): readonly string[] {
   return pathsOf(startPointArg(input, name));
@@ -101,7 +115,7 @@ function reach(term: string, tree: Tree, along: boolean): Operand {
  * `spec#name`, or `spec` for every import of it. Split at the last `#` past
  * the first character, because `#internal` is itself a specifier.
  */
-function importsOf(said: string, names: SourceNames): Operand {
+function importsOf(said: string, tree: Tree, names: SourceNames): Operand {
   const at = said.lastIndexOf('#');
   const spec = at > 0 ? said.slice(0, at) : said;
   const name = at > 0 ? said.slice(at + 1) : undefined;
@@ -112,7 +126,7 @@ function importsOf(said: string, names: SourceNames): Operand {
   const lines = new Map<string, string[]>();
   for (const [file, held] of names) {
     for (const entry of held.imported) {
-      const module = entry.from === spec || entry.from.startsWith(`${spec}/`) || entry.to === spec;
+      const module = entry.from === spec || (isBare(spec) && entry.from.startsWith(`${spec}/`)) || entry.to === spec;
       if (!module || (name !== undefined && entry.name !== name)) continue;
       files.add(file);
       const what = entry.name === undefined ? '' : `${entry.name} `;
@@ -124,13 +138,13 @@ function importsOf(said: string, names: SourceNames): Operand {
     }
   }
   return {
-    header: `${counted(files.size)} importing ${name === undefined ? '' : `\`${name}\` from `}\`${spec}\``,
+    header: `${counted(files.size)} importing ${name === undefined ? '' : `\`${name}\` from `}\`${spec}\`${unreadOf(tree, names)}`,
     files,
     evidence: (file) => lines.get(file) ?? [],
   };
 }
 
-function declaresOf(pattern: string, names: SourceNames): Operand {
+function declaresOf(pattern: string, tree: Tree, names: SourceNames): Operand {
   const matches = regexOf('declares', pattern, 'i');
   const files = new Set<string>();
   const lines = new Map<string, string[]>();
@@ -141,7 +155,7 @@ function declaresOf(pattern: string, names: SourceNames): Operand {
     lines.set(file, declared.map((entry) => `${file}:${entry.line}  declares ${entry.name}`));
   }
   return {
-    header: `${counted(files.size)} declaring a name matching /${pattern}/i`,
+    header: `${counted(files.size)} declaring a name matching /${pattern}/i${unreadOf(tree, names)}`,
     files,
     evidence: (file) => lines.get(file) ?? [],
   };
@@ -168,9 +182,9 @@ function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names:
     const operands: Operand[] = [];
     for (const term of listArg(input, key('from'))) operands.push(reach(term, tree, true));
     for (const term of listArg(input, key('to'))) operands.push(reach(term, tree, false));
-    for (const said of listArg(input, key('imports'))) operands.push(importsOf(said, named()));
+    for (const said of listArg(input, key('imports'))) operands.push(importsOf(said, tree, named()));
     const declares = textArg(input, key('declares'));
-    if (declares !== undefined) operands.push(declaresOf(declares, named()));
+    if (declares !== undefined) operands.push(declaresOf(declares, tree, named()));
     const path = textArg(input, key('path'));
     if (path !== undefined) operands.push(pathOf(path, tree));
     return operands;
@@ -190,13 +204,14 @@ export const intersection: Tool<unknown> = {
     'who declares a name matching a pattern (`declares`), whose path matches one (`path`). Several ' +
     'values of one operand are several sets, crossed. `except…` operands take their files out, and ' +
     '`text` keeps only the files with a line ripgrep matches. Nearest first, with the line that puts ' +
-    'each file in each set.',
+    'each file in each set. `imports` and `declares` read the names a scan of the checkout hands over; ' +
+    'a host that holds none refuses them.',
   inputSchema: {
     type: 'object',
     properties: {
       from: { type: 'array', items: { type: 'string' }, description: 'Paths; each is the set of files it reaches along the imports, itself included. Same path forms as `search --from`.' },
       to: { type: 'array', items: { type: 'string' }, description: 'Paths; each is the set of files that reach it along the imports, itself included.' },
-      imports: { type: 'array', items: { type: 'string' }, description: '`module#name` or `module`, as written in the import or as the repo-relative file it resolved to; each is the set of files importing it. A subpath of a package matches the package.' },
+      imports: { type: 'array', items: { type: 'string' }, description: '`module#name` or `module`, as written in the import or as the repo-relative file it resolved to; each is the set of files importing it. A subpath of a package matches the package; a relative specifier matches only as written. A file matches only the imports that resolved to it directly, not those through a barrel that re-exports it.' },
       declares: { type: 'string', description: 'A regular expression, case-insensitive; the set of files declaring a matching name. A name forwarded with `export … from` is declared where it is forwarded from.' },
       path: { type: 'string', description: 'A regular expression over repo-relative paths.' },
       text: { type: 'string', description: 'A ripgrep pattern, run only over the files every other operand kept.' },

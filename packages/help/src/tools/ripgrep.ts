@@ -56,7 +56,7 @@ function rg(root: string, pattern: string, files: readonly string[]): Searched {
     const missing = (ran.error as NodeJS.ErrnoException).code === 'ENOENT';
     throw new Error(
       missing
-        ? 'this question runs ripgrep on the files, and `rg` is not on PATH. Install ripgrep and ask again.'
+        ? '`grep` and `intersection` run ripgrep on the files, and `rg` is not on PATH. Install ripgrep and ask again.'
         : `ripgrep could not be run: ${ran.error.message}`,
     );
   }

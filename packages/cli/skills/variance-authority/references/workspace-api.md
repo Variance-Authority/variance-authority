@@ -1,8 +1,9 @@
 # What a workspace publishes, and where a name is used
 
 Eight questions read a workspace's manifests and source: `packages`,
-`entrypoint`, `symbol`, `uses`, `search`, `grep`, `intersection` and `gaps`. Each answer names
-the UTC time of the workspace generation it used. They describe source, not a
+`entrypoint`, `symbol`, `uses`, `search`, `grep`, `intersection` and `gaps`. Each answer
+read from a workspace generation names its UTC time; `grep` and `intersection`
+read the checkout as it is, and name none. They describe source, not a
 build or a generated site, and they need no run and no config. For where a file
 sits and what runs it, read [orient](orient.md).
 
@@ -259,8 +260,10 @@ of them:
   reaches each path. Two paths are two sets, crossed, not joined.
 - `--imports <module#name>[,...]`: who imports that name from that module, by
   the name the module publishes, so an aliased import still counts. The module
-  is the specifier as written or the repo-relative file it resolved to;
-  `module` alone is any import of it.
+  is the specifier as written, where a package also covers its subpaths and a
+  relative specifier only itself, or the repo-relative file it resolved to,
+  which an import through a barrel does not reach; `module` alone is any import
+  of it.
 - `--declares <regex>`: who declares a matching name, case-insensitive. A name
   passed on with `export … from` is declared where it comes from, not in the
   barrel.
@@ -278,6 +281,8 @@ variance ask intersection --from src/Wallet.tsx --declares '^selectBalance$'
 The answer counts each set first, then lists the files in all of them, nearest
 the `--from` or `--to` paths first, each with the line that put it in every
 set. It shows 50; `--limit` shows more, and the count is always of all of them.
+A file whose names the scan did not hand over is counted in the `--imports` and
+`--declares` headers, since it is unknown rather than a file with no names.
 Over MCP, `docs_intersection` answers `from`, `to` and `path`, and refuses
 `imports` and `declares`: the reading an MCP host serves holds no names.
 

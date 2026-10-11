@@ -33,7 +33,7 @@ const NAMES: SourceNames = new Map<string, FileNames>([
   ['src/state/cart.ts', context('CartContext')],
   ['src/state/account.ts', context('AccountContext')],
   ['src/state/legacy.ts', { declared: [{ name: 'ThemeLegacy', line: 1 }], imported: [] }],
-  ['src/Other.tsx', { declared: [], imported: [] }],
+  ['src/Other.tsx', { declared: [], imported: [{ from: 'react-dom/client', name: 'createRoot', line: 1 }] }],
   ['src/Wallet.tsx', { declared: [], imported: [{ from: './store/selectors', to: 'src/store/selectors.ts', name: 'selectBalance', local: 'balance', line: 1 }] }],
   ['src/store/selectors.ts', { declared: [{ name: 'selectBalance', line: 3 }], imported: [] }],
   ['src/old/selectors.ts', { declared: [{ name: 'selectBalance', line: 8 }], imported: [] }],
@@ -112,6 +112,18 @@ describe('intersection of whole sets', () => {
   it('matches an import by the file it resolved to, as well as by what was written', () => {
     const text = ask({ imports: 'src/store/selectors.ts#selectBalance' });
     expect(text).toContain('src/Wallet.tsx:1  imports selectBalance from ./store/selectors as balance');
+  });
+
+  it('matches a package by any subpath of it, and a relative import only as written', () => {
+    expect(ask({ imports: 'react-dom#createRoot' })).toContain('src/Other.tsx:1  imports createRoot from react-dom/client');
+    expect(ask({ imports: './store' })).toContain('No file is in all of them.');
+  });
+
+  it('counts the files whose names were not read, so a missing one is not a file declaring nothing', () => {
+    const names = new Map([...NAMES].filter(([file]) => file !== 'src/old/selectors.ts'));
+    const text = intersection.run(undefined, { declares: '^selectBalance$', imports: 'react' }, { tree, names, root });
+    expect(text).toContain('1 file declaring a name matching /^selectBalance$/i — the names of 1 file were not read');
+    expect(text).toContain('4 files importing `react` — the names of 1 file were not read');
   });
 
   it('takes out every file an except operand holds', () => {
