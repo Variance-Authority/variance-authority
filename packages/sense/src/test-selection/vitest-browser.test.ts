@@ -14,7 +14,7 @@ type Hook = (...args: unknown[]) => void;
 
 interface Seam {
   readonly plugin: {
-    config(config: { test: { browser: { enabled: boolean }; runner?: string } }): void;
+    config(config: { test: { browser: { enabled: boolean }; runner?: string } }): Promise<void>;
     transform: { handler(code: string, id: string): { code: string } | null };
   };
   readonly reporter: { onTestRunEnd(modules: readonly ReportedModule[]): Promise<void> };
@@ -68,7 +68,7 @@ describe('a test file that runs in a page', () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-browser-page-'));
     try {
       const { plugin, setup } = seam(root);
-      plugin.config({ test: { browser: { enabled: true } } });
+      await plugin.config({ test: { browser: { enabled: true } } });
       const instrumented = plugin.transform.handler(PRICE, resolve(root, 'src/price.ts'))!.code;
       const run = page(await readFile(setup, 'utf8'), instrumented, 'price(20);');
       const file = { type: 'suite', filepath: resolve(root, 'src/premium.test.ts') } as { meta?: object };
@@ -94,7 +94,7 @@ describe('a test file that runs in a page', () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-browser-argument-'));
     try {
       const { plugin, setup } = seam(root);
-      plugin.config({ test: { browser: { enabled: true } } });
+      await plugin.config({ test: { browser: { enabled: true } } });
       const instrumented = plugin.transform.handler(PRICE, resolve(root, 'src/price.ts'))!.code;
       const run = page(await readFile(setup, 'utf8'), instrumented, 'price(5);');
       const file = { type: 'suite', filepath: resolve(root, 'src/plain.test.ts') } as { meta?: object };
@@ -112,7 +112,7 @@ describe('a test file that runs in a page', () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-browser-record-'));
     try {
       const { plugin, reporter, setup } = seam(root);
-      plugin.config({ test: { browser: { enabled: true } } });
+      await plugin.config({ test: { browser: { enabled: true } } });
       const instrumented = plugin.transform.handler(PRICE, resolve(root, 'src/price.ts'))!.code;
       const shim = await readFile(setup, 'utf8');
       await mkdir(resolve(root, 'src'));
@@ -158,7 +158,7 @@ describe('a test file that runs in a page', () => {
       const { plugin, reporter, runner } = seam(root, true);
       const config = { test: { browser: { enabled: true }, ...(runner === undefined ? {} : { runner }) } };
 
-      plugin.config(config);
+      await plugin.config(config);
       await reporter.onTestRunEnd([]);
 
       expect(config.test).not.toHaveProperty('runner');
@@ -176,7 +176,7 @@ describe('a test file that runs in a page', () => {
       const { plugin, setup } = seam(root);
       const before = await readFile(setup, 'utf8');
 
-      plugin.config({ test: { browser: { enabled: false } } });
+      await plugin.config({ test: { browser: { enabled: false } } });
 
       expect(await readFile(setup, 'utf8')).toBe(before);
     } finally {

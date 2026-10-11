@@ -29,8 +29,9 @@
 
 // compass: variance-authority.reach
 
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { cutOf, type CaseCut } from './case-cut.js';
 import { projectPath } from './instrumented-modules.js';
@@ -43,6 +44,8 @@ const SELECTING = Symbol.for('variance-authority:selecting-sequencer');
 const SEED = Symbol.for('variance-authority:selecting-seed');
 /** Marks a logger whose banner already names the seed, so a second hook is the first one. */
 const BANNER = Symbol.for('variance-authority:seed-banner');
+/** On a selecting sequencer: reads the command line the run was started with, once; see {@link readCommandLine}. */
+const COMMAND_LINE = Symbol.for('variance-authority:selecting-command-line');
 
 /** The part of Vitest's context a sequencer is constructed with that this one reads. */
 export interface SequencerContext {
@@ -128,6 +131,8 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
   let said = false;
   let placed = false;
   let seeded = false;
+  let reading: Promise<void> | undefined;
+  let commandLine: CommandLine | undefined;
 
   class Selecting implements Sequencer {
     static readonly [SELECTING] = true;
@@ -140,8 +145,14 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
      * prints before any sequencer is made, and by each sequencer.
      */
     static [SEED](ctx: SequencerContext): number | undefined {
-      if (own !== undefined || ctx.config.sequence === undefined || !filesShuffled(options.shuffle, ctx)) return undefined;
+      if (own !== undefined || ctx.config.sequence === undefined || !filesShuffled(options.shuffle, ctx, commandLine)) return undefined;
       return ctx.config.sequence.seed ??= Date.now();
+    }
+
+    static [COMMAND_LINE](): Promise<void> {
+      return reading ??= commandLineOf(options.configRoot).then((read) => {
+        commandLine = read;
+      });
     }
 
     /**
@@ -180,7 +191,7 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
 
     #sequencer(): Promise<Sequencer> {
       this.#inner ??= own === undefined
-        ? vitestSequencer(options.configRoot, filesShuffled(options.shuffle, this.#ctx)).then((Inner) => new Inner(this.#ctx))
+        ? vitestSequencer(options.configRoot, filesShuffled(options.shuffle, this.#ctx, commandLine)).then((Inner) => new Inner(this.#ctx))
         : Promise.resolve(new own(this.#ctx));
       return this.#inner;
     }
@@ -207,6 +218,25 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
     }
   }
   return Selecting;
+}
+
+/**
+ * Has a selecting sequencer read the command line its run was started with,
+ * where Vitest 2 hands it no other way.
+ *
+ * Vitest 2 parses its command line and hands what it parsed to its own plugin
+ * alone, which merges it over the configuration file and resolves the result:
+ * `--sequence.shuffle.files` picks the sequencer there, and the resolved config
+ * keeps only `tests`. A sequencer of the project's own, which this one is, is
+ * never told which. The command line is the one source left, so it is read
+ * again, by the parser of the project's Vitest, `parseCLI` from `vitest/node`.
+ *
+ * Importing it is asynchronous and the seed is asked for synchronously, so this
+ * runs from a Vite `config` hook, which Vite awaits before Vitest prints its
+ * banner or makes a sequencer.
+ */
+export async function readCommandLine(sequencer: unknown): Promise<void> {
+  await (sequencer as { [COMMAND_LINE]?: () => Promise<void> } | undefined)?.[COMMAND_LINE]?.();
 }
 
 /**
@@ -261,6 +291,11 @@ function moduleOf(spec: Spec): string {
   return spec.moduleId ?? spec[1] ?? '';
 }
 
+/** What the command line asked of `sequence`, as Vitest's own parser reads it. */
+interface CommandLine {
+  readonly shuffle?: unknown;
+}
+
 /**
  * Whether Vitest would have shuffled files, by the rule its config resolution
  * applies to `sequence.shuffle` once the command line is merged over the file:
@@ -269,12 +304,13 @@ function moduleOf(spec: Spec): string {
  * Vitest keeps only `tests` of an object after it picks its sequencer, so the
  * resolved config cannot tell `--sequence.shuffle.tests` from
  * `--sequence.shuffle`. From Vitest 3 the command line as parsed is on the
- * context, `_cliOptions`, and is read there; Vitest 2 keeps it from plugins and
- * sequencers alike, so there the resolved value is read when the file wrote no
+ * context, `_cliOptions`; Vitest 2 keeps it to itself, and it is read from
+ * argv instead ({@link readCommandLine}). A run started from code under
+ * Vitest 2 has neither, and the resolved value is read when the file wrote no
  * object.
  */
-function filesShuffled(written: unknown, ctx: SequencerContext): boolean {
-  const asked = ctx._cliOptions?.sequence?.shuffle;
+function filesShuffled(written: unknown, ctx: SequencerContext, commandLine: CommandLine | undefined): boolean {
+  const asked = ctx._cliOptions?.sequence?.shuffle ?? commandLine?.shuffle;
   const shuffle = asked === undefined ? written : isObject(asked) && isObject(written) ? { ...written, ...asked } : asked;
   if (isObject(shuffle)) return shuffle.files === true;
   if (asked !== undefined) return asked === true;
@@ -283,6 +319,40 @@ function filesShuffled(written: unknown, ctx: SequencerContext): boolean {
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+/**
+ * `sequence` as the command line asked for it, read by the project's Vitest's
+ * own parser, when this process is that Vitest's command line; `undefined` when
+ * it is not, as under `startVitest`, whose options are not on argv.
+ */
+async function commandLineOf(configRoot: string): Promise<CommandLine | undefined> {
+  const invoked = process.argv[1];
+  const bin = vitestBin(configRoot);
+  if (invoked === undefined || bin === undefined || !existsSync(invoked) || realpathSync(invoked) !== bin) return undefined;
+  const { parseCLI } = await vitestImport(configRoot)('vitest/node') as {
+    parseCLI: (argv: string[]) => { options: { sequence?: CommandLine } };
+  };
+  return { shuffle: parseCLI(['vitest', ...process.argv.slice(2)]).options.sequence?.shuffle };
+}
+
+/** The command-line script of the Vitest the project resolves, by the `bin` its manifest names, or `undefined` when it resolves none. */
+function vitestBin(configRoot: string): string | undefined {
+  let at: string;
+  try {
+    at = dirname(createRequire(resolve(configRoot, 'package.json')).resolve('vitest/node'));
+  } catch {
+    return undefined;
+  }
+  for (; at !== dirname(at); at = dirname(at)) {
+    const file = resolve(at, 'package.json');
+    if (!existsSync(file)) continue;
+    const manifest = JSON.parse(readFileSync(file, 'utf8')) as { name?: unknown; bin?: unknown };
+    if (manifest.name !== 'vitest') return undefined;
+    const bin = typeof manifest.bin === 'string' ? manifest.bin : (manifest.bin as { vitest?: unknown } | undefined)?.vitest;
+    return typeof bin === 'string' ? realpathSync(resolve(at, bin)) : undefined;
+  }
+  return undefined;
 }
 
 type Shuffle = <T>(array: T[], seed?: number) => T[];

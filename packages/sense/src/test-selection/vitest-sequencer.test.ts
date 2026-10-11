@@ -1,9 +1,10 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import type { SuiteSelection } from './suite-selection.js';
-import { selectingSequencer, type SequencerContext } from './vitest-sequencer.js';
+import { readCommandLine, selectingSequencer, type SequencerContext } from './vitest-sequencer.js';
 import { withTestSelection } from './vitest.js';
 
 const root = resolve('/checkout');
@@ -302,6 +303,28 @@ describe('the sequencer under `sequence.shuffle`', () => {
     expect(config.sequence?.seed !== undefined).toBe(files);
   });
 
+  // Vitest 2 puts the command line nowhere a sequencer can read it, and the
+  // resolved config reads `--sequence.shuffle.files` as no shuffle. Under
+  // Vitest's own command line the command line is read again, by its parser;
+  // a run started from code has none to read.
+  it.each([
+    ['Vitest\'s command line', resolve(process.cwd(), 'node_modules/vitest/vitest.mjs'), true],
+    ['a run started from code', fileURLToPath(import.meta.url), false],
+  ])('reads `--sequence.shuffle.files` from %s', async (_, script, files) => {
+    const argv = process.argv;
+    process.argv = [process.execPath, script, 'run', '--sequence.shuffle.files'];
+    try {
+      const Selecting = selectingSequencer(undefined, { root, configRoot: process.cwd(), say: () => {} });
+      await readCommandLine(Selecting);
+      const config: SequencerContext['config'] = { root, sequence: {} };
+      new Selecting(context(config));
+
+      expect(config.sequence?.seed !== undefined).toBe(files);
+    } finally {
+      process.argv = argv;
+    }
+  });
+
   it('picks no seed when the project names its own sequencer, as Vitest leaves that to its own', () => {
     const config: SequencerContext['config'] = { root, sequence: { shuffle: true } };
     new (selectingSequencer(Reversing, { root, configRoot: root, say: () => {} }))(context(config));
@@ -351,6 +374,16 @@ describe('the banner of a shuffled run', () => {
     expect(seed).toBeTypeOf('number');
     expect(vitest.logger.lines).toEqual(['', ' RUN  v0 /checkout', `      Running tests with seed "${seed}"`, '      API started at http://localhost:51204/', '']);
     expect(Object.hasOwn(vitest.logger, 'log')).toBe(false);
+  });
+
+  // From Vitest 3.1, where a command-line `--reporter` replaces the reporter
+  // that would have hooked it.
+  it('names the seed when the plugin alone hooks the banner', async () => {
+    const { vitest, configureVitest } = await seam(true);
+    configureVitest();
+    vitest.logger.printBanner();
+
+    expect(vitest.logger.lines).toContain(`      Running tests with seed "${vitest.config.sequence.seed}"`);
   });
 
   it('names it once when both the reporter and the plugin hook the banner', async () => {

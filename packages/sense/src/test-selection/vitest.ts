@@ -19,7 +19,7 @@ import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import type { SuiteSelection } from './suite-selection.js';
 import { selectionFrom, timesFrom } from './selection-environment.js';
-import { seedInBanner, selectingSequencer, type BannerContext, type SequencerClass } from './vitest-sequencer.js';
+import { readCommandLine, seedInBanner, selectingSequencer, type BannerContext, type SequencerClass } from './vitest-sequencer.js';
 
 export interface TestSelectionOptions {
   /**
@@ -99,14 +99,14 @@ interface ConfigPlugin {
   readonly configResolved: (config: ResolvedViteConfig) => void;
 }
 
-/** The part of the configuration Vite hands a plugin that decides where a file runs. */
+/** The part of the configuration Vite hands a plugin that decides where a file runs, and how files are ordered. */
 interface TestConfig {
-  test?: { browser?: { enabled?: boolean }; runner?: string };
+  test?: { browser?: { enabled?: boolean }; runner?: string; sequence?: { sequencer?: unknown } };
 }
 
 interface VitePlugin extends ConfigPlugin {
   readonly enforce: 'pre';
-  readonly config: (config: TestConfig) => void;
+  readonly config: (config: TestConfig) => Promise<void>;
   readonly transform: {
     readonly order: 'pre';
     readonly handler: (code: string, id: string) => { code: string; map: CutSourceMap | null } | null;
@@ -337,26 +337,31 @@ function selectionPlugin(
     // no runner of this seam's: its setup module hands the runner what it ran.
     // TODO: record cases in a page — a drain per test in `beforeEach` and
     // `afterEach`, carried on each test's `meta` as the file's is.
-    config(config) {
-      if (config.test?.browser?.enabled !== true) return;
-      inPage = true;
-      // FIXME: a `snapshotSerializers` or `diff` file that imports product
-      // source throws at its first probe in a page. `@vitest/browser` 3.2.7 and
-      // 4.1.2 load them in `initiateRunner`, before `startTests` runs the first
-      // file's setup files, and the setup module written here is what installs
-      // the page's root. A module that installs it, imported ahead of them,
-      // would carry what they load to the file the way the case runner does.
-      writeSeamModule(run, setupId, browserSetupSource(mode));
-      if (config.test.runner === runnerId) delete config.test.runner;
-      // An index with no case in it answers *which cases walk this line* with
-      // none, so a run that recorded no case writes no index.
-      if (run.cases) {
-        run.cases = false;
-        console.warn(
-          'variance-authority: a test file that runs in a page is recorded per file, not per case; ' +
-            'this run writes the file-level snapshot only.',
-        );
+    async config(config) {
+      // Vite awaits this hook before the banner prints or a sequencer is
+      // made, and both ask whether files are shuffled.
+      const reading = readCommandLine(config.test?.sequence?.sequencer);
+      if (config.test?.browser?.enabled === true) {
+        inPage = true;
+        // FIXME: a `snapshotSerializers` or `diff` file that imports product
+        // source throws at its first probe in a page. `@vitest/browser` 3.2.7 and
+        // 4.1.2 load them in `initiateRunner`, before `startTests` runs the first
+        // file's setup files, and the setup module written here is what installs
+        // the page's root. A module that installs it, imported ahead of them,
+        // would carry what they load to the file the way the case runner does.
+        writeSeamModule(run, setupId, browserSetupSource(mode));
+        if (config.test.runner === runnerId) delete config.test.runner;
+        // An index with no case in it answers *which cases walk this line* with
+        // none, so a run that recorded no case writes no index.
+        if (run.cases) {
+          run.cases = false;
+          console.warn(
+            'variance-authority: a test file that runs in a page is recorded per file, not per case; ' +
+              'this run writes the file-level snapshot only.',
+          );
+        }
       }
+      await reading;
     },
     configResolved: declareConfig(run, declared, [setupId, runnerId]),
     // Vitest 3.1 and on, before any reporter starts: a command-line

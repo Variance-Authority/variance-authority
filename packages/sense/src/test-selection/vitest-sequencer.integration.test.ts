@@ -85,8 +85,9 @@ describe('the selecting sequencer under `sequence.shuffle`', () => {
   // seam names what it selected.
   it('names the seed it shuffled with under a reporter named on the command line, and that seed runs the files in the same order', async () => {
     const { stdout, stderr } = await output(await scratch(), {}, 'vitest.default.config.ts', '--sequence.shuffle', '--reporter=default');
-    const seed = /seed "(\d+)"/.exec(`${stdout}\n${stderr}`)?.[1];
+    const seed = /^variance-authority: running tests with seed "(\d+)"/m.exec(stderr)?.[1];
     expect(seed).toBeDefined();
+    expect(stdout).not.toContain(`seed "${seed}"`);
     const order = stdout.split('\n').flatMap((line) => /✓ test\/(\S+)/.exec(line)?.[1] ?? []);
 
     expect(await started('vitest.default.config.ts', '--sequence.shuffle', `--sequence.seed=${seed}`)).toEqual(order);
@@ -110,17 +111,28 @@ describe('the selecting sequencer under `sequence.shuffle`', () => {
     expect((JSON.parse(stdout) as Report).testResults).toHaveLength(4);
   }, 60_000);
 
-  it('runs every file when only the tests in each are shuffled', async () => {
-    expect((await started('vitest.default.config.ts', '--sequence.shuffle.tests')).toSorted())
-      .toEqual(['alpha.case.ts', 'beta.case.ts', 'delta.case.ts', 'gamma.case.ts']);
+  // Vitest folds `{ files, tests }` into `shuffle: tests` once it has picked
+  // its sequencer, so the resolved config reads `--sequence.shuffle.tests` as
+  // `--sequence.shuffle` and `--sequence.shuffle.files` as no shuffle. Without
+  // the cache, the files Vitest leaves unshuffled run largest first, which no
+  // shuffle by seed 1 gives these four.
+  it.each(['files', 'tests'])('orders the files as Vitest does under `--sequence.shuffle.%s`', async (part) => {
+    const flags = [`--sequence.shuffle.${part}`, '--sequence.seed=1', '--no-cache'];
+    const own = await started('vitest.plain.config.ts', ...flags);
+
+    expect(await started('vitest.default.config.ts', ...flags)).toEqual(own);
   }, 60_000);
 
-  // Vitest folds `{ files, tests }` into `shuffle: tests` before any plugin or
-  // sequencer sees the command line. From Vitest 3 the sequencer reads the
-  // command line as parsed, from `_cliOptions`, which `vitest-sequencer.test.ts`
-  // pins in process; Vitest 2, which this repository runs, keeps it to itself, so
-  // a wrapped run there reads `--sequence.shuffle.tests` as `--sequence.shuffle`
-  // and `--sequence.shuffle.files` as no shuffle. The configuration file's object
-  // is read whole, and is right on every version.
-  it.todo('shuffles files under `--sequence.shuffle.files` and not under `--sequence.shuffle.tests` on Vitest 2, as Vitest does — needs the command line, which Vitest 2 hands to no plugin or sequencer');
+  // A file's tests are shuffled in the worker, by the seed the config hands it.
+  it.each(['--sequence.shuffle', '--sequence.shuffle.tests'])('runs the tests in a file in the order Vitest gives them under `%s`', async (shuffle) => {
+    const ran = async (config: string): Promise<string[]> => {
+      const order = resolve(await scratch(), 'order.txt');
+      await output(await scratch(), { FIXTURE_INCLUDE: 'test/several.order.ts', FIXTURE_ORDER: order }, config, shuffle, '--sequence.seed=1');
+      return (await readFile(order, 'utf8')).trim().split('\n');
+    };
+    const own = await ran('vitest.plain.config.ts');
+    expect(own).not.toEqual(own.toSorted());
+
+    expect(await ran('vitest.default.config.ts')).toEqual(own);
+  }, 60_000);
 });

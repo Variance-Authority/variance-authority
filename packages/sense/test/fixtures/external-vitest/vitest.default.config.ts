@@ -10,12 +10,15 @@ if (coverageFile === undefined) throw new Error('VARIANCE_AUTHORITY_COVERAGE is 
 // A selection handed in by the test that runs this fixture: the files to skip,
 // as JSON. Absent, nothing is handed in and every file runs.
 const skip = process.env['FIXTURE_SKIP'];
+// The test files to run in place of the four cases, as a glob: a test that
+// needs a file the others must not count names it here.
+const include = process.env['FIXTURE_INCLUDE'];
 
 export default withTestSelection(
   defineConfig({
     root,
     test: {
-      include: ['test/*.case.ts'],
+      include: [include ?? 'test/*.case.ts'],
       environment: 'node',
       setupFiles: ['test/setup.ts'],
     },
