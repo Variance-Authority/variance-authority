@@ -119,8 +119,8 @@ collector, the baselines and the report. Unknown keys are refused by name.
 | --- | --- |
 | `project` | the name rows are filed under in a shared history service. Required even with no `history` configured, because rows written under a name nobody chose cannot be re-attributed later. |
 | `profile` | how much of the page is observed: `chromium` for a full render, or `jsdom` for structure only, with no layout engine and no animation clock. Not the same choice as `browser`, which names the engine that paints — `chromium` (the default), `firefox` or `webkit`. |
-| `viewport` | `width` and `height`, plus optional `deviceScaleFactor` (default `1`) and `colorScheme` (default `light`). The scale factor is part of the identity a baseline is stored under, so a run at another scale reports `incomparable`. Size and colour scheme are not: changing either compares against the same baseline and reports `changed`. |
-| `timezoneId`, `locale` | The timezone the page's clock reads in and the language it formats dates and numbers for, as an IANA timezone and a BCP 47 tag. They default to `UTC` and `en-US`, never the machine's, so one build formats one date the same way on your laptop and in CI. Change either and every image reads `incomparable` until you accept it again: `accept --all` takes each subject whose document held, and `accept <subject-id>` takes a page that formats a date or a number, once you have looked ([run, review, accept, rerun](#run-review-accept-rerun)). |
+| `viewport` | `width` and `height`, plus optional `deviceScaleFactor` (default `1`) and `colorScheme` (default `light`). The scale factor is part of the identity a baseline is stored under, so a run at another scale names the scale as the cause of what it reports. Size and colour scheme are not: changing either compares against the same baseline and reports `changed` with no identity moved. |
+| `timezoneId`, `locale` | The timezone the page's clock reads in and the language it formats dates and numbers for, as an IANA timezone and a BCP 47 tag. They default to `UTC` and `en-US`, never the machine's, so one build formats one date the same way on your laptop and in CI. Change either and every subject names the moved recipe as the cause of what it reports; review the changes and adopt them with `accept --all` ([run, review, accept, rerun](#run-review-accept-rerun)). |
 | `retention` | `durable` compares against a baseline image saved by an earlier run, and requires `baselines`. `ephemeral` compares two images produced inside the same run and keeps neither, and refuses `baselines`. |
 | `subjects` | where subjects come from. See the three kinds below. |
 | `baselines` | where approved images are kept: `directory`, `lfs` or `remote`. |
@@ -197,16 +197,16 @@ on what your config selected, before the first expensive run:
 Doctor exits `2` for exactly two findings: no renderer could be opened here, and
 no baseline in the store is comparable here. Both are yours to fix before
 running. For a missing renderer, read the launch error it prints — usually an
-uninstalled browser binary or a missing system library. For an incomparable
-store, either point `renderer` at a machine running the identity the baselines
-were written under, or switch to `retention: "ephemeral"`, where both images are
-painted in the same run. Doctor compares identity digests, and the digest covers
-the recipe as well as the machine: the stabilization and rasterization digests,
-which an upgrade of variance-authority or a changed renderer option moves. A
-run's `incomparable` reason names the fields that differ. When only the recipe
-moved and the document is the one the baseline was painted from, the run
-painted the new images, and you adopt them with `accept --all` below. Everything
-else, missing fonts included, exits `0`.
+uninstalled browser binary or a missing system library. For a store painted
+elsewhere, every subject would be compared against another machine's image and
+the machine named as the cause of whatever moved: either point `renderer` at a
+machine running the identity the baselines were written under, or switch to
+`retention: "ephemeral"`, where both images are painted in the same run. Doctor
+compares identity digests, and the digest covers the recipe as well as the
+machine: the stabilization and rasterization digests, which an upgrade of
+variance-authority or a changed renderer option moves. A run's reason names the
+fields that moved. When only the recipe moved, review the changes and adopt them
+with `accept --all` below. Everything else, missing fonts included, exits `0`.
 
 ## Run, review, accept, rerun
 
@@ -259,13 +259,10 @@ cannot be read is refused by name rather than replaced.
 The rerun exits `0` once the subject is `unchanged` and nothing else is open.
 
 `accept --all` promotes every candidate in the report with one command —
-subjects that are `new`, subjects that are `changed`, and subjects that are
-`incomparable` only because the recipe moved on an unchanged document,
-identically, whether or not anyone opened the page. A subject whose recipe and
-document both moved, or whose image another machine painted, has an image no
-comparison read, so `--all` skips it,
-names it and exits non-zero; `accept <subject-id>` adopts it once you have looked. Name ids explicitly in anything unattended, and keep
-`--all` for the moment you have just reviewed the whole report yourself.
+subjects that are `new` and subjects that are `changed`, whatever moved them,
+identically, whether or not anyone opened the page. Name ids explicitly in
+anything unattended, and keep `--all` for the moment you have just reviewed the
+whole report yourself.
 `accept --message-file` writes a commit message describing the promotion, which
 `variance changelog` reads back later.
 
@@ -275,11 +272,10 @@ A run gives every subject one verdict:
 
 | verdict | what it means |
 | --- | --- |
-| `unchanged` | the stored baseline and the new capture were comparable, and nothing differs. |
+| `unchanged` | the stored baseline and the new capture were compared, and nothing differs. |
 | `changed` | pixels moved. The report names the region, the component and the `file:line`. |
 | `new` | the subject was captured and no approved baseline exists. |
 | `ignored` | pixels moved, and every one of them fell inside a subtree your `ignore` rules excluded. |
-| `incomparable` | the comparison was refused because the two images were not made under the same renderer identity. The reason names only the fields that differ, as the machine (renderer, engine, platform, scale factor, fonts) or the recipe (stabilization, rasterization). When only the recipe moved, the reason also says whether the document did, so you know if the new image is a re-baseline or a change to review. Never read it as zero difference. |
 
 A subject the run could not observe at all gets no verdict. It is listed
 separately as excluded, failed or unreached, with a sentence saying why.
@@ -292,11 +288,10 @@ Three exit codes, and a verdict never shares one with a crash:
 | `1` | the run completed and found something a person must decide about. |
 | `2` | the run did not happen as configured — bad config, missing browser, a store the run could not connect to. Never a statement about your UI. |
 
-Six things take a completed run to `1`:
+Five things take a completed run to `1`:
 
-- a `changed` verdict;
+- a `changed` verdict, whatever its cause;
 - a `new` verdict;
-- an `incomparable` verdict;
 - a subject the run meant to observe and could not;
 - a subject that was read twice with nothing changed in between and disagreed
   with itself, outside what it declared it asserts on;

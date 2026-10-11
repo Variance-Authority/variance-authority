@@ -69,14 +69,6 @@ describe('exitFor', () => {
     expect(exitFor({ observations: [{ verdict: 'new' }, { verdict: 'changed' }], notObserved: [] })).toBe(EXIT_REVIEW);
   });
 
-  it('needs review on `incomparable`, because the comparison was refused', () => {
-    // Nothing is known about this subject. An unobservable difference must never
-    // be reported as no difference.
-    expect(exitFor({ observations: [{ verdict: 'incomparable' }], notObserved: [] })).toBe(
-      EXIT_REVIEW,
-    );
-  });
-
   it('needs review when a subject the run meant to observe failed', () => {
     // ADR-0017 in one line: a subject that cannot be observed does
     // not silently pass.
@@ -138,7 +130,7 @@ describe('exitFor', () => {
     const codes = [
       exitFor({ observations: [], notObserved: [] }),
       exitFor({ observations: [{ verdict: 'changed' }], notObserved: [{ kind: 'failed' }] }),
-      exitFor({ observations: [{ verdict: 'incomparable' }] }),
+      exitFor({ observations: [{ verdict: 'unstable' }] }),
     ];
     expect(codes).not.toContain(EXIT_OPERATOR);
   });

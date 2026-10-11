@@ -325,7 +325,7 @@ against this file's directory rather than the working directory.
 | `project` | The label this project's rows are filed under in a shared history store. Required even with no history configured. |
 | `profile` | What the run is *capable* of observing — `jsdom` or `chromium`. `jsdom` means structure, ARIA and declared style; `chromium` adds computed style, layout and geometry, and is only honest if your collector read inside a real browser. It does not decide what paints. Set it to match where you acquired. |
 | `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). The fallback for a subject whose planned entry sets no viewport of its own. Keep it equal to the viewport your collector acquires at, since that is what media queries were resolved against. |
-| `timezoneId`, `locale` | The timezone and language the renderer paints in, `UTC` and `en-US` when unset. Your collector's own process keeps the host's unless you pin it to the same pair, as the list above says. Both are part of the render identity, so changing one makes every image `incomparable` against a baseline painted under the other. `accept --all` adopts a subject whose document did not move; one whose document moved too is adopted by `accept <subject-id>` once you have looked ([the first loop](#run-the-first-loop)). |
+| `timezoneId`, `locale` | The timezone and language the renderer paints in, `UTC` and `en-US` when unset. Your collector's own process keeps the host's unless you pin it to the same pair, as the list above says. Both are part of the render identity, so changing one names the moved pair as the cause of every change against a baseline painted under the other. Review the changes and adopt them with `accept --all` ([the first loop](#run-the-first-loop)). |
 | `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent and your `collect` must return `before`. Setting both is refused. |
 | `subjects.kind` | `list` — the ids are in this file. `storybook` — read them from a built story index. `collector` — your `plan()` discovers them, and the config stops being the statement of what is watched. |
 | `baselines.kind` | `directory` — files you commit. `lfs` — the same files through the Git LFS filter. `remote` — an endpoint and a token, with nothing in the repository. No default; see [baseline placement](placement.md). |
@@ -423,8 +423,8 @@ has no way to take an image you already made.
 
 `@variance-authority/observe` is the comparison on its own. Hand it two images,
 or one image and a baseline you looked up yourself, and it answers `new`,
-`changed`, `unchanged`, `ignored`, or `incomparable` with the differing regions
-and a sentence saying why. What you keep is everything around it: storing
+`changed`, `unchanged` or `ignored` with the differing regions and a sentence
+saying why, opening with the painter when the two were painted by different ones. What you keep is everything around it: storing
 baselines, deciding what approval means, writing the report, and choosing the
 process exit code. There is no `accept` command on this path, because that
 belongs to the CLI you are not using.

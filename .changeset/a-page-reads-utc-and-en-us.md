@@ -29,9 +29,9 @@ and `en-US` for a field left out.
 
 Both are part of the environment key, and the renderer's pair is part of
 `RenderIdentity.rasterization`. A capture read in another timezone or language
-is another environment, and an image painted in one is `incomparable` against a
-baseline painted in another, with the reason naming `rasterization`, rather
-than `changed`.
+is another environment, and an image painted in one is compared with a
+baseline painted in another, with `rasterization` named as the cause of
+whatever moved.
 
 `@variance-authority/playwright-test` paints each test in the timezone and
 locale its page runs in: whatever the Playwright project or `test.use` sets.
@@ -49,23 +49,18 @@ by the page, and `varianceRenderers` is the worker's set of renderers, one per
 timezone and locale; a project that overrode `varianceRenderer` at worker scope
 overrides it at test scope instead.
 
-**Every image painted by the Playwright renderer reads `incomparable` once
-after this upgrade**, because its recipe now carries the timezone and locale. A
-subject whose render document is the one its baseline was painted from is
-adopted in bulk; one whose document moved as well is not, and is named:
+**Every image painted by the Playwright renderer is compared under a moved
+recipe once after this upgrade**, because its recipe now carries the timezone
+and locale. Each subject names `rasterization` as the cause of what it reports,
+and one whose pixels moved is `changed`:
 
-- With `variance run`: the run exits `1` with each such subject `incomparable`.
-  `variance accept --all` adopts every subject whose document held. A subject
-  it refuses, exiting `2`, is adopted with `variance accept <subject-id>` once
-  you have looked at its image in `variance report --format html`. A rerun
-  reports `unchanged`.
-- With `@variance-authority/playwright-test`: the suite fails each
-  `incomparable` test. `--update-snapshots=changed` adopts the ones whose
-  document held; rerun any it skipped alone with `--update-snapshots=all` once
-  you have looked at its image.
-- With `@variance-authority/vitest-browser`: `vitest --update` skips what
-  `variance accept --all` skips. Run a skipped test once with the plugin's
-  `accept: true` and take the option out again.
+- With `variance run`: the run exits `1` for each `changed` subject. Review
+  them in `variance report --format html` and adopt them with
+  `variance accept --all`. A rerun reports `unchanged`.
+- With `@variance-authority/playwright-test`: the suite fails each `changed`
+  test, and `--update-snapshots=changed` adopts them.
+- With `@variance-authority/vitest-browser`: `vitest --update` adopts them, as
+  `variance accept --all` does.
 
 `@variance-authority/vitest-browser` reads no `variance.config.json` and takes no
 timezone or locale, so it paints in `UTC` and `en-US` whatever its tab ran in,

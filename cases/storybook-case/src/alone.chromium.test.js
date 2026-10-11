@@ -124,7 +124,7 @@ live('a subject nothing has touched', () => {
     // is easy to get wrong — the same static server, so every asset URL and
     // therefore the environment key is the one the shared world produced. A
     // second server on a second port moves all of them, and the clean collection
-    // comes back `incomparable` instead of settling anything.
+    // comes back naming a moved identity instead of settling anything.
     expect(aloneBefore.ok, aloneBefore.because).toBe(true);
     expect(aloneBefore).toEqual(clean);
   });

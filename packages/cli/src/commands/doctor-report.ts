@@ -38,9 +38,10 @@ export function exitForDiagnosis(diagnosis: Diagnosis): ExitCode {
    *
    * The bar this has to clear is the one the font probe fails: a diagnostic that
    * fails CI on a false positive gets removed. It clears it, because this is not
-   * a probe — the store's layout *is* the partition, so a run here would report
-   * `incomparable` for every subject and produce no verdict at all. Exiting 0
-   * would hand that runner a green doctor and a red morning.
+   * a probe — the store's layout *is* the partition, so a run here would compare
+   * every subject against another machine's image and name the machine as the
+   * cause of every change. Exiting 0 would hand that runner a green doctor and a
+   * red morning.
    *
    * Only reachable when a renderer opened, the root exists, and it was scanned.
    * Every other state leaves `comparable` absent and lands above.

@@ -193,7 +193,7 @@ describe('a baseline split across D1 and R2', () => {
   });
 
   it('prefers this identity over another that also has the subject', async () => {
-    // Both exist. Answering with the sibling would report `incomparable` for a
+    // Both exist. Answering with the sibling would blame the machine for a
     // subject this very machine has a baseline for — a suite that goes red on a
     // machine that is entirely able to compare.
     await store().put({ subject: 's' }, raster(RUNNER, BLACK));

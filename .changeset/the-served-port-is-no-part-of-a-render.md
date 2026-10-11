@@ -42,6 +42,6 @@ and its image is still compared with the baseline: a page whose pixels did not
 move reads `unchanged`, and one whose pixels did reads `changed`, which
 `variance accept --all` and Playwright's `--update-snapshots=changed` adopt.
 `RULESET_VERSION` moves from `r1` to `r2`. The ruleset is part of a snapshot's
-environment key, not of the render recipe, so no image reads `incomparable` for
-it; a snapshot diffed against one recorded under `r1` names the ruleset as its
+environment key, not of the render recipe, so no image names it as a moved
+identity; a snapshot diffed against one recorded under `r1` names the ruleset as its
 environment root.

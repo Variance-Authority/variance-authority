@@ -34,13 +34,12 @@ never share a code, so a red build shows which of the two it is before anybody
 opens it. Gate on the integer; nothing parses the output.
 
 Each state the run compares gets a **verdict** — the per-subject outcome
-(`unchanged`, `changed`, `new`, `incomparable` or `ignored`). Five things take
+(`unchanged`, `changed`, `new` or `ignored`). Four things take
 the run to `1`:
 
 | The run exits `1` when | Because |
 | --- | --- |
-| a subject is `changed` | pixels moved outside what you excluded |
-| a subject is `incomparable` | the baseline was painted under a different browser, platform, scale factor or font stack, so the comparison was refused rather than reported as agreement |
+| a subject is `changed` | pixels moved outside what you excluded, whatever the cause — a baseline painted under a different browser, platform, scale factor or font stack is compared, and the identity that moved is named first |
 | a subject the run meant to observe failed | a subject that cannot be observed does not silently pass |
 | two readings of one subject, seconds apart, disagreed and the subject's own declaration did not absorb that | otherwise the verdict is decided by whichever reading came first |
 | an observation reports an `error` diagnostic | the run looked at less than the subject — a stylesheet it could not read, say — so the images agree about something smaller than what you asked for |
@@ -115,7 +114,7 @@ track review or flake history.
 | Additive Playwright capture | **yes** — native `test` and `expect` stay with Playwright |
 | In-place page screenshot | **yes** — the page is screenshotted, then re-read; if nothing drifted between the two reads, that screenshot becomes the candidate raster, and its pixels are compared against the baseline. The page also records each change to the subject's elements, attributes and text between the two reads, so a state that came and went while the screenshots were taken is retried like one that stayed; inside a shadow root, only a change still there at the second read is seen. A subject that keeps repainting exhausts a retry budget and is refused instead of compared |
 | Deferred render instead | **yes** — the same adapter can emit a document |
-| Existing raster library input | **yes** — `observeRasters` and raster `CaptureArtifact`; a foreign image declares its painter, and two painters return `incomparable` rather than a wall of red |
+| Existing raster library input | **yes** — `observeRasters` and raster `CaptureArtifact`; a foreign image declares its painter, and two painters are compared with the painter named as the cause of the red |
 | Arbitrary PNG CLI upload | **no** — the CLI has no ingest workflow |
 | Renderer identity | **yes** — engine, platform, scale, fonts, stabilization, and launch recipe partition baselines |
 | Hosted comments, reviewers, and flake register | **partial** — [`@variance-authority/tribunal`](https://variance-authority.dev/reference/packages/tribunal) keeps concerns, each a reviewer's signed doubt about a render with its region, evidence and every step taken on it, beside the decisions; hosted comment threads and a flake register are Argos's |

@@ -112,14 +112,10 @@ above, and it refuses by name any subject where something the shape does not
 account for also moved — which is why the checkout route is in `subjects` and
 not in `settles`.
 
-`promotionOf(observation, { bulk })` is the same rule as a function, for a
-caller that has to answer what accepting a subject would do without promoting
-it. Set `bulk` when the subject is swept in rather than named, as
-`--all` sweeps it: an `incomparable` subject was compared against nothing, so
-a bulk accept adopts it only when its `signals.document` is `unchanged`, and
-refuses it otherwise, including when the record does not carry the signal;
-naming it adopts it. `bulkSkips(observation)` is that one condition alone, for a runner whose own update flag sweeps a suite;
-`@variance-authority/playwright-test` asks it under `--update-snapshots=changed`.
+`promotionOf(observation)` is the same rule as a function, for a caller that has
+to answer what accepting a subject would do without promoting it. A subject
+painted under another identity is a change like any other: `--all` adopts it,
+and its `because` names what moved.
 
 ## The shape
 
@@ -168,7 +164,7 @@ subject. Abridged to the fields most reports use:
 
 `identity` is the machine and renderer the pixels came from — what a baseline is
 only comparable within. Each observation's `verdict` is the run's answer for that
-one subject: `unchanged`, `changed`, `new`, `incomparable` or `ignored`. Its
+one subject: `unchanged`, `changed`, `new` or `ignored`. Its
 `regions` are the rectangles of the diff, each naming the component and pixel
 count that explain it.
 

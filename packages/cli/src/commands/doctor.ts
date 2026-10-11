@@ -395,7 +395,8 @@ async function baselines(
   // An empty root is the first run, not the wrong machine, and the two produce
   // opposite advice from the same `readdir`. Nothing to compare against is why
   // every subject will be `new`; nothing *of this machine's* to compare against
-  // is why every subject would be `incomparable`. Collapsing them would tell a
+  // is why every subject would change, with the machine named as the cause.
+  // Collapsing them would tell a
   // developer setting the tool up for the first time that their machine is wrong.
   if (stored === 0) {
     return {
@@ -407,8 +408,8 @@ async function baselines(
   }
 
   if (identity === undefined) {
-    // No renderer opened, so there is no digest to compare against and saying
-    // "incomparable" would be inventing the bad news rather than finding it.
+    // No renderer opened, so there is no digest to compare against, and saying
+    // the machine differs would be inventing the bad news rather than finding it.
     return {
       kind: store.kind,
       because:
@@ -442,11 +443,11 @@ async function baselines(
   // FIXME: a store whose baselines differ from this machine only in the recipe
   // digests (stabilization, rasterization), as every baseline does after an
   // upgrade that moves them, gets this finding: "not painted by a machine like
-  // this one", and two ways out that are both wrong for it. The run paints those
-  // subjects (`recipeOnly` in packages/raster/src/renderer.ts), `accept --all`
-  // re-baselines those whose document did not move, and `accept <subject>` the
-  // rest; this compares the whole digest and cannot say so. The partition directory names a digest, not the identity behind it, so
-  // telling the two apart here needs a sidecar read per partition.
+  // this one", and two ways out that are both wrong for it. The run compares
+  // those subjects with the recipe named as the cause (ADR-0090) and `accept`
+  // adopts them; this compares the whole digest and cannot say so. The partition
+  // directory names a digest, not the identity behind it, so telling the two
+  // apart here needs a sidecar read per partition.
   return {
     kind: store.kind,
     // The finding this command was worth writing for. Everything else here is a
@@ -456,8 +457,8 @@ async function baselines(
     because:
       `no baseline in ${said(store.root)} was painted by a machine like this one. This machine is ` +
       `${mine.slice(0, 12)}… and the store holds ${stored} baseline(s) under ` +
-      `${scanned.length} other identit(ies), so every subject would report \`incomparable\` ` +
-      'rather than compare — a full run producing no verdicts at all. Two ways out: set ' +
+      `${scanned.length} other identit(ies), so every subject would be compared against another ` +
+      "machine's image and the machine would be the cause of whatever moved. Two ways out: set " +
       '`"retention": "ephemeral"` so both images are painted here in one run and the machine ' +
       'cancels out, or point `"renderer"` at an endpoint running the identity the baselines ' +
       'were written under',

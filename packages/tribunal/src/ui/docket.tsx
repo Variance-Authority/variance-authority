@@ -409,7 +409,6 @@ function Still({ verdicts }: { readonly verdicts: BuildDetail['verdicts'] }): Re
     verdicts.unchanged === 0 ? undefined : `${number(verdicts.unchanged)} unchanged`,
     verdicts.ignored === 0 ? undefined : `${number(verdicts.ignored)} settled by a rule`,
     verdicts.new === 0 ? undefined : `${count(verdicts.new, 'new subject')}`,
-    verdicts.incomparable === 0 ? undefined : `${count(verdicts.incomparable, 'incomparable')}`,
   ].filter((clause): clause is string => clause !== undefined);
 
   if (said.length === 0) return null;

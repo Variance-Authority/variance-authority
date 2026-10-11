@@ -49,7 +49,7 @@ component and a file attached.
 Every field belongs, including the optional ones, and every reconstruction off a
 wire must rebuild all of them — a field that is written and silently dropped on
 the way back produces a write key and a lookup key that differ, and the run then
-reports **incomparable** in a sentence naming the same machine on both sides.
+names a moved identity whose two sides are the same machine.
 For the same reason a present field of the wrong type is refused rather than
 dropped.
 
@@ -57,7 +57,7 @@ The scale is the field that is not a fact about the machine. It belongs to the
 document — one renderer serves several viewports in one run — so the machine
 identity carries a placeholder and `identityFor(document)` folds in the
 document's own. Confusing the two makes a lookup keyed on the machine's
-value find a sibling identity above 1x and call every subject incomparable, and
+value find a sibling identity above 1x and blame every subject on the scale, and
 in the other direction compares a 1x image against a 2x one. Scale therefore has
 no default anywhere it is consumed — a caller converting device pixels back to
 CSS pixels states it, and what a silent 1x does to a report belongs to

@@ -153,21 +153,26 @@ describe('accept', () => {
     expect(puts).toEqual([[{ subject: 'fixture:a' }, CANDIDATE]]);
   });
 
-  it('explains an incomparable subject in terms of machines, not of code', async () => {
-    // An agent handed "no image" would try to fix the component. The cause is a
-    // baseline written elsewhere, and nothing in the source can address it.
-    const { store } = recordingStore();
+  it('re-stamps an unchanged subject under a moved identity on --all, so the move is named once', async () => {
+    const { store, puts } = recordingStore();
 
     const result = await accept({
-      report: reportOf([observation({ verdict: 'incomparable', images: undefined })]),
+      report: reportOf([
+        observation({
+          verdict: 'unchanged',
+          changedPixels: 0,
+          signals: { identity: 'recipe', moved: ['rasterization e5ed66c6 → 865368fe'] },
+        }),
+      ]),
       reportDir: '/repo/out',
       store,
-      subjects: ['fixture:a'],
-      all: false,
+      subjects: [],
+      all: true,
       read: async () => CANDIDATE,
     });
 
-    expect(result.refused[0]?.because).toContain('another machine');
+    expect(result.refused).toHaveLength(0);
+    expect(puts).toEqual([[{ subject: 'fixture:a' }, CANDIDATE]]);
   });
 
   it('refuses a named subject that did not change, instead of silently doing nothing', async () => {

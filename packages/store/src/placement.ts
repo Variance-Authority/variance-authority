@@ -44,7 +44,7 @@ export type BaselineLayout = 'flat' | 'beside';
  * `flat` never needed this — everything under the root was a partition. `beside`
  * puts partitions among the subject's own siblings, where `Button/` and
  * `by-document/` are directories too, and a sibling scan that reported them as
- * machine identities would answer `incomparable` naming a component.
+ * machine identities would name a component as the machine that moved.
  *
  * Both spellings answer, so a scan sums a machine's partition however it is
  * spelled: see {@link partitionsOf}.
@@ -77,7 +77,7 @@ export function pathFor(holder: string, partition: string, key: BaselineKey, lay
  *
  * `flat` answers the root for every key, which is what makes one `readdir` the
  * whole sibling scan. `beside` answers the subject's own directory, so the scan
- * that turns a wrong-machine run into `incomparable` reads that directory rather
+ * that finds a wrong-machine run its baseline reads that directory rather
  * than the tree — cheaper, and scoped to the subject actually being asked about.
  *
  * A carried `path` wins over the id, because it is the better answer whenever

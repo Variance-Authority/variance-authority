@@ -30,8 +30,9 @@ import { PNG } from 'pngjs';
  *
  * **`identity` is a declaration.** Nothing here can inspect a GPU or a font
  * stack, so the operator names the thing that produced these images and that
- * name is compared like any other identity. A declaration that changes makes the
- * next run `incomparable` rather than a wall of red — the one property of the
+ * name is compared like any other identity. A declaration that changes is named
+ * as the cause of every change in the next run rather than a wall of
+ * unexplained red — the one property of the
  * durable mode that transfers wholesale, and the reason the flag is required
  * rather than defaulted. An operator who will not name their painter is an
  * operator whose baselines cannot tell a driver upgrade from a regression, and

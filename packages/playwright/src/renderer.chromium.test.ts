@@ -68,7 +68,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', 
    *
    * `hideCaret` moved from `screenshot: { caret: 'hide' }` to a `caret-color`
    * stylesheet — same trick, same id, byte-identical images — and every stored
-   * baseline went `incomparable`, because the recipe's screenshot options were
+   * baseline named a moved recipe as its cause, because the recipe's screenshot options were
    * folded into `rasterization` as well as into `stabilization`. `stabilization`
    * is keyed on which tricks are present and correctly did not move. The two
    * fields disagreed, and the one that had no business reading the recipe won.

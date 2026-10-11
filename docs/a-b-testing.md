@@ -85,13 +85,13 @@ this is](parting.md#what-kind-of-difference-this-is) lists every slice.
 ## A pair with an undeclared difference is refused
 
 When a second thing differs and nobody declared it, a difference in the result
-could belong to either of them. The run refuses these pairs and names the
-reason:
+could belong to either of them. The run names the second difference, and
+refuses the pair where it cannot:
 
 - **Two painters.** The engine, the platform, the device scale, the fonts, the
   stabilization and the rasterization recipe together identify the renderer. A
-  baseline and a capture that differ in any of them are reported
-  `incomparable`, with the field that differs, and are not compared. [Which
+  baseline and a capture that differ in any of them are compared, and the
+  field that differs is named as the cause of whatever moved. [Which
   engine paints](compare-visual-review.md#32-capture-material-rendering-placement-and-which-engine-paints)
   explains why the engine is part of that identity.
 - **A parent that names more than one subject.** A `variance-parent:` tag in

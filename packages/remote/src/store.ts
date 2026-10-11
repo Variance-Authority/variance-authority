@@ -331,8 +331,8 @@ function readFound(payload: unknown, endpoint: string): Found | null {
     throw malformed(endpoint, BASELINE_FIND_PATH, 'a `found` that is not a baseline');
   }
   if (typeof found.comparable !== 'boolean') {
-    // Never defaulted. Guessing `true` compares two machines; guessing `false`
-    // reports every subject incomparable. Both are verdicts invented by a parser.
+    // Never defaulted. Guessing `true` hides a moved machine; guessing `false`
+    // blames the machine for every change. Both are causes invented by a parser.
     throw malformed(endpoint, BASELINE_FIND_PATH, '`comparable` missing or not a boolean');
   }
 

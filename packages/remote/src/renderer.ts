@@ -138,8 +138,8 @@ export async function connectRenderer(options: RemoteRendererOptions): Promise<R
       if (identityDigest(raster.identity) !== identityDigest(expected)) {
         // The caller has already keyed a baseline lookup on `identityFor`. If
         // the far end stamped something else, storing this raster files it where
-        // nothing reads, and every later run reports the subject new or
-        // incomparable while the endpoint looks healthy. Refusing here names the
+        // nothing reads, and every later run reports the subject new or names a
+        // moved identity while the endpoint looks healthy. Refusing here names the
         // disagreement once, at the hop that caused it.
         throw new Error(
           `render server ${options.endpoint} returned a raster rendered as ` +

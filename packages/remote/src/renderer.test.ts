@@ -244,7 +244,7 @@ describe('rendering somewhere else', () => {
     // Silence here is the expensive failure: the caller has already keyed its
     // baseline lookup on the predicted identity, so storing a raster stamped
     // with another one files the image where nothing reads it, and every later
-    // run calls the subject new or incomparable while the endpoint looks fine.
+    // run calls the subject new, or blames a moved identity, while the endpoint looks fine.
     server = await serveRenderer(stubbornRenderer(1));
     const remote = await connectRenderer({ endpoint: server.url });
 

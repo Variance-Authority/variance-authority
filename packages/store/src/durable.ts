@@ -286,8 +286,8 @@ interface Places {
  *
  * A root that does not exist is a legitimate empty answer — the first run on a
  * fresh checkout creates it on `put`. A root that exists and cannot be listed is
- * not: the sibling scan is the only thing that turns a wrong-machine run into
- * `incomparable` instead of `new`, so a directory this process was refused would
+ * not: the sibling scan is the only thing that compares a wrong-machine run
+ * against a baseline, with the machine as its cause, instead of `new`, so a directory this process was refused would
  * otherwise quietly downgrade that sentence into the one that re-records.
  */
 async function identities(holder: string): Promise<readonly string[]> {
@@ -303,8 +303,8 @@ async function identities(holder: string): Promise<readonly string[]> {
  *
  * This machine's written name first and alone, so a hit costs no `readdir`.
  * Then the scan, with this machine's raw-digest name ahead of every other
- * identity: a subject held under both would otherwise answer `incomparable`
- * from a neighbour while a comparable baseline sat one directory over.
+ * identity: a subject held under both would otherwise blame the machine for a
+ * neighbour's image while this machine's baseline sat one directory over.
  */
 async function* searched(
   holder: string,

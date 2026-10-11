@@ -104,9 +104,9 @@ export type Collected =
        * Stabilization tricks applied to the page before this subject was read.
        *
        * Reported so a run can say what it did to somebody else's page. The
-       * digest of the same list is in the environment key, which is what makes a
-       * differently-stabilized baseline `incomparable`; this is the half a
-       * person reads.
+       * digest of the same list is in the environment key, which is what names a
+       * differently-stabilized baseline as the cause of a change; this is the
+       * half a person reads.
        */
       readonly stabilization?: readonly string[];
     }

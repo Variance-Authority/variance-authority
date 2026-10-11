@@ -199,7 +199,7 @@ async function pending(db: D1Like, project: string, build: string): Promise<numb
     .prepare(
       `SELECT COUNT(*) AS n FROM build_subjects s
         WHERE s.project = ? AND s.build = ?
-          AND s.verdict IN ('changed', 'new', 'incomparable')
+          AND s.verdict IN ('changed', 'new')
           AND NOT EXISTS (
                 SELECT 1 FROM decisions d
                  WHERE d.project = s.project AND d.build = s.build AND d.subject = s.subject)`,

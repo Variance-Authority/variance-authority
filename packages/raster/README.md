@@ -412,14 +412,14 @@ packages named in the table above.
   returned for region isolation.
 - **`settle(...)`** — the question asked before any pixel is paid for: given the
   baseline alone, does this subject need an image? Returns either
-  `{ kind: 'settled', verdict: 'unchanged' | 'incomparable', because }` or
+  `{ kind: 'settled', verdict: 'unchanged', because }` or
   `{ kind: 'render', because }`.
 - **`defaultPlan(options)`, `DEFAULT_PLAN`, `defaultPlanIdentity(options)`** — a
   plan is the ordered list of tool declarations a pipeline runs, and its combined
   digest is the key everything the pipeline produces is stored under. Swap a
   tool and that digest changes, so a baseline made by the old arrangement is
-  reported `incomparable` rather than compared and the difference blamed on a
-  component. `defaultPlan` takes `policy` (which `DiffPolicy` the comparison
+  compared with the arrangement named as the cause, rather than the difference
+  blamed on a component. `defaultPlan` takes `policy` (which `DiffPolicy` the comparison
   step declares), `cell` (the grid size in pixels at which neighbouring changed
   pixels are counted as one place, default `8`, exported as `DEFAULT_CELL`), and
   `stabilization` (see below). `defaultPlanIdentity()` returns the digest

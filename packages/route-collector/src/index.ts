@@ -297,7 +297,8 @@ export function routeCollector(
        * served directory names the run's own static server, so every asset URL
        * and therefore the environment key is the one the shared world produced. A
        * second server on a second port would move all of them and the clean
-       * collection would come back `incomparable`, settling nothing.
+       * collection would come back changed everywhere, with the port as the
+       * cause, settling nothing.
        *
        * The one recipe field that differs is where the browser lands before the
        * route is fetched: `about:blank`, never the run's first route. Opening on

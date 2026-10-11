@@ -56,7 +56,7 @@ function build(subjects: readonly SubjectView[], view: ReachView | null): BuildD
     at: '2026-06-01T12:00:00.000Z',
     identity: { browser: 'chromium', viewport: { width: 1280, height: 800 } } as never,
     retention: 'durable',
-    verdicts: { changed: 1, unchanged: 0, new: 0, incomparable: 0, unstable: 0, ignored: 0 },
+    verdicts: { changed: 1, unchanged: 0, new: 0, unstable: 0, ignored: 0 },
     decided: 0,
     pending: 1,
     coverage: { stated: true, failed: 0, excluded: 0, unreached: 0 },
@@ -109,21 +109,21 @@ describe('the crossing seats a subject on both axes or on neither', () => {
     expect(crossing.unreachedMoved.map((entry) => entry.subject)).toEqual(['alarm']);
   });
 
-  it('keeps a verdict that compared nothing off the moved-or-still axis', () => {
+  it('keeps a verdict with no visible pair off the moved-or-still axis', () => {
     const crossing = crossReach(
-      [subject({ subject: 'fresh', verdict: 'new' }), subject({ subject: 'broken', verdict: 'incomparable' })],
+      [subject({ subject: 'fresh', verdict: 'new' }), subject({ subject: 'masked', verdict: 'ignored' })],
       reach({
         subjects: {
           fresh: { reached: true, through: ['app/src/ds/tokens.css'], because: 'reached' },
-          broken: { reached: false, through: [], because: 'nothing reaches it' },
+          masked: { reached: false, through: [], because: 'nothing reaches it' },
         },
       }),
     );
 
-    // `new` has no baseline to have moved from, and `incomparable` is a
-    // comparison that did not happen. Either one filed as "still" would report a
+    // `new` has no baseline to have moved from, and `ignored` moved only where
+    // the project said not to look. Either one filed as "still" would report a
     // missing measurement as a clean one.
-    expect(crossing.incomparable).toBe(2);
+    expect(crossing.uncrossed).toBe(2);
     expect(crossing.reachedStill).toEqual([]);
     expect(crossing.unreachedStill).toBe(0);
   });

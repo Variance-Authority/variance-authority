@@ -56,18 +56,18 @@ name: variance
 #
 # The cache key does not name the renderer, and does not need to. The store
 # partitions by renderer identity, so a baseline painted by another Chromium is
-# reported `incomparable` and no image is produced (ADR-0011). A bump of the
-# image below restores the old partition, makes the check loud, and the next
-# accept paints the new one beside it.
+# compared with the moved engine named as the cause (ADR-0090). A bump of the
+# image below makes the check loud, and the next accept paints the new
+# partition beside the old one.
 #
 # ## Why this runs in a pinned container
 #
 # A durable baseline is machine-bound (ADR-0011): a raster is keyed by renderer
-# identity, and a run whose identity does not match the stored one reports
-# `incomparable` rather than inventing a diff. `ubuntu-latest` is a moving image
-# with a moving Chromium, so a suite pinned to it would go `incomparable` on
-# somebody else's schedule — every baseline invalidated by an infrastructure
-# update nobody in the repository approved.
+# identity, and a run whose identity does not match the stored one names the
+# moved identity as the cause of every change it reports (ADR-0090).
+# `ubuntu-latest` is a moving image with a moving Chromium, so a suite pinned to
+# it would go red on somebody else's schedule — every baseline moved by an
+# infrastructure update nobody in the repository approved.
 #
 # The image below is the one `docker/linux-verify.Dockerfile` uses, so the
 # baselines this workflow writes are comparable with the ones produced there. Pin

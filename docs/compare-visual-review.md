@@ -251,8 +251,8 @@ durable comparison path.
 the three and defaults to `chromium`; `npx playwright install <engine>` is what
 adds one. The engine is part of the renderer identity a baseline is filed under,
 so approving a Chromium baseline does not approve the WebKit one — a run that
-meets a baseline painted by another engine reports the pair `incomparable` and
-names both engines instead of diffing them.
+meets a baseline painted by another engine diffs the pair and names both
+engines as the cause of whatever moved.
 
 Two capabilities are Chromium's alone, and that is a position rather than a gap
 to be closed:
@@ -420,8 +420,8 @@ approve is a deployment you configure, not a seat you buy.
 PNG plus a sidecar of per-component, per-band hashes, filed under the identity of
 the renderer that painted it. Images approved in a hosted service come with
 neither. `observeRasters` will compare two foreign images that declare the same
-painter, but a foreign image against a locally rendered candidate is
-`incomparable`.
+painter, and a foreign image against a locally rendered candidate names the
+two painters as the cause of every pixel that moved.
 
 So your first run reports `new` on every subject, and that is the adoption moment
 rather than a failure: nothing has been compared yet. Open the report, check the

@@ -34,13 +34,19 @@ const MACHINE: RenderIdentity = {
   fonts: [],
 };
 
-const IMAGE = ((): string => {
+function imageOf(level: number): string {
   const image = new PNG({ width: 8, height: 8 });
-  image.data.fill(0xff);
+  image.data.fill(level);
   return PNG.sync.write(image).toString('base64');
-})();
+}
 
-function fakeRenderer(machine: RenderIdentity = MACHINE): Renderer & { renders: number; closed: number } {
+const IMAGE = imageOf(0xff);
+const DARK = imageOf(0x00);
+
+function fakeRenderer(
+  machine: RenderIdentity = MACHINE,
+  bytes: string = IMAGE,
+): Renderer & { renders: number; closed: number } {
   const renderer = {
     identity: machine,
     renders: 0,
@@ -55,7 +61,7 @@ function fakeRenderer(machine: RenderIdentity = MACHINE): Renderer & { renders: 
         identity: renderer.identityFor(document),
         width: 8,
         height: 8,
-        bytes: IMAGE,
+        bytes,
         missingFonts: [],
       };
     },
@@ -136,54 +142,75 @@ describe('the command the browser half calls', () => {
     expect(await store.find({ subject: 'c' }, renderer.identity)).not.toBeNull();
   });
 
-  describe('under `--update`, an image nothing compared', () => {
-    // `--update` is a sweep: it reaches every selected test, and nobody named
-    // this subject. An `incomparable` was compared with nothing, so the sweep
-    // adopts only what `variance accept --all` would: the document the baseline
-    // was painted from, re-painted under a new recipe and nothing else.
+  describe('a baseline painted under another identity', () => {
+    // An upgrade moves every subject's identity at once: another machine, or
+    // this tool's own recipe. Each is compared anyway, with what moved named as
+    // the cause, and `--update` sweeps a change under a moved identity as it
+    // sweeps any other.
     const ANOTHER_MACHINE: RenderIdentity = { ...MACHINE, platform: 'linux/x64' };
     const OLD_RECIPE: RenderIdentity = { ...MACHINE, rasterization: 'v1:8040e1a2e35d148b301ebd30e5ed66c6' };
     const NEW_RECIPE: RenderIdentity = { ...MACHINE, rasterization: 'v1:54323cded938fde38b41cdd3865368fe' };
 
-    async function baseline(subject: string, machine: RenderIdentity, html?: string): Promise<void> {
-      const commands = varianceCommands({ store: createDurableStore(root), renderer: fakeRenderer(machine), accept: true });
-      await commands.varianceObserve(undefined, { artifact: artifactFor(subject, html) });
+    async function baseline(subject: string, machine: RenderIdentity, bytes?: string): Promise<void> {
+      const commands = varianceCommands({
+        store: createDurableStore(root),
+        renderer: fakeRenderer(machine, bytes),
+        accept: true,
+      });
+      await commands.varianceObserve(undefined, { artifact: artifactFor(subject) });
     }
 
-    it('keeps another machine`s baseline out of this run`s partition', async () => {
+    it('compares another machine`s baseline and names the platform that moved', async () => {
       await baseline('e', ANOTHER_MACHINE);
       const store = createDurableStore(root);
       const renderer = fakeRenderer();
 
-      const observed = await varianceCommands({ store, renderer }).varianceObserve(UPDATING, { artifact: artifactFor('e') });
+      const observed = await varianceCommands({ store, renderer }).varianceObserve(undefined, { artifact: artifactFor('e') });
 
-      expect(observed.verdict).toBe('incomparable');
+      expect(observed.verdict).toBe('unchanged');
+      expect(observed.signals?.identity).toBe('machine');
+      expect(observed.signals?.moved).toEqual(['platform linux/x64 → darwin/arm64']);
       expect((await store.find({ subject: 'e' }, renderer.identity))?.comparable).toBe(false);
     });
 
-    it('keeps a re-painted recipe whose document moved too', async () => {
-      await baseline('f', OLD_RECIPE, '<div data-va-path="0">Cancel</div>');
+    it('re-stamps an unchanged subject under this run`s identity on `--update`', async () => {
+      await baseline('i', ANOTHER_MACHINE);
+      const store = createDurableStore(root);
+      const renderer = fakeRenderer();
+
+      await varianceCommands({ store, renderer }).varianceObserve(UPDATING, { artifact: artifactFor('i') });
+
+      expect((await store.find({ subject: 'i' }, renderer.identity))?.comparable).toBe(true);
+    });
+
+    it('shows a change under a new recipe, with the recipe as its cause', async () => {
+      await baseline('f', OLD_RECIPE, DARK);
       const store = createDurableStore(root);
       const renderer = fakeRenderer(NEW_RECIPE);
 
-      const observed = await varianceCommands({ store, renderer }).varianceObserve(UPDATING, { artifact: artifactFor('f') });
+      const observed = await varianceCommands({ store, renderer, accept: false }).varianceObserve(UPDATING, {
+        artifact: artifactFor('f'),
+      });
 
-      expect(observed.verdict).toBe('incomparable');
+      expect(observed.verdict).toBe('changed');
+      expect(observed.signals?.identity).toBe('recipe');
       expect((await store.find({ subject: 'f' }, renderer.identity))?.comparable).toBe(false);
     });
 
-    it('adopts the same document re-painted under a new recipe alone', async () => {
-      await baseline('g', OLD_RECIPE);
+    it('adopts a change under a new recipe on `--update`, as it adopts any change', async () => {
+      await baseline('g', OLD_RECIPE, DARK);
       const store = createDurableStore(root);
       const renderer = fakeRenderer(NEW_RECIPE);
 
       await varianceCommands({ store, renderer }).varianceObserve(UPDATING, { artifact: artifactFor('g') });
 
-      expect((await store.find({ subject: 'g' }, renderer.identity))?.comparable).toBe(true);
+      const found = await store.find({ subject: 'g' }, renderer.identity);
+      expect(found?.comparable).toBe(true);
+      expect(found?.raster.bytes).toBe(IMAGE);
     });
 
-    it('adopts another machine`s subject when the run declares itself a baseline writer', async () => {
-      await baseline('h', ANOTHER_MACHINE);
+    it('adopts another machine`s changed subject when the run declares itself a baseline writer', async () => {
+      await baseline('h', ANOTHER_MACHINE, DARK);
       const store = createDurableStore(root);
       const renderer = fakeRenderer();
 

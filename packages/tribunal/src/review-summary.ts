@@ -98,7 +98,7 @@ export function summaryStatements(
     bind(
       `SELECT s.build AS build, COUNT(*) AS n FROM build_subjects s
         WHERE s.project = ? AND ${scope.where('s')}
-          AND s.verdict IN ('changed', 'new', 'incomparable')
+          AND s.verdict IN ('changed', 'new')
           AND NOT EXISTS (
                 SELECT 1 FROM decisions d
                  WHERE d.project = s.project AND d.build = s.build AND d.subject = s.subject)
@@ -152,7 +152,6 @@ export function summarize(project: string, row: Row, counts: SummaryCounts): Bui
     unchanged: 0,
     changed: 0,
     new: 0,
-    incomparable: 0,
     ignored: 0,
   };
   for (const entry of counts.verdicts) {

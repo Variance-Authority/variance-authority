@@ -108,8 +108,8 @@ denominator behind every measured claim.
 ## When the evidence stops, choose the next question
 
 An unavailable reading is absent, never an empty result. A first observation is
-`new`, not unchanged. Evidence produced under incompatible conditions is
-`incomparable`, not different. A capability that did not observe a band reports
+`new`, not unchanged. Evidence produced under different conditions names the
+condition that moved as its cause. A capability that did not observe a band reports
 it as unobserved rather than silently clearing it.
 
 When the evidence cannot support the intended decision, the next step is one of:

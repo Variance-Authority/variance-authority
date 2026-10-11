@@ -41,7 +41,6 @@ function build(id: string): BuildSummary {
       changed: 1,
       new: 0,
       ignored: 0,
-      incomparable: 0,
       unstable: 0,
       failed: 0,
     },

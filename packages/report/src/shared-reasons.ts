@@ -3,7 +3,7 @@
  *
  * A reason many subjects share is almost never about any one of them. A first
  * run makes every subject `new` for one sentence, and an upgrade that moves the
- * identity key makes every subject `incomparable` for one; a 4,705-subject run
+ * identity key changes every subject for one cause; a 4,705-subject run
  * said one sentence 4,697 times. Every reader that lists subjects without a
  * region — the pull-request docket, `variance_summary` — prints it once with
  * the subjects under it, and both fold here so they agree on what "the same

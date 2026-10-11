@@ -441,7 +441,7 @@ describe('the record location', () => {
     }
   });
 
-  it('scans the record root for siblings, so a pixel-less baseline is still incomparable', async () => {
+  it('scans the record root for siblings, so a pixel-less baseline still names the machine that wrote it', async () => {
     // The sibling scan is the only thing that says "another machine has this"
     // rather than "nobody has". Scanning the images would answer the second for
     // every subject that has none.

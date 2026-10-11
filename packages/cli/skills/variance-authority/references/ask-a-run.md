@@ -51,9 +51,9 @@ findings: none in 3 inspected subject(s).
 ```
 
 A reason several subjects share is printed once, under a count, with the
-subjects it covers listed beneath it. An upgrade that moves the identity key
-reads as one line, `[incomparable] 4697 subjects: …`, not as four thousand
-copies of it.
+subjects it covers listed beneath it. A first run that makes every subject
+`new` reads as one line, `[new] 4697 subjects: …`, not as four thousand copies
+of it.
 
 **`changes`** groups changed subjects into distinct changes: a token edit that
 touches forty stories is one change, not forty. Ask it before any question about
@@ -92,9 +92,8 @@ Button
   what that subject is made of.
 - **`describe`, `explain-verdict`, `trace-component`, `findings` — once you know
   which subject or component matters.** Ask them one at a time. Ask
-  `explain-verdict` when a subject was not compared at all: it separates
-  `incomparable` (a baseline exists, another machine or an older recipe of this
-  tool rendered it) from `new` (no baseline) from never observed.
+  `explain-verdict` when a subject was not compared at all: it separates `new`
+  (no baseline) from never observed.
   `findings --rule <id>` keeps one rule.
 - **`variations` — when a subject has arms**: a flag's other arm, a second
   viewport, a dark scheme, measured against its parent subject rather than a

@@ -12,5 +12,5 @@ and two runs of one commit reported 209 of its 1,235 unpainted subjects
 `changed`, each naming no component that moved. For such a subject, a moved
 digest is now read through the component hashes when the baseline and the run
 both carry them: the document moved only if some component, including the nodes
-outside every component, moved a band or rendered on one side only. A painted or
-incomparable subject still reports the raw answer.
+outside every component, moved a band or rendered on one side only. A painted
+subject still reports the raw answer.

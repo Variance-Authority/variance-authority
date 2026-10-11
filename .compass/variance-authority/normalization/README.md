@@ -67,8 +67,8 @@ agree today.
 #### What would make me leave
 
 A band set that varied per run or per subject rather than per release. Bands
-are folded into the meaning of a digest, so a caller-supplied list would make
-two snapshots incomparable without saying so, and the vocabulary would have to
+are folded into the meaning of a digest, so a caller-supplied list would give
+two snapshots' digests different meanings without saying so, and the vocabulary would have to
 move into the ruleset that already versions itself.
 
 ### [Reach](../reach/README.md)

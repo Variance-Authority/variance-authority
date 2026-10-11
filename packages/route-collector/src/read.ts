@@ -35,8 +35,8 @@ export interface RouteReading {
    * what fills it for a discovered run — and where a directory is being served,
    * both worlds get the addresses that name *that* server. A second server would
    * answer on a second port, every asset URL would move, the environment key
-   * with it, and an isolated collection would come back `incomparable` rather
-   * than settling anything.
+   * with it, and an isolated collection would come back changed everywhere, with
+   * the port as the cause, rather than settling anything.
    */
   readonly routes: Readonly<Record<string, string>>;
   readonly roots: readonly string[];

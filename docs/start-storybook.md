@@ -158,7 +158,7 @@ directory rather than the working directory.
 | `project` | The label this project's rows are filed under in a shared history store. Required even with no history configured, because rows written under a project nobody chose cannot be re-attributed later. |
 | `profile` | What the run is *capable* of observing: `chromium` resolves computed style, layout and pixels; `jsdom` resolves structure, ARIA and declared style only, and paints nothing. A Storybook loop paints, so it is `chromium`. This is not the engine — that is `browser`, one of `chromium`, `firefox`, `webkit`, defaulting to `chromium`, and the `npx playwright install` above installs its binary. |
 | `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). This is the size every story is read at unless the story's own `parameters.variance` sets another. |
-| `timezoneId`, `locale` | The timezone a story's clock reads in and the language its dates and numbers are formatted for. Unset, every story reads in `UTC` and `en-US` rather than in the timezone and language of whichever machine ran it. Set once for the whole run. A story painted under another pair reads `incomparable` against its baseline. `accept --all` adopts each story whose document held; a story that formats a date or a number moved its document too, so adopt it with `accept <subject-id>` once you have looked ([the first loop](#run-the-first-loop)). |
+| `timezoneId`, `locale` | The timezone a story's clock reads in and the language its dates and numbers are formatted for. Unset, every story reads in `UTC` and `en-US` rather than in the timezone and language of whichever machine ran it. Set once for the whole run. A story painted under another pair names the moved pair as the cause of what it reports, and a story that formats a date or a number moved its document too. Review the changes and adopt them with `accept --all` ([the first loop](#run-the-first-loop)). |
 | `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent — a config that sets both is refused rather than silently storing nothing. |
 | `subjects.kind` | `storybook` reads a built story index. The alternatives are `list`, where you write the subject ids down yourself, and `collector`, where the collector module discovers them. |
 | `baselines.kind` | Where approved images live: `directory` is files you commit, `lfs` is the same files through the Git LFS filter, `remote` is a deployment and a token with nothing in the repository. No default — see [baseline placement](placement.md). |
@@ -242,9 +242,10 @@ story where something else changed too.
 
 The image a browser paints depends on the machine that painted it. Every
 approved image is stored under an identity digest of the renderer, engine,
-platform, device scale factor and fonts, and an image stored under a different
-identity is not diffed against — the run reports `incomparable`, and `doctor`
-exits `2` listing the identities the root does have images for.
+platform, device scale factor and fonts. An image stored under a different
+identity is still diffed against, with the moved identity named as the cause of
+every change, and `doctor` exits `2` listing the identities the root does have
+images for.
 
 So your laptop and CI never compare against different identities — pick one
 painter and use it for both:

@@ -267,8 +267,9 @@ export function storybookCollector(
        *
        * That last one is why the server is reused rather than restarted. A
        * second server answers on a second port, every asset URL moves, the key
-       * moves with it, and the run gets `incomparable` back — a clean collection
-       * that cannot be compared to the dirty one settles nothing.
+       * moves with it, and every subject comes back changed with the port as its
+       * cause — a clean collection that differs from the dirty one everywhere
+       * settles nothing.
        *
        * The cost is a browser launch per subject, which is why `alone.limit`
        * exists and why the run only spends it on subjects it already called

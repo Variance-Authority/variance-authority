@@ -194,7 +194,7 @@ The declaration is a hint, not a requirement. A store that does not serve
 request per key, which is what a deployment of
 [`tribunal`](../packages/tribunal/README.md) does. No **verdict** changes
 either way — the verdict is the one word a run reports per subject,
-`unchanged`, `changed`, `new`, `incomparable` or `ignored`, and it is decided
+`unchanged`, `changed`, `new` or `ignored`, and it is decided
 by the comparison rather than by how many requests fetched the baseline.
 
 Anything else the store cannot answer — an endpoint it cannot call, a refused

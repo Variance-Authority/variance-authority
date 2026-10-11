@@ -33,7 +33,7 @@ function summary(
     at: '2026-08-31T00:00:00.000Z',
     identity: { engine: 'chromium' } as BuildSummary['identity'],
     retention: 'durable',
-    verdicts: { changed: 0, new: 0, incomparable: 0, ignored: 0, unchanged: 0, ...observed },
+    verdicts: { changed: 0, new: 0, ignored: 0, unchanged: 0, ...observed },
     decided: 0,
     pending: 0,
     coverage,
@@ -274,12 +274,12 @@ describe('the counts on a build add up to the build', () => {
     );
 
   it('names every verdict the store keeps, including the declared ones', () => {
-    // A twenty-subject build printed as `16 changed · 0 new · 0 incomparable ·
+    // A twenty-subject build printed as `16 changed · 0 new ·
     // 2 unchanged` is eighteen, and the two it dropped are the two a rule
     // decided — which is the half of a run somebody would open this page to
     // audit.
     const markup = listed(
-      { changed: 16, new: 0, incomparable: 0, ignored: 2, unchanged: 2 },
+      { changed: 16, new: 0, ignored: 2, unchanged: 2 },
       16,
     );
 
@@ -290,7 +290,7 @@ describe('the counts on a build add up to the build', () => {
   it('prints a verdict nothing landed in rather than dropping the word', () => {
     // Zero here is a measurement: the run compared, and no declaration decided
     // anything. Omitting the word would make the line say nothing about it.
-    expect(listed({ changed: 0, new: 0, incomparable: 0, ignored: 0, unchanged: 9 }, 0)).toContain(
+    expect(listed({ changed: 0, new: 0, ignored: 0, unchanged: 9 }, 0)).toContain(
       '0 ignored',
     );
   });

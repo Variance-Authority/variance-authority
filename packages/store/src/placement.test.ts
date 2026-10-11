@@ -72,7 +72,7 @@ describe('the beside layout', () => {
     expect(found?.raster.bytes).toBe('QUJD');
   });
 
-  it('still refuses another machine`s baseline as incomparable', async () => {
+  it('still finds another machine`s baseline as a sibling', async () => {
     // The sibling scan moved down to the leaf directory; it did not go away.
     // Losing it here would turn a wrong-machine run back into `new`, which is
     // the one downgrade this whole layout is not allowed to buy.
@@ -87,7 +87,7 @@ describe('the beside layout', () => {
 
   it('does not read a neighbouring component`s directory as a machine identity', async () => {
     // `beside` puts partitions among ordinary directories. A scan that took
-    // `Button/` for a machine would answer `incomparable` naming a component.
+    // `Button/` for a machine would name a component as the machine that moved.
     const store = createDurableStore(root, { layout: 'beside' });
     await store.put({ subject: 'src/ui/Button/primary' }, rasterOf(MAC));
     await store.put({ subject: 'src/ui/Card/primary' }, rasterOf(MAC));

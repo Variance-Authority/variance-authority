@@ -194,9 +194,9 @@ that accepts, and only after a comparison against it came back green.
 
 A pull request and a push to `main` are both gates, both red when a subject
 moved. The cache key does not name the renderer, because the store already
-partitions by it: a baseline whose identity differs from the run's is reported
-`incomparable` and no image is produced, so the worst an image bump does is make
-a check loud until the next accept.
+partitions by it: a baseline whose identity differs from the run's is compared
+with the moved identity named as the cause, so the worst an image bump does is
+make a check loud until the next accept.
 
 ## Where the report lives here
 

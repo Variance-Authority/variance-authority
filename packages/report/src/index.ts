@@ -130,8 +130,8 @@ export {
 } from './changelog-message.js';
 export type { CommitMessageOptions } from './changelog-message.js';
 
-export { bulkSkips, promotionOf, selectByShape, whyNotWhole } from './promotion.js';
-export type { Promotion, PromotionOptions } from './promotion.js';
+export { promotionOf, selectByShape, whyNotWhole } from './promotion.js';
+export type { Promotion } from './promotion.js';
 
 export { byReason } from './shared-reasons.js';
 

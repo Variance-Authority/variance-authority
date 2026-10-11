@@ -340,8 +340,8 @@ re-recording of every subject — which is what keeps teams where they are.
 ### What the import costs, measured
 
 **A PNG carries no identity.** Our durable baselines are partitioned by renderer
-identity so a run on a different machine is `incomparable` — one sentence —
-rather than every subject failing for reasons nobody can attribute. An
+identity so a run on a different machine names the machine as the cause — one
+sentence — rather than every subject failing for reasons nobody can attribute. An
 imported baseline states no engine, no scale factor, no fonts and no platform, so
 it can only be compared *by assumption*, and the verdict that guards a wrong
 assumption is unavailable for as long as the import lasts. The same run prints
@@ -379,7 +379,7 @@ regions, ordered both ways:
 So the honest migration story is a generation, not a switch: **import to get
 moving, and let the imported baselines age out** as subjects are re-recorded
 under an identity. Until a subject is re-recorded it gets regions, names and
-files, and neither `incomparable` nor a cause-first ordering.
+files, and neither a moved identity as its cause nor a cause-first ordering.
 
 *Not built: a foreign-baseline reader in [`store`](../../packages/store). Reading
 a directory of PNGs is `readFileSync`, which is why this case does it inline

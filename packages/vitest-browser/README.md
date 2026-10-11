@@ -188,12 +188,11 @@ afterwards does not turn that verdict into a pass. Open the PNG it wrote under
 `.variance/baselines` before you commit it — that review is the approval. Run the
 suite again and the subject reports `unchanged`.
 
-`--update` reaches every selected test, so it skips the `incomparable` subjects
-`variance accept --all` skips: an image another machine painted, and a
-re-painted recipe whose document moved. Nothing compared either one with
-anything. Set `accept: false` on
-the plugin to keep baselines out of `--update` altogether, or `accept: true` for
-a job whose whole purpose is to write them, which adopts every image it painted.
+`--update` reaches every selected test and adopts what `variance accept --all`
+adopts: every changed candidate, whatever identity painted its baseline. Set
+`accept: false` on the plugin to keep baselines out of `--update` altogether, or
+`accept: true` for a job whose whole purpose is to write them, which adopts
+every image it painted.
 
 ### Commit the baselines
 
@@ -255,15 +254,14 @@ if (observed.verdict === 'new') {
 }
 ```
 
-There are five verdicts, and `assertUnchanged` throws on all four that are not
+There are four verdicts, and `assertUnchanged` throws on all three that are not
 `unchanged`, `ignored` included, because it asserts exactly what its name says.
 
 | verdict | what it means |
 |---|---|
-| `unchanged` | the two images were comparable and no pixels differ |
-| `changed` | pixels differ; `regions` names what drew them |
-| `new` | no baseline exists for this subject under this renderer identity. Not a pass and not a failure |
-| `incomparable` | a baseline exists but was painted under a different identity, so the comparison is refused. The reason names the fields that differ, and whether they are the machine or only this tool's recipe. Never read it as zero difference |
+| `unchanged` | the two images were compared and no pixels differ |
+| `changed` | pixels differ; `regions` names what drew them, and the reason names a moved identity first |
+| `new` | no baseline exists for this subject. Not a pass and not a failure |
 | `ignored` | pixels differ and every one of them fell inside something you excluded |
 
 The observation reports these fields:
@@ -313,8 +311,9 @@ whether it has the font, and what it could not find comes back in
 `missingFonts`. The weight, style and hash are folded into the renderer identity
 and compared for equality, never parsed, so any stable digest of the font file's
 bytes serves as the hash. What the declaration buys is that two machines with
-different cuts of one family produce different identities and report
-`incomparable` instead of blaming a component for a substituted typeface.
+different cuts of one family produce different identities, and a change between
+them names the font as its cause instead of blaming a component for a
+substituted typeface.
 
 ### About `wiring`
 
@@ -378,12 +377,12 @@ your Vitest config imports. It owns the baseline store and one browser for the
 whole run — opened on the first observation, not at config time — and it paints
 that reading rather than screenshotting the tab. A live screenshot has nothing
 behind it that records which machine, which scale and which font stack produced
-it, so nothing can decide whether a later run is entitled to compare against it.
+it, so nothing can name the machine when a later run differs from it.
 
-The consequence is that a baseline approved on your laptop is usually not
-comparable on a CI runner. That run reports `incomparable` and names both
-identities rather than reporting a day of changed pixels nobody caused. Two ways
-to get a verdict instead: approve with `-u` inside the CI image and commit what
+The consequence is that a baseline approved on your laptop usually changes on a
+CI runner. That run names both identities as the cause of every change rather
+than reporting a day of changed pixels nobody caused. Two ways to get a verdict
+about your code instead: approve with `-u` inside the CI image and commit what
 it wrote, or pass one shared `renderer` to the plugin so laptop and CI paint on
 the same machine.
 

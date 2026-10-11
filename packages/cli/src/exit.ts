@@ -133,7 +133,7 @@ export function isOperatorError(error: unknown): boolean {
  */
 export interface ReviewableReport {
   readonly observations: readonly {
-    readonly verdict: 'unchanged' | 'changed' | 'new' | 'incomparable' | 'ignored';
+    readonly verdict: 'unchanged' | 'changed' | 'new' | 'ignored';
 
     /**
      * What the collection of this subject could not do, carried from the record.
@@ -188,12 +188,10 @@ const GREEN: readonly string[] = ['unchanged', 'ignored'];
  * Four things move it to `1`, and the last three are the ones a pixel-diff tool
  * gets wrong:
  *
- * - `changed` — the obvious one.
- * - `incomparable` — a baseline exists under another identity: another
- *   machine's, or this machine's under an older recipe of this tool. The
- *   comparison was *refused*, so nothing is known, and an unobservable
- *   difference is never reported as no difference — a recipe re-baseline holds
- *   the run open too, until `accept` adopts its images.
+ * - `changed` — the obvious one, whatever its cause. A change painted under
+ *   another identity — a browser upgrade, a new recipe of this tool — names the
+ *   identity as its cause and holds the run open like any other, until `accept`
+ *   adopts its images (ADR-0090).
  * - a `failed` entry in {@link ReviewableReport.notObserved} — the run meant to
  *   look and could not. This is the rule ADR-0017 states, in one
  *   line: a subject that cannot be observed does not silently pass.

@@ -258,7 +258,7 @@ export interface ObservationRecord {
    * of its green was earned and how much was declared — a question `unchanged`
    * absorbs and can never answer again.
    */
-  readonly verdict: 'unchanged' | 'changed' | 'new' | 'incomparable' | 'ignored';
+  readonly verdict: 'unchanged' | 'changed' | 'new' | 'ignored';
   readonly because: string;
 
   /**
@@ -274,12 +274,18 @@ export interface ObservationRecord {
   readonly signals?: {
     readonly document?: 'unchanged' | 'changed';
     /**
-     * On an `incomparable` subject, what differed between the two render
-     * identities: `recipe` when only the recipe digests did, `machine` for
-     * anything else. A bulk acceptance adopts only `recipe` with the document
-     * `unchanged`.
+     * Set when the two images were painted under different render identities:
+     * `recipe` when only this tool's recipe digests moved, `machine` for anything
+     * else. The cause of whatever the comparison found, never a reason to skip
+     * it (ADR-0090).
      */
     readonly identity?: 'recipe' | 'machine';
+    /**
+     * Each identity field that moved, as `field before → after`, stored side
+     * first. Present with {@link identity}; the key a review groups an
+     * avalanche by.
+     */
+    readonly moved?: readonly string[];
     /**
      * `unobservable` when the subject occupies no pixels — there was nothing to
      * measure, as against `unchanged`, which is a measurement that found nothing
@@ -288,7 +294,7 @@ export interface ObservationRecord {
      */
     readonly pixels?: 'unchanged' | 'changed' | 'unobservable';
     readonly accessibility?: {
-      readonly verdict: 'unchanged' | 'changed' | 'incomparable';
+      readonly verdict: 'unchanged' | 'changed';
       readonly before?: AccessibilitySnapshot;
       readonly after?: AccessibilitySnapshot;
     };

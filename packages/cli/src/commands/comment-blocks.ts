@@ -308,14 +308,37 @@ function collateralBlocks(collateral: Collateral): readonly string[] {
 }
 
 /**
+ * Subjects painted under another identity, one line per identity that moved.
+ *
+ * Outside the fold, beside the lead: an upgrade or a new recipe moves the whole
+ * suite, and the count of what it changed against what it left alone is the
+ * first thing a reviewer reads before looking for the few that are regressions.
+ */
+export function moveBlocks(docket: Docket, limits: CommentLimits): readonly string[] {
+  if (docket.moves.length === 0) return [];
+
+  const items = docket.moves.map((move) => {
+    const total = move.changed.length + move.unchanged;
+    const what = move.moved.map((field) => `**${field}**`).join(', ');
+    if (move.changed.length === 0) return `- ${what} — none of ${count(total, 'subject')} changed`;
+    const named = move.changed.slice(0, limits.subjects).map(code).join(', ');
+    const rest = move.changed.length - Math.min(move.changed.length, limits.subjects);
+    return (
+      `- ${what} — ${move.changed.length} of ${count(total, 'subject')} changed: ${named}` +
+      (rest === 0 ? '' : ` and ${count(rest, 'other')} not listed`)
+    );
+  });
+
+  return ['### Painted under another identity', items.join('\n')];
+}
+
+/**
  * Subjects with a verdict and nothing to point at.
  *
- * `new` and `incomparable` are the two that a reader — or an agent — will
- * otherwise treat as failures of the code, and neither is about the code. Both
- * are listed anyway: nobody has agreed what a new subject should look like, which
- * is why the heading names it NEW rather than counting it as a review, and an
- * incomparable one is a comparison that was *refused*, which is not the same
- * sentence as "no difference".
+ * `new` is the one a reader — or an agent — will otherwise treat as a failure
+ * of the code. It is listed anyway: nobody has agreed what a new subject should
+ * look like, which is why the heading names it NEW rather than counting it as a
+ * review.
  */
 export function withoutCauseBlocks(docket: Docket, limits: CommentLimits): readonly string[] {
   if (docket.withoutCause.length === 0) return [];
@@ -330,7 +353,7 @@ export function withoutCauseBlocks(docket: Docket, limits: CommentLimits): reado
     );
   });
 
-  return ['### Not compared', items.join('\n')];
+  return ['### Nothing to point at', items.join('\n')];
 }
 
 /**

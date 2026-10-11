@@ -39,8 +39,8 @@ construction and no locale ever needs an approval of its own.
 **The base locale is the config's `locale`, and it is part of the environment
 key.** A baseline is a render in one language, so the language joins the
 environment key and the render identity: an image painted in another language is
-`incomparable` against the baseline, and a snapshot diff names the locale as its
-one environment root. Unlike `deviceScaleFactor`, which only the raster key
+compared against the baseline with the locale named as the cause, and a snapshot
+diff names the locale as its one environment root. Unlike `deviceScaleFactor`, which only the raster key
 carries, the locale is in the semantic key too, because text is laid out and
 another language moves the box tree. The other
 locales are collector inputs. A `locales` list names the renders compared

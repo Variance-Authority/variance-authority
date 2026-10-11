@@ -211,8 +211,8 @@ environment changed?
 
 Synthetic cases vary one input at a time: text rasterization, scale, browser
 engine, font declaration, scrollbar behavior and capture order. A correctly
-partitioned environment produces `incomparable` or a classified instability,
-not a component regression.
+partitioned environment produces a change caused by the moved identity or a
+classified instability, not a component regression.
 
 ### M4b. False misses
 

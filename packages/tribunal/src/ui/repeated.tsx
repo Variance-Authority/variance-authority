@@ -67,7 +67,7 @@ function movedSince(lead: RepeatedIn, subject: SubjectView, ran: string): boolea
   const decision = lead.decision;
   return (
     decision?.decision === 'approved' &&
-    (subject.verdict === 'changed' || subject.verdict === 'incomparable') &&
+    subject.verdict === 'changed' &&
     Date.parse(decision.at) < Date.parse(ran)
   );
 }

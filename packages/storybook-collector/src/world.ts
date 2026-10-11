@@ -43,7 +43,7 @@ export interface WorldRecipe {
    * carry their own content hash — and it has to be a property of the recipe
    * rather than a default here, because a world that watched the wire compared
    * against one that did not would produce two different environment keys and
-   * report `incomparable` where the run asked about order.
+   * blame the wire for every change where the run asked about order.
    */
   readonly network?: NetworkOptions;
 }

@@ -9,8 +9,8 @@ import { fail, optionalText, quote, type ParseOptions } from './config-values.js
  * formats would otherwise read one way on a laptop in Sydney and another on a
  * runner in Virginia, from one build. Declared here, the renderer pins these
  * instead. Both join the environment key and the render identity, so a project
- * that changes one reads every image `incomparable` against the baselines
- * painted under the other, and accepts them again.
+ * that changes one compares every image against the baselines painted under the
+ * other, names the moved field as the cause of what changed, and accepts them again.
  */
 export function parseRegion(root: Record<string, unknown>, options: ParseOptions): PageRegion {
   const timezoneId = optionalText(root, 'timezoneId', options);

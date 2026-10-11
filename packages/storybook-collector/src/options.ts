@@ -49,7 +49,8 @@ export interface StorybookCollectorOptions {
    * Name your own list to leave a trick out: a story that is about its hover
    * state, for one, is read with `no-hover` missing from it. `[]` means
    * observed untouched, and the environment key records it, so a baseline made
-   * under one list reads `incomparable` against a run made under another.
+   * under one list, compared with a run made under another, names the list as
+   * the cause of what changed.
    */
   readonly stabilize?: readonly string[];
 

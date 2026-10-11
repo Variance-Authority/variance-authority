@@ -39,8 +39,9 @@ here:
   supplies them, it also names the file and line behind them — the sample above
   is the whole message, with no image opened.
 - **A baseline records the browser, platform and scale it was painted under.**
-  A baseline recorded elsewhere returns `incomparable` rather than a wall of
-  differences you would have to read through.
+  A baseline recorded elsewhere is compared, and the failure opens with what
+  moved — engine, platform, scale — rather than leaving a wall of differences
+  you would have to read through.
 - **The document, the pixels and the browser's accessibility tree are three
   separate results.** A role or accessible name that changed without repainting
   anything still returns `changed` — with Playwright's own ARIA snapshots from
@@ -129,12 +130,10 @@ defaults the field to `missing` when no flag is supplied, and treating the
 default as approval would write a baseline from the same failed run that reported
 it unreviewed.
 
-The two differ on one case. After an upgrade of this package moves its render
-recipe, every baseline comes back `incomparable` with the new image painted, and
-both flags adopt it when the document is the one the baseline was painted from.
-When the document moved too, nothing compared the new image against anything:
-`=changed` skips it, and `=all` adopts it, so run that one test under `=all`
-once you have looked at its image.
+Both adopt every changed image, whatever moved it. After an upgrade of this
+package moves its render recipe, every subject is compared with the recipe named
+as the cause, and either flag adopts the ones that changed once you have looked
+at them.
 
 Use an explicit `subjectId` for long-lived baselines. When it is omitted, the id
 comes from the test title path; renaming the test then produces `new` instead of
@@ -312,8 +311,8 @@ opens and closes the rest itself.
 A session reads and paints in the timezone and locale your page runs in. The
 page and its context are yours, so a context that sets no `timezoneId` runs in
 your machine's timezone, and a page read on your laptop and the same page read
-on a runner in UTC have different environment keys: the image reads
-`incomparable`. Open the context with `timezoneId: 'UTC'` and `locale: 'en-US'`
+on a runner in UTC have different environment keys: the image is compared with
+the moved timezone named as the cause. Open the context with `timezoneId: 'UTC'` and `locale: 'en-US'`
 to read it as a suite under `varianceFixtures` does.
 
 | Option | Use it when | Default and boundary |
@@ -330,7 +329,7 @@ to read it as a suite under `varianceFixtures` does.
 
 A verdict names the components and counts the pixels; a reviewer still asks to
 see it. Point `evidence` at a directory and every subject a person stops on --
-`changed`, `incomparable`, and `ignored` -- leaves a `.before.png`, an
+`changed` and `ignored` -- leaves a `.before.png`, an
 `.after.png` and a `.diff.png` behind, and the observation records where they
 were written.
 
@@ -361,10 +360,7 @@ test('the cart states', async ({ page }, testInfo) => {
 ```
 
 `unchanged` and `new` write nothing: there is nothing to look at in the first and
-nothing to compare against in the second. Neither does a subject whose baseline
-the run refused to compare against -- an `incomparable` verdict leaves the
-candidate alone rather than a diff against an image from another environment.
-Two images of different sizes leave the pair and no diff, because they have no
+nothing to compare against in the second. Two images of different sizes leave the pair and no diff, because they have no
 common canvas and the sizes are the whole finding.
 
 Off by default on the direct path, and off is a real choice: the images are the
@@ -401,7 +397,6 @@ const variance = await createVariance(page, {
 | `baseURL` | Recording should use the URL the page is served from. | Omitted; a service under test then sees the execution from the first observation rather than the first request. |
 | `owner` | The run records which spec covered which source. | Omitted; the run records no execution against a file. |
 | `accepting` | This run is the one promoting candidates to baselines. | `false`. Under `TestInfo` it is `--update-snapshots=all\|changed` and nothing else — `missing` is the flag's absence. |
-| `overwriting` | An `accepting` run also adopts an image no comparison read: a new render recipe over a document that moved. | `false`. Under `TestInfo` it is `--update-snapshots=all`. |
 
 `runOf(testInfo)` is the same reading, exported for a suite that takes
 Playwright's answer and overrides one field.
@@ -996,9 +991,9 @@ the time it is read throws as well.
 
 - **`new`:** no baseline exists for this subject id. Run once with
   `--update-snapshots=all`, look at the image it stored, then rerun normally.
-- **`incomparable`:** a baseline exists under another renderer identity. Align
-  browser, platform, scale, and asserted fonts instead of accepting the wall of
-  changes.
+- **`changed` with a moved identity first:** the baseline was painted under
+  another renderer identity. Align browser, platform, scale, and asserted fonts
+  instead of accepting the wall of changes.
 - **Changed regions name components but no files:** the engine could not be
   queried — this is WebKit, Firefox, or a component that did not render. Pass a
   `SourceIndex` as `source` to `observe`, `session.observe`, or

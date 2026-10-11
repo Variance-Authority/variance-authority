@@ -252,30 +252,42 @@ describe('renderComment', () => {
     expect(body).toContain('cannot be read as a pass');
   });
 
-  it('reports an incomparable subject rather than letting it read as no difference', () => {
-    // The comparison was refused, so nothing is known. Grouping by the reason
-    // keeps 300 of these to one line without discarding the sentence.
+  it('groups subjects painted under another identity by what moved, changed or not', () => {
+    // An upgrade moves the whole suite at once. Every subject is compared, and
+    // the identity that moved is one line with its count, so the few that are
+    // regressions are not read one sentence at a time (ADR-0090).
+    const upgrade = { identity: 'machine' as const, moved: ['engine chromium@131 → chromium@132'] };
     const body = renderComment({
       report: reportOf([
         {
           subject: 'story:a',
-          verdict: 'incomparable',
-          because: 'a baseline exists but was rendered by another machine',
-          changedPixels: 0,
-          regions: [],
+          verdict: 'changed',
+          because: 'the baseline and this run were painted under different identities; 40 pixel(s) differ',
+          changedPixels: 40,
+          regions: [{ x: 0, y: 0, width: 8, height: 5, pixels: 40, cause: false }],
+          signals: upgrade,
         },
         {
           subject: 'story:b',
-          verdict: 'incomparable',
-          because: 'a baseline exists but was rendered by another machine',
+          verdict: 'changed',
+          because: 'the baseline and this run were painted under different identities; 12 pixel(s) differ',
+          changedPixels: 12,
+          regions: [{ x: 0, y: 0, width: 4, height: 3, pixels: 12, cause: false }],
+          signals: upgrade,
+        },
+        {
+          subject: 'story:c',
+          verdict: 'unchanged',
+          because: 'the baseline and this run were painted under different identities; no pixels differ',
           changedPixels: 0,
           regions: [],
+          signals: upgrade,
         },
       ]),
     });
 
-    expect(body).toContain('**incomparable** — 2 subject(s)');
-    expect(body).toContain('rendered by another machine');
+    expect(body).toContain('### Painted under another identity');
+    expect(body).toContain('**engine chromium@131 → chromium@132** — 2 of 3 subject(s) changed: `story:a`, `story:b`');
   });
 
   it('says a region was ranked by area when the semantic tier named no cause', () => {

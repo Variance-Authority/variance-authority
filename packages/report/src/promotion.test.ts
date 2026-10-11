@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ObservationRecord } from './format.js';
-import { bulkSkips, promotionOf, selectByShape, whyNotWhole } from './promotion.js';
+import { promotionOf, selectByShape, whyNotWhole } from './promotion.js';
 
 /**
  * These rules used to live inside `accept`, where the only way to ask them was
@@ -118,110 +118,47 @@ describe('what may become a baseline', () => {
     expect(promotion).toEqual({ kind: 'promotable', from: 'images/story%3Aa.after.png' });
   });
 
-  it('sends an incomparable baseline somewhere different from a missing render', () => {
-    const incomparable = promotionOf({
-      subject: 'story:a',
-      verdict: 'incomparable',
-      because: 'baseline from another machine',
-      changedPixels: 0,
-      regions: [],
-    });
+  it('refuses a subject the run recorded no image for', () => {
     const unrendered = promotionOf(changed('story:b', { images: {} }));
-
-    // Opposite causes: one is a decision about machines, the other is a re-run.
-    // One sentence would serve neither.
-    expect(incomparable.kind === 'refused' && incomparable.because).toContain(
-      "another machine's baseline",
-    );
-    expect(unrendered.kind === 'refused' && unrendered.because).toContain(
-      'the run recorded no image for it',
-    );
+    expect(unrendered.kind === 'refused' && unrendered.because).toContain('the run recorded no image for it');
   });
 
-  it('keeps a painted incomparable whose document moved out of a bulk accept, and promotes it by name', () => {
-    // Painted under a new recipe, against a baseline of another document: no
-    // comparison saw what changed, so only a reviewer naming it may adopt it.
-    const moved: ObservationRecord = {
+  it('promotes a change painted under another machine or recipe like any other change', () => {
+    // An upgrade or a migration moves many subjects at once; the identity that
+    // moved is their cause, and accepting them is the same act as accepting any
+    // change (ADR-0090).
+    for (const identity of ['machine', 'recipe'] as const) {
+      const moved: ObservationRecord = {
+        subject: 'story:a',
+        verdict: 'changed',
+        because: 'painted under another identity; 12 pixels differ',
+        changedPixels: 12,
+        regions: [],
+        images: { after: 'images/story%3Aa.after.png' },
+        signals: { document: 'unchanged', identity, moved: ['engine chromium@131 → chromium@132'] },
+      };
+      expect(promotionOf(moved)).toEqual({ kind: 'promotable', from: 'images/story%3Aa.after.png' });
+    }
+  });
+
+  it('re-stamps an unchanged subject under a moved identity, so the cause is named once', () => {
+    // Left under the old identity, the subject names the same upgrade on every
+    // run after it was accepted, and the avalanche never ends.
+    const unmoved: ObservationRecord = {
       subject: 'story:a',
-      verdict: 'incomparable',
-      because: 'the document changed too',
+      verdict: 'unchanged',
+      because: 'painted under another recipe; no pixels differ',
       changedPixels: 0,
       regions: [],
       images: { after: 'images/story%3Aa.after.png' },
-      signals: { document: 'changed' },
+      signals: { identity: 'recipe', moved: ['rasterization e5ed66c6 → 865368fe'] },
     };
-    const bulk = promotionOf(moved, { bulk: true });
-    expect(bulk.kind).toBe('refused');
-    expect(bulk.kind === 'refused' && bulk.because).toContain('variance accept story:a');
-    // The refusal says what the rule read, not why the subject was incomparable:
-    // another machine's image of a moved document is refused in the same words.
-    expect(bulk.kind === 'refused' && bulk.because).toContain('not the one the baseline was painted from');
-    expect(bulk.kind === 'refused' && bulk.because).not.toContain('recipe');
-    expect(promotionOf(moved)).toEqual({ kind: 'promotable', from: 'images/story%3Aa.after.png' });
+    expect(promotionOf(unmoved)).toEqual({ kind: 'promotable', from: 'images/story%3Aa.after.png' });
 
-    // The same image of the same document is a re-baseline, and bulk adopts it.
-    const same = { ...moved, signals: { document: 'unchanged' as const, identity: 'recipe' as const } };
-    expect(promotionOf(same, { bulk: true }).kind).toBe('promotable');
-  });
-
-  it("keeps another machine's image out of a bulk accept even when its document is unchanged", () => {
-    // Same page, other machine: nothing compared the two images, and the
-    // difference between them is the machine's, which no reviewer has seen.
-    const foreign: ObservationRecord = {
-      subject: 'story:a',
-      verdict: 'incomparable',
-      because: 'painted by another machine',
-      changedPixels: 0,
-      regions: [],
-      images: { after: 'images/story%3Aa.after.png' },
-      signals: { document: 'unchanged', identity: 'machine' },
-    };
-    const bulk = promotionOf(foreign, { bulk: true });
-    expect(bulk.kind).toBe('refused');
-    expect(bulk.kind === 'refused' && bulk.because).toContain('more than the recipe');
-    expect(bulk.kind === 'refused' && bulk.because).toContain('variance accept story:a');
-    expect(promotionOf(foreign).kind).toBe('promotable');
-
-    // A report that carried the document but not what differed shows no more.
-    const unsaid = { ...foreign, signals: { document: 'unchanged' as const } };
-    const refused = promotionOf(unsaid, { bulk: true });
-    expect(refused.kind).toBe('refused');
-    expect(refused.kind === 'refused' && refused.because).toContain('does not say whether only the recipe');
-  });
-
-  it('keeps an incomparable that does not say its document is unchanged out of a bulk accept', () => {
-    // A report written before the document was carried, or by a producer that
-    // does not carry it: nothing shows the image is a re-paint of the same page.
-    const unsaid: ObservationRecord = {
-      subject: 'story:a',
-      verdict: 'incomparable',
-      because: 'the recipe moved',
-      changedPixels: 0,
-      regions: [],
-      images: { after: 'images/story%3Aa.after.png' },
-    };
-    const bulk = promotionOf(unsaid, { bulk: true });
-    expect(bulk.kind).toBe('refused');
-    expect(bulk.kind === 'refused' && bulk.because).toContain('does not say');
-    expect(bulk.kind === 'refused' && bulk.because).toContain('variance accept story:a');
-    expect(promotionOf(unsaid).kind).toBe('promotable');
-  });
-
-  it('skips in bulk every incomparable but one whose document is unchanged and whose recipe alone moved', () => {
-    const base = changed('story:a');
-    expect(bulkSkips({ ...base, verdict: 'incomparable', signals: { document: 'changed' } })).toBe(true);
-    expect(bulkSkips({ ...base, verdict: 'incomparable', signals: { document: 'changed', identity: 'recipe' } })).toBe(
-      true,
-    );
-    expect(bulkSkips({ ...base, verdict: 'incomparable', signals: { document: 'unchanged' } })).toBe(true);
-    expect(
-      bulkSkips({ ...base, verdict: 'incomparable', signals: { document: 'unchanged', identity: 'machine' } }),
-    ).toBe(true);
-    expect(
-      bulkSkips({ ...base, verdict: 'incomparable', signals: { document: 'unchanged', identity: 'recipe' } }),
-    ).toBe(false);
-    expect(bulkSkips({ ...base, verdict: 'incomparable' })).toBe(true);
-    expect(bulkSkips({ ...base, signals: { document: 'changed' } })).toBe(false);
+    // Without an image to re-stamp from it is still the baseline, not a refusal.
+    const { images, ...imageless } = unmoved;
+    void images;
+    expect(promotionOf(imageless).kind).toBe('already-baseline');
   });
 });
 

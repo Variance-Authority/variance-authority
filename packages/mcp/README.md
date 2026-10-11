@@ -180,7 +180,7 @@ placeholders: use ids from your own run, and a digest `variance_changes` printed
 | `variance_describe` | what changed inside one subject — the changed pixel regions, the component each belongs to, the files | the summary named a subject and you need the detail |
 | `variance_findings` | accessibility defects in the renders themselves, grouped by rule, with no baseline involved | fixing a component, whether or not it changed |
 | `variance_trace_component` | every subject one component appears in, with pixels and cause-or-displaced | sizing the blast radius of a design-system or token edit |
-| `variance_explain_verdict` | why a subject was **not compared** — `incomparable`, `new`, or never observed | before attempting a fix, because none of those is a code problem |
+| `variance_explain_verdict` | why a subject was **not compared** — `new`, or never observed | before attempting a fix, because none of those is a code problem |
 
 `variance_changes` is the one that decides how many of the others get called. A
 design-token edit reaching forty stories is one decision presented as forty, and

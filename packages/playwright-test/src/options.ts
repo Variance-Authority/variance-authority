@@ -28,8 +28,8 @@ export interface VarianceOptions {
    *
    * Omitted here it stays omitted: the collector says so in a diagnostic rather
    * than putting a confident value in the environment key. Supplying it is what
-   * makes a baseline written on a machine with a different font stack report
-   * `incomparable` instead of being compared.
+   * makes a baseline written on a machine with a different font stack name the
+   * font stack as the cause of what changed.
    */
   readonly fonts?: readonly string[];
 
@@ -85,8 +85,8 @@ export interface VarianceOptions {
    * The default takes the pointer off the page and releases focus before each
    * observation, so a hover or a focus your test left behind is not read. Name
    * your own list without `no-hover` or `no-focus` to observe that state. A
-   * baseline made under one list reads `incomparable` against a run made under
-   * another. Focus goes back to the element that held it once the observation
+   * baseline made under one list compared with a run made under another names
+   * the list as the cause of what changed. Focus goes back to the element that held it once the observation
    * and its screenshot are taken, so the test types where it left off.
    *
    * `reduced-motion` and `freeze-clock` hold only where something drives the

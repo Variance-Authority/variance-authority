@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Raster, RenderIdentity } from '@variance-authority/core/format';
+import { documentDigest, type RenderIdentity } from '@variance-authority/core/format';
+import type { Renderer } from '@variance-authority/raster';
 import type { BaselineKey, Found, RasterStore } from '@variance-authority/raster';
 import { createEphemeralStore } from '@variance-authority/raster';
 import { promotionOf } from '@variance-authority/report';
@@ -11,20 +12,20 @@ import {
   collectorOf,
   configOf,
   documentFor,
-  fakeRenderer,
-  rasterFor,
+  painter,
   runWith,
   storeAnswering,
+  WHITE,
 } from './run-fixture.js';
 
 /**
- * A baseline this machine painted under an older recipe of this tool.
+ * A baseline painted under another identity: an older recipe of this tool, or
+ * another machine.
  *
- * The case an upgrade produces on every subject at once: the rasterization key
- * moved because variance-authority changed what it digests, and nothing about
- * the machine did. The run has to leave an image `accept --all` can promote,
- * because the reason it prints names that command — a remedy the run made
- * impossible would be a sentence the product cannot keep.
+ * The case an upgrade produces on every subject at once. The run compares
+ * anyway and names what moved as the cause (ADR-0090): a subject whose pixels
+ * did not move says so, and one whose pixels moved is `changed` like any other,
+ * with an image `accept` can promote.
  */
 
 const plan: Plan = {
@@ -38,20 +39,39 @@ const collector = collectorOf(plan, (subject) => ({
   document: documentFor(subject.subject.id),
 }));
 
-/** The baseline for `fixture:a`, stored under `storedUnder` and not comparable here. */
+/** The baseline for `fixture:a`, painted white under `identity`, a sibling of this run's. */
 function storedUnder(identity: RenderIdentity): Found {
   const scaled = { ...identity, deviceScaleFactor: VIEWPORT.deviceScaleFactor };
+  const raster = { ...whiteRaster(), identity: scaled };
+  return { raster, comparable: false, storedUnder: scaled };
+}
+
+function whiteRaster() {
+  const document = documentFor('fixture:a');
+  return { documentDigest: documentDigest(document), width: 10, height: 10, bytes: WHITE, missingFonts: [] };
+}
+
+/** `painter()`, under `identity`: white, or black for a document marked dark. */
+function painterUnder(identity: RenderIdentity): Renderer {
+  const base = painter();
+  const scaled = (document: { readonly viewport: { readonly deviceScaleFactor: number } }) => ({
+    ...identity,
+    deviceScaleFactor: document.viewport.deviceScaleFactor,
+  });
   return {
-    raster: rasterFor(documentFor('fixture:a'), scaled),
-    comparable: false,
-    storedUnder: scaled,
+    ...base,
+    identity,
+    identityFor: scaled,
+    async render(document) {
+      return { ...(await base.render(document)), identity: scaled(document) };
+    },
   };
 }
 
-/** The run collects a different document for `fixture:a` than the baseline was painted from. */
+/** The run collects a document for `fixture:a` that paints black. */
 const movedCollector = collectorOf(plan, (subject) => ({
   ok: true,
-  document: documentFor(subject.subject.id, '<div data-va-path="0">y</div>'),
+  document: documentFor(subject.subject.id, '<div data-va-path="0" data-paint="dark">y</div>'),
 }));
 
 /** `variance accept` over a report, against a store that records what it was handed. */
@@ -73,7 +93,7 @@ async function acceptFrom(
     store,
     subjects: 'subjects' in selection ? selection.subjects : [],
     all: 'all' in selection,
-    read: async () => rasterFor(documentFor('fixture:a'), NEW_RECIPE) satisfies Raster,
+    read: async () => ({ ...whiteRaster(), identity: NEW_RECIPE }),
   });
   return { result, puts };
 }
@@ -83,79 +103,62 @@ async function acceptFrom(
 const OLD_RECIPE: RenderIdentity = { ...IDENTITY, rasterization: 'v1:8040e1a2e35d148b301ebd30e5ed66c6' };
 const NEW_RECIPE: RenderIdentity = { ...IDENTITY, rasterization: 'v1:54323cded938fde38b41cdd3865368fe' };
 
-describe('a run against a baseline from an older recipe', () => {
-  it('paints the subject, so `accept --all` has a candidate to promote', async () => {
+describe('a run against a baseline painted under another identity', () => {
+  it('compares across a recipe upgrade and says the subject did not move', async () => {
     const { report } = await runWith(configOf(), collector, storeAnswering(storedUnder(OLD_RECIPE)), {
-      renderer: fakeRenderer(NEW_RECIPE),
+      renderer: painterUnder(NEW_RECIPE),
     });
 
     const [observation] = report.observations;
-    expect(observation?.verdict).toBe('incomparable');
+    expect(observation?.verdict).toBe('unchanged');
+    expect(observation?.signals?.identity).toBe('recipe');
+    expect(observation?.signals?.moved).toEqual(['rasterization e5ed66c6 → 865368fe']);
     expect(observation?.because).toContain('rasterization e5ed66c6 → 865368fe');
-    expect(observation?.because).toContain('only the recipe moved');
-    expect(observation?.because).toContain('`variance accept --all`');
+  });
+
+  it('shows a change under a recipe upgrade, with the recipe as its cause, and accepts it like any other', async () => {
+    const { report } = await runWith(configOf(), movedCollector, storeAnswering(storedUnder(OLD_RECIPE)), {
+      renderer: painterUnder(NEW_RECIPE),
+    });
+
+    const [observation] = report.observations;
+    expect(observation?.verdict).toBe('changed');
+    expect(observation?.signals?.identity).toBe('recipe');
+    expect(observation?.because).toContain('rasterization e5ed66c6 → 865368fe');
     expect(observation?.images?.after).toBeDefined();
     expect(promotionOf(observation!).kind).toBe('promotable');
 
     const { result, puts } = await acceptFrom(report, { all: true });
+    expect(result.refused).toEqual([]);
     expect(result.accepted.map((entry) => entry.subject)).toEqual(['fixture:a']);
     expect(puts).toEqual([{ subject: 'fixture:a' }]);
   });
 
-  it('paints a subject whose document moved too, which `accept --all` skips and naming it adopts', async () => {
-    // Nothing compared this image against anything: the baseline is under the
-    // old recipe and the document is not the one it was painted from. Adopting
-    // it in bulk would make a change nobody looked at the baseline, so `--all`
-    // skips it and says to name it; naming it is the review.
-    const { report } = await runWith(configOf(), movedCollector, storeAnswering(storedUnder(OLD_RECIPE)), {
-      renderer: fakeRenderer(NEW_RECIPE),
-    });
-
-    const [observation] = report.observations;
-    expect(observation?.verdict).toBe('incomparable');
-    expect(observation?.because).toContain('the document changed too');
-    expect(observation?.signals?.document).toBe('changed');
-    expect(observation?.images?.after).toBeDefined();
-
-    const bulk = await acceptFrom(report, { all: true });
-    expect(bulk.puts).toEqual([]);
-    expect(bulk.result.accepted).toEqual([]);
-    expect(bulk.result.refused).toEqual([
-      { subject: 'fixture:a', because: expect.stringContaining('variance accept fixture:a') },
-    ]);
-
-    const named = await acceptFrom(report, { subjects: ['fixture:a'] });
-    expect(named.result.refused).toEqual([]);
-    expect(named.puts).toEqual([{ subject: 'fixture:a' }]);
-  });
-
-  it('paints nothing when this run records no recipe, since nothing shows the machine is the same', async () => {
+  it('names a recipe this run did not record as moved, rather than guessing it is the same', async () => {
     // A renderer that predates the field records no rasterization digest.
-    // Absent is "did not say", not a recipe of its own, so the run cannot tell
-    // this from another machine and keeps the refusal.
-    const { report } = await runWith(configOf(), collector, storeAnswering(storedUnder(OLD_RECIPE)), {
-      renderer: fakeRenderer(IDENTITY),
+    // Absent is "did not say", so the cause cannot be narrowed to the recipe.
+    const { report } = await runWith(configOf(), movedCollector, storeAnswering(storedUnder(OLD_RECIPE)), {
+      renderer: painterUnder(IDENTITY),
     });
 
     const [observation] = report.observations;
-    expect(observation?.verdict).toBe('incomparable');
+    expect(observation?.verdict).toBe('changed');
+    expect(observation?.signals?.identity).toBe('machine');
     expect(observation?.because).toContain('rasterization e5ed66c6 → not recorded');
-    expect(observation?.because).not.toContain('accept');
-    expect(observation?.images).toBeUndefined();
   });
 
-  it('still paints nothing against another machine’s baseline', async () => {
-    // The refusal the partition exists for: an image of this machine against
-    // another's is a diff of the machines.
+  it('compares against another machine’s baseline and names the platform as the cause', async () => {
     const { report } = await runWith(
       configOf(),
-      collector,
+      movedCollector,
       storeAnswering(storedUnder({ ...IDENTITY, platform: 'darwin/arm64' })),
+      { renderer: painterUnder(IDENTITY) },
     );
 
     const [observation] = report.observations;
-    expect(observation?.verdict).toBe('incomparable');
-    expect(observation?.because).toContain('platform darwin/arm64 → linux/x64');
-    expect(observation?.images).toBeUndefined();
+    expect(observation?.verdict).toBe('changed');
+    expect(observation?.signals?.identity).toBe('machine');
+    expect(observation?.signals?.moved).toEqual(['platform darwin/arm64 → linux/x64']);
+    expect(observation?.images?.after).toBeDefined();
   });
 });
