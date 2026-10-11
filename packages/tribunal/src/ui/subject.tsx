@@ -43,6 +43,7 @@ export function SubjectPanel({
   build,
   ran,
   subject,
+  siblings,
   anchor,
   far,
   sourced,
@@ -58,6 +59,8 @@ export function SubjectPanel({
   /** When that build ran. */
   readonly ran: string;
   readonly subject: SubjectView;
+  /** The other stories of this subject's component, drawn by the build page, which holds them. */
+  readonly siblings?: ReactElement | null | undefined;
   /** The change this render is filed under, which distances are measured from. */
   readonly anchor?: string | undefined;
   /** How far each component here is from that change, when a diff was read. */
@@ -122,6 +125,7 @@ export function SubjectPanel({
           </header>
           <Glanced subject={subject} />
           <p className="va-said">{subject.because}</p>
+          {siblings}
 
           <Viewer client={client} build={build} subject={subject} sourced={sourced} />
         </div>

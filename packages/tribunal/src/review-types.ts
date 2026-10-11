@@ -14,6 +14,8 @@ import type {
 import type { TribunalBindings } from './bindings.js';
 import type { TribunalChangelog, TribunalChangelogQuery } from './changelog.js';
 import type { BuildIngest } from './review-ingest-types.js';
+import type { SweepReport } from './review-sweep.js';
+import type { SameImage } from './same-image.js';
 
 /**
  * What a review store takes and what it answers with — and nothing that runs.
@@ -230,6 +232,15 @@ export interface BuildDetail extends BuildSummary {
   readonly variations: readonly VariationRecord[];
 
   /**
+   * Stories of one component whose candidates are the same image, byte for byte.
+   *
+   * Read from the store, not the report: an image is kept under its SHA-256, so
+   * two subjects holding one `after` object rendered the same PNG. Empty when no
+   * two stories of a component did. A subject with no candidate is in no group.
+   */
+  readonly sameImage: readonly SameImage[];
+
+  /**
    * What the commit reaches, and per subject whether it reaches that one.
    *
    * `null` when the run carried no diff — no ref to read against, or no file
@@ -409,48 +420,6 @@ export interface Cause {
   readonly pixels: number;
   /** Regions in the same builds that no component claimed as a cause. */
   readonly collateralPixels: number;
-}
-
-export interface SweepReport {
-  /** Builds removed. */
-  readonly builds: number;
-  /**
-   * Builds past the window that were **kept**, because somebody still has to
-   * look at them.
-   *
-   * A `durable` build with an undecided `changed` subject is the only copy of
-   * the image that change would be approved from. Sweeping it deletes the
-   * evidence and makes the change permanently unapprovable through this
-   * service, so the window does not apply to it and this is where that shows
-   * up. A number that climbs is a review queue nobody is working — which is
-   * worth seeing, and is the reason this is reported rather than silently done.
-   */
-  readonly held: number;
-  /** Subject rows removed with them. */
-  readonly subjects: number;
-  /** Stored images removed: the ones nothing refers to any more. */
-  readonly objects: number;
-  /**
-   * Render cache entries dropped, by the same window.
-   *
-   * Nothing used to remove one of these, ever. A cache entry is pure
-   * optimisation — losing one costs a re-render of a document nothing has asked
-   * for in the whole retention period — and it was the one table here with no
-   * bound on it at all.
-   */
-  readonly cached: number;
-  /**
-   * Decisions those builds carried, which are **kept**, not removed.
-   *
-   * Named for what happened to them, because every other number here is a
-   * removal and an operator reading `decisions: 4` beside them concludes four
-   * approvals were deleted — the one thing this store promises never happens
-   * ([ADR-0021](../../../docs/context/adr/0021-approval-promotes-an-image-that-already-exists.md)).
-   * The count is worth reporting: it is how much attribution outlived the build
-   * that proposed it, and a sweep that returned zero here forever would be a
-   * retention policy quietly disagreeing with the trigger on the table.
-   */
-  readonly decisionsKept: number;
 }
 
 export interface ReviewStore {

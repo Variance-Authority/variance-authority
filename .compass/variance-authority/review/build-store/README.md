@@ -73,6 +73,9 @@ damage rather than as a run that kept nothing.
 - `packages/tribunal/src/repeats.ts` — the earlier builds of the project that
   kept a subject's candidate, matched on its content key, each with the decision
   it ended on
+- `packages/tribunal/src/same-image.ts` — the stories of one component whose
+  candidates are stored under one key, so one image under several names, read
+  from the keys already held and never from a new upload
 - `packages/tribunal/src/review-types.ts` — the shapes, kept free of a database
   binding so the router and the surface can both name them
 - `packages/tribunal/src/schema.ts`, `migrations.ts`, `migration-steps.ts`,

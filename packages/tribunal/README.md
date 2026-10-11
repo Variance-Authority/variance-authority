@@ -457,6 +457,20 @@ only that. A side the run kept no image for, or never read, says which instead o
 drawing an empty frame, and one it never read has no page to link to. A variation
 whose parent the run did not observe draws the one picture it has.
 
+**Stories of one component that render the same image** are named on the
+docket, though no diff shows them: both are `new`, or both changed the same
+way, and neither is red. A story whose candidate is byte for byte its sibling's is an arm
+whose flag reaches no pixel, or one state under two names (`dark-narrow` and
+`narrow-dark`). The build already stores every candidate under the SHA-256 of
+its PNG, so the grouping reads the keys it holds and asks the run for nothing
+more. Stories are grouped only within their component, the part of the id
+before the first `--`; an id with no `--` is a component of one. Only stories
+whose candidate the build kept are compared. A story that settled on its
+baseline's digest kept none, so a pair is named only on a build where both are
+`new` or both changed, and a new arm beside a base that settled is not. A subject
+page lays its component's stories side by side and marks the ones that are one
+picture.
+
 The `Changelog` tab is the same evidence at project scale.
 
 ## The changelog
