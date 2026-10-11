@@ -130,6 +130,84 @@ describe('a line lock and its holder', () => {
     await expect(real.stat(lock), 'the other writer still holds its lock').resolves.toBeDefined();
   });
 
+  it('stops stamping a lock it can no longer vouch for, and leaves it in place', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+    const cell = createDirectoryLineCell(root);
+    vi.mocked(writeFile).mockImplementationOnce((async (...args: Parameters<typeof writeFile>) => {
+      // Every stamp falls due while the writer is stalled, and is asked for only once it wakes past the limit.
+      vi.advanceTimersByTime(STALE_MS + 1_000);
+      return real.writeFile(...args);
+    }) as typeof writeFile);
+
+    const blobs = new Map([['entries/a', ascii('a')]]);
+    expect(await cell.store(MAIN, { manifest: ascii('{"format":1,"entries":[]}'), blobs })).toBe('conflict');
+    expect(vi.mocked(utimes).mock.calls.filter(([path]) => path === lock)).toEqual([]);
+    await expect(real.stat(lock), "a lock its holder cannot vouch for may be another writer's").resolves.toBeDefined();
+  });
+
+  it('does not count a stamp that landed after its holder stopped vouching for the lock', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+    const cell = createDirectoryLineCell(root);
+    const asked = gate();
+    const land = gate();
+    vi.mocked(utimes).mockImplementationOnce((async (...args: Parameters<typeof utimes>) => {
+      asked.open();
+      await land.opened;
+      return real.utimes(...args);
+    }) as typeof utimes);
+    vi.mocked(writeFile).mockImplementationOnce((async (...args: Parameters<typeof writeFile>) => {
+      const start = Date.now();
+      vi.advanceTimersByTime(STALE_MS / 4);
+      await asked.opened;
+      // The stamp lands past the three quarters of the stale limit its holder
+      // vouches for, so it may land after the next writer judged the lock dead.
+      vi.setSystemTime(start + (STALE_MS * 3) / 4 + 5_000);
+      land.open();
+      return real.writeFile(...args);
+    }) as typeof writeFile);
+
+    const blobs = new Map([['entries/a', ascii('a')]]);
+    expect(await cell.store(MAIN, { manifest: ascii('{"format":1,"entries":[]}'), blobs })).toBe('conflict');
+    await expect(real.stat(join(root, 'mainline', 'main', 'manifest.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(real.stat(lock), "a lock its holder cannot vouch for may be another writer's").resolves.toBeDefined();
+  });
+
+  it('answers a stamp the file system refused as refused, once the lock is no longer vouched for', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+    const cell = createDirectoryLineCell(root);
+    vi.mocked(utimes).mockImplementation((async (path: string) => {
+      throw errno('EACCES', 'permission denied, utime', path);
+    }) as typeof utimes);
+    vi.mocked(writeFile).mockImplementationOnce((async (...args: Parameters<typeof writeFile>) => {
+      vi.advanceTimersByTime(STALE_MS / 4);
+      await vi.waitFor(() => expect(utimes).toHaveBeenCalled());
+      vi.advanceTimersByTime(STALE_MS / 2 + 1_000);
+      return real.writeFile(...args);
+    }) as typeof writeFile);
+
+    const blobs = new Map([['entries/a', ascii('a')]]);
+    const stored = await cell.store(MAIN, { manifest: ascii('{"format":1,"entries":[]}'), blobs });
+    expect(stored).toEqual({ kind: 'refused', detail: expect.stringContaining('EACCES') });
+  });
+
+  it('writes no manifest and removes nothing, when its lock is gone at its next stamp', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+    const cell = createDirectoryLineCell(root);
+    vi.mocked(utimes).mockImplementationOnce((async (path: string) => {
+      throw errno('ENOENT', 'no such file or directory, utime', path);
+    }) as typeof utimes);
+    vi.mocked(writeFile).mockImplementationOnce((async (...args: Parameters<typeof writeFile>) => {
+      vi.advanceTimersByTime(STALE_MS / 4);
+      await vi.waitFor(() => expect(utimes).toHaveBeenCalled());
+      return real.writeFile(...args);
+    }) as typeof writeFile);
+
+    const blobs = new Map([['entries/a', ascii('a')]]);
+    expect(await cell.store(MAIN, { manifest: ascii('{"format":1,"entries":[]}'), blobs })).toBe('conflict');
+    await expect(real.stat(join(root, 'mainline', 'main', 'manifest.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(real.stat(lock), "a lock at that path now is the next writer's").resolves.toBeDefined();
+  });
+
   it("lets one writer break a dead writer's lock, and the other wait for the lock that writer made", async () => {
     await deadWritersLock();
     const cell = createDirectoryLineCell(root);
@@ -197,6 +275,49 @@ describe('a line lock and its holder', () => {
     expect((await readdir(join(root, 'mainline', 'main'))).filter((name) => name.startsWith('.lock'))).toEqual([]);
   });
 
+  it("answers a dead writer's lock it cannot claim as refused", async () => {
+    await deadWritersLock();
+    const claim = `${lock}.${String((await real.stat(lock)).mtimeMs)}`;
+    const cell = createDirectoryLineCell(root);
+    vi.mocked(mkdir).mockImplementation((async (path: string, ...rest: unknown[]) => {
+      if (path === claim) throw errno('EACCES', 'permission denied, mkdir', claim);
+      return (real.mkdir as (...args: unknown[]) => Promise<unknown>)(path, ...rest);
+    }) as typeof mkdir);
+
+    const stored = await cell.store(MAIN, { manifest: ascii('{"format":1,"entries":[]}'), blobs: new Map() });
+    expect(stored).toEqual({ kind: 'refused', detail: expect.stringContaining('EACCES') });
+  });
+
+  it('answers a dead claim it cannot remove as refused, after one try', async () => {
+    await deadWritersLock();
+    const claim = `${lock}.${String((await real.stat(lock)).mtimeMs)}`;
+    await real.mkdir(claim);
+    const old = new Date(Date.now() - 2 * STALE_MS);
+    await real.utimes(claim, old, old);
+    const cell = createDirectoryLineCell(root);
+    let tries = 0;
+    vi.mocked(rmdir).mockImplementation((async (path: string, ...rest: unknown[]) => {
+      if (path === claim && tries++ < 50) throw errno('EPERM', 'operation not permitted, rmdir', claim);
+      return (real.rmdir as (...args: unknown[]) => Promise<unknown>)(path, ...rest);
+    }) as typeof rmdir);
+
+    const stored = await cell.store(MAIN, { manifest: ascii('{"format":1,"entries":[]}'), blobs: new Map() });
+    expect(stored).toEqual({ kind: 'refused', detail: expect.stringContaining('EPERM') });
+    expect(tries).toBe(1);
+  });
+
+  it("writes after breaking a dead writer's lock, though its own claim will not go", async () => {
+    await deadWritersLock();
+    const claim = `${lock}.${String((await real.stat(lock)).mtimeMs)}`;
+    const cell = createDirectoryLineCell(root);
+    vi.mocked(rmdir).mockImplementation((async (path: string, ...rest: unknown[]) => {
+      if (path === claim) throw errno('EPERM', 'operation not permitted, rmdir', claim);
+      return (real.rmdir as (...args: unknown[]) => Promise<unknown>)(path, ...rest);
+    }) as typeof rmdir);
+
+    expect(await cell.store(MAIN, { manifest: ascii('{"format":1,"entries":[]}'), blobs: new Map() })).toBe('written');
+  });
+
   it("answers a dead writer's lock it cannot remove as refused, after one try", async () => {
     await deadWritersLock();
     const cell = createDirectoryLineCell(root);
@@ -233,5 +354,16 @@ describe('a line lock and its holder', () => {
     await publishLine(cell, MAIN, [entry('a')], { descends, image });
     expect(await cell.store(MAIN, { manifest: ascii('{}'), blobs: new Map(), expected: 'moved' })).toBe('conflict');
     await expect(real.stat(lock)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('answers what it wrote when its lock will not go at release, and leaves the lock', async () => {
+    const cell = createDirectoryLineCell(root);
+    vi.mocked(rmdir).mockImplementation((async (path: string, ...rest: unknown[]) => {
+      if (path === lock) throw errno('EPERM', 'operation not permitted, rmdir', lock);
+      return (real.rmdir as (...args: unknown[]) => Promise<unknown>)(path, ...rest);
+    }) as typeof rmdir);
+
+    expect(await cell.store(MAIN, { manifest: ascii('{"format":1,"entries":[]}'), blobs: new Map() })).toBe('written');
+    await expect(real.stat(lock)).resolves.toBeDefined();
   });
 });

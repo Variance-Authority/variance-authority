@@ -191,7 +191,11 @@ async function foldOf(root: string, line: ShareLine): Promise<Fold | undefined> 
 
 /** A line's lock, held. */
 interface Lease {
-  /** Whether the lock is still this writer's: no other writer can have taken it for dead yet. */
+  /**
+   * Whether the lock is still this writer's: no other writer can have taken it
+   * for dead yet. Throws what the file system said when a refused stamp is why
+   * it is not.
+   */
   owns(): Promise<boolean>;
   /** Stop keeping the lock fresh, and remove it if it is still this writer's. */
   release(): Promise<void>;
@@ -244,13 +248,15 @@ async function breakStale(lock: string, seen: number): Promise<boolean> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
     const claimed = await mtimeOf(claim);
-    if (claimed !== undefined && Date.now() - claimed > LOCK_STALE_MS) await rmdir(claim).catch(() => undefined);
+    if (claimed !== undefined && Date.now() - claimed > LOCK_STALE_MS) await rmdir(claim).catch(unlessMissing);
     return false;
   }
   try {
     if ((await mtimeOf(lock)) === seen) await rmdir(lock).catch(unlessMissing);
     return true;
   } finally {
+    // Kept quiet: a failure here would replace what the removal answered, and
+    // once the lock is gone no writer judges the time this claim names again.
     await rmdir(claim).catch(() => undefined);
   }
 }
@@ -263,31 +269,46 @@ async function breakStale(lock: string, seen: number): Promise<boolean> {
  * own clock says whether the lock is still its own: while its last stamp is
  * younger than the stale limit, less one refresh as margin for a file system
  * that keeps whole seconds, no other writer can have taken the lock for dead.
- * Once it is not, the holder stops stamping and leaves the lock alone, since it
- * may already be another writer's.
+ * A stamp counts from when it was asked for, and only if it landed inside that
+ * limit, so a stamp delayed in flight cannot vouch for a lock judged dead
+ * meanwhile. Once the holder cannot vouch, it stops stamping and leaves the lock
+ * alone, since it may already be another writer's.
  */
 function hold(lock: string, made: number): Lease {
   let stamped = made;
   const owned = (): boolean => Date.now() - stamped < LOCK_STALE_MS - LOCK_REFRESH_MS;
-  let refreshed: Promise<unknown> = Promise.resolve();
+  // The last stamp the file system refused, answered once the holder can no longer vouch for its lock.
+  let failed: unknown;
+  let refreshed: Promise<void> = Promise.resolve();
   const refresh = async (): Promise<void> => {
     if (!owned()) return;
-    const now = Date.now();
-    await utimes(lock, now / 1000, now / 1000);
-    stamped = now;
+    const asked = Date.now();
+    try {
+      await utimes(lock, asked / 1000, asked / 1000);
+    } catch (error) {
+      // A lock gone from under its holder is not its own any more, whoever makes the next one.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') stamped = -Infinity;
+      else failed = error;
+      return;
+    }
+    if (owned()) stamped = asked;
   };
-  // Chained, so no stamp overlaps another or a look at ownership; a stamp that fails leaves the next one to try.
-  const timer = setInterval(() => (refreshed = refreshed.then(refresh).catch(() => undefined)), LOCK_REFRESH_MS);
+  // Chained, so no stamp overlaps another or a look at ownership.
+  const timer = setInterval(() => (refreshed = refreshed.then(refresh)), LOCK_REFRESH_MS);
   timer.unref();
-  const owns = async (): Promise<boolean> => {
-    await refreshed;
-    return owned();
-  };
   return {
-    owns,
+    async owns() {
+      await refreshed;
+      if (owned()) return true;
+      if (failed !== undefined) throw failed;
+      return false;
+    },
     async release() {
       clearInterval(timer);
-      if (await owns()) await rmdir(lock).catch(() => undefined);
+      await refreshed;
+      // Kept quiet: release runs after the write has its answer, and a lock left
+      // behind is a dead writer's to the next one, which answers its own removal.
+      if (owned()) await rmdir(lock).catch(() => undefined);
     },
   };
 }
