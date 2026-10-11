@@ -1,4 +1,4 @@
-import type { Viewport } from '@variance-authority/core/format';
+import type { PageRegion, Viewport } from '@variance-authority/core/format';
 
 /**
  * What a subject can ask of a page that is already open, and what it cannot.
@@ -11,6 +11,19 @@ import type { Viewport } from '@variance-authority/core/format';
  * viewport while recording its own produces a baseline whose environment key
  * describes a render that never happened, and every verdict over it is green.
  */
+
+/**
+ * The region a browser context is opened in: the one declared, and `UTC` and
+ * `en-US` for a field nobody declared.
+ *
+ * Never the host's: a page that formats a date without naming a timezone of its
+ * own reads `12:30 AM` on a runner in UTC and `4:30 PM` on a laptop in
+ * California. Both fields are part of the environment key and the render
+ * identity, the way a colour scheme is.
+ */
+export function pinnedRegion(declared: PageRegion): Required<PageRegion> {
+  return { timezoneId: declared.timezoneId ?? 'UTC', locale: declared.locale ?? 'en-US' };
+}
 
 /**
  * Why this subject cannot be read in the page the run opened, or `undefined`.

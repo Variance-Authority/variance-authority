@@ -2,6 +2,7 @@ import type {
   Diagnostic,
   Digest,
   ObservationProfile,
+  PageRegion,
   Provenance,
   RawCapture,
   RawNode,
@@ -40,7 +41,16 @@ export { detectProfile } from './profile.js';
  * deciding whether a rule applies requires asking a live DOM.
  */
 
-export interface CollectOptions {
+/**
+ * What a capture is told rather than reads.
+ *
+ * The region ({@link PageRegion}) is the one the driver opened the page in,
+ * written to the environment key as given. It is passed in rather than read from
+ * `Intl`: only the driver knows whether it chose the region or the host did, and
+ * a timezone nobody chose belongs to the machine, not to the render. A jsdom
+ * capture runs in its Node process's timezone.
+ */
+export interface CollectOptions extends PageRegion {
   readonly subject: SubjectRef;
   readonly viewport: Viewport;
 
@@ -286,6 +296,8 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
       ...(options.stabilization !== undefined
         ? { stabilization: options.stabilization }
         : {}),
+      ...(options.timezoneId !== undefined ? { timezoneId: options.timezoneId } : {}),
+      ...(options.locale !== undefined ? { locale: options.locale } : {}),
     },
     root: rootNode,
     inheritedSeed: inheritedSeed(root, profile, view, index),

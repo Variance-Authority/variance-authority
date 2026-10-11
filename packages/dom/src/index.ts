@@ -19,8 +19,8 @@ export { detectProfile } from './profile.js';
 
 export { assetsFor, referencedAssets } from './assets.js';
 
-export { stabilizeForObservation, STABILIZE_ATTRIBUTE } from './stabilize.js';
-export type { Stabilized, StabilizeOptions } from './stabilize.js';
+export { stabilizeAsRequested, stabilizeForObservation, STABILIZE_ATTRIBUTE } from './stabilize.js';
+export type { Stabilized, StabilizeOptions, StabilizeRequest } from './stabilize.js';
 
 export { resolveIgnores, IGNORE_ATTRIBUTE, MARKED_RULE } from './ignore.js';
 export type { IgnoreSelector, ResolveIgnoresOptions, ResolvedIgnores } from './ignore.js';

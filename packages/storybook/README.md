@@ -303,13 +303,19 @@ such as a theme: it replaces the default rather than merging with it.
 
 ## A pinned clock
 
-A story built from `Date.now()` renders a different picture every run, so
-pinning the clock is an ordinary fix. Which pin this survives, in Playwright's
-vocabulary:
+A story built from `Date.now()` would render a different picture every run, so
+the collector fixes `Date` before the preview loads: every story reads
+`DEFAULT_NOW`, or the instant you pass as `now`. Only `Date` is fixed. Timers,
+animation frames and `performance` keep running, so a story that settles on a
+timer still settles, and one that counts its own timer still counts.
 
-- `page.clock.setFixedTime` and `page.clock.setSystemTime` replace `Date` and
-  leave timers and `performance` running. **Supported.** Nothing here measures
-  anything with `Date`.
+To pin the clock yourself, in Playwright's vocabulary:
+
+- `page.clock.setFixedTime` and `page.clock.setSystemTime` replace `Date`, and
+  install Playwright's own `setTimeout`, `requestAnimationFrame` and
+  `performance` to do it, which keep running. **Supported.** Nothing here
+  measures anything with `Date`. Leave `freeze-clock` out of `stabilize`, so the recipe
+  the reading records does not name a clock you replaced.
 - `page.clock.install` also replaces `setTimeout` and `performance`, and advances
   only when you tick it. **Not supported while it is stopped**: a page whose
   timers never fire cannot render a story, and no deadline the driver sets can

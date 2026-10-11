@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-08-06
+**Amended by:** [ADR-0088](0088-a-page-is-read-as-nobody-is-using-it.md) — the clock is fixed; the ticking story stays unstable on its own timer
 **Extends:** ADR-0009 (sessions detect instead of rinse), ADR-0029 (a page is held still before it is read)
 **Relates to:** [spec 0012](../../specs/0012-order-dependence-in-a-run.md)
 

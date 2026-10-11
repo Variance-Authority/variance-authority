@@ -1,6 +1,7 @@
 import type { CallSiteResolver, SourceIndex } from '@variance-authority/core/attribute';
 import type {
   Diagnostic,
+  PageRegion,
   RenderDocument,
   SemanticSnapshot,
   SubjectRef,
@@ -18,8 +19,11 @@ import type {
  * a run.
  */
 
-/** The subset of a run's configuration this collector reads. */
-export interface CollectorConfig {
+/**
+ * The subset of a run's configuration this collector reads. A region field it
+ * leaves out is pinned to `UTC` or `en-US`, never the host's.
+ */
+export interface CollectorConfig extends PageRegion {
   readonly viewport: Viewport;
   readonly fonts?: readonly string[];
   /**

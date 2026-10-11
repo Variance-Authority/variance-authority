@@ -203,10 +203,17 @@ Options:
 - `suspense.timeoutMs`: settlement bound for React Suspense before sensing.
 - `stabilize`: optional intervention ids replacing the default recipe entirely.
   The ids this build knows are `hold-animations`, `pin-animations`,
-  `hide-caret`, `hide-scrollbars`, `hide-presentational-images`,
-  `wait-for-fonts` and `wait-for-images`; an unknown id throws and lists them.
+  `hide-caret`, `hide-scrollbars`, `hide-presentational-images`, `no-hover`,
+  `no-focus`, `reduced-motion`, `freeze-clock`, `wait-for-fonts` and
+  `wait-for-images`; an unknown id throws and lists them. `no-hover`,
+  `reduced-motion` and `freeze-clock` need a browser driver, which this call
+  does not have, so they are dropped from the recorded recipe; set them on the
+  page with `page.mouse.move(-1, -1)`, and with `driveBeforeTest(page)` from
+  `@variance-authority/playwright-test` before `page.goto()`, which sets reduced
+  motion and fixes `Date` alone. `no-focus` blurs whatever holds
+  focus, so refocus before typing again.
   The default recipe is `pin-animations`, `hide-scrollbars`, `hide-caret`,
-  `wait-for-fonts`, and — in place of `wait-for-images` — an internal wait that
+  `no-focus`, `wait-for-fonts`, and — in place of `wait-for-images` — an internal wait that
   settles only images inside the subject and its portals. Passing `stabilize`
   loses that narrowing, so pass it only to change stabilization, never to
   restate the default. Use `[]` only when the caller owns a static document,

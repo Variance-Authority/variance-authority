@@ -47,9 +47,10 @@ reading. What differs here is the last column.
 |---|---|---|
 | **Anti-aliasing, text smoothing** | construction | Glyph rasterization is not a property of the box tree, so a structure-and-style reading cannot see it at all — there is no threshold to tune because there is nothing to threshold. It shows up only in the image, which is why the image is the last reading rather than the only one. |
 | **Device pixel ratio, retina runners** | environment-key | `deviceScaleFactor` is in the key, so a 2× run and a 1× run are different raster baselines and never meet. It is also the *only* field the semantic key drops, because layout happens in CSS pixels and a 2× render lays out identically — one structure-and-style baseline is valid on a retina laptop, a 1× runner and a container alike. |
-| **Different machine, GPU, driver** | environment-key | Renderer identity is not the machine. It is the engine and its version, the normalization ruleset, the computed-style allowlist, the viewport, the fonts by content hash, the resolved media and container conditions, the bytes behind every asset URL, and the digest of the stabilization recipe — and the semantic key is that same list with `deviceScaleFactor` removed. So your browser and CI compare on everything **except the pixels**, which is the one tier where the GPU, the driver and the flags you launched with actually live. That tier alone is partitioned by the full key, which is what makes a cross-machine *image* `incomparable` — one sentence, not a day of unattributable red. What a run captures and where its pixels are made are independent, so the fix for the last tier is to make the pixels in one fixed place or use the ephemeral mode, where there is no second machine to be wrong about. [`placement.md`](placement.md) explains those choices. |
+| **Different machine, GPU, driver** | environment-key | Renderer identity is not the machine. It is the engine and its version, the normalization ruleset, the computed-style allowlist, the viewport, the timezone and locale the page was read in, the fonts by content hash, the resolved media and container conditions, the bytes behind every asset URL, and the digest of the stabilization recipe — and the semantic key is that same list with `deviceScaleFactor` removed. So your browser and CI compare on everything **except the pixels**, which is the one tier where the GPU, the driver and the flags you launched with actually live. That tier alone is partitioned by the full key, which is what makes a cross-machine *image* `incomparable` — one sentence, not a day of unattributable red. What a run captures and where its pixels are made are independent, so the fix for the last tier is to make the pixels in one fixed place or use the ephemeral mode, where there is no second machine to be wrong about. [`placement.md`](placement.md) explains those choices. |
 | **Fonts substituted or not loaded** | environment-key, **and reported** | You are told, and the key is why telling you is necessary. Fonts are in the key by content hash, so a run that has `Inter` and a run that does not are different baselines — but that only saves you when the two runs *differ*. When neither machine has it, the key matches, the verdict is `unchanged`, and it is a true statement about a picture of the wrong typeface. So `variance doctor` renders a probe before you record anything, and a run that painted with a substitution puts the family and the subject count on the report: *the renderer lacked `Inter` in 12 subjects; those images are of a substituted font and their metrics are not the product's*. The probe says what it cannot tell you, too — a family that measures identically to the fallback is either absent or a metric-compatible substitute, and nothing on the page distinguishes those. |
 | **Dates, clocks, dynamic content** | policy, or **construction** if you can set the clock | Both runs change; both are right. Where the test can set the value, [freeze it](#freeze-what-the-run-does-not-set) and the cause stops existing. Where it cannot — a timestamp the server stamps, a build id baked into the bundle — the difference is what you mask: a pixel differ masks a *coordinate region*, which silences whatever else lands there and breaks the moment layout moves. We mask the *element* — or the *shape* of the difference, which follows a flake that moves — and report what each rule absorbed every run. [`ignores.md`](ignores.md). |
+| **The host's timezone and locale** | **construction**, and environment-key | A date or a number formatted through `Intl` is a different string, and a different width, in another timezone or language. The pages the route and Storybook collectors read and the pages the renderer paints open in `UTC` and `en-US` rather than the host's, or in the `timezoneId` and `locale` your config declares, so two machines format one date the same way. So does the page the `variance` Playwright fixture hands your test, unless your Playwright config sets either. Both are in the key and the render identity, so an image painted in another timezone or language is `incomparable` against the baseline rather than `changed`. A browser your tests open themselves, and your Node process, are yours to pin ([a timezone and a locale](#the-rest-of-the-family)). |
 | **Page chrome, status bars, scrollbars** | construction (partly) | Observation is clipped to the subject element, so anything outside it cannot appear in the image. Headless Chromium uses overlay scrollbars, so classic scrollbar reflow is outside what this CI environment observes. |
 | **Animations mid-flight** | **construction** | There is a choice, and it decides which frame you review for the next year. `hold-animations` hands it to the browser at screenshot time, which fast-forwards a finite animation to completion — the state a user comes to rest on — and cancels an infinite one to its first frame. `pin-animations` does it in CSS, pinning everything at frame one, so a fade-in is recorded at the moment it is invisible. Collection uses the CSS one because there is no screenshot there to hold. Neither writes `animation: none`, which would drop whatever layout the keyframes contribute. And because a transform caught in flight is a computed style value, the page is held still *before the subject is read*, not only before it is painted, with the recipe's digest in the key so an unstabilized baseline is `incomparable` rather than a diff ([`stabilization.md`](stabilization.md)). **What still gets through:** JS-driven animation, which no CSS applies to, and animated GIFs. |
 | **Lazy loading, network latency** | **construction** | The cheapest answer is to not be waiting. A font that has not loaded cannot change which rules match or what they declare, and neither can an image that has not decoded — so the structure-and-style recipe is **empty**, and the tier that answers most subjects never waits for either. The wait is a cost of the tiers that paint, and it is skipped again there whenever the document is byte-identical to the one the baseline was painted from. Where a page does have to settle, the driver watches the wire rather than polling `document.images` — a poll misses anything appended while it is running and has no entry for a `background-image` at all, while on the wire the driver tracks what has been requested and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
@@ -475,7 +476,7 @@ paint — never resolves if you take the second, and what you record is the stat
 before the timer it was waiting for. Vitest and Jest fake both by default, so ask
 for the clock alone unless you want the timers too.
 
-**Playwright** separates the two, so this is the whole recipe:
+**Playwright** fixes `Date` and keeps the timers running, though with timers and frames of its own, so a frame's timestamp no longer matches `document.timeline`:
 
 ```ts
 await page.clock.setFixedTime(new Date('2024-01-01T00:00:00Z'));
@@ -484,7 +485,12 @@ await page.clock.setFixedTime(new Date('2024-01-01T00:00:00Z'));
 `clock.install()` followed by `clock.pauseAt()` is the other call, for a component
 whose timers read `Date.now()` and misbehave when it does not advance. Either call
 has to run before `page.goto()`: they patch the page's clock, and a script that
-read the time while the page was loading has already read the real one.
+read the time while the page was loading has already read the real one. The
+route and Storybook collectors fix `Date` for you before every page loads, and
+so does the `variance` fixture before your test runs. They fix `Date` alone,
+with an init script, and install no Playwright clock, so a `page.clock` call of
+your own replaces theirs; [stabilization](stabilization.md#hover-focus-motion-and-the-clock) says
+how to choose the instant or leave the clock running.
 
 **Vitest** fakes `Date` as one of the timers, so name what you want faked:
 
@@ -580,7 +586,14 @@ reproducible rather than correct.
 **A timezone and a locale.** These change layout through `Intl`, so a date
 formatted in `en-GB` at `Europe/London` is a different string and a different
 width from the same date in `en-US` at `America/Los_Angeles`. In a browser they
-are context options, and setting them is the whole fix:
+are context options, and setting them is the whole fix. The pages the route and
+Storybook collectors read and the pages the renderer paints are pinned to `UTC`
+and `en-US` rather than the host's; when your subjects are written for another
+region, declare `timezoneId` and `locale` in `variance.config.json` and both
+sides pin those. The page the `variance` Playwright fixture hands your test opens
+in `UTC` when your Playwright config sets no `timezoneId`, and Playwright Test
+already opens it in `en-US`. A browser your tests open themselves, and a page
+you pass to `createVariance`, are yours to pin:
 
 ```ts
 // playwright.config.ts
@@ -595,7 +608,7 @@ TZ=UTC LANG=en_US.UTF-8 vitest run
 
 `process.env.TZ` does take effect mid-process on current Node, so a setup file
 looks like it works — and it does, for every date formatted after it runs. What
-it cannot change is a module that already resolved a formatter or read the zone
+it cannot change is a module that already resolved a formatter or read the timezone
 into a constant while it was being imported, which is the same import-time
 problem the Storybook recipe above has, one layer down.
 

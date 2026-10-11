@@ -1,7 +1,7 @@
 import { access, readdir, stat } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { join } from 'node:path';
-import { digestOfFileName, type Digest } from '@variance-authority/core/format';
+import { digestOfFileName, type Digest, type PageRegion } from '@variance-authority/core/format';
 import type { Renderer } from '@variance-authority/raster';
 import type { BrowserEngine, Config } from '../config.js';
 import { readCache, type CacheReading } from './doctor-cache.js';
@@ -88,10 +88,14 @@ export interface RenderCacheReading {
  * that is not installed. A doctor that is wrong in the direction of "fine" is
  * worse than no doctor.
  */
-export function rendererOptionsFor(config: Config): { fonts: readonly string[]; browser?: BrowserEngine } {
+export function rendererOptionsFor(
+  config: Config,
+): { fonts: readonly string[]; browser?: BrowserEngine } & PageRegion {
   return {
     fonts: config.fonts,
     ...(config.browser === undefined ? {} : { browser: config.browser }),
+    ...(config.timezoneId === undefined ? {} : { timezoneId: config.timezoneId }),
+    ...(config.locale === undefined ? {} : { locale: config.locale }),
   };
 }
 

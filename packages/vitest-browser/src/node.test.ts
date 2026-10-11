@@ -204,6 +204,15 @@ describe('the command the browser half calls', () => {
   });
 });
 
+describe('the timezone and locale a tab ran in', () => {
+  it.todo(
+    'paints in the timezone and locale the tab ran in, not UTC and en-US — needs the region the provider opened the tab in, carried across the command protocol',
+  );
+  it.todo(
+    'keys a capture by the timezone and locale the tab ran in — needs the plugin to know whether the provider chose them or inherited the host',
+  );
+});
+
 describe('the render cache a directory store keeps', () => {
   // A baseline root is one somebody commits, so the cache the run paints into
   // is kept in the checkout's cache, where `variance run` keeps it, and bounded
