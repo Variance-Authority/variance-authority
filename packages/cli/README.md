@@ -1484,7 +1484,7 @@ names the component, the file and the **band** — one of five categories (`a11y
 kind of thing changed:
 
 ```
-[unstable] story:case-surface--ticking: … Clock src/ds.jsx:118 read differently
+[unstable] story:case-surface--ticking: … Clock cases/storybook-case/src/ds.jsx:118 read differently
   (geometry, token, content)
 ```
 

@@ -18,7 +18,7 @@ ordering measures displacement rather than blame:
   511px — Stack
   86px — Toggle
       in checkbox "Mark as done"
-      src/ds/components.tsx:107
+      examples/todomvc/src/ds/components.tsx:107
 ```
 
 A **subject** is one named UI state you asked for and can ask for again —
@@ -141,7 +141,7 @@ silently comparing against a baseline that may describe another scenario.
 
 ## Name the file behind a changed region
 
-Attribution names a component. Turning `Toggle` into `src/ds/components.tsx:107`
+Attribution names a component. Turning `Toggle` into `examples/todomvc/src/ds/components.tsx:107`
 is a separate hop, and there are three ways it happens.
 
 **Nothing to do, on Chromium.** The page agent keeps the component functions
@@ -200,7 +200,7 @@ ordering measures displacement rather than blame:
       src/checkout/Stack.tsx:12
   86px — Toggle
       in checkbox "Mark as done"
-      src/ds/components.tsx:107
+      examples/todomvc/src/ds/components.tsx:107
 ```
 
 The ordering is by changed area and the message prints that: an `Observation`

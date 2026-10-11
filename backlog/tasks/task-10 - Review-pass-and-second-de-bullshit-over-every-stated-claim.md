@@ -4,7 +4,7 @@ title: Review pass and second de-bullshit over every stated claim
 status: Done
 assignee: []
 created_date: '2026-08-20 08:30'
-updated_date: '2026-08-20 09:45'
+updated_date: '2026-10-11 07:54'
 labels: []
 dependencies: []
 priority: high
@@ -106,14 +106,14 @@ stabilization "last four" was a bullet-count disagreement, not a miscount.
 `gates.md:21` reported hosted review as **no** while `tribunal` ships a
 self-hosted review surface with per-subject decisions — **partial**, matching
 what `flows.md:25` already said. And `storybook-case/README.md` printed
-`ds.jsx:51` in its sample output: the exact line `cli.chromium.test.js:322`
+`cases/storybook-case/src/ds.jsx:51` in its sample output: the exact line `cases/storybook-case/src/cli.chromium.test.js:322`
 asserts must *not* appear, because the whole claim is that the report names the
 line an element is written on rather than the line its component is declared
 on. A reader following that README would have concluded the feature was broken.
 
 Both directions of rot showed up, and understatement was the more common one:
 `history/README.md` and `server/README.md` both claimed `variance run` records
-no observations, which `commands/run.ts:197` and `accept.ts:256` contradict.
+no observations, which `packages/cli/src/commands/run.ts:197` and `packages/cli/src/commands/accept.ts:256` contradict.
 
 **Positions stated as positions.** `ignores.md` said the project has no
 threshold; it has exactly one — `DiffPolicy.threshold`, pixelmatch's YIQ

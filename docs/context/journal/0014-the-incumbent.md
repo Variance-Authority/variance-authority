@@ -260,7 +260,7 @@ something that is in no source file — which is worse than naming nothing.
 than to the component that was edited.
 
 Attribution is not what fails: regions land in the tree, name a component and
-resolve to `src/ds.jsx:26`. *Ranking* fails, because separating cause from
+resolve to `cases/storybook-case/src/ds.jsx:26`. *Ranking* fails, because separating cause from
 collateral needs the previous revision's **snapshot**, and a durable run has a
 baseline image without one. The ordering falls back to area — the ordering journal
 0013 measured as backwards.

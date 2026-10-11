@@ -50,10 +50,10 @@ whole application crossing a network.
 ```
 what a pixel differ reports:  1530 pixels changed
 what this reports:            5 region(s)
-  cause       933px in 2 region(s) — Text     src/ds/components.tsx:42
-  cause        86px in 2 region(s) — Toggle   src/ds/components.tsx:107
+  cause       933px in 2 region(s) — Text     examples/todomvc/src/ds/components.tsx:42
+  cause        86px in 2 region(s) — Toggle   examples/todomvc/src/ds/components.tsx:107
                 in checkbox "Mark "Prove the tiering" as done"
-  collateral  511px in 1 region(s) — Stack    src/ds/components.tsx:27
+  collateral  511px in 1 region(s) — Stack    examples/todomvc/src/ds/components.tsx:27
 ```
 
 ## What was found

@@ -36,7 +36,7 @@ The loop, concretely:
 1. The agent observes a subject. The observation is held.
 2. The agent edits a component.
 3. The agent observes again and is answered with the difference against the
-   *held* observation: `cause — Toggle src/ds/components.tsx:107`, collateral
+   *held* observation: `cause — Toggle examples/todomvc/src/ds/components.tsx:107`, collateral
    counted, ranked from provenance.
 4. It iterates, or declares itself done and hands the accumulated difference
    to a human as part of its proposal.

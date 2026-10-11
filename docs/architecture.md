@@ -62,7 +62,7 @@ variance run --flakes
 ```
 
 ```
-[unstable] story:case-surface--ticking: … differ: Clock src/ds.jsx:118
+[unstable] story:case-surface--ticking: … differ: Clock cases/storybook-case/src/ds.jsx:118
   (geometry, token, content)
 ```
 

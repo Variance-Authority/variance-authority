@@ -24,24 +24,24 @@ What follows from that is not stylistic:
 
 - The **only** thing identifying the file is that `version === 8` and that the
   twenty-six expected section names happen to be present
-  (`format-layout.ts:182`, `format-view.ts:147`).
-- `JSON.parse` at `format-view.ts:146` is unguarded, so a damaged header throws
+  (`packages/sense/src/test-selection/format-layout.ts:182`, `packages/sense/src/test-selection/format-view.ts:147`).
+- `JSON.parse` at `packages/sense/src/test-selection/format-view.ts:146` is unguarded, so a damaged header throws
   a JSON parser's error text about a binary file — past every caller that
   discriminates on the format's own refusal message.
 - **The model version is never written.** `MODEL = 3` is asserted against the
-  in-memory object on encode and *invented* on decode: `test-selection/format.ts:276` returns
+  in-memory object on encode and *invented* on decode: `packages/sense/src/test-selection/format.ts:276` returns
   `version: MODEL` whatever wrote the file. If MODEL moves without FORMAT
   moving, a new reader relabels an old file as the new model, and no evidence of
   it survives.
 - **There is no checksum of anything.** Not the header, not the section index,
   not a column, not a run, not the dictionary blob, not the crossing pool.
-  `column-codec.ts:52-59` sets `ZSTD_c_contentSizeFlag` and not
+  `packages/sense/src/test-selection/column-codec.ts:52-59` sets `ZSTD_c_contentSizeFlag` and not
   `ZSTD_c_checksumFlag`, so even the codec's own frame check is switched off,
   and a RAW-tagged run has no protection at all.
 
 And the failure that matters most is the one nobody would notice. A silent
-corruption inside a crossing-set container — `format-view.ts:285-289` wires the
-pool with no validation callback, and `crossing-sets-read.ts:114-175` reads tag,
+corruption inside a crossing-set container — `packages/sense/src/test-selection/format-view.ts:285-289` wires the
+pool with no validation callback, and `packages/sense/src/test-selection/crossing-sets-read.ts:114-175` reads tag,
 members and counts raw — yields a set naming test ids past the end of the test
 table. The direction that fails is **narrowing**: a set that loses members
 produces a smaller run list. The record answers confidently and the suite skips
@@ -56,8 +56,8 @@ file that is not ours is rejected as not ours, not as corrupt.
 **2. Three distinct refusals, and they are typed.** *Not this format*, *not this
 version* and *damaged* are three different conditions with three different
 remedies, and today they are two untyped `Error`s that
-`format-view.ts:378-386` and `carried-sources.ts:46-48` both catch identically
-and answer with `undefined`, and `test-selection/index.ts:254-257` catches the
+`packages/sense/src/test-selection/format-view.ts:378-386` and `packages/sense/src/test-selection/carried-sources.ts:46-48` both catch identically
+and answer with `undefined`, and `packages/sense/src/test-selection/index.ts:254-257` catches the
 same three to skip a seed without a word. A merge cannot tell a
 one-release-old base from a damaged one; a version bump looks like a corruption
 epidemic and a corruption epidemic looks like a version bump. Each refusal
@@ -78,7 +78,7 @@ because the second is nearly free and the first is not, and the argument for the
 first is that its absence fails silently in the narrowing direction.
 
 **4. Every structural invariant the readers depend on is checked, including the
-sorted ones.** `format-validation.ts:32-58` checks row-count agreement, and the
+sorted ones.** `packages/sense/src/test-selection/format-validation.ts:32-58` checks row-count agreement, and the
 value checks run only when their column materializes: ordinal uniqueness, owner
 rooting, extents and instrumented-implies-regions are all skipped by an ordinary
 selection. **Sortedness is checked nowhere**, and it is the invariant every `lookup.ts` binary search rests on. An
@@ -89,12 +89,12 @@ Two more that are cheap and absent: the section index is validated for presence
 but not for *exactly* `NAMES`, and `width` is taken from the header rather than
 derived — so a header that lies about a width changes the row count the shape
 check runs against. And `openRuns(section, undefined, BLOB_RUN)`
-(`columns.ts:251`) skips the run-count agreement check for the two largest
+(`packages/sense/src/test-selection/columns.ts:251`) skips the run-count agreement check for the two largest
 sections in the file.
 
 **5. A version bump stops being a cache eviction.** `header.version !== FORMAT`
 is exact equality with no minimum readable version, no ignore-unknown-section
-rule, and no migration. `format-layout.ts:19-42` says so plainly: adding a
+rule, and no migration. `packages/sense/src/test-selection/format-layout.ts:19-42` says so plainly: adding a
 section moves the number *even though every section that was there still means
 what it did*. That is one release invalidating every snapshot in every cache
 layer, every CI artifact, and every shard from a machine on a different release
@@ -108,13 +108,13 @@ case it is a position, it says why, it names the cost, and the version gate
 reports *old* rather than *corrupt* so the operator knows a rebuild is
 scheduled rather than a disk failing.
 
-**6. Durability matches the claim.** `test-selection/index.ts:312` says "whole or not at all".
+**6. Durability matches the claim.** `packages/sense/src/test-selection/index.ts:312` says "whole or not at all".
 `writeCoverageBytes` (`:340-345`) is a temp-write and a rename with no `fsync`
 of the file and none of the directory, which holds against a concurrent reader
 and not against a crash.
 
 **7. One writer, or two writers driven by one table.** `NAMES` is read only by
-the reader; `test-selection/format.ts:150-177` and `format-layer.ts:251-280` each spell the
+the reader; `packages/sense/src/test-selection/format.ts:150-177` and `packages/sense/src/test-selection/format-layer.ts:251-280` each spell the
 twenty-six sections out by hand. A section added to one and not the other
 produces files that differ by release path, and the only detection is a
 missing-section refusal that says "corrupt".

@@ -18,53 +18,53 @@ Specs 0043 through 0047 all start from journals that exist. Nothing states what
 has to be true for them to exist.
 
 What is already right, and is the floor this spec builds on: the journal opens
-with `VAJRN` and a version (`journal-format.cts:33`), every read is bounded, and
+with `VAJRN` and a version (`packages/sense/src/test-selection/journal-format.cts:33`), every read is bounded, and
 `decodeJournal` refuses a file that runs out or has bytes left over
-(`journal-format.cts:116`). A truncated journal is *refused*, not decoded short.
+(`packages/sense/src/test-selection/journal-format.cts:116`). A truncated journal is *refused*, not decoded short.
 Completeness is gated too — a test file whose journal never arrived is
-`complete: false` (`finished-files.ts:227`), and `test-selection/select.ts:130` builds `whole`
+`complete: false` (`packages/sense/src/test-selection/finished-files.ts:227`), and `packages/sense/src/test-selection/select.ts:130` builds `whole`
 only from tests the snapshot recorded whole, so an unrecorded file cannot be
 skipped. Neither of those is the problem.
 
 The problem is everything around them.
 
-- The refusal is taken in bulk. `readJournals` (`finished-files.ts:230-241`)
+- The refusal is taken in bulk. `readJournals` (`packages/sense/src/test-selection/finished-files.ts:230-241`)
   `readdir`s the run directory with **no extension filter** and decodes every
   name inside one `Promise.all`. One truncated journal, or one file the
   operating system put there, throws for the whole run — and the error names no
   file, so the message is the same whichever caused it.
-- The write is not durable. `worker-source.ts:82-91` mints `<pid>-<uuid>.va`,
+- The write is not durable. `packages/sense/src/test-selection/worker-source.ts:82-91` mints `<pid>-<uuid>.va`,
   encodes the journal in memory and `writeFile`s it to its final path: no
   temporary name, no rename, no fsync. A worker killed mid-write leaves a file
   that will be refused — which is correct — but one that will take the run down
   with it, per the previous point.
 - **An unknown module id is handled three ways.** Vitest *throws*
-  (`finished-files.ts:213`), which aborts the settle and loses the run. Jest's
+  (`packages/sense/src/test-selection/finished-files.ts:213`), which aborts the settle and loses the run. Jest's
   crossing path *silently drops the row*
-  (`jest-reporter.ts:95` filters `journal.modules`), so the crossing disappears
+  (`packages/sense/src/test-selection/jest-reporter.ts:95` filters `journal.modules`), so the crossing disappears
   while the test stays complete — a narrowing. Jest's finished-file path sets
-  `placed = false` (`jest-reporter.ts:186`), which demotes correctly. One
+  `placed = false` (`packages/sense/src/test-selection/jest-reporter.ts:186`), which demotes correctly. One
   condition, three behaviours, and the middle one is the unsafe one.
-- `run.settled` is set at `selection-fold.ts:133-134` and never reset, so `vitest
+- `run.settled` is set at `packages/sense/src/test-selection/selection-fold.ts:133-134` and never reset, so `vitest
   --watch` records the **first** run and silently ignores every one after it.
-  Jest does not have this bug: `jest-reporter.ts:71-77` re-mints the run
+  Jest does not have this bug: `packages/sense/src/test-selection/jest-reporter.ts:71-77` re-mints the run
   directory in `onRunStart`.
 - The run is marked settled before any work is done, and the run and case
-  directories come off as trailing statements — `selection-fold.ts:128-129` for
-  every runner that folds through it, `jest-reporter.ts:165-167` for Jest. The
+  directories come off as trailing statements — `packages/sense/src/test-selection/selection-fold.ts:128-129` for
+  every runner that folds through it, `packages/sense/src/test-selection/jest-reporter.ts:165-167` for Jest. The
   shared fold's `try`/`finally` covers the shims and nothing else, so a throw in
   between loses the run *and* leaves its directories behind. A killed process leaves them too, and nothing ever
   collects them.
 - Counts are `Uint32Array` increments with bit 31 taken for `EVALUATING`
-  (`instrument/index.ts:238`), and the increment does not saturate. A region
+  (`packages/sense/src/instrument/index.ts:238`), and the increment does not saturate. A region
   entered 2³¹ times does not overflow into a wrong count, it overflows into the
   flag that means *this belongs to every subject*.
 - `instrument()` returns `undefined` when the parse produced errors
-  (`instrument/index.ts:161`) and the caller uses the original text. That is the
+  (`packages/sense/src/instrument/index.ts:161`) and the caller uses the original text. That is the
   right refusal, and it is silent: nothing counts it. The one check that exists,
-  `noteAnEmptyRecord` (`finished-files.ts:74-84`), fires only when
+  `noteAnEmptyRecord` (`packages/sense/src/test-selection/finished-files.ts:74-84`), fires only when
   `instrumented === 0 && testFiles > 0`, and Jest never calls it.
-- `test-selection/journey.ts:233-234` deletes a journey's counters and factory at the top of
+- `packages/sense/src/test-selection/journey.ts:233-234` deletes a journey's counters and factory at the top of
   `report()`, then returns without sending at `:253` when the channel is
   undefined. The observation is destroyed before the code discovers it cannot be
   delivered.
@@ -82,13 +82,13 @@ by reason. **Acceptance:** a run directory holding one truncated `.va` and one
 file it belonged to is demoted rather than the run lost.
 
 **2. A journal is written durably.** Temporary name, fsync, rename — the rule
-`test-selection/index.ts:312` already states for the snapshot, applied one layer earlier.
+`packages/sense/src/test-selection/index.ts:312` already states for the snapshot, applied one layer earlier.
 **Acceptance:** with a failure injected between write and rename, the run
 directory holds no `.va` at all — not a file a reader has to refuse.
 
 **3. An unknown module id has one answer, and it is not a silent drop.** Pick
 the behaviour, write down why, and make both runners take it.
-**Acceptance:** the Jest filter at `jest-reporter.ts:95` is gone, a journal
+**Acceptance:** the Jest filter at `packages/sense/src/test-selection/jest-reporter.ts:95` is gone, a journal
 naming an id the inventory does not hold demotes its test file on both runners,
 and a test asserts the same outcome under each.
 
@@ -114,7 +114,7 @@ the parser refused through to the settle, on both runners.
 and no count can reach `EVALUATING` by arithmetic.
 
 **8. An observation is not destroyed before it is delivered.** Move the
-`counters.delete` in `test-selection/journey.ts:233` past the point where the account is known
+`counters.delete` in `packages/sense/src/test-selection/journey.ts:233` past the point where the account is known
 to be sendable, and check every `writeSync` return in
 `instrumented-modules.ts`. **Acceptance:** a `report()` with no channel leaves
 the journey's counters intact for the next attempt.

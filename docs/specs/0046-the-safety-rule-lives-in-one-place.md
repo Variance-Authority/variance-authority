@@ -44,9 +44,9 @@ That would be a tidiness complaint if the four agreed. They do not:
 
 And the frame check contradicts its own documentation in the direction that
 misleads an operator. `textAtRecording` returns `undefined` when the snapshot
-names no commit, with a docblock at `recorded-text.ts:111-113` saying this
+names no commit, with a docblock at `packages/sense/src/test-selection/recorded-text.ts:111-113` saying this
 avoids "reporting every module stale". `frameOf` at
-`test-selection/reading.ts:107` reads `undefined` under every name as
+`packages/sense/src/test-selection/reading.ts:107` reads `undefined` under every name as
 disagreement and answers `stale`. tools/test-since.mjs withholds `sourceAt`
 from a commitless snapshot; the CLI does not. **Through `variance select` and
 `variance run --since`, a commitless snapshot therefore reports exactly every
@@ -114,7 +114,7 @@ record made under a coarser mode is believed exactly as a branch-level one.
 Nothing distinguishes a snapshot whose `whole` set predates the diff base from
 one recorded at it. The same hole has a second edge the write path already names
 and the read path cannot see: `usableOutcome`
-(`test-selection/finished-files.ts:125`) counts a skip as a usable outcome, and
+(`packages/sense/src/test-selection/finished-files.ts:125`) counts a skip as a usable outcome, and
 its docblock states the boundary — a skip decided outside the source, by an
 environment variable or a platform check, is not covered. A record made where
 that condition was true is applied where it is false without a word, because the
@@ -137,7 +137,7 @@ to say a thing is unfinished, and the answer stage has no row in
 `docs/instruments.md` at all.
 
 **9. The frame is checked against the frame the diff is in.** `frameOf`
-asks `sourceAt(name, coverage.commit)` (`test-selection/reading.ts:97`) — the
+asks `sourceAt(name, coverage.commit)` (`packages/sense/src/test-selection/reading.ts:97`) — the
 text as of the *snapshot's* commit. The hunks it is deciding about are line
 ranges in the *diff base's* coordinates. The two coincide only while the
 snapshot was recorded at the base, which is the local case and not the CI one:

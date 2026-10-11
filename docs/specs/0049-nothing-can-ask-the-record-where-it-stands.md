@@ -66,7 +66,7 @@ The gap is that the question was never asked. What shipped:
   (`packages/sense/src/test-selection/selection-fold.ts:126`). Jest writes none. Its
   `find` over `index.modules` is a linear scan of a decoded JSON model, so the
   cost is the repository's rather than the point's. And every crossing in it
-  carries `distance: 0` (`cases.ts:279`), which
+  carries `distance: 0` (`packages/sense/src/test-selection/cases.ts:279`), which
   [ADR-0056](../context/adr/0056-a-journey-is-the-places-visited.md) requires
   and which makes the tool's own "ranked by observed call-stack depth"
   (`packages/mcp/src/tools/source-tests.ts:13`) a promise about a number nothing

@@ -37,13 +37,13 @@ spec rather than a task:
 
 - **The fixtures are gone.** The files behind every published scale number are
   not in the tree, and the generator the scale figures are taken over produces
-  a *uniform* shape — `snapshot-scale.mjs:51` fixes a flat count of regions per
+  a *uniform* shape — `packages/sense/scripts/snapshot-scale.mjs:51` fixes a flat count of regions per
   module and `:123` multiplies it out — rather than the sampled distribution
   the published figures were taken over. The corpus generator is not the same
-  story: `coverage-corpus.mjs:118-145` deliberately tails its crossing sets.
+  story: `packages/sense/scripts/coverage-corpus.mjs:118-145` deliberately tails its crossing sets.
   The published numbers are real and they are not reproducible from this
   repository.
-- **One axis barely moves.** `snapshot-scale.mjs:196-209` sweeps the test-file
+- **One axis barely moves.** `packages/sense/scripts/snapshot-scale.mjs:196-209` sweeps the test-file
   count for the journals arm, and `shape-sweep.mjs` varies it. The snapshot and
   selection arms are 2,000 test files and nothing else — and those are the arms
   every published figure comes from. The axis this whole feature narrows along
