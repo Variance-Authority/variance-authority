@@ -360,13 +360,14 @@ function sourcePath(map: TransformSourceMap, generated: string, source: string):
   if (source === '' || source.startsWith('\0')) return undefined;
   const root = map.sourceRoot ?? '';
   const joined = root === '' ? source : `${root.replace(/\/$/, '')}/${source}`;
-  let url: URL;
+  // `new URL` refuses what is no URL at all; `fileURLToPath` refuses a file URL
+  // no path can be, such as one holding an encoded `/`.
   try {
-    url = new URL(joined, pathToFileURL(`${dirname(generated)}/`));
+    const url = new URL(joined, pathToFileURL(`${dirname(generated)}/`));
+    return url.protocol === 'file:' && url.host === '' ? fileURLToPath(url) : undefined;
   } catch {
     return undefined;
   }
-  return url.protocol === 'file:' && url.host === '' ? fileURLToPath(url) : undefined;
 }
 
 /**

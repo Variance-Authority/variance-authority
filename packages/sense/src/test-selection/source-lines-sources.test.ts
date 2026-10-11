@@ -80,6 +80,24 @@ describe('the source a map names as the file', () => {
     expect(lineIn(extentOf)(TRANSFORMED.indexOf('const f'))).toBeUndefined();
   });
 
+  it('gives no lines for a source whose URL holds an encoded slash, which no path can', () => {
+    const extentOf = sourceLines(TRANSFORMED, { sources: ['a%2Fb.ts'], mappings: DROPPED_BLANK.mappings }, FILE);
+
+    expect(lineIn(extentOf)(TRANSFORMED.indexOf('const f'))).toBeUndefined();
+  });
+
+  it('frames a text under the host’s name when its one source holds an encoded slash', () => {
+    const frame = recordedFrame(
+      TRANSFORMED,
+      { sources: ['..%2Flib%2Fx.ts'], mappings: DROPPED_BLANK.mappings },
+      FILE,
+      () => ORIGINAL,
+    );
+
+    expect(frame.file).toBe(FILE);
+    expect(frame.sourceDigest).toBe(digestString(TRANSFORMED));
+  });
+
   it('gives no lines for a virtual module, though its id ends in the file’s path', () => {
     const extentOf = sourceLines(TRANSFORMED, { sources: [`\0${FILE}`], mappings: DROPPED_BLANK.mappings }, FILE);
 
