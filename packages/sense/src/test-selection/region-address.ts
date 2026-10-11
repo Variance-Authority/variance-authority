@@ -14,8 +14,13 @@ export function addressOf(block: Addressed): string {
   return `${block.name}\0${block.path}`;
 }
 
-/** What an address is read off: a region's name path and structural path. */
-type Addressed = Pick<CoverageBlock, 'name' | 'path'>;
+/**
+ * What an address is read off — a region's name path and structural path —
+ * and, where the cut records them, what tells twins at one address apart: the
+ * digest of the region's own text, and its place in the tree, the ordinal the
+ * walk gave it and the ordinal of the region around it.
+ */
+type Addressed = Pick<CoverageBlock, 'name' | 'path'> & Partial<Pick<CoverageBlock, 'digest' | 'ordinal' | 'owner'>>;
 
 /**
  * The same address told apart from the ones before it in the module: which
@@ -39,7 +44,7 @@ type Addressed = Pick<CoverageBlock, 'name' | 'path'>;
  * and one that is gone loses its crossings the way any deleted region does —
  * through the unmatched-row path that demotes the tests standing on it. Over
  * two texts occurrence says nothing about which twin is which, and
- * {@link pairedAcrossEdit} pairs none of them.
+ * {@link pairedAcrossEdit} pairs them by their bodies instead.
  */
 export function addressKey(address: string, seen: Map<string, number>): string {
   const nth = (seen.get(address) ?? 0) + 1;
@@ -67,51 +72,131 @@ export function pairedRegions(before: readonly Addressed[], after: readonly Addr
  * For each region of `after`, the region of `before` it is, or -1, where the
  * two cuts are of different texts.
  *
- * A region is paired by its address, and only where the address picks out one
- * region in each cut. Twins — regions of one address, told apart only by
- * occurrence — are paired with nothing: take the first of two out and write a
- * third behind the second, and the cut holds two of the address again, the
- * first over the second's body. Occurrence pairs the recorded first onto it,
- * and the lines cannot object, because the text moved under them; the cut
- * holds no text to compare. A region inside a twin is paired with nothing
+ * A region is paired by its address where the address picks out one region in
+ * each cut. Twins — regions of one address, told apart only by occurrence —
+ * are not paired by occurrence: take the first of two out and write a third
+ * behind the second, and the cut holds two of the address again, the first
+ * over the second's body. Occurrence pairs the recorded first onto it, and the
+ * lines cannot object, because the text moved under them.
+ *
+ * What a cut does hold is each region's digest: its own lines, with the lines
+ * inside the regions it holds left to them, wherever in the file they stand.
+ * So a twin pairs with the twin of the other cut whose digest is its own, where
+ * that digest is held once among the regions of its address in each cut. A twin
+ * whose body changed, or whose body is a sibling's too, is paired with nothing,
+ * and so is the one left over when the others pair: which of the rest went and
+ * which came is the question occurrence could not answer, and taking the one
+ * left over answers it by guessing. A digest taken of other text — a region the
+ * map gave no lines keeps the one the addon took of the build — matches none
+ * taken of the source and falls to unpaired the same way.
+ *
+ * The regions inside a paired twin pair the same way under it: by address where
+ * one region inside each twin holds it, by digest among twins nested in the
+ * twin. A region inside a twin paired with nothing is paired with nothing
  * either, whatever its own address, since which twin holds it is the same
- * question. Nor is a twin of one cut paired with the one region of its address
- * in the other: which of the twins went, or which came, is unknown too.
+ * question. A cut that records no digest — a case index — pairs no twin and
+ * nothing inside one.
  *
  * Nothing is lost by it. A region paired with nothing is born, and a born
  * region takes the evidence of the nearest region around it that was paired,
  * which every test that entered a twin entered too: the twin is charged the
- * tests that entered any of its siblings rather than those of the one at its
- * occurrence. Over one text, occurrence is the text's own order and pairs
- * twins truly; only the readers that know the texts differ ask this.
+ * tests that entered any of its siblings rather than those of one it may not
+ * be. Over one text, occurrence is the text's own order and pairs twins truly;
+ * only the readers that know the texts differ ask this.
  *
  * Seated regions are not twins here: `anon#1` and `if#0` are addresses of their
  * own, and {@link sameNumbering} asks whether the seats still mean the same
  * regions.
  */
 export function pairedAcrossEdit(before: readonly Addressed[], after: readonly Addressed[]): Int32Array {
+  const paired = new Int32Array(after.length).fill(-1);
+  pairWithin(treeOf(before), treeOf(after), [...before.keys()], [...after.keys()], paired);
+  return paired;
+}
+
+/** A cut's regions and, where it records a digest for each, the position of the region around each one, or -1. */
+interface Tree {
+  readonly blocks: readonly Addressed[];
+  readonly around: Int32Array | undefined;
+}
+
+function treeOf(blocks: readonly Addressed[]): Tree {
+  const at = new Map<number, number>();
+  for (const [position, block] of blocks.entries()) {
+    if (block.digest === undefined || block.ordinal === undefined) return { blocks, around: undefined };
+    at.set(block.ordinal, position);
+  }
+  return { blocks, around: Int32Array.from(blocks, (block) => (block.owner === undefined ? -1 : at.get(block.owner) ?? -1)) };
+}
+
+/**
+ * {@link pairedAcrossEdit} over the regions at `heldAt` of `held` and at
+ * `cutAt` of `cut`: the whole cuts, or the regions inside one pair of twins.
+ */
+function pairWithin(held: Tree, cut: Tree, heldAt: readonly number[], cutAt: readonly number[], paired: Int32Array): void {
   const twinned = new Set<string>();
-  const counted = (blocks: readonly Addressed[]): ReadonlyMap<string, number> => {
-    const counts = new Map<string, number>();
-    for (const block of blocks) {
-      const count = (counts.get(addressOf(block)) ?? 0) + 1;
-      counts.set(addressOf(block), count);
-      if (count > 1) twinned.add(block.name);
+  const holders = (tree: Tree, at: readonly number[]): ReadonlyMap<string, readonly number[]> => {
+    const by = new Map<string, number[]>();
+    for (const position of at) {
+      const address = addressOf(tree.blocks[position]!);
+      const holding = by.get(address) ?? [];
+      holding.push(position);
+      by.set(address, holding);
+      if (holding.length > 1) twinned.add(address);
     }
-    return counts;
+    return by;
   };
-  counted(after);
-  const held = counted(before);
+  const [heldBy, cutBy] = [holders(held, heldAt), holders(cut, cutAt)];
+  // A region's name extends the name of every region around it, so a name at
+  // or under a twin's is inside a twin; the tree is not needed for that much.
+  const names = new Set([...twinned].map((address) => address.slice(0, address.indexOf('\0'))));
   const inTwin = (name: string): boolean => {
-    if (twinned.has(name)) return true;
-    for (let at = name.lastIndexOf('/'); at > 0; at = name.lastIndexOf('/', at - 1)) {
-      if (twinned.has(name.slice(0, at))) return true;
-    }
+    for (let end = name.length; end > 0; end = name.lastIndexOf('/', end - 1)) if (names.has(name.slice(0, end))) return true;
     return false;
   };
-  const heldAt = new Map<string, number>();
-  for (const [at, block] of before.entries()) if (held.get(addressOf(block)) === 1) heldAt.set(addressOf(block), at);
-  return Int32Array.from(after, (block) => (inTwin(block.name) ? -1 : heldAt.get(addressOf(block)) ?? -1));
+  for (const position of cutAt) {
+    const block = cut.blocks[position]!;
+    const was = heldBy.get(addressOf(block))?.[0];
+    if (was !== undefined && !inTwin(block.name)) paired[position] = was;
+  }
+  if (held.around === undefined || cut.around === undefined) return;
+  const [heldIn, cutIn] = [nesting(held, heldAt, twinned), nesting(cut, cutAt, twinned)];
+  for (const address of twinned) {
+    const heldBodies = bodies(held, heldBy.get(address));
+    for (const [digest, [twin, ...more]] of bodies(cut, cutBy.get(address))) {
+      const [was, ...others] = heldBodies.get(digest) ?? [];
+      if (twin === undefined || was === undefined || more.length > 0 || others.length > 0) continue;
+      if (!heldIn.outermost(was) || !cutIn.outermost(twin)) continue;
+      paired[twin] = was;
+      pairWithin(held, cut, heldIn.under(was), cutIn.under(twin), paired);
+    }
+  }
+}
+
+/** The regions at `at` of one address, by digest. */
+function bodies(tree: Tree, at: readonly number[] = []): ReadonlyMap<string, readonly number[]> {
+  const by = new Map<string, number[]>();
+  for (const position of at) {
+    const digest = tree.blocks[position]!.digest!;
+    const holding = by.get(digest) ?? [];
+    holding.push(position);
+    by.set(digest, holding);
+  }
+  return by;
+}
+
+/** Among the regions at `at`: whether one is inside no twin of them, and the ones inside a given one. */
+function nesting(tree: Tree, at: readonly number[], twinned: ReadonlySet<string>) {
+  const inside = new Set(at);
+  const outward = (position: number): number[] => {
+    const found: number[] = [];
+    for (let next = tree.around![position]!; next >= 0 && inside.has(next); next = tree.around![next]!) found.push(next);
+    return found;
+  };
+  return {
+    outermost: (position: number): boolean => !outward(position).some((next) => twinned.has(addressOf(tree.blocks[next]!))),
+    under: (twin: number): number[] => at.filter((position) => outward(position).includes(twin)),
+  };
 }
 
 /** A numbered step in an address: `if#0`, `for#12`, `anon#3`, never a `#private` member. */

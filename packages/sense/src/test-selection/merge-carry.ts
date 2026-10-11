@@ -160,8 +160,9 @@ export function crossingsAround(
  * the regions are read out of the current text and every crossing is carried
  * onto the region with its address, which leaves the evidence about the parts
  * nobody edited in coordinates the next diff will be in. Twins, regions told
- * apart only by occurrence, are carried onto nothing ({@link pairedAcrossEdit}):
- * across an edit, occurrence does not say which is which. A region the text has
+ * apart only by occurrence, carry onto the twin with their body
+ * ({@link pairedAcrossEdit}): across an edit, occurrence does not say which is
+ * which, and a twin whose body moved is a region gained. A region the text has
  * now and the rows never had takes the crossings of the region around it, by
  * {@link crossingsAround} — the alternative is a row saying nobody entered
  * lines nobody has measured.

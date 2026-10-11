@@ -233,8 +233,21 @@ jsdom suite and the probe costs a few percent.
 function, a branch arm, a loop body, a handler — and what identifies it is its
 address in the module's tree rather than its place in the module's text. So
 inserting a function above it renumbers everything and retires nothing: a
-crossing is dropped only when the new text has no region at that address. Line
-numbers are coordinates *into* the recorded text, not the thing recorded.
+crossing is dropped only when the new text has no region at that address. Two
+exceptions keep that from guessing:
+
+- **A shared address.** Two callbacks of one callee in one place share an
+  address. The coverage record pairs them by the digest of their own body,
+  where that digest names one of them in each version, and a changed or
+  repeated body pairs with nothing, so its tests run again. The per-case index
+  records no digest, so across an edit such callbacks pair with nothing, and
+  each one takes the cases of the region around it.
+- **Numbered seats.** When the numbered seats of one place change, for example
+  a third `if` written before the second, every seat after the change names a
+  different region. Every test in that module that the run did not observe runs
+  again.
+
+Line numbers are coordinates *into* the recorded text, not the thing recorded.
 
 **A crossing is a pair.** One row is *this case covered this region*, and the
 index is those pairs and nothing else: three parallel integer columns, sorted

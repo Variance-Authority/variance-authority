@@ -103,6 +103,9 @@ describe('layerCaseIndex', () => {
   });
 
   it('lands carried cases on the regions recorded now by address and kind, and drops the rest', () => {
+    const held = index(['a.test.ts > one', 'a.test.ts > two', 'b.test.ts > three'], {
+      'src/shared.ts': [['entry', ['a.test.ts > one', 'b.test.ts > three']], ['rare', ['a.test.ts > two', 'b.test.ts > three']]],
+    });
     const fresh = index(['a.test.ts > one', 'a.test.ts > two'], {
       'src/shared.ts': [
         ['added', ['a.test.ts > two']],
@@ -111,7 +114,7 @@ describe('layerCaseIndex', () => {
       ],
     });
 
-    const { merged } = layerCaseIndex(suite, fresh, ran(['a.test.ts']));
+    const { merged } = layerCaseIndex(held, fresh, ran(['a.test.ts']));
 
     expect(read(merged).regions['src/shared.ts']).toEqual({
       added: ['a.test.ts > two'],

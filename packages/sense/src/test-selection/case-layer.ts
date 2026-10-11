@@ -97,14 +97,15 @@ export interface CaseLayers {
  *
  * A module this run recorded is read at the regions it recorded now, and the
  * carried cases land on them by address — the region's name and structural
- * path, told apart by occurrence over one text and left unpaired across an edit
- * — and kind, the rule the snapshot carries its rows by (`pairedRegions`). A
- * region the text no longer has drops its carried cases rather than guessing a
- * place for them. A region the index never held takes the cases of
- * the nearest region around it that some landed on, as a row born in a re-cut
- * takes the crossings around it ({@link carriedFrom}). A module this run did
- * not record keeps the regions it was recorded with, as it did before any
- * partial run.
+ * path, told apart by occurrence over one text and by body across an edit,
+ * where the cut records one — and kind, the rule the snapshot carries its rows
+ * by (`pairedRegions`). An index records no body, so its twins land on nothing
+ * across an edit. A region the text no longer has drops its carried cases
+ * rather than guessing a place for them. A region the index never held takes
+ * the cases of the nearest region around it that some landed on, as a row born
+ * in a re-cut takes the crossings around it ({@link carriedFrom}). A module
+ * this run did not record keeps the regions it was recorded with, as it did
+ * before any partial run.
  *
  * The before layer is cut at the lines of the text it is named at. A held
  * module the run recorded from that text is read at the recorded lines where

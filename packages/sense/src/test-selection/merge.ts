@@ -279,8 +279,8 @@ export function mergeCoverage(
     // the recorded one takes the address the recorded one had, over text it
     // never covered, and the kinds match because a branch replaced a branch, so
     // every row finds somewhere to go and nothing is demoted for the slide.
-    // Across a module that renumbered nothing is carried, and across an edit
-    // nothing is carried onto twins: every such previous row reads as
+    // Across a module that renumbered nothing is carried, and across an edit a
+    // twin carries only onto the body it had: every other previous row reads as
     // unmatched, which demotes the tests on it. Same text is the same
     // numbering and the same order of twins — {@link pairedRegions}.
     const onto = new Map<CoverageBlock, CoverageBlock>();

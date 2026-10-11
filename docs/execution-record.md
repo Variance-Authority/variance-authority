@@ -343,8 +343,9 @@ An ordinal is a slot in one instrumented version of a module, and it is not
 what keeps evidence across an edit. What keeps it is the region's address: the
 declaration name path and the structural path inside it, which record where the
 region sits in the module's tree rather than where it sits in the module's
-text. `mergeCoverage` moves a crossing from the previous record onto the
-region with the same address, and the digests take no part in that.
+text. Where an address names one region in the previous text and one in the
+new text, `mergeCoverage` places the crossing on that region, and the digests
+take no part in that.
 
 So renumbering is not invalidation. Inserting
 `const price = (item) => item.price;` after `let sum = 0;` opens
@@ -354,25 +355,55 @@ body to 3, `label` to 8. Inserting a top-level
 other way. In both the record keeps every crossing it had, because
 `total/if#0/then` is still `total/if#0/then`.
 
-A crossing is dropped only when the new text has no region with its address:
-a function renamed, a decision deleted, an arm that is now a loop. Even that
-rarely retires a test. Arrival nests — a test reached a region by running
-every region around it, up to the module — so a test whose function was
-deleted still has crossings above it, and a diff at the place that function
-was reaches it through them. Only a test that loses every crossing in a module
-is demoted to incomplete and selected whole next time.
+**Regions that share an address are paired by their digest.** Two regions in
+one place with the same name are one address: the two callbacks of
+`useEffect(() => open(props.a), [props])` and
+`useEffect(() => close(props.b), [props])` in `Widget` are both
+`Widget/useEffect.arg0`, and only the order they were cut in tells them apart.
+Order does not survive an edit. Delete the first effect and write a new one
+after the second, and the text still has two of them: the first is now the
+`close` body, and the second is new. So across an edit `mergeCoverage` pairs
+such regions by the digest the record keeps for each row instead: a digest of
+the region's own lines, with the inner lines of each region inside it left out,
+so it does not change when the region stands on other lines. A region pairs
+where its digest names one region of its address in each version. A body you
+did not change keeps its crossings wherever it now stands. A body you changed,
+or a body written twice under one address, pairs with nothing. Its crossings
+are dropped, the tests on it that the run did not observe are demoted to
+incomplete, and the region in the new text takes the crossings of the region
+around it. Regions inside one that pairs with nothing pair with nothing too.
+Over the same text these regions pair by order, because the order is the
+text's.
 
-**A digest that changed keeps the crossing and demotes a test the run did not
-observe.** It shows that the region's own text changed, and the tests to run are
-the ones recorded against that region — which is the crossing. Reading a digest
-as a reason to discard the crossing would throw away the evidence the change is
-about to be answered with, and reading the owners' digests too made any edit at
-a module's top level retire every crossing in the file. But the re-recorded rows
-hold the text the run read, and selection reads a later change from that text,
-so the edit between the text a carried test ran over and this one is in no diff
-it will read. Each test on such a region that the run did not observe is
-demoted to incomplete; a test the run observed was recorded again over the new
-text.
+**Numbered seats must agree.** Regions without a name of their own take a number
+in their place, such as `anon#0` or `if#1`, and the number is a seat in a list,
+not a name. When a place numbers a different set of seats in the new text than
+in the previous one, every seat after the changed one names a different region,
+and nothing in the record shows which one. So no crossing of that module is
+placed on the new text, and every test the run did not observe in that module is
+demoted to incomplete. A place that only one version numbers anything in is left
+alone: a new function, a new nested branch or a deleted one renumbers nothing
+around it.
+
+Outside those two cases, a crossing is dropped only when the new text has no
+region with its address: a function renamed, a decision deleted, an arm that is
+now a loop. Even that rarely retires a test. Arrival nests — a test reached a
+region by running every region around it, up to the module — so a test whose
+function was deleted still has crossings above it, and a diff at the place that
+function was reaches it through them. Only a test that loses every crossing in a
+module is demoted to incomplete and selected whole next time.
+
+**A digest that changed keeps the crossing of a region with its own address and
+demotes a test the run did not observe.** It shows that the region's own text
+changed, and the tests to run are the ones recorded against that region — which
+is the crossing. Reading a digest as a reason to discard the crossing would
+throw away the evidence the change is about to be answered with, and reading the
+owners' digests too made any edit at a module's top level retire every crossing
+in the file. But the re-recorded rows hold the text the run read, and selection
+reads a later change from that text, so the edit between the text a carried test
+ran over and this one is in no diff it will read. Each test on such a region
+that the run did not observe is demoted to incomplete; a test the run observed
+was recorded again over the new text.
 
 | edit, under a run that did not observe the test | crossings kept | the kept test's row |
 |---|---|---|
@@ -384,10 +415,10 @@ text.
 **A module the run did not load** stays in the record, and its rows are lines
 of the text it had when it was recorded. When that text has since changed, the
 regions are read out of the text standing there now and each crossing is
-moved onto the region with its address, so the rows are in coordinates the
-next diff will be in. A module whose text cannot be read as source has no
-table to place them in: it stays as it was, and every test that covered
-it is demoted.
+placed on its region by the same rules, so the rows are in coordinates the
+next diff will be in. A module whose text cannot be read as source, or whose
+numbered seats changed, has no table to place them in: it stays as it was, and
+every test that covered it is demoted.
 
 ### From a crossing back to a line
 

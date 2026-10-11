@@ -22,19 +22,21 @@ import { addressKey, addressOf, pairedRegions, sameNumbering } from './region-ad
  * not, `held` was cut at an older text, and its regions take the recorded
  * lines by the rule the snapshot re-cut its rows to the newer text by
  * ({@link pairedRegions} across texts): only where the two texts numbered
- * alike, and never for twins, regions told apart only by occurrence, or for
- * what is inside one. Then a held region the recorded cut has no pair for is
- * left out: no line of the newer text is known to hold it, and kept at a line
- * of the older one it would pair with whatever region stands there now. A kept
- * region's owner is the nearest region around it that is kept too, so a region
- * born under one still takes its cases.
+ * alike, and, since an index records no digest to tell twins apart by, never
+ * for twins or for what is inside one. Then a held region the recorded cut has
+ * no pair for is left out: no line of the newer text is known to hold it, and
+ * kept at a line of the older one it would pair with whatever region stands
+ * there now. A kept region's owner is the nearest region around it that is
+ * kept too, so a region born under one still takes its cases.
  */
-// FIXME: an index cut at an older text whose regions all stand at the lines
-// the newer one put them is read as cut at the newer text, so twins rewritten
-// in place — the first over the second's body, a third over the first's line
-// count — still pair by occurrence. The index holds no text to tell; carrying
-// the digest each module was recorded from would let a reader pair them as
-// `mergeCoverage` does.
+// FIXME: twins in a case index pair by nothing across an edit, so their cases
+// are dropped and each twin takes the cases around it, where the rows of the
+// same module pair them by body. The index records no digest, and the rows the
+// snapshot holds for the module are not read where a run lands, nor always cut
+// at the text the index was. An index cut at an older text whose regions all
+// stand at the lines the newer one put them is read as cut at the newer text,
+// so twins rewritten in place still pair by occurrence there. Carrying each
+// region's digest in the index would pair both as `mergeCoverage` does.
 export function relined(held: SetExecutionModule, recorded: SetExecutionModule): SetExecutionModule | undefined {
   if (cutAlike(held, recorded)) return held;
   if (!sameNumbering(held.blocks, recorded.blocks)) return undefined;
@@ -94,15 +96,18 @@ function keptOwners(owner: Uint32Array, kept: readonly number[]): Uint32Array {
  *
  * Over different texts the regions pair as the snapshot's rows do
  * ({@link pairedRegions}): none where the two cuts filled a counter
- * differently, since an address is half a seat among siblings, and none among
- * twins, since occurrence does not say which is which once the text moved.
- * Over the same text the seats are the text's: a run that read a
- * file through its source and its build keeps only the regions both cut alike,
- * so one cut can lack a region the other holds. A seat it lacks among regions
- * told apart only by occurrence moves every later sibling down one, so where
- * the two cuts of one text hold an address a different number of times, a
- * region lands only on the held one at its own lines, and the rest are absent
- * from the other cut rather than its neighbours.
+ * differently, since an address is half a seat among siblings, and among twins
+ * only by body, which an index does not record, so none.
+ *
+ * Over the same text the seats are the text's, but not by the rows' rule of
+ * occurrence alone. A cut of rows is one walk over the text and holds all of
+ * it; a run that read a file through its source and its build keeps only the
+ * regions both cut alike, so one cut of an index can lack a region the other
+ * holds. A seat it lacks among regions told apart only by occurrence moves
+ * every later sibling down one, so where the two cuts of one text hold an
+ * address a different number of times, a region lands only on the held one at
+ * its own lines, and the rest are absent from the other cut rather than its
+ * neighbours.
  */
 export function landing(recorded: Cut, before: Cut, sameText: boolean): Int32Array {
   // A layer asks one pair this up to four times: whether its text is the same,

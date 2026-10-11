@@ -192,12 +192,18 @@ export function layeredRows(input: {
     if (at !== undefined) {
       const instrumented = moduleInstrumented[at] === 1;
       // A region carries from the previous one `pairedRegions` names, as in
-      // `mergeCoverage`: none across a counter filled differently, nor onto
-      // twins across an edit. Only the addresses are read off the columns.
+      // `mergeCoverage`: none across a counter filled differently, and twins
+      // across an edit by their bodies. Only what pairs them is read off the columns.
       const first = moduleBlocks[at]!;
       const addresses = [];
       for (let before = first; before < moduleBlocks[at + 1]!; before += 1) {
-        addresses.push({ name: view.string(blockName[before]!), path: view.string(blockPath[before]!) });
+        addresses.push({
+          name: view.string(blockName[before]!),
+          path: view.string(blockPath[before]!),
+          digest: view.string(blockDigest[before]!),
+          ordinal: blockOrdinal[before]!,
+          ...(blockOwner[before] === NO_OWNER ? {} : { owner: blockOwner[before]! }),
+        });
       }
       const from = pairedRegions(addresses, module.blocks, view.string(moduleSource[at]!) === module.sourceDigest);
       const onto = new Map<number, CoverageBlock>();
