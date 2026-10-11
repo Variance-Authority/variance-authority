@@ -43,6 +43,36 @@ export interface Tool<Subject = RunReport> {
    * Absent means never, which is what almost every tool here means.
    */
   wants?(input: Readonly<Record<string, unknown>>): boolean;
+
+  /**
+   * Every file this call answers with, uncapped, where its answer is a set of
+   * files.
+   *
+   * `run` prints what a reader can take in, so it caps; a question asked as an
+   * operand of another — the files two questions both answer — needs the whole
+   * set, or the file it was asked to find can sit past the cap of either. So a
+   * tool whose answer is files says which, from the same computation `run`
+   * prints, and refuses what `run` refuses.
+   *
+   * Absent means the answer is not a set of files.
+   */
+  files?(
+    subject: Subject,
+    input: Readonly<Record<string, unknown>>,
+    invocation?: ToolInvocation<Subject>,
+  ): FileSet;
+}
+
+/**
+ * The files a question answers, each with the lines that put it there.
+ *
+ * An empty list of lines is a file in the set without one: a file a path
+ * reaches is in it as a whole. `unread` names what the question could not read,
+ * so a set that is short of files says so rather than reading as complete.
+ */
+export interface FileSet {
+  readonly files: ReadonlyMap<string, readonly number[]>;
+  readonly unread?: readonly string[];
 }
 
 /** What a host has already read, handed to a tool that cannot read anything itself. */

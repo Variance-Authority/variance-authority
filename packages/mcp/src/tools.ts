@@ -103,7 +103,7 @@ import { variations } from './tools/variations.js';
  * records before knowing whether `--all` is what it wants.
  */
 
-export type { Served, Tool, ToolInvocation } from './tools/tool.js';
+export type { FileSet, Served, Tool, ToolInvocation } from './tools/tool.js';
 // The tree a start point is resolved against, exported for the hosts that have
 // a repository to read: a tool cannot walk one, so somebody outside has to.
 export { readTree, treeAtWorkspace, treeFromRelations, treeOf, type Tree, type TreeOptions } from './tools/tree.js';

@@ -1,4 +1,4 @@
-import type { Tool } from '@variance-authority/mcp/tools';
+import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import { areaLine, areaOf } from './area.js';
 import { ripgrep, type Hit } from './ripgrep.js';
@@ -70,32 +70,7 @@ export const grep: Tool<unknown> = {
   wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
 
   run: (_help, input, invocation) => {
-    const query = stringArg(input, 'query');
-    const from = startPointArg(input, 'from');
-    const to = startPointArg(input, 'to');
-    if (from === undefined && to === undefined) {
-      throw new Error(
-        `\`grep\` searches the files a start point reaches, and none was given. Pass \`--from\` or ` +
-          `\`--to\` with a path from the root. For the whole checkout, run \`rg ${JSON.stringify(query)}\`.`,
-      );
-    }
-
-    const area = areaOf(from, to, invocation?.tree);
-    if (area.refused !== undefined || invocation?.tree === undefined) {
-      throw new Error(
-        `\`grep\` ran nothing: ${area.refused ?? 'no source tree was read'}. Say a real path from the root — ` +
-          "`src/dispatch/read.ts` is that file, `src/dispatch/*` its folder's own files, `src/dispatch/` " +
-          'everything under it.',
-      );
-    }
-    const root = invocation.tree.root;
-
-    const distanceOf = (file: string): number => area.distance.get(file) ?? Number.POSITIVE_INFINITY;
-    const ordered = [...area.files].sort((left, right) => distanceOf(left) - distanceOf(right) || byCodeUnit(left, right));
-
-    const { hits: found, errors } = ripgrep(root, query, ordered);
-    const hits: Hit[] = [...found];
-    hits.sort((left, right) => distanceOf(left.file) - distanceOf(right.file) || byCodeUnit(left.file, right.file) || left.line - right.line);
+    const { query, area, hits, errors, distanceOf } = grepped(input, invocation);
 
     const header = [areaLine(area)];
     const unread =
@@ -127,4 +102,46 @@ export const grep: Tool<unknown> = {
     if (hits.length > limit) lines.push('', `${hits.length - limit} more not shown; a higher \`limit\` shows them.`);
     return lines.join('\n');
   },
+
+  files: (_help, input, invocation): FileSet => {
+    const { hits, errors } = grepped(input, invocation);
+    const files = new Map<string, number[]>();
+    for (const hit of hits) {
+      const lines = files.get(hit.file);
+      if (lines === undefined) files.set(hit.file, [hit.line]);
+      else lines.push(hit.line);
+    }
+    return { files, ...(errors.length === 0 ? {} : { unread: errors.map((error) => `ripgrep: ${error}`) }) };
+  },
 };
+
+/** The lines `query` matches in the area a start point reaches, nearest first, or the refusal. */
+function grepped(input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<unknown> | undefined) {
+  const query = stringArg(input, 'query');
+  const from = startPointArg(input, 'from');
+  const to = startPointArg(input, 'to');
+  if (from === undefined && to === undefined) {
+    throw new Error(
+      `\`grep\` searches the files a start point reaches, and none was given. Pass \`--from\` or ` +
+        `\`--to\` with a path from the root. For the whole checkout, run \`rg ${JSON.stringify(query)}\`.`,
+    );
+  }
+
+  const area = areaOf(from, to, invocation?.tree);
+  if (area.refused !== undefined || invocation?.tree === undefined) {
+    throw new Error(
+      `\`grep\` ran nothing: ${area.refused ?? 'no source tree was read'}. Say a real path from the root — ` +
+        "`src/dispatch/read.ts` is that file, `src/dispatch/*` its folder's own files, `src/dispatch/` " +
+        'everything under it.',
+    );
+  }
+  const root = invocation.tree.root;
+
+  const distanceOf = (file: string): number => area.distance.get(file) ?? Number.POSITIVE_INFINITY;
+  const ordered = [...area.files].sort((left, right) => distanceOf(left) - distanceOf(right) || byCodeUnit(left, right));
+
+  const { hits: found, errors } = ripgrep(root, query, ordered);
+  const hits: Hit[] = [...found];
+  hits.sort((left, right) => distanceOf(left.file) - distanceOf(right.file) || byCodeUnit(left.file, right.file) || left.line - right.line);
+  return { query, area, hits, errors, distanceOf };
+}

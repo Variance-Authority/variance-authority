@@ -1,4 +1,4 @@
-import type { Tool } from '@variance-authority/mcp/tools';
+import type { FileSet, Tool } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Opening, Use } from '@variance-authority/package/help';
 import { how, ownerOf, sitesByPath } from './by-path.js';
@@ -182,39 +182,9 @@ export const uses: Tool<Help> = {
   },
 
   run(help, input, invocation) {
-    const name = stringArg(input, 'name');
-    const wanted = typeof input['package'] === 'string' && input['package'] !== '' ? input['package'] : undefined;
     const from = typeof input['from'] === 'string' && input['from'] !== '' ? input['from'] : undefined;
+    const { name, found, exported, sites, unread, within } = usesOf(help, input, invocation?.root);
 
-    const found = entriesNamed(help, name).filter(
-      ([published, held]) => wanted === undefined || isPackage(published, held, wanted),
-    );
-    // An import by path joins a published name only when the index says it
-    // resolved to the file that declares it; one no entry publishes is joined by name.
-    const declared = new Set(found.map(([, , entry]) => entry.at));
-    const byPath: Site[] = sitesByPath(help, name, wanted)
-      .filter((site) => found.length === 0 || (site.held.to !== undefined && declared.has(site.held.to)))
-      .map((site) => ({ ...site.taken, how: how(site) }));
-    const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
-    if (found.length === 0 && byPath.length === 0 && exported.length === 0) throw new Error(unfound(help, name, wanted));
-    // The Help value holds the imports that cross a package; the rest are read
-    // off the source index, out of the file that declares the name. The index
-    // follows each `export … from` that passes it on, so an import through a
-    // barrel is listed and the barrel is not, and a same-named export of
-    // another file is not this name.
-    // A published name is read from its entry file as well as its declaration:
-    // an entry that renames it, `export { greet as salute }`, passes on a name
-    // the declaring file never exports.
-    const local =
-      found.length === 0
-        ? [...new Set(exported.map((held) => held.at))]
-        : [...new Set(found.flatMap(([, opening, entry]) => [entry.at, opening.source]))];
-    const read = local.length === 0 ? undefined : importsOf(invocation?.root, local, name);
-    const unread = read !== undefined && 'unread' in read ? read.unread : undefined;
-    const within = read !== undefined && 'uses' in read ? read.uses.filter((use) => throughDoor(use, wanted)) : undefined;
-    if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
-
-    const sites = sitesOf(found, byPath, within ?? [], read);
     if (sites.length === 0 && exported.length > 0) {
       return `\`${name}\` is exported, without being published, at ${exportedAt(exported)}, and nothing in this workspace imports it; ${UNCOUNTED}.`;
     }
@@ -250,4 +220,52 @@ export const uses: Tool<Help> = {
       ...(within === undefined ? [] : [`\n${UNCOUNTED.charAt(0).toUpperCase()}${UNCOUNTED.slice(1)}.`]),
     ].join('\n');
   },
+
+  // Every file importing the name, at each line that does, read as `run` reads
+  // them; an index that did not read leaves the imports within the package unread.
+  files(help, input, invocation): FileSet {
+    const { sites, unread } = usesOf(help, input, invocation?.root);
+    const files = new Map<string, number[]>();
+    for (const site of sites) files.set(site.at, [...(files.get(site.at) ?? []), site.line].sort((left, right) => left - right));
+    return { files, ...(unread === undefined ? {} : { unread: [`imports within the package: ${unread}`] }) };
+  },
 };
+
+/**
+ * Every site of the name, and what was read to find them, or the refusal.
+ *
+ * The Help value holds the imports that cross a package; the rest are read
+ * off the source index, out of the file that declares the name. The index
+ * follows each `export … from` that passes it on, so an import through a
+ * barrel is listed and the barrel is not, and a same-named export of
+ * another file is not this name.
+ */
+function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: string | undefined) {
+  const name = stringArg(input, 'name');
+  const wanted = typeof input['package'] === 'string' && input['package'] !== '' ? input['package'] : undefined;
+
+  const found = entriesNamed(help, name).filter(
+    ([published, held]) => wanted === undefined || isPackage(published, held, wanted),
+  );
+  // An import by path joins a published name only when the index says it
+  // resolved to the file that declares it; one no entry publishes is joined by name.
+  const declared = new Set(found.map(([, , entry]) => entry.at));
+  const byPath: Site[] = sitesByPath(help, name, wanted)
+    .filter((site) => found.length === 0 || (site.held.to !== undefined && declared.has(site.held.to)))
+    .map((site) => ({ ...site.taken, how: how(site) }));
+  const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
+  if (found.length === 0 && byPath.length === 0 && exported.length === 0) throw new Error(unfound(help, name, wanted));
+  // A published name is read from its entry file as well as its declaration:
+  // an entry that renames it, `export { greet as salute }`, passes on a name
+  // the declaring file never exports.
+  const local =
+    found.length === 0
+      ? [...new Set(exported.map((held) => held.at))]
+      : [...new Set(found.flatMap(([, opening, entry]) => [entry.at, opening.source]))];
+  const read = local.length === 0 ? undefined : importsOf(root, local, name);
+  const unread = read !== undefined && 'unread' in read ? read.unread : undefined;
+  const within = read !== undefined && 'uses' in read ? read.uses.filter((use) => throughDoor(use, wanted)) : undefined;
+  if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
+
+  return { name, found, exported, sites: sitesOf(found, byPath, within ?? [], read), unread, within };
+}

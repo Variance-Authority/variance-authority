@@ -96,8 +96,13 @@ function over<Inner>(
   half: (bench: Bench) => Inner | undefined,
   absent: string | ((bench: Bench) => string),
 ): readonly Tool<Bench>[] {
+  // Not `files`: a file set is asked of a tool by another tool, over the inner
+  // subject both already hold, never by the server over the bench.
   return tools.map((tool) => ({
-    ...tool,
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+    ...(tool.wants === undefined ? {} : { wants: tool.wants }),
     run: (bench: Bench, input: Readonly<Record<string, unknown>>, invocation?): string => {
       const inner = half(bench);
       if (inner === undefined) throw new Error(typeof absent === 'string' ? absent : absent(bench));

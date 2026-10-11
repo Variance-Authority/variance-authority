@@ -1,6 +1,6 @@
 import { extname } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { SourceNames, Tool, Tree } from '@variance-authority/mcp/tools';
+import type { FileSet, SourceNames, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
 import { entryPoints, pathsOf, refusalFor, startPointArg } from '@variance-authority/mcp/tools';
 import { READABLE } from '@variance-authority/sense';
 import { ripgrep } from './ripgrep.js';
@@ -43,18 +43,27 @@ import { importsOf as importersOf } from './unpublished.js';
 /** Files shown when `limit` is not said; every one is counted. */
 const SHOWN = 50;
 
+/** Why a file is in a set: what it says, at the line that says it when there is one. */
+interface Evidence {
+  readonly line?: number;
+  readonly text: string;
+}
+
 /** One set, read whole, and how it says a file is in it. */
 interface Operand {
   readonly header: string;
   readonly files: ReadonlySet<string>;
   /** Import distance from or to its start point; reach operands only. */
   readonly distance?: ReadonlyMap<string, number>;
-  readonly evidence: (file: string) => readonly string[];
+  readonly evidence: (file: string) => readonly Evidence[];
+  /** What the set could not read, so a set short of files says so. */
+  readonly unread?: string;
 }
 
 const counted = (count: number): string => `${count} ${count === 1 ? 'file' : 'files'}`;
 const imports = (count: number): string => `${count} ${count === 1 ? 'import' : 'imports'}`;
-const none = (): readonly string[] => [];
+const none = (): readonly Evidence[] => [];
+const said = (unread: string | undefined): string => (unread === undefined ? '' : ` — ${unread}`);
 
 /**
  * The files a reader claims and the names do not hold: a file whose names the
@@ -62,10 +71,10 @@ const none = (): readonly string[] => [];
  * nothing, so a name operand says how many there are. A file no reader claims,
  * a README or a manifest, has no names to read and is not counted.
  */
-function unreadOf(tree: Tree, names: SourceNames): string {
+function unreadOf(tree: Tree, names: SourceNames): string | undefined {
   let unread = 0;
   for (const file of tree.files) if (READABLE.has(extname(file)) && !names.has(file)) unread += 1;
-  return unread === 0 ? '' : ` — the names of ${counted(unread)} were not read`;
+  return unread === 0 ? undefined : `the names of ${counted(unread)} were not read`;
 }
 
 /** `react/jsx-runtime` is `react`; `./store/selectors` is not `./store`. */
@@ -107,13 +116,14 @@ function reach(term: string, tree: Tree, along: boolean): Operand {
   const distance = along ? tree.distanceFrom(seeds.files) : tree.distanceTo(seeds.files);
   const files = new Set(distance.keys());
   const unresolved = tree.unknownAmong(files).length;
-  const holes = unresolved === 0 ? '' : ` — ${unresolved} of them import something the scan could not resolve`;
+  const holes = unresolved === 0 ? undefined : `${unresolved} of them import something the scan could not resolve`;
   const way = along ? 'from' : 'to';
   return {
-    header: `${counted(files.size)} ${along ? 'reached from' : 'reaching'} \`${term}\`${holes}`,
+    header: `${counted(files.size)} ${along ? 'reached from' : 'reaching'} \`${term}\`${said(holes)}`,
     files,
     distance,
-    evidence: (file) => [`${imports(distance.get(file) ?? 0)} ${way} ${term}`],
+    evidence: (file) => [{ text: `${imports(distance.get(file) ?? 0)} ${way} ${term}` }],
+    ...(holes === undefined ? {} : { unread: holes }),
   };
 }
 
@@ -126,17 +136,17 @@ function reach(term: string, tree: Tree, along: boolean): Operand {
  * followed, so an import through a barrel counts. Anything else — a package, a
  * specifier as written, a file with no name — is matched in the names.
  */
-function importsOf(said: string, tree: Tree, names: () => SourceNames, root: string | undefined): Operand {
-  const at = said.lastIndexOf('#');
-  const spec = at > 0 ? said.slice(0, at) : said;
-  const name = at > 0 ? said.slice(at + 1) : undefined;
+function importsOf(written: string, tree: Tree, names: () => SourceNames, root: string | undefined): Operand {
+  const at = written.lastIndexOf('#');
+  const spec = at > 0 ? written.slice(0, at) : written;
+  const name = at > 0 ? written.slice(at + 1) : undefined;
   if (name === '') {
-    throw new Error(`\`${said}\` has nothing after \`#\`. Say \`${spec}#name\`, or \`${spec}\` for every import of it.`);
+    throw new Error(`\`${written}\` has nothing after \`#\`. Say \`${spec}#name\`, or \`${spec}\` for every import of it.`);
   }
   if (name !== undefined && tree.files.has(spec)) return importersOfFile(spec, name, root);
   const held = names();
   const files = new Set<string>();
-  const lines = new Map<string, string[]>();
+  const lines = new Map<string, Evidence[]>();
   for (const [file, read] of held) {
     for (const entry of read.imported) {
       const module = entry.from === spec || (isBare(spec) && entry.from.startsWith(`${spec}/`)) || entry.to === spec;
@@ -146,14 +156,16 @@ function importsOf(said: string, tree: Tree, names: () => SourceNames, root: str
       const as = entry.local === undefined ? '' : ` as ${entry.local}`;
       const through = entry.through === undefined ? '' : ` through ${entry.through}`;
       const list = lines.get(file) ?? [];
-      list.push(`${file}:${entry.line}  imports ${what}from ${entry.from}${as}${through}`);
+      list.push({ line: entry.line, text: `imports ${what}from ${entry.from}${as}${through}` });
       lines.set(file, list);
     }
   }
+  const unread = unreadOf(tree, held);
   return {
-    header: `${counted(files.size)} importing ${name === undefined ? '' : `\`${name}\` from `}\`${spec}\`${unreadOf(tree, held)}`,
+    header: `${counted(files.size)} importing ${name === undefined ? '' : `\`${name}\` from `}\`${spec}\`${said(unread)}`,
     files,
     evidence: (file) => lines.get(file) ?? [],
+    ...(unread === undefined ? {} : { unread }),
   };
 }
 
@@ -164,12 +176,12 @@ function importersOfFile(file: string, name: string, root: string | undefined): 
     throw new Error(`\`discover\` ran nothing: who imports \`${name}\` from \`${file}\` is read from the source index, and ${read.unread}.`);
   }
   const files = new Set<string>();
-  const lines = new Map<string, string[]>();
+  const lines = new Map<string, Evidence[]>();
   for (const use of read.uses) {
     files.add(use.at);
     const through = use.through === undefined ? '' : use.through.kind === 'dynamic' ? ' through import()' : ' through a namespace';
     const list = lines.get(use.at) ?? [];
-    list.push(`${use.at}:${use.line}  imports ${use.name} from ${use.specifier}${through}`);
+    list.push({ line: use.line, text: `imports ${use.name} from ${use.specifier}${through}` });
     lines.set(use.at, list);
   }
   const passed = read.through.length === 0 ? '' : `, through ${counted(read.through.length)} that ${read.through.length === 1 ? 'passes' : 'pass'} it on`;
@@ -183,17 +195,19 @@ function importersOfFile(file: string, name: string, root: string | undefined): 
 function declaresOf(pattern: string, tree: Tree, names: SourceNames): Operand {
   const matches = regexOf('declares', pattern, 'i');
   const files = new Set<string>();
-  const lines = new Map<string, string[]>();
+  const lines = new Map<string, Evidence[]>();
   for (const [file, held] of names) {
     const declared = held.declared.filter((entry) => matches.test(entry.name));
     if (declared.length === 0) continue;
     files.add(file);
-    lines.set(file, declared.map((entry) => `${file}:${entry.line}  declares ${entry.name}`));
+    lines.set(file, declared.map((entry) => ({ line: entry.line, text: `declares ${entry.name}` })));
   }
+  const unread = unreadOf(tree, names);
   return {
-    header: `${counted(files.size)} declaring a name matching /${pattern}/i${unreadOf(tree, names)}`,
+    header: `${counted(files.size)} declaring a name matching /${pattern}/i${said(unread)}`,
     files,
     evidence: (file) => lines.get(file) ?? [],
+    ...(unread === undefined ? {} : { unread }),
   };
 }
 
@@ -218,7 +232,7 @@ function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names:
     const operands: Operand[] = [];
     for (const term of listArg(input, key('from'))) operands.push(reach(term, tree, true));
     for (const term of listArg(input, key('to'))) operands.push(reach(term, tree, false));
-    for (const said of listArg(input, key('imports'))) operands.push(importsOf(said, tree, named, root));
+    for (const written of listArg(input, key('imports'))) operands.push(importsOf(written, tree, named, root));
     const declares = textArg(input, key('declares'));
     if (declares !== undefined) operands.push(declaresOf(declares, tree, named()));
     const path = textArg(input, key('path'));
@@ -273,61 +287,82 @@ export const discover: Tool<unknown> = {
   wants: () => true,
 
   run: (_subject, input, invocation) => {
-    const text = textArg(input, 'text');
-    const tree = invocation?.tree;
-    if (tree === undefined) {
-      throw new Error('`discover` ran nothing: no source tree was read. Ask from a checkout of the workspace.');
-    }
-    const { kept, out } = operandsOf(input, tree, invocation?.names, invocation?.root);
-    if (kept.length === 0) {
-      throw new Error(
-        text === undefined
-          ? '`discover` needs at least one set to cross: `from`, `to`, `imports`, `declares` or `path`.'
-          : `\`text\` searches inside the files the other sets kept, and none was given. For the whole checkout, run \`rg ${JSON.stringify(text)}\`.`,
-      );
-    }
-
-    // Smallest first, so each step tests the fewest files.
-    const [first, ...rest] = [...kept].sort((left, right) => left.files.size - right.files.size);
-    let answer = [...first!.files].filter((file) => rest.every((operand) => operand.files.has(file)));
-    answer = answer.filter((file) => !out.some((operand) => operand.files.has(file)));
-
-    const reaches = kept.filter((operand) => operand.distance !== undefined);
-    // Once per file, not per comparison: the answer is read whole and can be most of the checkout.
-    const distance = new Map<string, number>();
-    for (const file of answer) {
-      let nearest = Number.POSITIVE_INFINITY;
-      for (const operand of reaches) nearest = Math.min(nearest, operand.distance!.get(file) ?? Number.POSITIVE_INFINITY);
-      distance.set(file, nearest);
-    }
-    answer.sort((left, right) => distance.get(left)! - distance.get(right)! || codeUnitOrder(left, right));
-
-    const header = [...kept.map((operand) => operand.header), ...out.map((operand) => `${operand.header}, taken out`)];
-
-    const matched = new Map<string, string[]>();
-    if (text !== undefined && answer.length > 0) {
-      const { hits, errors } = ripgrep(tree.root, text, answer);
-      for (const hit of [...hits].sort((left, right) => left.line - right.line)) {
-        const list = matched.get(hit.file) ?? [];
-        list.push(`${hit.file}:${hit.line}  ${hit.text}`);
-        matched.set(hit.file, list);
-      }
-      header.push(`\`${text}\` matches a line in ${matched.size} of the ${answer.length === 1 ? 'one file' : counted(answer.length)} the other sets kept`);
-      if (errors.length > 0) header.push(`ripgrep reported ${errors.length} ${errors.length === 1 ? 'error' : 'errors'}; the first: ${errors[0]}`);
-      answer = answer.filter((file) => matched.has(file));
-    }
-
+    const { kept, header, answer, matched, reaches } = answered(input, invocation);
     if (answer.length === 0) return [...header, '', 'No file is in all of them.'].join('\n');
 
+    const shown = (file: string, evidence: Evidence): string => `  ${evidence.line === undefined ? '' : `${file}:${evidence.line}  `}${evidence.text}`;
     const limit = limitArg(input);
-    const order = reaches.length === 0 ? '.' : ', nearest first.';
+    const order = reaches === 0 ? '.' : ', nearest first.';
     const lines = [...header, '', `${counted(answer.length)} in all of them${order}`];
     for (const file of answer.slice(0, limit)) {
       lines.push('', file);
-      for (const operand of kept) for (const line of operand.evidence(file)) lines.push(`  ${line}`);
-      for (const line of matched.get(file) ?? []) lines.push(`  ${line}`);
+      for (const operand of kept) for (const evidence of operand.evidence(file)) lines.push(shown(file, evidence));
+      for (const evidence of matched.get(file) ?? []) lines.push(shown(file, evidence));
     }
     if (answer.length > limit) lines.push('', `${answer.length - limit} more not shown; a higher \`limit\` shows them.`);
     return lines.join('\n');
   },
+
+  // Every file in all of the sets, at each line that put it in one; what any
+  // set could not read is said, so a crossing short of files is not complete.
+  files: (_subject, input, invocation): FileSet => {
+    const { kept, answer, matched, unread } = answered(input, invocation);
+    const files = new Map<string, readonly number[]>();
+    for (const file of answer) {
+      const evidence = [...kept.flatMap((operand) => operand.evidence(file)), ...(matched.get(file) ?? [])];
+      const lines = [...new Set(evidence.flatMap((one) => (one.line === undefined ? [] : [one.line])))];
+      files.set(file, lines.sort((left, right) => left - right));
+    }
+    return { files, ...(unread.length === 0 ? {} : { unread }) };
+  },
 };
+
+/** The files in every kept set and in no set taken out, nearest first, or the refusal. */
+function answered(input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<unknown> | undefined) {
+  const text = textArg(input, 'text');
+  const tree = invocation?.tree;
+  if (tree === undefined) {
+    throw new Error('`discover` ran nothing: no source tree was read. Ask from a checkout of the workspace.');
+  }
+  const { kept, out } = operandsOf(input, tree, invocation?.names, invocation?.root);
+  if (kept.length === 0) {
+    throw new Error(
+      text === undefined
+        ? '`discover` needs at least one set to cross: `from`, `to`, `imports`, `declares` or `path`.'
+        : `\`text\` searches inside the files the other sets kept, and none was given. For the whole checkout, run \`rg ${JSON.stringify(text)}\`.`,
+    );
+  }
+
+  // Smallest first, so each step tests the fewest files.
+  const [first, ...rest] = [...kept].sort((left, right) => left.files.size - right.files.size);
+  let answer = [...first!.files].filter((file) => rest.every((operand) => operand.files.has(file)));
+  answer = answer.filter((file) => !out.some((operand) => operand.files.has(file)));
+
+  const reaches = kept.filter((operand) => operand.distance !== undefined);
+  // Once per file, not per comparison: the answer is read whole and can be most of the checkout.
+  const distance = new Map<string, number>();
+  for (const file of answer) {
+    let nearest = Number.POSITIVE_INFINITY;
+    for (const operand of reaches) nearest = Math.min(nearest, operand.distance!.get(file) ?? Number.POSITIVE_INFINITY);
+    distance.set(file, nearest);
+  }
+  answer.sort((left, right) => distance.get(left)! - distance.get(right)! || codeUnitOrder(left, right));
+
+  const header = [...kept.map((operand) => operand.header), ...out.map((operand) => `${operand.header}, taken out`)];
+  const unread = [...kept, ...out].flatMap((operand) => (operand.unread === undefined ? [] : [operand.unread]));
+
+  const matched = new Map<string, Evidence[]>();
+  if (text !== undefined && answer.length > 0) {
+    const { hits, errors } = ripgrep(tree.root, text, answer);
+    for (const hit of [...hits].sort((left, right) => left.line - right.line)) {
+      const list = matched.get(hit.file) ?? [];
+      list.push({ line: hit.line, text: hit.text });
+      matched.set(hit.file, list);
+    }
+    header.push(`\`${text}\` matches a line in ${matched.size} of the ${answer.length === 1 ? 'one file' : counted(answer.length)} the other sets kept`);
+    if (errors.length > 0) header.push(`ripgrep reported ${errors.length} ${errors.length === 1 ? 'error' : 'errors'}; the first: ${errors[0]}`);
+    unread.push(...errors.map((error) => `ripgrep: ${error}`));
+    answer = answer.filter((file) => matched.has(file));
+  }
+  return { kept, header, answer, matched, reaches: reaches.length, unread };
+}
