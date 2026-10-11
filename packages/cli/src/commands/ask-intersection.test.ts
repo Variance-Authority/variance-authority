@@ -79,6 +79,18 @@ describe('ask intersection over a checkout', () => {
     expect(text).toContain('src/Wallet.ts — 1: lines 1, 2 · 2: the file');
   });
 
+  it('reaches along a taint table while another question reads the names', async () => {
+    const taintFile = join(root, 'loaders.json');
+    writeFileSync(taintFile, JSON.stringify({ 'src/Wallet.ts': { '+': ['./old/selectors'] } }));
+    const text = await askSource({
+      question: 'intersection',
+      reports: ["discover --declares '^selectBalance$'", 'discover --from src/Wallet.ts'],
+      taintFile,
+    });
+    expect(text).toContain('2 files in all of them.');
+    expect(text).toContain('src/old/selectors.ts — 1: line 1 · 2: the file');
+  });
+
   it('takes `--limit` for itself', async () => {
     const text = await askSource({ question: 'intersection', reports: ['discover --path ^src/', 'discover --path selectors'], limit: 1 });
     expect(text).toContain('2 files in all of them.');

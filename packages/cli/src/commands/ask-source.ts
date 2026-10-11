@@ -94,17 +94,18 @@ export async function discoverSource(root: string, input: Readonly<Record<string
  * `intersection` asks each of its questions over one reading: the workspace
  * value the name questions read, the tree when any question names a path, and
  * each file's names when a `discover` among them reads names — which only the
- * scan that draws the tree holds, so the tree is drawn there instead.
+ * scan that draws a tree holds. The tree the questions reach along is still
+ * the workspace's, because only that one joins a taint table's edges.
  */
 export async function intersectionSource(
   root: string,
   input: Readonly<Record<string, unknown>>,
   reading: SourceReadOptions,
 ): Promise<Answering> {
-  const named = namesWanted(input);
-  const sourced = await readSource(root, { ...reading, tree: reading.tree === true && !named });
+  const sourced = await readSource(root, reading);
   const tree = sourced.tree?.();
-  const drawn = named ? await readNamedTree(root, input) : tree === undefined ? {} : { tree };
+  const names = namesWanted(input) ? (await readNamedTree(root, input)).names : undefined;
+  const drawn = { ...(tree === undefined ? {} : { tree }), ...(names === undefined ? {} : { names }) };
   return {
     answer: () => intersection.run(sourced.help, input, { ...drawn, root }),
     at: workspaceGeneration(sourced.help),
