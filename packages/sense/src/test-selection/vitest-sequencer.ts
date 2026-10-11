@@ -53,6 +53,8 @@ export interface SequencerContext {
     readonly sequence?: { readonly shuffle?: unknown; seed?: number };
   };
   readonly state?: { readonly getPaths?: () => readonly string[] };
+  /** Vitest's logger, which {@link seedInBanner} marks once its banner names the seed. */
+  readonly logger?: object;
   /** The command line as Vitest 3 and 4 parsed it, before it was merged over the configuration file. */
   readonly _cliOptions?: { readonly sequence?: { readonly shuffle?: unknown } };
 }
@@ -125,6 +127,7 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
   let timed: Promise<SuiteTimes> | undefined;
   let said = false;
   let placed = false;
+  let seeded = false;
 
   class Selecting implements Sequencer {
     static readonly [SELECTING] = true;
@@ -141,10 +144,21 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
       return ctx.config.sequence.seed ??= Date.now();
     }
 
+    /**
+     * A banner {@link seedInBanner} never reached has printed without the seed
+     * by the time a sequencer is made: a reporter named on the command line
+     * replaces the seam's, and Vitest before 3.1 hands a plugin no other way to
+     * it. The run is seeded all the same, and the seed is named on stderr, with
+     * what the selection said, so the run can be reproduced.
+     */
     constructor(ctx: SequencerContext) {
       this.#ctx = ctx;
       options.sharded?.(shardAsked(ctx.config.shard) !== undefined);
-      Selecting[SEED](ctx);
+      const seed = Selecting[SEED](ctx);
+      const banner = (ctx.logger as { [BANNER]?: true } | undefined)?.[BANNER] === true;
+      if (seed === undefined || banner || seeded) return;
+      say(`variance-authority: running tests with seed "${seed}"; --sequence.seed=${seed} runs them in this order again`);
+      seeded = true;
     }
 
     async shard<T extends Spec>(files: T[]): Promise<T[]> {

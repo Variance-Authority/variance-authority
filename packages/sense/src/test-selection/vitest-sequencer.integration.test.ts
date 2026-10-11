@@ -19,9 +19,14 @@ afterEach(async () => {
 
 /** The files a run passed, in the order they started; one at a time, so that order is the sequencer's. */
 async function started(config: string, ...flags: string[]): Promise<string[]> {
+  return startedWith({}, config, ...flags);
+}
+
+/** {@link started}, with `env` over the fixture's. */
+async function startedWith(env: Record<string, string>, config: string, ...flags: string[]): Promise<string[]> {
   const directory = await scratch();
   const report = resolve(directory, 'report.json');
-  await run(directory, config, '--reporter=json', `--outputFile=${report}`, ...flags);
+  await output(directory, env, config, '--reporter=json', `--outputFile=${report}`, ...flags);
   const { testResults } = JSON.parse(await readFile(report, 'utf8')) as Report;
   expect(testResults.map((file) => file.status)).toEqual(testResults.map(() => 'passed'));
   return testResults.toSorted((a, b) => a.startTime - b.startTime).map((file) => basename(file.name));
@@ -29,12 +34,17 @@ async function started(config: string, ...flags: string[]): Promise<string[]> {
 
 /** What a run wrote to stdout, one file at a time, under the reporters `flags` leave it, as a terminal shows it: Vitest colours it wherever `CI` or `FORCE_COLOR` is set. */
 async function run(directory: string, config: string, ...flags: string[]): Promise<string> {
-  const { stdout } = await execute(
+  return (await output(directory, {}, config, ...flags)).stdout;
+}
+
+/** What a run wrote to stdout and to stderr, as {@link run} reads them, with `env` over the fixture's. */
+async function output(directory: string, env: Record<string, string>, config: string, ...flags: string[]): Promise<{ stdout: string; stderr: string }> {
+  const { stdout, stderr } = await execute(
     process.execPath,
     [vitest, 'run', '--config', resolve(fixture, config), '--no-file-parallelism', ...flags],
-    { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: resolve(directory, 'coverage.bin'), VARIANCE_AUTHORITY_CACHE: directory } },
+    { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: resolve(directory, 'coverage.bin'), VARIANCE_AUTHORITY_CACHE: directory, ...env } },
   );
-  return stripVTControlCharacters(stdout);
+  return { stdout: stripVTControlCharacters(stdout), stderr: stripVTControlCharacters(stderr) };
 }
 
 async function scratch(): Promise<string> {
@@ -67,6 +77,29 @@ describe('the selecting sequencer under `sequence.shuffle`', () => {
     const order = lines.flatMap((line) => /✓ test\/(\S+)/.exec(line)?.[1] ?? []);
 
     expect(await started('vitest.default.config.ts', '--sequence.shuffle', `--sequence.seed=${seed}`)).toEqual(order);
+  }, 60_000);
+
+  // A reporter named on the command line replaces the configured ones, the
+  // seam's among them, and Vitest 2 and 3.0 hand a plugin no other way to its
+  // banner. The run is still seeded, and the seed is named on stderr, where the
+  // seam names what it selected.
+  it('names the seed it shuffled with under a reporter named on the command line, and that seed runs the files in the same order', async () => {
+    const { stdout, stderr } = await output(await scratch(), {}, 'vitest.default.config.ts', '--sequence.shuffle', '--reporter=default');
+    const seed = /seed "(\d+)"/.exec(`${stdout}\n${stderr}`)?.[1];
+    expect(seed).toBeDefined();
+    const order = stdout.split('\n').flatMap((line) => /✓ test\/(\S+)/.exec(line)?.[1] ?? []);
+
+    expect(await started('vitest.default.config.ts', '--sequence.shuffle', `--sequence.seed=${seed}`)).toEqual(order);
+  }, 60_000);
+
+  // Selection removes files before Vitest orders them, so a shuffled selected
+  // run is the run Vitest gives the files it kept, with the same seed.
+  it.each([1, 2, 3])('runs the files a selection keeps in the order Vitest gives those files alone with seed %i', async (seed) => {
+    const flags = ['--sequence.shuffle', `--sequence.seed=${seed}`];
+    const own = await started('vitest.plain.config.ts', ...flags, 'test/alpha', 'test/beta', 'test/delta');
+    expect(own.toSorted()).toEqual(['alpha.case.ts', 'beta.case.ts', 'delta.case.ts']);
+
+    expect(await startedWith({ FIXTURE_SKIP: JSON.stringify(['packages/sense/test/fixtures/external-vitest/test/gamma.case.ts']) }, 'vitest.default.config.ts', ...flags)).toEqual(own);
   }, 60_000);
 
   // A reporter that prints no banner prints no seed, as Vitest's own do: the

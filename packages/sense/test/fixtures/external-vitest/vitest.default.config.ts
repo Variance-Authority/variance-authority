@@ -7,6 +7,9 @@ import { defineConfig } from 'vitest/config';
 const root = fileURLToPath(new URL('.', import.meta.url));
 const coverageFile = process.env['VARIANCE_AUTHORITY_COVERAGE'];
 if (coverageFile === undefined) throw new Error('VARIANCE_AUTHORITY_COVERAGE is required');
+// A selection handed in by the test that runs this fixture: the files to skip,
+// as JSON. Absent, nothing is handed in and every file runs.
+const skip = process.env['FIXTURE_SKIP'];
 
 export default withTestSelection(
   defineConfig({
@@ -17,5 +20,10 @@ export default withTestSelection(
       setupFiles: ['test/setup.ts'],
     },
   }),
-  { coverageFile },
+  {
+    coverageFile,
+    ...(skip === undefined
+      ? {}
+      : { selection: async () => ({ whole: new Set<string>(JSON.parse(skip)), skip: new Set<string>(JSON.parse(skip)), notes: [] }) }),
+  },
 );
