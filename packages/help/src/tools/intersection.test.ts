@@ -203,6 +203,11 @@ describe('intersection refuses', () => {
 
   it('a name operand when no names were read', () => {
     expect(() => intersection.run(undefined, CONTEXTS, { tree })).toThrow('no names were read');
+    expect(() => intersection.run(undefined, { declares: 'Theme' }, { tree, root })).toThrow('no names were read');
+  });
+
+  it('a name out of a file for want of a source index, not of names, which it does not read', () => {
+    expect(() => intersection.run(undefined, { imports: 'src/store/selectors.ts#selectBalance' }, { tree, root })).toThrow('no source index is published');
   });
 
   it('a name out of a file when no source index holds who imports it', () => {

@@ -281,10 +281,12 @@ variance ask intersection --from src/Wallet.tsx --declares '^selectBalance$'
 ```
 
 The answer counts each set first, then lists the files in all of them, nearest
-the `--from` or `--to` paths first, each with the line that put it in every
-set. It shows 50; `--limit` shows more, and the count is always of all of them.
-A file whose names the scan did not hand over is counted in the `--imports` and
-`--declares` headers, since it is unknown rather than a file with no names.
+the `--from` or `--to` paths first, each with the line that put it in each
+set; `--path` puts it in by its name, with no line. It shows 50; `--limit`
+shows more, and the count is always of all of them. A source file whose names
+the scan did not hand over is counted in the `--imports` and `--declares`
+headers, since it is unknown rather than a file with no names; a README or a
+manifest has none to read.
 Over MCP, `docs_intersection` answers `from`, `to`, `path` and `--imports` of a
 name out of a repo-relative file, and refuses `declares` and any other
 `imports`: the reading an MCP host serves holds no names.
