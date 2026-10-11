@@ -12,11 +12,15 @@ import { main } from '../bin.js';
  * all four across the package boundary.
  */
 
-let committed: (message: string) => void = () => {};
+/** `git` with `args` in the working directory, which `checkout` makes the checkout. */
+function git(args: readonly string[]): void {
+  execFileSync('git', args, { stdio: 'pipe' });
+}
 
 /** Commit everything in the checkout `checkout` made last. */
 export function commit(message: string): void {
-  committed(message);
+  git(['add', '-A']);
+  git(['commit', '--quiet', '-m', message]);
 }
 
 /** The paragraph of `text` that opens with `heading`. */
@@ -78,18 +82,11 @@ export function checkout(more: Readonly<Record<string, string>> = {}): string {
     const dir = /^packages\/([^/]+)\/package\.json$/u.exec(path)?.[1];
     if (dir !== undefined) symlinkSync(`../../packages/${dir}`, join(root, `node_modules/@acme/${dir}`));
   }
-  const git = (args: readonly string[]): void => {
-    execFileSync('git', args, { cwd: root, stdio: 'pipe' });
-  };
-  committed = (message) => {
-    git(['add', '-A']);
-    git(['commit', '--quiet', '-m', message]);
-  };
+  process.chdir(root);
   git(['init', '--quiet', '--initial-branch', 'main']);
   git(['config', 'user.email', 'fixture@example.test']);
   git(['config', 'user.name', 'Fixture']);
   commit('the checkout');
-  process.chdir(root);
   return root;
 }
 
