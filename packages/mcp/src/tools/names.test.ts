@@ -76,6 +76,8 @@ describe('readTree draws the names with the tree when asked', () => {
     write('package.json', '{"name":"names-fixture","private":true}\n');
     write('src/entry.ts', "import { ThemeContext } from './theme';\nexport const read = ThemeContext;\n");
     write('src/theme.ts', "import { createContext } from 'react';\nexport const ThemeContext = createContext(0);\n");
+    write('src/passed.ts', "import { ThemeContext } from './theme';\nexport default ThemeContext;\nexport { ThemeContext as Renamed };\n");
+    write('src/made.ts', 'export default function make() {}\n');
   });
 
   afterAll(() => rmSync(root, { recursive: true, force: true }));
@@ -87,5 +89,12 @@ describe('readTree draws the names with the tree when asked', () => {
     expect(drawn?.get('src/theme.ts')?.declared).toEqual([{ name: 'ThemeContext', line: 2 }]);
     expect(drawn?.get('src/theme.ts')?.imported).toContainEqual(expect.objectContaining({ from: 'react', name: 'createContext', line: 1 }));
     expect(drawn?.get('src/entry.ts')?.imported).toContainEqual(expect.objectContaining({ from: './theme', to: 'src/theme.ts', name: 'ThemeContext' }));
+  });
+
+  it('declares no export of an imported name, and a default declaration once, under its own name', async () => {
+    let drawn: SourceNames | undefined;
+    await readTree({ root, names: (names) => { drawn = names; } });
+    expect(drawn?.get('src/passed.ts')?.declared).toEqual([]);
+    expect(drawn?.get('src/made.ts')?.declared).toEqual([{ name: 'make', line: 1 }]);
   });
 });
