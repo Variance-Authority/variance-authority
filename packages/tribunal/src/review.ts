@@ -36,6 +36,7 @@ import type {
 } from './review-types.js';
 import { have as heldObjects } from './objects.js';
 import { promote } from './review-write.js';
+import { refuseMoved, standingStatement, standingVersions } from './review-baseline.js';
 import type { TribunalChangelog } from './changelog.js';
 import { createBucketStore } from './store.js';
 
@@ -103,7 +104,7 @@ export type {
   SubjectView,
 } from './review-types.js';
 export type { SweepReport } from './review-sweep.js';
-export { ReviewError } from './review-rows.js';
+export { BaselineMoved, ReviewError } from './review-rows.js';
 export { createConcernStore, type ConcernStore } from './concerns.js';
 export type {
   Concern,
@@ -249,6 +250,9 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
               ORDER BY at_ms DESC, rowid DESC LIMIT 1`,
           )
           .bind(project, project, id),
+        // The baseline an approval of each subject would replace, so the page
+        // can hand back the one it showed. See `review-baseline.ts`.
+        standing: standingStatement(db, project, id),
       };
 
       const names = Object.keys(reads) as (keyof typeof reads)[];
@@ -268,14 +272,14 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
       const previous = rows('previous')[0];
       const composition = rows('composition');
 
+      const versionOf = standingVersions(rows('standing'), summary.identity);
       const repeats = repeatsFrom(rows('repeats'));
       const subjects = rows('subjects').map((row) => {
         const subject = text(row, 'subject', 'a build subject');
-        return toSubjectView(
-          row,
-          decisions.get(subject) ?? null,
-          repeats.get(subject) ?? UNREPEATED,
-        );
+        return {
+          ...toSubjectView(row, decisions.get(subject) ?? null, repeats.get(subject) ?? UNREPEATED),
+          ...versionOf(row),
+        };
       });
       const variations = rows('variations').map(toVariation);
 
@@ -343,6 +347,11 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
           `build "${input.build}" has no subject "${input.subject}". Deciding about a subject a ` +
             'build never reported would record an approval nothing can be promoted for',
         );
+      }
+
+      // A rejection promotes nothing, so no newer baseline can be lost to it.
+      if (input.baselineVersion !== undefined && input.decision === 'approved') {
+        await refuseMoved(baselines, db, project, input.build, row, input.baselineVersion);
       }
 
       const at = now().toISOString();
