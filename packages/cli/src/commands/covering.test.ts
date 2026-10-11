@@ -104,30 +104,17 @@ describe('asking which tests entered a line', () => {
       .rejects.toThrow(/no readable per-case execution index/);
   });
 
-  it('points at the recorded spelling when the path is rooted differently', async () => {
-    const execution = await indexFile();
+  it.each(['/abs/src/total.ts', 'lib/total.ts', 'total.ts'])(
+    'refuses `%s`, a path the record does not hold, and names no other path',
+    async (file) => {
+      const execution = await indexFile();
 
-    await expect(covering(parse(['--file', '/abs/src/total.ts', '--execution', execution])))
-      .rejects.toThrow(/record spells it `src\/total\.ts`/);
-  });
+      const asked = covering(parse(['--file', file, '--execution', execution]));
 
-  it('names a recorded file that only shares the name as that, not as a spelling of the asked one', async () => {
-    const execution = await indexFile();
-
-    const asked = covering(parse(['--file', 'lib/total.ts', '--execution', execution]));
-
-    await expect(asked).rejects.toThrow(/`src\/total\.ts` only shares its name\.$/);
-    await expect(asked).rejects.not.toThrow(/record spells it/);
-  });
-
-  it('answers a bare file name with the recorded files of that name, without calling them another file', async () => {
-    const execution = await indexFile();
-
-    const asked = covering(parse(['--file', 'total.ts', '--execution', execution]));
-
-    await expect(asked).rejects.toThrow(/The record holds `src\/total\.ts` by that name\.$/);
-    await expect(asked).rejects.not.toThrow(/only shares its name/);
-  });
+      await expect(asked).rejects.toThrow(/a different statement from no test covering it\.$/);
+      await expect(asked).rejects.not.toThrow(/`src\/total\.ts`/);
+    },
+  );
 
   it('separates a line nothing recorded from a line nothing covered', async () => {
     const execution = await indexFile();

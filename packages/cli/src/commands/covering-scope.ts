@@ -18,7 +18,6 @@ import {
   type LastCaseRun,
 } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import { spelling } from './covering-unloaded.js';
 
 /** Which cases an answer was read from, when it was not the whole suite. */
 export interface CoveringScope {
@@ -103,5 +102,5 @@ function testFile(index: ExecutionIndex, given: string, root: string): string {
   if (files.has(given)) return given;
   const fromRoot = relative(root, resolve(given));
   if (files.has(fromRoot)) return fromRoot;
-  throw new OperatorError(`\`--cases ${given}\` names no test file the index holds a case of. ${spelling(given, files)}`);
+  throw new OperatorError(`\`--cases ${given}\` names no test file the index holds a case of.`);
 }
