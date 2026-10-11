@@ -2,7 +2,7 @@ import { dirname, join, resolve } from 'node:path';
 import type { RunReport } from '@variance-authority/report';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
-import { crossingOf, type Crossing } from '../ask-args.js';
+import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, questionFor, questionOf, refuseWords, type Question } from './asking.js';
@@ -11,6 +11,7 @@ import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
 import { readTree, type CostsSubject, type Reviewed, type ReviewTool, type Tree } from '@variance-authority/mcp/tools';
+import { flagged, type Flagged } from './ask-flagged.js';
 import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
 import { discoverSource, grepSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
@@ -152,15 +153,6 @@ export interface AskRequest extends Crossing {
   /** How the checkout is read. Injected so the source path is testable without a repository. */
   readonly source?: (root: string, options?: SourceReadOptions) => Promise<Sourced>;
 }
-
-/** The flags every question is spelled with, whichever subject answers it. */
-type Flagged = Crossing & Pick<
-  AskRequest,
-  | 'subject' | 'subjects' | 'component' | 'rule' | 'shape' | 'test' | 'state' | 'build' | 'file' | 'files' | 'area'
-  | 'name' | 'package' | 'subpath' | 'query'
-  | 'under' | 'above' | 'inside' | 'beside' | 'leftOf' | 'rightOf' | 'on'
-  | 'from' | 'to' | 'limit' | 'offset'
->;
 
 /**
  * What a question about the code takes: every flag `ask` accepts, and nothing
@@ -416,43 +408,4 @@ async function inputFrom(
     // its intent badly is told so once, in one wording.
     claims: request.claims === undefined ? undefined : await readClaims(request.claims),
   });
-}
-
-/**
- * The flags, and only the flags, off a request. Named one by one rather than
- * spread, because a request also carries what it is *about* — a report path, a
- * watcher address, a reader — and `inputFor` refuses every property it does
- * not recognise, which is the right rule for a flag and the wrong one for a
- * subject.
- */
-function flagged(request: Flagged): Readonly<Record<string, unknown>> {
-  return {
-    subject: request.subject,
-    subjects: request.subjects,
-    component: request.component,
-    rule: request.rule,
-    shape: request.shape,
-    test: request.test,
-    state: request.state,
-    build: request.build,
-    file: request.file,
-    files: request.files,
-    area: request.area,
-    name: request.name,
-    package: request.package,
-    subpath: request.subpath,
-    query: request.query,
-    under: request.under,
-    above: request.above,
-    inside: request.inside,
-    beside: request.beside,
-    leftOf: request.leftOf,
-    rightOf: request.rightOf,
-    on: request.on,
-    from: request.from,
-    to: request.to,
-    limit: request.limit,
-    offset: request.offset,
-    ...crossingOf(request),
-  };
 }
