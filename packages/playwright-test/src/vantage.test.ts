@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import type { TestInfo } from '@playwright/test';
 import type { TestState, Vantage, WatchedTestIdentity } from '@variance-authority/vantage';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { varianceDesk, varianceVantageFixtures } from './vantage.js';
 
 /**
@@ -78,6 +78,23 @@ describe('varianceVantageFixtures', () => {
       },
     ]);
     expect(said.closed).toEqual([{ test: 't-1', state: 'passed' }]);
+  });
+
+  it('names the file from the repository root when the runner starts in a package', async () => {
+    // An agent asks about the path the repository spells; the runner's own
+    // directory is where the suite was started, not a name space.
+    const root = process.cwd();
+    const spec = join(root, 'packages/playwright-test/specs/cart.spec.ts');
+    const started = vi.spyOn(process, 'cwd').mockReturnValue(join(root, 'packages/playwright-test'));
+    const { said, vantage } = watcher();
+
+    try {
+      await watched(vantage, info({ file: spec, titlePath: ['chromium', spec, 'the cart', 'adds an item'] }));
+    } finally {
+      started.mockRestore();
+    }
+
+    expect(said.opened[0]?.identity.file).toBe('packages/playwright-test/specs/cart.spec.ts');
   });
 
   it('leaves the project out when the suite never named one', async () => {

@@ -466,7 +466,9 @@ told it one run too late.
 | `variance_continue` | nothing; it lets a stopped test go on | you have finished looking at what one was holding still |
 
 `variance_run_signals` takes `state`, `file` and `limit`, and marks a running
-test with `▸` and a stopped one as `waiting`. `variance_test_signals` takes `test` — an id from the listing, a
+test with `▸` and a stopped one as `waiting`. `file` is one spec file, by its
+path from the checkout the server was started in or from `/`; a path outside
+that checkout is refused. `variance_test_signals` takes `test` — an id from the listing, a
 title, or enough of one to be unambiguous; where it is not unambiguous, the
 answer is the candidates and their ids. `variance_self` takes nothing.
 
@@ -681,6 +683,10 @@ Both return a function that detaches the server from its streams.
 the same streams, and returns the `address` to start a run with alongside the
 call that stops both. Its subject is a snapshot taken per request, which is why a
 subject that keeps changing fits a surface built for one that does not.
+Given `{ root }`, the checkout the run is in, a tool's `file` argument is read
+from it, so `./tests/x.spec.ts` and an absolute path name the file the listing
+spells; without one, `file` is compared as given. `variance-authority-mcp --watch`
+passes the checkout git finds from where it was started.
 
 ## Stability
 

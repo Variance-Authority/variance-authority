@@ -142,7 +142,8 @@ export interface ReportFileOptions {
    * travels. So the root arrives here, and where it does not, a question with a
    * start point in it is refused: answering it out of the paths the run
    * recorded would be answering a question about a tree from something that is
-   * not one.
+   * not one. A watcher reads a spec file a question names from here too, so a
+   * path an agent's editor spelled from `/` is the name a reporter gave.
    */
   readonly root?: string;
   /** Where the scan index is kept, so a second question does not re-parse the tree. */
@@ -290,6 +291,7 @@ export async function serveVantage(streams: ReportFileOptions = {}): Promise<Ser
     // only once a watcher is listening.
     served: { ...VANTAGE, tools: [...VANTAGE.tools, continuing(attached.observatory)] },
     subject: () => attached.observatory.snapshot(),
+    ...(streams.root === undefined ? {} : { root: streams.root }),
   });
 
   return {

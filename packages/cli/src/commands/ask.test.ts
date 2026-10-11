@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import type { VantageState } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
@@ -366,6 +366,25 @@ describe('a question about a suite that is still running', () => {
     const expected = vantageToolByName('variance_run_signals')!.run(RUNNING, {});
 
     expect(await ask(about('run-signals', { state: RUNNING }))).toBe(`${expected}\n`);
+  });
+
+  it('reads `--file` from the checkout it is asked in, as an editor copies the path', async () => {
+    const asked = await ask(about('run-signals', { state: RUNNING }, { file: join(process.cwd(), 'cart.spec.ts') }));
+
+    expect(asked).toContain('cart adds an item');
+  });
+
+  it('reads a relative `--file` from the directory it is asked in, as a shell does', async () => {
+    const root = process.cwd();
+    const inPackage: VantageState = { ...RUNNING, tests: RUNNING.tests.map((one) => ({ ...one, file: 'packages/cli/cart.spec.ts' })) };
+    const started = vi.spyOn(process, 'cwd').mockReturnValue(join(root, 'packages/cli'));
+
+    try {
+      const asked = await ask(about('run-signals', { state: inPackage }, { file: './cart.spec.ts' }));
+      expect(asked).toContain('cart adds an item');
+    } finally {
+      started.mockRestore();
+    }
   });
 
   it('reads the run without touching the report, which may not exist at all', async () => {
