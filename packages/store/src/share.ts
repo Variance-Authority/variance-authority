@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, rename, rmdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rmdir, stat, utimes, writeFile } from 'node:fs/promises';
 import { dirname, join, normalize, sep } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import {
@@ -37,6 +37,8 @@ class OutsideRoot extends Error {}
 const LOCK_WAIT_MS = 5_000;
 /** A lock older than this was left by a writer that died, and is taken over. */
 const LOCK_STALE_MS = 60_000;
+/** How often a holder marks its lock alive: often enough that a live lock never reaches {@link LOCK_STALE_MS}. */
+const LOCK_REFRESH_MS = LOCK_STALE_MS / 4;
 
 /**
  * A line as files: `<root>/<kind>/<name>/manifest.json`, the line's entries
@@ -51,7 +53,8 @@ const LOCK_STALE_MS = 60_000;
  * and the condition is held by a lock directory, because `mkdir` is the one
  * operation that is atomic on every filesystem an operator might point this at,
  * NFS included. A writer that dies holding it leaves a lock the next writer
- * takes over after a minute.
+ * takes over after a minute; a writer that lives keeps its lock fresh for as
+ * long as it writes (see {@link hold}).
  *
  * A line's directory keeps the case of its name, so on a volume that folds case
  * two lines can be one directory. That line is refused and read as absent, never
@@ -100,6 +103,7 @@ export function createDirectoryLineCell(root: string): LineCell {
     async store(line, write) {
       const dir = lineDir(line);
       const lock = join(dir, '.lock');
+      let lease: Lease | undefined;
       try {
         await mkdir(dir, { recursive: true });
         // After the mkdir, so it holds against a writer in any process: once the
@@ -116,10 +120,11 @@ export function createDirectoryLineCell(root: string): LineCell {
               'case-sensitive volume, or give the two branches names that differ by more than case',
           };
         }
-        if (!(await acquire(lock))) return 'conflict';
+        lease = await acquire(lock);
       } catch (error) {
         return missOf(dir, error);
       }
+      if (lease === undefined) return 'conflict';
       try {
         // The spelling was checked above and cannot change, so the manifest is read without asking again.
         const held = await read(dir);
@@ -129,12 +134,14 @@ export function createDirectoryLineCell(root: string): LineCell {
         // TODO: an entry or image no manifest names any more stays on disk, and a
         // branch's line outlives the branch; nothing here deletes.
         for (const [path, bytes] of write.blobs) await place(where(line, path), bytes);
+        // A writer that stalled past the stale limit may have lost the lock to one that took it for abandoned.
+        if (!(await lease.owns())) return 'conflict';
         await place(join(dir, 'manifest.json'), write.manifest);
         return 'written';
       } catch (error) {
         return missOf(dir, error);
       } finally {
-        await rmdir(lock).catch(() => undefined);
+        await lease.release();
       }
     },
   };
@@ -182,20 +189,121 @@ async function foldOf(root: string, line: ShareLine): Promise<Fold | undefined> 
   return undefined;
 }
 
-async function acquire(lock: string): Promise<boolean> {
+/** A line's lock, held. */
+interface Lease {
+  /** Whether the lock is still this writer's: no other writer can have taken it for dead yet. */
+  owns(): Promise<boolean>;
+  /** Stop keeping the lock fresh, and remove it if it is still this writer's. */
+  release(): Promise<void>;
+}
+
+/**
+ * Take a line's lock, waiting up to {@link LOCK_WAIT_MS} for a live holder, or
+ * answer `undefined` when the wait runs out.
+ *
+ * A pass that does not sleep has made progress: the lock was gone by the time
+ * its age was read, or a dead writer's lock was removed. Failing to read a
+ * lock's age, or to remove a dead writer's lock, throws, so the write answers
+ * what the file system said instead of waiting on a lock it cannot judge.
+ */
+async function acquire(lock: string): Promise<Lease | undefined> {
   const until = Date.now() + LOCK_WAIT_MS;
   for (;;) {
     try {
+      const made = Date.now();
       await mkdir(lock);
-      return true;
+      return hold(lock, made);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
     }
-    const since = await stat(lock).then((held) => Date.now() - held.mtimeMs, () => 0);
-    if (since > LOCK_STALE_MS) await rmdir(lock).catch(() => undefined);
-    else if (Date.now() > until) return false;
-    else await sleep(20);
+    const seen = await mtimeOf(lock);
+    if (seen === undefined || (Date.now() - seen > LOCK_STALE_MS && (await breakStale(lock, seen)))) continue;
+    if (Date.now() > until) return undefined;
+    await sleep(20);
   }
+}
+
+/**
+ * Remove a dead writer's lock whose time was `seen`, unless it was replaced
+ * since; `false` when another writer is removing it.
+ *
+ * Judging a lock's age and removing it are two calls, and between them another
+ * writer can remove the same dead lock and make its own. So the removal is
+ * claimed first, by a `mkdir` named for the time that was judged, and under the
+ * claim the lock is removed only if its time is still `seen`. A live holder's
+ * lock never has that time: its holder keeps it fresh (see {@link hold}), and
+ * the dead one was older than {@link LOCK_STALE_MS}.
+ *
+ * A writer that dies holding the claim leaves it behind; the claim is broken
+ * once it is as old as a dead lock.
+ */
+async function breakStale(lock: string, seen: number): Promise<boolean> {
+  const claim = `${lock}.${String(seen)}`;
+  try {
+    await mkdir(claim);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    const claimed = await mtimeOf(claim);
+    if (claimed !== undefined && Date.now() - claimed > LOCK_STALE_MS) await rmdir(claim).catch(() => undefined);
+    return false;
+  }
+  try {
+    if ((await mtimeOf(lock)) === seen) await rmdir(lock).catch(unlessMissing);
+    return true;
+  } finally {
+    await rmdir(claim).catch(() => undefined);
+  }
+}
+
+/**
+ * Keep a lock this writer made at `made` fresh until it is released.
+ *
+ * The holder stamps the lock's time every {@link LOCK_REFRESH_MS}, so a write
+ * that runs past {@link LOCK_STALE_MS} still looks alive to the next writer. Its
+ * own clock says whether the lock is still its own: while its last stamp is
+ * younger than the stale limit, less one refresh as margin for a file system
+ * that keeps whole seconds, no other writer can have taken the lock for dead.
+ * Once it is not, the holder stops stamping and leaves the lock alone, since it
+ * may already be another writer's.
+ */
+function hold(lock: string, made: number): Lease {
+  let stamped = made;
+  const owned = (): boolean => Date.now() - stamped < LOCK_STALE_MS - LOCK_REFRESH_MS;
+  let refreshed: Promise<unknown> = Promise.resolve();
+  const refresh = async (): Promise<void> => {
+    if (!owned()) return;
+    const now = Date.now();
+    await utimes(lock, now / 1000, now / 1000);
+    stamped = now;
+  };
+  // Chained, so no stamp overlaps another or a look at ownership; a stamp that fails leaves the next one to try.
+  const timer = setInterval(() => (refreshed = refreshed.then(refresh).catch(() => undefined)), LOCK_REFRESH_MS);
+  timer.unref();
+  const owns = async (): Promise<boolean> => {
+    await refreshed;
+    return owned();
+  };
+  return {
+    owns,
+    async release() {
+      clearInterval(timer);
+      if (await owns()) await rmdir(lock).catch(() => undefined);
+    },
+  };
+}
+
+/** A path's modification time, or `undefined` when nothing is there; any other failure throws. */
+async function mtimeOf(path: string): Promise<number | undefined> {
+  try {
+    return (await stat(path)).mtimeMs;
+  } catch (error) {
+    unlessMissing(error);
+    return undefined;
+  }
+}
+
+function unlessMissing(error: unknown): void {
+  if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
 }
 
 let placed = 0;
