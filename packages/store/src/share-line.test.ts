@@ -1,9 +1,26 @@
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, rmdir, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { findEntry, publishLine, readLine, type LineCell, type ShareEntry, type ShareLine } from '@variance-authority/core/share';
 import { createDirectoryLineCell } from './share.js';
+
+// A writer that finds the line's lock held sleeps before it looks again. While
+// a case gates the sleeps, each one waits to be woken instead of for its time.
+const sleeps = vi.hoisted(() => ({ gated: undefined as (() => void)[] | undefined }));
+vi.mock('node:timers/promises', async (original) => {
+  const real = await original<typeof import('node:timers/promises')>();
+  const setTimeout = (async (delay?: number, value?: unknown, options?: object) => {
+    const gated = sleeps.gated;
+    if (gated === undefined) return real.setTimeout(delay, value, options);
+    await new Promise<void>((wake) => gated.push(wake));
+    return value;
+  }) as typeof real.setTimeout;
+  return { ...real, setTimeout };
+});
+
+/** The real time a case waits for its writers to reach the lock. */
+const REAL_CAP_MS = 30_000;
 
 const MAIN = { kind: 'mainline', name: 'main' } as const;
 const ascii = (text: string): Uint8Array => Uint8Array.from(text, (char) => char.charCodeAt(0));
@@ -46,7 +63,34 @@ describe('createDirectoryLineCell', () => {
   it('keeps every suite when jobs publish at once', async () => {
     const cell = createDirectoryLineCell(root);
     const suites = ['a', 'b', 'c', 'd', 'e', 'f'];
-    await Promise.all(suites.map((suite) => publishLine(cell, MAIN, [entry(`suite-v1/${suite}`, suite)], { descends, image })));
+    // Every job finds the lock held and sleeps before any is let in, and each is
+    // woken only once the one before it has published. Left to scheduling, a job
+    // sometimes reads the lock's age just as another lets go and finds it gone.
+    const lock = join(root, 'mainline', 'main', '.lock');
+    await mkdir(lock, { recursive: true });
+    const gated: (() => void)[] = [];
+    sleeps.gated = gated;
+    try {
+      const pending = new Map<string, Promise<unknown>>();
+      const published = suites.map((suite) => {
+        const running = publishLine(cell, MAIN, [entry(`suite-v1/${suite}`, suite)], { descends, image });
+        pending.set(suite, running.finally(() => pending.delete(suite)));
+        return running;
+      });
+      const began = Date.now();
+      while (gated.length < suites.length && Date.now() - began < REAL_CAP_MS) {
+        await new Promise((wake) => setImmediate(wake));
+      }
+      expect(gated, 'every job should be waiting on the lock').toHaveLength(suites.length);
+      await rmdir(lock);
+      while (pending.size > 0) {
+        gated.shift()!();
+        await Promise.race(pending.values());
+      }
+      await Promise.all(published);
+    } finally {
+      sleeps.gated = undefined;
+    }
     const read = await readLine(cell, MAIN);
     if ('kind' in read) throw new Error(read.kind);
     expect(read.manifest.entries.map((held) => held.name)).toEqual(suites.map((suite) => `suite-v1/${suite}`));

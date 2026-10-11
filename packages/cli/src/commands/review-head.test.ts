@@ -20,7 +20,7 @@ describe('the commit a review read', () => {
     return { root, commit: git(root, ['rev-parse', 'HEAD']) };
   }
 
-  it('reads no CI run of its own under test, so a review a test makes reads the same commit on a push as on a pull request', async () => {
+  it('sees no CI run in a test worker, so a review a test makes reads the same commit on a push as on a pull request', async () => {
     const { root, commit } = await repository();
     process.chdir(root);
 

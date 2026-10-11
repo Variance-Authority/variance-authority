@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { variancePrecondition } from './precondition.js';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
+import { REAL_CAP_MS, untilPolling } from './__fixtures__/lock-turns.js';
 import { keepsCases } from './case-record.js';
 import { IndexLock, LOCK_POLL_MS, LOCK_WAIT_MS, withIndexLock } from './index-lock.js';
 import SelectionReporter from './jest-reporter.js';
@@ -24,14 +25,6 @@ const { encodeJournal } = journalFormat;
  */
 const POLL_BOUND = (4 * LOCK_WAIT_MS) / LOCK_POLL_MS;
 
-/**
- * The real time `pastTheWait` gives `work` that neither settles nor schedules
- * a poll, and the timeout of every test that calls it: generous, because a
- * loaded machine is slow and nothing here should fail for that, and below the
- * test's own timeout, so a hang fails with the helper's sentence rather than
- * vitest's.
- */
-const REAL_CAP_MS = 30_000;
 const PUMP_TEST_TIMEOUT_MS = 3 * REAL_CAP_MS;
 
 /**
@@ -130,10 +123,7 @@ describe('who may grow the index', () => {
       // run instead. The two are separate calls over one file, which is the
       // shape two runners finishing at once make — and the second is not inside
       // the first.
-      const began = Date.now();
-      while (vi.getTimerCount() === 0 && Date.now() - began < REAL_CAP_MS) {
-        await new Promise<void>((wake) => nextTurn(wake, 0));
-      }
+      await untilPolling(1, nextTurn);
       expect(order).toEqual(['first in']);
 
       // The first lets go before the second looks again, so the second's next
