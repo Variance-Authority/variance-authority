@@ -1,5 +1,6 @@
 import { digestValue, type Digest } from './hash.js';
 import { tierReaches, type Tier } from './tier.js';
+import { clockById, freezeClock, freezeClockAt, noFocus, noHover, reducedMotion, UNTOUCHED } from './drive.js';
 import type { Intervention, ScreenshotOptions, SettleTarget } from './intervention.js';
 import { waitForFonts, waitForImages } from './waits.js';
 
@@ -182,6 +183,10 @@ export const INTERVENTIONS: readonly Intervention[] = [
   hideCaret,
   hideScrollbars,
   hidePresentationalImages,
+  noHover,
+  noFocus,
+  reducedMotion,
+  freezeClock,
   waitForFonts,
   waitForImages,
 ];
@@ -198,7 +203,18 @@ export type Recipe = readonly Intervention[];
  */
 export const SEMANTIC_RECIPE: Recipe = [];
 
-export const LAYOUT_RECIPE: Recipe = [holdAnimations, hideScrollbars, waitForFonts, waitForImages];
+// TODO: a `<script>` inside a subject root runs in the render document under the
+// real clock, which no trick in this recipe holds.
+// TODO: a document is painted under this recipe whatever recipe it was read
+// under: a `RenderDocument` carries no collection recipe to follow.
+/**
+ * What a document is painted under, and of {@link UNTOUCHED} only `no-focus`: a
+ * collected `autofocus` takes focus again. The other three have nothing but a
+ * carried script to act on: the printed date and the animation's place are in
+ * the document already, its `@media` rules were resolved when it was read, and
+ * nothing moves the pointer over it.
+ */
+export const LAYOUT_RECIPE: Recipe = [holdAnimations, hideScrollbars, noFocus, waitForFonts, waitForImages];
 
 export const RASTER_RECIPE: Recipe = [...LAYOUT_RECIPE, hideCaret];
 
@@ -237,9 +253,17 @@ export const COLLECT_RECIPE: Recipe = [
   // holding a focused input otherwise disagrees with itself between two
   // screenshots taken 600ms apart, and is refused for blinking.
   hideCaret,
+  ...UNTOUCHED,
   waitForFonts,
   waitForImages,
 ];
+
+/**
+ * The ids of {@link COLLECT_RECIPE}, as an absent `stabilize` means them. A list
+ * replaces the recipe, so one trick is turned off with this list without it:
+ * `stabilize: DEFAULT_STABILIZE.filter((id) => id !== 'freeze-clock')`.
+ */
+export const DEFAULT_STABILIZE: readonly string[] = COLLECT_RECIPE.map((intervention) => intervention.id);
 
 /**
  * Resolve a trick by the name a caller wrote down.
@@ -252,7 +276,7 @@ export const COLLECT_RECIPE: Recipe = [
  * flake it has already paid to prevent.
  */
 export function interventionById(id: string): Intervention | undefined {
-  return INTERVENTIONS.find((intervention) => intervention.id === id);
+  return INTERVENTIONS.find((intervention) => intervention.id === id) ?? clockById(id);
 }
 
 /**
@@ -270,11 +294,32 @@ export function recipeOf(ids: readonly string[]): Recipe {
     if (intervention === undefined) {
       throw new Error(
         `no stabilization trick is called \`${id}\`; this build knows ` +
-          INTERVENTIONS.map((known) => `\`${known.id}\``).join(', '),
+          INTERVENTIONS.map((known) => `\`${known.id}\``).join(', ') +
+          ', and `freeze-clock@<instant>`',
       );
     }
     return intervention;
   });
+}
+
+/**
+ * The recipe a host that drives the browser applies, checked before it opens one:
+ * `stabilize` by id, or {@link COLLECT_RECIPE} when it is absent, with its clock
+ * fixed at `now`, which travels in the clock's id and lands in the digest. Throws
+ * on an unknown id, an instant with no zone, or a `now` with no clock to fix, so
+ * the operator hears about it before a page is loaded, not at the first subject.
+ */
+export function recipeToDrive(options: { readonly stabilize?: readonly string[]; readonly now?: string }): Recipe {
+  const recipe = options.stabilize === undefined ? COLLECT_RECIPE : recipeOf(options.stabilize);
+  if (options.now === undefined) return recipe;
+  const clock = freezeClockAt(options.now);
+  if (!recipe.some((intervention) => intervention.driver?.clock !== undefined)) {
+    throw new Error(
+      `\`now\` is the instant \`freeze-clock\` fixes, and this recipe has no \`freeze-clock\`: ` +
+        'add it to `stabilize`, or leave `now` out',
+    );
+  }
+  return recipe.map((intervention) => (intervention.driver?.clock === undefined ? intervention : clock));
 }
 
 /** Only the tricks a tier can observe the effect of. */

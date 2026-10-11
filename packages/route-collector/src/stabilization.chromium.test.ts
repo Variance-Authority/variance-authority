@@ -2,7 +2,8 @@ import { createServer, type Server } from 'node:http';
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { routeCollector, type Collector, type Collected, type Plan } from './index.js';
+import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
+import { DEFAULT_STABILIZE, routeCollector, type Collector, type Collected, type Plan } from './index.js';
 
 /**
  * The animation flake, reproduced and then closed — against a real clock.
@@ -82,6 +83,63 @@ const LATE_FONT_PAGE = `<!doctype html><html><head><style>
 <script>addEventListener('load', () => document.body.classList.add('mounted'));</script>
 </body></html>`;
 
+/**
+ * The same four-second loop, driven from script and only for a visitor who did
+ * not ask for reduced motion — the branch a motion library takes.
+ */
+const MOTION_PAGE = `<!doctype html><html><head><style>
+  #mover { width: 60px; height: 60px; background: #333; }
+</style></head><body><main id="app">
+  <section data-testid="panel"><div id="mover"></div></section>
+</main><script>
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    document.getElementById('mover').animate(
+      [{ transform: 'translateX(0px)', opacity: 1 }, { transform: 'translateX(400px)', opacity: 0.2 }],
+      { duration: 4000, iterations: Infinity, direction: 'alternate', easing: 'linear' },
+    );
+  }
+</script></body></html>`;
+
+/**
+ * A page that prints the wall clock, and a timer it waits on before it is ready.
+ *
+ * The timer is the other half of the claim: a clock that answers one instant
+ * by stopping time altogether would hold `new Date()` and never mark the page
+ * ready, and the route would be refused for a wait rather than read.
+ */
+const CLOCK_PAGE = `<!doctype html><html><head></head><body><main id="app">
+  <p id="now"></p>
+</main><script>
+  document.getElementById('now').textContent = new Date().toISOString();
+  setTimeout(() => document.getElementById('app').dataset.ticked = '', 50);
+</script></body></html>`;
+
+/**
+ * One field, focused by the page itself under one address and not the other.
+ *
+ * The markup is the same under both, so the only difference between the two
+ * readings is the focus the script took.
+ */
+const FOCUS_PAGE = `<!doctype html><html><head><style>
+  input { outline: none; border: 1px solid gray; }
+  input:focus { outline: 4px solid rgb(0, 0, 200); }
+</style></head><body><main id="app"><input value="search"></main><script>
+  if (location.pathname === '/focused') document.querySelector('input').focus();
+  document.getElementById('app').dataset.ticked = '';
+</script></body></html>`;
+
+/**
+ * One box sized by the motion preference, with the `no-preference` rule last.
+ *
+ * Read with the preference unknown, both blocks apply and the later one wins,
+ * so the record would describe a box the emulated browser never drew.
+ */
+const PREFERENCE_PAGE = `<!doctype html><html><head><style>
+  #box { width: 60px; height: 60px; background: #333; }
+  @media (prefers-reduced-motion: reduce) { #box { width: 100px; } }
+  @media (prefers-reduced-motion: no-preference) { #box { width: 200px; } }
+</style></head><body><main id="app" data-ticked><div id="box"></div></main></body></html>`;
+
 let server: Server | undefined;
 let base = '';
 
@@ -90,7 +148,18 @@ beforeAll(async () => {
 
   server = createServer((request, response) => {
     if (request.url === '/stalled.woff2') return;
-    const page = request.url === '/late-font' ? LATE_FONT_PAGE : ANIMATED_PAGE;
+    const page =
+      request.url === '/motion'
+        ? MOTION_PAGE
+        : request.url === '/preference'
+          ? PREFERENCE_PAGE
+          : request.url === '/clock'
+            ? CLOCK_PAGE
+            : request.url === '/focused' || request.url === '/unfocused'
+              ? FOCUS_PAGE
+              : request.url === '/late-font'
+                ? LATE_FONT_PAGE
+                : ANIMATED_PAGE;
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(page);
   });
 
@@ -132,10 +201,13 @@ const PLAN: Plan = {
  * It is also the arrangement a Storybook run is always in: one navigation, N
  * subjects, each read whenever its turn comes.
  */
-async function collectTwice(stabilize?: readonly string[]): Promise<readonly Collected[]> {
+async function collectTwice(
+  stabilize?: readonly string[],
+  path = '/animated',
+): Promise<readonly Collected[]> {
   const collector: Collector = await (
     await routeCollector({
-      routes: { 'page/animated': `${base}/animated` },
+      routes: { 'page/animated': `${base}${path}` },
       roots: ['#app'],
       ...(stabilize !== undefined ? { stabilize } : {}),
     })
@@ -309,6 +381,115 @@ describe.skipIf(!BROWSER_AVAILABLE)('what the default recipe leaves waiting', ()
     } finally {
       await collector.close();
     }
+  }, 60_000);
+});
+
+/**
+ * One collection of one route by a collector of its own, so two of them are two
+ * page loads at two moments — which is what two runs of a suite are.
+ */
+async function collectOnce(
+  path: string,
+  options: { readonly stabilize?: readonly string[]; readonly now?: string } = {},
+): Promise<Collected> {
+  const collector: Collector = await (
+    await routeCollector({
+      routes: { 'page/animated': `${base}${path}` },
+      roots: ['#app'],
+      ready: { 'page/animated': '#app[data-ticked]' },
+      ...options,
+    })
+  )({
+    config: {
+      viewport: { width: 800, height: 600, deviceScaleFactor: 1, colorScheme: 'light' },
+      fonts: [],
+    },
+    plan: PLAN,
+  });
+
+  try {
+    return await collector.collect(PLAN.subjects[0]!);
+  } finally {
+    await collector.close();
+  }
+}
+
+/** What the page printed, read out of the collected document rather than its hash. */
+function printed(reading: Collected): string {
+  if (!reading.ok) throw new Error(`collection failed: ${reading.because}`);
+  return /\d{4}-\d{2}-\d{2}T[\d:.]+Z/.exec(JSON.stringify(reading.document))?.[0] ?? 'nothing';
+}
+
+describe.skipIf(!BROWSER_AVAILABLE)('what the default recipe holds still, and what it refuses', () => {
+  it('holds still a script animation that honours prefers-reduced-motion', async () => {
+    const [first, second] = hashesOf(await collectTwice(undefined, '/motion'));
+
+    expect(first).toBe(second);
+  }, 60_000);
+
+  it('reads `@media (prefers-reduced-motion)` as the browser it emulated answers it', async () => {
+    const reading = await collectOnce('/preference');
+    if (!reading.ok) throw new Error(`collection failed: ${reading.because}`);
+
+    // One owner for the preference: the trick told the browser `reduce`, so the
+    // record declares `reduce` and the `no-preference` block is not applied.
+    expect(reading.snapshot?.environment.inputs.conditions).toMatchObject({
+      'prefers-reduced-motion': 'reduce',
+    });
+    expect(JSON.stringify(reading.document)).not.toContain('200px');
+  }, 60_000);
+
+  it('reads the same date on two runs of a page that prints the wall clock', async () => {
+    const first = await collectOnce('/clock');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const second = await collectOnce('/clock');
+
+    expect(printed(first)).toBe('2024-06-15T12:00:00.000Z');
+    expect(hashesOf([first])[0]).toBe(hashesOf([second])[0]);
+  }, 60_000);
+
+  it('paints the same pixels for the two runs', async () => {
+    const renderer = await createPlaywrightRenderer();
+    try {
+      const [first, second] = [await collectOnce('/clock'), await collectOnce('/clock')];
+      if (!first.ok || !second.ok) throw new Error('collection failed');
+
+      const [a, b] = [await renderer.render(first.document), await renderer.render(second.document)];
+      expect(a.bytes).toBeDefined();
+      expect(a.bytes).toBe(b.bytes);
+    } finally {
+      await renderer.close();
+    }
+  }, 60_000);
+
+  it('reads the instant a project chose instead', async () => {
+    expect(printed(await collectOnce('/clock', { now: '2031-01-02T03:04:05Z' }))).toBe(
+      '2031-01-02T03:04:05.000Z',
+    );
+  }, 60_000);
+
+  it('reads the real clock when the default list is given without `freeze-clock`', async () => {
+    const reading = await collectOnce('/clock', {
+      stabilize: DEFAULT_STABILIZE.filter((id) => id !== 'freeze-clock'),
+    });
+
+    expect(printed(reading)).not.toBe('2024-06-15T12:00:00.000Z');
+    expect(new Date(printed(reading)).getFullYear()).toBeGreaterThan(2024);
+  }, 60_000);
+
+  it('refuses an instant with no zone, before a browser opens', async () => {
+    const opening = routeCollector({ routes: {}, now: '2031-01-02T03:04' })({
+      config: { viewport: { width: 800, height: 600, deviceScaleFactor: 1, colorScheme: 'light' } },
+      plan: PLAN,
+    });
+
+    await expect(opening).rejects.toThrow(/`now` must be an ISO 8601 instant/);
+  });
+
+  it('reads a field the page focused as it reads with nothing focused', async () => {
+    const [focused, unfocused] = [await collectOnce('/focused'), await collectOnce('/unfocused')];
+
+    expect(hashesOf([focused])[0]).toBe(hashesOf([unfocused])[0]);
   }, 60_000);
 });
 

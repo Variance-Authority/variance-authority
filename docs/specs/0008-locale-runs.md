@@ -36,15 +36,26 @@ construction and no locale ever needs an approval of its own.
 
 ## Behaviour
 
-**The locale is a collector input, not an environment key field.** Two locales of
-one subject are meant to be compared, and `diffSnapshots` refuses to compare
-across environment keys — correctly, because that refusal is what stops a
-`deviceScaleFactor` mismatch reading as a regression. A locale is a property of
-what was rendered, not of the machine that rendered it.
+**The base locale is the config's `locale`, and it is part of the environment
+key.** A baseline is a render in one language, so the language joins the
+environment key and the render identity: an image painted in another language is
+`incomparable` against the baseline, and a snapshot diff names the locale as its
+one environment root. Unlike `deviceScaleFactor`, which only the raster key
+carries, the locale is in the semantic key too, because text is laid out and
+another language moves the box tree. The other
+locales are collector inputs. A `locales` list names the renders compared
+against the base and declares no base of its own, so there is never a second
+one.
 
 **The base locale is declared, not inferred.** "The first one in the list" is a
 configuration detail that silently changes every finding when someone reorders an
-array.
+array, which is why the base is the singular key and not a position in the list.
+
+**A locale render is not diffed against the base.** `diffSnapshots` would read
+the pair as `changed`, with the locale as its environment root, and that is a
+verdict on two renders that are both right. The question is whether they agree
+about everything but their language: `compareLocales` asks it, and refuses only
+a pair of two subjects.
 
 **Findings never change the verdict**, for the same reason inspection findings do
 not: a build that goes red on the day a locale is added gets the locale removed.
@@ -67,9 +78,10 @@ zero is an answer and an absent field is not.
 ## Acceptance
 
 1. **Unmet, and unmeetable without a caller.** `variance run` on a config
-   declaring `locales: ['en', 'de']` produces one baseline per subject and a
-   `LocaleComparison` per non-base locale. Nothing reads a `locales` key; the
-   word does not appear in `packages/cli/src/config.ts`.
+   declaring `locale: 'en-US'` and `locales: ['de-DE']` produces one baseline
+   per subject, in `en-US`, and a `LocaleComparison` per entry of `locales`.
+   `packages/cli/src/config-region.ts` parses `locale`, the base; nothing reads
+   a `locales` key.
 2. **Met, against a render this project did not lay out.**
    `cases/incumbent-case/src/locale.chromium.test.ts` — "names the string nobody
    translated, including the one that is not text" — in real Chromium, with the

@@ -110,6 +110,10 @@ export async function capture(
   const assets = Object.fromEntries(
     Object.entries(resources).map(([url, resource]) => [withoutOrigin(url, origin), resource.digest]),
   );
+  // FIXME: jsdom formats dates and numbers in its Node process's timezone and
+  // locale, and nothing here records either, so one test reads different text
+  // on two machines under one environment key. `collect` takes both; a jsdom
+  // run has no driver that chose them to pass.
   const raw = collect(root, {
     ...acquireOptions,
     engine: options.engine ?? engineOf(owner),

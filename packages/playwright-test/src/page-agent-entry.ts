@@ -1,4 +1,4 @@
-import { AGENT, AGENT_VERSION, acquire, declared, type InstalledAgent } from './page-agent.js';
+import { AGENT, AGENT_VERSION, acquire, declared, refocus, type InstalledAgent } from './page-agent.js';
 import { unwatch, watch } from './watch.js';
 
 /**
@@ -10,6 +10,7 @@ import { unwatch, watch } from './watch.js';
  */
 (globalThis as unknown as Record<string, InstalledAgent>)[AGENT] = {
   acquire,
+  refocus,
   watch,
   unwatch,
   version: AGENT_VERSION,

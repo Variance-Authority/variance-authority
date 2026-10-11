@@ -297,12 +297,19 @@ capture whose layout was never observed.
 
 A **stabilization recipe** is a list of named interventions applied to the page
 before it is read. The default here is the standard collection recipe —
-`pin-animations`, `hide-scrollbars`, `hide-caret` and `wait-for-fonts` — with
-`wait-for-images` narrowed to images inside your subject and its React portals,
-so an unrelated hero image elsewhere in the document does not keep the read
-waiting. The other ids you can name are `hold-animations`, `wait-for-images` and
-`hide-presentational-images`; an id nothing answers to fails the read rather
-than being skipped. Pass `stabilize: ['pin-animations']` to run only some of
+`pin-animations`, `hide-scrollbars`, `hide-caret`, `no-focus` and
+`wait-for-fonts` — with `wait-for-images` narrowed to images inside your subject
+and its React portals, so an unrelated hero image elsewhere in the document does
+not keep the read waiting. `no-focus` blurs whatever holds focus while the
+subject is read, and gives focus back to the same element once the reading is
+taken. The page is yours, so the three tricks a browser driver applies —
+`no-hover`, `reduced-motion` and `freeze-clock` — are not applied here and are
+left out of the recorded recipe. Set them on your page with
+`page.mouse.move(-1, -1)` and `driveBeforeTest(page)` from
+`@variance-authority/playwright-test`, which asks for reduced motion and fixes
+`Date` before `page.goto()`. The other ids you can name are
+`hold-animations`, `wait-for-images` and `hide-presentational-images`; an id
+nothing answers to fails the read rather than being skipped. Pass `stabilize: ['pin-animations']` to run only some of
 them, and `stabilize: []` only for a static document you own, such as an MHTML
 archive whose page clock cannot advance. A live page needs the default. What
 each one buys is in

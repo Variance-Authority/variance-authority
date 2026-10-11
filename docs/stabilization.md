@@ -2,25 +2,148 @@
 
 A spinner caught mid-turn, a web font that arrived late, a scrollbar one machine
 draws and another does not: any of them reports a change your code did not make.
-A run holds your page still before it reads it, so that two readings of an
-unchanged UI agree. Read on for what it does to get your page there, what you
+A run, one execution of `npx variance run` or one observation in your test,
+holds your page still before it reads it, so that two readings of an unchanged
+UI agree. Read on for what it does to get your page there, what you
 can change about it, and how far into your page it goes.
 
 New here? Start with [your first run](start.md).
 
 **Stabilization is on by default and needs no setup.** Before every capture,
-whether or not you knew it was a problem: animations are pinned, GIFs are
-frozen, fonts and images are waited for, scrollbars are hidden. Everything you
-can change is optional and indexed under [what you can
-configure](#what-you-can-configure).
+whether or not you knew it was a problem, the default recipe runs nine tricks,
+each under the id you name it by: animations are pinned (`pin-animations`),
+scrollbars and the text caret are hidden (`hide-scrollbars`, `hide-caret`), the
+pointer is off the page (`no-hover`), nothing is focused (`no-focus`), the
+browser asks for reduced motion (`reduced-motion`), `Date` reads one fixed
+instant (`freeze-clock`), and fonts and images are waited for
+(`wait-for-fonts`, `wait-for-images`). GIFs are frozen as they are served. To
+read your page without one of them, see [turning one off](#turning-one-off).
+Everything else you can change is optional and indexed under
+[what you can configure](#what-you-can-configure).
 
-Two terms this page uses throughout:
+## Turning one off
 
-- A **subject** is one named UI state you asked for and can ask for again — a
-  story, a route, a fixture, or a value such as a JSON body — identified by a
-  stable id like `story:components-button--primary`.
-- A **run** is one execution of `npx variance run`: it plans a set of subjects,
-  captures each one, and compares it against that subject's baseline.
+`stabilize` replaces the default recipe rather than adding to it. To read a
+state one trick removes, start from `DEFAULT_STABILIZE`, the ids of the default
+recipe, and filter that id out. Every id above filters the same way:
+`pin-animations`, `hide-scrollbars`, `no-hover`, any of them. This collector
+reads the real clock:
+
+```js
+// variance/routes.mjs
+import { DEFAULT_STABILIZE, routeCollector } from '@variance-authority/route-collector';
+
+export default routeCollector({
+  routes: { 'billing/invoice': 'http://localhost:3000/invoice/42' },
+  roots: ['#app'],
+  stabilize: DEFAULT_STABILIZE.filter((id) => id !== 'freeze-clock'),
+});
+```
+
+Every baseline records the list it was taken under. A run under a new list
+does not report each subject, one named UI state such as a story or a route,
+as changed: it reports it `incomparable`, and the baseline you accept under the
+new list starts over. `@variance-authority/storybook-collector` exports the same
+`DEFAULT_STABILIZE` for `storybookCollector`.
+
+The `variance` fixture in `@variance-authority/playwright-test` fixes `Date` on
+the `page` it hands every test. To read the real clock in one file, leave
+`freeze-clock` out with `test.use`:
+
+```ts
+import { DEFAULT_STABILIZE } from '@variance-authority/playwright-test';
+
+test.use({ varianceStabilize: DEFAULT_STABILIZE.filter((id) => id !== 'freeze-clock') });
+```
+
+Do the same in a test that installs its own `page.clock`. Its clock replaces the
+fixed `Date` either way, and leaving `freeze-clock` out keeps the recipe the
+reading records true to the clock it read.
+
+Do the same in a test that waits on a debounce or a throttle that times itself
+with `Date.now()`, such as lodash's `debounce`. Under a fixed `Date` no time
+passes for it, so it never fires, and a test that types into a debounced search
+box waits for results that never arrive.
+
+### What reaches the image
+
+By default the screenshot is not taken from your page. The tool records your
+page's markup and the styles that apply to it, then paints that record later in
+a fresh browser page that nobody points at or focuses. `routeCollector` and
+`storybookCollector` always work this way, and so does the `variance` fixture
+unless you choose in-place capture, below. The fresh page gets a fixed set of
+tricks of its own, whatever list your page was read under: animations held,
+scrollbars and the caret hidden, focus released, even from an `autofocus`, and
+fonts and images waited for.
+
+A hover state or a focus ring cannot reach that screenshot: it is the image of
+a page nobody is using. Leaving `no-hover` or `no-focus` out changes the record,
+not the screenshot. Which `:hover` and `:focus` rules matched while your page
+was hovered or focused is recorded and compared, and a difference shows as
+`document: changed` among the result's [signals](information.md#verdicts),
+beside a verdict that follows the screenshot. Leaving `freeze-clock` or
+`reduced-motion` out does reach the screenshot, because the date your page
+printed and the styles the motion preference chose are part of the record.
+
+**In-place capture** in `@variance-authority/playwright-test` takes the
+screenshot from the page your test is using
+([when to choose it](cases.md#existing-playwright-test)). Hover the element
+in your test, then observe it with a list that leaves `no-hover` out, and the
+image shows its `:hover` style:
+
+```ts
+import { test } from '@playwright/test';
+import {
+  assertUnchanged,
+  CHROMIUM_RASTER_ARGS,
+  createVariance,
+  DEFAULT_STABILIZE,
+} from '@variance-authority/playwright-test';
+
+test('checkout, hovered', async ({ page }, testInfo) => {
+  const variance = await createVariance(page, testInfo, {
+    materialization: {
+      kind: 'in-place',
+      browser: { headless: true, launchArgs: CHROMIUM_RASTER_ARGS },
+    },
+  });
+  try {
+    const checkout = page.getByRole('button', { name: 'Checkout' });
+    await checkout.hover();
+    assertUnchanged(
+      await variance.observe(checkout, {
+        stabilize: DEFAULT_STABILIZE.filter((id) => id !== 'no-hover'),
+      }),
+    );
+  } finally {
+    await variance.close();
+  }
+});
+```
+
+For a focus ring, call `focus()` instead and leave `no-focus` out. The
+`browser` you declare must match the launch in your Playwright configuration,
+as [in-place capture](../packages/playwright-test/README.md) describes.
+
+## What you can configure
+
+Stabilization runs without any of this. Each entry below is a knob you can turn
+once you need it.
+
+| you want to | set | where |
+| --- | --- | --- |
+| observe a subject untouched | `stabilize: []` | [observing a subject untouched](#observing-a-subject-untouched) |
+| choose the tricks yourself | `stabilize: ['pin-animations', …]` | [what runs, and what it absorbs](#what-runs-and-what-it-absorbs) |
+| hide decorative images | `stabilize: [… , 'hide-presentational-images']` | [the half the wire cannot decide](#and-the-half-the-wire-cannot-decide) |
+| turn one trick off, to read live motion or the real clock | your own `stabilize` list, which replaces the default: every trick you keep, without that one | [turning one off](#turning-one-off) |
+| see a hover or a focus ring in the screenshot | in-place capture, and a `stabilize` list without `no-hover` or `no-focus` | [what reaches the image](#what-reaches-the-image) |
+| fix the clock at another instant | `now: '2030-01-01T09:00:00Z'` | [hover, focus, motion and the clock](#hover-focus-motion-and-the-clock) |
+| serve some images as nothing | `blank` rules | [some images can be served as nothing](#some-images-can-be-served-as-nothing) |
+| stop hashing asset bytes | `network: false` / `hashAssets: false` | [what the wire costs](#what-the-wire-costs) |
+| record a loading state on purpose | `loading: ['subject-id']` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
+| skip the Suspense wait | `suspenseTimeoutMs: 0` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
+
+## Before your first run
 
 If you have not installed the CLI yet:
 
@@ -43,21 +166,6 @@ category changes the page before it looks. The questions worth asking are
 
 [Flakiness](flakiness.md) is the position — what kind of thing variance is, and
 the four ways a cause gets absorbed. This page is the mechanism.
-
-## What you can configure
-
-Stabilization runs without any of this. Each entry below is a knob you can turn
-once you need it.
-
-| you want to | set | where |
-| --- | --- | --- |
-| observe a subject untouched | `stabilize: []` | [observing a subject untouched](#observing-a-subject-untouched) |
-| choose the tricks yourself | `stabilize: ['pin-animations', …]` | [what runs, and what it absorbs](#what-runs-and-what-it-absorbs) |
-| hide decorative images | `stabilize: [… , 'hide-presentational-images']` | [the half the wire cannot decide](#and-the-half-the-wire-cannot-decide) |
-| serve some images as nothing | `blank` rules | [some images can be served as nothing](#some-images-can-be-served-as-nothing) |
-| stop hashing asset bytes | `network: false` / `hashAssets: false` | [what the wire costs](#what-the-wire-costs) |
-| record a loading state on purpose | `loading: ['subject-id']` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
-| skip the Suspense wait | `suspenseTimeoutMs: 0` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
 
 ---
 
@@ -106,13 +214,16 @@ the page is served can be rewritten before the browser sees it.
 
 | | applied to | recipe |
 |---|---|---|
-| **Collection** | the live page, before the subject is read | `pin-animations`, `hide-scrollbars`, `wait-for-fonts`, `wait-for-images` |
-| **Render** | the reconstructed page, before it is painted | `hold-animations`, `hide-scrollbars`, `wait-for-fonts`, `wait-for-images`, `hide-caret` |
+| **Collection** | the live page, before the subject is read | `pin-animations`, `hide-scrollbars`, `hide-caret`, `no-hover`, `no-focus`, `reduced-motion`, `freeze-clock`, `wait-for-fonts`, `wait-for-images` |
+| **Render** | the reconstructed page, before it is painted | `hold-animations`, `hide-scrollbars`, `no-focus`, `wait-for-fonts`, `wait-for-images`, `hide-caret` |
 | **The wire** | every response the page is served | `freezeAnimatedImages`, `hashAssets` — network-observer options rather than recipe ids, because a response body is not something a stylesheet can change |
 
-The collection and render recipes differ in exactly one trick and it is not a
-preference: `hold-animations` is a *screenshot* option, and at collection nobody
-takes a screenshot, so it would be a trick that silently does nothing.
+Where the two differ, a trick would do nothing on the other side.
+`hold-animations` is a *screenshot* option, and at collection nobody takes a
+screenshot. `no-hover`, `reduced-motion` and `freeze-clock` act on a page whose
+scripts run and whose pointer moves. In the reconstructed page the date your
+page printed is already text, its `@media` rules were resolved when it was read,
+and nothing moves a pointer over it. `no-focus` is in both, because a collected `autofocus` takes focus again.
 
 ## What runs, and what it absorbs
 
@@ -125,7 +236,11 @@ what already happened to your subject.
 | `wait-for-fonts` | a font arriving after the subject was read | `document.fonts.ready` covers loads that have *started*; a font requested lazily by a later interaction is not in it. A font still loading after 15 s fails the subject, and the error names its family, and its source when a same-origin stylesheet declares it |
 | `wait-for-images` | an image whose intrinsic size had not landed | `document.images` at one moment. Anything appended during the wait is missed — the wire covers that |
 | `hide-scrollbars` | a platform and preference difference, and the reflow at the overflow threshold | headless Chromium uses overlay scrollbars, so the classic scrollbar flake does not reproduce in CI at all |
-| `hide-caret` | a cursor blinking on its own schedule | a screenshot option, so it applies at render and not at collection — a tier that never rasterizes cannot see a caret and must not pay to hide it |
+| `hide-caret` | a cursor blinking on its own schedule | a caret paints and does not lay out, so only a reading that takes an image applies it: every render, and a collection whose live page is photographed, as [in-place capture](#what-reaches-the-image) does. A reading that only lays the page out skips it |
+| `no-hover` | a `:hover` style left by wherever the pointer rests | the pointer goes to `(-1, -1)`, outside the page. A component that opens on hover is read closed |
+| `no-focus` | a `:focus` or `:focus-visible` style on a field your test filled or the page focused | the focused element is blurred, through shadow roots. On a page your test or agent goes on using, focus goes back to that element once the reading is taken |
+| `reduced-motion` | a script animation, which a stylesheet cannot stop | only in a page that honours `prefers-reduced-motion`. The page is read as a user who asked for less motion sees it |
+| `freeze-clock` | a date or time the page prints from `new Date()`, `Date.now()` or `Intl.DateTimeFormat` | `Date` alone reads one instant; timers, animation frames and `performance.now()` keep the page's own time. Code that measures elapsed time with `Date.now()`, such as a debounce, sees no time pass. `Temporal.Now` and a worker's `Date` are not fixed |
 | `freezeAnimatedImages` | an animated GIF, served as its first frame | on the wire, so a cross-origin image is no harder than any other |
 | `hashAssets` | *nothing* — it reports rather than absorbs | see [the wire](#the-wire-which-reads-what-the-page-cannot) |
 
@@ -166,17 +281,22 @@ the page is yours and its JavaScript is the subject.
 ## How far an intervention goes
 
 Holding a page still means changing it, and the three ways of doing that cost
-you different things. **Every trick shipped here stays in the first row.**
+you different things. **Every trick shipped here stays in the first row but
+one, `freeze-clock`.**
 
 | how far it goes | what it is | what it costs you |
 |---|---|---|
-| **outside the subject** | injected CSS, screenshot options, a rewritten response | delete the tool and the intervention is gone |
-| **runtime substitution** | wrapping `Promise`, replacing a suspense boundary | a difference caused by the patch is indistinguishable from one caused by the code |
+| **outside the subject** | injected CSS, screenshot options, a browser setting such as the pointer position or the motion preference, a rewritten response | delete the tool and the intervention is gone |
+| **runtime substitution** | replacing `Date`, wrapping `Promise`, replacing a suspense boundary | a difference caused by the patch is indistinguishable from one caused by the code |
 | **a contract the subject implements** | a readiness marker in your component | real design damage |
 
-The middle row ships with nothing in it. A project that decides the trade is
-worth it can write its own intervention and compose it — see [composing an
-observation](compose-observation.md).
+`freeze-clock` is in the middle row, and it pays that row's cost. It removes one
+difference, the date and time a page prints, and adds another: code that times
+itself with `Date.now()`, such as a debounce or a throttle, sees no time pass and
+never fires, which reads as a defect in your code. Leave it out where that
+matters ([turning one off](#turning-one-off)). A project that decides another
+substitution is worth it can write its own intervention and compose it — see
+[composing an observation](compose-observation.md).
 
 The injected stylesheet stays outside the subject in your output too: collection
 injects exactly one `<style data-va-stabilize>` and attribution never charges a
@@ -279,6 +399,97 @@ trick less stable than you believe it is.
 
 ---
 
+## Hover, focus, motion and the clock
+
+Four tricks put your page into the state of a page nobody is using. The pointer
+is off the page, so nothing is hovered. Nothing is focused. The browser reports
+`prefers-reduced-motion: reduce`. `Date` reads one fixed instant. A stylesheet
+cannot do three of these, so the collector applies them through the browser:
+
+- **the pointer** is moved to `(-1, -1)` once per page, before the first
+  navigation. `(0, 0)` is not enough, because content at the top left stays
+  hovered there. On a page your test goes on using, it is moved there again
+  before every observation, which costs a frame each, and it is not put back:
+  a menu a script opened on hover is closed for your test's next step;
+- **the motion preference and the clock** are set before the first navigation,
+  so the page's first script already reads them. Both stay set across
+  navigations. The reading records the motion preference among the conditions
+  its `@media` rules are resolved against, so a `prefers-reduced-motion` block
+  is read as the browser drew it, and a `no-preference` block is not read at
+  all. A host that declares its own `prefers-reduced-motion` condition keeps
+  its value, and the browser is asked for that one instead;
+- **focus** is released in the page, right before the subject is read. On a
+  page your test or agent goes on using, it goes back to the same element once
+  the reading, and any screenshot of it, is taken. What the page's blur
+  handlers did meanwhile, such as a validate-on-blur error, stays.
+
+The clock is `Date` and nothing else. A script added before the page's own
+replaces `new Date()`, `Date()` and `Date.now()` with one instant, and gives the
+same instant to `Intl.DateTimeFormat`'s `format()` and `formatToParts()` called
+without a date. `setTimeout`, `requestAnimationFrame` and `performance.now()`
+are the browser's own, so a page that waits on a timer still finishes loading
+and a frame's timestamp is the time CSS and Web Animations step by. Playwright's
+[`clock.setFixedTime`](https://playwright.dev/docs/api/class-clock#clock-set-fixed-time)
+fixes `Date` too, but installs its own `setTimeout`, `requestAnimationFrame` and
+`performance` to do it, and its frame timestamps no longer agree with
+`document.timeline`. No Playwright clock is installed, so `page.clock` stays
+yours: a clock your test installs replaces the fixed `Date`, and the reading
+reads your clock.
+
+A fixed `Date` costs code that measures elapsed time with it. A debounce or a
+throttle timed with `Date.now()`, lodash's `debounce` among them, sees no time
+pass and never fires, and a loop that waits for `Date.now()` to pass a mark
+never ends. The default instant is in the past, while the browser's cookie
+store keeps real time: a cookie your page's script sets with an expiry counted
+from `Date.now()` is already expired and is not stored, so a consent banner
+your test dismissed comes back after the next navigation. Leave `freeze-clock`
+out of such a page, or set an instant near today
+([turning one off](#turning-one-off)).
+
+The default instant is `2024-06-15T12:00:00.000Z`. At noon UTC it is the same
+calendar date in every zone from UTC−11 to UTC+11, so a page that prints today's
+date prints one date wherever the browser runs. The timezone the page runs in is
+pinned as well, to `UTC` unless you declare another
+([a timezone and a locale](flakiness.md#the-rest-of-the-family)), so the page
+prints one time of day too. To use another instant, set
+`now` to an ISO 8601 instant with its zone:
+
+```js
+// variance/routes.mjs
+import { routeCollector } from '@variance-authority/route-collector';
+
+export default routeCollector({
+  routes: { 'billing/invoice': 'http://localhost:3000/invoice/42' },
+  roots: ['#app'],
+  // A date with no zone names a different instant on every machine, so
+  // the collector refuses one.
+  now: '2030-01-01T09:00:00Z',
+});
+```
+
+`storybookCollector` takes the same option, and the `variance` fixture in
+`@variance-authority/playwright-test` takes it as `varianceNow`. The instant is
+part of the recipe the environment key records, so a baseline read at one
+instant is `incomparable` with a run read at another, rather than reported as a
+change your code made.
+
+### Where each one applies
+
+| host | applies |
+| --- | --- |
+| `routeCollector` and `storybookCollector` | all four |
+| the Playwright renderer | `no-focus`, the one of the four that acts on a page that only paints |
+| the `variance` fixture in `@variance-authority/playwright-test` | all four. `reduced-motion` and `freeze-clock` are set on the `page` it hands your test, before the test body runs; `no-hover` and `no-focus` before every observation, and focus goes back after it. Set `varianceStabilize` and `varianceNow` with `test.use` to change the first two. The page opens in `UTC` when your Playwright config sets no `timezoneId` |
+| `observe` and `createVariance` in `@variance-authority/playwright-test`, on a page the fixture never handed your test, such as one you opened from your own `browser.newContext()` | `no-hover` and `no-focus`, before every observation, and focus goes back after it. That page loaded before either was called, so set the clock and the motion preference on it before `page.goto()`: `await driveBeforeTest(page)`, from `@variance-authority/playwright-test`, sets both as the fixture does |
+| Vitest browser mode, which reads from inside the page and has no driver | `no-focus`, and focus goes back once the reading is taken |
+| `@variance-authority/presentation`, which reads through the Playwright `Page` you hand it, a test's or an agent's live browser, and does not drive it: the page and its state are yours | `no-focus`, and focus goes back once the reading is taken. Set the other three on your page yourself: `page.mouse.move(-1, -1)`, and `await driveBeforeTest(page)` before `page.goto()` |
+
+A host that cannot apply a trick leaves it out of the recipe it records, the
+same way a tier does. The report and the environment key show what ran on your
+page, not what the default recipe asks for.
+
+---
+
 ## What is proven
 
 Each row below is checked against a real compositor, not a simulation of one: a
@@ -291,6 +502,16 @@ twice about a second apart through the collector you would use.
 | under the default recipe | the render hash **stays the same** |
 | the two together | different `semanticDigest`, so they are never compared |
 | the injected sheet | appears nowhere in the subject |
+
+And for a page nobody is using, through the route collector and the `variance` fixture:
+
+| | |
+|---|---|
+| a script animation that skips itself under reduced motion | the render hash **stays the same** |
+| a page that prints the wall clock | the same date, and the same pixels, on both runs |
+| a field the page focused | read as it is with nothing focused |
+| the fixed clock | a frame's timestamp is still the time CSS animations step by, and timers still fire |
+| a clock your test installs with `page.clock` | is the one the page reads |
 
 And for the wire:
 
@@ -457,6 +678,11 @@ export default routeCollector({
   stabilize: [
     'pin-animations',
     'hide-scrollbars',
+    'hide-caret',
+    'no-hover',
+    'no-focus',
+    'reduced-motion',
+    'freeze-clock',
     'wait-for-fonts',
     'wait-for-images',
     'hide-presentational-images',
@@ -734,10 +960,14 @@ STABILIZATION COST — 12 collections of one subject, warm
   difference  +0.3 ms/subject
 ```
 
-Within noise, and that is the claim: **holding the page still is free on a warm
-subject.** The recipe injects a sheet, awaits fonts and images, and then waits
-two animation frames for the pinned state to be in force — but on every subject
-after the first there is nothing for those frames to wait for. The sheet is
+Within noise, and that is the claim: **on a warm subject, holding the page
+still costs no more than the noise between two collections.** The pointer, the
+motion preference and the clock are set once, before the first navigation, so
+no subject pays for them. Per subject, the recipe injects a sheet, awaits fonts
+and images, and releases focus, which costs a page evaluate, plus an animation
+frame when the document holds an `[autofocus]`. Then it waits two animation
+frames for the pinned state to be in force. On every subject after the first
+there is nothing for those frames to wait for. The sheet is
 already there, its CSS is unchanged, and an animation paused at its first frame
 stays paused.
 
@@ -756,9 +986,9 @@ a red build rather than a slow CI job nobody attributes to anything.
 
 ## What stabilization does not cover
 
-The standard observation path holds CSS animation, fonts, images, scrollbars and
-carets still, reads the wire for the bytes behind each asset, and checks that
-Suspense has resolved. It does not redefine application state, and it does not
+The standard observation path holds CSS animation, fonts, images, scrollbars,
+carets, hover, focus and the clock still, asks for reduced motion, reads the
+wire for the bytes behind each asset, and checks that Suspense has resolved. It does not redefine application state, and it does not
 install framework hooks before the application loads.
 
 Collectors inspect Suspense directly, but they do not install `tapCommits` or
@@ -766,9 +996,10 @@ call `awaitQuiet`. The commit tap remains an explicit host integration because
 it must attach before `react-dom`; silence from a late tap cannot prove that the
 page is quiet.
 
-Dates, clocks, randomized data, `requestAnimationFrame` mutations, hover state,
-sticky or fixed positioning during full-page capture, spellcheck decoration,
-and subpixel image sizing are not normalized by that path. Control them in the
+Randomized data, `requestAnimationFrame` mutations in a page that ignores
+`prefers-reduced-motion`, sticky or fixed positioning during full-page capture,
+spellcheck decoration, and subpixel image sizing are not normalized by that
+path. Control them in the
 host's fixture, express deliberate volatile regions through
 [ignore rules](ignores.md), or provide a [custom composition](compose-observation.md) with its own
 intervention recipe.

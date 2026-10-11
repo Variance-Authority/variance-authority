@@ -17,6 +17,7 @@
 
 import type { TestInfo } from '@playwright/test';
 import { relative, resolve, sep } from 'node:path';
+import type { Viewport } from '@variance-authority/core/format';
 
 /** The run an observation belongs to, independent of what is driving it. */
 export interface VarianceRun {
@@ -98,4 +99,39 @@ export function runOf(testInfo: TestInfo): VarianceRun {
  */
 export function asRun(given: TestInfo | VarianceRun): VarianceRun {
   return 'titlePath' in given ? runOf(given as TestInfo) : (given as VarianceRun);
+}
+
+/**
+ * The subject id a run supplies when an observation does not name one.
+ *
+ * Refused rather than defaulted: an id is the coordinate a baseline is stored
+ * at, and inventing one from a counter or a timestamp would give the same
+ * subject a different address on every run.
+ */
+export function subjectFromRun(run: VarianceRun): string {
+  if (run.id === undefined || run.id === '') {
+    throw new Error(
+      'variance needs a subject id and this run has none; ' +
+        'pass `subjectId` on the observation, or `id` on the run descriptor',
+    );
+  }
+  return run.id;
+}
+
+export function viewportOf(
+  size: { width: number; height: number } | null,
+  run: VarianceRun,
+): Viewport {
+  if (size === null) {
+    throw new Error(
+      'variance needs a viewport and this page has none; ' +
+        'a null viewport means the image has no declared size, so no two runs are comparable',
+    );
+  }
+
+  return {
+    ...size,
+    deviceScaleFactor: run.deviceScaleFactor ?? 1,
+    colorScheme: run.colorScheme === 'dark' ? 'dark' : 'light',
+  };
 }

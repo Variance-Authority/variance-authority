@@ -175,6 +175,17 @@ live('live presentation sensing', () => {
     await page.close();
   });
 
+  it('hands focus back to the field that held it once the reading is taken', async () => {
+    const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+    await page.setContent('<main><label>Name <input id="name"></label></main>');
+    await page.locator('#name').focus();
+
+    await sensePresentation(page, page.getByRole('main'));
+
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe('name');
+    await page.close();
+  });
+
   it('accepts caller-owned static documents whose page clock cannot settle', async () => {
     const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
     await page.setContent('<nav aria-label="Archived"><a href="#home">Home</a></nav>');

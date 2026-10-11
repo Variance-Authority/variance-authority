@@ -79,6 +79,27 @@ export interface VarianceOptions {
   readonly holdings?: boolean;
 
   /**
+   * Stabilization tricks to hold the subject still with, by id. Defaults to
+   * `COLLECT_RECIPE`.
+   *
+   * The default takes the pointer off the page and releases focus before each
+   * observation, so a hover or a focus your test left behind is not read. Name
+   * your own list without `no-hover` or `no-focus` to observe that state. A
+   * baseline made under one list reads `incomparable` against a run made under
+   * another. Focus goes back to the element that held it once the observation
+   * and its screenshot are taken, so the test types where it left off.
+   *
+   * `reduced-motion` and `freeze-clock` hold only where something drives the
+   * browser before the page loads, and an observation comes after it has. The
+   * `variance` fixture sets them on the page it hands your test, as
+   * `varianceStabilize` and `varianceNow` say, and an observation records the
+   * ones it set that this list names. On a page the fixture never handed your
+   * test, set them yourself before `page.goto()` with `driveBeforeTest(page)`;
+   * they are left out of what that observation records.
+   */
+  readonly stabilize?: readonly string[];
+
+  /**
    * How much of this subject is being asserted on, when it has been relaxed.
    *
    * The rule that applies *here*, already matched — scoping is a question about
