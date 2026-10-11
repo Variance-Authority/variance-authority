@@ -84,6 +84,12 @@ export interface ObservedCase {
   readonly said?: CaseJournal['said'];
   readonly journal: ExecutionJournal;
   /**
+   * The test line that first reached each region of `journal`, as
+   * {@link CaseJournal.lines}: absent where the driver did not cut the test
+   * file.
+   */
+  readonly lines?: CaseJournal['lines'];
+  /**
    * The Eyes journals the case handed over, one per attempt this source saw.
    * Absent when the case composed no Eyes, which is not the same as a journal
    * that recorded nothing.
@@ -254,6 +260,7 @@ export function caseJournals(cases: readonly ObservedCase[]): readonly CaseJourn
       ...(observed.stopped === undefined ? {} : { stopped: observed.stopped }),
       ...(observed.duration === undefined ? {} : { duration: observed.duration }),
       ...(observed.said === undefined ? {} : { said: observed.said }),
+      ...(observed.lines === undefined ? {} : { lines: observed.lines }),
       modules: [
         ...observed.journal.modules,
         // Entered both ways: once as the module evaluated, which the ambient

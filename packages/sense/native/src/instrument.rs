@@ -90,7 +90,7 @@ pub struct Cadence {
 /// A test file with a cut before each statement of its test and hook bodies,
 /// or `null` when it does not parse or holds none: `cadence.rs`.
 #[napi]
-pub fn cadence(source: String, file: String) -> Option<Cadence> {
-    variance_sense_instrument::cadence(&source, &file)
+pub fn cadence(source: String, file: String, awaited: Option<bool>) -> Option<Cadence> {
+    variance_sense_instrument::cadence(&source, &file, awaited.unwrap_or(false))
         .map(|cut| Cadence { code: cut.code, mappings: cut.mappings, shifts: cut.shifts })
 }

@@ -121,6 +121,7 @@ export const VARIATIONS: readonly VariationRecord[] = [
     components: ['Toggle'],
     digest: 'v1:d2eebe6199661536',
     how: 'named',
+    step: { axis: 'scheme', position: 0, from: 'light', to: 'dark' },
     because: '`story:todos--populated-dark` differs from `story:todos--populated` in token',
   },
   {

@@ -177,6 +177,7 @@ describe('what a reviewer is allowed to do', () => {
         client={CLIENT}
         reviewer="marina"
         build="ci-1"
+        ran="2026-06-01T12:00:00.000Z"
         subject={subject({ approvable: false, has: { before: true, after: false, diff: false } })}
         onDecided={() => undefined}
       />,
@@ -192,6 +193,7 @@ describe('what a reviewer is allowed to do', () => {
         client={CLIENT}
         reviewer="marina"
         build="ci-1"
+        ran="2026-06-01T12:00:00.000Z"
         subject={subject()}
         onDecided={() => undefined}
       />,
@@ -201,6 +203,7 @@ describe('what a reviewer is allowed to do', () => {
         client={CLIENT}
         reviewer="marina"
         build="ci-1"
+        ran="2026-06-01T12:00:00.000Z"
         subject={subject({ findings: [] })}
         onDecided={() => undefined}
       />,
@@ -216,6 +219,7 @@ describe('what a reviewer is allowed to do', () => {
         client={CLIENT}
         reviewer="marina"
         build="ci-1"
+        ran="2026-06-01T12:00:00.000Z"
         subject={subject({
           decision: { decision: 'rejected', by: 'marina', at: '2026-06-01T12:00:00.000Z' },
         })}

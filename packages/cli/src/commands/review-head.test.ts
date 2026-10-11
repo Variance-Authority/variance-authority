@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { reviewedCommit } from './review-head.js';
 import { formatReview } from './review-text.js';
@@ -40,6 +40,21 @@ describe('the commit a review read', () => {
     expect((await reviewedCommit(root, {}))?.blob).toBe(`https://github.com/o/r/blob/${commit}`);
     process.chdir(join(root, 'app'));
     expect((await reviewedCommit(root, {}))?.blob).toBe(`https://github.com/o/r/blob/${commit}/app`);
+  });
+
+  it('names a pull request head only on a pull request event, even when the event file names one', async () => {
+    const { root, commit } = await repository();
+    process.chdir(root);
+    const head = 'h'.repeat(40);
+    const event = join(root, '..', `${basename(root)}-event.json`);
+    await writeFile(event, JSON.stringify({ pull_request: { head: { sha: head } } }));
+    const on = (name: string) => reviewedCommit(root, { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: name, GITHUB_EVENT_PATH: event });
+
+    // A push or a merge queue checks out the commit it runs for: there is no merge, and no other head to name.
+    expect(await on('push')).toEqual({ commit, parents: [] });
+    expect(await on('merge_group')).toEqual({ commit, parents: [] });
+    expect(await on('pull_request')).toEqual({ commit, parents: [], pull: head });
+    expect(await on('pull_request_target')).toEqual({ commit, parents: [], pull: head });
   });
 
   it('names the pull request and its merge when CI left the checkout dirty', () => {

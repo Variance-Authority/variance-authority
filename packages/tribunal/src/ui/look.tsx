@@ -57,7 +57,7 @@ import type { Appearance } from './grouping.js';
 import { hasDifference, useDifferenceUrl } from './difference.js';
 import { leadOf } from './lead.js';
 import { count, number } from './text.js';
-import { share, union, type Size } from './plate.js';
+import { SMALLEST_SCALE, share, union, type Size } from './plate.js';
 
 /**
  * The crop window, in CSS pixels.
@@ -73,14 +73,13 @@ const WINDOW: Size = { width: 264, height: 176 };
 const PAD = 20;
 
 /**
- * How far the crop may be pushed, in either direction.
- *
- * Below 1:1 a two-pixel shift is handed to the resampler, which is the whole
- * reason the sheet refuses smoothing — but a region larger than the window has to
- * come down or it is not a picture of anything, so the floor is a quarter rather
- * than one, and {@link Frame.whole} says which of the two happened.
+ * How close the crop may be pushed. The other way it stops at
+ * {@link SMALLEST_SCALE}: below 1:1 a two-pixel shift is handed to the
+ * resampler, which is the whole reason the sheet refuses smoothing — but a
+ * region larger than the window has to come down or it is not a picture of
+ * anything, so the floor is a quarter rather than one, and {@link Frame.whole}
+ * says which of the two happened.
  */
-const FURTHEST = 0.25;
 const CLOSEST = 8;
 
 /**
@@ -125,7 +124,7 @@ export function frameOf(region: RegionRecord, box: Size, window: Size): Frame {
     window.width / (region.width + PAD * 2),
     window.height / (region.height + PAD * 2),
   );
-  const scale = Math.min(CLOSEST, Math.max(FURTHEST, wanted));
+  const scale = Math.min(CLOSEST, Math.max(SMALLEST_SCALE, wanted));
 
   return {
     scale,

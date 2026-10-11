@@ -234,6 +234,36 @@ describe('a name read through the configured grammar', () => {
     expect(records?.[0]?.parent).toBe('fixture:dragon-green');
     expect(records?.[0]?.because).toContain('`colour` is `glass` here and `green` there');
   });
+
+  it('carries the step on the record, so a reader can place the pair without parsing prose', () => {
+    // The review page draws a subject that varies on two axes as a grid, and a
+    // grid needs each subject's coordinate. Reading it back out of `because`
+    // would make a sentence the interface between two packages, and which axis
+    // runs down is the order the format writes them in, so the step says where.
+    const records = variationsOf({
+      plan: planOf(planned('fixture:dragon-green'), planned('fixture:dragon-glass')),
+      names,
+      snapshots: new Map([
+        ['fixture:dragon-green', snapshotOf('fixture:dragon-green', 'buy')],
+        ['fixture:dragon-glass', snapshotOf('fixture:dragon-glass', 'buy now')],
+      ]),
+    });
+
+    expect(records?.[0]?.step).toEqual({ axis: 'colour', position: 1, from: 'green', to: 'glass' });
+  });
+
+  it('leaves the step absent when no format read the names', () => {
+    const records = variationsOf({
+      plan: planOf(planned('fixture:dragon'), planned('fixture:dragon-tail')),
+      snapshots: new Map([
+        ['fixture:dragon', snapshotOf('fixture:dragon', 'buy')],
+        ['fixture:dragon-tail', snapshotOf('fixture:dragon-tail', 'buy now')],
+      ]),
+    });
+
+    expect(records?.[0]?.parent).toBe('fixture:dragon');
+    expect(records?.[0]).not.toHaveProperty('step');
+  });
 });
 
 describe('what the run has to hold on to', () => {

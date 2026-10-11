@@ -22,15 +22,17 @@ import {
   summaryStatements,
 } from './review-summary.js';
 import { ingestBuild } from './review-ingest.js';
-import { sweepProject } from './review-sweep.js';
+import { createConcernStore } from './concerns.js';
+import { UNREPEATED, acceptanceTitle, rejectionAccepted, repeatsFrom, repeatsStatement } from './repeats.js';
+import { sameImage } from './same-image.js';
+import { sweepProject, type SweepReport } from './review-sweep.js';
 import { ReviewError, instant, optionalText, text, type Row } from './review-rows.js';
 import type {
   BuildDetail,
   BuildSummary,
-  DecisionRecord,
+  Decided,
   ReviewOptions,
   ReviewStore,
-  SweepReport,
 } from './review-types.js';
 import { have as heldObjects } from './objects.js';
 import { promote } from './review-write.js';
@@ -91,13 +93,16 @@ export type {
   BuildSummary,
   Cause,
   Coverage,
+  Decided,
   Decision,
   DecisionRecord,
+  RepeatedIn,
+  Repeats,
   ReviewOptions,
   ReviewStore,
   SubjectView,
-  SweepReport,
 } from './review-types.js';
+export type { SweepReport } from './review-sweep.js';
 export { ReviewError } from './review-rows.js';
 export { createConcernStore, type ConcernStore } from './concerns.js';
 export type {
@@ -204,6 +209,7 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
       // and would be wrong on the page rather than in the log.
       const reads = {
         decisions: latestDecisionsStatement(db, project, id),
+        repeats: repeatsStatement(db, project, id),
         build: of('SELECT * FROM builds WHERE project = ? AND build = ?'),
         subjects: of('SELECT * FROM build_subjects WHERE project = ? AND build = ? ORDER BY subject'),
         notObserved: of(
@@ -262,16 +268,30 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
       const previous = rows('previous')[0];
       const composition = rows('composition');
 
-      const subjects = rows('subjects').map((subject) =>
-        toSubjectView(subject, decisions.get(text(subject, 'subject', 'a build subject')) ?? null),
-      );
+      const repeats = repeatsFrom(rows('repeats'));
+      const subjects = rows('subjects').map((row) => {
+        const subject = text(row, 'subject', 'a build subject');
+        return toSubjectView(
+          row,
+          decisions.get(subject) ?? null,
+          repeats.get(subject) ?? UNREPEATED,
+        );
+      });
+      const variations = rows('variations').map(toVariation);
 
       return {
         ...summary,
         subjects,
         notObserved: rows('notObserved').map(toNotObserved),
         causes: docket(subjects),
-        variations: rows('variations').map(toVariation),
+        variations,
+        sameImage: sameImage(
+          rows('subjects').map((subject) => ({
+            subject: text(subject, 'subject', 'a build subject'),
+            after: optionalText(subject, 'after_key', 'a build subject'),
+          })),
+          variations,
+        ),
         reach: reachRow === undefined ? null : toReach(reachRow, rows('reached')),
         journeys: journeyRow === undefined ? null : toJourneys(journeyRow),
         previous: previous === undefined ? null : text(previous, 'build', 'a build'),
@@ -312,7 +332,7 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
       return object.arrayBuffer();
     },
 
-    async decide(input): Promise<DecisionRecord> {
+    async decide(input): Promise<Decided> {
       const row = await db
         .prepare('SELECT * FROM build_subjects WHERE project = ? AND build = ? AND subject = ?')
         .bind(project, input.build, input.subject)
@@ -326,6 +346,10 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
       }
 
       const at = now().toISOString();
+      const accepts =
+        input.decision === 'approved'
+          ? await rejectionAccepted(db, project, input.build, input.subject)
+          : undefined;
 
       // Promotion happens *before* the decision is recorded. The other order can
       // leave an approval on the page whose baseline was never written, and the
@@ -364,11 +388,30 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
         )
         .run();
 
+      // After the decision, so a concern never stands for an approval that was
+      // not recorded. The approval is not refused: accepting a known defect is
+      // how a change it blocks gets merged, and the concern keeps the defect on
+      // record — "an approval never resolves a concern" holds the other way too.
+      const concern =
+        accepts?.decision == null
+          ? undefined
+          : await createConcernStore({ db, project, now }).raise({
+              build: input.build,
+              subject: input.subject,
+              title: acceptanceTitle(accepts.build),
+              by: input.by,
+              note:
+                accepts.decision.note === undefined
+                  ? `${accepts.decision.by} rejected it`
+                  : `${accepts.decision.by} rejected it: ${accepts.decision.note}`,
+            });
+
       return {
         decision: input.decision,
         by: input.by,
         at,
         ...(input.note !== undefined ? { note: input.note } : {}),
+        ...(concern !== undefined ? { concern: concern.id } : {}),
       };
     },
 

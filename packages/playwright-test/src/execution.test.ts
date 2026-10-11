@@ -350,6 +350,42 @@ describe('a worker that is one of several', () => {
     });
   });
 
+  // Each drain is taken as a statement of the test begins, and charges what the
+  // page reached since the drain before it to the statement that ran then. A
+  // region keeps the first line that reached it; what was reached before the
+  // first statement carries none, and the index reads it as ambient.
+  it('keeps the test line that first reached each region of a case drained per statement', async () => {
+    await inRoot(async (root) => {
+      const { cacheRoot, id } = await instrumented(root);
+      const directory = resolve(root, '.stage');
+      openStage(directory);
+      try {
+        const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile: resolve(root, 'coverage.bin') });
+        const owner = 'tests/checkout.spec.ts';
+        const subject = { name: 'pays with a saved card', id: 'one' };
+        const other = 'sign-in.js';
+        const window = (modules: ExecutionJournal['modules']) => pageReporting({ instrumentation: INSTRUMENTATION, modules });
+        await recorder.note(window([{ id: other, hits: [3], shared: [] }]), owner, subject);
+        await recorder.note(window([{ id, hits: [0], shared: [] }]), owner, subject, 4);
+        await recorder.note(window([{ id, hits: [0, 1], shared: [] }, { id: other, hits: [3, 5], shared: [] }]), owner, subject, 6);
+        await recorder.note(window([{ id, hits: [1], shared: [] }]), owner, { name: 'pays with a new card', id: 'two' });
+        await recorder.close();
+
+        const staged = await foldStage(directory);
+        const lines = Object.fromEntries((staged.cases ?? []).map((observed) => [observed.name, observed.lines]));
+        expect(lines).toEqual({
+          'pays with a saved card': [
+            { id, hits: [0, 1], lines: [4, 6] },
+            { id: other, hits: [5], lines: [6] },
+          ],
+          'pays with a new card': undefined,
+        });
+      } finally {
+        await closeStage(directory);
+      }
+    });
+  });
+
   it('records what the runner timed for each attempt, on the case and on its file', async () => {
     await inRoot(async (root) => {
       const coverageFile = resolve(root, 'coverage.bin');

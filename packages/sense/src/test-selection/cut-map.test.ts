@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { behindCut, inlineBehindCut } from './cut-map.js';
+import { behindCut, evaluatedCut, inlineBehindCut } from './cut-map.js';
 
 // `{\n  go();\n}` cut as `{\n  __vaC(2);go();\n}`: nine units inserted at
 // line 1, column 2. The wrapped transformer's segments name the cut text's
@@ -37,5 +37,19 @@ describe('inlineBehindCut', () => {
   it('leaves code without an inline map as it was', () => {
     const code = `go();\n${marker}=go.js.map\n`;
     expect(inlineBehindCut(code, shifts)).toBe(code);
+  });
+});
+
+describe('evaluatedCut', () => {
+  const map = { version: 3, sources: ['a.test.mjs'], names: [], mappings: written } as const;
+
+  it('moves back the map a loader before it left inline', () => {
+    const code = `{\n  __vaC(2);go();\n}\n${inline({ version: 3, mappings: cut })}\n`;
+    expect(evaluatedCut({ code, map, shifts })).toBe(`{\n  __vaC(2);go();\n}\n${inline({ version: 3, mappings: written })}\n`);
+  });
+
+  it('inlines the cut\'s own map where nothing left one', () => {
+    const code = '{\n  __vaC(2);go();\n}\n';
+    expect(evaluatedCut({ code, map, shifts })).toBe(`${code}${inline(map)}\n`);
   });
 });

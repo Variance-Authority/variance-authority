@@ -124,6 +124,7 @@
 import { instrumenter, spliced as splice, type Block, type BlockKind, type InstrumentMode } from './spliced.js';
 
 export type { Block, BlockKind, InstrumentMode };
+export { cadence, columnBehindCut, type CutSourceMap, type CutTestFile } from './cadence.js';
 
 /** Changes whenever two instrumented block universes must not share observations. */
 export const INSTRUMENTATION_ID = 'sense:instrument/presence-v5';
