@@ -7,17 +7,15 @@ import type { LayeredOrder } from './format-dictionary.js';
 import { BLOCK_KINDS, NO_OWNER } from './format-layout.js';
 import { writtenLines } from './written-lines.js';
 import {
-  addressKey,
-  addressed,
   crossedBlock,
   crossingsAround,
   editedRegion,
   owedByRecut,
   recutRows,
   reusableBlock,
-  sameNumbering,
   withoutRetired,
 } from './merge-carry.js';
+import { addressKey, addressed, sameNumbering } from './region-address.js';
 import type { CoverageBlock, CoverageModule, CoverageTest, TestCoverage } from './index.js';
 import { editReaches, type EditReadings } from './edit-readings.js';
 

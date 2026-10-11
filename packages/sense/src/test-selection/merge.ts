@@ -15,16 +15,15 @@ import { decodeTestCoverage } from './format.js';
 import type { CoverageBlock, CoverageModule, CoverageTest, TestCoverage } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import {
-  addressed,
   crossedBlock,
   crossingsAround,
   editedRegion,
   owedByRecut,
   recutRows,
   reusableBlock,
-  sameNumbering,
   withoutRetired,
 } from './merge-carry.js';
+import { addressed, sameNumbering } from './region-address.js';
 
 /** One shard's snapshot and where it was read from, so a refusal can name both sides. */
 export interface CoverageShard {

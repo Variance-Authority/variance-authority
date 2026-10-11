@@ -1,6 +1,6 @@
 import { settledAcross } from './cases.js';
 import { preconditionsAcross } from './case-precondition-column.js';
-import { addressKey } from './merge-carry.js';
+import { addressKey } from './region-address.js';
 import type {
   ExecutionBlock,
   ExecutionCrossing,

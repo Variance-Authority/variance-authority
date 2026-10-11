@@ -1,6 +1,6 @@
 // compass: variance-authority/runtime/attention
 import type { Relations } from '@variance-authority/core/relate';
-import { addressKey } from './merge-carry.js';
+import { addressKey } from './region-address.js';
 import { placeThrough, type Hunk } from './placed.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
 import { stoppedIn } from './stopped.js';

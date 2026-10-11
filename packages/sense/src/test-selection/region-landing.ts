@@ -9,7 +9,7 @@
 
 import type { SetExecutionModule } from './execution-set-format.js';
 import { NO_OWNER } from './format-layout.js';
-import { addressKey, sameNumbering } from './merge-carry.js';
+import { addressKey, sameNumbering } from './region-address.js';
 
 /**
  * `held` at the lines `recorded` stands its regions on, when the two are named
