@@ -242,7 +242,7 @@ describe('a module named unprobed', () => {
       }>)[0]!;
       const reporter = (configured.test!.reporters as unknown as Array<{
         onFinished(files: readonly []): Promise<void>;
-      }>)[1]!;
+      }>).at(-1)!;
 
       const placed = plugin.transform.handler('export function f(x) { if (x) { return 1; } return 2; }', page);
       await reporter.onFinished([]);
