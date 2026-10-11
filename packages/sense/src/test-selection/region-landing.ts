@@ -19,24 +19,25 @@ import { addressKey, addressOf, pairedRegions, sameNumbering } from './region-ad
  * Each held region is read at the recorded region of its address. When every
  * line agrees, `held` was cut at the text it is named at and comes back as it
  * was, whatever regions one cut holds and the other lacks. When a line does
- * not, `held` was cut at an older text, and its regions take the recorded
- * lines by the rule the snapshot re-cut its rows to the newer text by
+ * not, `held` was cut at an older text, and its regions take the recorded lines
+ * by the rule the snapshot re-cut its rows to the newer text by
  * ({@link pairedRegions} across texts): only where the two texts numbered
- * alike, and, since an index records no digest to tell twins apart by, never
- * for twins or for what is inside one. Then a held region the recorded cut has
+ * alike, and, since an index records no digest to tell namesakes apart by,
+ * never for namesakes or for what is inside one. Then a held region the recorded cut has
  * no pair for is left out: no line of the newer text is known to hold it, and
  * kept at a line of the older one it would pair with whatever region stands
- * there now. A kept region's owner is the nearest region around it that is
- * kept too, so a region born under one still takes its cases.
+ * there now. A kept region's owner is the nearest region around it that is kept
+ * too, so a region born under one still takes its cases.
  */
-// FIXME: twins in a case index pair by nothing across an edit, so their cases
-// are dropped and each twin takes the cases around it, where the rows of the
-// same module pair them by body. The index records no digest, and the rows the
-// snapshot holds for the module are not read where a run lands, nor always cut
-// at the text the index was. An index cut at an older text whose regions all
-// stand at the lines the newer one put them is read as cut at the newer text,
-// so twins rewritten in place still pair by occurrence there. Carrying each
-// region's digest in the index would pair both as `mergeCoverage` does.
+// FIXME: namesakes in a case index pair by nothing across an edit, so their
+// cases are dropped and each namesake takes the cases around it, where the rows
+// of the same module pair them by body. The index records no digest, and the
+// rows the snapshot holds for the module are not read where a run lands, nor
+// always cut at the text the index was. An index cut at an older text whose
+// regions all stand at the lines the newer one put them is read as cut at the
+// newer text, so namesakes rewritten in place still pair by occurrence there.
+// Carrying each region's digest in the index would pair both as `mergeCoverage`
+// does.
 export function relined(held: SetExecutionModule, recorded: SetExecutionModule): SetExecutionModule | undefined {
   if (cutAlike(held, recorded)) return held;
   if (!sameNumbering(held.blocks, recorded.blocks)) return undefined;
@@ -96,8 +97,8 @@ function keptOwners(owner: Uint32Array, kept: readonly number[]): Uint32Array {
  *
  * Over different texts the regions pair as the snapshot's rows do
  * ({@link pairedRegions}): none where the two cuts filled a counter
- * differently, since an address is half a seat among siblings, and among twins
- * only by body, which an index does not record, so none.
+ * differently, since an address is half a seat among siblings, and among
+ * namesakes only by body, which an index does not record, so none.
  *
  * Over the same text the seats are the text's, but not by the rows' rule of
  * occurrence alone. A cut of rows is one walk over the text and holds all of

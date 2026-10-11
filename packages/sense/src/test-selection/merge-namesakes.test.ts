@@ -1,4 +1,4 @@
-// Placing a previous run's crossings on twins: regions of one module at one
+// Placing a previous run's crossings on namesakes: regions of one module at one
 // address, told apart by occurrence over one text and by their bodies across
 // an edit.
 
@@ -107,8 +107,8 @@ function demoted(coverage: TestCoverage): readonly string[] {
 
 const RECORDED = widget(BASELINE, WIDGET, [BOTH, BOTH, [ALPHA], [BETA]]);
 
-describe('carrying crossings onto twins', () => {
-  it('leaves each twin holding the crossing it was recorded with over the same text', () => {
+describe('carrying crossings onto namesakes', () => {
+  it('leaves each namesake holding the crossing it was recorded with over the same text', () => {
     // A watch loop re-records the module — gamma renders the component and
     // fires neither effect. Placed by the bare address, both previous rows land
     // on the first effect and the later write wins: a diff of the first effect
@@ -119,7 +119,7 @@ describe('carrying crossings onto twins', () => {
     expect(demoted(merged)).toEqual([]);
   });
 
-  it('re-cuts each twin onto the crossing of the body it holds when only the text around them moved', () => {
+  it('re-cuts each namesake onto the crossing of the body it holds when only the text around them moved', () => {
     // A line written above the component moves both effects, and their bodies
     // stay what they were. Both are demoted for the line the module gained,
     // which neither ran.
@@ -130,7 +130,7 @@ describe('carrying crossings onto twins', () => {
     expect(demoted(merged)).toEqual(BOTH);
   });
 
-  it('demotes only the tests on the twin whose body a re-recording run saw edited', () => {
+  it('demotes only the tests on the namesake whose body a re-recording run saw edited', () => {
     // Gamma renders the component over an edit to the first effect's body. The
     // second effect's body is the one beta ran over, and it keeps beta. The
     // first is a body no run entered: it takes the component's crossings, and
@@ -143,19 +143,19 @@ describe('carrying crossings onto twins', () => {
   });
 });
 
-describe('twins, one taken out in front and one written behind', () => {
+describe('namesakes, one taken out in front and one written behind', () => {
   // Paired by occurrence, the first effect of the new text — beta's body —
   // takes alpha's crossing and the effect written behind takes beta's: a diff
   // of `close` is answered with alpha and beta is skipped. Paired by body, beta
   // stays on `close`, alpha's body is gone, and `reset` is a region gained.
 
-  it('re-cuts the surviving twin onto its own crossing and the gained one onto the component\'s', () => {
+  it('re-cuts the surviving namesake onto its own crossing and the gained one onto the component\'s', () => {
     const merged = mergeCoverage(RECORDED, ELSEWHERE, new Map([['src/widget.js', SHIFTED]]));
 
     expect(effects(merged)).toEqual([[BETA], BOTH]);
   });
 
-  it('demotes only the tests on the twin taken out when a run re-records the module', () => {
+  it('demotes only the tests on the namesake taken out when a run re-records the module', () => {
     const merged = mergeCoverage(RECORDED, widget(LOCAL, SHIFTED, [[GAMMA], [GAMMA], [], []]));
 
     expect(effects(merged)).toEqual([[BETA], BOTH]);
@@ -163,8 +163,8 @@ describe('twins, one taken out in front and one written behind', () => {
   });
 });
 
-describe('twins with one body', () => {
-  it('carries neither crossing onto the twin left when two identical bodies become one', () => {
+describe('namesakes with one body', () => {
+  it('carries neither crossing onto the namesake left when two identical bodies become one', () => {
     // Which of the two went is the question the bodies cannot answer, so the
     // one left is a gained region and both tests are demoted.
     const twice = WIDGET.replace('close(props.b);', 'open(props.a);');
@@ -198,7 +198,7 @@ function cut(sourceDigest: string, blocks: readonly CoverageBlock[]): CoverageMo
 }
 
 describe('the tests a re-cut owes a run', () => {
-  it('owes nothing for a twin whose body the cut still holds after its sibling went', () => {
+  it('owes nothing for a namesake whose body the cut still holds after its sibling went', () => {
     // Paired by occurrence, `close` is read as the first effect edited, and
     // beta is owed a run over a body it already ran.
     const before = cut('v1', [region(0, undefined, 'm', BOTH), region(1, 0, 'w', BOTH), region(2, 1, 'open', [ALPHA]), region(3, 1, 'close', [BETA])]);

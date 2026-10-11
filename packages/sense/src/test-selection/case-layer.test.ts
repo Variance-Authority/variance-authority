@@ -249,11 +249,11 @@ function cutAt(cases: readonly string[], file: string, regions: readonly Cut[]):
 
 describe('a module the index holds at an older text than the snapshot', () => {
   const one = 'blocks.test.ts > warns';
-  // The index cut `blocks.ts` before a line was written above the function;
-  // the snapshot re-cut its rows to the text after, and the run recorded that
-  // same text, so every region stands one line lower than the index says.
-  // Each callback is an argument to a callee of its own, so each address picks
-  // out one region; twins across two texts pair with nothing, as the siblings
+  // The index cut `blocks.ts` before a line was written above the function; the
+  // snapshot re-cut its rows to the text after, and the run recorded that same
+  // text, so every region stands one line lower than the index says. Each
+  // callback is an argument to a callee of its own, so each address picks out
+  // one region; namesakes across two texts pair with nothing, as the siblings
   // below pin.
   const [opens, warns, closes] = ['warningBlocks/filter.arg0', 'warningBlocks/map.arg0', 'warningBlocks/reduce.arg0'];
   const held = cutAt([one], 'src/blocks.ts', [[414, [], opens], [415, [one], warns], [416, [], closes]]);

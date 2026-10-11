@@ -174,7 +174,7 @@ function twoBuilds(commit: string | undefined, first: string, second: string): T
  * address, and this is the shape where the address does not tell the two rows
  * apart: region `n` is entered by `entered[n]`.
  */
-function twins(
+function namesakes(
   commit: string | undefined,
   entered: readonly (readonly string[])[],
 ): TestCoverage {
@@ -195,7 +195,7 @@ function twins(
         root('block:src/decide.ts', entered[0] ?? []),
         { ...entry('block:src/decide.ts-arg0', entered[1] ?? []), name: 'decide/map.arg0' },
         {
-          ...entry('block:src/decide.ts-arg0-twin', entered[2] ?? []),
+          ...entry('block:src/decide.ts-arg0-namesake', entered[2] ?? []),
           ordinal: 2,
           name: 'decide/map.arg0',
           startLine: 5,
@@ -313,21 +313,21 @@ const CASES: Readonly<Record<string, Case>> = {
     },
   },
   'a module whose two regions are one address, re-recorded': {
-    previous: twins(BASELINE, [
+    previous: namesakes(BASELINE, [
       ['test/alpha.test.ts', 'test/beta.test.ts'],
       ['test/alpha.test.ts'],
       ['test/beta.test.ts'],
     ]),
-    current: twins(LOCAL, [['test/gamma.test.ts'], [], []]),
+    current: namesakes(LOCAL, [['test/gamma.test.ts'], [], []]),
   },
   'a module whose two regions are one address, re-recorded over another text': {
-    previous: twins(BASELINE, [
+    previous: namesakes(BASELINE, [
       ['test/alpha.test.ts', 'test/beta.test.ts'],
       ['test/alpha.test.ts'],
       ['test/beta.test.ts'],
     ]),
     current: (() => {
-      const recorded = twins(LOCAL, [['test/gamma.test.ts'], [], []]);
+      const recorded = namesakes(LOCAL, [['test/gamma.test.ts'], [], []]);
       return { ...recorded, modules: [{ ...recorded.modules[0]!, sourceDigest: 'source:src/decide.ts-edited' }] };
     })(),
   },
