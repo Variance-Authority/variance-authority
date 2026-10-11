@@ -48,6 +48,13 @@ describe('ask intersection over a checkout', () => {
     expect(text).not.toContain('src/store/index.ts');
   });
 
+  it('finds who imports a name out of a file through the barrel that passes it on, as `uses` does', async () => {
+    const text = (await intersectionSource(root, { imports: ['src/store/selectors.ts#selectBalance'] })).answer();
+    expect(text).toContain('2 files importing `selectBalance` from `src/store/selectors.ts`, through 1 file that passes it on');
+    expect(text).toContain('src/Wallet.ts:1  imports selectBalance from ./store');
+    expect(text).toContain('src/store/index.ts:1  imports selectBalance from ./selectors');
+  });
+
   it('answers the same when every file is read back from the source index', async () => {
     rmSync(sourceIndexPath(root), { force: true });
     const parsed = await ask();

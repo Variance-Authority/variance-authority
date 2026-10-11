@@ -261,12 +261,14 @@ of them:
 - `--imports <module#name>[,...]`: who imports that name from that module, by
   the name the module publishes, so an aliased import still counts. The module
   is the specifier as written, where a package also covers its subpaths and a
-  relative specifier only itself, or the repo-relative file it resolved to,
-  which an import through a barrel does not reach; `module` alone is any import
-  of it.
-- `--declares <regex>`: who declares a matching name, case-insensitive. A name
-  passed on with `export … from` is declared where it comes from, not in the
-  barrel.
+  relative specifier only itself, or the repo-relative file it resolved to;
+  `module` alone is any import of it. A name out of a repo-relative file is
+  answered as `uses` answers it: an import through a barrel that passes the name
+  on counts, and so does the barrel, and the header says how many passed it on.
+- `--declares <regex>`: who declares a matching name, case-insensitive. An
+  export of an imported name, with `export … from` or without, is declared where
+  it comes from, not in the barrel; `export default function make()` declares
+  `make`.
 - `--path <regex>`: a pattern over repo-relative paths.
 - `--except-from`, `--except-to`, `--except-imports`, `--except-declares`,
   `--except-path`: the same sets, taken out.
@@ -283,8 +285,9 @@ the `--from` or `--to` paths first, each with the line that put it in every
 set. It shows 50; `--limit` shows more, and the count is always of all of them.
 A file whose names the scan did not hand over is counted in the `--imports` and
 `--declares` headers, since it is unknown rather than a file with no names.
-Over MCP, `docs_intersection` answers `from`, `to` and `path`, and refuses
-`imports` and `declares`: the reading an MCP host serves holds no names.
+Over MCP, `docs_intersection` answers `from`, `to`, `path` and `--imports` of a
+name out of a repo-relative file, and refuses `declares` and any other
+`imports`: the reading an MCP host serves holds no names.
 
 ### `gaps`
 

@@ -186,8 +186,9 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
   let report = await readRunReport(path);
   let help: Help | undefined;
   // FIXME: no names are handed to `intersection` here. The reading may come
-  // from the published snapshot, which holds no parses, so its `imports` and
-  // `declares` operands are refused over MCP and answered by `variance ask`.
+  // from the published snapshot, which holds no parses, so its `declares`, and
+  // `imports` of anything but a name out of a repository file, are refused over
+  // MCP and answered by `variance ask`.
   let tree: Tree | undefined;
 
   return serveTools<Bench>({

@@ -82,8 +82,8 @@ export async function grepSource(root: string, input: Readonly<Record<string, un
 
 /**
  * `intersection` reads no workspace value either, but every one of its sets
- * needs the tree, and `imports` and `declares` need each file's names, which
- * only the scan that draws the tree holds.
+ * needs the tree, and `declares` and most `imports` need each file's names,
+ * which only the scan that draws the tree holds.
  */
 export async function intersectionSource(root: string, input: Readonly<Record<string, unknown>>): Promise<Answering> {
   const read = await readNamedTree(root);

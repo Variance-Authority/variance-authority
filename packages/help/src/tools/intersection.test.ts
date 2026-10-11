@@ -110,7 +110,7 @@ describe('intersection of whole sets', () => {
   });
 
   it('matches an import by the file it resolved to, as well as by what was written', () => {
-    const text = ask({ imports: 'src/store/selectors.ts#selectBalance' });
+    const text = ask({ imports: 'src/store/selectors.ts' });
     expect(text).toContain('src/Wallet.tsx:1  imports selectBalance from ./store/selectors as balance');
   });
 
@@ -179,6 +179,10 @@ describe('intersection refuses', () => {
 
   it('a name operand when no names were read', () => {
     expect(() => intersection.run(undefined, CONTEXTS, { tree })).toThrow('no names were read');
+  });
+
+  it('a name out of a file when no source index holds who imports it', () => {
+    expect(() => ask({ imports: 'src/store/selectors.ts#selectBalance' })).toThrow('read from the source index, and no source index is published; run `variance index`');
   });
 
   it('an import with nothing after its `#`', () => {

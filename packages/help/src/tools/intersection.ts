@@ -2,6 +2,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { SourceNames, Tool, Tree } from '@variance-authority/mcp/tools';
 import { entryPoints, pathsOf, refusalFor, startPointArg } from '@variance-authority/mcp/tools';
 import { ripgrep } from './ripgrep.js';
+import { importsOf as importersOf } from './unpublished.js';
 
 /**
  * `docs_intersection` — the files in every one of several sets.
@@ -30,9 +31,11 @@ import { ripgrep } from './ripgrep.js';
  *
  * ## Names are read with the tree
  *
- * `imports` and `declares` read every file's names, which the scan that drew
- * the tree holds as it parses. A host that read the tree without them refuses
- * those operands rather than answering as though no file declared anything.
+ * `declares`, and `imports` of a package or a specifier as written, read every
+ * file's names, which the scan that drew the tree holds as it parses. A host
+ * that read the tree without them refuses those operands rather than answering
+ * as though no file declared anything. A name out of a file the tree holds is
+ * read off the source index, as `uses` reads it, and needs no names.
  */
 
 /** Files shown when `limit` is not said; every one is counted. */
@@ -114,18 +117,25 @@ function reach(term: string, tree: Tree, along: boolean): Operand {
 /**
  * `spec#name`, or `spec` for every import of it. Split at the last `#` past
  * the first character, because `#internal` is itself a specifier.
+ *
+ * A name out of a file the tree holds is answered as `uses` answers it, off the
+ * source index: a file that passes the name on with `export … from` is
+ * followed, so an import through a barrel counts. Anything else — a package, a
+ * specifier as written, a file with no name — is matched in the names.
  */
-function importsOf(said: string, tree: Tree, names: SourceNames): Operand {
+function importsOf(said: string, tree: Tree, names: () => SourceNames, root: string | undefined): Operand {
   const at = said.lastIndexOf('#');
   const spec = at > 0 ? said.slice(0, at) : said;
   const name = at > 0 ? said.slice(at + 1) : undefined;
   if (name === '') {
     throw new Error(`\`${said}\` has nothing after \`#\`. Say \`${spec}#name\`, or \`${spec}\` for every import of it.`);
   }
+  if (name !== undefined && tree.files.has(spec)) return importersOfFile(spec, name, root);
+  const held = names();
   const files = new Set<string>();
   const lines = new Map<string, string[]>();
-  for (const [file, held] of names) {
-    for (const entry of held.imported) {
+  for (const [file, read] of held) {
+    for (const entry of read.imported) {
       const module = entry.from === spec || (isBare(spec) && entry.from.startsWith(`${spec}/`)) || entry.to === spec;
       if (!module || (name !== undefined && entry.name !== name)) continue;
       files.add(file);
@@ -138,9 +148,32 @@ function importsOf(said: string, tree: Tree, names: SourceNames): Operand {
     }
   }
   return {
-    header: `${counted(files.size)} importing ${name === undefined ? '' : `\`${name}\` from `}\`${spec}\`${unreadOf(tree, names)}`,
+    header: `${counted(files.size)} importing ${name === undefined ? '' : `\`${name}\` from `}\`${spec}\`${unreadOf(tree, held)}`,
     files,
     evidence: (file) => lines.get(file) ?? [],
+  };
+}
+
+/** Every import of `name` out of `file`, followed through the files that pass it on. */
+function importersOfFile(file: string, name: string, root: string | undefined): Operand {
+  const read = importersOf(root, [file], name);
+  if ('unread' in read) {
+    throw new Error(`\`intersection\` ran nothing: who imports \`${name}\` from \`${file}\` is read from the source index, and ${read.unread}.`);
+  }
+  const files = new Set<string>();
+  const lines = new Map<string, string[]>();
+  for (const use of read.uses) {
+    files.add(use.at);
+    const through = use.through === undefined ? '' : use.through.kind === 'dynamic' ? ' through import()' : ' through a namespace';
+    const list = lines.get(use.at) ?? [];
+    list.push(`${use.at}:${use.line}  imports ${use.name} from ${use.specifier}${through}`);
+    lines.set(use.at, list);
+  }
+  const passed = read.through.length === 0 ? '' : `, through ${counted(read.through.length)} that ${read.through.length === 1 ? 'passes' : 'pass'} it on`;
+  return {
+    header: `${counted(files.size)} importing \`${name}\` from \`${file}\`${passed}`,
+    files,
+    evidence: (at) => lines.get(at) ?? [],
   };
 }
 
@@ -168,13 +201,13 @@ function pathOf(pattern: string, tree: Tree): Operand {
 }
 
 /** The operands a call names, positive and taken out, in the order the schema lists them. */
-function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names: SourceNames | undefined) {
+function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names: SourceNames | undefined, root: string | undefined) {
   const named = (): SourceNames => {
     if (names !== undefined) return names;
     throw new Error(
-      '`intersection` ran nothing: no names were read with the source tree here, so `imports` and ' +
-        '`declares` have nothing to answer from. Ask `variance ask intersection` in the checkout, ' +
-        'which reads them as it reads the tree.',
+      '`intersection` ran nothing: no names were read with the source tree here, so `declares`, and ' +
+        '`imports` of anything but a name out of a repository file, have nothing to answer from. Ask ' +
+        '`variance ask intersection` in the checkout, which reads them as it reads the tree.',
     );
   };
   const read = (prefix: '' | 'except'): Operand[] => {
@@ -182,7 +215,7 @@ function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names:
     const operands: Operand[] = [];
     for (const term of listArg(input, key('from'))) operands.push(reach(term, tree, true));
     for (const term of listArg(input, key('to'))) operands.push(reach(term, tree, false));
-    for (const said of listArg(input, key('imports'))) operands.push(importsOf(said, tree, named()));
+    for (const said of listArg(input, key('imports'))) operands.push(importsOf(said, tree, named, root));
     const declares = textArg(input, key('declares'));
     if (declares !== undefined) operands.push(declaresOf(declares, tree, named()));
     const path = textArg(input, key('path'));
@@ -204,15 +237,15 @@ export const intersection: Tool<unknown> = {
     'who declares a name matching a pattern (`declares`), whose path matches one (`path`). Several ' +
     'values of one operand are several sets, crossed. `except…` operands take their files out, and ' +
     '`text` keeps only the files with a line ripgrep matches. Nearest first, with the line that puts ' +
-    'each file in each set. `imports` and `declares` read the names a scan of the checkout hands over; ' +
-    'a host that holds none refuses them.',
+    'each file in each set. `declares`, and `imports` of anything but `file#name`, read the names a scan ' +
+    'of the checkout hands over; a host that holds none refuses them.',
   inputSchema: {
     type: 'object',
     properties: {
       from: { type: 'array', items: { type: 'string' }, description: 'Paths; each is the set of files it reaches along the imports, itself included. Same path forms as `search --from`.' },
       to: { type: 'array', items: { type: 'string' }, description: 'Paths; each is the set of files that reach it along the imports, itself included.' },
-      imports: { type: 'array', items: { type: 'string' }, description: '`module#name` or `module`, as written in the import or as the repo-relative file it resolved to; each is the set of files importing it. A subpath of a package matches the package; a relative specifier matches only as written. A file matches only the imports that resolved to it directly, not those through a barrel that re-exports it.' },
-      declares: { type: 'string', description: 'A regular expression, case-insensitive; the set of files declaring a matching name. A name forwarded with `export … from` is declared where it is forwarded from.' },
+      imports: { type: 'array', items: { type: 'string' }, description: '`module#name` or `module`, as written in the import or as the repo-relative file it resolved to; each is the set of files importing it. A subpath of a package matches the package; a relative specifier matches only as written. `file#name` for a repo-relative file is answered as `docs_uses` answers it, from the source index: an import through a barrel that passes the name on counts.' },
+      declares: { type: 'string', description: 'A regular expression, case-insensitive; the set of files declaring a matching name. An export of an imported name, with `from` or without, is declared where it comes from; `export default function make()` declares `make`.' },
       path: { type: 'string', description: 'A regular expression over repo-relative paths.' },
       text: { type: 'string', description: 'A ripgrep pattern, run only over the files every other operand kept.' },
       exceptFrom: { type: 'array', items: { type: 'string' }, description: 'As `from`, taken out.' },
@@ -233,7 +266,7 @@ export const intersection: Tool<unknown> = {
     if (tree === undefined) {
       throw new Error('`intersection` ran nothing: no source tree was read. Ask from a checkout of the workspace.');
     }
-    const { kept, out } = operandsOf(input, tree, invocation?.names);
+    const { kept, out } = operandsOf(input, tree, invocation?.names, invocation?.root);
     if (kept.length === 0) {
       throw new Error(
         text === undefined
