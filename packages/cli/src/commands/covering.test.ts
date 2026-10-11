@@ -120,6 +120,15 @@ describe('asking which tests entered a line', () => {
     await expect(asked).rejects.not.toThrow(/record spells it/);
   });
 
+  it('answers a bare file name with the recorded files of that name, without calling them another file', async () => {
+    const execution = await indexFile();
+
+    const asked = covering(parse(['--file', 'total.ts', '--execution', execution]));
+
+    await expect(asked).rejects.toThrow(/The record holds `src\/total\.ts` by that name\.$/);
+    await expect(asked).rejects.not.toThrow(/only shares its name/);
+  });
+
   it('separates a line nothing recorded from a line nothing covered', async () => {
     const execution = await indexFile();
 

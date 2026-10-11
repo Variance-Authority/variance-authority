@@ -419,8 +419,9 @@ record holds this path under another root, such as
 `apps/shop/src/checkout/total.ts` for `src/checkout/total.ts`: that suite most likely ran the file, and keeps its full
 refusal among the answers. When no suite answers, each says why in full, with
 the record it read and the recorded paths that are this one under another root,
-since a wrong path is then the likely cause. A recorded file that shares only
-the name is named as sharing it, not as the path the record spells.
+since a wrong path is then the likely cause. When there is none, a recorded file
+that shares only the name is named as sharing it, not as the path the record
+spells; a bare file name asked lists the recorded files of that name.
 
 In JSON the answer is a `suites` list. Each entry is that suite's own answer
 with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`

@@ -1,14 +1,16 @@
 // compass: variance-authority.reach
 
 /**
- * The refusal for a file a record does not hold.
+ * The refusal for a file a record does not hold, and the sentence it shares with
+ * the refusal for a test file the index holds no case of.
  *
  * A path given to `covering` is usually the right file and the wrong root: the
  * record spells a module the way the run saw it, and a reader who pasted an
  * editor path is one prefix away. The sentence points at recorded files that
- * are this one under another root. The refusal also carries them as data, so a
- * caller tells a suite that tests other code from one that most likely ran this
- * file, without reading the sentence.
+ * are this one under another root, and names one that only shares the name as
+ * that. The refusal also carries the first as data, so a caller tells a suite
+ * that tests other code from one that most likely ran this file, without
+ * reading the sentence.
  */
 
 import { OperatorError } from '../exit.js';
@@ -43,7 +45,8 @@ export function unloadedFile(file: string, from: string, files: readonly string[
  * under another root. One that shares no more than the file name is another
  * file, or this one before it moved, and is named as only sharing it: called a
  * spelling, it sends the reader to ask about a file they did not mean, and to
- * read the record as stale when it is not.
+ * read the record as stale when it is not. A bare name asked has no directory
+ * to differ in, so the recorded files of that name are only listed.
  */
 export function spelling(file: string, files: Iterable<string>): string {
   const listed = [...files];
@@ -51,11 +54,11 @@ export function spelling(file: string, files: Iterable<string>): string {
   if (near.length > 0) return `The record spells it ${quoted(near)}.`;
   const tail = file.slice(file.lastIndexOf('/') + 1);
   const named = listed.filter((candidate) => candidate === tail || candidate.endsWith(`/${tail}`)).sort();
-  return named.length === 0
-    ? `Nothing recorded ends in \`${tail}\`.`
-    : `No recorded path is this one under another root; ${quoted(named)} only ${
-      named.length === 1 ? 'shares' : 'share'
-    } its name.`;
+  if (named.length === 0) return `Nothing recorded ends in \`${tail}\`.`;
+  if (!file.includes('/')) return `The record holds ${quoted(named)} by that name.`;
+  return `No recorded path is this one under another root; ${quoted(named)} only ${
+    named.length === 1 ? 'shares' : 'share'
+  } its name.`;
 }
 
 /** Recorded paths that end in `file`, or that it ends in, at a shared directory. */

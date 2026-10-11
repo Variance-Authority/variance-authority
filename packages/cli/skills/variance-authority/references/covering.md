@@ -50,8 +50,9 @@ covers it*. A suite whose record holds this path under another root, such as
 `apps/shop/src/checkout/total.ts` for `src/checkout/total.ts`, keeps its full block among the
 answers: it most likely ran the file. When no suite answers, each block says why
 in full, with the record it read and the recorded paths that are this one under
-another root, since a wrong path is then the likely cause. A recorded file that
-shares only the name is named as sharing it, not as the spelling, and the
+another root, since a wrong path is then the likely cause. When there is none,
+a recorded file that shares only the name is named as sharing it, not as the
+spelling, and a bare file name asked lists the recorded files of that name. The
 `--cases` refusal for a test file the index holds no case of reads the same.
 `--format refs` answers the same way.
 `--suite <name>` reads one suite's record alone, so gives its refusal in full,
