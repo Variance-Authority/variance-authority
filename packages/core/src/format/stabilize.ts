@@ -23,9 +23,8 @@ import { waitForFonts, waitForImages } from './waits.js';
  *
  * A recipe can be filtered by tier, so the structure-and-style rung waits for
  * nothing; composed from another project's tricks alongside these; digested, so
- * a baseline made under one recipe compared with a run made under another names
- * the recipe as the cause of what changed; and checked for tricks that fight
- * each other.
+ * a run under another recipe than its baseline names the recipe as the cause;
+ * and checked for tricks that fight each other.
  *
  * ## Where the damage lands
  *

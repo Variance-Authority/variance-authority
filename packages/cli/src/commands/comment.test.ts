@@ -253,36 +253,18 @@ describe('renderComment', () => {
   });
 
   it('groups subjects painted under another identity by what moved, changed or not', () => {
-    // An upgrade moves the whole suite at once. Every subject is compared, and
-    // the identity that moved is one line with its count, so the few that are
-    // regressions are not read one sentence at a time (ADR-0090).
-    const upgrade = { identity: 'machine' as const, moved: ['engine chromium@131 → chromium@132'] };
+    // An upgrade moves the whole suite: one line per move with its count, so the
+    // few regressions are not read one sentence at a time (ADR-0090).
+    const signals = { identity: 'machine' as const, moved: ['engine chromium@131 → chromium@132'] };
+    const changed = (subject: string, pixels: number) => ({
+      subject, verdict: 'changed' as const, because: `${pixels} pixel(s) differ`, changedPixels: pixels,
+      regions: [{ x: 0, y: 0, width: pixels, height: 1, pixels, cause: false }], signals,
+    });
     const body = renderComment({
       report: reportOf([
-        {
-          subject: 'story:a',
-          verdict: 'changed',
-          because: 'the baseline and this run were painted under different identities; 40 pixel(s) differ',
-          changedPixels: 40,
-          regions: [{ x: 0, y: 0, width: 8, height: 5, pixels: 40, cause: false }],
-          signals: upgrade,
-        },
-        {
-          subject: 'story:b',
-          verdict: 'changed',
-          because: 'the baseline and this run were painted under different identities; 12 pixel(s) differ',
-          changedPixels: 12,
-          regions: [{ x: 0, y: 0, width: 4, height: 3, pixels: 12, cause: false }],
-          signals: upgrade,
-        },
-        {
-          subject: 'story:c',
-          verdict: 'unchanged',
-          because: 'the baseline and this run were painted under different identities; no pixels differ',
-          changedPixels: 0,
-          regions: [],
-          signals: upgrade,
-        },
+        changed('story:a', 40),
+        changed('story:b', 12),
+        { subject: 'story:c', verdict: 'unchanged', because: 'no pixels differ', changedPixels: 0, regions: [], signals },
       ]),
     });
 

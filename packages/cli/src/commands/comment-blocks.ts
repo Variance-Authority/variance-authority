@@ -308,11 +308,8 @@ function collateralBlocks(collateral: Collateral): readonly string[] {
 }
 
 /**
- * Subjects painted under another identity, one line per identity that moved.
- *
- * Outside the fold, beside the lead: an upgrade or a new recipe moves the whole
- * suite, and the count of what it changed against what it left alone is the
- * first thing a reviewer reads before looking for the few that are regressions.
+ * Subjects painted under another identity, one line per move, beside the lead:
+ * what an upgrade changed against what it left alone is read first.
  */
 export function moveBlocks(docket: Docket, limits: CommentLimits): readonly string[] {
   if (docket.moves.length === 0) return [];
