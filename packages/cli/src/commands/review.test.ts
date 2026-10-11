@@ -78,6 +78,34 @@ describe('a review of what a change did, after the run that recorded it', () => 
       .toEqual([['applyDiscount', 2, 4, 1], ['round', 6, 8, 0]]);
   });
 
+  it('says what the change might do when the named suite\'s cases were cut at other text than its snapshot', async () => {
+    // A run that kept no case: its snapshot re-cut to the tree, its case index carried at the base's lines.
+    const { root, first, against } = await changed({ suites: ['unit'], tree: LEAD, lines: LEAD_LINES, indexed: AFTER_LINES });
+    const answer = await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--root', root]));
+
+    expect(answer.record).toBe('before');
+    const markdown = formatReview(answer, 'markdown');
+    expect(markdown).toContain('### 🧭 What this change might do');
+    expect(markdown).not.toContain('### 🧭 What this change did');
+  });
+
+  it('takes the regions of a suite that ran the tree when the named suite\'s cases were cut at other text than its snapshot', async () => {
+    const { root, first, against } = await changed({ suites: ['unit', 'browser'], tree: LEAD, lines: LEAD_LINES, indexed: AFTER_LINES });
+    await recordTotal(testCoverageFile(root, { suite: 'browser' }), {
+      commit: first,
+      text: LEAD,
+      lines: LEAD_LINES,
+      tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
+      entered: { applyDiscount: [], round: ['test/total.test.ts'] },
+      index: { tests: [ROUNDS], modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', ...LEAD_LINES.applyDiscount, []), block('round', ...LEAD_LINES.round, [0])] }] },
+    });
+    const answer = await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--coverage', '--root', root]));
+
+    expect(answer.record).toBe('before');
+    expect(answer.files.find((file) => file.file === 'src/total.ts')?.regions?.map(({ name, startLine, endLine, cases }) => [name, startLine, endLine, cases]))
+      .toEqual([['applyDiscount', 2, 4, 0], ['round', 6, 8, 1]]);
+  });
+
   it('says the named suite has not run the change, though another suite ran it and answers for its regions', async () => {
     const { root, first, against } = await changed({ suites: ['unit', 'browser'], text: `${AFTER}\n` });
     await roundedBy(root, first, 'browser');

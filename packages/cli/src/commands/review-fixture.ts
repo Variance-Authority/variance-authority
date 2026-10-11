@@ -23,7 +23,7 @@ export const BEFORE = 'export function applyDiscount(price: number): number {\n 
 export const AFTER = `${BEFORE.replace('0.9', '0.8')}\nexport function round(price: number): number {\n  return Math.round(price);\n}\n`;
 /** {@link AFTER} with a line written above `applyDiscount`, which moves both functions one line down. */
 export const LEAD = `// Prices are in cents.\n${AFTER}`;
-export const TEST ="import { applyDiscount } from '../src/total';\nit('discounts', () => applyDiscount(1));\n";
+export const TEST = "import { applyDiscount } from '../src/total';\nit('discounts', () => applyDiscount(1));\n";
 
 export const DISCOUNTS = { id: 'test/total.test.ts > discounts', file: 'test/total.test.ts', name: 'discounts', stopped: false };
 export const ROUNDS = { id: 'test/total.test.ts > rounds', file: 'test/total.test.ts', name: 'rounds', stopped: false };
@@ -43,13 +43,14 @@ export interface TotalLines {
 export const AFTER_LINES: TotalLines = { applyDiscount: [1, 3], round: [5, 7] };
 export const LEAD_LINES: TotalLines = { applyDiscount: [2, 4], round: [6, 8] };
 
-export const git =(at: string, args: readonly string[]): string =>
+export const git = (at: string, args: readonly string[]): string =>
   execFileSync('git', args, { cwd: at, stdio: 'pipe', encoding: 'utf8' }).trim();
 
 /**
  * `main` at the base, the change in the working tree, and the run after it
  * recorded, over `text` of `src/total.ts`, the tree's own unless given. The
- * tree holds `tree`, {@link AFTER} unless given, with its functions at `lines`.
+ * tree holds `tree`, {@link AFTER} unless given, with its functions at `lines`;
+ * the run's case index holds them at `indexed`, `lines` unless given.
  */
 export async function changed(options: {
   readonly gone?: boolean;
@@ -57,9 +58,11 @@ export async function changed(options: {
   readonly text?: string;
   readonly tree?: string;
   readonly lines?: TotalLines;
+  readonly indexed?: TotalLines;
 } = {}): Promise<{ root: string; first: string; against: string }> {
   const tree = options.tree ?? AFTER;
   const lines = options.lines ?? AFTER_LINES;
+  const indexed = options.indexed ?? lines;
   const root = await mkdtemp(join(tmpdir(), 'variance-review-'));
   await mkdir(join(root, 'src'));
   await mkdir(join(root, 'test'));
@@ -95,7 +98,7 @@ export async function changed(options: {
     entered: { applyDiscount: ['test/total.test.ts'], round: extra },
     index: {
       tests: [DISCOUNTS, ROUNDS, ...(extra.length === 0 ? [] : [GONE])],
-      modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', ...lines.applyDiscount, [0]), block('round', ...lines.round, extra.length === 0 ? [] : [2])] }],
+      modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', ...indexed.applyDiscount, [0]), block('round', ...indexed.round, extra.length === 0 ? [] : [2])] }],
     },
   });
   // What the pipeline's `variance index` step publishes after the run; under CI, review refuses to build it itself.
