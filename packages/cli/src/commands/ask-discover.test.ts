@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { askSource, type SourceRequest } from './ask.js';
 
 /**
- * `variance ask intersection` reads its names from the checkout, through the
+ * `variance ask discover` reads its names from the checkout, through the
  * source index. An ask that finds every file already in the index must still
  * have their names: a file the index serves is not a file that declares
  * nothing. The fixture is committed, so the scan knows every file's digest
@@ -28,8 +28,8 @@ function write(file: string, text: string): void {
 }
 
 beforeAll(() => {
-  root = mkdtempSync(join(tmpdir(), 'ask-intersection-'));
-  write('package.json', '{"name":"ask-intersection-fixture","private":true}\n');
+  root = mkdtempSync(join(tmpdir(), 'ask-discover-'));
+  write('package.json', '{"name":"ask-discover-fixture","private":true}\n');
   write('src/Wallet.ts', "import { selectBalance } from './store';\nexport const balance = selectBalance;\n");
   write('src/store/index.ts', "import { selectBalance } from './selectors';\nexport { selectBalance };\n");
   write('src/store/selectors.ts', 'export const selectBalance = (state: { balance: number }) => state.balance;\n');
@@ -48,10 +48,10 @@ afterAll(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-const ask = (flags: Omit<SourceRequest, 'question'>): Promise<string> => askSource({ question: 'intersection', ...flags });
+const ask = (flags: Omit<SourceRequest, 'question'>): Promise<string> => askSource({ question: 'discover', ...flags });
 const declaresBalance = (): Promise<string> => ask({ declares: '^selectBalance$', from: 'src/Wallet.ts' });
 
-describe('ask intersection over a checkout', () => {
+describe('ask discover over a checkout', () => {
   it('finds the declaration a file can reach, among every file declaring the name, past the barrel that re-exports it', async () => {
     const text = await declaresBalance();
     expect(text).toContain('2 files declaring a name matching /^selectBalance$/i');

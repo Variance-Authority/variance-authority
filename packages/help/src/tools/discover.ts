@@ -7,7 +7,7 @@ import { ripgrep } from './ripgrep.js';
 import { importsOf as importersOf } from './unpublished.js';
 
 /**
- * `docs_intersection` — the files in every one of several sets.
+ * `docs_discover` — the files in every one of several sets.
  *
  * Each question the source answers on its own is a set of files: what a path
  * reaches, what reaches it, who imports a name, who declares one, whose path
@@ -100,7 +100,7 @@ function reach(term: string, tree: Tree, along: boolean): Operand {
   const refused = refusalFor(seeds.unmatched);
   if (refused !== undefined) {
     throw new Error(
-      `\`intersection\` ran nothing: ${refused}. Say a real path from the root — \`src/a/File.ts\` is ` +
+      `\`discover\` ran nothing: ${refused}. Say a real path from the root — \`src/a/File.ts\` is ` +
         "that file, `src/a/*` its folder's own files, `src/a/` everything under it.",
     );
   }
@@ -161,7 +161,7 @@ function importsOf(said: string, tree: Tree, names: () => SourceNames, root: str
 function importersOfFile(file: string, name: string, root: string | undefined): Operand {
   const read = importersOf(root, [file], name);
   if ('unread' in read) {
-    throw new Error(`\`intersection\` ran nothing: who imports \`${name}\` from \`${file}\` is read from the source index, and ${read.unread}.`);
+    throw new Error(`\`discover\` ran nothing: who imports \`${name}\` from \`${file}\` is read from the source index, and ${read.unread}.`);
   }
   const files = new Set<string>();
   const lines = new Map<string, string[]>();
@@ -208,9 +208,9 @@ function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names:
   const named = (): SourceNames => {
     if (names !== undefined) return names;
     throw new Error(
-      '`intersection` ran nothing: no names were read with the source tree here, so `declares`, and ' +
+      '`discover` ran nothing: no names were read with the source tree here, so `declares`, and ' +
         '`imports` of anything but a name out of a repository file, have nothing to answer from. Ask ' +
-        '`variance ask intersection` in the checkout, which reads them as it reads the tree.',
+        '`variance ask discover` in the checkout, which reads them as it reads the tree.',
     );
   };
   const read = (prefix: '' | 'except'): Operand[] => {
@@ -241,8 +241,8 @@ export function readsNames(input: Readonly<Record<string, unknown>>): boolean {
  * Typed over nothing, like `grep`: the tree and the names arrive on the
  * invocation, and the text is ripgrep's.
  */
-export const intersection: Tool<unknown> = {
-  name: 'docs_intersection',
+export const discover: Tool<unknown> = {
+  name: 'docs_discover',
   description:
     'Answer the files that are in every one of several sets, each read whole: what a path reaches ' +
     '(`from`) or what reaches it (`to`), who imports a name (`imports`, `module#name` or `module`), ' +
@@ -276,13 +276,13 @@ export const intersection: Tool<unknown> = {
     const text = textArg(input, 'text');
     const tree = invocation?.tree;
     if (tree === undefined) {
-      throw new Error('`intersection` ran nothing: no source tree was read. Ask from a checkout of the workspace.');
+      throw new Error('`discover` ran nothing: no source tree was read. Ask from a checkout of the workspace.');
     }
     const { kept, out } = operandsOf(input, tree, invocation?.names, invocation?.root);
     if (kept.length === 0) {
       throw new Error(
         text === undefined
-          ? '`intersection` needs at least one set to cross: `from`, `to`, `imports`, `declares` or `path`.'
+          ? '`discover` needs at least one set to cross: `from`, `to`, `imports`, `declares` or `path`.'
           : `\`text\` searches inside the files the other sets kept, and none was given. For the whole checkout, run \`rg ${JSON.stringify(text)}\`.`,
       );
     }

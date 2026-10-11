@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 /**
  * ripgrep, over a list of files the caller already chose.
  *
- * The questions that search text — `grep` over a closure, `intersection` over
+ * The questions that search text — `grep` over a closure, `discover` over
  * the files its other sets kept — own the choice of files and nothing else; the
  * pattern language, encodings and binary detection are ripgrep's. This is the
  * one place that hands a file list to `rg` and reads its JSON back.
@@ -56,7 +56,7 @@ function rg(root: string, pattern: string, files: readonly string[]): Searched {
     const missing = (ran.error as NodeJS.ErrnoException).code === 'ENOENT';
     throw new Error(
       missing
-        ? '`grep` and `intersection` run ripgrep on the files, and `rg` is not on PATH. Install ripgrep and ask again.'
+        ? '`grep` and `discover` run ripgrep on the files, and `rg` is not on PATH. Install ripgrep and ask again.'
         : `ripgrep could not be run: ${ran.error.message}`,
     );
   }

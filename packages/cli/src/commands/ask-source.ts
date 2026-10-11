@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
-import { answerSearch, grep, intersection, journeyMapTool, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
+import { answerSearch, discover, grep, journeyMapTool, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
 import { readTree, startPointArg, stringArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
@@ -81,13 +81,13 @@ export async function grepSource(root: string, input: Readonly<Record<string, un
 }
 
 /**
- * `intersection` reads no workspace value either, but every one of its sets
+ * `discover` reads no workspace value either, but every one of its sets
  * needs the tree, and `declares` and most `imports` need each file's names,
  * which only the scan that draws the tree holds.
  */
-export async function intersectionSource(root: string, input: Readonly<Record<string, unknown>>): Promise<Answering> {
+export async function discoverSource(root: string, input: Readonly<Record<string, unknown>>): Promise<Answering> {
   const read = await readNamedTree(root, input);
-  return { answer: () => intersection.run(undefined, input, { ...read, root }), at: undefined };
+  return { answer: () => discover.run(undefined, input, { ...read, root }), at: undefined };
 }
 
 /**

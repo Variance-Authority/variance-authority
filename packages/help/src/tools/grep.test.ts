@@ -107,7 +107,7 @@ describe.skipIf(!RG)('grep over a closure', () => {
     const path = process.env.PATH;
     process.env.PATH = '';
     try {
-      expect(() => ask({ query: 'needle', from: 'src/entry.ts' })).toThrow('`grep` and `intersection` run ripgrep on the files, and `rg` is not on PATH');
+      expect(() => ask({ query: 'needle', from: 'src/entry.ts' })).toThrow('`grep` and `discover` run ripgrep on the files, and `rg` is not on PATH');
     } finally {
       process.env.PATH = path;
     }

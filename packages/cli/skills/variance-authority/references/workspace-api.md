@@ -1,9 +1,9 @@
 # What a workspace publishes, and where a name is used
 
 Eight questions read a workspace's manifests and source: `packages`,
-`entrypoint`, `symbol`, `uses`, `search`, `grep`, `intersection` and `gaps`. Each answer
+`entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover` and `gaps`. Each answer
 read from a workspace generation names its UTC time; `variance ask grep` and
-`variance ask intersection` read the checkout as it is, and name none. They describe source, not a
+`variance ask discover` read the checkout as it is, and name none. They describe source, not a
 build or a generated site, and they need no run and no config. For where a file
 sits and what runs it, read [orient](orient.md).
 
@@ -248,7 +248,7 @@ comment. It needs `--from` or `--to`, and searches the files that start point
 reaches; for the whole checkout, run `rg`, which must be on `PATH` either way. Lines come grouped by how many imports away from the start point their
 file is, then by path and line, each as `path:line:text`.
 
-### `intersection`
+### `discover`
 
 Use it when the answer is where two or more facts about a file meet: *a file
 the nav reaches that makes a context with `theme` in its name*, or *the
@@ -276,8 +276,8 @@ of them:
   checkout; a file with no matching line drops out.
 
 ```bash
-variance ask intersection --from src/TopNav.tsx --imports react#createContext --declares 'theme|user|account'
-variance ask intersection --from src/Wallet.tsx --declares '^selectBalance$'
+variance ask discover --from src/TopNav.tsx --imports react#createContext --declares 'theme|user|account'
+variance ask discover --from src/Wallet.tsx --declares '^selectBalance$'
 ```
 
 The answer counts each set first, then lists the files in all of them, nearest
@@ -287,7 +287,7 @@ shows more, and the count is always of all of them. A source file whose names
 the scan did not hand over is counted in the `--imports` and `--declares`
 headers, since it is unknown rather than a file with no names; a README or a
 manifest has none to read.
-Over MCP, `docs_intersection` answers `from`, `to`, `path` and `--imports` of a
+Over MCP, `docs_discover` answers `from`, `to`, `path` and `--imports` of a
 name out of a repo-relative file, and refuses `declares` and any other
 `imports`: the reading an MCP host serves holds no names.
 
@@ -308,5 +308,5 @@ one name.
   evidence that anything ran.
 - Nothing here reads `dist`. A `types` target under an output directory is
   mapped back to the source it was compiled from.
-- `search`, `grep` and `intersection` cap each list and print how many rows they did not show. A
+- `search`, `grep` and `discover` cap each list and print how many rows they did not show. A
   list with no such line is the whole list.

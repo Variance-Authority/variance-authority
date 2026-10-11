@@ -185,7 +185,7 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
   // should not pay for a scan it never uses.
   let report = await readRunReport(path);
   let help: Help | undefined;
-  // FIXME: no names are handed to `intersection` here. The reading may come
+  // FIXME: no names are handed to `discover` here. The reading may come
   // from the published snapshot, which holds no parses, so its `declares`, and
   // `imports` of anything but a name out of a repository file, are refused over
   // MCP and answered by `variance ask`.

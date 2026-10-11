@@ -63,7 +63,7 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
   // questions name no path, and a reading where nothing moved hands back the
   // same array, so an unchanged checkout folds the graph once however many
   // paths are asked about it.
-  // FIXME: no names are handed to `intersection` here. The reading may come
+  // FIXME: no names are handed to `discover` here. The reading may come
   // from the published snapshot, which holds no parses, so its `declares`, and
   // `imports` of anything but a name out of a repository file, are refused over
   // MCP and answered by `variance ask`.

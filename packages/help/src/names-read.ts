@@ -1,6 +1,6 @@
 import { readTree, type SourceNames, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
-import { readsNames } from './tools/intersection.js';
+import { readsNames } from './tools/discover.js';
 
 /** The tree, and every file's names when the question reads them, off one scan. */
 export interface NamedTree {
@@ -9,7 +9,7 @@ export interface NamedTree {
 }
 
 /**
- * The reading `intersection` answers from, for a shell that asks it once.
+ * The reading `discover` answers from, for a shell that asks it once.
  *
  * Names are not in the published workspace value, so this is a scan through
  * the source index a run's selection writes — the reading `grep` takes for a

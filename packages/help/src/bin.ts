@@ -5,7 +5,7 @@ import { ask, askSearch, askSearchJson, inputFrom, toolNamed, verbs } from './as
 import { readWorkspaceForAnswer } from './read.js';
 import { readNamedTree } from './names-read.js';
 import { readSearchForAnswer } from './search-read.js';
-import { intersection } from './tools/intersection.js';
+import { discover } from './tools/discover.js';
 import { search } from './tools/search.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
@@ -118,11 +118,11 @@ if (asking(verb) && verb !== undefined) {
       ...(wantsTree ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
     };
     // `search` opens the file published for it rather than the whole value;
-    // `intersection` reads no workspace value, only the tree and its names.
+    // `discover` reads no workspace value, only the tree and its names.
     const answer = tool === search
       ? (format === 'json' ? askSearchJson : askSearch)(await readSearchForAnswer(root, reading), ownArgs, () => tree)
-      : tool === intersection
-        ? intersection.run(undefined, inputFrom(tool, ownArgs), { ...(await readNamedTree(root, inputFrom(tool, ownArgs))), root })
+      : tool === discover
+        ? discover.run(undefined, inputFrom(tool, ownArgs), { ...(await readNamedTree(root, inputFrom(tool, ownArgs))), root })
         : ask(await readWorkspaceForAnswer(root, reading), verb, ownArgs, () => tree, root);
 
     process.stdout.write(`${answer}\n`);

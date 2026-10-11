@@ -28,7 +28,7 @@ import { OperatorError } from './exit.js';
 const PLACING = ['under', 'above', 'inside', 'beside', 'leftOf', 'rightOf', 'on'] as const;
 
 /**
- * The sets `intersection` crosses, and the sets it takes out.
+ * The sets `discover` crosses, and the sets it takes out.
  *
  * Carried as typed, like the relations above: a list among them is split on
  * commas where the tool's schema says it is a list, so this file keeps no

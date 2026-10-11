@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FileNames, FileRecord, SourceNames, Tree } from '@variance-authority/mcp/tools';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { intersection, readsNames } from './intersection.js';
+import { discover, readsNames } from './discover.js';
 
 /**
  * Each operand is a set of files, read whole, and the answer is the files in
@@ -48,7 +48,7 @@ function write(file: string, text: string): void {
 }
 
 beforeAll(() => {
-  root = mkdtempSync(join(tmpdir(), 'intersection-'));
+  root = mkdtempSync(join(tmpdir(), 'discover-'));
   write('src/state/theme.ts', "import { createContext } from 'react';\nexport const ThemeContext = createContext('dark');\n");
   write('src/state/user.ts', "import { createContext } from 'react';\nexport const UserContext = createContext(null);\n");
   tree = treeOf(
@@ -73,11 +73,11 @@ beforeAll(() => {
 
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
-const ask = (input: Record<string, unknown>): string => intersection.run(undefined, input, { tree, names: NAMES, root });
+const ask = (input: Record<string, unknown>): string => discover.run(undefined, input, { tree, names: NAMES, root });
 
 const CONTEXTS = { from: 'src/TopNav.tsx', imports: 'react#createContext', declares: 'theme|user|account' };
 
-describe('intersection of whole sets', () => {
+describe('discover crosses whole sets', () => {
   it('answers the files in every operand, nearest first', () => {
     const text = ask(CONTEXTS);
     expect(text).toContain('6 files reached from `src/TopNav.tsx`');
@@ -123,7 +123,7 @@ describe('intersection of whole sets', () => {
 
   it('counts the files whose names were not read, so a missing one is not a file declaring nothing', () => {
     const names = new Map([...NAMES].filter(([file]) => file !== 'src/old/selectors.ts'));
-    const text = intersection.run(undefined, { declares: '^selectBalance$', imports: 'react' }, { tree, names, root });
+    const text = discover.run(undefined, { declares: '^selectBalance$', imports: 'react' }, { tree, names, root });
     expect(text).toContain('1 file declaring a name matching /^selectBalance$/i — the names of 1 file were not read');
     expect(text).toContain('4 files importing `react` — the names of 1 file were not read');
   });
@@ -159,7 +159,7 @@ describe('intersection of whole sets', () => {
   });
 
   it('asks its host for the tree whatever it was given, since every set is read from it', () => {
-    expect(intersection.wants?.({ declares: 'x' })).toBe(true);
+    expect(discover.wants?.({ declares: 'x' })).toBe(true);
   });
 
   it('asks for the names only when a set is read off them', () => {
@@ -188,7 +188,7 @@ describe.skipIf(!RG)('text, inside the files the other operands kept', () => {
   });
 });
 
-describe('intersection refuses', () => {
+describe('discover refuses', () => {
   it('a question with nothing to cross', () => {
     expect(() => ask({})).toThrow('needs at least one set');
   });
@@ -202,12 +202,12 @@ describe('intersection refuses', () => {
   });
 
   it('a name operand when no names were read', () => {
-    expect(() => intersection.run(undefined, CONTEXTS, { tree })).toThrow('no names were read');
-    expect(() => intersection.run(undefined, { declares: 'Theme' }, { tree, root })).toThrow('no names were read');
+    expect(() => discover.run(undefined, CONTEXTS, { tree })).toThrow('no names were read');
+    expect(() => discover.run(undefined, { declares: 'Theme' }, { tree, root })).toThrow('no names were read');
   });
 
   it('a name out of a file for want of a source index, not of names, which it does not read', () => {
-    expect(() => intersection.run(undefined, { imports: 'src/store/selectors.ts#selectBalance' }, { tree, root })).toThrow('no source index is published');
+    expect(() => discover.run(undefined, { imports: 'src/store/selectors.ts#selectBalance' }, { tree, root })).toThrow('no source index is published');
   });
 
   it('a name out of a file when no source index holds who imports it', () => {
@@ -219,7 +219,7 @@ describe('intersection refuses', () => {
   });
 
   it('a question asked with no source tree read', () => {
-    expect(() => intersection.run(undefined, { path: 'x' }, { names: NAMES, root })).toThrow('no source tree was read');
+    expect(() => discover.run(undefined, { path: 'x' }, { names: NAMES, root })).toThrow('no source tree was read');
   });
 
   it('an import with nothing after its `#`', () => {

@@ -374,7 +374,7 @@ own text or path; none of them is *reachable from this file along the
 imports*. Relational code databases — CodeQL's QL, Meta's Glean with Angle,
 Datalog engines such as Soufflé used for program analysis — express any join,
 reachability included, at the price of a language the asker must write and a
-database the build must extract. `variance ask intersection` sits between:
+database the build must extract. `variance ask discover` sits between:
 fixed operands (reach, imports by name, declarations, path, text), each read
 whole from the index the other questions already read, crossed and subtracted,
 with no `or` and no user-written query.

@@ -4,7 +4,7 @@
 '@variance-authority/mcp': minor
 ---
 
-`variance ask intersection` answers the files in every one of several sets
+`variance ask discover` answers the files in every one of several sets
 
 Each set is read whole, with no cap: what a path reaches (`--from`) or what
 reaches it (`--to`), who imports a name (`--imports module#name`, through the
@@ -20,6 +20,6 @@ holds no declarations, as on a checkout large enough for the addon to read
 whole, is read again for them, and the source index keeps what that read
 found. `readNamedTree` takes the question and reads names only for an operand
 that needs them. Over MCP,
-`docs_intersection` answers `from`, `to`, `path` and a name imported out of a
+`docs_discover` answers `from`, `to`, `path` and a name imported out of a
 repository file, and refuses `declares` and any other `imports`, because the
 reading an MCP host serves holds no names.

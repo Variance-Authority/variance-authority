@@ -82,7 +82,7 @@ npx variance-authority-help search viewport --from packages/app/ --just-answer
 ```
 
 The verbs each take the same arguments as the tool of the same name below:
-`packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `intersection`, `orient`,
+`packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover`, `orient`,
 `slowest-tests`, `journey-map`, `test-composition`, `stack`, `gaps`. An entrypoint is
 one import specifier a package's `exports` map opens — `@scope/pkg` and
 `@scope/pkg/deep` are two of them. Add `--root <dir>` when you are not standing
@@ -152,7 +152,7 @@ stays available without taking space from the first answer.
 | `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well. For a name a file exports and no entry publishes, the imports the source index resolved |
 | `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, then the ones only a looser reading finds |
 | `grep` / `docs_grep` | a pattern, and a path to answer from | the lines `rg` matches in the files that path imports, or that import it, nearest first |
-| `intersection` / `docs_intersection` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set; `text` keeps the files with a line `rg` matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
+| `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set; `text` keeps the files with a line `rg` matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
 | `orient` / `docs_orient` | nothing, an area id, or files you already have as paths from the root | with no files, the code map `variance index` keeps beside the source index: areas of packages with their size, dependency layers, most-imported packages and the areas they import from. With files, the package each file is in with the names it imports from other packages and the names they import from it, the recorded test cases that ran each file, the functions in other files that call into it and those it calls, with how each call is known, the [package flows](https://variance-authority.dev/docs/orientation#choose-the-entrance-from-what-you-have) those cases take through it, and the narrower questions to ask next; `path:line` narrows the calls to the function holding that line |
 | `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have entered (`to`), and how many rows to list | the test files, then the test cases, the latest recorded run spent longest in, with the duration their runner reported, and how many recorded files and cases have none |
 | `journey-map` / `docs_journey_map` | one file, optionally words of the task | how many recorded tests entered that file, the paths through each of its functions, then the code beyond it those tests entered, nearest first |
@@ -348,7 +348,7 @@ npx variance-authority-help .
 ```
 
 The tools are named `docs_packages`, `docs_entrypoint`, `docs_symbol`,
-`docs_uses`, `docs_search`, `docs_grep`, `docs_intersection`, `docs_orient`, `docs_slowest_tests`,
+`docs_uses`, `docs_search`, `docs_grep`, `docs_discover`, `docs_orient`, `docs_slowest_tests`,
 `docs_journey_map`, `docs_test_composition`, `docs_stack` and `docs_gaps`, and they answer in the same
 words as the verbs above. `variance serve` serves the same tools under the same names,
 so a workspace with the CLI declares one server and asks it about both the run

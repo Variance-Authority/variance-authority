@@ -6,14 +6,14 @@ import { crossingOf, type Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, questionFor, questionOf, refuseWords, type Question } from './asking.js';
-import { grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
+import { discover, grep, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
 import { readTree, type CostsSubject, type Reviewed, type ReviewTool, type Tree } from '@variance-authority/mcp/tools';
 import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
-import { grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
+import { discoverSource, grepSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
 import { readVantage } from './watch.js';
@@ -267,7 +267,7 @@ export async function askSource(request: SourceRequest): Promise<string> {
     request.source !== undefined ? await wholeSource(request.source, tool, input, reading)
     : tool.name === search.name ? await searchSource(process.cwd(), input, reading)
     : tool.name === grep.name ? await grepSource(process.cwd(), input)
-    : tool.name === intersection.name ? await intersectionSource(process.cwd(), input)
+    : tool.name === discover.name ? await discoverSource(process.cwd(), input)
     : tool.name === orient.name ? orientSource(process.cwd(), input)
     : tool.name === slowestTests.name ? slowestSource(process.cwd(), input)
     : tool.name === journeyMapTool.name ? journeyMapSource(process.cwd(), input)
