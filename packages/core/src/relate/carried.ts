@@ -11,7 +11,9 @@
  * facts `(file, name)`, each fact entered once — so it is written once, here,
  * and each caller says only what one importer does with what reached it.
  * Handed the forward adjacency instead, the same walk runs along the arrows,
- * which is how `dependenciesOf` closes over what a file loads.
+ * which is how `dependenciesOf` closes over what a file loads. One plain
+ * closure is written again: `Graph::search` in sense's native journey graph,
+ * because Rust cannot call this.
  *
  * ## What is carried
  *
