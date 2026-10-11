@@ -121,8 +121,11 @@ export interface Argument {
   readonly property: string;
   readonly placeholder: string;
   readonly required: boolean;
-  /** How the text on the command line becomes the value the tool is given. */
-  readonly kind: 'text' | 'list' | 'number';
+  /**
+   * How the text on the command line becomes the value the tool is given. A
+   * list of questions is typed as words after the question, each in quotes.
+   */
+  readonly kind: 'text' | 'list' | 'number' | 'questions';
 }
 
 /**
@@ -159,7 +162,17 @@ const PLACEHOLDER: Readonly<Record<string, string>> = {
   on: '<words>',
   from: '<path>',
   to: '<path>',
+  imports: '<module#name>',
+  declares: '<regex>',
+  path: '<regex>',
+  text: '<pattern>',
+  exceptFrom: '<path>',
+  exceptTo: '<path>',
+  exceptImports: '<module#name>',
+  exceptDeclares: '<regex>',
+  exceptPath: '<regex>',
   limit: '<n>',
+  questions: "'<question>'",
 };
 
 /** What a question takes, read off its own schema. */
@@ -185,7 +198,12 @@ function kindOf(schema: unknown): Argument['kind'] {
     typeof schema === 'object' && schema !== null
       ? (schema as Record<string, unknown>)['type']
       : undefined;
-  if (type === 'array') return 'list';
+  if (type === 'array') {
+    // Only `intersection` takes objects in a list, and each is a whole question.
+    const items = (schema as Record<string, unknown>)['items'];
+    const item = typeof items === 'object' && items !== null ? (items as Record<string, unknown>)['type'] : undefined;
+    return item === 'object' ? 'questions' : 'list';
+  }
   if (type === 'integer' || type === 'number') return 'number';
   return 'text';
 }
@@ -206,12 +224,19 @@ function requiredOf(tool: Asked): readonly string[] {
   return Array.isArray(declared) ? declared.filter((entry) => typeof entry === 'string') : [];
 }
 
+/** How an argument is typed: a flag, or for questions, the questions themselves. */
+function spelling(argument: Argument): string {
+  return argument.kind === 'questions' ? `${argument.placeholder} ${argument.placeholder}...` : argument.flag;
+}
+
 /** What a question accepts, as it appears after the question in a listing. */
 export function takes(tool: Asked): string {
   const flags = argumentsOf(tool).map((argument) =>
-    argument.required
-      ? `${argument.flag} ${argument.placeholder}`
-      : `[${argument.flag} ${argument.placeholder}]`,
+    argument.kind === 'questions'
+      ? spelling(argument)
+      : argument.required
+        ? `${argument.flag} ${argument.placeholder}`
+        : `[${argument.flag} ${argument.placeholder}]`,
   );
   return flags.length === 0 ? '' : `  ${flags.join(' ')}`;
 }
@@ -290,7 +315,7 @@ export function refuseWords(tool: Asked, words: readonly string[] | undefined): 
 
 /** That a question does not take what was typed, and what it takes instead. */
 function notTaken(tool: Asked, typed: string): string {
-  const flags = argumentsOf(tool).map((entry) => entry.flag);
+  const flags = argumentsOf(tool).map(spelling);
   return (
     `\`${typed}\` is not an argument \`variance ask ${questionOf(tool)}\` takes; it ` +
     `takes ${flags.length === 0 ? 'none' : flags.join(', ')}`

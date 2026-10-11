@@ -256,7 +256,7 @@ function exported(
   names: Iterable<number>,
   shown: ReadonlySet<number>,
   within: ReadonlySet<number> | undefined,
-): { readonly total: number; head(count: number): readonly ExportedMatch[] } {
+): { readonly total: number; head(count: number): readonly ExportedMatch[]; rows(): readonly number[] } {
   const found: { name: number; rank: number; count: number }[] = [];
   // The file that exports it, against the closure. A name exported from a
   // barrel inside the area and declared outside it arrives here twice, under
@@ -274,6 +274,7 @@ function exported(
 
   return {
     total: found.length,
+    rows: () => found.flatMap(({ name }) => rowsOf(name)),
     head: (count) =>
       first(found, count, (a, b) => b.count - a.count || a.rank - b.rank).flatMap(({ name, count: files }) => {
         // Source before tests before stories, and the first written within a
@@ -299,27 +300,62 @@ function exported(
   };
 }
 
-/** The search over an opened index, and the area the text answer names. */
-export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): Searched {
+/**
+ * What the words match, in the area a start point resolved to: the published
+ * rows the area uses and the exported names past them. Both the answer and the
+ * file set read this, so they cannot disagree about what matched.
+ */
+function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | undefined) {
   const query = question.query.toLowerCase();
   const area =
     question.from === undefined && question.to === undefined ? undefined : areaOf(question.from, question.to, tree);
-
   // A start point that could not be resolved is refused whole. Answering the
   // unscoped question instead would hand back four hundred names under a
   // header the caller has every reason to read as *in your area*.
-  if (area?.refused !== undefined) return { answer: { query, refused: area.refused }, area };
+  if (area?.refused !== undefined) return { query, area, refused: area.refused } as const;
+
+  const within = area === undefined ? undefined : index.fileIds(area.files);
+  const named = ascending(index.namesContaining(query), namesOfWords(index, query));
+  const hits = surface(index, [...publishedOf(index, named), ...index.docsContaining(query)], area, within);
+  const answered = new Set(hits.map((hit) => hit.name));
+  const rest = exported(index, named, answered, within);
+  return { query, area, within, named, hits, answered, rest } as const;
+}
+
+/**
+ * Every file declaring a name the words match, uncapped: the file each matched
+ * published name is declared in, without a line the index keeps for it, and
+ * each file that exports a matched name, at its line. The loose pass and
+ * installed names are not files of this checkout's answer: one is a guess at
+ * other words, the other is not in the checkout.
+ */
+export function searchedFiles(index: SearchIndex, question: SearchQuestion, tree?: Tree): ReadonlyMap<string, readonly number[]> {
+  const found = matched(index, question, tree);
+  if ('refused' in found) throw new Error(`\`search\` searched nothing: ${found.refused}.`);
+  const files = new Map<string, number[]>();
+  for (const hit of found.hits) {
+    const at = index.publishedAt(hit.row);
+    if (!files.has(at)) files.set(at, []);
+  }
+  for (const row of found.rest.rows()) {
+    const { at, line } = index.exported(row);
+    const lines = files.get(at) ?? [];
+    if (!lines.includes(line)) lines.push(line);
+    files.set(at, lines.sort((left, right) => left - right));
+  }
+  return files;
+}
+
+/** The search over an opened index, and the area the text answer names. */
+export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): Searched {
+  const found = matched(index, question, tree);
+  if ('refused' in found) return { answer: { query: found.query, refused: found.refused }, area: found.area };
+  const { query, area, within, named, hits, answered, rest } = found;
 
   const counted: SearchArea | undefined =
     area === undefined
       ? undefined
       : { from: area.from, to: area.to, files: area.files.size, entries: area.entries, unresolved: area.unresolved.length };
-  const within = area === undefined ? undefined : index.fileIds(area.files);
-
-  const named = ascending(index.namesContaining(query), namesOfWords(index, query));
-  const hits = surface(index, [...publishedOf(index, named), ...index.docsContaining(query)], area, within);
-  const answered = new Set(hits.map((hit) => hit.name));
-  const rest = exported(index, named, answered, within);
   // A dependency is usable where the manifest that owns the location declares it. The closure
   // is what the location reaches, and a package another workspace declares is that workspace's
   // to offer, so ownership is asked of the paths the question started at and not of the closure.

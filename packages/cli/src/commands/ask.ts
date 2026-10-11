@@ -1,19 +1,21 @@
-import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import type { RunReport } from '@variance-authority/report';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
-import { messageOf } from '../config-values.js';
+import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, questionFor, questionOf, refuseWords, type Question } from './asking.js';
-import { grep, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
+import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
 import { readTree, type CostsSubject, type Reviewed, type ReviewTool, type Tree } from '@variance-authority/mcp/tools';
+import { flagged, type Flagged } from './ask-flagged.js';
+import { intersectionInput } from './ask-intersection.js';
+import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
-import { grepSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
+import { discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
 import { readVantage } from './watch.js';
@@ -80,16 +82,9 @@ export { costsSubject } from './ask-costs.js';
  * answer here exits `0`; the run's verdict stays where it was decided.
  */
 
-/**
- * Where the subject of the previous answer is kept, beside the report it is about.
- *
- * In the report's directory rather than a cache of this tool's own, because it is
- * a fact about *that artifact* and it should disappear with it. It is derived and
- * disposable: deleting it costs the next `diff` its comparison and nothing else.
- */
-export const ASKED = 'asked.json';
+export { ASKED } from './ask-previous.js';
 
-export interface AskRequest {
+export interface AskRequest extends Crossing {
   /** The question. Absent asks for the list of them, which is the MCP handshake. */
   readonly question?: string;
   readonly subject?: string;
@@ -159,15 +154,6 @@ export interface AskRequest {
   /** How the checkout is read. Injected so the source path is testable without a repository. */
   readonly source?: (root: string, options?: SourceReadOptions) => Promise<Sourced>;
 }
-
-/** The flags every question is spelled with, whichever subject answers it. */
-type Flagged = Pick<
-  AskRequest,
-  | 'subject' | 'subjects' | 'component' | 'rule' | 'shape' | 'test' | 'state' | 'build' | 'file' | 'files' | 'area'
-  | 'name' | 'package' | 'subpath' | 'query'
-  | 'under' | 'above' | 'inside' | 'beside' | 'leftOf' | 'rightOf' | 'on'
-  | 'from' | 'to' | 'limit' | 'offset'
->;
 
 /**
  * What a question about the code takes: every flag `ask` accepts, and nothing
@@ -248,14 +234,17 @@ export async function askSource(request: SourceRequest): Promise<string> {
   if (tool === undefined) {
     throw new OperatorError(`\`${request.question}\` is about a run, not the source; ask it of a report`);
   }
-  refuseWords(tool, request.reports);
+  // `intersection` is the one source question whose words are its own: each
+  // is a whole question, in quotes.
+  const crossing = tool.name === intersection.name;
+  if (!crossing) refuseWords(tool, request.reports);
 
   // Refused before anything is read: a question that has no shape to give
   // would otherwise answer in prose to a caller about to parse it.
   if (request.format === 'json' && tool.name !== search.name) {
     throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\``);
   }
-  const input = inputFor(tool, flagged(request));
+  const input = crossing ? intersectionInput(request.reports ?? [], request.limit) : inputFor(tool, flagged(request));
   const changed = request.changedFile === undefined ? undefined : await readChanged(request.changedFile);
   const taints = request.taintFile === undefined ? undefined : [await readTaint(request.taintFile)];
   if (request.justAnswer === true && (changed !== undefined || taints !== undefined)) {
@@ -274,6 +263,8 @@ export async function askSource(request: SourceRequest): Promise<string> {
     request.source !== undefined ? await wholeSource(request.source, tool, input, reading)
     : tool.name === search.name ? await searchSource(process.cwd(), input, reading)
     : tool.name === grep.name ? await grepSource(process.cwd(), input)
+    : tool.name === discover.name ? await discoverSource(process.cwd(), input)
+    : crossing ? await intersectionSource(process.cwd(), input, reading)
     : tool.name === orient.name ? orientSource(process.cwd(), input)
     : tool.name === slowestTests.name ? slowestSource(process.cwd(), input)
     : tool.name === journeyMapTool.name ? journeyMapSource(process.cwd(), input)
@@ -422,79 +413,4 @@ async function inputFrom(
     // its intent badly is told so once, in one wording.
     claims: request.claims === undefined ? undefined : await readClaims(request.claims),
   });
-}
-
-/**
- * The flags, and only the flags, off a request. Named one by one rather than
- * spread, because a request also carries what it is *about* — a report path, a
- * watcher address, a reader — and `inputFor` refuses every property it does
- * not recognise, which is the right rule for a flag and the wrong one for a
- * subject.
- */
-function flagged(request: Flagged): Readonly<Record<string, unknown>> {
-  return {
-    subject: request.subject,
-    subjects: request.subjects,
-    component: request.component,
-    rule: request.rule,
-    shape: request.shape,
-    test: request.test,
-    state: request.state,
-    build: request.build,
-    file: request.file,
-    files: request.files,
-    area: request.area,
-    name: request.name,
-    package: request.package,
-    subpath: request.subpath,
-    query: request.query,
-    under: request.under,
-    above: request.above,
-    inside: request.inside,
-    beside: request.beside,
-    leftOf: request.leftOf,
-    rightOf: request.rightOf,
-    on: request.on,
-    from: request.from,
-    to: request.to,
-    limit: request.limit,
-    offset: request.offset,
-  };
-}
-
-/**
- * The subject of the previous answer, or nothing.
- *
- * Unreadable is the same as absent here, and only here. It is a derived file in
- * the run's own output directory, not evidence: the state it holds was written
- * by this command and can be reproduced by asking again, so refusing to answer
- * because a cache is malformed would withhold the report over the one file in
- * this system that nobody has to keep.
- */
-async function recorded(path: string): Promise<RunReport | undefined> {
-  try {
-    return JSON.parse(await readFile(path, 'utf8')) as RunReport;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * Record what this answer was read from, or say that it could not be.
- *
- * Loud rather than best-effort. A silent failure here does not spoil this
- * answer; it spoils the *next* `diff`, which would then report that nothing has
- * changed since a run it never saw — and that answer arrives with nothing
- * attached to say it was built on a write that did not happen.
- */
-async function record(path: string, report: RunReport): Promise<void> {
-  try {
-    await writeFile(path, `${JSON.stringify(report)}\n`, 'utf8');
-  } catch (error) {
-    throw new OperatorError(
-      `the answer could not be recorded to \`${path}\`: ${messageOf(error)}. Each answer ` +
-        'replaces the state `ask diff` compares against, so leaving it unwritten would let a ' +
-        'later diff answer from a run nobody read.',
-    );
-  }
 }
