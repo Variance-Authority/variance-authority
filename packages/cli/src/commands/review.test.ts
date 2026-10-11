@@ -101,9 +101,9 @@ describe('a review of what a change did, after the run that recorded it', () => 
     });
     const answer = await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--coverage', '--root', root]));
 
-    expect(answer.record).toBe('before');
     expect(answer.files.find((file) => file.file === 'src/total.ts')?.regions?.map(({ name, startLine, endLine, cases }) => [name, startLine, endLine, cases]))
       .toEqual([['applyDiscount', 2, 4, 0], ['round', 6, 8, 1]]);
+    expect(answer.record).toBe('before');
   });
 
   it('says the named suite has not run the change, though another suite ran it and answers for its regions', async () => {

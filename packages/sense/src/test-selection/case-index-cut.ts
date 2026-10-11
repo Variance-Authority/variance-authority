@@ -3,9 +3,9 @@
  *
  * A record holds two cuts of each module it ran. The snapshot names the text
  * its rows were cut from, and a run re-cuts them to the text on disk whenever
- * that text moved. The case index names none: a run that keeps no case — every
- * test file skipped, a browser suite with nothing to open — carries the index
- * it was laid over unchanged while its snapshot moves on. A reader that takes
+ * that text moved. The case index names none: a run that skips every test file
+ * it selected keeps no case, so it carries the index it was laid over
+ * unchanged while its snapshot moves on. A reader that takes
  * the snapshot's text as the index's reads the index's lines in a text they
  * were never cut from.
  */
