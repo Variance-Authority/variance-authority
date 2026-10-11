@@ -60,6 +60,14 @@ describe('ask intersection over a checkout', () => {
     expect(text).toContain('src/Wallet.ts — 1: line 1 · 2: the file');
   });
 
+  it('crosses the files a search finds, and spells each question back so it can be pasted', async () => {
+    const text = await ask('search --query balance', "discover --path '^src/' --except-path old");
+    expect(text).toContain('2. `discover --path ^src/ --except-path old`: 3 files');
+    expect(text).toContain('3 files in all of them.');
+    expect(text).toContain('src/store/selectors.ts — 1: line 1 · 2: the file');
+    expect(text).not.toContain('src/old/selectors.ts —');
+  });
+
   it.skipIf(!RG)('reads the names a question needs, and the tree another needs', async () => {
     const text = await ask("discover --declares '^selectBalance$'", 'grep --query state --from src/Wallet.ts');
     expect(text).toContain('1 file in all of them.');
