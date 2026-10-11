@@ -59,15 +59,20 @@ export interface CarriedStep<T> {
   /**
    * What crosses one edge: `carried` left `from`, and `importer` loads `from`
    * through an edge of `kind` (an index into `EDGE_KINDS`). `held` is
-   * everything `from` holds when it is expanded, which `carried` is part of.
+   * everything `from` holds when it is expanded, which `carried` is part of:
+   * the whole file when `carried` is, and a seed's starting names even when
+   * `seedsHold` is `false`.
    * {@link NOTHING} keeps the edge from entering `importer`; `undefined` is
-   * the whole file.
+   * the whole file. Not asked of an edge into a node that already holds the
+   * whole file, since nothing it returns could add to it.
    */
   arrive?(importer: NodeId, from: NodeId, kind: number, carried: Carry<T>, held: Held): Carry<T> | undefined;
   /**
    * What `importer` hands on, given what arrived that it did not already hold
-   * — never empty. Asked once per new arrival, in the order the walk reaches
-   * them, and never of a seed as it starts. {@link NOTHING} stops the walk
+   * — never empty. Asked once per new arrival, as the walk expands it, in the
+   * order the walk reached them, and never of a seed as it starts. Every
+   * arrival is asked, so a step that answers {@link NOTHING} for one importer
+   * still sees each arrival that reached it. {@link NOTHING} stops the walk
    * behind it; `undefined` hands on the whole file.
    */
   hand?(importer: NodeId, arrived: Carry<T>): Carry<T> | undefined;
@@ -108,6 +113,7 @@ export interface Reached {
  * Walk `edges` from `seeds`, each with what its change carries, and hand each
  * node it enters what reaches it through `step`. `edges` is the reverse
  * adjacency for what a change reaches, the forward one for what a file loads.
+ * A seed listed more than once starts with everything its listings carry.
  */
 export function carried<T>(
   edges: Adjacency,
@@ -119,58 +125,85 @@ export function carried<T>(
   const nodes = offset.length - 1;
   const mask = options.mask ?? new Uint8Array(nodes);
   const { via } = options;
-  const allowed = allowedKinds(options.through);
+  const allowed = options.through === undefined ? RUNTIME : allowedKinds(options.through);
   let avoided: Uint8Array | undefined;
-  for (const id of options.avoid ?? []) {
-    if (id < 0 || id >= nodes) continue;
-    avoided ??= new Uint8Array(nodes);
-    avoided[id] = 1;
+  if (options.avoid !== undefined) {
+    // A typed array ignores a write out of its range, so an id the graph does
+    // not hold avoids nothing.
+    for (const id of options.avoid) {
+      avoided ??= new Uint8Array(nodes);
+      avoided[id] = 1;
+    }
   }
 
   // An entered node absent here holds the whole file.
-  const partial = new Map<NodeId, Set<string>>();
-  const entered: NodeId[] = [];
-  const queue: Array<readonly [NodeId, Carry<T>]> = [];
+  let partial: Map<NodeId, Set<string>> | undefined;
+  // The worklist, one number an entry: the node itself when it carries the
+  // whole file, `~k` when it carries names, held at `k` aside. Each entry is
+  // what arrived, and is handed on as it is expanded: the same entries in the
+  // same order as asking on arrival, with the edge loop left free of the step.
+  // While every entry is a node's first, the worklist is the list of entered
+  // nodes too, so a walk pushes one number a node and nothing else. The first
+  // entry that is not a node's first sets `entered` apart, and from then on it
+  // is kept on its own.
+  const queued: number[] = [];
+  let aside: Aside<T> | undefined;
+  let entered: NodeId[] | undefined;
+  const { arrive, hand } = step;
 
+  const holdsNothing = options.seedsHold === false;
   for (const [seed, carry] of seeds) {
-    if (seed < 0 || seed >= nodes || mask[seed] === 1 || avoided?.[seed] === 1) continue;
-    mask[seed] = 1;
-    entered.push(seed);
-    if (options.seedsHold === false) partial.set(seed, new Set());
-    else if (carry !== WHOLE) partial.set(seed, new Set(carry.keys()));
-    if (carry === WHOLE || carry.size > 0) queue.push([seed, carry]);
+    if (seed < 0 || seed >= nodes || avoided?.[seed] === 1) continue;
+    let start: Carry<T> = carry;
+    if (mask[seed] !== 1) {
+      mask[seed] = 1;
+      entered?.push(seed);
+      if (holdsNothing) (partial ??= new Map()).set(seed, new Set());
+      else if (carry !== WHOLE) (partial ??= new Map()).set(seed, namesOf(carry));
+    } else {
+      // Marked before the walk, which holds the whole file, or listed again.
+      const holds = partial?.get(seed);
+      if (holds === undefined) continue;
+      // A seed that holds nothing of what it starts with starts every listing.
+      if (!holdsNothing) {
+        if (carry === WHOLE) partial!.delete(seed);
+        else start = addedTo(holds, carry);
+      }
+      if (start !== WHOLE && start.size === 0) continue;
+      entered ??= nodesOf(queued, aside, []);
+    }
+    queued.push(start === WHOLE ? seed : named((aside ??= { nodes: [], carries: [] }), seed, start));
+  }
+  const starts = queued.length;
+
+  // With no step on the edge and every seed whole, nothing is held by name
+  // until a hand answers with names, and the walk runs in a loop of its own
+  // until then: a closure and a cut walk are this loop, unslowed by the walks
+  // that narrow.
+  let from = 0;
+  let handed: ReadonlyMap<string, T> | undefined;
+  if (arrive === undefined && partial === undefined && aside === undefined) {
+    const stop = wholeFrom(edges, queued, starts, step, mask, via, allowed, avoided);
+    if (stop === undefined) return { mask, entered: queued };
+    ({ head: from, carry: handed } = stop);
   }
 
-  const enter = (next: NodeId, from: NodeId, carry: Carry<T>): void => {
-    let arrived = carry;
-    if (mask[next] !== 1) {
-      mask[next] = 1;
-      if (via !== undefined) via[next] = from;
-      entered.push(next);
-      if (carry !== WHOLE) partial.set(next, new Set(carry.keys()));
-    } else {
-      const held = partial.get(next);
-      if (held === undefined) return;
-      if (carry === WHOLE) {
-        partial.delete(next);
-      } else {
-        const added = new Map<string, T>();
-        for (const [name, payload] of carry) {
-          if (held.has(name)) continue;
-          held.add(name);
-          added.set(name, payload);
-        }
-        if (added.size === 0) return;
-        arrived = added;
-      }
+  for (let head = from; head < queued.length; head += 1) {
+    const entry = queued[head]!;
+    const node = entry >= 0 ? entry : aside!.nodes[~entry]!;
+    let carry: Carry<T> = entry >= 0 ? WHOLE : aside!.carries[~entry]!;
+    if (handed !== undefined && head === from) carry = handed;
+    else if (hand !== undefined && head >= starts) carry = step.hand!(node, carry) ?? WHOLE;
+    if (carry !== WHOLE && carry.size === 0) continue;
+    // What it holds, which what it carries is part of: a seed that holds
+    // nothing of what it starts with still starts with it.
+    const holds = carry === WHOLE ? undefined : partial?.get(node);
+    let held: Held = holds ?? WHOLE;
+    if (holdsNothing && head < starts && holds !== undefined && carry !== WHOLE) {
+      const both = namesOf(carry);
+      for (const name of holds) both.add(name);
+      held = both;
     }
-    const out = step.hand === undefined ? arrived : (step.hand(next, arrived) ?? WHOLE);
-    if (out === WHOLE || out.size > 0) queue.push([next, out]);
-  };
-
-  for (let head = 0; head < queue.length; head += 1) {
-    const [node, carry] = queue[head]!;
-    const held: Held = partial.size === 0 ? WHOLE : (partial.get(node) ?? WHOLE);
     const end = offset[node + 1]!;
 
     for (let edge = offset[node]!; edge < end; edge += 1) {
@@ -178,13 +211,120 @@ export function carried<T>(
       if (allowed[edgeKind] !== 1) continue;
       const next = target[edge]!;
       if (avoided?.[next] === 1) continue;
-      const out = step.arrive === undefined ? carry : (step.arrive(next, node, edgeKind, carry, held) ?? WHOLE);
+      // Entered and absent from `partial`: it holds the whole file already.
+      const seen = mask[next] === 1;
+      if (seen && (partial === undefined || !partial.has(next))) continue;
+
+      const out = arrive === undefined ? carry : (step.arrive!(next, node, edgeKind, carry, held) ?? WHOLE);
       if (out !== WHOLE && out.size === 0) continue;
-      enter(next, node, out);
+      let arrived = out;
+      if (!seen) {
+        mask[next] = 1;
+        if (via !== undefined) via[next] = node;
+        entered?.push(next);
+        if (out !== WHOLE) (partial ??= new Map()).set(next, namesOf(out));
+      } else {
+        if (out === WHOLE) partial!.delete(next);
+        else {
+          arrived = addedTo(partial!.get(next)!, out);
+          if (arrived.size === 0) continue;
+        }
+        entered ??= nodesOf(queued, aside, []);
+      }
+      queued.push(arrived === WHOLE ? next : named((aside ??= { nodes: [], carries: [] }), next, arrived));
     }
   }
 
-  return { mask, entered };
+  // Nothing carried by name, nothing to decode: every entry is a node.
+  return { mask, entered: entered ?? (aside === undefined ? queued : nodesOf(queued, aside, queued)) };
+}
+
+/** Where a whole walk met a hand that answered with names, and the names. */
+interface Handed<T> {
+  readonly head: number;
+  readonly carry: ReadonlyMap<string, T>;
+}
+
+/**
+ * The walk while every entry carries the whole file: an entered node takes
+ * nothing more, so the mask is the whole record of what was entered. Returns
+ * where a hand first answered with names, or `undefined` when the walk ended
+ * whole.
+ */
+function wholeFrom<T>(
+  edges: Adjacency,
+  queued: NodeId[],
+  starts: number,
+  step: CarriedStep<T>,
+  mask: Uint8Array,
+  via: Int32Array | undefined,
+  allowed: Uint8Array,
+  avoided: Uint8Array | undefined,
+): Handed<T> | undefined {
+  const { offset, target, kind } = edges;
+  const asks = step.hand !== undefined;
+  for (let head = 0; head < queued.length; head += 1) {
+    const node = queued[head]!;
+    if (asks && head >= starts) {
+      const carry = step.hand!(node, WHOLE);
+      if (carry !== undefined && carry !== WHOLE) {
+        if (carry.size === 0) continue;
+        return { head, carry };
+      }
+    }
+    const end = offset[node + 1]!;
+    for (let edge = offset[node]!; edge < end; edge += 1) {
+      if (allowed[kind[edge]!] !== 1) continue;
+      const next = target[edge]!;
+      if (mask[next] === 1 || avoided?.[next] === 1) continue;
+      mask[next] = 1;
+      if (via !== undefined) via[next] = node;
+      queued.push(next);
+    }
+  }
+  return undefined;
+}
+
+/** What the worklist carries by name, out of line so a whole entry is one number. */
+interface Aside<T> {
+  readonly nodes: NodeId[];
+  readonly carries: Array<ReadonlyMap<string, T>>;
+}
+
+/** The worklist entry for `node` carrying the names in `carry`. */
+function named<T>(aside: Aside<T>, node: NodeId, carry: ReadonlyMap<string, T>): number {
+  aside.carries.push(carry);
+  return ~(aside.nodes.push(node) - 1);
+}
+
+/** The nodes of `entries`, written into `into`, which may be `entries` itself. */
+function nodesOf<T>(entries: readonly number[], aside: Aside<T> | undefined, into: NodeId[]): NodeId[] {
+  for (let at = 0; at < entries.length; at += 1) {
+    const entry = entries[at]!;
+    into[at] = entry >= 0 ? entry : aside!.nodes[~entry]!;
+  }
+  return into;
+}
+
+/** What `carry` adds to `holds`, which takes it in. */
+function addedTo<T>(holds: Set<string>, carry: ReadonlyMap<string, T>): ReadonlyMap<string, T> {
+  const added = new Map<string, T>();
+  for (const [name, payload] of carry) {
+    if (holds.has(name)) continue;
+    holds.add(name);
+    added.set(name, payload);
+  }
+  return added;
+}
+
+/**
+ * The names a carry holds, as a set the walk grows. Added one by one: V8 builds
+ * a `Set` from a map's key iterator several times slower than this loop.
+ */
+function namesOf<T>(carry: ReadonlyMap<string, T>): Set<string> {
+  const names = new Set<string>();
+  for (const name of carry.keys()) names.add(name);
+  return names;
 }
 
 /**
@@ -197,6 +337,9 @@ export function inIdOrder(mask: Uint8Array): NodeId[] {
   for (let id = 0; id < mask.length; id += 1) if (mask[id] === 1) visited.push(id);
   return visited;
 }
+
+/** The default filter, built once: selection walks once per changed file. */
+const RUNTIME = allowedKinds(undefined);
 
 /**
  * A kind filter as a byte lookup, so the inner loop tests a byte; `fallback`

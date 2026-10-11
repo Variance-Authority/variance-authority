@@ -99,4 +99,16 @@ describe('the walk against the arrows', () => {
 
     expect(walk(relations, 'a.ts', total, onward)).toEqual(['b.ts: total']);
   });
+
+  it('asks every importer again in the next walk over the same graph, after one that ended or threw', () => {
+    const relations = relationsOf({ relations: [imports('b.ts', 'a.ts'), imports('c.ts', 'b.ts')] });
+    const thrown = () => walk(relations, 'a.ts', total, () => {
+      throw new Error('unreadable');
+    });
+
+    expect(walk(relations, 'a.ts', total, onward)).toEqual(['b.ts: total', 'c.ts: total']);
+    expect(thrown).toThrow('unreadable');
+    expect(walk(relations, 'a.ts', total, onward)).toEqual(['b.ts: total', 'c.ts: total']);
+    expect(walk(relations, 'b.ts', total, onward)).toEqual(['c.ts: total']);
+  });
 });

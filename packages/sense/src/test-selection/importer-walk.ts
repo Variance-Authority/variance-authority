@@ -13,6 +13,7 @@ import {
   NOTHING,
   WHOLE,
   carried,
+  type Adjacency,
   type Carry,
   type NodeId,
   type Relations,
@@ -43,6 +44,10 @@ export type Carried = ReadonlyMap<string, string>;
  * A file that declares it reads another with `/// <depends path>` reads its
  * text, not a name, so it is asked about the whole file, {@link WHOLE}, as is
  * every file behind one that hands the whole file on.
+ *
+ * A walk costs what it reaches, not the size of the graph: it is called once
+ * per changed file, and most reach a handful of importers out of hundreds of
+ * thousands of files.
  */
 export function walkImporters(
   relations: Relations,
@@ -50,17 +55,28 @@ export function walkImporters(
   moved: Carried,
   visit: (importer: string, moved: Carry<string>) => Carry<string>,
 ): void {
-  const { kinds, names } = relations;
-  carried<string>(
-    relations.dependents,
+  const { kinds, names, dependents } = relations;
+  const mask = idle.get(dependents) ?? new Uint8Array(dependents.offset.length - 1);
+  idle.delete(dependents);
+  const { entered } = carried<string>(
+    dependents,
     [[id, moved]],
     {
       arrive: (importer, _from, kind, carry) => (kinds[importer] !== FILE ? NOTHING : kind === DEPENDS ? WHOLE : carry),
       hand: (importer, arrived) => visit(names[importer]!, arrived),
     },
-    { seedsHold: false },
+    { seedsHold: false, mask },
   );
+  for (const node of entered) mask[node] = 0;
+  idle.set(dependents, mask);
 }
+
+/**
+ * A cleared mask per graph, lent to one walk at a time and cleared behind it
+ * over the nodes it entered. A walk that throws keeps its mask, and the next
+ * one allocates afresh; a walk inside a visit finds none lent and does too.
+ */
+const idle = new WeakMap<Adjacency, Uint8Array>();
 
 const FILE = NODE_KINDS.indexOf('file');
 const DEPENDS = EDGE_KINDS.indexOf('depends');

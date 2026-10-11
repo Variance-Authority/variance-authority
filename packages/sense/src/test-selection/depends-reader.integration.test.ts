@@ -16,7 +16,9 @@ import { narrowByExecution } from './index.js';
  *
  * `rate.ts` declares `RATE`. `charge.test.js` imports `charge`, which reads it.
  * `source.test.js` imports nothing from `rate.ts`: it reads the file from disk
- * and names it with a `/// <depends>` directive.
+ * and names it with a `/// <depends>` directive. `audit.ts` does the same with
+ * `fee.ts`, and is a source file with a row of its own, which `audit.test.js`
+ * loads.
  */
 
 const execute = promisify(execFile);
@@ -27,6 +29,7 @@ const vitest = resolve(repository, 'node_modules/vitest/vitest.mjs');
 const named = (path: string): string => `${relative(repository, fixture)}/${path}`;
 const tests = (...names: string[]): string[] => names.map((name) => named(`test/${name}.test.js`));
 const rate = named('src/rate.ts');
+const fee = named('src/fee.ts');
 
 let directory: string;
 let coverageFile: string;
@@ -75,5 +78,17 @@ describe('a file that declares it reads a module', () => {
       sourceAt,
     });
     expect(narrowing.entered).toEqual(tests('charge', 'source'));
+  });
+
+  it('charges the tests that loaded its row, by the row, when it has one', async () => {
+    const narrowing = await narrowByExecution(coverageFile, await edit(fee, 'FEE = 2', 'FEE = 3'), {
+      relations,
+      sourceAt,
+    });
+    const audit = named('src/audit.ts');
+    expect(narrowing.entered).toEqual(tests('audit', 'fee'));
+    expect(narrowing.because[0]!.via).toEqual([
+      expect.objectContaining({ reader: audit, region: expect.objectContaining({ file: audit, path: 'module' }) }),
+    ]);
   });
 });
