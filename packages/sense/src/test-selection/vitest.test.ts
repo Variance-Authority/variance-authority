@@ -230,6 +230,33 @@ describe('what the seam refuses to instrument', () => {
   });
 });
 
+describe('a module named unprobed', () => {
+  it('runs marked as loaded and recorded as not instrumented, though include accepts it too', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-unprobed-'));
+    const coverageFile = resolve(root, 'coverage.bin');
+    try {
+      const page = resolve(root, 'page.ts');
+      const configured = withTestSelection({}, { root, coverageFile, include: () => true, unprobed: (file) => file === page });
+      const plugin = (configured.plugins as unknown as Array<{
+        transform: { handler(code: string, id: string): { code: string } | null };
+      }>)[0]!;
+      const reporter = (configured.test!.reporters as unknown as Array<{
+        onFinished(files: readonly []): Promise<void>;
+      }>)[1]!;
+
+      const placed = plugin.transform.handler('export function f(x) { if (x) { return 1; } return 2; }', page);
+      await reporter.onFinished([]);
+
+      expect(placed!.code).toMatch(/^export function f\(x\) \{ if \(x\) \{ return 1; \} return 2; \}\n;[^]*__vaE\(\);$/);
+      expect(decodeTestCoverage(await readFile(coverageFile)).modules).toEqual([
+        expect.objectContaining({ file: 'page.ts', instrumented: false, blocks: [] }),
+      ]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('coverage generations', () => {
   it('records instrumentation refusal instead of an empty module observation', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-instrumentation-refusal-'));
@@ -243,7 +270,11 @@ describe('coverage generations', () => {
         onFinished(files: readonly []): Promise<void>;
       }>)[1]!;
 
-      expect(plugin.transform.handler('const =', resolve(root, 'broken.ts'))).toBeNull();
+      // It still runs marked as loaded, so a test that loaded it still says so.
+      expect(plugin.transform.handler('const =', resolve(root, 'broken.ts'))).toEqual({
+        code: expect.stringMatching(/^const =\n;[^]*__vaE\(\);$/),
+        map: null,
+      });
       await reporter.onFinished([]);
 
       expect(decodeTestCoverage(await readFile(coverageFile)).modules).toEqual([{

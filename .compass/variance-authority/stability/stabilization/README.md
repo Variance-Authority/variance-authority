@@ -91,10 +91,14 @@ appear in anybody's attribution.
   options, a settle step or a driver request.
 - `packages/core/src/format/stabilize.ts` — the vocabulary and the recipes
   (`holdAnimations`, `pinAnimations`, `hideCaret`, `hideScrollbars`,
-  `hidePresentationalImages`, `waitForFonts`, `waitForImages`;
-  `SEMANTIC_RECIPE`, `LAYOUT_RECIPE`, `RASTER_RECIPE`, `COLLECT_RECIPE`), plus
-  `forTier`, `conflicts`, `settleRecipe` and `recipeDigest` — sorted, so
-  composition order does not change identity.
+  `hidePresentationalImages`; `SEMANTIC_RECIPE`, `LAYOUT_RECIPE`,
+  `RASTER_RECIPE`, `COLLECT_RECIPE`), plus `forTier`, `conflicts`,
+  `settleRecipe` and `recipeDigest` — sorted, so composition order does not
+  change identity.
+- `packages/core/src/format/waits.ts` — `waitForFonts` and `waitForImages`, the
+  two settle steps that block on something outside the page: each runs in the
+  page, gives up at 15000ms and names what never answered. Each sends an inline
+  function to the page, which the instrumenter finds and leaves unprobed.
 - `packages/dom/src/stabilize.ts` — `stabilizeForObservation`,
   `stabilizeAsRequested` for a recipe that crossed into the page as ids, and
   `STABILIZE_ATTRIBUTE`: one idempotent sheet, applied before the settle steps,

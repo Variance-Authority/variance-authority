@@ -159,10 +159,15 @@ It selects on what the recording measured, and on nothing else. Each changed
 file is read from both of its texts first, and prints a `read` line saying what
 the edit does. A module added since the recording is read the same way, with
 every export counted as changed, so it selects the tests that entered a function
-reading one. A changed file the recording has no row for, and that reading
-cannot answer — a stylesheet, a page-side module that cannot take a probe — is
-asked of the import graph, and the nearest measured files that import it select their
-tests; a bumped package is answered the same way by its measured importers. A
+reading one. A page-side module that cannot take a probe is marked as loaded
+instead (`unprobed` in `vitest.config.mts`), so a change to it selects every test
+that loaded it. The probe runtime (`RUNTIME` in `tools/page-side.mjs`) is
+neither probed nor marked, so a change to it is asked of the import graph, as a
+stylesheet is below. A source a page-agent bundle is built from runs the whole
+chromium slice, because that slice's `before` names each bundle's entry. A changed file the recording has no row for, and that reading
+cannot answer — a stylesheet — is asked of the import graph, and the nearest
+measured files that import it select their tests; a bumped package is answered
+the same way by its measured importers. A
 changed path the graph does not list either — a README, a fixture — selects
 nothing by itself and is reported.
 

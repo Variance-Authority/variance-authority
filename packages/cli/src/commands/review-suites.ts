@@ -1,9 +1,9 @@
 // compass: variance-authority/runtime/attention
-import { declaredSuites, type LineRange } from '@variance-authority/sense/test-selection';
+import { declaredSuites, type ExecutionIndex, type LineRange } from '@variance-authority/sense/test-selection';
 import type { Relations } from '@variance-authority/core/relate';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
-import { recordedExecutionFile } from './execution-input.js';
+import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { ranAsTree, recordedRegions, type RecordedRegions, type Removed } from './review-region.js';
 import type { Reach, ReviewRegion } from './review.js';
 
@@ -72,10 +72,10 @@ export function nearestOfEach<P extends SuitePart>(parts: readonly P[], rank: (p
  * Each changed file's regions read from every declared suite, for a review
  * asked for every suite's coverage.
  *
- * `own` is the named suite's answer. Another suite answers for a changed file
- * only when it ran the file as the tree holds it: its rows are then in the
- * tree's lines, and a row recorded over other text would name lines the change
- * moved. The suites are joined as the handover joins them, by
+ * `own` is the named suite's answer, read from `named.index`. Another suite
+ * answers for a changed file only when it ran the file as the tree holds it
+ * ({@link ranAsTree}): its rows are then in the tree's lines, and a row
+ * recorded over other text would name lines the change moved. The suites are joined as the handover joins them, by
  * {@link nearestOfEach}: each region is the part of the suite that came
  * nearest, and a named suite that ran the file as other text gives way to the
  * suites that ran it as the tree. When no other suite did, the named suite's
@@ -84,7 +84,7 @@ export function nearestOfEach<P extends SuitePart>(parts: readonly P[], rank: (p
  */
 export async function everySuiteRegions(
   root: string,
-  named: { readonly suite?: string; readonly record: string },
+  named: { readonly suite?: string; readonly record: string; readonly index: ExecutionIndex },
   own: ReadonlyMap<string, RecordedRegions>,
   now: ReadonlyMap<string, readonly LineRange[]>,
   relations: Relations,
@@ -94,14 +94,15 @@ export async function everySuiteRegions(
   const readings = await eachSuite(root, async (suite) => {
     if (suite === named.suite) return undefined;
     const record = await recordedExecutionFile(root, suite);
-    const ran = await ranAsTree(record, root, files);
+    const { index } = await readExecutionFor(record, now);
+    const ran = await ranAsTree(record, root, files, index);
     if (ran.size === 0) return undefined;
     const lines = new Map([...now].filter(([file]) => ran.has(file)));
-    return { ran, regions: await recordedRegions(record, lines, relations, root, removed) };
+    return { ran, regions: await recordedRegions(record, index, lines, relations, root, removed) };
   });
   const others = readings.flatMap((reading) => reading === undefined || 'missed' in reading ? [] : [reading]);
   if (others.length === 0) return own;
-  const ownRan = await ranAsTree(named.record, root, files);
+  const ownRan = await ranAsTree(named.record, root, files, named.index);
   const joined = new Map<string, RecordedRegions>();
   for (const [file, answer] of own) {
     const answers = others.flatMap((other) => other.ran.has(file) ? [other.regions.get(file)!] : []);

@@ -4,7 +4,7 @@ import { dirname, relative, resolve, sep } from 'node:path';
 import type { UserConfig } from 'vitest/config';
 import { cadence, type CutSourceMap } from '../instrument/cadence.js';
 import type { InstrumentMode } from '../instrument/index.js';
-import { captureModule, pathOf } from './captured-modules.js';
+import { pathOf, placeModule, type Captured } from './captured-modules.js';
 import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
 import { writeCut } from './case-cut.js';
 import { readFinished, type FinishedFile } from './finished-files.js';
@@ -38,6 +38,13 @@ export interface TestSelectionOptions {
   readonly suite?: string;
   /** Decide which transformed modules are product source. */
   readonly include?: (file: string) => boolean;
+  /**
+   * Decide which transformed modules are product source no probe may sit in:
+   * a module whose functions cross into a page as text, where the first probe
+   * would throw. It wins over `include`. Each is marked as loaded at its end
+   * instead, and an edit to it selects every test that loaded it.
+   */
+  readonly unprobed?: (file: string) => boolean;
   /**
    * Files whose contents are preconditions of every test observation, beside
    * the ones the seam declares on its own: the config file Vite loaded, the
@@ -154,6 +161,11 @@ export function withTestSelection(
   );
   const chosen = options.include ?? defaultInclude;
   const include = (file: string): boolean => !globalSetup.has(file) && chosen(file);
+  const marked = options.unprobed;
+  const unprobed = marked === undefined ? undefined : (file: string): boolean => !globalSetup.has(file) && marked(file);
+  // A module `unprobed` names runs as it is, marked as loaded at its end, whatever `include` says.
+  const capture = (file: string, code: string): Captured | undefined =>
+    placeModule(root, file, code, include, unprobed, mode);
   const setupFiles = array(config.test?.setupFiles);
   // What the author declared is declared for the tests this configuration
   // governs, which for the one that describes the run is every test.
@@ -186,7 +198,7 @@ export function withTestSelection(
   }
 
   const cut = options.cadence === false ? undefined : testFiles(config, configRoot);
-  const plugin = selectionPlugin(root, setupId, runnerId, globalSetup, run, include, mode, declared, settle, cut);
+  const plugin = selectionPlugin(root, setupId, runnerId, globalSetup, run, capture, mode, declared, settle, cut);
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
   const continuations = options.continuations === true;
@@ -303,7 +315,7 @@ function selectionPlugin(
   runnerId: string,
   globalSetup: ReadonlySet<string>,
   run: SelectionRun,
-  include: (file: string) => boolean,
+  capture: (file: string, code: string) => Captured | undefined,
   mode: InstrumentMode,
   declared: readonly string[],
   settle: (files: readonly FinishedFile[]) => Promise<void>,
@@ -394,10 +406,8 @@ function selectionPlugin(
       // its build both answer to the name, each with its own regions, and the
       // fold joins them (see `joinReadings`). Vitest re-transforms every run in
       // this process, so the modules stay in this map.
-      const captured = captureModule(root, file, code, include, mode);
-      if (captured === undefined) {
-        return cutOf(code) ?? null;
-      }
+      const captured = capture(file, code);
+      if (captured === undefined) return cutOf(code) ?? null;
       // Only the file itself: any query, such as `?raw`, asks for a module built
       // from it. In a page, `vi.mock` loads its mock under the file's name.
       // Otherwise its lines are not the author's, so it fails its importers.
@@ -409,8 +419,7 @@ function selectionPlugin(
         );
       }
       modules.set(captured.module.id, captured.module);
-      const probed = captured.code ?? code;
-      return cutOf(probed) ?? (probed === code ? null : { code: probed, map: null });
+      return cutOf(captured.code) ?? { code: captured.code, map: null };
     } },
   };
 }

@@ -10,7 +10,14 @@
     },
     "chromium": {
       "kind": "e2e",
-      "carry": "share"
+      "carry": "share",
+      "before": [
+        "packages/eyes/src/page-agent-entry.ts",
+        "packages/playwright-test/src/page-agent-entry.ts",
+        "packages/presentation/src/browser-agent-entry.ts",
+        "packages/route-collector/src/page-agent-entry.ts",
+        "packages/storybook-collector/src/page-agent-entry.ts"
+      ]
     }
   },
   "share": {

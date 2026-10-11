@@ -59,6 +59,8 @@ export interface SelectionRun {
    * it, and `defaultInclude` stands until a wrapper says otherwise.
    */
   include: (file: string) => boolean;
+  /** Which transformed modules are product source no probe may sit in, carried for the same reason; absent marks none. */
+  unprobed: ((file: string) => boolean) | undefined;
   /**
    * Which files are tests, and so cut as well as probed where `include` takes
    * them, carried for the same reason as `include`; absent cuts nothing.
@@ -129,6 +131,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     runConfig: undefined,
     mode,
     include: defaultInclude,
+    unprobed: undefined,
     cadence: undefined,
     shims: new Set<string>(),
     made: new Set<string>(),
