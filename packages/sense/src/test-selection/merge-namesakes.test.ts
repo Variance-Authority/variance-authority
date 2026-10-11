@@ -296,4 +296,13 @@ describe('regions inside namesakes', () => {
     // the callback takes the crossings around it, not alpha's alone.
     expect(crossings(rerecordedNested(NESTED_SHIFTED), 'Widget/useEffect.arg0/map.arg0')).toEqual([[DELTA], EVERY]);
   });
+
+  it('carries nothing onto a region inside a namesake paired with nothing, even one its address names once', () => {
+    // Only the second effect holds a branch, so the branch's address names one
+    // region in each text; but the effect around it was edited, and which
+    // effect it is was the question its body did not answer.
+    const merged = rerecordedNested(NESTED.replace('    if (props.b) {', '    log(props.b);\n    if (props.b) {'));
+
+    expect(crossings(merged, 'Widget/useEffect.arg0', 'if#0/then')).toEqual([EVERY]);
+  });
 });
