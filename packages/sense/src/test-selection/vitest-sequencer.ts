@@ -46,7 +46,7 @@ export interface SequencerContext {
     readonly root?: string;
     readonly watch?: boolean;
     readonly shard?: unknown;
-    readonly sequence?: { readonly shuffle?: unknown };
+    readonly sequence?: { readonly shuffle?: unknown; readonly seed?: number };
   };
   readonly state?: { readonly getPaths?: () => readonly string[] };
 }
@@ -184,17 +184,37 @@ function filesShuffled(written: unknown, ctx: SequencerContext): boolean {
   return ctx.config.sequence?.shuffle === true;
 }
 
+type Shuffle = <T>(array: T[], seed?: number) => T[];
+
 /**
- * Vitest's own `RandomSequencer` or `BaseSequencer`, from the Vitest the
- * project resolves: the one a sequencer would have been without this wrap.
+ * Vitest's own `BaseSequencer`, or its `RandomSequencer` when files are
+ * shuffled, from the Vitest the project resolves: the one a sequencer would
+ * have been without this wrap.
+ *
+ * `vitest/node` exports no `RandomSequencer` in any version this supports. It
+ * is `BaseSequencer` sorting by `shuffle` from `@vitest/utils` (`/helpers`
+ * from Vitest 4) with the run's seed, so it is put together here from those.
  */
 async function vitestSequencer(configRoot: string, shuffled: boolean): Promise<SequencerClass> {
-  let node: { BaseSequencer: SequencerClass; RandomSequencer: SequencerClass };
+  const load = vitestImport(configRoot);
+  const { BaseSequencer } = await load('vitest/node') as { BaseSequencer: new (ctx: SequencerContext) => Sequencer & { ctx: SequencerContext } };
+  if (!shuffled) return BaseSequencer;
+  const shuffle = ((await load('@vitest/utils/helpers')).shuffle ?? (await load('@vitest/utils')).shuffle) as Shuffle | undefined;
+  if (shuffle === undefined) throw new Error('variance-authority: this Vitest names no `shuffle` in `@vitest/utils`, so a shuffled run cannot order its files as Vitest would');
+  return class RandomSequencer extends BaseSequencer {
+    override async sort<T extends Spec>(files: T[]): Promise<T[]> {
+      return shuffle(files, this.ctx.config.sequence?.seed);
+    }
+  };
+}
+
+/** Imports a module of Vitest's own as the project's Vitest resolves it, or as this package does when that fails. */
+function vitestImport(configRoot: string): (specifier: string) => Promise<Record<string, unknown>> {
+  let from: NodeJS.Require | undefined;
   try {
-    const file = createRequire(resolve(configRoot, 'package.json')).resolve('vitest/node');
-    node = await import(pathToFileURL(file).href);
+    from = createRequire(createRequire(resolve(configRoot, 'package.json')).resolve('vitest/node'));
   } catch {
-    node = (await import('vitest/node')) as unknown as typeof node;
+    from = undefined;
   }
-  return shuffled ? node.RandomSequencer : node.BaseSequencer;
+  return (specifier) => from === undefined ? import(specifier) : import(pathToFileURL(from.resolve(specifier)).href);
 }
