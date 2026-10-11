@@ -44,10 +44,11 @@ import {
   SinceLast,
   Tally,
 } from './change-story.js';
+import { BaselineMovedNotice, movedOf } from './baseline-moved.js';
 import { Because } from './because.js';
 import { causesOf, namesDeclaration, UnderRoot } from './root.js';
 import { AlsoCarries, carriedWith } from './carried.js';
-import type { ReviewClient } from './client.js';
+import type { MovedBaseline, ReviewClient } from './client.js';
 import { Consumers, consumersOf } from './consumers.js';
 import { HeldStill, controlsFor } from './control.js';
 import type { Crossing } from './crossing.js';
@@ -80,7 +81,12 @@ export function ChangePanel({
   /** Every component with a change page on this build, so a link goes somewhere. */
   readonly changes: ReadonlySet<string>;
   readonly go: (route: Route) => void;
-  readonly onDecided: () => void;
+  /**
+   * Reads the build again; a row or bar takes no decision until it has. It
+   * reports its own failure and never rejects: a build that cannot be read again
+   * is the page's to say, with its own retry, and the rows go with it.
+   */
+  readonly onDecided: () => void | Promise<void>;
 }): ReactElement {
   const sourced = build.causes.some((cause) => cause.file !== undefined);
   const across = senseAcross(origin.component, origin.appearances);
@@ -254,7 +260,7 @@ function Where({
   readonly was?: Shifted | undefined;
   readonly against?: string | undefined;
   readonly go: (route: Route) => void;
-  readonly onDecided: () => void;
+  readonly onDecided: () => void | Promise<void>;
 }): ReactElement {
   const { subject, pixels } = appearance;
   // Minus the names the mark beside it already carries. `alongside` is every
@@ -263,20 +269,21 @@ function Where({
   // width saying one name twice under two words that do not mean the same thing.
   const alongside = appearance.alongside.filter((name) => !also.includes(name));
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<string | undefined>(undefined);
+  const [failed, setFailed] = useState<string | MovedBaseline | undefined>(undefined);
 
   const decide = async (decision: Decision): Promise<void> => {
     setBusy(true);
     setFailed(undefined);
     try {
-      await client.decide(build, subject.subject, decision, reviewer);
-      onDecided();
+      await client.decide(build, subject.subject, decision, reviewer, undefined, subject.baselineVersion);
+      await onDecided();
     } catch (error) {
-      setFailed(messageOf(error));
+      setFailed(movedOf(error) ?? messageOf(error));
     } finally {
       setBusy(false);
     }
   };
+  const reload = (): Promise<void> => reading(setBusy, setFailed, onDecided);
 
   return (
     <li className="va-where-row">
@@ -339,7 +346,16 @@ function Where({
           {subject.decision.decision === 'approved' ? '✓' : '✕'} {subject.decision.by}
         </span>
       )}
-      {failed === undefined ? null : <span className="va-failure">{failed}</span>}
+      {failed === undefined ? null : typeof failed === 'string' ? (
+        <span className="va-failure">{failed}</span>
+      ) : (
+        <BaselineMovedNotice
+          moved={failed}
+          reload="Reload this subject"
+          busy={busy}
+          onReload={() => void reload()}
+        />
+      )}
     </li>
   );
 }
@@ -367,36 +383,42 @@ function Batch({
   readonly origin: Origin;
   readonly open: readonly Appearance[];
   readonly settled: number;
-  readonly onDecided: () => void;
+  readonly onDecided: () => void | Promise<void>;
 }): ReactElement {
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<string | undefined>(undefined);
+  // The render a refusal stopped at, beside what moved, so the notice can name it.
+  const [failed, setFailed] = useState<string | Stopped | undefined>(undefined);
 
   const blocked = origin.appearances.length - open.length - settled;
 
   const decide = async (decision: Decision): Promise<void> => {
     setBusy(true);
     setFailed(undefined);
+    let at: string | undefined;
     try {
       for (const { subject } of open) {
+        at = subject.subject;
         await client.decide(
           build,
           subject.subject,
           decision,
           reviewer,
           `${decision} as one change in ${origin.component}`,
+          subject.baselineVersion,
         );
       }
-      onDecided();
+      await onDecided();
     } catch (error) {
       // Reported rather than swallowed, and the ones already written stay
       // written: a batch that rolled itself back would undo decisions a reviewer
       // made, to tidy up a network error.
-      setFailed(messageOf(error));
+      const moved = movedOf(error);
+      setFailed(moved === undefined || at === undefined ? messageOf(error) : { subject: at, moved });
     } finally {
       setBusy(false);
     }
   };
+  const reload = (): Promise<void> => reading(setBusy, setFailed, onDecided);
 
   return (
     <div className="va-decide-act">
@@ -422,7 +444,42 @@ function Batch({
           {count(blocked, 'render')} kept no candidate and cannot be approved here
         </span>
       )}
-      {failed === undefined ? null : <p className="va-failure">{failed}</p>}
+      {failed === undefined ? null : typeof failed === 'string' ? (
+        <p className="va-failure">{failed}</p>
+      ) : (
+        <BaselineMovedNotice
+          moved={failed.moved}
+          subject={failed.subject}
+          reload="Reload this change"
+          busy={busy}
+          onReload={() => void reload()}
+        />
+      )}
     </div>
   );
+}
+
+interface Stopped {
+  readonly subject: string;
+  readonly moved: MovedBaseline;
+}
+
+/**
+ * Reads the build again after a refusal, with the buttons held until it has.
+ *
+ * Until the build answers the page still holds the version it read, and a
+ * decision taken in between would send it and be refused a second time.
+ */
+async function reading(
+  setBusy: (busy: boolean) => void,
+  setFailed: (failed: undefined) => void,
+  onDecided: () => void | Promise<void>,
+): Promise<void> {
+  setFailed(undefined);
+  setBusy(true);
+  try {
+    await onDecided();
+  } finally {
+    setBusy(false);
+  }
 }

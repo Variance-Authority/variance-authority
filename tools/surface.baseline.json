@@ -302,6 +302,7 @@
         "hideScrollbars": "const",
         "holdAnimations": "const",
         "identityDigest": "function",
+        "intersectionArea": "function",
         "interventionById": "function",
         "jsxSourceOf": "function",
         "keyedByPosition": "function",
@@ -3574,6 +3575,7 @@
         "createD1Backend": "function"
       },
       "./review": {
+        "BaselineMoved": "class",
         "BuildDetail": "interface",
         "BuildIngest": "interface",
         "BuildSummary": "interface",

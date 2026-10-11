@@ -117,15 +117,16 @@ function Build({
   readonly build: BuildDetail;
   readonly route: BuildRoute;
   readonly go: (route: Route) => void;
-  readonly reload: () => void;
+  readonly reload: () => Promise<void>;
 }): ReactElement {
   const crossing = useCrossing(client, build);
   const concerns = useConcernTally(client, build.build);
   // A decision can open a concern — approving an image an earlier build
-  // rejected does — so both reads follow it.
-  const decided = (): void => {
-    reload();
+  // rejected does — so both reads follow it. The panel holds its buttons until
+  // the build is back, since until then it holds the baseline version it read.
+  const decided = (): Promise<void> => {
     concerns.refresh();
+    return reload();
   };
   const order: Order = (route.page === 'build' ? route.order : undefined) ?? 'story';
 
