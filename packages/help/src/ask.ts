@@ -6,6 +6,7 @@ import { workspaceGeneration } from './read.js';
 import type { SearchIndex } from './search-index.js';
 import { searchNames } from './tools/search-answer.js';
 import { answerSearch, search } from './tools/search.js';
+import { wordsOf } from './words.js';
 
 /**
  * The answers as shell verbs, so asking costs nothing to arrange.
@@ -44,6 +45,26 @@ function propertiesOf(tool: Tool<Help>): readonly string[] {
 }
 
 /**
+ * The property that takes whole questions, where the schema has one: a list
+ * whose items are objects is a list of `{question, input}`, and no other shape
+ * on this server is.
+ */
+function questionsProperty(tool: Tool<Help>): string | undefined {
+  const properties = (tool.inputSchema['properties'] ?? {}) as Record<string, { type?: unknown; items?: { type?: unknown } }>;
+  return Object.keys(properties).find((property) => properties[property]?.type === 'array' && properties[property]?.items?.type === 'object');
+}
+
+/** One bare word as a whole question, split as a shell splits it and read by its own verb. */
+function questionFrom(text: string, at: number): { question: string; input: Record<string, unknown> } {
+  try {
+    const [question = '', ...args] = wordsOf(text);
+    return { question, input: inputFrom(toolNamed(question), args) };
+  } catch (refusal) {
+    throw new Error(`question ${at}, \`${text}\`: ${refusal instanceof Error ? refusal.message : String(refusal)}`);
+  }
+}
+
+/**
  * `--name value` pairs, refused against the tool's own schema.
  *
  * A misspelled flag is refused here rather than ignored, because a tool whose
@@ -54,10 +75,18 @@ function propertiesOf(tool: Tool<Help>): readonly string[] {
 export function inputFrom(tool: Tool<Help>, args: readonly string[]): Record<string, unknown> {
   const taken = propertiesOf(tool);
   const input: Record<string, unknown> = {};
+  const questions = questionsProperty(tool);
 
   for (let at = 0; at < args.length; at += 1) {
     const arg = args[at];
     if (arg === undefined) continue;
+
+    if (!arg.startsWith('--') && questions !== undefined) {
+      // A question inside a question is one argument, typed as it is asked alone.
+      const asked = (input[questions] ?? []) as unknown[];
+      input[questions] = [...asked, questionFrom(arg, asked.length + 1)];
+      continue;
+    }
 
     if (!arg.startsWith('--')) {
       // The first bare word fills the first property, so the common question is

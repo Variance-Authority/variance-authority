@@ -39,10 +39,12 @@ export {
 } from './read.js';
 export type { AnsweringOptions, ReadingOptions, SnapshotOptions } from './read.js';
 export { refreshWorkspaceFromIndex } from './refresh-native.js';
+export { readNamedTree, type NamedTree } from './names-read.js';
 export { readSearchForAnswer } from './search-read.js';
 export type { SearchIndex } from './search-index.js';
 export { serveWorkspace } from './server.js';
 export type { WorkspaceOptions } from './server.js';
+export { wordsOf } from './words.js';
 export { writePages } from './write.js';
 export type { PagesOptions, Written } from './write.js';
 export { readDependencyLexicon, refreshDependencyLexicon } from './dependency-lexicon.js';

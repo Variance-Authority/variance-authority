@@ -1,4 +1,4 @@
-import type { Tool, Tree } from '@variance-authority/mcp/tools';
+import type { FileSet, Tool, Tree } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
@@ -6,7 +6,7 @@ import { encodeSearchIndex, openSearchIndex } from '../search-index.js';
 import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
 import type { ExportedMatch, PublishedMatch } from './search-answer.js';
-import { searched } from './search-answer.js';
+import { searched, searchedFiles } from './search-answer.js';
 
 /**
  * `docs_search` — the name for a thing somebody can only describe.
@@ -279,4 +279,8 @@ export const search: Tool<Help> = {
   wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
 
   run: (help, input, invocation) => answerSearch(searchIndexOf(help), input, invocation?.tree, invocation?.root),
+
+  files: (help, input, invocation): FileSet => ({
+    files: searchedFiles(searchIndexOf(help), { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to') }, invocation?.tree),
+  }),
 };

@@ -432,7 +432,8 @@ describe('parseArgs', () => {
 
     for (const question of QUESTIONS) {
       for (const argument of argumentsOf(question.tool)) {
-        if (!accepted.includes(argument.flag)) refused.push(`${questionOf(question.tool)}: ${argument.flag}`);
+        // Questions are typed as words after `intersection`, never behind a flag.
+        if (argument.kind !== 'questions' && !accepted.includes(argument.flag)) refused.push(`${questionOf(question.tool)}: ${argument.flag}`);
       }
     }
 

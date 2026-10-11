@@ -2,8 +2,11 @@
 import { relative } from 'node:path';
 import type { Tree } from '@variance-authority/mcp/tools';
 import { ask, askSearch, askSearchJson, inputFrom, toolNamed, verbs } from './ask.js';
-import { readWorkspaceForAnswer } from './read.js';
+import { readWorkspaceForAnswer, workspaceGeneration } from './read.js';
+import { readNamedTree } from './names-read.js';
 import { readSearchForAnswer } from './search-read.js';
+import { discover } from './tools/discover.js';
+import { intersection, namesWanted } from './tools.js';
 import { search } from './tools/search.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
@@ -24,6 +27,19 @@ import { writePages } from './write.js';
  * imports. All three are already written down, and a flag that disagreed with
  * one of them would be a fourth source of truth nobody asked for.
  */
+
+/**
+ * An intersection one of whose questions reads every file's names: the names
+ * come off the scan that draws the tree, so both are read there rather than
+ * the tree the workspace reading keeps.
+ */
+async function crossNamed(root: string, justAnswer: boolean, args: readonly string[]): Promise<string> {
+  const input = inputFrom(intersection, args);
+  const help = await readWorkspaceForAnswer(root, { justAnswer });
+  const answer = intersection.run(help, input, { ...(await readNamedTree(root, input)), root });
+  const at = workspaceGeneration(help);
+  return at === undefined ? answer : `${answer}\nSnapshot ${at}.`;
+}
 
 /** The longest verb and a gap, so a verb added later never runs into its description. */
 const VERB_WIDTH = Math.max(...verbs().map(([verb]) => verb.length)) + 1;
@@ -115,10 +131,15 @@ if (asking(verb) && verb !== undefined) {
       justAnswer: args.includes('--just-answer'),
       ...(wantsTree ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
     };
-    // `search` opens the file published for it rather than the whole value.
+    // `search` opens the file published for it rather than the whole value;
+    // `discover` reads no workspace value, only the tree and its names.
     const answer = tool === search
       ? (format === 'json' ? askSearchJson : askSearch)(await readSearchForAnswer(root, reading), ownArgs, () => tree)
-      : ask(await readWorkspaceForAnswer(root, reading), verb, ownArgs, () => tree, root);
+      : tool === discover
+        ? discover.run(undefined, inputFrom(tool, ownArgs), { ...(await readNamedTree(root, inputFrom(tool, ownArgs))), root })
+        : tool === intersection && namesWanted(inputFrom(tool, ownArgs))
+          ? await crossNamed(root, reading.justAnswer, ownArgs)
+          : ask(await readWorkspaceForAnswer(root, reading), verb, ownArgs, () => tree, root);
 
     process.stdout.write(`${answer}\n`);
   } catch (failure) {
