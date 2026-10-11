@@ -17,6 +17,10 @@ describe('the tests that need ripgrep, on a machine without it', () => {
     expect(ripgrepOnPath({ PATH: nowhere })).toBe(false);
   });
 
+  it('skip where CI is set to nothing', () => {
+    expect(ripgrepOnPath({ PATH: nowhere, CI: '' })).toBe(false);
+  });
+
   it('skip where CI is said to be off', () => {
     expect(ripgrepOnPath({ PATH: nowhere, CI: 'false' })).toBe(false);
   });
