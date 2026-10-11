@@ -354,7 +354,9 @@ describe('every file:line reference lands where it says', () => {
   it('names no file for a path that only ends like one', () => {
     // `cases/storybook-case/src/ds.jsx` is tracked and is the only file ending in
     // `src/ds.jsx`. Neither beside a page in docs/ nor at the root is there one.
-    expect(TRACKED.has('cases/storybook-case/src/ds.jsx')).toBe(true);
+    expect([...TRACKED].filter((tracked) => tracked.endsWith('/src/ds.jsx'))).toEqual([
+      'cases/storybook-case/src/ds.jsx',
+    ]);
     expect(locate('docs/architecture.md', 'src/ds.jsx')).toBeNull();
   });
 
