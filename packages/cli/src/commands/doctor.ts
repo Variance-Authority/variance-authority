@@ -128,20 +128,19 @@ export interface BaselineFinding {
   readonly because: string;
 
   /**
-   * Whether a baseline in this store can be compared on this machine.
+   * Whether this machine painted any baseline in this store.
    *
-   * `false` is the answer that costs an afternoon everywhere else. A tool that
-   * renders in your CI and stores images somewhere shared has one failure mode
-   * above all others — the machine you are on is not the machine that painted
-   * the baselines — and it usually surfaces as a full-red run with no
-   * explanation. It is a `readdir` here, because the store's layout *is* the
-   * partition: `<…>/<identityDigest>/<subject>.png`, at the root under a `flat`
-   * layout and in the subject's own directory under `beside`.
+   * `false` is the finding that costs an afternoon everywhere else: a run here
+   * compares every subject against another machine's image (ADR-0090), and
+   * every change it reports names the machine as its cause. It is a `readdir`
+   * here, because the store's layout *is* the partition:
+   * `<…>/<identityDigest>/<subject>.png`, at the root under a `flat` layout and
+   * in the subject's own directory under `beside`.
    *
    * Absent when nothing was looked at: a remote store is not contacted, and an
-   * ephemeral run has no baselines to be comparable with.
+   * ephemeral run keeps no baselines.
    */
-  readonly comparable?: boolean;
+  readonly paintedHere?: boolean;
 
   /** What the store holds, per identity, most baselines first. Absent when not scanned. */
   readonly partitions?: readonly Partition[];
@@ -424,14 +423,14 @@ async function baselines(
   const partitions = scanned.map((entry) => ({ ...entry, mine: entry.identity === mine }));
   // TODO: a partition of pointers counts as a partition of baselines. `partitions`
   // comes from a `readdir` that opens no file, so an unsmudged store reports
-  // `comparable: true` here and the run meets it one subject at a time — spec 0018
+  // `paintedHere: true` here and the run meets it one subject at a time — spec 0018
   // asks this to see it first. The first bytes of one file per partition name it.
   const ours = partitions.find((entry) => entry.mine);
 
   if (ours !== undefined) {
     return {
       kind: store.kind,
-      comparable: true,
+      paintedHere: true,
       because:
         `${ours.baselines} baseline(s) in ${said(store.root)} match this machine${
           partitions.length > 1 ? `; ${partitions.length - 1} other identit(ies) left alone` : ''
@@ -442,26 +441,24 @@ async function baselines(
 
   // FIXME: a store whose baselines differ from this machine only in the recipe
   // digests (stabilization, rasterization), as every baseline does after an
-  // upgrade that moves them, gets this finding: "not painted by a machine like
-  // this one", and two ways out that are both wrong for it. The run compares
-  // those subjects with the recipe named as the cause (ADR-0090) and `accept`
-  // adopts them; this compares the whole digest and cannot say so. The partition
-  // directory names a digest, not the identity behind it, so telling the two
-  // apart here needs a sidecar read per partition.
+  // upgrade that moves them, is told the machine differs. The run names the
+  // recipe as the cause (ADR-0090); this compares the whole digest and cannot
+  // say so. The partition directory names a digest, not the identity behind it,
+  // so telling the two apart here needs a sidecar read per partition.
   return {
     kind: store.kind,
     // The finding this command was worth writing for. Everything else here is a
     // prerequisite somebody can check by hand in a minute; this one is invisible
-    // until a run goes uniformly red, and then it looks like the product broke.
-    comparable: false,
+    // until a run reports every subject changed, and then it looks like the
+    // product broke.
+    paintedHere: false,
     because:
       `no baseline in ${said(store.root)} was painted by a machine like this one. This machine is ` +
       `${mine.slice(0, 12)}… and the store holds ${stored} baseline(s) under ` +
-      `${scanned.length} other identit(ies), so every subject would be compared against another ` +
-      "machine's image and the machine would be the cause of whatever moved. Two ways out: set " +
-      '`"retention": "ephemeral"` so both images are painted here in one run and the machine ' +
-      'cancels out, or point `"renderer"` at an endpoint running the identity the baselines ' +
-      'were written under',
+      `${scanned.length} other identit(ies), so every subject is compared against another ` +
+      "machine's image and the machine is named as the cause of whatever moved. Two ways to keep " +
+      'it out of the diff: set `"retention": "ephemeral"` so both images are painted here in one ' +
+      'run, or point `"renderer"` at an endpoint running the identity the baselines were written under',
     partitions,
   };
 }

@@ -187,23 +187,22 @@ on what your config selected, before the first expensive run:
   is indistinguishable from the real file from inside a page, so doctor prints a
   known limit instead of a verdict;
 - **baselines** — the kind, the identities already in the store, and
-  `NOT COMPARABLE HERE` when nothing in it was painted by a machine like this one;
+  `PAINTED ELSEWHERE` when nothing in it was painted by a machine like this one;
 - **renders** — the size of the render cache and where it is;
 - **cache** — the size of the rest of [the cache](cache.md), which entries the
   next prune removes and under which rule, and which it keeps because git or
   the process table could not answer. `variance prune` runs that prune now;
 - **history** — configured or none.
 
-Doctor exits `2` for exactly two findings: no renderer could be opened here, and
-no baseline in the store is comparable here. Both are yours to fix before
-running. For a missing renderer, read the launch error it prints — usually an
-uninstalled browser binary or a missing system library. For a store painted
-elsewhere, every subject would be compared against another machine's image and
-the machine named as the cause of whatever moved: either point `renderer` at a
-machine running the identity the baselines were written under, or switch to
-`retention: "ephemeral"`, where both images are painted in the same run. Doctor
-compares identity digests, and the digest covers the recipe as well as the
-machine: the stabilization and rasterization digests, which an upgrade of
+Doctor exits `2` for one finding: no renderer could be opened here. Read the
+launch error it prints — usually an uninstalled browser binary or a missing
+system library. A store painted elsewhere is a warning, not a refusal: a run
+compares every subject against another machine's image and names the machine as
+the cause of whatever moved. To keep the machine out of the diff, point
+`renderer` at a machine running the identity the baselines were written under,
+or switch to `retention: "ephemeral"`, where both images are painted in the same
+run. Doctor compares identity digests, and the digest covers the recipe as well
+as the machine: the stabilization and rasterization digests, which an upgrade of
 variance-authority or a changed renderer option moves. A run's reason names the
 fields that moved. When only the recipe moved, review the changes and adopt them
 with `accept --all` below. Everything else, missing fonts included, exits `0`.

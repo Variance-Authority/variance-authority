@@ -78,6 +78,8 @@ export interface Move {
   /** Each field that moved, `field before → after`, baseline side first. */
   readonly moved: readonly string[];
   readonly changed: readonly string[];
+  /** Moved, every changed pixel inside a mask: neither changed nor left alone. */
+  readonly ignored: number;
   readonly unchanged: number;
 }
 
@@ -146,7 +148,7 @@ export function docketOf(report: CliRunReport): Docket {
   const missingFonts = new Map<string, number>();
   const collateralComponents = new Set<string>();
   const collateralSubjects = new Set<string>();
-  const moves = new Map<string, { identity: Move['identity']; moved: readonly string[]; changed: string[]; unchanged: number }>();
+  const moves = new Map<string, { identity: Move['identity']; moved: readonly string[]; changed: string[]; ignored: number; unchanged: number }>();
 
   let reviewable = 0;
   let fresh = 0;
@@ -164,8 +166,9 @@ export function docketOf(report: CliRunReport): Docket {
     if (identity !== undefined) {
       const moved = observation.signals?.moved ?? [];
       const key = `${identity}\u0000${moved.join('\u0000')}`;
-      const move = moves.get(key) ?? { identity, moved, changed: [], unchanged: 0 };
+      const move = moves.get(key) ?? { identity, moved, changed: [], ignored: 0, unchanged: 0 };
       if (observation.verdict === 'changed') move.changed.push(observation.subject);
+      else if (observation.verdict === 'ignored') move.ignored += 1;
       else move.unchanged += 1;
       moves.set(key, move);
     }
@@ -245,7 +248,7 @@ export function docketOf(report: CliRunReport): Docket {
   return {
     causes: entries,
     moves: [...moves.values()].sort(
-      (a, b) => b.changed.length + b.unchanged - (a.changed.length + a.unchanged),
+      (a, b) => b.changed.length + b.ignored + b.unchanged - (a.changed.length + a.ignored + a.unchanged),
     ),
     collateral: {
       regions: collateralRegions,

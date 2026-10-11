@@ -174,9 +174,9 @@ structure and declared style; `chromium` adds layout and pixels. A profile that
 cannot measure a box cannot decide pixels either.
 
 An **identity** is the content hash that addresses a result, derived from the
-whole plan — ruleset version, viewport, policy, interventions. Two runs are
-comparable only when their identities match, so changing any part of the plan
-changes which baselines the run can see.
+whole plan — ruleset version, viewport, policy, interventions. Two runs share
+a result only when their identities match, so changing any part of the plan
+changes the address its result is stored under.
 
 A **band** is the kind of change a delta is, and which band a delta lands in
 decides how loudly it is reported. Change frequency and change importance run

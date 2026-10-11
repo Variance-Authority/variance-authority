@@ -130,7 +130,9 @@ describe('exitFor', () => {
     const codes = [
       exitFor({ observations: [], notObserved: [] }),
       exitFor({ observations: [{ verdict: 'changed' }], notObserved: [{ kind: 'failed' }] }),
-      exitFor({ observations: [{ verdict: 'unstable' }] }),
+      ...(['unchanged', 'changed', 'new', 'ignored'] as const).map((verdict) =>
+        exitFor({ observations: [{ verdict }], notObserved: [] }),
+      ),
     ];
     expect(codes).not.toContain(EXIT_OPERATOR);
   });

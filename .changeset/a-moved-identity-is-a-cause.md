@@ -21,9 +21,16 @@ moved field with both values, and its `because` opens with that cause. A
 Playwright Test's `--update-snapshots` and Vitest's `--update` adopt it like any
 other change. An `unchanged` subject under a moved identity is re-stamped
 under this run's identity by the same three, so an upgrade is named once rather
-than on every later run. `variance_explain` names the moved identity as the
+than on every later run. A re-stamp approves nothing: `variance accept` counts
+it in `restamped` and its summary, not among the accepted subjects or the
+commit message, and the `variance_changelog` preview says so. `variance_explain` names the moved identity as the
 cause of a change, and the tribunal no longer counts or lists an
-`incomparable` verdict. `bulkSkips`, the options of `promotionOf` and Playwright Test's
-`overwriting` run field are removed. The pull-request comment groups these
+`incomparable` verdict. `@variance-authority/raster` exports `identityCause`,
+which says whether two identities differ in the recipe alone or in the machine,
+with its `IdentityCause` and `ComparedSides` types. `variance doctor` reports a
+store painted by another machine as `PAINTED ELSEWHERE` and exits `0`: the run
+compares it. Its `baselines.comparable` field is now `baselines.paintedHere`.
+The pull-request comment groups these
 subjects under "Painted under another identity", one line per identity that
-moved.
+moved. Its section for subjects with no image to point at is headed "Nothing to
+point at", which was "Not compared".

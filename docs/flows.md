@@ -19,11 +19,13 @@ subject's stored baseline to produce a verdict: `unchanged`, `changed`, `new`,
 or `ignored`.
 
 Where you keep the baseline does not make that verdict more correct. What
-decides whether two readings are comparable is **renderer identity** — the
+decides whether a difference between two readings is the code's is **renderer
+identity** — the
 engine, platform, scale, font declarations, and rasterization inputs that
 painted them, covered under [where the renderer
 runs](#the-other-machine-question-where-the-renderer-runs) below — and the
-evidence each reading actually captured. Deployment decides who keeps the
+evidence each reading actually captured. Two readings under different identities
+are still compared, and the identity that moved is named as the cause. Deployment decides who keeps the
 baseline, where review happens, and whether the comparison stays available long
 enough to answer questions across runs.
 

@@ -33,7 +33,7 @@ and the second report `unchanged`.
 | The harness puts the app in the intended UI state | Navigation, fixtures, authentication, and readiness stay where they already work. |
 | The first run reports `new` | The subject was captured, and no approved baseline exists yet. |
 | You accept that candidate | `variance accept <subject-id>`, or Playwright's snapshot update flag, promotes exactly the image the run under review produced. It never renders a replacement. |
-| The next run reports `unchanged` | The stored baseline and the new capture were comparable, and nothing differs. |
+| The next run reports `unchanged` | The stored baseline and the new capture were compared, and nothing differs. |
 
 ## Choose who already owns the state
 

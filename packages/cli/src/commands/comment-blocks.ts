@@ -315,15 +315,14 @@ export function moveBlocks(docket: Docket, limits: CommentLimits): readonly stri
   if (docket.moves.length === 0) return [];
 
   const items = docket.moves.map((move) => {
-    const total = move.changed.length + move.unchanged;
+    const total = move.changed.length + move.ignored + move.unchanged;
     const what = move.moved.map((field) => `**${field}**`).join(', ');
-    if (move.changed.length === 0) return `- ${what} — none of ${count(total, 'subject')} changed`;
+    const masked = move.ignored === 0 ? '' : `; ${move.ignored} inside an ignored region`;
+    if (move.changed.length === 0) return `- ${what} — none of ${count(total, 'subject')} changed${masked}`;
     const named = move.changed.slice(0, limits.subjects).map(code).join(', ');
     const rest = move.changed.length - Math.min(move.changed.length, limits.subjects);
-    return (
-      `- ${what} — ${move.changed.length} of ${count(total, 'subject')} changed: ${named}` +
-      (rest === 0 ? '' : ` and ${count(rest, 'other')} not listed`)
-    );
+    const more = rest === 0 ? '' : ` and ${count(rest, 'other')} not listed`;
+    return `- ${what} — ${move.changed.length} of ${count(total, 'subject')} changed: ${named}${more}${masked}`;
   });
 
   return ['### Painted under another identity', items.join('\n')];

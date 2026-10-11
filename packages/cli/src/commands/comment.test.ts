@@ -265,11 +265,15 @@ describe('renderComment', () => {
         changed('story:a', 40),
         changed('story:b', 12),
         { subject: 'story:c', verdict: 'unchanged', because: 'no pixels differ', changedPixels: 0, regions: [], signals },
+        { ...changed('story:d', 3), verdict: 'ignored' as const },
       ]),
     });
 
     expect(body).toContain('### Painted under another identity');
-    expect(body).toContain('**engine chromium@131 → chromium@132** — 2 of 3 subject(s) changed: `story:a`, `story:b`');
+    // An ignored subject moved under its mask: not one the upgrade left alone.
+    expect(body).toContain(
+      '**engine chromium@131 → chromium@132** — 2 of 4 subject(s) changed: `story:a`, `story:b`; 1 inside an ignored region',
+    );
   });
 
   it('says a region was ranked by area when the semantic tier named no cause', () => {

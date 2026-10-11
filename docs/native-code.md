@@ -76,8 +76,9 @@ is what paints the pages a run compares, and it is installed the same way
 whether or not you use Variance Authority's Playwright integration. If your
 suite already runs `npx playwright install chromium`, you are done.
 
-One thing your image does decide: pixels made on different machines are not
-comparable to each other, so where you paint is a choice with consequences.
+One thing your image does decide: pixels made on different machines differ, and
+a run names the machine as the cause of every such change, so where you paint
+is a choice with consequences.
 [Placement](placement.md) covers it.
 
 ### When a binary does not arrive

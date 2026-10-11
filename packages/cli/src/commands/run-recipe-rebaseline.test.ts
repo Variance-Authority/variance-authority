@@ -159,6 +159,12 @@ describe('a run against a baseline painted under another identity', () => {
     expect(observation?.verdict).toBe('changed');
     expect(observation?.signals?.identity).toBe('machine');
     expect(observation?.signals?.moved).toEqual(['platform darwin/arm64 → linux/x64']);
-    expect(observation?.images?.after).toBeDefined();
+    // The other machine's image is the `before`: the pair and its diff are what a
+    // reviewer reads an avalanche from.
+    expect(observation?.images).toMatchObject({
+      before: expect.any(String),
+      after: expect.any(String),
+      diff: expect.any(String),
+    });
   });
 });

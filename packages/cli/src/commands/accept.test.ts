@@ -173,6 +173,11 @@ describe('accept', () => {
 
     expect(result.refused).toHaveLength(0);
     expect(puts).toEqual([[{ subject: 'fixture:a' }, CANDIDATE]]);
+    // Its pixels did not move, so nobody approved a change: no approval, no
+    // commit-message entry, and the count says what was written instead.
+    expect(result.accepted).toEqual([]);
+    expect(result.restamped).toBe(1);
+    expect(formatAcceptance(result)).toContain("1 re-stamped under this run's identity");
   });
 
   it('refuses a named subject that did not change, instead of silently doing nothing', async () => {
@@ -295,6 +300,7 @@ describe('formatAcceptance', () => {
       accepted: [{ subject: 'fixture:a', from: 'images/a.png' }],
       refused: [{ subject: 'fixture:b', because: 'no image' }],
       alreadyBaseline: 7,
+      restamped: 0,
     });
 
     expect(text).toContain('accepted 1 subject(s), 7 already the baseline, refused 1');

@@ -99,10 +99,13 @@ export const changelog: Tool = {
     const promotable: string[] = [];
     const refused: { readonly subject: string; readonly because: string }[] = [...chosen.refused];
     let alreadyBaseline = 0;
+    let restamped = 0;
 
     for (const observation of chosen.targets) {
       const promotion = promotionOf(observation);
-      if (promotion.kind === 'promotable') promotable.push(observation.subject);
+      // Unchanged under a moved identity: written again, approved by nobody.
+      if (promotion.kind === 'promotable' && observation.verdict === 'unchanged') restamped += 1;
+      else if (promotion.kind === 'promotable') promotable.push(observation.subject);
       else if (promotion.kind === 'already-baseline') alreadyBaseline += 1;
       else refused.push({ subject: observation.subject, because: promotion.because });
     }
@@ -126,6 +129,7 @@ export const changelog: Tool = {
         ...(alreadyBaseline > 0
           ? ['', `${String(alreadyBaseline)} subject(s) already are the baseline.`]
           : []),
+        ...restampLine(restamped),
       ].join('\n');
     }
 
@@ -152,9 +156,15 @@ export const changelog: Tool = {
       ...(alreadyBaseline > 0
         ? ['', `${String(alreadyBaseline)} subject(s) already are the baseline and record nothing.`]
         : []),
+      ...restampLine(restamped),
     ].join('\n');
   },
 };
+
+function restampLine(restamped: number): readonly string[] {
+  if (restamped === 0) return [];
+  return ['', `${String(restamped)} subject(s) did not change and are re-stamped under this run's identity; they record nothing.`];
+}
 
 /**
  * The subjects the named selection reaches, or the sentence saying it reaches none.
