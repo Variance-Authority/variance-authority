@@ -52,7 +52,12 @@ export interface PageGlobals {
     readonly activeElement?: PageFocusable | null;
     /** Asked whether an `autofocus` is still to be honoured. */
     querySelector(selectors: string): unknown;
-    readonly fonts?: { readonly ready: Promise<unknown> };
+    readonly fonts?: {
+      readonly ready: Promise<unknown>;
+      [Symbol.iterator](): Iterator<{ readonly family: string; readonly status: string }>;
+    };
+    /** Read to name a web font by where it was asked for; a cross-origin sheet throws. */
+    readonly styleSheets: ArrayLike<{ readonly cssRules: ArrayLike<PageCssRule> }>;
     readonly images: ArrayLike<{
       readonly complete: boolean;
       readonly currentSrc: string;
@@ -106,6 +111,13 @@ export interface DriverTarget {
   emulateMedia(options: { reducedMotion: MotionPreference }): Promise<void>;
   addInitScript(script: (frozen: number) => void, arg: number): Promise<unknown>;
   readonly mouse: { move(x: number, y: number): Promise<void> };
+}
+
+/** A rule as a settle step reads it: its declarations, the rules it groups, and the sheet it imports. */
+interface PageCssRule {
+  readonly style?: { getPropertyValue(property: string): string };
+  readonly cssRules?: ArrayLike<PageCssRule>;
+  readonly styleSheet?: { readonly cssRules: ArrayLike<PageCssRule> } | null;
 }
 
 export interface Intervention {

@@ -4,7 +4,7 @@ import type {
   SemanticSnapshot,
 } from '@variance-authority/core/format';
 import { describe, expect, it } from 'vitest';
-import { driftBetween, listDrift, type InPlaceReading } from './drift.js';
+import { driftBetween, listDrift, listMutated, type InPlaceReading } from './drift.js';
 
 /**
  * The guard this backs refuses a subject, so its sentence is the whole report.
@@ -152,6 +152,20 @@ describe('listDrift', () => {
   it('joins several so the message stays one sentence', () => {
     expect(listDrift(['the viewport', 'applied style', 'the accessibility tree'])).toBe(
       'the viewport, applied style and the accessibility tree',
+    );
+  });
+});
+
+describe('listMutated', () => {
+  it('names up to four changed places, so a short list is read whole', () => {
+    expect(listMutated(['`p`', '`h1`', 'the `class` attribute of `ul`', '`li`'])).toBe(
+      '`p`, `h1`, the `class` attribute of `ul` and `li`',
+    );
+  });
+
+  it('names the first four of a longer list and counts the rest', () => {
+    expect(listMutated(['`p`', '`h1`', 'the `class` attribute of `ul`', '`li`', '`footer`'])).toBe(
+      '`p`, `h1`, the `class` attribute of `ul`, `li` and 1 more',
     );
   });
 });

@@ -59,6 +59,11 @@ and is refused beside `--execution`. Under `--format json` the answer is
 entry is that suite's answer with `suite` and `kind` added, or `{suite, kind,
 refused, reason}` for a suite that could not answer.
 
+A module the run loaded without instrumenting it has no recorded line, and is
+not refused: the answer is `preconditionOf`, every test file that loaded it, and
+no case. Those are the files `variance select` selects on a change to it, whole.
+`--line` and `--function` get the same answer, since no line of it was measured.
+
 ## Nothing recorded is refused, not empty
 
 An empty list reads as *no test covers this line*, so a missing index is

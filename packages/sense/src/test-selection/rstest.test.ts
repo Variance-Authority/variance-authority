@@ -225,12 +225,21 @@ describe('the Rstest loader', () => {
     expect(modules.map((module) => module.file)).toEqual(['src/pick.ts']);
   });
 
-  it('hands a module it cannot parse back as it arrived, recorded as not instrumented', async () => {
+  it('hands a module it cannot parse back marked as loaded, recorded as not instrumented', async () => {
     const broken = 'export const pick = (;\n';
     const { handed, modules } = await loaded('src/pick.ts', broken);
 
-    expect(handed).toBe(broken);
+    expect(handed).toMatch(/^export const pick = \(;\n\n;[^]*__vaE\(\);$/);
     expect(modules).toEqual([expect.objectContaining({ file: 'src/pick.ts', instrumented: false, blocks: [] })]);
+  });
+
+  it('hands a module named unprobed back marked as loaded, though include accepts it, recorded as not instrumented', async () => {
+    const page = 'export const tag = () => \'#text\';\n';
+    const { handed, modules } = await loaded('src/page.ts', page, { 'src/page.ts': page }, {}, { unprobed: (file) => file.endsWith('page.ts') });
+
+    expect(handed).toMatch(/^export const tag = \(\) => '#text';\n\n;[^]*__vaE\(\);$/);
+    expect(handed).not.toMatch(/__va\(\d+\)/);
+    expect(modules).toEqual([expect.objectContaining({ file: 'src/page.ts', instrumented: false, blocks: [] })]);
   });
 
   const TEST = "it('adds', () => {\n  expect(1 + 1).toBe(2);\n});\n";

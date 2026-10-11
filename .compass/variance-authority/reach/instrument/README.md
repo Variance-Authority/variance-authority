@@ -85,6 +85,12 @@ block is entered, and its text is charged to every test that entered the block.
 A function written in another module and sent from this one cannot be seen from
 either text, and stays the configuration's to exclude.
 
+A module the integration's `unprobed` option names (a predicate in Vitest and
+Rstest, globs in Jest) is not probed at all. It runs with a mark at the end of
+its text, `path@~digest`, and the join reads that mark as a module loaded
+without regions, so a change to it selects every test file that loaded it. A text that cannot be parsed, and one a transformer that places
+its own probes handed back with none in it, carry the same mark.
+
 ## Implementation coordinates
 
 - `packages/sense/src/instrument/index.ts` — `instrument`, the probe recipe
@@ -111,6 +117,10 @@ either text, and stays the configuration's to exclude.
 - `packages/sense/src/test-selection/jest-transform.ts` — the handoff: a
   transformer that answers `senseRecipe` with this build's recipe is given
   `senseProbes` and places the probes itself
+- `packages/sense/src/test-selection/captured-modules.ts` — one cut per
+  module for the transform and the join: `planModule` decides from `include`
+  and `unprobed` whether a module is probed, marked or skipped, and
+  `markedId`/`markUnplaced` write the `path@~digest` mark
 - `packages/sense/src/test-selection/probes.ts` — the build-side plugin: probes in, inventory out
 - `packages/sense/src/test-selection/source-lines.ts` — transformed offsets back to authored lines
 - `packages/sense/src/test-selection/instrumented-modules.ts` — the inventory as
