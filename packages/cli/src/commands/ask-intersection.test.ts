@@ -86,6 +86,10 @@ describe('ask intersection refuses what it cannot cross', () => {
     await expect(ask('symbol --name selectBalance')).rejects.toThrow(/two or more questions/);
   });
 
+  it('refuses a question that names nothing to ask', async () => {
+    await expect(ask('', 'symbol --name selectBalance')).rejects.toThrow(/question 1, ``: a question names what it asks/);
+  });
+
   it('refuses a question about a run', async () => {
     await expect(ask('summary', 'symbol --name selectBalance')).rejects.toThrow(/question 1, `summary`: .*about a run, not the source/);
   });
