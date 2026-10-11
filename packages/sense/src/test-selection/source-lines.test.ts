@@ -249,6 +249,34 @@ describe('the source a map names as the file', () => {
     expect(lineIn(extentOf)(TRANSFORMED.indexOf('const f'))).toBeUndefined();
   });
 
+  it('gives no lines for a virtual module, though its id ends in the file’s path', () => {
+    const extentOf = sourceLines(TRANSFORMED, { sources: [`\0${FILE}`], mappings: DROPPED_BLANK.mappings }, FILE);
+
+    expect(lineIn(extentOf)(TRANSFORMED.indexOf('const f'))).toBeUndefined();
+  });
+
+  it('opens a region in the prologue at the file’s first origin, past another file’s', () => {
+    // Line 2 is `other.ts`; line 3 is `a.ts` line 3.
+    const code = 'helper();\nother();\nconst f = 1;';
+    const extentOf = sourceLines(code, { sources: ['a.ts', 'other.ts'], mappings: ';ACAA;ADEA' }, FILE);
+
+    expect(extentOf(0, code.indexOf('const f'))).toEqual([3, 3]);
+  });
+
+  it('frames a text under the host’s name when the one file its map names cannot be read', () => {
+    const frame = recordedFrame(
+      TRANSFORMED,
+      { sources: ['../lib/x.ts'], mappings: DROPPED_BLANK.mappings },
+      FILE,
+      () => {
+        throw new Error('ENOENT');
+      },
+    );
+
+    expect(frame.file).toBe(FILE);
+    expect(frame.sourceDigest).toBe(digestString(TRANSFORMED));
+  });
+
   it('frames a text whose map names other files as that text, under the host’s name', () => {
     const frame = recordedFrame(
       TRANSFORMED,
