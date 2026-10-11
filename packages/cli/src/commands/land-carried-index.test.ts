@@ -7,6 +7,7 @@ import {
   coveringTests,
   decodeExecutionIndex,
   encodeExecutionIndex,
+  followRows,
   readTestCoverage,
   writeTestCoverage,
   type ExecutionBlock,
@@ -124,5 +125,22 @@ describe('landJourneys over a module a shard recorded at another text and kept n
     expect(functions(landed.blocks)).toEqual(['a 3-5', 'b 7-9']);
     expect(functions(index.modules.find((module) => module.file === FILE)!.blocks)).toEqual(functions(landed.blocks));
     expect(coveringTests(index, { file: FILE, line: MOVED.b[0] + 1 }).map((test) => test.id)).toEqual([caseOf(TWO).id]);
+  });
+});
+
+describe('followRows over a held index in the row spelling', () => {
+  it('leaves the index as it is, as a landing does not lay over that spelling', () => {
+    const block = (kind: string, name: string, [startLine, endLine]: readonly [number, number], tests: readonly number[]): ExecutionBlock =>
+      ({ kind, name, path: name, startLine, endLine, source: true, crossings: tests.map((test) => ({ test, distance: 0 })) });
+    const sections = {
+      index: encodeExecutionIndex({
+        tests: [caseOf(ONE), caseOf(TWO)],
+        modules: [{ file: FILE, blocks: [block('module', '', AT_FIRST.module, [0, 1]), block('function', 'a', AT_FIRST.a, [0]), block('function', 'b', AT_FIRST.b, [1])] }],
+      }),
+    };
+
+    const followed = followRows(sections, { modules: [rows(MOVED, { module: [], a: [], b: [] })] }, new Map([[FILE, AT_FIRST.digest]]));
+
+    expect(followed).toBe(sections);
   });
 });
