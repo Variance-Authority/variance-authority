@@ -191,6 +191,14 @@ describe('intersection refuses', () => {
     expect(() => ask({ imports: 'src/store/selectors.ts#selectBalance' })).toThrow('read from the source index, and no source index is published; run `variance index`');
   });
 
+  it('a pattern that is not a regular expression', () => {
+    expect(() => ask({ declares: '(' })).toThrow('`declares` is not a regular expression');
+  });
+
+  it('a question asked with no source tree read', () => {
+    expect(() => intersection.run(undefined, { path: 'x' }, { names: NAMES, root })).toThrow('no source tree was read');
+  });
+
   it('an import with nothing after its `#`', () => {
     expect(() => ask({ imports: 'react#' })).toThrow('`react#` has nothing after `#`');
   });

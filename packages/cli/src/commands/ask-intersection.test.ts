@@ -72,6 +72,13 @@ describe('ask intersection over a checkout', () => {
     expect(text).toContain('src/store/index.ts:1  imports selectBalance from ./selectors');
   });
 
+  it('crosses paths alone, with no names to read', async () => {
+    const text = await ask({ from: 'src/Wallet.ts', path: '^src/store/' });
+    expect(text).toContain('2 files in all of them');
+    expect(text).toContain('src/store/selectors.ts');
+    expect(text).not.toContain('src/old/selectors.ts');
+  });
+
   it('finds a declaration the file does not export, which is where a context is made', async () => {
     const text = await ask({ declares: '^ThemeContext$', from: 'src/Nav.ts' });
     expect(text).toContain('src/theme.ts:1  declares ThemeContext');

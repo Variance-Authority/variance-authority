@@ -102,4 +102,14 @@ describe.skipIf(!RG)('grep over a closure', () => {
   it("hands ripgrep's refusal back", () => {
     expect(() => ask({ query: '(', from: 'src/entry.ts' })).toThrow('ripgrep refused the pattern');
   });
+
+  it('says ripgrep is missing when it is not on PATH', () => {
+    const path = process.env.PATH;
+    process.env.PATH = '';
+    try {
+      expect(() => ask({ query: 'needle', from: 'src/entry.ts' })).toThrow('`rg` is not on PATH');
+    } finally {
+      process.env.PATH = path;
+    }
+  });
 });
