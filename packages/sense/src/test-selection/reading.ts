@@ -116,10 +116,12 @@ export interface ReadingContext {
   readonly charge: (file: string, block: number, reason: SelectionReason) => void;
   /** Select one test file directly. */
   readonly pick: (test: number, reason: SelectionReason) => void;
+  /** Select every test that loaded a file with no row: the graph's walk over its importers names them. */
+  readonly whole: (file: string, reason: Extract<SelectionReason, { readonly kind: 'reader' }>) => void;
 }
 
 /** Where a changed value was read: the reason for one charge. */
-type Reader = (name: string, at: string, block?: number) => SelectionReason;
+type Reader = (name: string, at: string, block?: number) => Extract<SelectionReason, { readonly kind: 'reader' }>;
 
 /**
  * Read one changed file whose frame was proved, and charge what the verdict
@@ -363,7 +365,6 @@ function readImporter(
     const rows = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
     if (rows.length > 0) rowsOf.set(name, rows);
   }
-  if (rowsOf.size === 0 && test === undefined) return readUnmeasured(importer, moved, options, coverage.commit);
   if (test !== undefined) covered.add(test);
   for (const rows of rowsOf.values()) {
     for (const module of rows) {
@@ -384,10 +385,12 @@ function readImporter(
 
   if (found === null) {
     // Not proved, or not parsed: the importer as a whole is what can be said.
-    if (rowsOf.size === 0) context.pick(test!, reader(origin(first!), importer));
-    else chargeModule(context, importer, rowsOf, (at, block) => reader(origin(first!), at, block));
+    if (rowsOf.size > 0) chargeModule(context, importer, rowsOf, (at, block) => reader(origin(first!), at, block));
+    else if (test === undefined) context.whole(importer, reader(origin(first!), importer));
+    else context.pick(test, reader(origin(first!), importer));
     return new Map();
   }
+  if (rowsOf.size === 0 && test === undefined) return readUnmeasured(found, moved);
 
   // An import of a name the declaring file no longer exports fails at load.
   const loads = [
@@ -411,22 +414,14 @@ function readImporter(
 }
 
 /**
- * An importer with no row and no test: nothing it runs can be charged, so a
- * read of a moved name anywhere in it moves every name it exports, and its
+ * An importer with no row and no test, read: nothing it runs can be charged, so
+ * a read of a moved name anywhere in it moves every name it exports, and its
  * own importers are asked in turn. One that reads none of them hands on only
- * what it re-exports. A text that cannot be had or parsed hands on nothing, and
- * the tests behind it are left to `unseen`.
+ * what it re-exports. One that could not be read is answered whole instead, by
+ * every test that loaded it, and hands on nothing: what imports it loads it.
  */
-function readUnmeasured(
-  importer: string,
-  moved: ReadonlyMap<string, string>,
-  options: ExecutionNarrowingOptions,
-  commit: TestCoverageView['commit'],
-): ReadonlyMap<string, string> {
-  const text = options.sourceAt?.(importer, commit);
-  const found = text === undefined ? null : native()!.moduleReaders!(importer, text, [...moved.keys()], true);
+function readUnmeasured(found: NativeModuleReaders, moved: ReadonlyMap<string, string>): ReadonlyMap<string, string> {
   const passed = new Map<string, string>();
-  if (found === null) return passed;
   const origin = (name: string): string => moved.get(name) ?? name;
   const read = found.reads[0]?.name ?? found.load[0] ?? (found.untraced ? [...moved.keys()][0] : undefined);
   if (read !== undefined) for (const name of found.interface) passed.set(name, origin(read));
