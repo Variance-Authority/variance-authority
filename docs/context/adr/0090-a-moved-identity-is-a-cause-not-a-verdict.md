@@ -5,7 +5,9 @@
 **Supersedes:** [ADR-0011](0011-durable-and-ephemeral-retention.md)'s rule that a
 cross-identity baseline is `incomparable`, and
 [ADR-0012](0012-observability-and-the-damage-boundary.md) §4's sentence that a
-baseline stabilised one way and a run stabilised another are `incomparable`
+baseline stabilised one way and a run stabilised another are `incomparable`;
+[ADR-0088](0088-a-page-is-read-as-nobody-is-using-it.md)'s readings under another
+clock, instant, timezone or locale, which it calls `incomparable`
 **Relates to:** [`packages/raster/src/settle.ts`](../../../packages/raster/src/settle.ts),
 [`packages/observe/src/observe.ts`](../../../packages/observe/src/observe.ts),
 [`packages/raster/src/renderer.ts`](../../../packages/raster/src/renderer.ts)
