@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
+import { promisify, stripVTControlCharacters } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const execute = promisify(execFile);
@@ -27,14 +27,14 @@ async function started(config: string, ...flags: string[]): Promise<string[]> {
   return testResults.toSorted((a, b) => a.startTime - b.startTime).map((file) => basename(file.name));
 }
 
-/** What a run wrote to stdout, one file at a time, under the reporters `flags` leave it. */
+/** What a run wrote to stdout, one file at a time, under the reporters `flags` leave it, as a terminal shows it: Vitest colours it wherever `CI` or `FORCE_COLOR` is set. */
 async function run(directory: string, config: string, ...flags: string[]): Promise<string> {
   const { stdout } = await execute(
     process.execPath,
     [vitest, 'run', '--config', resolve(fixture, config), '--no-file-parallelism', ...flags],
     { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: resolve(directory, 'coverage.bin'), VARIANCE_AUTHORITY_CACHE: directory } },
   );
-  return stdout;
+  return stripVTControlCharacters(stdout);
 }
 
 async function scratch(): Promise<string> {
