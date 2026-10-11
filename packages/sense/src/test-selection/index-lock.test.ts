@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { variancePrecondition } from './precondition.js';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
-import { REAL_CAP_MS, untilPolling } from './__fixtures__/lock-turns.js';
+import { REAL_CAP_MS, TURNS_TEST_TIMEOUT_MS, untilPolling } from './__fixtures__/lock-turns.js';
 import { keepsCases } from './case-record.js';
 import { IndexLock, LOCK_POLL_MS, LOCK_WAIT_MS, withIndexLock } from './index-lock.js';
 import SelectionReporter from './jest-reporter.js';
@@ -24,8 +24,6 @@ const { encodeJournal } = journalFormat;
  * are not exported from the package.
  */
 const POLL_BOUND = (4 * LOCK_WAIT_MS) / LOCK_POLL_MS;
-
-const PUMP_TEST_TIMEOUT_MS = 3 * REAL_CAP_MS;
 
 /**
  * Run `work` across the whole waiting window of a lock it cannot take, in
@@ -137,7 +135,7 @@ describe('who may grow the index', () => {
       vi.useRealTimers();
     }
     expect(order).toEqual(['first in', 'first out', 'second in']);
-  });
+  }, TURNS_TEST_TIMEOUT_MS);
 
   it('gives up rather than merging over a holder that never lets go', async () => {
     variancePrecondition({ lock: 'held' });
@@ -168,7 +166,7 @@ describe('who may grow the index', () => {
 
     finish();
     await held;
-  }, PUMP_TEST_TIMEOUT_MS);
+  }, TURNS_TEST_TIMEOUT_MS);
 
   it('stops proving anything once the merge it was taken for has ended', async () => {
     const file = await index();
@@ -250,7 +248,7 @@ describe('a run the snapshot lock refuses', () => {
     const { coverageFile } = await fold(true);
     expect(existsSync(coverageFile)).toBe(false);
     expect(warned).toEqual([busyWarning(coverageFile)]);
-  }, PUMP_TEST_TIMEOUT_MS);
+  }, TURNS_TEST_TIMEOUT_MS);
 
   async function report(busy: boolean): Promise<{ coverageFile: string }> {
     const { root, coverageFile, testFile } = await project(busy);
@@ -275,7 +273,7 @@ describe('a run the snapshot lock refuses', () => {
     const { coverageFile } = await report(true);
     expect(existsSync(coverageFile)).toBe(false);
     expect(warned).toEqual([busyWarning(coverageFile)]);
-  }, PUMP_TEST_TIMEOUT_MS);
+  }, TURNS_TEST_TIMEOUT_MS);
 
   async function record(busy: boolean): Promise<{ coverageFile: string; recorded: unknown }> {
     const { root, coverageFile } = await project(busy);
@@ -306,5 +304,5 @@ describe('a run the snapshot lock refuses', () => {
     });
     expect(existsSync(coverageFile)).toBe(false);
     expect(warned).toEqual([]);
-  }, PUMP_TEST_TIMEOUT_MS);
+  }, TURNS_TEST_TIMEOUT_MS);
 });

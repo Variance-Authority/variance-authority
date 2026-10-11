@@ -25,7 +25,7 @@ import {
   forgetThePage,
   inRoot,
 } from './__fixtures__/browser-page.js';
-import { inTurn } from './__fixtures__/lock-turns.js';
+import { inTurn, TURNS_TEST_TIMEOUT_MS } from './__fixtures__/lock-turns.js';
 
 afterEach(forgetThePage);
 
@@ -412,7 +412,7 @@ describe('a browser run records what it executed', () => {
         'tests/premium.spec.ts',
       ]);
     });
-  });
+  }, TURNS_TEST_TIMEOUT_MS);
 
   it('lets a story file select the story, through a precondition nothing enters', async () => {
     await inRoot(async (root) => {

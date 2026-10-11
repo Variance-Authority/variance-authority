@@ -19,7 +19,7 @@ vi.mock('node:timers/promises', async (original) => {
   return { ...real, setTimeout };
 });
 
-/** The real time a case waits for its writers to reach the lock. */
+/** The real time a case waits for its writers to reach the lock, and then to pass it. */
 const REAL_CAP_MS = 30_000;
 
 const MAIN = { kind: 'mainline', name: 'main' } as const;
@@ -83,10 +83,16 @@ describe('createDirectoryLineCell', () => {
       }
       expect(gated, 'every job should be waiting on the lock').toHaveLength(suites.length);
       await rmdir(lock);
-      while (pending.size > 0) {
+      const draining = Date.now();
+      while (pending.size > 0 && Date.now() - draining < REAL_CAP_MS) {
+        expect(gated.length, 'a job still publishing should be asleep on the lock').toBeGreaterThan(0);
         gated.shift()!();
-        await Promise.race(pending.values());
+        let cap: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([...pending.values(), new Promise<void>((wake) => (cap = setTimeout(wake, REAL_CAP_MS)))]).finally(
+          () => clearTimeout(cap),
+        );
       }
+      expect([...pending.keys()], `every job should publish within ${String(REAL_CAP_MS)} ms of real time`).toEqual([]);
       await Promise.all(published);
     } finally {
       sleeps.gated = undefined;
@@ -94,7 +100,7 @@ describe('createDirectoryLineCell', () => {
     const read = await readLine(cell, MAIN);
     if ('kind' in read) throw new Error(read.kind);
     expect(read.manifest.entries.map((held) => held.name)).toEqual(suites.map((suite) => `suite-v1/${suite}`));
-  });
+  }, 3 * REAL_CAP_MS);
 
   it('refuses a write against a version that moved', async () => {
     const cell = createDirectoryLineCell(root);
