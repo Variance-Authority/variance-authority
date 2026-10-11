@@ -49,30 +49,22 @@ describe('variance ask journey-map', () => {
     expect(answered.err).toContain('holds no suite to read');
   });
 
-  it('refuses a mistyped path as not in the checkout, rather than as a file no test ran, and names the path one typo away', async () => {
-    const root = await recorded();
+  // The recording holds `src/commands/since.ts`: one typo from the first path, and the same file name as the second.
+  it.each(['src/comands/since.ts', 'src/test-selection/since.ts'])(
+    'refuses `%s` as not in the checkout, rather than as a file no test ran, and names no other path',
+    async (asked) => {
+      const root = await recorded();
 
-    const answered = await run(['ask', 'journey-map', '--file', 'src/comands/since.ts']);
+      const answered = await run(['ask', 'journey-map', '--file', asked]);
 
-    expect(answered.code).toBe(EXIT_OPERATOR);
-    expect(answered.err).toContain(
-      `\`src/comands/since.ts\` is in neither the recording nor the files git lists under ${root}.\nDid you mean \`src/commands/since.ts\`?`,
-    );
-    expect(answered.err).not.toContain('No recorded test');
-  });
-
-  it('refuses a path under the wrong directory as not in the checkout, and names the recorded files of the same name', async () => {
-    const root = await recorded();
-
-    const answered = await run(['ask', 'journey-map', '--file', 'src/test-selection/since.ts']);
-
-    expect(answered.code).toBe(EXIT_OPERATOR);
-    expect(answered.err).toContain(
-      `\`src/test-selection/since.ts\` is in neither the recording nor the files git lists under ${root}.\n` +
-        'The recording holds `since.ts` at `src/commands/since.ts`.',
-    );
-    expect(answered.err).not.toContain('Did you mean');
-  });
+      expect(answered.code).toBe(EXIT_OPERATOR);
+      expect(answered.err).toContain(
+        `\`${asked}\` is in neither the recording nor the files git lists under ${root}. Both name each file from the repository root.`,
+      );
+      expect(answered.err).not.toContain('src/commands/since.ts');
+      expect(answered.err).not.toContain('No recorded test');
+    },
+  );
 
   it('maps a file asked through `..` or from the root of the file system as the file in the checkout', async () => {
     const { root } = await committed();
