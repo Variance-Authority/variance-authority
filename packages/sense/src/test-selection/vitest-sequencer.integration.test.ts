@@ -19,10 +19,15 @@ afterEach(async () => {
 
 /** The files a run passed, in the order they started; one at a time, so that order is the sequencer's. */
 async function started(config: string, ...flags: string[]): Promise<string[]> {
+  return (await run(config, ...flags)).files;
+}
+
+/** A run's files in the order they started, and what it wrote to stdout. */
+async function run(config: string, ...flags: string[]): Promise<{ files: string[]; stdout: string }> {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-sequencer-'));
   temporary.push(directory);
   const report = resolve(directory, 'report.json');
-  await execute(
+  const { stdout } = await execute(
     process.execPath,
     [vitest, 'run', '--config', resolve(fixture, config), '--no-file-parallelism', '--reporter=json', `--outputFile=${report}`, ...flags],
     { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: resolve(directory, 'coverage.bin'), VARIANCE_AUTHORITY_CACHE: directory } },
@@ -31,7 +36,7 @@ async function started(config: string, ...flags: string[]): Promise<string[]> {
     testResults: { name: string; status: string; startTime: number }[];
   };
   expect(testResults.map((file) => file.status)).toEqual(testResults.map(() => 'passed'));
-  return testResults.toSorted((a, b) => a.startTime - b.startTime).map((file) => basename(file.name));
+  return { files: testResults.toSorted((a, b) => a.startTime - b.startTime).map((file) => basename(file.name)), stdout };
 }
 
 describe('the selecting sequencer under `sequence.shuffle`', () => {
@@ -43,6 +48,14 @@ describe('the selecting sequencer under `sequence.shuffle`', () => {
     expect(own).not.toEqual(own.toSorted());
 
     expect(await started('vitest.default.config.ts', ...flags)).toEqual(own);
+  }, 60_000);
+
+  it('names the seed it shuffled with when none was given, and that seed runs the files in the same order', async () => {
+    const first = await run('vitest.default.config.ts', '--sequence.shuffle');
+    const seed = /Running tests with seed "(\d+)"/.exec(first.stdout)?.[1];
+    expect(seed).toBeDefined();
+
+    expect(await started('vitest.default.config.ts', '--sequence.shuffle', `--sequence.seed=${seed}`)).toEqual(first.files);
   }, 60_000);
 
   it('runs every file when only the tests in each are shuffled', async () => {

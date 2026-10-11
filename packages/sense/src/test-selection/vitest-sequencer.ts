@@ -46,9 +46,11 @@ export interface SequencerContext {
     readonly root?: string;
     readonly watch?: boolean;
     readonly shard?: unknown;
-    readonly sequence?: { readonly shuffle?: unknown; readonly seed?: number };
+    readonly sequence?: { readonly shuffle?: unknown; seed?: number };
   };
   readonly state?: { readonly getPaths?: () => readonly string[] };
+  /** Where Vitest prints its banner. */
+  readonly logger?: { readonly log: (...args: unknown[]) => void };
 }
 
 /** A test file as Vitest 2 hands it to a sequencer: `moduleId`, and the tuple it replaced. */
@@ -108,6 +110,7 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
   let timed: Promise<SuiteTimes> | undefined;
   let said = false;
   let placed = false;
+  let seeded = false;
 
   class Selecting implements Sequencer {
     static readonly [SELECTING] = true;
@@ -117,6 +120,15 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
     constructor(ctx: SequencerContext) {
       this.#ctx = ctx;
       options.sharded?.(shardAsked(ctx.config.shard) !== undefined);
+      if (own === undefined && !seeded && ctx.config.sequence !== undefined && filesShuffled(options.shuffle, ctx)) {
+        // What Vitest does for its own `RandomSequencer` only: a seed when none
+        // was given, on the config its workers are handed, and the banner's line.
+        ctx.config.sequence.seed ??= Date.now();
+        const line = `      Running tests with seed "${ctx.config.sequence.seed}"`;
+        if (ctx.logger === undefined) say(line);
+        else ctx.logger.log(line);
+        seeded = true;
+      }
     }
 
     async shard<T extends Spec>(files: T[]): Promise<T[]> {
