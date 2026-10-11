@@ -2,6 +2,7 @@
 
 import { readdir } from 'node:fs/promises';
 import { identityDigest, type RenderIdentity } from '@variance-authority/core/format';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { orAbsent } from './absent.js';
 import { identityOfPartition, partitionsOf } from './placement.js';
 
@@ -10,6 +11,8 @@ import { identityOfPartition, partitionsOf } from './placement.js';
  * platform, at one scale. An engine build, the fonts or this tool's recipe move
  * along a line; a write retires the line's older copy, so an upgrade moves the
  * baseline. A matrix of engines or machines is several lines, each keeping its own.
+ * The renderer is not part of a line: a local and a remote renderer of one engine
+ * on one platform paint the same image, so either one's write moves the other's.
  */
 export function sameLine(a: RenderIdentity, b: RenderIdentity): boolean {
   return (
@@ -45,7 +48,7 @@ export async function identities(holder: string): Promise<readonly string[]> {
   return entries
     .filter((entry) => entry.isDirectory() && identityOfPartition(entry.name) !== undefined)
     .map((entry) => entry.name)
-    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    .sort(codeUnitOrder);
 }
 
 /** What a partition's record says painted it, or `null` when it holds no record of the subject. */
