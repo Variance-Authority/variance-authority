@@ -7,7 +7,16 @@
  * this file only says which importer is asked next, and with which names.
  */
 
-import { NODE_KINDS, NOTHING, carried, type NodeId, type Relations } from '@variance-authority/core/relate';
+import {
+  EDGE_KINDS,
+  NODE_KINDS,
+  NOTHING,
+  WHOLE,
+  carried,
+  type Carry,
+  type NodeId,
+  type Relations,
+} from '@variance-authority/core/relate';
 
 /** Moved names as a file exports them, each to the name it was declared under. */
 export type Carried = ReadonlyMap<string, string>;
@@ -30,24 +39,28 @@ export type Carried = ReadonlyMap<string, string>;
  * Every direct importer is asked, whatever names it binds: a caller that counts
  * the tests behind the importers it was shown as explained relies on seeing
  * every edge into `id`.
+ *
+ * A file that declares it reads another with `/// <depends path>` reads its
+ * text, not a name, so it is asked about the whole file, {@link WHOLE}, as is
+ * every file behind one that hands the whole file on.
  */
 export function walkImporters(
   relations: Relations,
   id: NodeId,
   moved: Carried,
-  visit: (importer: string, moved: Carried) => Carried,
+  visit: (importer: string, moved: Carry<string>) => Carry<string>,
 ): void {
   const { kinds, names } = relations;
   carried<string>(
     relations.dependents,
     [[id, moved]],
     {
-      arrive: (importer, _from, _kind, carry) => (kinds[importer] === FILE ? carry : NOTHING),
-      // Only names reach an importer: nothing on this walk carries the whole file.
-      hand: (importer, arrived) => visit(names[importer]!, arrived as Carried),
+      arrive: (importer, _from, kind, carry) => (kinds[importer] !== FILE ? NOTHING : kind === DEPENDS ? WHOLE : carry),
+      hand: (importer, arrived) => visit(names[importer]!, arrived),
     },
     { seedsHold: false },
   );
 }
 
 const FILE = NODE_KINDS.indexOf('file');
+const DEPENDS = EDGE_KINDS.indexOf('depends');

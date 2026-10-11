@@ -1,17 +1,20 @@
-import { idOf, relationsOf, type Relations } from '@variance-authority/core/relate';
+import { WHOLE, idOf, relationsOf, type Relations } from '@variance-authority/core/relate';
 import { describe, expect, it } from 'vitest';
 import { walkImporters, type Carried } from './importer-walk.js';
 
 const file = (name: string) => ({ kind: 'file', name }) as const;
-const imports = (from: string, to: string, kind: 'imports' | 'type' = 'imports') =>
+const imports = (from: string, to: string, kind: 'depends' | 'imports' | 'type' = 'imports') =>
   ({ from: file(from), to: file(to), kind }) as const;
 
-/** Each visit as `importer: names`, in the order the walk asked them. */
+/**
+ * Each visit as `importer: names`, in the order the walk asked them; `*` is the
+ * whole file, which an importer hands on whole.
+ */
 function walk(relations: Relations, from: string, moved: Carried, hands: (importer: string, moved: Carried) => Carried) {
   const asked: string[] = [];
   walkImporters(relations, idOf(relations, 'file', from)!, moved, (importer, names) => {
-    asked.push(`${importer}: ${[...names.keys()].join(', ')}`);
-    return hands(importer, names);
+    asked.push(`${importer}: ${names === WHOLE ? '*' : [...names.keys()].join(', ')}`);
+    return names === WHOLE ? WHOLE : hands(importer, names);
   });
   return asked;
 }
@@ -81,6 +84,12 @@ describe('the walk against the arrows', () => {
     const relations = relationsOf({ relations: [imports('b.ts', 'a.ts', 'type'), imports('c.ts', 'a.ts')] });
 
     expect(walk(relations, 'a.ts', total, onward)).toEqual(['c.ts: total']);
+  });
+
+  it('asks a file that declares it reads the module about the whole file', () => {
+    const relations = relationsOf({ relations: [imports('b.ts', 'a.ts', 'depends'), imports('c.ts', 'b.ts')] });
+
+    expect(walk(relations, 'a.ts', total, onward)).toEqual(['b.ts: *', 'c.ts: *']);
   });
 
   it('asks only files, never another kind of node that depends on one', () => {
