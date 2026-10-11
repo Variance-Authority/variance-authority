@@ -12,6 +12,25 @@ skipping it has already cost somebody a change. Every phase has a reference unde
 [`.agents/references/`](.agents/references/) holding its rules and their
 reasons; read it when you enter the phase.
 
+## Code is evidence, not a decision
+
+What the code does today says what somebody wrote, not what belongs there.
+Agents write most of it, and mistakes happen: a guess outlives the premise it was
+built on, the next change builds on the guess, and the one after that treats it
+as a contract to agree with. Every time you meet behaviour — to keep it, extend
+it, match it or cite it — first decide from the task and the rules whether it
+should exist at all, and only then read why it does. Behaviour that fails that
+question is a mistake, whatever its age or its test count: it is deleted, not
+refined, kept compatible or followed as precedent. The test that asserts it is
+amended to assert what should happen, and fails first. The deletion rides the
+task's branch when the task builds on the mistake, and its own branch when the
+task only passed it, as [change](.agents/references/change.md) draws the line.
+
+`covering` offered a recorded file that shares the asked file's name as "the
+record's spelling" of the path. Files are unique, so the guess was magic from its
+first commit, and three changes in a row refined it — a field, a collapse rule, a
+narrower match — because each read the one before as a decision.
+
 ## Setup
 
 Node 22 or newer, and Yarn 4 through Corepack — `packageManager` in the root
@@ -70,10 +89,11 @@ Look around:
   decided, tried or rejected on the subject.
 - What the field calls it, and who measured it before us:
   [`docs/context/prior-art.md`](docs/context/prior-art.md) first.
-- What already does this, or most of it. A feature is aligned with the
-  functionality that exists — called, extended, routed to — and new code is
-  the exception: written only when the PR can show nothing existing could carry
-  it. A second implementation is a defect.
+- What already does this, or most of it, once it passes the question in "Code
+  is evidence, not a decision". A feature is aligned with the functionality that
+  exists — called, extended, routed to — and new code is the exception: written
+  only when the PR can show nothing existing could carry it. A second
+  implementation is a defect.
 
 Leave with the sentence of done, the kind of its PR, what existing code it is
 reached from, the gate it is measured against, and only the questions that are
@@ -88,6 +108,8 @@ Look around:
 - [Ask before you grep](#ask-before-you-grep): who uses a name, what it is,
   where it is declared.
 - The `// compass:` coordinate at the top of each file you will touch.
+- Whether the behaviour you will build on, match or cite should exist at all,
+  decided before you read why it does.
 - Whose answer you need — git, the manifest, the parser, or the recording — and
   whether a stage upstream of your change already computed it.
 - The tests that stand on those files: `yarn variance covering --file <path>`.
@@ -118,7 +140,8 @@ Look around:
 - The code rules in the reference: absent is not empty, a package is named for
   what it is for, code-unit sorting, 500 lines per file, a documented export is
   run by something, every answer has an owner, one browser and one page, no
-  magic and not alone, stop only what you started, a status claim is a marker.
+  magic and not alone, a path is the file, stop only what you started, a status
+  claim is a marker.
 
 What the task needs, and a defect in its own diff, are fixed on its branch
 before it merges; a finding it neither needs nor wrote goes on its own branch,
