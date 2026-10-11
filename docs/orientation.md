@@ -131,6 +131,7 @@ tree is the answer. Both are exact and need no Variance index.
 | An exact exported name | `variance ask symbol --name <name>` | Its declaration, signature, documentation and consumers |
 | A name whose examples you need | `variance ask uses --name <name> --from <path>` | Exact import sites, ordered near the path |
 | Several facts about the file you want | `variance ask discover --from <path> --imports <module#name> --declares <regex>` | The files every fact holds for, each fact checked against every file rather than its nearest fifty, with the line behind each fact |
+| Two questions you could ask alone, and want where they agree | `variance ask intersection '<question>' '<question>'` | The files every question answers, each question read whole rather than its first fifty, with the lines that put each file in each |
 | A description of a captured UI state | `variance ask locate --query <words>` | Subject ids and the observed fields that matched |
 
 A **package flow** is the ordered list of packages a recorded test passes

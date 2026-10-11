@@ -3,7 +3,7 @@ import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { parseArgs } from '../parse.js';
 import { flagged } from './ask-flagged.js';
-import { inputFor, questionFor, refuseWords } from './asking.js';
+import { QUESTIONS, inputFor, questionFor, questionOf, refuseWords } from './asking.js';
 
 /**
  * The questions `variance ask intersection` crosses, read off the words after
@@ -21,8 +21,12 @@ import { inputFor, questionFor, refuseWords } from './asking.js';
 /** Flags that mean something about the reading or the answer, never about one question. */
 const OUTSIDE = ['--changed-file', '--taint-file', '--just-answer', '--format', '--at', '--claims', '--config'];
 
+/** The questions whose answer is a set of files, as they are typed. */
+const crossable = (): string =>
+  QUESTIONS.filter((question) => question.source?.files !== undefined).map((question) => questionOf(question.tool)).join(', ');
+
 /** One question, parsed as `variance ask` would parse it alone. */
-function questionOf(text: string, at: number): { readonly question: string; readonly input: Readonly<Record<string, unknown>> } {
+function parsedQuestion(text: string, at: number): { readonly question: string; readonly input: Readonly<Record<string, unknown>> } {
   let words: readonly string[];
   try {
     words = wordsOf(text);
@@ -40,7 +44,7 @@ function questionOf(text: string, at: number): { readonly question: string; read
     if (tool === undefined) throw new OperatorError(`\`${parsed.question}\` is about a run, not the source`);
     // A question with nothing to cross is refused before its words, so a
     // nested `intersection` reads as what it is rather than as stray quotes.
-    if (tool.files === undefined) throw new OperatorError(`\`${parsed.question}\` answers no set of files`);
+    if (tool.files === undefined) throw new OperatorError(`\`${parsed.question}\` answers no set of files; the questions that do: ${crossable()}`);
     refuseWords(tool, parsed.reports);
     return { question: parsed.question, input: inputFor(tool, flagged(parsed)) };
   } catch (error) {
@@ -51,7 +55,7 @@ function questionOf(text: string, at: number): { readonly question: string; read
 /** The input `intersection` is run with: its questions, in the order typed, and its own `--limit`. */
 export function intersectionInput(reports: readonly string[], limit: number | undefined): Readonly<Record<string, unknown>> {
   return {
-    questions: reports.map((text, at) => questionOf(text, at + 1)),
+    questions: reports.map((text, at) => parsedQuestion(text, at + 1)),
     ...(limit === undefined ? {} : { limit }),
   };
 }

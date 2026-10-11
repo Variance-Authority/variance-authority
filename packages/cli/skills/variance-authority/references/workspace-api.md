@@ -1,7 +1,8 @@
 # What a workspace publishes, and where a name is used
 
-Eight questions read a workspace's manifests and source: `packages`,
-`entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover` and `gaps`. Each answer
+Nine questions read a workspace's manifests and source: `packages`,
+`entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover`, `intersection`
+and `gaps`. Each answer
 read from a workspace generation names its UTC time; `variance ask grep` and
 `variance ask discover` read the checkout as it is, and name none. They describe source, not a
 build or a generated site, and they need no run and no config. For where a file
@@ -291,6 +292,34 @@ Over MCP, `docs_discover` answers `from`, `to`, `path` and `--imports` of a
 name out of a repo-relative file, and refuses `declares` and any other
 `imports`: the reading an MCP host serves holds no names.
 
+### `intersection`
+
+Use it when each fact is already a question you could ask alone, and the
+answer is the files all of them agree on: *the declaration of `selectBalance`*
+is `symbol`, *what the wallet reaches* is `discover --from`, and the one
+declaration the wallet can reach is the file both answer. Each operand is a
+whole question, typed in quotes the way it would be asked alone, and any
+question whose answer is a set of files can be one: `symbol`, `uses`,
+`search`, `grep`, `discover`.
+
+```bash
+variance ask intersection 'symbol --name selectBalance' 'discover --from src/Wallet.tsx'
+variance ask intersection "uses --name useTheme" "grep --query 'dark mode' --from src/App.tsx"
+```
+
+Each question is read whole, never capped: asked alone, each prints its first
+fifty, and the file two questions agree on can sit past the cap of either. The
+answer counts each question's files first, then lists the files in all of
+them, each with the lines that put it in each question, or `the file` when a
+question answers a file without a line. It shows 50; `--limit` shows more, and
+the count is always of all of them. `--changed-file`, `--taint-file` and
+`--just-answer` are said once, after `intersection`, outside the quotes: every
+question is answered over one reading.
+
+A question whose answer is not a set of files — `packages`, `stack`, another
+`intersection` — is refused with the questions that are, and so is a question
+about a run. Crossing `discover`'s own sets is cheaper asked as one `discover`.
+
 ### `gaps`
 
 A work queue of undocumented names other packages import, not an answer about
@@ -308,5 +337,5 @@ one name.
   evidence that anything ran.
 - Nothing here reads `dist`. A `types` target under an output directory is
   mapped back to the source it was compiled from.
-- `search`, `grep` and `discover` cap each list and print how many rows they did not show. A
+- `search`, `grep`, `discover` and `intersection` cap each list and print how many rows they did not show. A
   list with no such line is the whole list.

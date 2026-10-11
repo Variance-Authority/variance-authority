@@ -377,7 +377,10 @@ reachability included, at the price of a language the asker must write and a
 database the build must extract. `variance ask discover` sits between:
 fixed operands (reach, imports by name, declarations, path, text), each read
 whole from the index the other questions already read, crossed and subtracted,
-with no `or` and no user-written query.
+with no `or` and no user-written query. `variance ask intersection` takes the
+same step one level up: its operands are whole questions, each read uncapped,
+which is the composition a query language gives for free and a fixed set of
+questions has to name.
 
 ## Architecture that keeps what matters
 
