@@ -425,7 +425,7 @@ Some reads cannot be placed in one function, and those charge the whole module:
   looked for as well. A copy, `===`, `!` and `typeof` convert nothing.
 - A namespace passed on whole, such as `configure(limits)`, or a module loaded
   by `require` or `import()`, gives the parser no name to match.
-- An importer the parser cannot read, such as a Flow file, may read the name
+- An importer whose text cannot be read, such as a Flow file, may read the name
   anywhere or pass it on, so every test that loaded it is selected, through the
   file graph when the record has no data for it.
 

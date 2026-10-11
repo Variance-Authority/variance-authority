@@ -8,6 +8,8 @@ import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { relationsOfFiles, type Relations } from '@variance-authority/core/relate';
 import { scanRelations } from '../scan.js';
+import { taintRecords } from '../taint/index.js';
+import { mockTaint } from '../taint/mocks.js';
 import { narrowByExecution } from './index.js';
 
 /**
@@ -20,7 +22,8 @@ import { narrowByExecution } from './index.js';
  * `src/bounds.ts`, which has one — and a test reads it through the re-export.
  * `floor.test.js` loads `bounds.ts` and reads something else. `unit.test.js`
  * reads `unit` from `limits.ts`, which counts as moved: a file with no row
- * moves every name it exports.
+ * moves every name it exports. `mocked.test.js` imports `LIMIT` from a mock of
+ * `relay.js`, so its run never loads the relay.
  */
 
 const execute = promisify(execFile);
@@ -42,7 +45,10 @@ beforeAll(async () => {
     cwd: fixture,
     env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
   });
-  relations = relationsOfFiles(await scanRelations({ root: repository, dirs: [relative(repository, fixture)] }));
+  // As the CLI builds it: the mocks the scan read are joined as shadows.
+  const records = await scanRelations({ root: repository, dirs: [relative(repository, fixture)] });
+  const tainted = await taintRecords(records, [mockTaint()], { root: repository });
+  relations = relationsOfFiles(tainted.records, { shadows: tainted.shadows });
 }, 30_000);
 
 afterAll(async () => {
@@ -71,7 +77,7 @@ async function edit(file: string, from: string, to: string): Promise<string> {
     .join('\n');
 }
 
-describe('an importer with no row that does not parse', () => {
+describe('an importer with no row that cannot be read', () => {
   it('selects every test that loaded it, when the declaring file has no row either', async () => {
     const limits = named('lib/limits.ts');
     const narrowing = await narrowByExecution(coverageFile, await edit(limits, 'LIMIT = 10', 'LIMIT = 20'), {
@@ -81,6 +87,15 @@ describe('an importer with no row that does not parse', () => {
     expect(narrowing.readings).toEqual([{ file: limits, verdict: 'values', names: ['LIMIT'] }]);
     expect(narrowing.entered).toEqual(tests('limit', 'unit'));
     expect(narrowing.because[0]?.via).toContainEqual({ kind: 'reader', name: 'LIMIT', file: limits, reader: named('lib/relay.js') });
+  });
+
+  it('leaves out a test that mocked it', async () => {
+    const limits = named('lib/limits.ts');
+    const narrowing = await narrowByExecution(coverageFile, await edit(limits, 'LIMIT = 10', 'LIMIT = 20'), {
+      relations,
+      sourceAt,
+    });
+    expect(narrowing.entered).not.toContain(tests('mocked')[0]);
   });
 
   it('selects every test that loaded it, and does not name them unseen, when the declaring file has a row', async () => {

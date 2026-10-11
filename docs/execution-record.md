@@ -698,7 +698,7 @@ below is one stage of that call.
    declared file, or an importer that starts or stops loading one, is `load`,
    and its reading lists the declared files in `effects`. A test that crossed the
    changed module through no importer the graph holds is listed in `unseen` and
-   charged nothing. An importer whose text does not parse charges its module,
+   charged nothing. An importer whose text cannot be read charges its module,
    or, with no row, every test step 6's walk finds behind it. `load` charges
    the lines as step 4 does. Under `bodies`
    or `values`, text inserted in a gap no region spans charges nothing. A file

@@ -384,7 +384,7 @@ function readImporter(
   const found = text === undefined ? null : native()!.moduleReaders!(importer, text, [...moved.keys()], true);
 
   if (found === null) {
-    // Not proved, or not parsed: the importer as a whole is what can be said.
+    // Not proved, no text, or not parsed: the importer as a whole is what can be said.
     if (rowsOf.size > 0) chargeModule(context, importer, rowsOf, (at, block) => reader(origin(first!), at, block));
     else if (test === undefined) context.whole(importer, reader(origin(first!), importer));
     else context.pick(test, reader(origin(first!), importer));
