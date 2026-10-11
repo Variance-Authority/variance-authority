@@ -293,9 +293,14 @@ export const intersection: Tool<unknown> = {
     answer = answer.filter((file) => !out.some((operand) => operand.files.has(file)));
 
     const reaches = kept.filter((operand) => operand.distance !== undefined);
-    const distanceOf = (file: string): number =>
-      Math.min(...reaches.map((operand) => operand.distance!.get(file) ?? Number.POSITIVE_INFINITY), Number.POSITIVE_INFINITY);
-    answer.sort((left, right) => distanceOf(left) - distanceOf(right) || codeUnitOrder(left, right));
+    // Once per file, not per comparison: the answer is read whole and can be most of the checkout.
+    const distance = new Map<string, number>();
+    for (const file of answer) {
+      let nearest = Number.POSITIVE_INFINITY;
+      for (const operand of reaches) nearest = Math.min(nearest, operand.distance!.get(file) ?? Number.POSITIVE_INFINITY);
+      distance.set(file, nearest);
+    }
+    answer.sort((left, right) => distance.get(left)! - distance.get(right)! || codeUnitOrder(left, right));
 
     const header = [...kept.map((operand) => operand.header), ...out.map((operand) => `${operand.header}, taken out`)];
 
