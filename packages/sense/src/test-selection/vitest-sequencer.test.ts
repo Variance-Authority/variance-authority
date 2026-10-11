@@ -286,6 +286,22 @@ describe('the sequencer under `sequence.shuffle`', () => {
     expect(config.sequence.seed).toBe(seed);
   });
 
+  // Vitest 3 and 4 put the command line on the context as parsed, where
+  // `--sequence.shuffle.tests` is still an object; the resolved config already
+  // reads `shuffle: true` for it.
+  it.each([
+    ['`--sequence.shuffle.tests`', { tests: true }, true, undefined, false],
+    ['`--sequence.shuffle.files`', { files: true }, false, undefined, true],
+    ['`--sequence.shuffle.tests` over a file that shuffles files', { tests: true }, true, { files: true }, true],
+    ['`--sequence.shuffle=false` over a file that shuffles files', false, false, { files: true }, false],
+  ])('shuffles files under %s as Vitest does', (_, asked, resolved, written, files) => {
+    const config: SequencerContext['config'] = { root, sequence: { shuffle: resolved } };
+    const ctx = { ...context(config), _cliOptions: { sequence: { shuffle: asked } } };
+    new (selectingSequencer(undefined, { root, configRoot: process.cwd(), say: () => {}, shuffle: written }))(ctx);
+
+    expect(config.sequence?.seed !== undefined).toBe(files);
+  });
+
   it('picks no seed when the project names its own sequencer, as Vitest leaves that to its own', () => {
     const config: SequencerContext['config'] = { root, sequence: { shuffle: true } };
     new (selectingSequencer(Reversing, { root, configRoot: root, say: () => {} }))(context(config));

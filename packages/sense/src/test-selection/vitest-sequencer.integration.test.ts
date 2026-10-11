@@ -83,8 +83,11 @@ describe('the selecting sequencer under `sequence.shuffle`', () => {
   }, 60_000);
 
   // Vitest folds `{ files, tests }` into `shuffle: tests` before any plugin or
-  // sequencer sees the command line, so a wrapped run reads `--sequence.shuffle.tests`
-  // as `--sequence.shuffle` and `--sequence.shuffle.files` as no shuffle. The
-  // configuration file's object is read whole, and is right.
-  it.todo('shuffles files under `--sequence.shuffle.files` and not under `--sequence.shuffle.tests`, as Vitest does — needs the command line\'s `sequence.shuffle` object to reach the sequencer');
+  // sequencer sees the command line. From Vitest 3 the sequencer reads the
+  // command line as parsed, from `_cliOptions`, which `vitest-sequencer.test.ts`
+  // pins in process; Vitest 2, which this repository runs, keeps it to itself, so
+  // a wrapped run there reads `--sequence.shuffle.tests` as `--sequence.shuffle`
+  // and `--sequence.shuffle.files` as no shuffle. The configuration file's object
+  // is read whole, and is right on every version.
+  it.todo('shuffles files under `--sequence.shuffle.files` and not under `--sequence.shuffle.tests` on Vitest 2, as Vitest does — needs the command line, which Vitest 2 hands to no plugin or sequencer');
 });

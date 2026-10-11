@@ -12,3 +12,7 @@ to chain. As Vitest does for its own, the run picks a seed when none was given
 and its banner names it on the line after `RUN`, `Running tests with seed "…"`,
 so passing that seed back reproduces the file order. A reporter that prints no banner
 prints no seed, so `--reporter=json` still writes only its report to stdout.
+From Vitest 3, `--sequence.shuffle.files` shuffles files and
+`--sequence.shuffle.tests` leaves their order alone, as they do unwrapped; Vitest 2
+hands neither flag to the wrapper, which reads both as the boolean Vitest folds
+them into.

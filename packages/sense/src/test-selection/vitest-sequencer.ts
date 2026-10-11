@@ -53,6 +53,8 @@ export interface SequencerContext {
     readonly sequence?: { readonly shuffle?: unknown; seed?: number };
   };
   readonly state?: { readonly getPaths?: () => readonly string[] };
+  /** The command line as Vitest 3 and 4 parsed it, before it was merged over the configuration file. */
+  readonly _cliOptions?: { readonly sequence?: { readonly shuffle?: unknown } };
 }
 
 /** The part of Vitest's own context its banner reads: what a reporter's `onInit` and a plugin's `configureVitest` are handed. */
@@ -245,10 +247,28 @@ function moduleOf(spec: Spec): string {
   return spec.moduleId ?? spec[1] ?? '';
 }
 
-/** Whether Vitest would have shuffled files, by the rule its config resolution applies. */
+/**
+ * Whether Vitest would have shuffled files, by the rule its config resolution
+ * applies to `sequence.shuffle` once the command line is merged over the file:
+ * an object's `files`, or the boolean.
+ *
+ * Vitest keeps only `tests` of an object after it picks its sequencer, so the
+ * resolved config cannot tell `--sequence.shuffle.tests` from
+ * `--sequence.shuffle`. From Vitest 3 the command line as parsed is on the
+ * context, `_cliOptions`, and is read there; Vitest 2 keeps it from plugins and
+ * sequencers alike, so there the resolved value is read when the file wrote no
+ * object.
+ */
 function filesShuffled(written: unknown, ctx: SequencerContext): boolean {
-  if (typeof written === 'object' && written !== null) return (written as { files?: unknown }).files === true;
+  const asked = ctx._cliOptions?.sequence?.shuffle;
+  const shuffle = asked === undefined ? written : isObject(asked) && isObject(written) ? { ...written, ...asked } : asked;
+  if (isObject(shuffle)) return shuffle.files === true;
+  if (asked !== undefined) return asked === true;
   return ctx.config.sequence?.shuffle === true;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 type Shuffle = <T>(array: T[], seed?: number) => T[];
