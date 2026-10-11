@@ -42,6 +42,7 @@ import { readExecutionIndex, recordedExecutionFile, replacedCases } from './exec
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
 import { reviewedCommit } from './review-head.js';
+import { everySuiteRegions } from './review-suites.js';
 import { ranAsTree, recordedRegions, removedText } from './review-region.js';
 import { packagesReached, type PackageReach } from './review-install.js';
 import { changedPackagesOf } from './review-changed-packages.js';
@@ -174,7 +175,7 @@ export interface Review {
   };
   /** Optional per-suite evidence carried in the uploaded artifact. */
   readonly coverage?: readonly ReviewCoverage[];
-  /** The suite whose changed-code evidence and freshness the summary describes. */
+  /** The suite whose runs and freshness the summary describes. Under `--coverage` the changed regions are every declared suite's. */
   readonly recordedSuite?: string;
   /** The commit the change is read from. */
   readonly from: string;
@@ -223,7 +224,7 @@ export interface Review {
 /** `motion: false` leaves out the cases moved against the base, for a reading made before CI that reports none. */
 export async function review(request: ParsedReview, { motion: moves = true } = {}): Promise<Review> {
   const { root } = request;
-  // TODO: a repository that declares several suites is read suite by suite when none is named, grouped by kind, with a suite that has no record reported as unrecorded, as `eachSuite` already reads them for `--coverage` and the handover; until then this reads one record and refuses to guess which.
+  // TODO: a repository that declares several suites is read suite by suite when none is named, grouped by kind, with a suite that has no record reported as unrecorded, as `eachSuite` already reads them for `--coverage` and the handover; `--coverage` joins every suite's changed regions, but the base, the runs and the freshness are still the named suite's, and with none named this refuses to guess which.
   const recorded = await recordedSuite(root, request.suite);
   // The runs are always this checkout's own: a base it did not record, the mainline's or the
   // primary's, describes another change, and a record seeded from it (`runs: 0`) lists none.
@@ -281,7 +282,10 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const from = await recordedExecutionFile(root, request.suite, recorded.file);
   const now = inTreeLines(changedLines(backward), root, readings);
   const removed = removedText(forward);
-  const covered = await recordedRegions(from, now, relations, root, removed);
+  const suiteRegions = await recordedRegions(from, now, relations, root, removed);
+  const covered = request.coverage === true
+    ? await everySuiteRegions(root, { ...(recorded.declared === undefined ? {} : { suite: recorded.declared.name }), record: from }, suiteRegions, now, relations, removed)
+    : suiteRegions;
   const full = await readExecutionIndex(from);
   const held = await baseIndex(against, from, request.against === undefined && against !== undefined ? mainline : undefined);
   // With no base named, the base is the layer the runs at this commit retired,
@@ -318,7 +322,8 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
       ? undefined
       : await motionOfRuns(full, from, wrote, root, ref);
 
-  const measured = files.filter((file) => file.recorded === true).map((file) => file.file);
+  // The named suite's freshness: a module another suite recorded says nothing about whether this one ran.
+  const measured = [...suiteRegions].filter(([, answer]) => answer.recorded).map(([file]) => file);
   // A change with no recorded module ran nothing yet.
   const record = measured.length > 0 && (await ranAsTree(recorded.file, root, measured)).size === measured.length ? 'ran' : 'before';
   const head = await reviewedCommit(point.repository);
