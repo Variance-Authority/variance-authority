@@ -64,9 +64,10 @@ rules that actually apply to it, the inherited values in force at its root, and
 the viewport those were resolved against. That bundle is a **render document**,
 and it is data — JSON, no live page, no handle to anything.
 
-`variance run` opens Chromium once and paints every document the collector
-returned. Splitting it this way is what makes the comparison meaningful: a
-difference between two screenshots is the code's only when the same engine on
+`variance run` opens the configured engine, Chromium unless `browser` says
+otherwise, once and paints every document the collector returned. Splitting it
+this way is what makes the comparison meaningful: a difference between two
+screenshots can be attributed to the code only when the same engine on
 the same platform at the same pixel density produced them, so every image in the project is painted in
 one place, no matter which of the seven integrations acquired it. Your harness
 can be jsdom, a string template, or anything that produces markup, and it never

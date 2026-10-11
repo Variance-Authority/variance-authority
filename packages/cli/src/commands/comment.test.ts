@@ -270,9 +270,10 @@ describe('renderComment', () => {
     });
 
     expect(body).toContain('### Painted under another identity');
-    // An ignored subject moved under its mask: not one the upgrade left alone.
+    // An ignored subject moved where the project said not to look: not one the
+    // upgrade left alone.
     expect(body).toContain(
-      '**engine chromium@131 → chromium@132** — 2 of 4 subject(s) changed: `story:a`, `story:b`; 1 inside an ignored region',
+      '**engine chromium@131 → chromium@132** — 2 of 4 subject(s) changed: `story:a`, `story:b`; 1 ignored by an ignore or a sensitivity',
     );
   });
 

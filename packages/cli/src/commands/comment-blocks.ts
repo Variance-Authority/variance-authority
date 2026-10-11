@@ -317,7 +317,7 @@ export function moveBlocks(docket: Docket, limits: CommentLimits): readonly stri
   const items = docket.moves.map((move) => {
     const total = move.changed.length + move.ignored + move.unchanged;
     const what = move.moved.map((field) => `**${field}**`).join(', ');
-    const masked = move.ignored === 0 ? '' : `; ${move.ignored} inside an ignored region`;
+    const masked = move.ignored === 0 ? '' : `; ${move.ignored} ignored by an ignore or a sensitivity`;
     if (move.changed.length === 0) return `- ${what} — none of ${count(total, 'subject')} changed${masked}`;
     const named = move.changed.slice(0, limits.subjects).map(code).join(', ');
     const rest = move.changed.length - Math.min(move.changed.length, limits.subjects);

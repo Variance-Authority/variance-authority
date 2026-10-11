@@ -77,7 +77,8 @@ whether or not you use Variance Authority's Playwright integration. If your
 suite already runs `npx playwright install chromium`, you are done.
 
 One thing your image does decide: pixels made on different machines differ, and
-a run names the machine as the cause of every such change, so where you paint
+a run names the identity fields that moved between them as the cause of every
+such change, so where you paint
 is a choice with consequences.
 [Placement](placement.md) covers it.
 

@@ -34,17 +34,19 @@ Nothing in this block. Its inputs are facts about a machine and a document.
   being told it, and checks every raster against the identity it predicted
 - [`in-place-raster`](../in-place-raster/README.md) — states an identity for
   pixels this block did not paint
-- [`retention`](../../retention/README.md) — partitions the store by it, so the
-  wrong prior image is not where the lookup looks
+- [`retention`](../../retention/README.md) — partitions the store by it, so a
+  lookup reads its own identity's baseline first and names what moved when it
+  reads another's
 
 ## Boundary
 
-It is not a check somebody calls. A mismatch partitions storage structurally, so
-the wrong image is not found rather than found and rejected. Changing the ordered
-launch recipe changes the identity: text rasterization is pinned by flags that
-are part of what painted the image, and a run that swapped them and compared
-anyway would present font rasterization as a component regression, with a
-component and a file attached.
+It is not a check somebody calls, and it never refuses a comparison. Two images
+painted under different identities are compared, and the fields that moved are
+named as the cause, so a moved identity is never mistaken for a component
+regression. Changing the ordered launch recipe changes the identity: text
+rasterization is pinned by flags that are part of what painted the image, and a
+run that swapped them without saying so would present font rasterization as a
+component regression, with a component and a file attached.
 
 Every field belongs, including the optional ones, and every reconstruction off a
 wire must rebuild all of them — a field that is written and silently dropped on

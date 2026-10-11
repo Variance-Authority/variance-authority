@@ -269,8 +269,8 @@ to be closed:
 The stabilization recipe is likewise written against Chromium's behaviour.
 
 Renderer identity covers engine, platform, scale, fonts, stabilization, and the
-rasterization recipe, which is why the pair above is reported rather than
-compared.
+rasterization recipe, which is why the pair above is compared with the moved
+fields named as its cause.
 
 The resulting adopter surfaces are compositions rather than separate products:
 

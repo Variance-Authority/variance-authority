@@ -226,7 +226,7 @@ included), `regions` (the attributed changed regions), `missingFonts`,
 `rendered` (`false` when the image came from the cache), and `signals`, which
 reports the document and the pixels as separately observed boundaries.
 
-There are five verdicts:
+There are four verdicts:
 
 | verdict | what it means |
 | --- | --- |

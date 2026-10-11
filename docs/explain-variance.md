@@ -57,7 +57,8 @@ that before you go looking for an edit:
 
 - `new` means no baseline has been approved for that subject yet.
 - a `changed` whose reason opens with a moved identity means another browser,
-  platform, scale factor or font stack painted the baseline, or an older recipe
+  platform, scale factor or font stack painted the baseline, a different tool
+  declared as its painter made one of the two images, or an older recipe
   of variance-authority did. The reason names which. When only the recipe moved
   and the document is the one the baseline was painted from, the new image is a
   re-baseline.
