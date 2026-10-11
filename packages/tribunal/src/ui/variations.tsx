@@ -13,8 +13,9 @@ import type { ReactElement } from 'react';
 import type { SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import type { Route } from './route.js';
-import { Raster, fit, type Size, union } from './plate.js';
+import { Raster, SMALLEST_SCALE, fit, type Size, union } from './plate.js';
 import { Go, Prose } from './shell.js';
+import { gridsOf, type VariationGrid } from './variation-grid.js';
 
 /**
  * Every subject that was read against another subject in the same run.
@@ -37,6 +38,13 @@ import { Go, Prose } from './shell.js';
  *
  * The rest follow by subject, which is the lattice's own order: a name that
  * extends another name sorts after it.
+ *
+ * **A subject varying on two axes is drawn once, as a grid**, above the list:
+ * one axis down, the other across, every render in its cell. A pair compares the
+ * combination of two flags with one neighbour; the grid puts it beside both, and
+ * a combination nothing in the family is at is an empty cell saying so. Its
+ * pairs stay in the list without their pictures, since the grid already holds
+ * them.
  */
 export function Variations({
   variations,
@@ -50,6 +58,9 @@ export function Variations({
   readonly pictures?: Pictures | undefined;
 }): ReactElement | null {
   if (variations.length === 0) return null;
+
+  const grids = pictures === undefined ? [] : gridsOf(variations);
+  const gridded = new Set(grids.flatMap((grid) => grid.cells.flat()));
 
   const ordered = [...variations].sort((left, right) => {
     const byRank = rankOf(left) - rankOf(right);
@@ -65,6 +76,9 @@ export function Variations({
         a difference somebody meant. What is worth reading is a variation that turns out to be no
         difference at all.
       </p>
+      {pictures === undefined
+        ? null
+        : grids.map((grid) => <Grid key={grid.root} grid={grid} pictures={pictures} />)}
       <ul className="va-variation-list">
         {ordered.map((variation) => (
           <li key={variation.subject} className={`va-variation ${STATES[rankOf(variation)] ?? ''}`}>
@@ -89,7 +103,9 @@ export function Variations({
               )}
             </p>
             <p className="va-because"><Prose text={variation.because} /></p>
-            {pictures === undefined ? null : <Pair variation={variation} pictures={pictures} />}
+            {pictures === undefined || gridded.has(variation.subject) ? null : (
+              <Pair variation={variation} pictures={pictures} />
+            )}
           </li>
         ))}
       </ul>
@@ -150,7 +166,7 @@ function Pair({
   const arm = sideOf(variation.subject, pictures.subjects);
   const parent = variation.parent === undefined ? undefined : sideOf(variation.parent, pictures.subjects);
   const box = union(parent?.size, arm.size);
-  const scale = box === undefined ? undefined : fit(box, TILE);
+  const scale = box === undefined ? undefined : scaleOf(box);
 
   return (
     <ul className="va-variation-pair">
@@ -160,8 +176,91 @@ function Pair({
   );
 }
 
+/**
+ * A root and its variations on two axes, every render at one magnification.
+ *
+ * The scale is the one that fits the largest render into a tile, for the reason
+ * a pair shares one: a cell drawn larger than its neighbour reads as a change.
+ */
+function Grid({
+  grid,
+  pictures,
+}: {
+  readonly grid: VariationGrid;
+  readonly pictures: Pictures;
+}): ReactElement {
+  const { rows, columns } = grid;
+  const box = grid.cells
+    .flat()
+    .reduce<Size | undefined>(
+      (sized, id) => (id === undefined ? sized : union(sized, sideOf(id, pictures.subjects).size)),
+      undefined,
+    );
+  const scale = box === undefined ? undefined : scaleOf(box);
+
+  return (
+    <div className="va-variation-grid-block">
+      <p className="va-variation-head">
+        <span className="va-axis">
+          {rows.axis} × {columns.axis}
+        </span>
+        <strong>{grid.root}</strong>
+      </p>
+      <div className="va-variation-grid-scroll">
+        <table className="va-variation-grid">
+          <thead>
+            <tr>
+              <th scope="col">
+                <code>{rows.axis}</code> ↓ <code>{columns.axis}</code> →
+              </th>
+              {columns.values.map((column) => (
+                <th scope="col" key={column}>{column}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.values.map((row, r) => (
+              <tr key={row}>
+                <th scope="row">{row}</th>
+                {columns.values.map((column, c) => {
+                  const id = grid.cells[r]?.[c];
+                  return (
+                    <td key={column}>
+                      {id === undefined ? (
+                        // A combination nothing in this family is at, which a
+                        // list of pairs has no place to show. Only the family:
+                        // a subject linked from elsewhere may be there.
+                        <span className="va-variation-none va-note">
+                          {/* One flex item, so the sentence wraps as a sentence. */}
+                          <span>
+                            nothing varying from <code>{grid.root}</code> is <code>{rows.axis}</code> {row} and{' '}
+                            <code>{columns.axis}</code> {column}
+                          </span>
+                        </span>
+                      ) : (
+                        <ul className="va-variation-pair">
+                          <Side side={sideOf(id, pictures.subjects)} scale={scale} pictures={pictures} />
+                        </ul>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 /** The largest a side is drawn, in CSS pixels; the subject page reads it at size. */
 const TILE = { width: 220, height: 180 } as const;
+
+/** The scale that fits `box` into a tile, or the floor when nothing above it does. */
+function scaleOf(box: Size): number {
+  return Math.max(SMALLEST_SCALE, fit(box, TILE));
+}
 
 interface SideOf {
   readonly id: string;
@@ -199,6 +298,13 @@ function Side({
 }): ReactElement {
   const { client, build, go } = pictures;
   const { id, read, kind, size } = side;
+  // Above the tile only at the floor: the rest of it is on the subject page.
+  const cropped =
+    kind !== undefined &&
+    size !== undefined &&
+    scale !== undefined &&
+    // Rounded as drawn: a fitted 400 × 0.55 is 220.00000000000003.
+    (Math.round(size.width * scale) > TILE.width || Math.round(size.height * scale) > TILE.height);
 
   // The build has no page for a subject it never read, so that side is not a link.
   if (read === undefined) {
@@ -218,22 +324,38 @@ function Side({
           // render that came out blank, which is another finding.
           <span className="va-variation-none va-note">no image kept</span>
         ) : (
-          // The name beneath labels the link; an alt repeating it is read twice.
-          <Raster
-            src={client.imageUrl(build, id, kind)}
-            alt=""
-            size={size}
-            style={
-              size === undefined || scale === undefined
-                ? // Nothing measured places this side, so the tile bounds it.
-                  { maxWidth: `${String(TILE.width)}px`, maxHeight: `${String(TILE.height)}px` }
-                : { width: `${String(Math.round(size.width * scale))}px` }
-            }
-          />
+          <Cropped when={cropped}>
+            {/* The name beneath labels the link; an alt repeating it is read twice. */}
+            <Raster
+              src={client.imageUrl(build, id, kind)}
+              alt=""
+              size={size}
+              style={
+                size === undefined || scale === undefined
+                  ? // Nothing measured places this side, so the tile bounds it.
+                    { maxWidth: `${String(TILE.width)}px`, maxHeight: `${String(TILE.height)}px` }
+                  : { width: `${String(Math.round(size.width * scale))}px` }
+              }
+            />
+          </Cropped>
         )}
         <span className="va-variation-name">{id}</span>
+        {cropped ? <span className="va-how">cropped to its top-left corner, at quarter size</span> : null}
         {kind === 'before' ? <span className="va-how">baseline</span> : null}
       </Go>
     </li>
+  );
+}
+
+/** The tile's window onto a side drawn larger than it, from the top-left corner. */
+function Cropped({ when, children }: { readonly when: boolean; readonly children: ReactElement }): ReactElement {
+  if (!when) return children;
+  return (
+    <span
+      className="va-variation-crop"
+      style={{ maxWidth: `${String(TILE.width)}px`, maxHeight: `${String(TILE.height)}px` }}
+    >
+      {children}
+    </span>
   );
 }

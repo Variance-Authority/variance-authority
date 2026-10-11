@@ -296,13 +296,13 @@ export function variationsOf(input: VariationsInput): readonly VariationRecord[]
       continue;
     }
 
-    records.push(recordOf(deriveVariation(parent, variant), link.how, link.step));
+    records.push(recordOf(deriveVariation(parent, variant), link.how, link.step, input.names));
   }
 
   return records;
 }
 
-function recordOf(variation: Variation, how: Declaration, step?: AxisStep): VariationRecord {
+function recordOf(variation: Variation, how: Declaration, step?: AxisStep, names?: NameGrammar): VariationRecord {
   // Roots first, collateral after. A variation's report is read top-down and the
   // first name in it is the one somebody will go look at, so it has to be the
   // component the difference originates in rather than whichever component the
@@ -322,6 +322,10 @@ function recordOf(variation: Variation, how: Declaration, step?: AxisStep): Vari
     ...(named.length > 0 ? { components: named } : {}),
     digest: variation.digest,
     how,
+    // A step is only ever read through `names`, so its axis is one of them.
+    ...(step !== undefined
+      ? { step: { axis: step.axis, position: names!.axes.findIndex((entry) => entry.axis === step.axis), from: step.from, to: step.to } }
+      : {}),
     because: because(variation, named, how, step),
   };
 }

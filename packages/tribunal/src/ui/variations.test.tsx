@@ -146,6 +146,31 @@ describe('a variation is shown as its two pictures', () => {
     expect(markup).toContain('decoding="async"');
   });
 
+  it('draws a capture too large for the tile at a quarter, cropped to its top-left corner, and says so', () => {
+    // A 9000-pixel page fitted to a 180-pixel tile is drawn at a fiftieth, with
+    // smoothing refused, and the rows that survive are chosen by the sampler:
+    // two sides can then match or differ by sampling alone.
+    const tall = { width: 1280, height: 9000 };
+    const markup = draw(pair, [
+      { ...subject('story:product-card--control', { before: false, after: true, diff: false }), size: tall },
+      { ...subject('story:product-card--sale', { before: false, after: true, diff: false }), size: tall },
+    ]);
+
+    expect(markup.match(/style="width:320px"/g)).toHaveLength(2);
+    expect(markup.match(/class="va-variation-crop"/g)).toHaveLength(2);
+    expect(markup.match(/its top-left corner, at quarter size/g)).toHaveLength(2);
+  });
+
+  it('draws a capture that fits the tile at a quarter or more whole, with no crop', () => {
+    const markup = draw(pair, [
+      { ...subject('story:product-card--control', { before: false, after: true, diff: false }), size: { width: 400, height: 300 } },
+      subject('story:product-card--sale', { before: false, after: true, diff: false }),
+    ]);
+
+    expect(markup).not.toContain('va-variation-crop');
+    expect(markup).not.toContain('top-left');
+  });
+
   it('draws one picture for a variation whose parent is not in this run', () => {
     const markup = draw(
       {
@@ -160,5 +185,60 @@ describe('a variation is shown as its two pictures', () => {
 
   it('draws no pictures when it is handed none', () => {
     expect(renderToStaticMarkup(<Variations variations={[pair]} />)).not.toContain('<img');
+  });
+});
+
+describe('a subject varying on two axes is drawn as a grid', () => {
+  const step = (axis: string, position: number, from: string, to: string): VariationRecord['step'] => ({ axis, position, from, to });
+  const lattice: readonly VariationRecord[] = [
+    { subject: 'story:card--sale', parent: 'story:card', how: 'named', step: step('promo', 0, 'none', 'sale'), because: 'differs' },
+    { subject: 'story:card--dark', parent: 'story:card', how: 'named', step: step('scheme', 1, 'light', 'dark'), because: 'differs' },
+    { subject: 'story:card--sale-dark', parent: 'story:card--sale', how: 'named', step: step('scheme', 1, 'light', 'dark'), because: 'differs' },
+  ];
+  const all = ['story:card', 'story:card--sale', 'story:card--dark', 'story:card--sale-dark'];
+
+  function drawAll(variations: readonly VariationRecord[], ids: readonly string[]): string {
+    return renderToStaticMarkup(
+      <Variations
+        variations={variations}
+        pictures={{
+          client,
+          build: 'ci-1',
+          subjects: ids.map((id) => subject(id, { before: false, after: true, diff: false })),
+          go: () => undefined,
+        }}
+      />,
+    );
+  }
+
+  it('draws the four renders once each, row by row, with the axis values as headings', () => {
+    // A link compares the combination with one neighbour; the grid puts it
+    // beside the neighbour on the other axis too.
+    const markup = drawAll(lattice, all);
+    const at = (id: string): number => markup.indexOf(`/subjects/${encodeURIComponent(id)}/after.png`);
+
+    expect(markup).toContain('<table class="va-variation-grid">');
+    expect(at('story:card')).toBeLessThan(at('story:card--dark'));
+    expect(at('story:card--dark')).toBeLessThan(at('story:card--sale'));
+    expect(at('story:card--sale')).toBeLessThan(at('story:card--sale-dark'));
+    for (const id of all) {
+      expect(markup.split(`/subjects/${encodeURIComponent(id)}/after.png`)).toHaveLength(2);
+    }
+    expect(markup).toContain('<th scope="col">dark</th>');
+    expect(markup).toContain('<th scope="row">sale</th>');
+  });
+
+  it('says which combination nothing in the family is at, and claims no more than that', () => {
+    // A subject at that combination linked from elsewhere — a tag naming an
+    // unrelated parent — is in the run. The grid only knows its own family.
+    const markup = drawAll(lattice.slice(0, 2), all);
+
+    expect(markup).toContain('nothing varying from <code>story:card</code> is <code>promo</code> sale and <code>scheme</code> dark');
+  });
+
+  it('keeps what each pair measured, under the grid', () => {
+    const markup = drawAll(lattice, all);
+
+    expect(markup.match(/class="va-because"/g)).toHaveLength(3);
   });
 });

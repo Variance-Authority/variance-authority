@@ -455,7 +455,18 @@ grid, and each picture links to its subject's page. A side shows its candidate
 when the run kept one and its baseline, labelled `baseline`, when the run kept
 only that. A side the run kept no image for, or never read, says which instead of
 drawing an empty frame, and one it never read has no page to link to. A variation
-whose parent the run did not observe draws the one picture it has.
+whose parent the run did not observe draws the one picture it has. A capture
+too large for its tile even at quarter size, such as a full route, is drawn at a
+quarter and cropped to its top-left corner, and says so: smaller, the rows that
+survive are the sampler's choice.
+
+A family — a base and every subject that varies from it — that varies on exactly
+two axes, every link read by the configured name format, is drawn first as a
+grid, the base in the corner and one scale for the whole grid. The axis the
+format lists first runs down. The combination where both axes meet sits beside
+its two arms, and a combination nothing in the family is at says which two
+values it is missing. The pairs stay listed underneath with what each measured, without
+repeating their pictures.
 
 **Stories of one component that render the same image** are named on the
 docket, though no diff shows them: both are `new`, or both changed the same
