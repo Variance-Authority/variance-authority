@@ -109,7 +109,8 @@ describe.skipIf(!RG)('grep over a closure', () => {
     try {
       expect(() => ask({ query: 'needle', from: 'src/entry.ts' })).toThrow('`grep` and `discover` run ripgrep on the files, and `rg` is not on PATH');
     } finally {
-      process.env.PATH = path;
+      if (path === undefined) delete process.env.PATH;
+      else process.env.PATH = path;
     }
   });
 });
