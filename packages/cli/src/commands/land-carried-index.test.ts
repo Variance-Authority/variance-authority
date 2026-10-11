@@ -157,7 +157,7 @@ describe('landJourneys over a module a shard recorded at another text and kept n
   // reads the held cut as already standing at the rows. The cases of `two`, which
   // ran `b`, stay on `b`; they should drop. Needs the landing to name the modules
   // the run laid, so a held one is followed through the edit whatever its lines.
-  it.todo('keeps no case on a region edited in place, though no line moved');
+  it.todo('keeps no case on a region edited in place, though no line moved — needs the landing to name the modules the run laid');
 });
 
 describe('followRows over a held index in the row spelling', () => {
