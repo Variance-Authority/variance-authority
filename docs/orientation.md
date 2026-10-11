@@ -130,6 +130,7 @@ tree is the answer. Both are exact and need no Variance index.
 | Words plus a file or directory | Add `--from <path>` or `--to <path>` | Matching names inside the related module area |
 | An exact exported name | `variance ask symbol --name <name>` | Its declaration, signature, documentation and consumers |
 | A name whose examples you need | `variance ask uses --name <name> --from <path>` | Exact import sites, ordered near the path |
+| Several facts about the file you want | `variance ask intersection --from <path> --imports <module#name> --declares <regex>` | The files every fact holds for, each set read whole, with the line behind each fact |
 | A description of a captured UI state | `variance ask locate --query <words>` | Subject ids and the observed fields that matched |
 
 A **package flow** is the ordered list of packages a recorded test passes

@@ -1,7 +1,7 @@
 # What a workspace publishes, and where a name is used
 
-Seven questions read a workspace's manifests and source: `packages`,
-`entrypoint`, `symbol`, `uses`, `search`, `grep` and `gaps`. Each answer names
+Eight questions read a workspace's manifests and source: `packages`,
+`entrypoint`, `symbol`, `uses`, `search`, `grep`, `intersection` and `gaps`. Each answer names
 the UTC time of the workspace generation it used. They describe source, not a
 build or a generated site, and they need no run and no config. For where a file
 sits and what runs it, read [orient](orient.md).
@@ -247,6 +247,40 @@ comment. It needs `--from` or `--to`, and searches the files that start point
 reaches; for the whole checkout, run `rg`, which must be on `PATH` either way. Lines come grouped by how many imports away from the start point their
 file is, then by path and line, each as `path:line:text`.
 
+### `intersection`
+
+Use it when the answer is where two or more facts about a file meet: *a file
+the nav reaches that makes a context with `theme` in its name*, or *the
+declaration of `selectBalance` this component can actually reach*. Each operand
+is a set of files, read whole with no cap, and the answer is the files in all
+of them:
+
+- `--from <path>[,...]`: what each path reaches along the imports; `--to`, what
+  reaches each path. Two paths are two sets, crossed, not joined.
+- `--imports <module#name>[,...]`: who imports that name from that module, by
+  the name the module publishes, so an aliased import still counts. The module
+  is the specifier as written or the repo-relative file it resolved to;
+  `module` alone is any import of it.
+- `--declares <regex>`: who declares a matching name, case-insensitive. A name
+  passed on with `export … from` is declared where it comes from, not in the
+  barrel.
+- `--path <regex>`: a pattern over repo-relative paths.
+- `--except-from`, `--except-to`, `--except-imports`, `--except-declares`,
+  `--except-path`: the same sets, taken out.
+- `--text <pattern>`: ripgrep over the files the other sets kept, never over the
+  checkout; a file with no matching line drops out.
+
+```bash
+variance ask intersection --from src/TopNav.tsx --imports react#createContext --declares 'theme|user|account'
+variance ask intersection --from src/Wallet.tsx --declares '^selectBalance$'
+```
+
+The answer counts each set first, then lists the files in all of them, nearest
+the `--from` or `--to` paths first, each with the line that put it in every
+set. It shows 50; `--limit` shows more, and the count is always of all of them.
+Over MCP, `docs_intersection` answers `from`, `to` and `path`, and refuses
+`imports` and `declares`: the reading an MCP host serves holds no names.
+
 ### `gaps`
 
 A work queue of undocumented names other packages import, not an answer about
@@ -264,5 +298,5 @@ one name.
   evidence that anything ran.
 - Nothing here reads `dist`. A `types` target under an output directory is
   mapped back to the source it was compiled from.
-- `search` and `grep` cap each list and print how many rows they did not show. A
+- `search`, `grep` and `intersection` cap each list and print how many rows they did not show. A
   list with no such line is the whole list.
