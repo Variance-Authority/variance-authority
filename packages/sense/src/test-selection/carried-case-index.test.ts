@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest';
 import { INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
 import { caseSectionsAt } from './case-record.js';
 import { landRun } from './commit-runs.js';
+import { repinOwnLayer } from './milestone-repin.js';
+import { writeOwnLayer } from './own-layer.js';
 import { coverageBlock } from './coverage-rows.js';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
@@ -105,11 +107,14 @@ interface Landed {
   readonly index: readonly string[] | undefined;
 }
 
-/**
- * The mainline's record over `text`, then `FILE` rewritten to `moved` and a run
- * of `THREE` landed over `OTHER` alone, keeping its cases when `keeps` says so.
- */
-async function landOver(text: string, moved: string, keeps: boolean): Promise<Landed> {
+interface Repository {
+  readonly root: string;
+  readonly cacheRoot: string;
+  readonly git: (...args: string[]) => Promise<string>;
+}
+
+/** `body` over a fresh repository whose one commit holds `text` at `FILE`, then what the record at `coverageFile` holds of it. */
+async function inRepository(text: string, moved: string, body: (at: Repository) => Promise<string>): Promise<Landed> {
   const scratch = await realpath(await mkdtemp(resolve(tmpdir(), 'variance-carried-index-')));
   const root = resolve(scratch, 'repository');
   const cacheRoot = resolve(scratch, 'cache');
@@ -126,18 +131,7 @@ async function landOver(text: string, moved: string, keeps: boolean): Promise<La
     await git('config', 'user.name', 'Fixture');
     await git('add', '--all');
     await git('commit', '--quiet', '--message', 'the mainline');
-    const commit = await git('rev-parse', 'HEAD');
-    const coverageFile = testCoverageFile(root, { cacheRoot });
-    const whole = (file: string) => ({ file, complete: true });
-
-    await landRun(coverageFile, recording(FILE, text, [ONE, TWO], commit), root, cacheRoot, {
-      fresh: casesOf(FILE, text, [ONE, TWO]),
-      run: { tests: [whole(ONE), whole(TWO)], commit },
-    });
-    await writeFile(resolve(root, FILE), moved, 'utf8');
-    await landRun(coverageFile, recording(OTHER, OTHER_TEXT, [THREE], commit), root, cacheRoot, keeps
-      ? { fresh: casesOf(OTHER, OTHER_TEXT, [THREE]), run: { tests: [whole(THREE)], commit } }
-      : undefined);
+    const coverageFile = await body({ root, cacheRoot, git });
 
     const rows = (await readTestCoverage(coverageFile)).modules.find((module) => module.file === FILE)!;
     const index = decodeExecutionIndex(caseSectionsAt(coverageFile).index!);
@@ -155,6 +149,57 @@ async function landOver(text: string, moved: string, keeps: boolean): Promise<La
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
+}
+
+const whole = (file: string) => ({ file, complete: true });
+
+/**
+ * The mainline's record over `text`, then `FILE` rewritten to `moved` and a run
+ * of `THREE` landed over `recorded` alone, keeping its cases when `keeps` says so.
+ */
+function landOver(text: string, moved: string, keeps: boolean, recorded = OTHER): Promise<Landed> {
+  return inRepository(text, moved, async ({ root, cacheRoot, git }) => {
+    const commit = await git('rev-parse', 'HEAD');
+    const coverageFile = testCoverageFile(root, { cacheRoot });
+    await landRun(coverageFile, recording(FILE, text, [ONE, TWO], commit), root, cacheRoot, {
+      fresh: casesOf(FILE, text, [ONE, TWO]),
+      run: { tests: [whole(ONE), whole(TWO)], commit },
+    });
+    await writeFile(resolve(root, FILE), moved, 'utf8');
+    const over = recorded === FILE ? moved : OTHER_TEXT;
+    await landRun(coverageFile, recording(recorded, over, [THREE], commit), root, cacheRoot, keeps
+      ? { fresh: casesOf(recorded, over, [THREE]), run: { tests: [whole(THREE)], commit } }
+      : undefined);
+    return coverageFile;
+  });
+}
+
+/**
+ * A checkout's record pinned at the mainline's first commit, holding a run of
+ * `THREE` over `OTHER` alone; then a milestone over `text` at the next commit,
+ * `FILE` rewritten to `moved` on disk, and the record repinned onto it.
+ */
+function repinOver(text: string, moved: string): Promise<Landed> {
+  return inRepository(text, moved, async ({ root, cacheRoot, git }) => {
+    const first = await git('rev-parse', 'HEAD');
+    const coverageFile = testCoverageFile(root, { cacheRoot });
+    await landRun(coverageFile, recording(OTHER, OTHER_TEXT, [THREE], first), root, cacheRoot, {
+      fresh: casesOf(OTHER, OTHER_TEXT, [THREE]),
+      run: { tests: [whole(THREE)], commit: first },
+    });
+    await writeOwnLayer(coverageFile, { pinned: { mainline: 'main', commit: first }, ran: [] });
+    await git('commit', '--quiet', '--allow-empty', '--message', 'the milestone');
+    const next = await git('rev-parse', 'HEAD');
+    const milestone = testCoverageFile(root, { cacheRoot: resolve(cacheRoot, 'milestone') });
+    await landRun(milestone, recording(FILE, text, [ONE, TWO], next), root, resolve(cacheRoot, 'milestone'), {
+      fresh: casesOf(FILE, text, [ONE, TWO]),
+      run: { tests: [whole(ONE), whole(TWO)], commit: next },
+    });
+    await writeFile(resolve(root, FILE), moved, 'utf8');
+    const repinned = await repinOwnLayer(coverageFile, { mainline: 'main', commit: next, fetched: '', suite: 'default', coverage: milestone }, root);
+    expect(repinned).toMatchObject({ repinned: true });
+    return coverageFile;
+  });
 }
 
 describe('a case index carried over a module whose text moved on disk', () => {
@@ -180,5 +225,21 @@ describe('a case index carried over a module whose text moved on disk', () => {
 
     expect(landed.rows).toEqual(['anon#0 2-4', 'anon#1 5-7']);
     expect(landed.index).toEqual(landed.rows);
+  });
+
+  it('leaves the index, where the run recorded the module at a text no address carries its cases onto', async () => {
+    // The run's rows replace the module's; none of the regions the index held
+    // has an address in them, so no case it held is known to stand anywhere.
+    const landed = await landOver(SEATED, RESEATED, false, FILE);
+
+    expect(landed.index).toBeUndefined();
+  });
+
+  it('stands at the lines the rows were re-cut to, when the record is repinned onto a newer milestone', async () => {
+    const landed = await repinOver(TEXT, MOVED);
+
+    expect(landed.rows).toEqual(['a 3-5', 'b 7-9']);
+    expect(landed.index).toEqual(landed.rows);
+    expect(landed.covering).toEqual({ 'n + 1': [caseOf(ONE)], 'n * 2': [caseOf(TWO)] });
   });
 });
