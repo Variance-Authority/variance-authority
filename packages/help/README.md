@@ -134,7 +134,7 @@ interface Viewport
 
 Nothing is written above this declaration.
 
-docs_uses names the 60 places this is imported, nearest to a file you name first.
+docs_uses names the 60 places another package imports this, and the imports within its own, nearest to a file you name first.
 ```
 
 ## The questions

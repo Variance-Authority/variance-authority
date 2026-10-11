@@ -175,6 +175,37 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(uses.out).toContain('apps/app/src/hello.ts:1 — @acme/app');
   });
 
+  it('answers `uses` for a published name with the imports within its own package as well as across one', async () => {
+    // One of several names a list takes, and the barrel that passes it on is not a use.
+    checkout({
+      'packages/lib/src/greet.ts': "export const hello = 'hello';\nexport function greet(name: string): string {\n  return name;\n}\n",
+      'packages/lib/src/greeting.ts': "import { hello, greet } from './greet.js';\nexport const greeting = greet(hello);\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('`greet` is imported in 2 places.');
+    expect(out).not.toContain('packages/lib/src/index.ts');
+    expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/greeting\.ts:1 — @acme\/lib$/m);
+  });
+
+  it('counts a published name read off `import x = require()` in another package, in `uses` and in `symbol`', async () => {
+    checkout({
+      'apps/app/src/hello.ts': 'export const hello = 1;\n',
+      'apps/app/src/required.cts': "import lib = require('@acme/lib');\nexport const required = lib.greet('cjs');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const uses = await run(['ask', 'uses', '--name', 'greet']);
+    expect(uses.code).toBe(EXIT_CLEAN);
+    expect(uses.out).toMatch(/^apps\/app\/src\/required\.cts:2 — @acme\/app \(namespace, line 1\)$/m);
+
+    const symbol = await run(['ask', 'symbol', '--name', 'greet']);
+    expect(symbol.out).toContain('used by 1 package: @acme/app');
+  });
+
   it('answers `uses` for a name exported and not published, listing the imports the index resolved to its file', async () => {
     checkout({ 'packages/lib/src/internal/rounded.ts': "import { roundTax } from './math.js';\nexport const rounded = roundTax(2);\n" });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

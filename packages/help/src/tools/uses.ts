@@ -47,11 +47,13 @@ import { UNCOUNTED, exportedAt, exportsNamed, importsOf, indexMissing, indexUnre
  * deep import — past the entry its package declares — or an import from a
  * package that declares none.
  *
- * ## An unpublished export is answered
+ * ## An import within the package is a site
  *
- * A name a file exports and no entry publishes is answered from the source
- * index: every import, within its package or across one, that resolved to a
- * file exporting it.
+ * The Help value records the imports that cross a package. Every import within
+ * the package that exports the name — published or not — is read off the
+ * source index: an import that resolved to a file of that package exporting
+ * it. A name a file exports and no entry publishes is answered from there
+ * alone.
  */
 
 /** A site, and how it names the module it imports when that is a file path. */
@@ -132,8 +134,8 @@ export const uses: Tool<Help> = {
   description:
     'Every file:line in the workspace that imports one exported name, including reads through ' +
     '`import()` or `import * as`, marked with the line that loads the module, and imports that ' +
-    'name the file by path, marked as such. A name exported and not published is answered from ' +
-    'the source index, imports within its package included. Stories and tests are listed apart. `from`, the file ' +
+    'name the file by path, marked as such. Imports within the exporting package are read from the ' +
+    'source index, so a name exported and not published is answered too. Stories and tests are listed apart. `from`, the file ' +
     'you are in, sorts sites by shared path.',
   inputSchema: {
     type: 'object',
@@ -170,13 +172,23 @@ export const uses: Tool<Help> = {
       .map((site) => ({ ...site.taken, how: how(site) }));
     const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
     if (found.length === 0 && byPath.length === 0 && exported.length === 0) throw new Error(unfound(help, name, wanted));
+    // The Help value holds the imports that cross a package; the ones within the
+    // publishing package are read off the source index, from every file of it
+    // that exports the name — the declaration and each file that passes it on.
+    const owners = new Set(found.map(([published]) => published.name));
+    const local = found.length === 0 ? exported : exportsNamed(help, name, undefined).filter((held) => owners.has(held.by));
     const root = invocation?.root;
-    const within = exported.length === 0 || root === undefined ? undefined : importsOf(root, exported, name);
+    // A file that exports the name itself passes it on: it is a door, not a use.
+    const doors = new Set(local.map((held) => held.at));
+    const within = local.length === 0 || root === undefined ? undefined : importsOf(root, local, name)?.filter((use) => !doors.has(use.at));
     if (exported.length > 0 && within === undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, root));
 
     const sites = sitesOf(found, byPath, within ?? []);
     if (sites.length === 0 && exported.length > 0) {
       return `\`${name}\` is exported, without being published, at ${exportedAt(exported)}, and nothing in this workspace imports it; ${UNCOUNTED}.`;
+    }
+    if (sites.length === 0 && local.length > 0 && within === undefined) {
+      return `\`${name}\` is published and no other package imports it; the imports within its own package are read from the source index, and ${indexUnread(root)}.`;
     }
     if (sites.length === 0) {
       return `\`${name}\` is published and nothing in this workspace imports it. docs_symbol has its signature and what is written above it.`;
@@ -203,7 +215,7 @@ export const uses: Tool<Help> = {
       ...listed(tests, 'Tests:'),
       ...listed(source, 'Source:'),
       // The imports by package path are in the Help value; the rest are not.
-      ...(exported.length > 0 && within === undefined ? [`\nImports that do not name a package path are not listed: ${indexUnread(root)}.`] : []),
+      ...(local.length > 0 && within === undefined ? [`\nImports that do not name a package path are not listed: ${indexUnread(root)}.`] : []),
     ].join('\n');
   },
 };

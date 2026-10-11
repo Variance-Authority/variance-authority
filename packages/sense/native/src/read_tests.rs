@@ -147,6 +147,26 @@ fn a_member_is_read_through_a_namespace_and_every_import_call_holder() {
 }
 
 #[test]
+fn a_member_is_read_through_an_import_equals_require() {
+    // TypeScript's `import x = require('m')` holds the module whole, as a
+    // namespace import does; its request follows the stated ones and every
+    // `import()`, so `./later`'s read names the index past it.
+    let source = concat!(
+        "import whole = require('./whole');\n",
+        "import type typed = require('./typed');\n",
+        "whole.a;\n",
+        "whole['b'];\n",
+        "let t: typed.T;\n",
+        "const later = await import('./later');\n",
+        "later.c;\n",
+    );
+    assert_eq!(
+        members(source),
+        [("./later", "c"), ("./whole", "a"), ("./whole", "b")].map(|(value, name)| (value.to_owned(), name.to_owned()))
+    );
+}
+
+#[test]
 fn a_member_is_read_through_an_import_call_of_a_template() {
     assert_eq!(members("const t = await import(`./template`);\nt.f;\n"), [("./template".to_owned(), "f".to_owned())]);
 }

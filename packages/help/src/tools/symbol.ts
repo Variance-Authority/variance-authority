@@ -125,7 +125,7 @@ export const symbol: Tool<Help> = {
     const shown =
       written === 0
         ? []
-        : [`\ndocs_uses names the ${written} ${written === 1 ? 'place' : 'places'} this is imported, nearest to a file you name first.`];
+        : [`\ndocs_uses names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this, and the imports within its own, nearest to a file you name first.`];
 
     return [block(first[0], first[1], first[2]), ...also, ...shown].join('\n');
   },
