@@ -5,9 +5,10 @@ description: >-
 
 # `docs_grep` shells out to `rg`, and neither the hosted runner nor the
 # Playwright image carries it. Its tests skip on a developer's machine without
-# it and fail on CI without it, as `packages/help/src/__fixtures__/
-# ripgrep-on-path.ts` decides, so every job that runs them takes this step, and
-# a job that runs them without it goes red naming this directory.
+# it and fail on CI without it, as
+# `packages/help/src/__fixtures__/ripgrep-on-path.ts` decides, so every job
+# that runs them takes this step, and a job that runs them without it goes red
+# naming this directory.
 #
 # The release's static musl binary, not the distribution's package: one file
 # runs the same on the bare runner and in the image, as the runner's user or as

@@ -424,8 +424,10 @@ jobs:
 
       - uses: ./.github/actions/build
 
-      # For `docs_grep`'s tests, which fail on CI without `rg` rather than skip.
+      # For `docs_grep`'s tests, which are unit tests and fail on CI without
+      # `rg` rather than skip. The other slices load none of them.
       - uses: ./.github/actions/ripgrep
+        if: matrix.suite == 'unit'
 
       # The mainline's records as `base` read them, downloaded only when it
       # uploaded some. A download that fails then fails the job: going on
@@ -1168,9 +1170,9 @@ jobs:
 
       - uses: ./.github/actions/build
 
-      # For the reason written at the same step in `suite`.
+      # The unit part only, for the reason written at the same step in `suite`.
       - uses: ./.github/actions/ripgrep
-        if: matrix.part != 'rules'
+        if: matrix.part == 'unit'
 
       - name: lint
         if: matrix.part == 'rules'
