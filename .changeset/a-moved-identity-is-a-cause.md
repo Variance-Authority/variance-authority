@@ -27,8 +27,10 @@ under this run's identity by the same three, so an upgrade is named once rather
 than on every later run. A re-stamp approves nothing: `variance accept` counts
 it in `restamped` and its summary, not among the accepted subjects or the
 commit message, and the `variance_changelog` preview says so. A durable store's
-`put` moves a baseline: the subject's copy under every other identity is
-removed, so a lookup never compares against a superseded image. `variance_explain` names the moved identity as the
+`put` moves a baseline along its line, one engine family on one platform at one
+scale: the line's older copy is removed, so a lookup never compares against a
+superseded image, while a matrix of engines or machines keeps one baseline
+each. A lookup that misses its own identity reads its line first. `variance_explain` names the moved identity as the
 cause of a change, and the tribunal no longer counts or lists an
 `incomparable` verdict. `@variance-authority/raster` exports `identityCause`,
 which says whether two identities differ in the recipe alone or in the machine,

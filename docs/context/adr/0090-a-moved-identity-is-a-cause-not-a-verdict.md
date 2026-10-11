@@ -52,11 +52,14 @@ reviewer reads first.
    `--update-snapshots` write an `unchanged` subject under a moved identity
    again under the run's own, so an upgrade is named once rather than on every
    later run. Its pixels did not move, so nothing unreviewed is adopted.
-6. **A write moves the baseline.** Writing a subject under one identity
-   retires its copy under every other, so a subject has one baseline of record.
-   Once siblings are compared, the order a lookup reads them in would otherwise
-   decide the verdict: after two upgrades, the older copy could be read first,
-   and a reversion to the old look would read `unchanged`.
+6. **A write moves the baseline along its line.** A line is one engine family
+   on one platform at one scale; an engine build, the fonts and the recipe move
+   along it. Writing a subject retires its copy elsewhere on the same line, and
+   a lookup that misses its own identity reads its line before any other, in a
+   fixed order. Once siblings are compared, the order would otherwise decide the
+   verdict: after two upgrades, the older copy could be read first, and a
+   reversion to the old look would read `unchanged`. A matrix of engines or
+   machines is several lines, and each keeps its baseline.
 
 The partition by `identityDigest` stays. It keys the render cache, and a
 lookup still prefers its own partition. A sibling partition is no longer a
@@ -70,10 +73,11 @@ cause.
 - `accept --all` adopts a cross-identity change as it adopts any other change.
   The bulk-acceptance exception for a recipe-only re-baseline is gone with the
   verdict it was an exception to.
-- One durable store no longer holds a baseline per machine for a subject: an
-  accept on a laptop replaces the one CI wrote, and the next CI run names the
-  machine as the cause of what moved. Per-machine baselines belong in an
-  ephemeral store or behind a pinned renderer, as `variance doctor` says.
+- A durable store holds one baseline per line for a subject. An accept after a
+  browser upgrade replaces the old build's copy; a chromium and a webkit
+  project, or a laptop and a Linux runner, keep one each.
+- The tribunal's bucket store does not retire yet: it upserts by identity, and
+  a machine's own superseded row still wins its lookup.
 - A container pinned in CI still matters: a baseline from a laptop compared
   with a Linux run is a wall of `changed`, now visible, with the platform named
   as its cause.

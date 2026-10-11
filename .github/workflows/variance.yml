@@ -57,8 +57,8 @@ name: variance
 # The cache key does not name the renderer, and does not need to. The store
 # partitions by renderer identity, so a baseline painted by another Chromium is
 # compared with the moved engine named as the cause (ADR-0090). A bump of the
-# image below makes the check loud, and the next accept paints the new
-# partition beside the old one.
+# image below makes the check loud, and the next accept moves the baseline into
+# the new partition.
 #
 # ## Why this runs in a pinned container
 #
