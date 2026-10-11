@@ -127,7 +127,7 @@ describe('a line asked of a repository that declares suites', () => {
     const answer = await ask(['covering', '--file', 'src/charge.ts', '--root', root]);
 
     expect(answer.code).toBe(0);
-    expect(answer.out).toMatch(/^stories \(visual\): `src\/charge\.ts` is not in the index at `[^`]+\/suites\/stories\/[^`]+`, which holds 1 file\./mu);
+    expect(answer.out).toMatch(/^stories \(visual\): `src\/charge\.ts` is not in the index at `[^`]+\/suites\/stories\/[^`]+`, which holds 1 file, each named from the repository root\./mu);
     expect(answer.out).toMatch(/^unit \(unit\): `src\/charge\.ts` is not in the index at .* no test covering it\.$/mu);
     expect(answer.out).not.toContain('Not loaded by');
   });

@@ -1,4 +1,4 @@
-import { resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { distanceRange } from '@variance-authority/sense/test-selection';
 import { noPositionals, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
@@ -173,9 +173,13 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
     );
   }
 
+  // The record names files from the root. An absolute path, as an editor
+  // copies it, is the same file named from `/`; a relative one is already
+  // named from the root, and no other spelling is tried.
+  const source = executionAnd(flags);
   return {
-    ...executionAnd(flags),
-    file,
+    ...source,
+    file: isAbsolute(file) ? relative(source.root, file) : file,
     ...(line === undefined ? {} : { line }),
     ...(functionName === undefined ? {} : { function: functionName }),
     ...(atDistance === undefined ? {} : { atDistance }),

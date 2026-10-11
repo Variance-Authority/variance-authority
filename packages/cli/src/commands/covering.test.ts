@@ -116,6 +116,13 @@ describe('asking which tests entered a line', () => {
     },
   );
 
+  it('reads an absolute `--file` from the root, which is how the record names files', () => {
+    const root = join(tmpdir(), 'checkout');
+
+    expect(parse(['--file', join(root, 'src/total.ts'), '--root', root])).toMatchObject({ file: 'src/total.ts' });
+    expect(parse(['--file', 'src/total.ts', '--root', root])).toMatchObject({ file: 'src/total.ts' });
+  });
+
   it('separates a line nothing recorded from a line nothing covered', async () => {
     const execution = await indexFile();
 

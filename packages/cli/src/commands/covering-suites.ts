@@ -103,7 +103,8 @@ async function askSuite(request: ParsedCovering, suite: DeclaredSuite): Promise<
  * without its record's path or size: the reader came for the answer, and a
  * suite that tests other code is the common case, not a finding. Every other
  * refusal keeps its place and its whole sentence. When no suite answered,
- * every refusal is printed in full, since a wrong path is then the likely cause. JSON carries every refusal whole either way.
+ * every refusal is printed in full, since a wrong path is then the likely
+ * cause. JSON carries every refusal whole either way.
  */
 export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: CoveringFormat): string {
   if (!('suites' in answer)) return formatCovering(answer, format);

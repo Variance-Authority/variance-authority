@@ -10,12 +10,12 @@
 
 import { OperatorError } from '../exit.js';
 
-/** Refuse `file`, which the record at `from` does not hold among its `files`. */
-export function unloadedFile(file: string, from: string, files: readonly string[]): OperatorError {
+/** Refuse `file`, which the record at `from`, holding `count` files, does not hold. */
+export function unloadedFile(file: string, from: string, count: number): OperatorError {
   return new OperatorError(
-    `\`${file}\` is not in the index at \`${from}\`, which holds ${files.length} file${
-      files.length === 1 ? '' : 's'
-    }. A file the run never loaded has no answer here, and that is a different statement from no test covering it.`,
+    `\`${file}\` is not in the index at \`${from}\`, which holds ${count} file${
+      count === 1 ? '' : 's'
+    }, each named from the repository root. A file the run never loaded has no answer here, and that is a different statement from no test covering it.`,
     { kind: 'unloaded' },
   );
 }

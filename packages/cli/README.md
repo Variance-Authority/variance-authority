@@ -416,14 +416,17 @@ Not loaded by stories (visual): a run that never loaded the file has no answer a
 Once any suite answers, the answers come first, then any suite that has never
 run. A suite that never loaded the file costs one line at the end. When no
 suite answers, each says why in full, with the record it read, since a wrong
-path is then the likely cause. A refusal names the path you asked and no other:
-`apps/shop/src/checkout/total.ts` is a different file from
-`src/checkout/total.ts`, and so is any other recorded path of the same name.
+path is then the likely cause. The record names files from the repository
+root, so give `--file` that way, or as an absolute path. A refusal names the
+path you asked and no other: `apps/shop/src/checkout/total.ts` is a different
+file from `src/checkout/total.ts`, and so is any other recorded path of the same
+name.
 
 In JSON the answer is a `suites` list. Each entry is that suite's own answer
 with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`
-or to `unloaded`, for a file the suite never loaded. `--suite <name>` reads one record alone, answers in the shape a
-repository with one record does, and so gives a suite's refusal in full.
+or to `unloaded`, for a file the suite never loaded. `--suite <name>` reads one
+record alone, answers in the shape a repository with one record does, and so
+gives a suite's refusal in full.
 
 `--format refs` is the same answer for an agent, which pays for every repeated
 name. Each case is numbered once, in a table at the end, and every range names
