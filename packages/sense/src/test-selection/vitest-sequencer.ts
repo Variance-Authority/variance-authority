@@ -370,13 +370,23 @@ async function vitestSequencer(configRoot: string, shuffled: boolean): Promise<S
   const load = vitestImport(configRoot);
   const { BaseSequencer } = await load('vitest/node') as { BaseSequencer: new (ctx: SequencerContext) => Sequencer & { ctx: SequencerContext } };
   if (!shuffled) return BaseSequencer;
-  const shuffle = ((await load('@vitest/utils/helpers')).shuffle ?? (await load('@vitest/utils')).shuffle) as Shuffle | undefined;
+  const shuffle = ((await unexported(load('@vitest/utils/helpers')))?.shuffle ?? (await load('@vitest/utils')).shuffle) as Shuffle | undefined;
   if (shuffle === undefined) throw new Error('variance-authority: this Vitest names no `shuffle` in `@vitest/utils`, so a shuffled run cannot order its files as Vitest would');
   return class RandomSequencer extends BaseSequencer {
     override async sort<T extends Spec>(files: T[]): Promise<T[]> {
       return shuffle(files, this.ctx.config.sequence?.seed);
     }
   };
+}
+
+/** A module, or `undefined` when its package does not export that subpath, as `@vitest/utils` exports no `/helpers` before Vitest 4; any other failure is thrown. */
+async function unexported(module: Promise<Record<string, unknown>>): Promise<Record<string, unknown> | undefined> {
+  try {
+    return await module;
+  } catch (error) {
+    if ((error as { code?: unknown }).code === 'ERR_PACKAGE_PATH_NOT_EXPORTED') return undefined;
+    throw error;
+  }
 }
 
 /** Imports a module of Vitest's own as the project's Vitest resolves it, or as this package does when that fails. */
@@ -387,5 +397,5 @@ function vitestImport(configRoot: string): (specifier: string) => Promise<Record
   } catch {
     from = undefined;
   }
-  return (specifier) => from === undefined ? import(specifier) : import(pathToFileURL(from.resolve(specifier)).href);
+  return async (specifier) => from === undefined ? import(specifier) : import(pathToFileURL(from.resolve(specifier)).href);
 }

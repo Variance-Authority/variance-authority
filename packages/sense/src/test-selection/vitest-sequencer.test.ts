@@ -1,6 +1,6 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import type { SuiteSelection } from './suite-selection.js';
@@ -274,6 +274,27 @@ describe('the sequencer under `sequence.shuffle`', () => {
     expect(config.sequence.seed).toBeGreaterThanOrEqual(before);
     const again = new (shuffling())(context({ root, sequence: { shuffle: true, seed: config.sequence.seed! } }));
     expect(names(await sequencer.sort(files.map(spec)))).toEqual(names(await again.sort(files.map(spec))));
+  });
+
+  it('fails by name when the project\'s Vitest names no `shuffle`, rather than ordering the files its own way', async () => {
+    const project = await mkdtemp(resolve(tmpdir(), 'variance-no-shuffle-'));
+    try {
+      const write = async (file: string, text: string) => {
+        await mkdir(dirname(resolve(project, file)), { recursive: true });
+        await writeFile(resolve(project, file), text, 'utf8');
+      };
+      await write('node_modules/vitest/package.json', JSON.stringify({ name: 'vitest', type: 'module', exports: { './node': './node.js' } }));
+      await write('node_modules/vitest/node.js', 'export class BaseSequencer { constructor(ctx) { this.ctx = ctx; } async shard(files) { return files; } async sort(files) { return files; } }\n');
+      await write('node_modules/@vitest/utils/package.json', JSON.stringify({ name: '@vitest/utils', type: 'module', exports: { '.': './index.js' } }));
+      await write('node_modules/@vitest/utils/index.js', 'export const other = 1;\n');
+      const Sequencer = selectingSequencer(undefined, { root, configRoot: project, say: () => {} });
+
+      const sorted = new Sequencer(context({ root, sequence: { shuffle: true, seed: 1 } })).sort(files.map(spec));
+
+      await expect(sorted).rejects.toThrow(/^variance-authority: this Vitest names no `shuffle`/);
+    } finally {
+      await rm(project, { recursive: true, force: true });
+    }
   });
 
   // The orders `@vitest/utils`' `shuffle` gives these four files.
