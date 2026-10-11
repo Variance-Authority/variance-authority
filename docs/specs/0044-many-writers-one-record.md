@@ -24,7 +24,7 @@ without anyone choosing between them:
 - The shared runner fold reads the index, layers onto it and renames under one
   lock it does not wait for — it notes a busy index and drops the merge
   (`packages/sense/src/test-selection/selection-fold.ts:110-119`). The Jest
-  reporter does the same (`jest-reporter.ts:140-149`).
+  reporter does the same (`packages/sense/src/test-selection/jest-reporter.ts:140-149`).
 
 Two Vitest projects, a Jest multi-project run, or a Vitest run beside a
 Playwright run each read the index, layer onto it, and rename. **The later rename
@@ -61,13 +61,13 @@ is a property of one observation and not of the index.
 Without a number, nothing can tell a partially-landed fold from a complete one,
 nothing can detect that a merge was lost, and the question *is this index
 complete?* has no field to read. Nor is there a mechanism elsewhere to borrow:
-`immutable-log.ts:25-29` carries a `format`, a `version` pinned to 1 and a list
+`packages/sense/src/immutable-log.ts:25-29` carries a `format`, a `version` pinned to 1 and a list
 of segments — a format version, not a generation — and publishes by the same
 read-modify-write-and-rename with no expected-prior check
-(`immutable-log.ts:122-140`).
+(`packages/sense/src/immutable-log.ts:122-140`).
 
 **4. A demotion carries its reason.** Three sites write `{ ...test, complete:
-false }` and drop why: `test-selection/merge.ts:166`, `test-selection/merge.ts:357`, `format-layer.ts:266`. The
+false }` and drop why: `packages/sense/src/test-selection/merge.ts:166`, `packages/sense/src/test-selection/merge.ts:357`, `packages/sense/src/test-selection/format-layer.ts:266`. The
 reason is computed — `stitchJourneys` builds a `because` string — and reaches
 stderr once, then is gone.
 
@@ -116,7 +116,7 @@ generated inputs, or the second implementation needs to go.
   for it. That is a false skip, and `land.ts`'s own docblock describes the layer
   as if it behaved like the recorder's.
 - `mergeCoverage` drops the entire previous index when the instrumentation
-  recipe differs (`test-selection/merge.ts:240`), with no message anywhere. The fold refuses
+  recipe differs (`packages/sense/src/test-selection/merge.ts:240`), with no message anywhere. The fold refuses
   loudly for the same disagreement between shards; the layer discards quietly. A
   bump of the instrument throws away months of evidence on the next run's
   teardown. Discarding is right — [0029](0029-what-a-run-remembers.md) requires

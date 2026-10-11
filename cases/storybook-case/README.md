@@ -308,8 +308,8 @@ subjects, and the run finds exactly those five. The report resolves to source:
 ```
 
 The edit is to `Button`. The report says `Button`, at the line that wrote the
-element — `ds.jsx:53`, not `ds.jsx:51` where the component is declared, and not
-`ds.jsx:26`, which is the `Tokens` wrapper it is rendered inside. Both halves of
+element — `cases/storybook-case/src/ds.jsx:53`, not `cases/storybook-case/src/ds.jsx:51` where the component is declared, and not
+`cases/storybook-case/src/ds.jsx:26`, which is the `Tokens` wrapper it is rendered inside. Both halves of
 that sentence are the claim, and `cli.chromium.test.js` derives the two line
 numbers from the file rather than quoting them, so this stays true when somebody
 adds an import.

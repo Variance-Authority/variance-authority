@@ -50,7 +50,7 @@ The resolver asks four owners in this order and stops at the first answer.
 - Else, if the installed TypeScript is 6 or later, use the config file's
   directory. The version is read from `typescript/package.json`, resolved from
   the config's directory. The lockfile that decides it is already in the config
-  digest (`reuse.ts:112`).
+  digest (`packages/sense/src/reuse.ts:112`).
 - Else, decline. TypeScript 5 computes rootDir from the file list
   (`getCommonSourceDirectory`), and a scan that does not compile cannot know
   that list.
@@ -177,7 +177,7 @@ as owner 2. It is rejected:
   graphs, one per machine state.
 - **Reuse breaks.** A record would depend on untracked bytes, so its witnesses
   would have to include files git cannot see. `reuse.ts` is sound because a
-  record is a function of tracked bytes only (`reuse.ts:12-26`, `:46-52`).
+  record is a function of tracked bytes only (`packages/sense/src/reuse.ts:12-26`, `:46-52`).
 
 A map is a check that runs after a build, not an owner. Maps stay with the
 recorder: `source-lines.ts` `originalFile` (`:168`) owns line numbers for a
@@ -188,15 +188,15 @@ import names.
 
 - **`FileRecord`:** no new fields. Edges land on original files, and `unknown`
   can include the sentence in section 4.
-- **Witnesses:** `witnessesOf` (`witness.ts:238`) adds the directory under the
+- **Witnesses:** `witnessesOf` (`packages/sense/src/witness.ts:238`) adds the directory under the
   member's rootDir where the original is looked for, and, for an unowned member,
   the package directory. So adding the fixture's `ui/src/new.ts` invalidates the
   record that imports `@acme/ui/new`, and adding a tsconfig to an unowned
   member invalidates the records that named it.
 - **Config digest:** already covers `tsconfig*.json`, `package.json` and the
-  lockfiles (`reuse.ts:112-121`, `shapeOf` `:148-174`), so a change to any emit
+  lockfiles (`packages/sense/src/reuse.ts:112-121`, `shapeOf` `:148-174`), so a change to any emit
   setting rebuilds every record.
-- **`VERSION`** (`reuse.ts:103`, 3 in the working copy): bump to the next value
+- **`VERSION`** (`packages/sense/src/reuse.ts:103`, 3 in the working copy): bump to the next value
   after whatever concurrent work lands, because the same bytes now produce
   different edges.
 
@@ -249,7 +249,7 @@ tools/test-since.mjs, lines 152, 299 and 353, and tools/since-diff.mjs, lines
 **Mocks.** `targetFrom` (`packages/sense/src/taint/join.ts:38-49`) calls
 `resolveTo`, which goes through the same `resolved()`. So `vi.mock('@acme/ui')`
 and `import … from '@acme/ui'` land on the same original, provided the
-`Resolvers` built at `taint/index.ts:199` has the scan's origins. Without them
+`Resolvers` built at `packages/sense/src/taint/index.ts:199` has the scan's origins. Without them
 the mock resolves to nothing while the import resolves to `src/`. This is the
 likely cause of the mock difference an external check reported against
 0.6.0: the mock resolved on its own, and `since-graph` bridged the import. It is

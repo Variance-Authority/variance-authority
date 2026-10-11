@@ -36,6 +36,7 @@ const REPO_DIRS = ['packages/', 'examples/', 'cases/', 'docs/', 'tools/', 'docke
  */
 const FOREIGN: Readonly<Record<string, string>> = {
   'tests/home.spec.ts': "an incumbent's spec file, quoted from its output",
+  'announcement.spec.mjs': "Playwright's list reporter naming a spec relative to its testDir, quoted from a run",
   'cart.spec.ts': "a reader's own spec file, quoted from a transcript about it",
   'tests/checkout.spec.ts': "a reader's own spec file, quoted from a watcher transcript",
   'tests/cart.spec.ts': "a reader's own spec file, quoted from a watcher transcript",
@@ -340,20 +341,22 @@ describe('every file:line reference lands where it says', () => {
   );
 
   /**
-   * The file a reference names, resolved the way a reader would resolve it.
-   *
-   * Relative to the document first, then from the repository root, then by unique
-   * suffix — a case's README says `src/surface.tsx` about its own tree, and the
-   * index one directory up says the same words about the same file.
+   * The file a reference names: relative to the document, or from the
+   * repository root. A path that is neither names no file, however many tracked
+   * files end the same way — two paths are two files.
    */
   function locate(file: string, path: string): string | null {
     const beside = relative(ROOT, resolve(dirname(join(ROOT, file)), path));
     if (TRACKED.has(beside)) return beside;
-    if (TRACKED.has(path)) return path;
-
-    const suffix = [...TRACKED].filter((tracked) => tracked.endsWith(`/${path}`));
-    return suffix.length === 1 ? suffix[0]! : null;
+    return TRACKED.has(path) ? path : null;
   }
+
+  it('names no file for a path that only ends like one', () => {
+    // `cases/storybook-case/src/ds.jsx` is tracked and is the only file ending in
+    // `src/ds.jsx`. Neither beside a page in docs/ nor at the root is there one.
+    expect(TRACKED.has('cases/storybook-case/src/ds.jsx')).toBe(true);
+    expect(locate('docs/architecture.md', 'src/ds.jsx')).toBeNull();
+  });
 
   it.each(MARKDOWN)('%s', (file) => {
     const text = readFileSync(join(ROOT, file), 'utf8');

@@ -59,7 +59,7 @@ the render already carries what the props became, so the story source is not
 indexed. What the plan does hold is where each subject was declared, and a
 `declared` field — file and line of the subject's own declaration, as the
 source index already holds it for components — would let `variance_locate
-{query: "stories.tsx:41"}` answer. Derived from the plan, never parsed from a
+{query: "examples/todomvc/src/stories.tsx:41"}` answer. Derived from the plan, never parsed from a
 story body.
 
 **3. State keys.** The semantic snapshot carries `pressed`, `checked`,

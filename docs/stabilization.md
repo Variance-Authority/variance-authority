@@ -178,7 +178,7 @@ Here is what the second run prints:
 
 ```
 CHANGED  story:card
-  root:   Card  (src/components/Card.tsx:14)
+  root:   Card  (examples/kitchen-sink/src/components/Card.tsx:14)
   band:   texture — opacity 0.4 → 0.6
 ```
 

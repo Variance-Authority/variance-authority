@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-28 23:35'
-updated_date: '2026-09-29 04:11'
+updated_date: '2026-10-11 07:54'
 labels: []
 dependencies: []
 parent_task_id: TASK-21
@@ -57,7 +57,7 @@ Rods on zod, TanStack Query and Material UI (2026-09-29). Journeys prepared with
 Correction to the previous note: the rod gaps (TanStack findAll placed from the constructor, MUI hooks not placed, the zod getter with no caller) are not journeys defects. Callers are recorded only in test story mode, so rods must not lean on them.
 
 Masks replace callers (scratchpad masks.mjs). A journey is the set of blocks one test ran. Sort by size, cluster identical masks, match each mask against A and B. The smallest mask that holds both is the connection. The near-miss cluster is the journeys that reached one end and share at least half of a journey that reached both. A fork is a block inside a function most of both groups ran, scored by how well it separates the groups. What differs outside the forks is downstream of them. Runs in 0.15 s per pair.
-- this repo, rankRegions <-> settle: unless observe-one.ts:153 `if (settlement.kind === 'settled')`, 100%. This is the same condition the caller-based rods found. 19 journeys reach A by another road (best share 29%).
+- this repo, rankRegions <-> settle: unless packages/cli/src/commands/observe-one.ts:153 `if (settlement.kind === 'settled')`, 100%. This is the same condition the caller-based rods found. 19 journeys reach A by another road (best share 29%).
 - MUI, isFilled <-> FormControl2 (the caller-based rods said 'connect neither way'): when InputBase.js lines 340 and 523 `if (muiFormControl)` 90%, and from the other side FormControl.js line 160 `isFilled(child.props, true)` 87%. Both rods are correct against source.
 - MUI, getTranslateOffsets <-> Slide2: when Slide.js line 263 `if (!inProp && !preserveInlineTransformRef.current)` 78%. Nearly: Drawer getAnchor.
 - TanStack, matchQuery <-> invalidateQueries: when utils.ts line 198 `if (type !== 'all')` 77%.
