@@ -46,6 +46,7 @@ import { DOCKET_STYLES } from './styles-docket.js';
 import { FINDING_STYLES } from './styles-findings.js';
 import { JOURNEY_STYLES } from './styles-journeys.js';
 import { STAGE_STYLES } from './styles-stage.js';
+import { VARIATION_PICTURE_STYLES } from './styles-variations.js';
 
 /**
  * The whole sheet, in one string, with the stage spliced into the middle of it.
@@ -393,6 +394,7 @@ ${JOURNEY_STYLES}
 .va-variation.va-inert .va-axis { background: var(--va-warn-bg); color: var(--va-warn-ink); }
 .va-variation.va-unlinked .va-axis { background: var(--va-bad-bg); color: var(--va-bad-ink); }
 .va-how { color: var(--va-ink-3); font-size: 0.75rem; }
+${VARIATION_PICTURE_STYLES}
 
 ${STAGE_STYLES}
 ${DOCKET_STYLES}

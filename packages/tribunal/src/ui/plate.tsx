@@ -34,6 +34,17 @@ export function union(
 }
 
 /**
+ * The magnification that draws all of `box` inside `window`, never above 1.
+ *
+ * One number for everything the box holds, so layers drawn small are still
+ * drawn at one scale: each fitted to the window on its own would differ
+ * everywhere, which is the comparison's job and not the drawing's.
+ */
+export function fit(box: Size, window: Size): number {
+  return Math.min(window.width / box.width, window.height / box.height, 1);
+}
+
+/**
  * One layer's share of the plate, as a percentage.
  *
  * A percentage rather than a pixel width so that nothing here has to know the
@@ -58,7 +69,7 @@ export function share(own: Size | undefined, box: Size | undefined): CSSProperti
  * Nothing above the fold needs any of them.
  *
  * `size` reserves the box before the bytes arrive, and is passed only where the
- * dimensions belong to *this* raster — the candidate. A baseline may have been a
+ * dimensions belong to *this* raster — on the plate, the candidate. A baseline may have been a
  * different height (that is frequently the change), and a diff mask is not
  * measured at all, so those are deferred without a reservation rather than
  * reserved wrongly. A wrong reservation is worse than none: the page settles at

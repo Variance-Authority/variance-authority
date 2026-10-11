@@ -424,6 +424,15 @@ journal covers is drawn even when nothing parted: no partings among five subject
 is agreement, and among one it is nothing at all. A build with no journal draws
 no panel.
 
+The same page lists the run's **variations**: each subject read against the
+subject it varies from, with the pair that renders one image first. Each pair is
+drawn as its two pictures, parent first, at one scale and at their own pixel
+grid, and each picture links to its subject's page. A side shows its candidate
+when the run kept one and its baseline, labelled `baseline`, when the run kept
+only that. A side the run kept no image for, or never read, says which instead of
+drawing an empty frame, and one it never read has no page to link to. A variation
+whose parent the run did not observe draws the one picture it has.
+
 The `Changelog` tab is the same evidence at project scale.
 
 ## The changelog
