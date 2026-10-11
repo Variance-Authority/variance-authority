@@ -314,6 +314,10 @@ function filesShuffled(written: unknown, ctx: SequencerContext, commandLine: Com
   const shuffle = asked === undefined ? written : isObject(asked) && isObject(written) ? { ...written, ...asked } : asked;
   if (isObject(shuffle)) return shuffle.files === true;
   if (asked !== undefined) return asked === true;
+  // FIXME: a Vitest 2 run started from code, or through a launcher that leaves
+  // another script in argv[1], reads `--sequence.shuffle.files` as no shuffle
+  // and `.tests` as a shuffle of files too, with no warning: Vitest has folded
+  // them, and nothing else says which was asked.
   return ctx.config.sequence?.shuffle === true;
 }
 
