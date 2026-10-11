@@ -119,7 +119,7 @@ export function unfound(help: Help, name: string, within: string | undefined): s
       within !== undefined &&
       exported.some((held) => within.startsWith(`${held.by}/`)) &&
       !importsByPath(help, within).some(([deep]) => deep.specifier === within && deep.to !== undefined);
-    const why = unknown ? `; nothing in this workspace imports ${where}, so the file it names is not known` : '';
+    const why = unknown ? `; no import of ${where} in this workspace resolved to a file, so the file it names is not known` : '';
     return `\`${name}\` is not published by ${where}; it is exported, without being published, at ${first?.at}:${first?.line}${more}${why}.`;
   }
   const around = [...published].filter((held) => held.toLowerCase().includes(lowered)).length;

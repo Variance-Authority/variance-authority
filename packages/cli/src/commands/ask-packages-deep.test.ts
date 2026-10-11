@@ -199,7 +199,7 @@ describe('variance ask over a private app that reaches into another package', ()
       const { code, out, err } = await run(['ask', verb, '--name', 'roundTax', '--package', '@acme/lib/src/other']);
       expect(code).toBe(EXIT_OPERATOR);
       expect(out).not.toContain('packages/lib/src/other.ts');
-      expect(err).toContain('nothing in this workspace imports `@acme/lib/src/other`, so the file it names is not known');
+      expect(err).toContain('no import of `@acme/lib/src/other` in this workspace resolved to a file, so the file it names is not known');
     }
   });
 

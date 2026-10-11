@@ -233,6 +233,22 @@ describe('the source a map names as the file', () => {
     expect(lineIn(extentOf)(TRANSFORMED.indexOf('const f'))).toBe(3);
   });
 
+  it('reads a source as the URL the format says it is', () => {
+    const extentOf = sourceLines(
+      TRANSFORMED,
+      { sources: ['a%20b.ts'], mappings: DROPPED_BLANK.mappings },
+      '/repo/app/src/a b.ts',
+    );
+
+    expect(lineIn(extentOf)(TRANSFORMED.indexOf('const f'))).toBe(3);
+  });
+
+  it('gives no lines for a source on another host, though its path is the file', () => {
+    const extentOf = sourceLines(TRANSFORMED, { sources: ['//repo/app/src/a.ts'], mappings: DROPPED_BLANK.mappings }, FILE);
+
+    expect(lineIn(extentOf)(TRANSFORMED.indexOf('const f'))).toBeUndefined();
+  });
+
   it('frames a text whose map names other files as that text, under the host’s name', () => {
     const frame = recordedFrame(
       TRANSFORMED,

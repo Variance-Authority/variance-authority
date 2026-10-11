@@ -26,6 +26,7 @@
  */
 
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { digestString } from '../digest.js';
 import { decode, type Segment } from './map-segments.js';
 
@@ -349,14 +350,23 @@ function sourcesOf(map: TransformSourceMap, generated: string, file: string): Re
 /**
  * Where one entry of `sources` is: behind `sourceRoot`, resolved against the
  * directory of `generated`, the text the map sits beside.
+ *
+ * A source is a URL, as the format says, so it is resolved as one: `a%20b.ts`
+ * is `a b.ts`, and `//host/a.ts` is on another machine, not `/host/a.ts` here.
+ * Only a `file:` URL with no host is a file this machine can open; a virtual
+ * module's id and every other URL are names a reader cannot open.
  */
 function sourcePath(map: TransformSourceMap, generated: string, source: string): string | undefined {
-  // A virtual module's id is not a path, and an absolute URL is not this
-  // machine's. Both are names a reader cannot open, which is what the host's
-  // own name at least is.
-  if (source === '' || source.startsWith('\0') || source.includes('://')) return undefined;
+  if (source === '' || source.startsWith('\0')) return undefined;
   const root = map.sourceRoot ?? '';
-  return resolve(dirname(generated), root === '' ? source : `${root.replace(/\/$/, '')}/${source}`);
+  const joined = root === '' ? source : `${root.replace(/\/$/, '')}/${source}`;
+  let url: URL;
+  try {
+    url = new URL(joined, pathToFileURL(`${dirname(generated)}/`));
+  } catch {
+    return undefined;
+  }
+  return url.protocol === 'file:' && url.host === '' ? fileURLToPath(url) : undefined;
 }
 
 /**
