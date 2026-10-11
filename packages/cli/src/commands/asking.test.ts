@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HELP_TOOLS, search, symbol } from '@variance-authority/help/tools';
+import { HELP_TOOLS, intersection, search, symbol } from '@variance-authority/help/tools';
 import { COSTS_TOOLS, REVIEW_TOOLS, TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName } from '@variance-authority/mcp/tools';
 import { QUESTIONS, argumentsOf, questionFor, questionOf, takes } from './asking.js';
 
@@ -66,6 +66,10 @@ describe('what a question takes', () => {
     expect(takes(symbol)).toBe('  --name <name> [--package <name>] [--from <path>]');
     expect(takes(vantageToolByName('variance_test_signals')!)).toBe('  --test <id>');
     expect(takes(vantageToolByName('variance_run_signals')!)).toContain('[--state <state>]');
+  });
+
+  it('spells whole questions as quoted words, never behind a flag', () => {
+    expect(takes(intersection)).toBe("  '<question>' '<question>'... [--limit <n>]");
   });
 
   it('says nothing after a question that takes nothing', () => {

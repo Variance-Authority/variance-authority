@@ -106,6 +106,15 @@ describe('ask intersection refuses what it cannot cross', () => {
     await expect(ask("intersection 'symbol --name a' 'symbol --name b'", 'symbol --name selectBalance')).rejects.toThrow(/question 1, .*`intersection` answers no set of files/);
   });
 
+  it.each(['--changed-file', '--taint-file', '--just-answer', '--format', '--at', '--claims', '--config'])(
+    'refuses `%s` inside a question, which is said once for the reading',
+    async (flag) => {
+      await expect(ask(`symbol --name selectBalance ${flag} x`, 'discover --from src/Wallet.ts')).rejects.toThrow(
+        new RegExp(`question 1, .*\`${flag}\` is said once, after \`intersection\` and outside the quotes`),
+      );
+    },
+  );
+
   it('refuses a quote left open', async () => {
     await expect(ask("discover --declares '^select", 'symbol --name selectBalance')).rejects.toThrow(/question 1: .*never closes it/);
   });
