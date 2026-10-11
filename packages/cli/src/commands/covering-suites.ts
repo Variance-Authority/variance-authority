@@ -26,7 +26,6 @@ import type { ParsedCovering } from '../covering-args.js';
 import { OperatorError, type RefusalKind } from '../exit.js';
 import { heldText } from './covering-frame.js';
 import { covering, formatCovering, type Covering, type CoveringFormat } from './covering.js';
-import { UnloadedFile } from './covering-unloaded.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
 
 /** One suite's answer, or why its record could not give one. */
@@ -37,8 +36,6 @@ export type SuiteAnswer =
       readonly kind: SuiteKind;
       /** Present when a program can act on the refusal: `unrecorded`, or `unloaded` for a file the suite never loaded. */
       readonly refused?: RefusalKind;
-      /** With `unloaded`, when the record holds this path under another root: those recorded paths. */
-      readonly spelled?: readonly string[];
       readonly reason: string;
     };
 
@@ -93,7 +90,6 @@ async function askSuite(request: ParsedCovering, suite: DeclaredSuite): Promise<
     return {
       ...named,
       ...(error.kind === undefined ? {} : { refused: error.kind }),
-      ...(error instanceof UnloadedFile && error.spelled.length > 0 ? { spelled: error.spelled } : {}),
       reason: error.message,
     };
   }
@@ -106,10 +102,9 @@ async function askSuite(request: ParsedCovering, suite: DeclaredSuite): Promise<
  * follows them, and one that never loaded the file is named on the closing line
  * without its record's path or size: the reader came for the answer, and a
  * suite that tests other code is the common case, not a finding. Every other
- * refusal keeps its place and its whole sentence, among them a record that
- * holds this path under another root, which most likely ran the file. When no
- * suite answered, every refusal is printed in full, since a wrong path is then
- * the likely cause. JSON carries every refusal whole either way.
+ * refusal keeps its place and its whole sentence. When no suite answered,
+ * every refusal is printed in full, since a wrong path is then the likely
+ * cause. JSON carries every refusal whole either way.
  */
 export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: CoveringFormat): string {
   if (!('suites' in answer)) return formatCovering(answer, format);
@@ -126,7 +121,7 @@ export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: 
 
   const unrecorded = (one: SuiteAnswer): boolean => 'reason' in one && one.refused === 'unrecorded';
   const away = (one: SuiteAnswer): boolean =>
-    'reason' in one && one.refused === 'unloaded' && one.spelled === undefined;
+    'reason' in one && one.refused === 'unloaded';
   const said = [
     ...answer.suites.filter((one) => !unrecorded(one) && !away(one)),
     ...answer.suites.filter(unrecorded),
