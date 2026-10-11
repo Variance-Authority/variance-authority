@@ -253,19 +253,15 @@ export async function observeOne(
 /**
  * What a settlement can say about pixels, which is less than it looks.
  *
- * Three answers, and the absent one is load-bearing. A digest match *is* a
+ * Two answers. A digest match *is* a
  * measurement of the pixel axis — the same document under the same identity
  * paints the same image — so it earns `unchanged`. A baseline that is not an
  * image had nothing to measure on either side: `unobservable`, because a reader
- * who saw `unchanged` would take the image as evidence it never was. And an
- * `incomparable` settlement compared nothing at all, so it reports no pixel axis
- * rather than a verdict about one, on the rule the field is documented under: a
- * missing member was not measured.
+ * who saw `unchanged` would take the image as evidence it never was.
  */
 function pixelAxis(
   settlement: Extract<Settlement, { kind: 'settled' }>,
-): { pixels?: 'unchanged' | 'unobservable' } {
-  if (settlement.verdict === 'incomparable') return {};
+): { pixels: 'unchanged' | 'unobservable' } {
   return { pixels: settlement.pictured === false ? 'unobservable' : 'unchanged' };
 }
 

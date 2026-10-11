@@ -24,7 +24,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  *    holding a browser. A fake renderer costs nothing to leave open.
  * 2. **`stabilization` was dropped by the identity wire codec**, so `accept`
  *    stored a baseline under a shorter digest than the next `run` looked it up
- *    with. Every subject came back `incomparable`, forever, on one machine.
+ *    with. Every subject named a moved identity, forever, on one machine.
  * 3. **The refusal named the same machine on both sides**, because
  *    `describeIdentity` printed neither the fonts nor the recipe — the two
  *    fields the digest covers and the sentence omitted. Which is how (2) managed
@@ -251,12 +251,13 @@ live('the durable workflow, end to end', () => {
     // The assertion the three fixed identity defects all failed. A baseline
     // `accept` wrote has to be the baseline the next `run` finds — under the
     // same digest, on the same machine, through the same codec — or the tool
-    // reports `incomparable` forever and blames a machine difference that does
+    // names a moved identity forever and blames a machine difference that does
     // not exist.
     const { status, out } = variance('run');
 
     expect(out).toContain('13 unchanged');
-    expect(out).not.toContain('incomparable');
+    const report = JSON.parse(readFileSync(join(workspace, 'run.json'), 'utf8'));
+    expect(report.observations.filter((observation) => observation.signals?.identity !== undefined)).toEqual([]);
     expect(out).toContain('nothing to review');
     expect(status).toBe(0);
   }, 240_000);

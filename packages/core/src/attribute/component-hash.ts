@@ -249,8 +249,9 @@ function ownContentMoved(before: BandDigests, after: BandDigests): boolean {
  * A missing `geometry` on either side is the profile saying it has no layout
  * engine, and is not a difference. Treating absent as a change would report
  * every component as having moved the moment a jsdom baseline met a Chromium
- * run — which the environment key already refuses as `incomparable`, so this
- * would be a second, wronger answer to a question already settled.
+ * run — which the environment key already names as the cause of that
+ * comparison, so this would be a second, wronger answer to a question already
+ * settled.
  */
 export function movedBands(before: BandDigests, after: BandDigests): readonly Band[] {
   const moved = new Set<Band>();

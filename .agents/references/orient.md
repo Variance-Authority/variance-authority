@@ -5,16 +5,8 @@ the party that already knows each answer the change needs.
 
 ## Look around
 
-**Ask before you grep.** The CLI reads the source index, so it answers by what
-the code declares rather than by what a line happens to spell:
-
-```bash
-yarn variance ask uses --name <name>       # who imports a name
-yarn variance ask symbol --name <name>     # what it is and where it is declared
-yarn variance ask search --query <words>   # find a name by what it does
-```
-
-The `variance-authority` skill has the rest.
+**Ask before you grep.** [`AGENTS.md`](../../AGENTS.md#ask-before-you-grep)
+holds the rule and its commands; the `variance-authority` skill has the rest.
 
 **The coordinate.** A source file carries `// compass: <address>` at its top.
 The address resolves in the chart and locates the implementation; it does not

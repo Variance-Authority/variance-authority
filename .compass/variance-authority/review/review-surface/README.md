@@ -27,6 +27,7 @@ worst direction, into a link the client renders and the host answers with a 404.
 
 - [`build-store`](../build-store/README.md) — the docket, the subject views, and the images
 - [`decision`](../decision/README.md) — what a press settles
+- [`concern`](../concern/README.md) — the trail a subject's concerns card draws, and a build's tally
 - [`identity`](../identity/README.md) — the name written on every decision
 
 ## Used by
@@ -67,6 +68,11 @@ made, to recover from a network error.
   `viewer.tsx`, `history.tsx` — the pages
 - `packages/tribunal/src/ui/carried.tsx` — the other causes riding in the same
   candidate, named before the press
+- `packages/tribunal/src/ui/repeated.tsx` — the earlier build that kept the same
+  image, named under the decision with the decision made there
+- `packages/tribunal/src/ui/same-image.tsx` — the docket's line for stories of
+  one component that render one image, and the subject page's grid of its
+  component's stories
 - `packages/tribunal/src/ui/client.ts` — the JSON client, where every non-2xx
   throws rather than becoming an empty list
 - `packages/tribunal/src/node/ui-assets.ts` — the document that loads it, with the

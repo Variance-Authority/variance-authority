@@ -20,34 +20,31 @@
  */
 
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import {
-  askCoverageFile,
   changedLines,
-  coveringChange,
-  distanceToSource,
   readCommitRuns,
   readJourneyChange,
-  testsGovernedBy,
   type CommitRuns,
-  type CoveringRegion,
   type ExecutionIndex,
   type ExecutionTest,
   type FileReading,
   type LineRange,
 } from '@variance-authority/sense/test-selection';
-import { digestString } from '@variance-authority/core/format';
-import type { Relations } from '@variance-authority/core/relate';
+import { affectedBy, type EdgeKind } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
 import { landingRecord, recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
-import { regionState } from './covering-frame.js';
 import { motionAgainst, motionOfRuns, runsWrote, type CoveringMotion } from './covering-motion.js';
 import { readExecutionFor, readExecutionIndex, recordedExecutionFile, replacedCases } from './execution-input.js';
+import { heldAsPrecondition, type HeldAsPrecondition } from './held-as-precondition.js';
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
+import { reviewedCommit } from './review-head.js';
+import { everySuiteRegions } from './review-suites.js';
+import { ranAsTree, recordedRegions, removedText } from './review-region.js';
 import { packagesReached, type PackageReach } from './review-install.js';
+import { changedPackagesOf } from './review-changed-packages.js';
 import { diffPoint, diffSince } from './since.js';
 import { runsBase } from './runs-base.js';
 import { relationsFor } from './source-graph.js';
@@ -66,6 +63,13 @@ import type { ReviewCoverage } from './review-coverage.js';
  * - `unwalked`: nothing entered it, and every case that could have finished.
  * - `unknown`: the record cannot tell `hole` from `unwalked`.
  */
+/**
+ * The edges a changed package's importers are walked through. Who imports the changed code is a question about
+ * source, so a package importing only a type reads the change too; one that only reads the file, as a stylesheet or a
+ * `/// <depends>` does, imports nothing.
+ */
+const IMPORT_EDGES: readonly EdgeKind[] = ['imports', 'reexports', 'dynamic', 'type'];
+
 export type Reach = 'near' | 'far' | 'unplaced' | 'loaded' | 'hole' | 'unwalked' | 'unknown';
 
 export const REACHES: readonly Reach[] = ['near', 'far', 'unplaced', 'loaded', 'hole', 'unwalked', 'unknown'];
@@ -77,13 +81,21 @@ export interface ReviewRegion {
   readonly endLine: number;
   readonly reach: Reach;
   /**
-   * The line it starts on is new or changed: a new function, or one declared
-   * again. Its first line, not every line, because a diff pairs a new closing
-   * brace with an old one as readily as with nothing.
+   * `new` when the change wrote every line of words in it, `moved` when those
+   * lines are also text the change removed, and `modified` otherwise. A
+   * function renamed or declared again over its old body is `modified`.
    */
-  readonly written: boolean;
+  readonly edit: 'new' | 'moved' | 'modified';
+  /** The file the text of a `moved` region was removed from: its own, when it moved within the file. */
+  readonly movedFrom?: string;
   /** How many cases called into it. */
   readonly cases: number;
+  /**
+   * How many of the cases that entered it ran a line of it the change wrote,
+   * as `variance covering --line` names them for each such line. A case can
+   * enter a function and take the branch the change left alone.
+   */
+  readonly changedLineCases: number;
   /** The test files those cases are declared in, in code-unit order. */
   readonly tests: readonly string[];
   /** Those cases by test file and title, in code-unit order: what a reader asks the count about. */
@@ -116,6 +128,28 @@ export interface ReviewFile {
   /** Case names the file declares now and did not, and the reverse. Absent when there is no base to compare with. */
   readonly cases?: { readonly added: readonly string[]; readonly removed: readonly string[] };
 }
+/** One package holding changed functions: what `review` calls where the change lands. */
+export interface ChangedPackage {
+  /** The manifest's `name`, or its directory when it declares none. */
+  readonly package: string;
+  /** The directory of its manifest inside the root; `.` for the root, and for files under no manifest. */
+  readonly path: string;
+  /** Its changed functions, a branch counted under the function holding it. */
+  readonly functions: number;
+  /** Those functions by their worst region's reach. */
+  readonly reaches: Partial<Record<Reach, number>>;
+  /** Whether a test file in its own directory entered them. */
+  readonly own: boolean;
+  /** The other packages whose test files entered them, by name, in code-unit order. */
+  readonly tests: readonly string[];
+  /**
+   * How many other packages hold a file that imports its changed files, through any number of imports, a type-only
+   * import included. A count, not the names: next to a hub, the names run into the thousands for every package the
+   * change touches. Absent when the import graph holds none of its changed files.
+   */
+  readonly importers?: number;
+}
+
 /** A changed file one or more tests declare as a precondition: before the reach of any import. */
 export interface BeforeReach {
   readonly file: string;
@@ -123,9 +157,24 @@ export interface BeforeReach {
 }
 
 export interface Review {
+  /**
+   * The checkout's commit and its parents, as git lists them, and `pull`, the
+   * pull request's head when the CI event names one: on a pull request, CI
+   * checks out the merge GitHub made, whose second parent is that head.
+   * `dirty` when the tree had edits or new files on top of it, and `blob`,
+   * where the host shows the files at it, only when it did not. Absent when
+   * git could not say.
+   */
+  readonly head?: {
+    readonly commit: string;
+    readonly parents: readonly string[];
+    readonly pull?: string;
+    readonly dirty?: true;
+    readonly blob?: string;
+  };
   /** Optional per-suite evidence carried in the uploaded artifact. */
   readonly coverage?: readonly ReviewCoverage[];
-  /** The suite whose changed-code evidence and freshness the summary describes. */
+  /** The suite whose runs and freshness the summary describes. Under `--coverage` the changed regions are every declared suite's. */
   readonly recordedSuite?: string;
   /** The commit the change is read from. */
   readonly from: string;
@@ -159,6 +208,8 @@ export interface Review {
   /** The runs recorded at this commit, when they listed themselves, less `test:since`'s `standing`. */
   readonly runs?: Omit<CommitRuns, 'standing'>;
   readonly files: readonly ReviewFile[];
+  /** The packages holding changed functions, by directory. Absent when no changed function was located. */
+  readonly changedPackages?: readonly ChangedPackage[];
   /** How many test files the snapshot holds, the scale `before` is read on. Absent with `before` when the snapshot could not be read. */
   readonly suite?: number;
   readonly before?: readonly BeforeReach[];
@@ -169,9 +220,10 @@ export interface Review {
   readonly motion?: CoveringMotion;
 }
 
-export async function review(request: ParsedReview): Promise<Review> {
+/** `motion: false` leaves out the cases moved against the base, for a reading made before CI that reports none. */
+export async function review(request: ParsedReview, { motion: moves = true } = {}): Promise<Review> {
   const { root } = request;
-  // TODO: a repository that declares several suites is read suite by suite when none is named, grouped by kind, with a suite that has no record reported as unrecorded; until then this reads one record and refuses to guess which.
+  // TODO: a repository that declares several suites is read suite by suite when none is named, grouped by kind, with a suite that has no record reported as unrecorded, as `eachSuite` already reads them for `--coverage` and the handover; `--coverage` joins every suite's changed regions, but the base, the runs and the freshness are still the named suite's, and with none named this refuses to guess which.
   const recorded = await recordedSuite(root, request.suite);
   // The runs are always this checkout's own: a base it did not record, the mainline's or the
   // primary's, describes another change, and a record seeded from it (`runs: 0`) lists none.
@@ -228,8 +280,12 @@ export async function review(request: ParsedReview): Promise<Review> {
 
   const from = await recordedExecutionFile(root, request.suite, recorded.file);
   const now = inTreeLines(changedLines(backward), root, readings);
-  const { index } = await readExecutionFor(from, now);
-  const covered = new Map(coveringChange(index, now, { relations }).map((file) => [file.file, file]));
+  const removed = removedText(forward);
+  const { index: changedCases } = await readExecutionFor(from, now);
+  const suiteRegions = await recordedRegions(from, changedCases, now, relations, root, removed);
+  const covered = request.coverage === true
+    ? await everySuiteRegions(root, { ...(recorded.declared === undefined ? {} : { suite: recorded.declared.name }), record: from, index: changedCases }, suiteRegions, now, relations, removed)
+    : suiteRegions;
   const full = await readExecutionIndex(from);
   const held = await baseIndex(against, from, request.against === undefined && against !== undefined ? mainline : undefined);
   // With no base named, the base is the layer the runs at this commit retired,
@@ -237,47 +293,52 @@ export async function review(request: ParsedReview): Promise<Review> {
   // case index; for any other file it holds an earlier commit's cases.
   const wrote = against === undefined && runs !== undefined ? await runsWrote(from, runs) : undefined;
   const comparable = (file: string): boolean => wrote === undefined || ('compared' in wrote && wrote.compared.has(file));
-  const near = await nearTests(recorded.file, [...covered.values()].filter((file) => file.recorded).map((file) => file.file), relations);
 
   const files: ReviewFile[] = [];
   for (const file of [...changed.keys()].sort()) {
     const read = readings.get(file);
     const change = covered.get(file);
-    const ranges = now.get(file) ?? [];
     const created = await point.at(named(file)) === undefined && existsSync(resolve(root, file));
     // A file no run at this commit wrote has no base, so it has no answer either: absent, not every case added.
     const cases = comparable(file) ? casesMoved(file, held, full, created) : undefined;
     files.push({
       file,
       ...(created ? { created: true } : read === undefined ? {} : readingOf(read)),
-      ...(change === undefined ? {} : {
-        recorded: change.recorded,
-        regions: change.regions.map((region) => regionOf(region, near.get(file), ranges)),
-      }),
+      ...(change === undefined ? {} : { recorded: change.recorded, regions: change.regions }),
       ...(cases === undefined ? {} : { cases }),
     });
   }
 
-  const suite = await preconditionsOf(recorded.file, [...changed.keys()].map(named));
+  const changedPackages = changedPackagesOf(root, files, (seeds) => {
+    const reach = affectedBy(relations, seeds, { through: IMPORT_EDGES });
+    return reach.missing.length === seeds.length ? undefined : reach.files;
+  });
+  const suite = heldAsPrecondition(recorded.file, [...changed.keys()].map(named));
   const beyond = await installDiff(point, [...changed.keys()]);
   const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
-  const motion = against !== undefined
+  const motion = !moves ? undefined : against !== undefined
     ? await motionAgainst(from, against, ref, root)
     : wrote === undefined
       ? undefined
       : await motionOfRuns(full, from, wrote, root, ref);
 
-  const record = await ranAsTree(recorded.file, root, files.filter((file) => file.recorded === true).map((file) => file.file));
+  // The named suite's freshness: a module another suite recorded says nothing about whether this one ran.
+  const measured = [...suiteRegions].filter(([, answer]) => answer.recorded).map(([file]) => file);
+  // A change with no recorded module ran nothing yet.
+  const record = measured.length > 0 && (await ranAsTree(recorded.file, root, measured, changedCases)).size === measured.length ? 'ran' : 'before';
+  const head = await reviewedCommit(point.repository);
   return {
+    ...(head === undefined ? {} : { head }),
     from: point.base,
     record,
     base: request.since !== undefined ? 'since' : mainline === undefined ? 'recording' : 'mainline',
     ...(mainline === undefined ? {} : { mainline: mainlineOf(mainline) }),
     ...(runs === undefined ? {} : { runs: Object.fromEntries(Object.entries(runs).filter(([key]) => key !== 'standing')) as Omit<CommitRuns, 'standing'> }),
     files,
+    ...(changedPackages.length === 0 ? {} : { changedPackages }),
     ...(suite === undefined ? {} : {
       suite: suite.tests,
-      before: beforeReach([...changed.keys()].map(named), suite.declared),
+      before: beforeReach([...changed.keys()].map(named), suite.of),
     }),
     ...(beyond === undefined ? {} : { beyond }),
     ...(packages === undefined ? {} : { packages }),
@@ -329,88 +390,6 @@ function readingOf(read: FileReading): Pick<ReviewFile, 'verdict' | 'names' | 'u
   return read.names.length === 0 ? { verdict: read.verdict } : { verdict: read.verdict, names: read.names };
 }
 
-function regionOf(
-  region: CoveringRegion,
-  bearings: Bearings | undefined,
-  ranges: readonly LineRange[],
-): ReviewRegion {
-  const called = region.tests.filter((test) => test.loaded !== true);
-  const state = regionState(region);
-  const reach: Reach = called.some((test) => bearings?.near.has(test.file) === true)
-    ? 'near'
-    : called.some((test) => bearings === undefined || bearings.unmeasured.has(test.file))
-      ? 'unplaced'
-      : called.length > 0
-        ? 'far'
-        : state === 'loaded' || state === 'hole' || state === 'unwalked'
-          ? state
-          : 'unknown';
-  return {
-    kind: region.kind, name: region.name,
-    startLine: region.startLine, endLine: region.endLine,
-    reach,
-    written: ranges.some((range) => range.start <= region.startLine && region.startLine <= range.end),
-    cases: called.length,
-    tests: [...new Set(called.map((test) => test.file))].sort(),
-    called: called
-      .map((test) => ({ id: test.id, file: test.file, name: test.name, ...(test.preconditions === undefined ? {} : { preconditions: test.preconditions }) }))
-      .sort((left, right) => order(left.file, right.file) || order(left.name, right.name)),
-  };
-}
-/**
- * Whether the record ran these modules as the tree holds them: the digest it
- * took of each module's text, against the text on disk. A change with no
- * recorded module ran nothing yet.
- */
-async function ranAsTree(coverageFile: string, root: string, files: readonly string[]): Promise<'ran' | 'before'> {
-  if (files.length === 0) return 'before';
-  const recorded = await askCoverageFile(coverageFile, (coverage) => {
-    const path = coverage.modulePath.all();
-    const source = coverage.moduleSource.all();
-    return new Map(Array.from(path, (held, module) => [coverage.string(held), coverage.string(source[module]!)]));
-  });
-  for (const file of files) {
-    const text = await readFile(resolve(root, file), 'utf8').catch(() => undefined);
-    if (text === undefined || recorded.get(file) !== digestString(text)) return 'before';
-  }
-  return 'ran';
-}
-
-function order(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
-/** The test files near a changed module, and those whose distance to it was not measured. */
-interface Bearings {
-  readonly near: ReadonlySet<string>;
-  readonly unmeasured: ReadonlySet<string>;
-}
-
-/**
- * For each changed module, the test files one import away from it or declaring
- * it: the tests a reviewer expects to exercise it. Measured by the file graph
- * over what each test executed, not by where the files sit. A test the graph
- * does not hold, such as one written after the source index was published, is
- * kept apart, so a region only it covered is not called far.
- */
-async function nearTests(
-  coverageFile: string,
-  files: readonly string[],
-  relations: Relations,
-): Promise<ReadonlyMap<string, Bearings>> {
-  const bearings = new Map<string, Bearings>();
-  for (const file of files) {
-    const { distances } = await distanceToSource(coverageFile, { file }, { relations });
-    const tests = (kept: (bearing: string) => boolean): ReadonlySet<string> =>
-      new Set(distances.filter((distance) => kept(distance.bearing)).map((distance) => distance.test));
-    bearings.set(file, {
-      near: tests((bearing) => bearing === 'direct' || bearing === 'precondition'),
-      unmeasured: tests((bearing) => bearing === 'unmeasured'),
-    });
-  }
-  return bearings;
-}
-
 /**
  * The case index the change is compared with: the one `--against` names or
  * the mainline published, or the cases the latest run replaced. Absent when
@@ -454,33 +433,11 @@ function casesMoved(
   };
 }
 
-/**
- * How many test files the snapshot holds, and how many of them declare each
- * changed file as a precondition. The snapshot's own lookup answers it; a test
- * that declares its own source is not counted, since that is the test itself.
- */
-async function preconditionsOf(
-  coverageFile: string,
-  changed: readonly string[],
-): Promise<{ readonly tests: number; readonly declared: ReadonlyMap<string, number> } | undefined> {
-  try {
-    return await askCoverageFile(coverageFile, (coverage) => {
-      const declared = new Map<string, number>();
-      for (const [test, names] of testsGovernedBy(coverage, changed).tests) {
-        const own = coverage.string(coverage.testPath.at(test));
-        for (const name of names) if (name !== own) declared.set(name, (declared.get(name) ?? 0) + 1);
-      }
-      return { tests: coverage.testPath.length, declared };
-    });
-  } catch {
-    return undefined;
-  }
-}
-
-function beforeReach(changed: readonly string[], declared: ReadonlyMap<string, number>): readonly BeforeReach[] {
+/** The changed files test files hold as a precondition, each with how many hold it, the most held first. */
+function beforeReach(changed: readonly string[], held: HeldAsPrecondition['of']): readonly BeforeReach[] {
   return changed
-    .filter((file) => declared.has(file))
-    .map((file) => ({ file, tests: declared.get(file)! }))
+    .filter((file) => held.has(file))
+    .map((file) => ({ file, tests: held.get(file)!.length }))
     .sort((left, right) => right.tests - left.tests || (left.file < right.file ? -1 : 1));
 }
 

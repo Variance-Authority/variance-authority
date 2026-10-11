@@ -49,7 +49,7 @@ hosted-service features there before buying; both change independently.
 | --- | --- | --- | --- | --- | --- | --- |
 | Acquisition | Playwright screenshots the page or locator inside the running test | SDK captures the DOM and its resources, or Automate captures the running browser | Storybook or E2E archive | Host adapters open a page and Playwright produces screenshots | Classic SDK captures in place; Ultrafast Grid captures a DOM snapshot | Storybook, routes and unit tests keep a render document; Playwright keeps a document or takes a screenshot in place |
 | Pixel placement | Caller-owned browser | Percy cloud, or the Automate browser | Capture Cloud | Caller-owned browser | Caller browser or Ultrafast Grid | Caller-owned browser, local renderer, or a renderer you host |
-| Review | PNG files in your repository, reviewed in the pull request that changes them | Hosted dashboard and approval workflow | Hosted UI Test and UI Review | Hosted test review, comments, and flake history | Eyes Test Manager | `tribunal`, a review service you deploy — builds, docket, region overlays, recorded decisions, which `variance push` posts runs to; or no service at all, and the same evidence as JSON, HTML, CLI output or MCP |
+| Review | PNG files in your repository, reviewed in the pull request that changes them | Hosted dashboard and approval workflow | Hosted UI Test and UI Review | Hosted test review, comments, and flake history | Eyes Test Manager | `tribunal`, a review service you deploy — builds, docket, region overlays, recorded decisions, concerns a reviewer raises without deciding, which `variance push` posts runs to; or no service at all, and the same evidence as JSON, HTML, CLI output or MCP |
 | Browser breadth | Whatever your Playwright projects run | Managed desktop and mobile coverage | Managed browser and mode matrix | Whatever the caller's capture suite runs | Managed grid plus mobile products | Whatever the caller's capture suite runs; the CLI paints with Chromium, Firefox or WebKit (§3.2) |
 | Source [attribution](attribution.md) | Test name and snapshot path | DOM and CSS root-cause aids | Story identity and dependency tracing | Spec and story metadata | DOM and CSS root-cause aids | Pixel region → component → `file:line`, when the capture supplies [matching provenance](attribution.md) |
 | Compared against | The committed snapshot file | The approved baseline | The approved baseline | The approved baseline | The approved baseline | The baseline. Also, within a single run: two related states, compared for the gap between them; and one input rendered twice, compared for the point where the two renderings diverge |
@@ -251,8 +251,8 @@ durable comparison path.
 the three and defaults to `chromium`; `npx playwright install <engine>` is what
 adds one. The engine is part of the renderer identity a baseline is filed under,
 so approving a Chromium baseline does not approve the WebKit one — a run that
-meets a baseline painted by another engine reports the pair `incomparable` and
-names both engines instead of diffing them.
+meets a baseline painted by another engine diffs the pair and names both
+engines as the cause of whatever moved.
 
 Two capabilities are Chromium's alone, and that is a position rather than a gap
 to be closed:
@@ -269,8 +269,8 @@ to be closed:
 The stabilization recipe is likewise written against Chromium's behaviour.
 
 Renderer identity covers engine, platform, scale, fonts, stabilization, and the
-rasterization recipe, which is why the pair above is reported rather than
-compared.
+rasterization recipe, which is why the pair above is compared with the moved
+fields named as its cause.
 
 The resulting adopter surfaces are compositions rather than separate products:
 
@@ -420,8 +420,8 @@ approve is a deployment you configure, not a seat you buy.
 PNG plus a sidecar of per-component, per-band hashes, filed under the identity of
 the renderer that painted it. Images approved in a hosted service come with
 neither. `observeRasters` will compare two foreign images that declare the same
-painter, but a foreign image against a locally rendered candidate is
-`incomparable`.
+painter, and a foreign image against a locally rendered candidate names the
+two painters as the cause of every pixel that moved.
 
 So your first run reports `new` on every subject, and that is the adoption moment
 rather than a failure: nothing has been compared yet. Open the report, check the

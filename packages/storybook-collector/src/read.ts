@@ -33,7 +33,8 @@ export interface Reading {
    *
    * A second static server would answer on a second port, which changes every
    * asset URL, which changes the environment key — so the clean collection would
-   * come back `incomparable` and the run would learn nothing about order.
+   * come back changed everywhere, with the port as the cause, and the run would
+   * learn nothing about order.
    */
   readonly baseUrl: string;
   readonly roots: readonly string[];
@@ -57,7 +58,7 @@ export async function readStory(
   recorder?: StoryRecorder,
 ): Promise<Collected> {
   const { config, options, baseUrl, roots, source } = reading;
-  const { page, engine, network } = world;
+  const { page, engine, region, network } = world;
   const storyId = storyIdOf(planned.subject.id);
 
   const viewport = planned.viewport ?? config.viewport;
@@ -127,11 +128,16 @@ export async function readStory(
     subjectId: planned.subject.id,
     viewport,
     engine,
+    ...region,
     ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
     // Only the rules that name a selector cross into the page. A fingerprint
     // rule has nothing for a document to resolve, and sending one would put a
     // digest in a browser that cannot use it.
     ...(selectable.length > 0 ? { ignore: selectable } : {}),
+    // These fields match the route collector's request on purpose and stay apart:
+    // each collector's page agent is its own bundle with its own request type.
+    ...(options.stabilize !== undefined ? { stabilize: options.stabilize } : {}),
+    ...(world.driven.length > 0 ? { driven: world.driven } : {}),
     // A story declared as a loading capture waits for nothing: the whole point
     // of it is the fallback, and paying the timeout to be told the boundary is
     // still there would cost five seconds per story to learn what the

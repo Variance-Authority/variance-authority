@@ -26,7 +26,7 @@ import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js
 import {
   DURATION,
   UNTIMED_FORMAT,
-  KINDS,
+  BLOCK_KINDS,
   NAMES,
   NO_OWNER,
   readableFormat,
@@ -301,7 +301,7 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
   const commit = words('snapshot.commit', (values) => ids(values, strings));
   const moduleBlocks = settled(words('modules.blocks'), (values) => csr(values, blockCount));
   const blockOrdinal = words('blocks.ordinal');
-  const blockKind = flags('blocks.kind', (values) => kinds(values, KINDS.length));
+  const blockKind = flags('blocks.kind', (values) => kinds(values, BLOCK_KINDS.length));
   const blockStart = words('blocks.start');
 
   return {

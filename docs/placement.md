@@ -16,11 +16,12 @@ other mode, `ephemeral`, renders both sides inside a single run and keeps
 neither past it, so there is nothing to place. Everything below is about
 `durable`.
 
-Whether two images may be compared at all is decided by the **identity
-digest** — a hash of the renderer, browser engine, platform, device scale
-factor and fonts that produced the image, written into paths as the
-`v1-6c1f…` segment you will see throughout this page. Storage has no say in
-it. What placement decides is **who has the bytes when the next run starts**,
+Whether a difference between two images is the code's is decided by the
+**identity digest** — a hash of the renderer, browser engine, platform, device
+scale factor and fonts that produced the image, written into paths as the
+`v1-6c1f…` segment you will see throughout this page. Two images under different
+identities are still compared, and the identity that moved is named as the
+cause. Storage has no say in it. What placement decides is **who has the bytes when the next run starts**,
 and what that costs.
 
 There are three answers and no default. Set `baselines.kind` explicitly.
@@ -122,9 +123,10 @@ src/ui/Button/v1-6c1f…/primary.json
 ```
 
 The identity directory stays in the path. An image painted under a different
-renderer, engine, platform, scale factor or font stack lands in its own
-partition, so upgrading a runner image does not put the new pixels up against
-the old ones.
+renderer, engine, platform, scale factor or font stack is compared with the old
+one, and the field that moved is named as the cause, so upgrading a runner image
+shows every diff it makes. Accepting it moves the baseline into the new
+identity's directory.
 
 ### How a subject finds its directory
 
@@ -194,7 +196,7 @@ The declaration is a hint, not a requirement. A store that does not serve
 request per key, which is what a deployment of
 [`tribunal`](../packages/tribunal/README.md) does. No **verdict** changes
 either way — the verdict is the one word a run reports per subject,
-`unchanged`, `changed`, `new`, `incomparable` or `ignored`, and it is decided
+`unchanged`, `changed`, `new` or `ignored`, and it is decided
 by the comparison rather than by how many requests fetched the baseline.
 
 Anything else the store cannot answer — an endpoint it cannot call, a refused
@@ -314,11 +316,16 @@ baselines/v1-6c1f…/by-document/v1-a04e….png
 
 Commit that cache and the repository grows by a render on every edit, so `npx
 variance run` points it at `<cache>/renders` in [your cache](cache.md) and
-leaves the configured root with baselines and nothing else. `cacheRoot` in the
-root `variance.config.json` moves it with the rest of the cache.
+leaves the configured root with baselines and nothing else. The
+[Playwright fixture](../packages/playwright-test), its `createVariance` and
+`observe` helpers, and the [Vitest plugin](../packages/vitest-browser) point the
+stores they open at the same directory. `cacheRoot` in the root
+`variance.config.json` moves it with the rest of the cache.
 Building a store yourself, `createDurableStore` and `createLfsStore` both take
 `cacheRoot`, and both default it to the baseline root — pass a path outside the
-work tree.
+work tree. `renderCacheIn(cache)` from `@variance-authority/store/durable`
+returns the `renders` directory inside a cache, and `sweepRenderCache` applies
+the bound below to it.
 
 ### The cache prunes itself
 
@@ -333,6 +340,11 @@ Every run sweeps it, and prints what is left:
 ```
 renders: 214.6 MiB cached in <cache>/renders, freed 91.2 MiB
 ```
+
+The test-runner integrations sweep it by the same rules and print nothing: the
+Playwright fixture once in each worker, when its store tears down or a
+`createVariance` session closes, whichever comes first, and the Vitest plugin
+when the run closes.
 
 An entry survives on two conditions. It must have been requested in the last
 fortnight — a hit refreshes its timestamp, so this is time since something

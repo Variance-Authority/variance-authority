@@ -9,6 +9,7 @@ import {
   type RenderDocument,
 } from '@variance-authority/core/format';
 import { comparePngs, decode } from '@variance-authority/png';
+import { createEphemeralStore } from '@variance-authority/raster';
 import { createPlaywrightRenderer } from './renderer.js';
 
 /**
@@ -67,7 +68,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', 
    *
    * `hideCaret` moved from `screenshot: { caret: 'hide' }` to a `caret-color`
    * stylesheet — same trick, same id, byte-identical images — and every stored
-   * baseline went `incomparable`, because the recipe's screenshot options were
+   * baseline named a moved recipe as its cause, because the recipe's screenshot options were
    * folded into `rasterization` as well as into `stabilization`. `stabilization`
    * is keyed on which tricks are present and correctly did not move. The two
    * fields disagreed, and the one that had no business reading the recipe won.
@@ -122,8 +123,66 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', 
       await expect(
         renderer.render({ ...document, resources: {} }),
       ).rejects.toThrow('has no bytes');
+
+      // The collectors key an asset of the page's own origin by its path, so the
+      // port a build was served on is not part of the key.
+      const byPath = { ...document, assets: { '/components/icon.svg': digestBytes(svg) } };
+      await expect(renderer.render(byPath)).resolves.toMatchObject({
+        documentDigest: documentDigest(byPath),
+      });
     } finally {
       await renderer.close();
+    }
+  });
+
+  it('opens each page in UTC and en-US unless the renderer is told otherwise', async () => {
+    // A closed document names every request it was refused, which makes one
+    // request a way to ask the page which timezone and language it was opened in.
+    const asking = {
+      ...documentOf('fixture:region', '#fff'),
+      resources: {},
+      assets: {},
+      html:
+        '<div data-va-path="0">Region</div>' +
+        '<script>fetch("https://region.example/" + Intl.DateTimeFormat().resolvedOptions().timeZone + ' +
+        '"/" + navigator.language)</script>',
+    } satisfies RenderDocument;
+    const pinned = await createPlaywrightRenderer({ waitForFonts: false });
+    const declared = await createPlaywrightRenderer({
+      waitForFonts: false,
+      timezoneId: 'Asia/Tokyo',
+      locale: 'de-DE',
+    });
+
+    try {
+      await expect(pinned.render(asking)).rejects.toThrow('https://region.example/UTC/en-US');
+      await expect(declared.render(asking)).rejects.toThrow('https://region.example/Asia/Tokyo/de-DE');
+    } finally {
+      await Promise.all([pinned.close(), declared.close()]);
+    }
+  });
+
+  it('serves a cached raster only to a renderer in the timezone and locale it was painted in', async () => {
+    // A page's scripts format its dates and numbers in the region it was opened
+    // in, so two regions can paint one document two ways.
+    const pinned = await createPlaywrightRenderer({ waitForFonts: false });
+    const declared = await createPlaywrightRenderer({
+      waitForFonts: false,
+      timezoneId: 'Asia/Tokyo',
+      locale: 'de-DE',
+    });
+    const document = documentOf('fixture:cached-region', '#fff');
+    const { renderCache } = createEphemeralStore();
+
+    try {
+      expect(identityDigest(pinned.identity)).not.toBe(identityDigest(declared.identity));
+
+      await renderCache.put(await pinned.render(document));
+      const digest = documentDigest(document);
+      expect(await renderCache.get(digest, pinned.identity)).not.toBeNull();
+      expect(await renderCache.get(digest, declared.identity)).toBeNull();
+    } finally {
+      await Promise.all([pinned.close(), declared.close()]);
     }
   });
 
@@ -282,6 +341,26 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', 
 
       const raster = await renderer.render(documentOf('fixture:after', '#abcdef'));
       expect(raster.width).toBeGreaterThan(0);
+    } finally {
+      await renderer.close();
+    }
+  }, 60_000);
+
+  it('releases focus with `waitForFonts: false`, since only the waits are what it turns off', async () => {
+    // `no-focus` is a settle trick like the two waits, and a renderer that skips
+    // every settle when fonts are not awaited keeps a field the document focused.
+    const renderer = await createPlaywrightRenderer({ concurrency: 1, waitForFonts: false });
+    const field = (autofocus: string): RenderDocument => ({
+      ...documentOf('fixture:field', '#fff'),
+      html: `<div data-va-path="0" style="width:160px;height:80px;padding:20px"><input ${autofocus}></div>`,
+      css: ['input { outline: none; border: 1px solid #000; } input:focus { outline: 6px solid #00f; }'],
+    });
+
+    try {
+      const focused = await renderer.render(field('autofocus'));
+      const untouched = await renderer.render(field(''));
+
+      expect(comparePngs(decode(focused.bytes), decode(untouched.bytes)).changed['default']).toBe(0);
     } finally {
       await renderer.close();
     }

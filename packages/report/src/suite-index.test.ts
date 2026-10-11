@@ -121,6 +121,17 @@ describe('a suite index as bytes', () => {
     bytes.set(new TextEncoder().encode('variance-authority-source'), 4 + header.indexOf(foreign.format));
     expect(() => decodeSuiteIndex(bytes)).toThrow(/not a variance-authority suite index/);
   });
+
+  it('names the version a later release wrote, rather than reading it as version 1', () => {
+    const encoded = encodeSuiteIndex(INDEX);
+    const length = new DataView(encoded.buffer, encoded.byteOffset).getUint32(0, true);
+    const header = new TextDecoder().decode(encoded.subarray(4, 4 + length));
+    const bytes = Uint8Array.from(encoded);
+    bytes.set(new TextEncoder().encode('"version":3'), 4 + header.indexOf('"version":2'));
+    expect(() => decodeSuiteIndex(bytes)).toThrow(
+      'a variance-authority suite index written in format version 3, and this reader reads version 2',
+    );
+  });
 });
 
 describe('what a collection adds to a suite index', () => {

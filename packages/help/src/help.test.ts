@@ -132,8 +132,20 @@ describe('one name in full', () => {
     );
   });
 
-  it('names the file when the name is exported and never published', () => {
-    expect(() => call('docs_symbol', { name: 'deeper' })).toThrow(/exported, without being published, at packages\/beta\/src\/inner\/deeper\.ts:3/);
+  it('answers with the file and line when the name is exported and never published', () => {
+    expect(call('docs_symbol', { name: 'deeper' })).toContain('exported, without being published, at packages/beta/src/inner/deeper.ts:3');
+  });
+
+  it('says who imports an unpublished name is unreadable when the host named no checkout', () => {
+    expect(() => call('docs_uses', { name: 'deeper' })).toThrow(
+      '`deeper` is exported, without being published, at packages/beta/src/inner/deeper.ts:3; who imports it is read from the source index, and this host named no checkout to read the source index of.',
+    );
+  });
+
+  it('names the package that exports a name when another package is asked about it', () => {
+    expect(() => call('docs_symbol', { name: 'deeper', package: 'alpha' })).toThrow(
+      /not published by `alpha`; it is exported, without being published, at packages\/beta\/src\/inner\/deeper\.ts:3/,
+    );
   });
 
   it('refuses an unknown name by pointing at the question that finds one', () => {
@@ -196,8 +208,10 @@ describe('where the repository already writes a name', () => {
     );
   });
 
-  it('answers plainly when a published name is imported by nothing', () => {
-    expect(call('docs_uses', { name: 'Span' })).toContain('nothing in this workspace imports it');
+  it('answers plainly when no other package imports a published name, and says the imports within its own were not read', () => {
+    expect(call('docs_uses', { name: 'Span' })).toBe(
+      '`Span` is published and no other package imports it; the imports within its own package are read from the source index, and this host named no checkout to read the source index of.',
+    );
   });
 
   it('refuses an unknown name by pointing at the question that finds one', () => {

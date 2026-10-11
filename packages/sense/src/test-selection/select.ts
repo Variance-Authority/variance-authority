@@ -244,7 +244,13 @@ function readDiff(
       if (disowned?.(file, test, block) !== true) select(test, reason);
     }
   };
-  const context = { coverage, options, knownAs, hunks, charge, pick: select };
+  // An importer a reading could not read and holds no row for is answered by
+  // the graph's walk over its importers, with the reasons the reading gave.
+  const wholes = new Map<string, Array<Extract<SelectionReason, { readonly kind: 'reader' }>>>();
+  const whole = (file: string, reason: Extract<SelectionReason, { readonly kind: 'reader' }>): void => {
+    wholes.set(file, [...(wholes.get(file) ?? []), reason]);
+  };
+  const context = { coverage, options, knownAs, hunks, charge, pick: select, whole };
 
   // Every row recorded under every name. One build reading a path is one
   // row; two builds reading it are two, each with its own crossings, and the
@@ -398,6 +404,7 @@ function readDiff(
     options,
     disowned,
     governing,
+    [...wholes.keys()].sort(codeUnitOrder),
   );
   // A declaration is unconditional — *if this file's text moves, retire this
   // observation* — and nothing here narrows it. It is the one thing a record
@@ -407,6 +414,15 @@ function readDiff(
   }
   for (const [test, reasons] of answered.selected) {
     for (const reason of reasons) select(test, reason);
+  }
+  // A test a whole answered for reached the declaring file through it, so the
+  // reading followed its way there and it is not `unseen`.
+  const through = new Set<string>();
+  for (const [test, files] of answered.wholes) {
+    for (const reason of files.flatMap((file) => wholes.get(file) ?? [])) {
+      select(test, reason);
+      through.add(`${reason.file}\0${testPathOf(coverage, test)}`);
+    }
   }
   // A name is answered when something recorded holds it: a row with probes
   // behind it, or a test declaring it. The table is asked for every changed
@@ -437,7 +453,11 @@ function readDiff(
     ...(declining ? { declined: unmeasured } : {}),
     stale: [...stale].sort(codeUnitOrder),
     because,
-    readings,
+    readings: readings.map((reading) =>
+      'unseen' in reading && reading.unseen !== undefined
+        ? { ...reading, unseen: reading.unseen.filter((test) => !through.has(`${reading.file}\0${test}`)) }
+        : reading,
+    ),
   };
 }
 

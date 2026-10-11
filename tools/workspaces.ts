@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseSync } from 'oxc-parser';
+import { readModule } from '@variance-authority/sense/read';
 
 /**
  * The workspace graph, read from disk once.
@@ -57,6 +57,8 @@ export interface Workspace {
   readonly name: string;
   readonly dir: string;
   readonly manifest: Manifest;
+  /** The modules the import walk read, so a rule about what it reads asks the walk. */
+  readonly files: readonly string[];
   readonly imports: { readonly source: ReadonlySet<string>; readonly test: ReadonlySet<string> };
 }
 
@@ -80,6 +82,9 @@ export interface Manifest {
  */
 const OUTPUT = new Set(['node_modules', 'dist', 'coverage', 'storybook-static']);
 
+/** Every extension Node or TypeScript loads a module from. */
+export const MODULE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
+
 export function sourceFiles(dir: string, out: string[] = []): string[] {
   if (!existsSync(dir)) return out;
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -89,10 +94,19 @@ export function sourceFiles(dir: string, out: string[] = []): string[] {
     // `import()`s it and an adopter reaches for the extension that says so — and
     // leaving them out meant the one file this repository holds up as *the* thing
     // an adopter writes was invisible to every import rule below.
-    else if (/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(entry.name)) out.push(path);
+    else if (MODULE.test(entry.name)) out.push(path);
   }
   return out;
 }
+
+/**
+ * A module that runs only under a runner: a test, a spec or a measurement.
+ *
+ * Every extension the walk reads that a runner collects, `.mts` and `.cts`
+ * included: a `.test.mts` read as production would hold a test-only dependency
+ * to the production rule.
+ */
+export const TEST_MODULE = /\.(test|spec|measure)\.(ts|tsx|mts|cts|js|jsx)$/;
 
 /**
  * The package a specifier names, ignoring the entrypoint.
@@ -112,36 +126,28 @@ export function packageOf(specifier: string): string | null {
 }
 
 /**
- * Import specifiers, and only import specifiers.
+ * The specifiers a file loads, by every way a module loads another.
  *
- * Read from the module record `oxc` has already computed for the file — every
- * static import, every re-export, every literal `import()` — rather than from
- * the text. This tree holds fixtures whose template literals contain
- * `import x from 'y'` and rationales whose strings mention `from`; a string
- * that looks like a statement is not one, and only a parser knows the
- * difference.
+ * Read by `readModule`, sense's one module reader, rather than from oxc's module
+ * record: the record lists static imports, re-exports and `import()`, and no
+ * `require` at all. A `.cts` module is CommonJS by construction — it is what a
+ * runner loads inside its own sandbox — and loads with `import x = require()`
+ * or `require()`, so reading the record alone left every one of them requiring
+ * nothing. The reader also reads only what the tree holds, so a fixture whose
+ * template literal spells `require('y')` is not a load.
  *
  * A parse error is thrown rather than rounded down to "no imports": a file this
- * rule cannot read is a file whose requirements it cannot vouch for.
+ * rule cannot read is a file whose requirements it cannot vouch for. A load of
+ * a variable — the CLI's `import()` of a collector a config names — names no
+ * package, and is not one.
  */
 export function specifiersIn(file: string, text: string): readonly string[] {
-  const { module: record, errors } = parseSync(file, text);
-  if (errors.length > 0) throw new Error(`${file} could not be parsed: ${errors[0]!.message}`);
-
-  const found: string[] = [];
-  for (const entry of record.staticImports) found.push(entry.moduleRequest.value);
-  for (const entry of record.staticExports) {
-    for (const binding of entry.entries) {
-      if (binding.moduleRequest !== null) found.push(binding.moduleRequest.value);
-    }
-  }
-  for (const entry of record.dynamicImports) {
-    // The record carries the span of the argument, not its value: an `import()`
-    // of a variable names no package this rule can check.
-    const literal = /^(['"])([^'"]+)\1$/.exec(text.slice(entry.moduleRequest.start, entry.moduleRequest.end));
-    if (literal !== null) found.push(literal[2]!);
-  }
-  return found;
+  const read = readModule(file, text);
+  // `packages/sense/native/src/read.rs` writes a parse error as one reason
+  // among the loads it could not read. The others are loads of a variable,
+  // which name no package; only a parse error hides one that does.
+  if (read.unknown?.includes('parse error')) throw new Error(`${file} could not be parsed: ${read.unknown}`);
+  return read.requests.map((request) => request.value);
 }
 
 /**
@@ -206,10 +212,12 @@ export function workspaces(): readonly Workspace[] {
               .map((entry) => join(dir, entry.name))
           : [join(dir, 'src'), join(dir, 'collector')];
       const foreign = roots.flatMap((root) => nestedManifests(root));
+      // A fixture workspace answers for its own imports; see `nestedManifests`.
+      const files = roots
+        .flatMap((root) => sourceFiles(root))
+        .filter((file) => !foreign.some((nested) => file.startsWith(`${nested}/`)));
 
-      for (const file of roots.flatMap((root) => sourceFiles(root))) {
-        // A fixture workspace answers for its own imports; see `nestedManifests`.
-        if (foreign.some((nested) => file.startsWith(`${nested}/`))) continue;
+      for (const file of files) {
 
         // `.spec.` and `.measure.` count as well as `.test.`, because the weaker
         // rule is about *when* code runs and not about which runner runs it or
@@ -226,7 +234,7 @@ export function workspaces(): readonly Workspace[] {
         // case. `collector/` is the exception that stays production, because
         // the CLI `import()`s one in an adopter's own process.
         const isTest =
-          /\.(test|spec|measure)\.(ts|tsx|js|jsx)$/.test(file) ||
+          TEST_MODULE.test(file) ||
           file.includes('__fixtures__') ||
           (group === 'cases' &&
             !file.startsWith(`${join(dir, 'src')}/`) &&
@@ -237,7 +245,7 @@ export function workspaces(): readonly Workspace[] {
           (isTest ? test : source).add(owner);
         }
       }
-      found.push({ name: manifest.name, dir, manifest, imports: { source, test } });
+      found.push({ name: manifest.name, dir, manifest, files, imports: { source, test } });
     }
   }
   return found;

@@ -11,12 +11,12 @@
 import type { Locator, Page } from '@playwright/test';
 import { digestValue, documentDigest } from '@variance-authority/core/format';
 import type { AttributedRegion } from '@variance-authority/core/attribute';
-import type { Raster, RenderIdentity, SemanticSnapshot } from '@variance-authority/core/format';
+import type { PageRegion, Raster, RenderIdentity, SemanticSnapshot } from '@variance-authority/core/format';
 import { normalize } from '@variance-authority/core/rules';
 import { observeRasters } from '@variance-authority/observe';
 import { suspenseRefusal } from '@variance-authority/react';
-import { acquireFrom } from './acquire.js';
-import { driftBetween, listDrift } from './drift.js';
+import { acquireFrom, unwatchFrom, watchFrom } from './acquire.js';
+import { driftBetween, listDrift, listMutated } from './drift.js';
 import type { AcquireRequest } from './page-agent.js';
 import type { InPlaceCaptureOptions } from './options.js';
 
@@ -26,6 +26,7 @@ export async function stableRaster(
   document: Parameters<typeof documentDigest>[0],
   fonts: readonly string[],
   stabilization: RenderIdentity['stabilization'],
+  region: Pick<AcquireRequest, 'timezoneId' | 'locale'>,
   options: InPlaceCaptureOptions,
   snapshot: SemanticSnapshot,
 ): Promise<Raster> {
@@ -53,6 +54,9 @@ export async function stableRaster(
         headless: options.browser.headless,
         launchArgs: [...options.browser.launchArgs],
       },
+      // The page's scripts ran in this timezone and locale, so the dates and
+      // numbers in these pixels were formatted in them.
+      page: { timezoneId: region.timezoneId, locale: region.locale },
       screenshot,
     }),
   };
@@ -110,6 +114,25 @@ export async function stableRaster(
     }
   }
   return first;
+}
+
+/**
+ * The timezone and locale the page under test runs in.
+ *
+ * Asked of the page, because it is the page's own: a suite that set
+ * `timezoneId` or `locale` gets those, and a page the fixtures handed a suite
+ * that set neither runs in `UTC`, pinned by `varianceRendererFixtures`, and
+ * `en-US`, Playwright Test's default. A page handed to `createVariance` runs in
+ * whatever its caller's context opened it in, the host's timezone when that
+ * context set none. Either way the text it lays out was formatted in them, so
+ * both keys and the render that paints it carry them.
+ *
+ * Source, not a function, for the reason {@link PROBE_FONTS} gives.
+ */
+export async function regionOf(page: Page): Promise<Required<PageRegion>> {
+  return (await page.evaluate(
+    `({ timezoneId: Intl.DateTimeFormat().resolvedOptions().timeZone, locale: navigator.language })`,
+  )) as Required<PageRegion>;
 }
 
 /**
@@ -208,59 +231,86 @@ export async function settledCapture(
   let restless: string | undefined;
   const attempts = Math.max(1, materialization.settleAttempts ?? 3);
 
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    // Widening pauses rather than an immediate retry. What is being waited out
-    // is a transition with a duration, and three reads taken back to back all
-    // land inside the same one.
-    if (attempt > 0) await page.waitForTimeout(attempt * 100);
-    let taken: Raster;
-    try {
-      taken = await stableRaster(
-        page,
-        locator,
-        held.document,
-        about.fonts,
-        held.stabilization.digest,
-        materialization,
-        heldSnapshot,
+  let failed = false;
+  try {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      // Widening pauses rather than an immediate retry. What is being waited out
+      // is a transition with a duration, and three reads taken back to back all
+      // land inside the same one.
+      if (attempt > 0) await page.waitForTimeout(attempt * 100);
+      // From here to the confirming read. The two reads agree about a subject
+      // that changed and changed back between them, and the screenshots may
+      // hold the state in between: only the page sees that change happen. A
+      // watch that cannot reach the subject fails the attempt as a screenshot
+      // would, and the next one starts from a fresh read.
+      let taken: Raster;
+      try {
+        await watchFrom(locator);
+        taken = await stableRaster(
+          page,
+          locator,
+          held.document,
+          about.fonts,
+          held.stabilization.digest,
+          request,
+          materialization,
+          heldSnapshot,
+        );
+      } catch (error) {
+        restless = error instanceof Error ? error.message : String(error);
+        held = await acquireFrom(page, locator, request);
+        heldSnapshot = normalize(held.capture);
+        continue;
+      }
+
+      const confirmed = await acquireFrom(page, locator, request);
+      const confirmedUnsettled = suspenseRefusal(confirmed.suspense, {
+        subjectId: about.subjectId,
+        declaredLoading: about.loading,
+      });
+      // Not retried: a subtree still showing a fallback is a decision the test has
+      // to make, not a state that settles on its own within this budget.
+      if (confirmedUnsettled !== undefined) throw new Error(confirmedUnsettled);
+      const confirmedSnapshot = normalize(confirmed.capture);
+      const drifted = driftBetween(
+        {
+          document: held.document,
+          snapshot: heldSnapshot,
+          accessibility: held.accessibility,
+          stabilization: held.stabilization,
+        },
+        {
+          document: confirmed.document,
+          snapshot: confirmedSnapshot,
+          accessibility: confirmed.accessibility,
+          stabilization: confirmed.stabilization,
+        },
       );
-    } catch (error) {
-      restless = error instanceof Error ? error.message : String(error);
-      held = await acquireFrom(page, locator, request);
-      heldSnapshot = normalize(held.capture);
-      continue;
+      const mutated = confirmed.mutated ?? [];
+      if (drifted.length === 0 && mutated.length === 0) {
+        return { held, snapshot: heldSnapshot, raster: taken };
+      }
+
+      restless =
+        drifted.length > 0
+          ? `in-place capture for ${about.subjectId} changed between acquisition and screenshots: ` +
+            `${listDrift(drifted)} moved while the page was being photographed`
+          : `in-place capture for ${about.subjectId} changed while the page was being photographed ` +
+            'and changed back before it was read again';
+      if (mutated.length > 0) restless += ` — the page changed ${listMutated(mutated)}`;
+      held = confirmed;
+      heldSnapshot = confirmedSnapshot;
     }
-
-    const confirmed = await acquireFrom(page, locator, request);
-    const confirmedUnsettled = suspenseRefusal(confirmed.suspense, {
-      subjectId: about.subjectId,
-      declaredLoading: about.loading,
+  } catch (error) {
+    failed = true;
+    throw error;
+  } finally {
+    // Every path above that reads again has already stopped the watch; this is
+    // the one for a path that threw before it could. Stopping it never replaces
+    // the error that got here.
+    await unwatchFrom(page).catch((error: unknown) => {
+      if (!failed) throw error;
     });
-    // Not retried: a subtree still showing a fallback is a decision the test has
-    // to make, not a state that settles on its own within this budget.
-    if (confirmedUnsettled !== undefined) throw new Error(confirmedUnsettled);
-    const confirmedSnapshot = normalize(confirmed.capture);
-    const drifted = driftBetween(
-      {
-        document: held.document,
-        snapshot: heldSnapshot,
-        accessibility: held.accessibility,
-        stabilization: held.stabilization,
-      },
-      {
-        document: confirmed.document,
-        snapshot: confirmedSnapshot,
-        accessibility: confirmed.accessibility,
-        stabilization: confirmed.stabilization,
-      },
-    );
-    if (drifted.length === 0) return { held, snapshot: heldSnapshot, raster: taken };
-
-    restless =
-      `in-place capture for ${about.subjectId} changed between acquisition and screenshots: ` +
-      `${listDrift(drifted)} moved while the page was being photographed`;
-    held = confirmed;
-    heldSnapshot = confirmedSnapshot;
   }
 
   throw new Error(

@@ -225,6 +225,15 @@ export function askedTool(request: JsonRpcRequest): string | undefined {
   return typeof name === 'string' ? name : undefined;
 }
 
+/** The arguments a `tools/call` names, or nothing for any other request. */
+export function askedInput(request: JsonRpcRequest): Readonly<Record<string, unknown>> | undefined {
+  if (request.method !== 'tools/call') return undefined;
+  const given = (request.params ?? {})['arguments'];
+  return typeof given === 'object' && given !== null && !Array.isArray(given)
+    ? (given as Readonly<Record<string, unknown>>)
+    : undefined;
+}
+
 export function wantsTree<Subject>(
   request: JsonRpcRequest,
   served: Served<Subject>,

@@ -1,7 +1,8 @@
 import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.js';
-import { durationWord, NO_DURATION, validSections, type Header, type Section } from './format-layout.js';
+import { durationWord, NO_DURATION, NO_OWNER, validSections, type Header, type Section } from './format-layout.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import { PRECONDITIONS_COLUMN, UNHEARD } from './case-precondition-column.js';
+import { LINES_COLUMN, LINES_OFFSETS, type LinesTable } from './case-lines.js';
 import type { ExecutionTest } from './reverse.js';
 
 /** The version that recorded the set of cases that loaded each region, read as the flag its set implies. */
@@ -20,12 +21,17 @@ export interface TestColumns {
   readonly testId: Uint32Array;
   readonly testFile: Uint32Array;
   readonly testName: Uint32Array;
-  /** Absent in an index written before cases said how they settled. */
+  /**
+   * How each case settled: `0` it did not say, `1` it finished, `2` it stopped.
+   * Absent in an index written before cases said how they settled.
+   */
   readonly testStopped: Uint8Array | undefined;
   /** Absent in an index written before cases carried a duration. */
   readonly testDuration: Uint32Array | undefined;
   /** Absent in an index that listened to no case. */
   readonly testPreconditions: Uint32Array | undefined;
+  /** The line that reached each region a case crossed; absent in an index written without cuts. */
+  readonly testLines: LinesTable | undefined;
 }
 
 /** The string table: sorted by code unit, each string once. */
@@ -34,6 +40,11 @@ export interface StringTable {
   readonly offsets: Uint32Array;
 }
 
+/**
+ * A case index's module and region columns beside its test columns. A region's
+ * `blockCalled` names the set of cases that crossed it after its module loaded,
+ * and `sets.members` reads that set's case rows.
+ */
 export interface SetColumns extends TestColumns {
   readonly strings: StringTable;
   readonly moduleFile: Uint32Array;
@@ -48,6 +59,12 @@ export interface SetColumns extends TestColumns {
   readonly blockCalled: Uint32Array;
   /** `1` where the region ran while its module loaded, whichever version stored it. */
   readonly blockLoaded: Uint8Array;
+  /**
+   * Where the region around each region stands among its module's regions,
+   * always before it, or {@link NO_OWNER}. Absent in an index written before
+   * regions carried their owner, and in one whose producer does not write it.
+   */
+  readonly blockOwner: Uint32Array | undefined;
   readonly sets: CrossingSetsView;
 }
 
@@ -80,7 +97,19 @@ export function testColumns(opened: OpenedSections, strings: number): TestColumn
     if ((testStopped[test] ?? 0) > STOPPED) throw invalid();
   }
   for (const id of testPreconditions ?? []) if (id !== UNHEARD && id >= strings) throw invalid();
-  return { testId, testFile, testName, testStopped, testDuration, testPreconditions };
+  // Written since a cut case carries the line that reached each region; a file without it cut none.
+  const testLines = opened.found.has(LINES_COLUMN) ? linesTable(opened, testCount) : undefined;
+  return { testId, testFile, testName, testStopped, testDuration, testPreconditions, testLines };
+}
+
+function linesTable(opened: OpenedSections, testCount: number): LinesTable {
+  const offsets = columnWords(opened, LINES_OFFSETS);
+  if (offsets.length !== testCount + 1) throw invalid();
+  const blob = columnBlob(opened, LINES_COLUMN, offsets);
+  for (let test = 0; test < testCount; test += 1) {
+    if (offsets[test + 1]! < offsets[test]! || offsets[test + 1]! > blob.length) throw invalid();
+  }
+  return { blob, offsets };
 }
 
 export function setColumns(opened: OpenedSections): SetColumns {
@@ -109,6 +138,16 @@ export function setColumns(opened: OpenedSections): SetColumns {
   for (let module = 0; module < moduleFile.length; module += 1) {
     if (moduleBlocks[module + 1]! < moduleBlocks[module]! || moduleBlocks[module + 1]! > blockCount) throw invalid();
   }
+  // Written since a region carries its owner; a file without it names no region around any.
+  const blockOwner = opened.found.has('blocks.owner') ? words('blocks.owner') : undefined;
+  if (blockOwner !== undefined && blockOwner.length !== blockCount) throw invalid();
+  for (let module = 0; module < moduleFile.length && blockOwner !== undefined; module += 1) {
+    const first = moduleBlocks[module]!;
+    for (let block = first; block < moduleBlocks[module + 1]!; block += 1) {
+      const owner = blockOwner[block]!;
+      if (owner !== NO_OWNER && owner >= block - first) throw invalid();
+    }
+  }
 
   const setOffsets = words('sets.off');
   const sets = openCrossingSets({ bytes: columnBlob(opened, 'sets.blob', setOffsets), offsets: setOffsets, testCount });
@@ -121,7 +160,7 @@ export function setColumns(opened: OpenedSections): SetColumns {
     strings: table,
     ...tests,
     moduleFile, moduleBlocks,
-    blockKind, blockName, blockPath, blockStart, blockEnd, blockSource, blockCalled, blockLoaded,
+    blockKind, blockName, blockPath, blockStart, blockEnd, blockSource, blockCalled, blockLoaded, blockOwner,
     sets,
   };
 }

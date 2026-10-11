@@ -5,6 +5,7 @@ import {
   NONE,
   offsetsOf,
   openSegment,
+  OtherSegmentVersion,
   rangeOf,
   sameLength,
   stringColumns,
@@ -205,7 +206,10 @@ export function decodeSuiteIndex(input: Uint8Array): SuiteIndex {
   let opened: OpenSegment;
   try {
     opened = openSegment(FORMAT, VERSION, input, WHAT);
-  } catch {
+  } catch (error) {
+    // Only a segment that says it is version 1 is read as one: bytes of version
+    // 2 that do not read stay refused as what they are.
+    if (!(error instanceof OtherSegmentVersion) || error.written !== FIRST_VERSION) throw error;
     // Written before the facts below were: what it holds is read, and what it
     // never wrote is left out rather than filled in.
     return decodeColumns(openSegment(FORMAT, FIRST_VERSION, input, WHAT)).read;

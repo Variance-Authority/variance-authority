@@ -146,21 +146,21 @@ ids are the safe default after initial setup.
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]
 variance index   [--no-git] [--wait | --follow-ups]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]
-variance shards  --setup <seconds> [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> --collected <file>] [--suite <name>] [--unrecorded <n>] [--format text|json]
+variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
-variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json]
+variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
-variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
-variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json]
+variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
+variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]
 variance story   [--file <text>] [--name <text>] [--label <label>] [--in <package or file> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
-variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]
+variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev|instant>]
 variance journeys [--config <path> | --suite <name>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
@@ -174,7 +174,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 
 | command | what it does |
 |---|---|
-| `run` | produces the **verdict** — the per-subject outcome (`unchanged`, `changed`, `new`, `incomparable` or `ignored`) that decides the exit code |
+| `run` | produces the **verdict** — the per-subject outcome (`unchanged`, `changed`, `new` or `ignored`) that decides the exit code |
 | `index` | publishes the file graph that `select`, `reach`, `covering` and `run --since` read |
 | `select` | names the test files a foreign runner may skip for this diff, for `vitest`, `jest` or a shell |
 | `shards` | prints how many shards a recorded suite is worth, and the `k/n` of each for a CI matrix, from what each shard spends before its first test |
@@ -241,6 +241,8 @@ variance ask changes --component Toggle
 variance ask describe --subject story:card
 variance ask search --query viewport    # the code, not the run: no report and no config needed
 variance ask costs --from src           # where the suite's time goes under src, from the mainline's published times
+variance ask decisions --subject story:card   # what reviewers decided on it, read with the share token
+variance ask concerns --build ci-42           # what reviewers flagged as suspect on the subjects that build showed, and why
 ```
 
 `ask` calls the tools `serve` serves and prints what they return. The same
@@ -323,7 +325,8 @@ Name the case by the file that declares it and its title:
 variance distill --file test/checkout.spec.ts --test submits
 ```
 
-`--file` takes any part of the test file's path. `--test` takes the case's
+`--file` takes the test file's path, relative to the checkout or absolute, and
+names that file alone. `--test` takes the case's
 `id`, its exact title, or a part of the title, compared without case. Either
 flag may be given alone. When more than one case fits, the command prints up to
 five of their ids and stops; pass one of them to `--test`. A case Playwright
@@ -396,23 +399,47 @@ variance covering --file src/checkout/total.ts --function applyDiscount --format
 Each test file is named once, with its cases under it. Over a whole file, a
 range walked by the same cases as the one before is folded into one line.
 
+A module the run loaded without instrumenting it, such as one named in
+`unprobed` or one whose text the run could not parse, has no recorded line. It is a
+precondition of every test file that loaded it, and `variance select` selects
+all of them on a change to it, so `covering` names those files and no case:
+
+```text
+src/format/stabilize.ts is a precondition of 4 test files, and a change to it selects every one: the run loaded it without instrumenting it, or the suite declares it, so no line of it has a recorded case.
+  src/render-cache.test.ts
+  …
+```
+
 When the root `variance.config.json` declares
 [suites](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite),
 `covering` reads every suite's record and answers under each suite's name and
 kind, because each suite proves something different:
 
 ```text
-checkout (e2e): nothing is recorded in /repo: no run left a per-case index at …
-stories (visual): `src/checkout/total.ts` is not in the index at …
 unit (unit):
   2 named tests covered line 48 of src/checkout/total.ts:
   …
+
+checkout (e2e): nothing is recorded in /repo: no run left a per-case index at …
+
+Not loaded by stories (visual): a run that never loaded the file has no answer about it, which is not the same as no test covering it.
 ```
+
+Once any suite answers, the answers come first, then any suite that has never
+run. A suite that never loaded the file costs one line at the end. When no suite
+answers, each says why in full, with the record it read, since a wrong path is
+then the likely cause. The record names files from the repository root, so give
+`--file` that way, or as an absolute path; one outside the root is refused. A
+refusal names the path you asked and no other: `apps/shop/src/checkout/total.ts`
+is a different file from `src/checkout/total.ts`, and so is any other recorded
+path of the same name.
 
 In JSON the answer is a `suites` list. Each entry is that suite's own answer
 with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`
-or to `unloaded`, for a file the suite never loaded. `--suite <name>` reads one
-record alone, and answers in the shape a repository with one record does.
+or to `unloaded`, for a file the suite never loaded. A file the suite loaded without
+instrumenting it is answered with `preconditionOf`, the test files that loaded
+it. `--suite <name>` reads one record alone, answers in the shape a repository with one record does, and so
+gives a suite's refusal in full.
 
 `--format refs` is the same answer for an agent, which pays for every repeated
 name. Each case is numbered once, in a table at the end, and every range names
@@ -750,6 +777,39 @@ between are left out and named, because what moved in them is that branch's
 doing, not yours. `--against` answers in `text`, `refs` and `json`; `refs`
 names the moved regions' cases by the numbers of its case table.
 
+### Handing the coverage to a reviewer before CI runs
+
+```bash
+variance review --since origin/main --format handover
+```
+
+prints breadcrumbs to the coverage of the changed area as one folded
+`<details>` block for the pull request body. A review bot reads the body when
+the pull request opens, before any check has finished. A changed function gets
+a line when there is something to look at: 🔴 when part of it ran under no
+case, or has none in a record from before the change, 🔵 when the change wrote
+it and no case has run it yet; otherwise the review comment's mark for its
+furthest reached part: 🟡 far, 🟠 a distance not measured, ⚪ only while its
+module loaded. A reached line names how many cases and the first test file to
+open. A function every case reached from a test file that imports it is only
+counted. Absences come first; past twelve lines the rest are counted, and the
+block ends with the `variance covering` command that reads one file in full.
+Every declared suite is read, and when more than one is, each line names its
+suite; a suite whose record cannot be read is named with the reason, and one
+named with `--suite` fails instead. When a suite ran on the change, the runs
+on the change alone answer for every changed file it read: a record from before the
+change places the edit by its old lines, and its cases reached the old code.
+Elsewhere a record from before the change answers, and a summary with no gap in it
+counts what only it reached; when the block reads both, a line it answers says *in the
+record*. The block sits between `<!-- variance-authority: handover -->` and
+its closing marker: the block a later run prints is pasted over everything
+between them.
+
+It reads this checkout's record as `covering` does. `--from-run`, `--out`,
+`--coverage` and `--against` read or compare what a run made, so a handover
+refuses them, and it leaves out the cases local runs moved: CI's comment
+reports those.
+
 ### Review: what a change did, for the person merging it
 
 `covering --since` lists every changed region. The person deciding whether to
@@ -766,15 +826,15 @@ variance review --since origin/main
 ```text
 Changes since 3f9e21c07a44.
 
-2 changed regions in 1 file, 1 of them new.
-- 1 no case covered, 1 of them new.
+2 changed regions in 1 file: 1 new, 1 modified.
+- 1 no case covered: 1 new.
 - 0 covered only by tests further than one import away.
 
 Edits:
       1  top-level values
       1  not a module
 
-Changed regions (new in brackets):
+Changed regions (new or moved in brackets):
       1 (0)  covered by a test that imports the file, or is the file
       1 (1)  no case covered it
 
@@ -798,7 +858,9 @@ Each part comes from the party that owns the answer:
   covered it. When the only tests that ran a region are further than one import
   from its file, a failure there points at code the test never names. A branch
   inside an uncovered function is counted once, with the function;
-  `--format json` keeps every region.
+  `--format json` keeps every region. Each region is new, modified or moved:
+  new when the change wrote every line of it, moved when those lines are text
+  the diff removed, from that file or another, and modified otherwise.
 - **Cases** added and removed are read from the case index, per test file.
 - **Before any import** names changed files the test runner loads before any
   test, such as its config, or declares in `preconditions`, and how many test
@@ -868,9 +930,14 @@ compares nothing for them.
 printed. The markdown starts with a hidden marker line, so a pipeline finds its
 own pull request comment and edits it instead of posting another.
 
-`--coverage` includes coverage for every declared suite in the same review.
-The comment leads with the changed-code finding, which test files ran at this
-commit, and the execution changes per suite. Percentages and source inventories
+`--coverage` includes coverage for every declared suite in the same review,
+and reads the changed regions from every suite too. A suite answers for a
+changed file it ran as the tree holds it, so a region no unit case entered and
+an integration case ran is counted as run, by that case; each region is read
+from the suite that came nearest. Where no suite ran the file's current text,
+the suite named with `--suite` answers alone, as it does without `--coverage`.
+The comment leads with the changed-code finding, which test files ran, and the
+execution changes per suite. Percentages and source inventories
 are folded under **Coverage by suite**. Each suite keeps its own denominator
 and baseline; a missing record or baseline is named rather than counted as zero.
 The coverage readings travel in `review.json`, so `--from-run` prints the same
@@ -888,24 +955,60 @@ suite, and review after it:
     npx variance review --since "$BASE" --out review --format markdown >> "$GITHUB_STEP_SUMMARY"
 ```
 
-In the markdown, the test files whose reach moved are also drawn as a Mermaid
-diagram: a test file on the left, a directory of the code it runs on the right,
-and each edge counts the functions it now enters or no longer enters. The same
-lines as the text follow it, folded. The markdown lists the first 40 moved
-regions, test files whose reach moved, and files not compared, and counts the rest.
+The markdown's first line names what it read: the commit reviewed, the commit
+the change starts from, the commit the cases ran at, and the commit of each
+recording coverage is compared with. In CI on a pull request the checkout is
+GitHub's merge of it, so the comment names the pull request's head, the merge
+it was tested as, and says it describes an earlier commit once the head moves
+on. Each changed place links to its lines at that commit.
+
+When the changed functions sit in more than one package, the verdict is
+followed by **Where this change lands**: one row a package, as its nearest
+`package.json` names it, with its changed functions counted by mark, the
+packages whose tests ran them (`own` for its own), and how many other packages
+import its changed files through any number of imports, type-only ones
+included. Packages with code no case ran come first, then those with the most
+functions no test importing their file ran. The table stays within 10 rows in a
+repository of any size: past that, the packages whose every changed function a
+test importing its file ran are folded into one row, and the packages that do
+not fit above it into another. `review.json` lists every package under
+`changedPackages`.
+
+Changed functions are listed in one table: how the edit wrote each (new,
+modified, or moved and from where), the cases that entered it, and the cases
+that ran a changed line in it. A case entered a function when it called into
+it, and ran a changed line when it entered the function and `variance covering
+--line` names it for a changed line in it, so a test that calls the function and
+takes the branch the change left alone is counted in the first and not the
+second. The cases added and removed come
+first, the legend for the marks above the table, and the table's 100 rows name
+the first three test files of each function; the cases by title are in
+`review.json`. Files not in the record, cases moved against the base and each
+changed file are folded under **Recording scope and limitations**, which lists
+the first 40 moved regions, test files whose reach moved, and files not
+compared, and counts the rest.
+
+Under the table, folded, the changed functions are drawn as a Mermaid diagram,
+those no case ran included: each under its file, coloured by how near the
+nearest case that ran it is, with its edit and both counts, and an edge from
+each test file whose cases called into it. A red function with no edge is one
+no case ran. The diagram draws 24 functions, those no case ran first, then
+those a file only loaded, then those furthest from their nearest case, and the
+8 test files that reach the most of them, and counts the rest.
+
 GitHub rejects a comment longer than 65,536 characters, so a longer markdown
 review is cut at a line break before that length, and its last line gives the
 number of characters not shown.
 
-Under each changed function a case ran, the markdown lists those cases by test
-file and title, each with the preconditions it recorded, the way `covering`
-prints them: `applies the discount — discount=on (test/flags.ts:6)`. When the
-cases recorded more than one value of a name, the function's line names every
-value — `ran under discount=off, discount=on` — so you see which states ran the
-change without asking `covering --where`. For a record made before cases
-recorded preconditions, the state they ran under is printed as unmeasured, and
-cases from a runner that does not record preconditions are counted apart from
-the cases that recorded nothing.
+When the cases that entered a function recorded more than one value of a
+precondition, its row names every value — `ran under discount=off,
+discount=on` — so you see which states ran the change without asking
+`covering --where`. `review.json` keeps each case with the preconditions it
+recorded, the way `covering` prints them: `applies the discount — discount=on
+(test/flags.ts:6)`. For a record made before cases recorded preconditions, the
+state they ran under is printed as unmeasured, and cases from a runner that
+does not record preconditions are counted apart from the cases that recorded
+nothing.
 
 A comment shows part of the answer, and `review.json` holds all of it. Upload
 the `--out` directory as an artifact, and anyone with the GitHub CLI can print
@@ -975,17 +1078,20 @@ add up to the change:
 ```text
 coverage at 7556a03a against each suite's base — 4,812 regions (4,790 at the base) in 311 files the suites loaded
   any suite           4,310 → 4,356  90.0% → 90.5%
-    checkout  e2e     3,832 → 3,900  80.0% → 81.0%  gained 51 · lost 2 · written 22, 19 run
-    stories   visual  1,437 →   718  30.0% → 14.9%  lost 716 · hidden 3
-    unit      unit    3,353 → 3,352  70.0% → 69.7%  gained 4 · lost 9 · written 22, 4 run
+    checkout  e2e     3,832 → 3,900  80.0% → 81.0%  +51 newly run · −2 no longer run · +19 run in 22 added regions
+    stories   visual  1,437 →   718  30.0% → 14.9%  −716 no longer run · −3 no longer run after a case stopped
+    unit      unit    3,353 → 3,352  70.0% → 69.7%  +4 newly run · −9 no longer run · +4 run in 22 added regions
   stories: src/checkout.stories.tsx no longer runs 716 regions it ran at the base
 ```
 
-`gained`, `lost` and `hidden` are the regions whose cases changed, the words
-[What a change moved](#what-a-change-moved) uses. `written` and `deleted` are
-regions only one of the two records has, in a file both have, and `now loads`
-and `no longer loads` count the files only one of them has. The parts always
-add up to the change in the count. The test files whose regions changed most
+Each part is signed by what it does to the count. `newly run` and `no longer
+run` are regions whose cases changed, the `gained` and `lost` of
+[What a change moved](#what-a-change-moved); `no longer run after a case
+stopped` is its `hidden`. `added regions` and `removed regions` are regions
+only one of the two records has, in a file both have, and `newly loaded files`
+and `files no longer loaded` count the files only one of them has. `run by
+fewer cases` is unsigned, because those regions still run. The signed parts add
+up to the change in the count, and the markdown says so when they do not. The test files whose regions changed most
 are named under the table.
 
 Each suite's base is the record its mainline published to the
@@ -1232,6 +1338,15 @@ one prints no such line.
 `--subject` narrows to one subject id, `--since <rev>` reads forward from a tag
 or a SHA, `--limit` caps how many commits are read.
 
+A `remote` store's baselines are not commits, so its history is the record the
+deployment made when a reviewer approved them. `variance changelog` reads it
+from the deployment with your share token, which reads what review settled and
+never decides; declare the share as
+`{ "kind": "http", "endpoint": "<deployment>/share", "token": { "env": "VARIANCE_SHARE_TOKEN" } }`.
+The same filters narrow it, `--since` takes an instant there rather than a
+revision, and `--limit` caps how many approvals are read. Each change reads in
+the columns above, with the builds that carried it and who approved it.
+
 Three failure modes are handled explicitly:
 
 - **git missing, no repository, or an unresolvable revision** each exit `2`
@@ -1239,10 +1354,9 @@ Three failure modes are handled explicitly:
   "nothing has changed since the last baseline."
 - **A shallow clone bounds what can be read.** CI checkouts at depth 1 see one
   commit; the output prints a `note:` saying what it could not see.
-- **Stores whose baselines are not commits are refused by name.** Under
-  `ephemeral` retention there is no baseline to explain; behind a `remote`
-  store the explanation lives in that service's record instead, and this
-  command reads only the log of a checkout.
+- **A project that keeps no baselines is refused by name.** Under `ephemeral`
+  retention there is no baseline to explain, and an empty history would read
+  as a broken writer.
 
 ### Journeys: which part of a module two subjects took differently
 
@@ -1455,8 +1569,10 @@ variance journeys stitch \
 
 The execution journal shards the same way the report does. A suite split
 across CI jobs records one snapshot per job — each runner's seam takes a
-`coverageFile`, and the job uploads it as an artifact — and every question
-anybody asks is about the suite. Name them all and `journeys` folds them into
+`coverageFile`, and the job uploads it as an artifact with the runs record the
+seam writes beside it, `coverage.runs.json` beside `coverage.bin`, which names
+the install the shard ran on — and every question anybody asks is about the
+suite. Name them all and `journeys` folds them into
 one snapshot, lands it, and reads it:
 
 ```bash
@@ -1696,9 +1812,14 @@ differed from its commit while it ran, so an install you had not committed yet
 when you recorded is the one compared from, and selecting over it with nothing
 else edited skips the whole recorded suite. A test keeps that install after you
 commit and run only the selected tests: it is compared from what it last ran
-on. Where no install was kept, tests are compared from the commit they last ran
-at. Where the kept texts are not in this cache, they are compared from that
-commit too, and stderr names each such commit. A suite that ran with its
+on. Shards landed with `variance journeys <shard>...` ran on the install every
+shard's runs record names. Where a shard came without its runs record, or the
+shards ran on different installs, no install was kept. Where no install was
+kept, tests are compared from the commit they last ran at. Where the kept texts
+are not in this cache, they are compared from that commit too, and stderr names
+each such commit: a shard keeps the texts of its install in the cache of the
+machine it ran on, so shards that ran over an uncommitted install elsewhere are
+compared from their commit. A suite that ran with its
 lockfile deleted has no install to compare, and stderr says it ran without one.
 Every package the lockfile resolves differently is walked back through the
 packages that depend on it to the files that import them, and those files are
@@ -1756,8 +1877,11 @@ The change has to be a patch, because a journey file selects by changed lines.
 A list of paths from `git diff --name-only` is refused: it can only be answered
 by the import graph, and that is [`reach`](#reach-what-a-diff-reaches-for-a-pipe).
 
-- **A changed line.** It goes to the innermost function holding it, and only the
-  test files whose cases entered that function run.
+- **A changed line.** It goes to the innermost function or branch holding it,
+  and only the test files whose cases entered it run. A line that opens one, such
+  as `if (ready) {`, goes to the code around it as well, because every case that
+  evaluated the condition ran that line. These are the tests `variance covering
+  --line` names for it.
 - **A file the patch names and shows none of**, such as a binary or a rename, or a
   file the journey has no row for. Every test file that imports it runs, read off
   the import graph, together with every case the journey saw enter it.
@@ -1798,21 +1922,30 @@ More shards finish no sooner: packages/sense/src/test-selection/journey-trace.in
 
 Every shard is charged its `--setup`, and the count is the one whose wait and
 setups come to least, so a shard is added only when it shortens the wait by more
-than it spends. `--budget <seconds>` asks instead for the fewest shards whose last
-one finishes within it. Either way the count stops at the slowest test file,
+than it spends. Without `--setup` the count weighs no setup, and the answer says
+so. `--budget <seconds>` asks instead for the fewest shards whose last
+one finishes within it; a budget no longer than `--setup` is out of reach at any
+count, and the answer is the count that finishes soonest, naming the setup as
+the reason. Either way the count stops at the slowest test file,
 which no shard can finish before; the answer names it, and its slowest case when
 the run kept its cases. `--workers` is how many files one shard's runner runs at
 once.
 
 `--since <ref>` leaves out the files that change lets the run skip, as the seam
 does under `VARIANCE_AUTHORITY_SINCE`, so a change that reaches no test answers
-`0 shards`. It needs `--collected <file>`, the runner's list of the suite's test
-files, as `share --collected` reads it: the record holds only the files it has
-seen, and a file on the list it has not is priced at the median of the timed
-ones. Without `--since`, only the recorded files are counted. With nothing
-recorded the command refuses, rather than guess, unless `--unrecorded <n>` names
-the count to start until it is. `--format json` prints the count, a `matrix` of
-`k/n` strings, each shard's load, and why. A pull request's build can start its
+`0 shards`. Pass `--collected <file>` with it, the runner's list of the suite's
+test files, as `share --collected` reads it: the record holds only the files it
+has seen, and a file on the list it has not is priced at the median of the timed
+ones. Without the list, only recorded files are counted, the answer says so in
+`notes`, and a change that skips every one of them answers `1 shard`, with `why`
+set to `unlisted`, for whatever it adds. `--at-distance <hops>` counts one leg of that selection, as `select
+--at-distance` cuts it: a near wave under `VARIANCE_AUTHORITY_AT_DISTANCE=0-2`
+is counted with `--at-distance 0-2`; without `--since` it cuts nothing, and the
+answer counts the whole suite and says so. Without `--since`, only the recorded files
+are counted. With nothing recorded the answer is `1 shard` and says so, unless
+`--unrecorded <n>` names the count to start until it is, and starts one when it names none. `--format json` prints the count, a `matrix` of
+`k/n` strings, each shard's load, and why, with `notes` naming anything the
+count could not weigh. A pull request's build can start its
 matrix from it; the push to your mainline runs without `--since`, so its shards'
 records fold into the one the next build is placed by, as
 [sharding](../../docs/sharding.md#start-only-what-the-change-needs) shows:
@@ -1825,8 +1958,10 @@ plan:
   steps:
     - id: count
       run: |
+        set -o pipefail
         npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
-        echo "shards=$(npx variance shards --suite unit --setup 90 --since origin/main --collected "$RUNNER_TEMP/collected.txt" --format json | jq -c .matrix)" >> "$GITHUB_OUTPUT"
+        shards=$(npx variance shards --suite unit --setup 90 --since origin/main --collected "$RUNNER_TEMP/collected.txt" --format json | jq -c .matrix)
+        echo "shards=$shards" >> "$GITHUB_OUTPUT"
 test:
   needs: plan
   if: needs.plan.outputs.shards != '[]'
@@ -2191,6 +2326,10 @@ owns its own collector, renderer, storage, or review surface:
   checkout's own layer, with that runs record as a seed that lists no run, so
   the run the job makes lands on them, as a cache restore would. `env` stands in
   for `process.env` when the line is read, and `cacheRoot` for the cache.
+- `recordedExecutionFile(root, suite)` names the record `distill`, `covering`
+  and `review` read for a suite, and refuses as `unrecorded` when no run kept
+  its cases. A script that reads a record with the sense readers starts here,
+  so its counts are the ones the CLI prints.
 - The executable's `config` path selects the source; `parseConfig` takes that
   value and `baseDir` through `ParseOptions`. Relative paths resolve against
   `baseDir`, not the process working directory, so a library caller can load
@@ -2334,6 +2473,7 @@ The remaining top-level keys:
 | `blank` | replaces an image on the wire with a transparent one of the same intrinsic size |
 | `sensitivity` | narrows a named subject to a sensitivity level |
 | `decoder` | which PNG implementation to use |
+| `timezoneId`, `locale` | the IANA timezone and BCP 47 language the collectors read in and the renderer paints in; `UTC` and `en-US` when unset, never the host's. Part of the render identity, so changing one names the moved pair as the cause of every change until it is accepted again |
 | `concurrency` | how many subjects may be in flight at once |
 | `workers` | how many browser worlds one run collects in. Each world collects one subject at a time; a world that finishes takes the next file from a shared queue, longest file first. A collector without `openWorker` collects in one world and the run warns |
 | `intent` | the default `--intent` label |

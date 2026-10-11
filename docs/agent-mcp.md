@@ -67,7 +67,7 @@ Ask in this order:
 - **Begin a report-file session with `variance_summary`.** It accounts for
   planned subjects that were not observed as well as for the observations that
   produced a **verdict** — the one word reported per subject: `unchanged`,
-  `changed`, `new`, `incomparable` or `ignored` — so silence cannot be mistaken
+  `changed`, `new` or `ignored` — so silence cannot be mistaken
   for a clean run.
 - **If the summary names changes, ask `variance_changes` before opening an
   individual subject.** It groups shared causes across subjects.

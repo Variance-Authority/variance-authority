@@ -81,22 +81,12 @@
   },
   {
     "idiom": "code-unit-order",
-    "at": "packages/cli/src/commands/review-graph.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
     "at": "packages/cli/src/commands/review-install.ts",
     "count": 1
   },
   {
     "idiom": "code-unit-order",
     "at": "packages/cli/src/commands/review-scope.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/cli/src/commands/review.ts",
     "count": 1
   },
   {

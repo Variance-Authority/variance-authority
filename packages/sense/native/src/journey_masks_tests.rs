@@ -9,7 +9,7 @@ use crate::journey_record::{Block, Module};
 /// and reach `target`; three take its second and stop; one reaches `target` alone.
 fn recorded() -> JourneyMasks {
     let tests: Vec<Test> = (0..8)
-        .map(|case| Test { id: format!("t{case}"), file: format!("route{}.test.ts", case % 2), name: format!("case {case}"), runner: None, settled: FINISHED, preconditions: None })
+        .map(|case| Test { id: format!("t{case}"), file: format!("route{}.test.ts", case % 2), name: format!("case {case}"), project: None, runner: None, settled: FINISHED, preconditions: None })
         .collect();
     let block = |kind: &str, name: &str, start: u32, end: u32| Block {
         kind: kind.to_owned(),
@@ -19,7 +19,7 @@ fn recorded() -> JourneyMasks {
         end_line: end,
         source: true,
     };
-    let module = |file: &str, blocks: Vec<Block>| Module { id: file.to_owned(), file: file.to_owned(), blocks };
+    let module = |file: &str, blocks: Vec<Block>| Module { id: file.to_owned(), file: file.to_owned(), blocks, owners: None };
     let modules = [
         module(
             "src/route.ts",

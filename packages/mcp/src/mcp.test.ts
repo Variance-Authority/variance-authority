@@ -65,13 +65,11 @@ const REPORT: RunReport = {
     { subject: 'ds/card--default', verdict: 'unchanged', because: 'no pixels differ', changedPixels: 0, regions: [] },
     {
       subject: 'page/todos--empty',
-      verdict: 'incomparable',
-      because:
-        'a baseline exists but was rendered by playwright-chromium ' +
-        '(chromium@131.0.0, linux/x64, 1x), and this run is playwright-chromium ' +
-        '(chromium@131.0.0, darwin/arm64, 1x); pixels are machine-bound',
-      changedPixels: 0,
+      verdict: 'changed',
+      because: 'painted under another machine: platform linux/x64 → darwin/arm64; 1240 pixels differ',
+      changedPixels: 1240,
       regions: [],
+      signals: { identity: 'machine', moved: ['platform linux/x64 → darwin/arm64'] },
     },
   ],
 };
@@ -215,14 +213,16 @@ describe('tracing a component across the run', () => {
 });
 
 describe('explaining a verdict that is not a code problem', () => {
-  it('tells an agent not to try fixing an incomparable baseline in code', () => {
-    // The most valuable thing this tool does. An agent that reads
-    // `incomparable` as a failure will start editing components to chase a
-    // difference caused by a font stack.
+  it('names the machine that moved as the cause of a change, before any edit', () => {
+    // An agent that reads a change painted on another machine as a failure of
+    // the code will start editing components to chase a font stack. The change
+    // is shown; what moved is said first, and the regions are still there to
+    // read for the few that the machine does not explain.
     const text = call('variance_explain_verdict', { subject: 'page/todos--empty' });
 
-    expect(text).toContain('not a code change and cannot be fixed in code');
-    expect(text).toContain('ephemeral');
+    expect(text).toContain('platform linux/x64 → darwin/arm64');
+    expect(text).toContain('compare it with the other subjects under the same cause');
+    expect(text).toContain('variance_describe');
   });
 });
 
@@ -383,13 +383,18 @@ describe('the server', () => {
 });
 
 describe('the watching server', () => {
-  it('answers about a run that is still going', async () => {
-    // The whole claim in one pass: the address it prints is one a suite can
-    // report to, and what the suite says is answerable before it has finished.
+  // The whole claim in one pass: the address it prints is one a suite can report
+  // to, and what the suite says is answerable before it has finished. The root
+  // reaches the tool from the server, not from the process's working directory:
+  // an absolute path from an agent's editor is the record's name.
+  it.each([
+    ['answers about a run that is still going', undefined, undefined],
+    ['reads a spec file named from the checkout it was started in', '/work/shop', '/work/shop/tests/cart.spec.ts'],
+  ])('%s', async (_, root, file) => {
     const input = new PassThrough();
     const output = new PassThrough();
     const lines = readLines(output);
-    const watching = await serveVantage({ input, output });
+    const watching = await serveVantage({ input, output, ...(root === undefined ? {} : { root }) });
 
     try {
       input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 0, method: 'initialize' })}\n`);
@@ -397,7 +402,7 @@ describe('the watching server', () => {
 
       const vantage = openVantage(watching.address);
       expect(vantage).toBeDefined();
-      vantage?.opened('t-1', { title: 'cart adds an item', file: 'cart.spec.ts', worker: 0 });
+      vantage?.opened('t-1', { title: 'cart adds an item', file: 'tests/cart.spec.ts', worker: 0 });
 
       await expect
         .poll(async () => {
@@ -406,7 +411,7 @@ describe('the watching server', () => {
               jsonrpc: '2.0',
               id: 1,
               method: 'tools/call',
-              params: { name: 'variance_run_signals', arguments: {} },
+              params: { name: 'variance_run_signals', arguments: file === undefined ? {} : { file } },
             })}\n`,
           );
           return await lines();

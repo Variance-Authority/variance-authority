@@ -159,10 +159,15 @@ It selects on what the recording measured, and on nothing else. Each changed
 file is read from both of its texts first, and prints a `read` line saying what
 the edit does. A module added since the recording is read the same way, with
 every export counted as changed, so it selects the tests that entered a function
-reading one. A changed file the recording has no row for, and that reading
-cannot answer — a stylesheet, a page-side module that cannot take a probe — is
-asked of the import graph, and the nearest measured files that import it select their
-tests; a bumped package is answered the same way by its measured importers. A
+reading one. A page-side module that cannot take a probe is marked as loaded
+instead (`unprobed` in `vitest.config.mts`), so a change to it selects every test
+that loaded it. The probe runtime (`RUNTIME` in `tools/page-side.mjs`) is
+neither probed nor marked, so a change to it is asked of the import graph, as a
+stylesheet is below. A source a page-agent bundle is built from runs the whole
+chromium slice, because that slice's `before` names each bundle's entry. A changed file the recording has no row for, and that reading
+cannot answer — a stylesheet — is asked of the import graph, and the nearest
+measured files that import it select their tests; a bumped package is answered
+the same way by its measured importers. A
 changed path the graph does not list either — a README, a fixture — selects
 nothing by itself and is reported.
 
@@ -191,8 +196,11 @@ is five hops out answers it with nothing, which is the true answer. Start at
 The near and far waves are a partition: `0-2` then `3-`. The tests with no
 measurable distance run in the leg that holds the furthest measured hop, or in
 the leg open at the top when nothing was measured, so the two legs run every
-selected file once. `variance select --at-distance` prints how many selected
-files a leg leaves behind, and the range that runs them.
+selected file once. The far wave reads the record the near wave just saved at
+HEAD, so it also runs any selected test nearer than three hops that still last
+ran before HEAD: one the near wave's reading did not select. `variance select
+--at-distance` prints how many selected files a leg leaves behind, and the
+range that runs them.
 
 A distance narrows a reading; it cannot narrow a widening. When the reading
 could not be made, the run is the whole suite and the distance is never consulted,

@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CROSSES, PAGE_SIDE, claims, sourceStem } from './page-side.mjs';
+import { PAGE_SIDE, RUNTIME, SERIALIZED, claims, probeable, sourceStem } from './page-side.mjs';
+import { selectionOf } from '../vitest.config.mts';
 import { ROOT, sourceFiles } from './workspaces.js';
 
 /**
@@ -10,23 +11,16 @@ import { ROOT, sourceFiles } from './workspaces.js';
  * `tools/page-side.mjs` names the modules `yarn test` must not instrument, and a
  * missing entry is already loud: the probe throws `ReferenceError` in a headless
  * page and the suite goes red. Nothing watches the other direction. An entry
- * that has stopped being true — the module renamed, the `evaluate` call gone —
- * costs that module its measurement in every run from then on, silently, and
- * `yarn test:since` narrows around a hole nobody can see.
+ * that has stopped being true — the module renamed or gone — costs that module
+ * its measurement in every run from then on, silently: one in `SERIALIZED` is
+ * marked as loaded instead, so a change to it selects every test file that
+ * loaded it rather than the cases that ran it, and one in `RUNTIME` is
+ * answered by the import graph alone.
  *
- * So both ends are held here, and the reverse sweep is exact rather than
- * approximate: today every module outside a test file that hands a function to
- * another realm is claimed by the list, and this is what says so tomorrow.
+ * A module that hands its own function to a page is not listed, because the
+ * instrumenter finds that function from the call and leaves only it bare; so
+ * there is no call for this check to look for.
  */
-
-/**
- * The calls that send a function's source text somewhere it has no module scope.
- *
- * Playwright's four. A string argument crosses just as far and does not matter —
- * a string was never instrumented — so this over-matches on purpose and the
- * forward rule below is what makes that harmless.
- */
-const CROSSING = /\.(evaluate|evaluateHandle|addInitScript|exposeFunction)\(/;
 
 /** Never instrumented, so never able to lose a probe it was not given. */
 const TEST = /\.(test|spec|measure)\.[cm]?[jt]sx?$/;
@@ -36,10 +30,8 @@ const TEST = /\.(test|spec|measure)\.[cm]?[jt]sx?$/;
  *
  * A workspace's `src`, and nothing else under it. The `collector` and `scripts`
  * directories beside it hold production code the CLI loads in its own process,
- * and two of them hand functions to a page — but no probe is placed in them,
- * because the suite's `PRODUCT` pattern does not reach there. Sweeping wider
- * than the instrumenter would report modules that cannot break, and the day the
- * instrumenter widens this widens with it.
+ * and no probe is placed in them, because the suite's `PRODUCT` pattern does
+ * not reach there.
  */
 const modules = ['packages', 'examples', 'cases']
   .flatMap((group) => sourceFiles(join(ROOT, group)))
@@ -59,27 +51,6 @@ describe('every entry names a module that is there', () => {
   });
 });
 
-describe('every entry still earns its place', () => {
-  it.each(CROSSES)('%s hands a function to another realm', (entry: string) => {
-    const sources = modules.filter((file) => claims(entry, sourceStem(ROOT, file)));
-    const crossing = sources.filter((file) => CROSSING.test(readFileSync(file, 'utf8')));
-    expect(
-      crossing.map((file) => relative(ROOT, file)),
-      `${entry} no longer calls evaluate, addInitScript or exposeFunction — instrument it again`,
-    ).not.toHaveLength(0);
-  });
-
-  it('and nothing that crosses is missing from the list', () => {
-    const uncovered = modules
-      .filter((file) => CROSSING.test(readFileSync(file, 'utf8')))
-      .map((file) => sourceStem(ROOT, file))
-      .filter((stem) => !PAGE_SIDE.some((entry: string) => claims(entry, stem)));
-    expect(uncovered, 'would throw ReferenceError inside a page the first time it is probed').toEqual(
-      [],
-    );
-  });
-});
-
 describe('the list governs the run', () => {
   it('is what the suite config subtracts', () => {
     const config = readFileSync(join(ROOT, 'vitest.config.mts'), 'utf8');
@@ -92,5 +63,32 @@ describe('the list governs the run', () => {
       (entry: string) => !entry.endsWith('/') && !existsSync(join(ROOT, `${entry}.ts`)) && !existsSync(join(ROOT, `${entry}.tsx`)),
     );
     expect(missing, 'renamed or deleted since somebody wrote them down').toEqual([]);
+  });
+});
+
+describe('a module the list keeps unprobed is marked as loaded, except the probe runtime', () => {
+  const { include, unprobed } = selectionOf('unit');
+  const claimed = (entries: readonly string[]) => (file: string) =>
+    entries.some((entry) => claims(entry, sourceStem(ROOT, file)));
+
+  it.each(SERIALIZED)('%s is marked, so a change to it selects the tests that loaded it', (entry: string) => {
+    const sources = modules.filter(claimed([entry]));
+    expect(sources.filter((file) => include(file) || !unprobed(file)).map((file) => relative(ROOT, file))).toEqual([]);
+  });
+
+  it('marks the built module as it marks its source', () => {
+    const built = join(ROOT, 'packages/storybook/dist/show-story.js');
+    expect([include(built), unprobed(built)]).toEqual([false, true]);
+  });
+
+  it('neither probes nor marks the probe runtime, which the mark itself calls', () => {
+    const runtime = modules.filter(claimed(RUNTIME));
+    expect(runtime).not.toHaveLength(0);
+    expect(runtime.filter((file) => include(file) || unprobed(file)).map((file) => relative(ROOT, file))).toEqual([]);
+  });
+
+  it('marks nothing the list does not name', () => {
+    const named = modules.filter((file) => unprobed(file) && probeable(ROOT, file));
+    expect(named.map((file) => relative(ROOT, file))).toEqual([]);
   });
 });

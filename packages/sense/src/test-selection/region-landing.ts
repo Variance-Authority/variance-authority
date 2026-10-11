@@ -8,6 +8,7 @@
  */
 
 import type { SetExecutionModule } from './execution-set-format.js';
+import { NO_OWNER } from './format-layout.js';
 import { addressKey, sameNumbering } from './merge-carry.js';
 
 /**
@@ -23,7 +24,8 @@ import { addressKey, sameNumbering } from './merge-carry.js';
  * rule the snapshot re-cut its rows to the newer text by. Then a held region
  * the recorded cut has no address for is left out: no line of the newer text
  * holds it, and kept at a line of the older one it would pair with whatever
- * region stands there now.
+ * region stands there now. A kept region's owner is the nearest region around
+ * it that is kept too, so a region born under one still takes its cases.
  */
 // FIXME: regions told apart only by occurrence carry no seat for
 // `sameNumbering` to compare, so a sibling taken out in front of them and
@@ -32,14 +34,9 @@ import { addressKey, sameNumbering } from './merge-carry.js';
 // re-cut has. The index carrying the text each module was recorded from would
 // let a reader leave such a module uncompared instead.
 export function relined(held: SetExecutionModule, recorded: SetExecutionModule): SetExecutionModule | undefined {
-  const lands = landing(recorded, held, true);
-  const to = new Map<number, number>();
-  for (const [block, from] of lands.entries()) if (from >= 0) to.set(from, block);
-  const moved = [...to].some(([from, block]) =>
-    held.blocks[from]!.startLine !== recorded.blocks[block]!.startLine ||
-    held.blocks[from]!.endLine !== recorded.blocks[block]!.endLine);
-  if (!moved) return held;
+  if (cutAlike(held, recorded)) return held;
   if (!sameNumbering(held.blocks, recorded.blocks)) return undefined;
+  const to = landedOn(held, recorded);
   const kept = [...to.keys()].sort((left, right) => left - right);
   return {
     file: held.file,
@@ -50,7 +47,44 @@ export function relined(held: SetExecutionModule, recorded: SetExecutionModule):
     })),
     called: Uint32Array.from(kept, (from) => held.called[from]!),
     loaded: Uint8Array.from(kept, (from) => held.loaded[from]!),
+    ...(held.owner === undefined ? {} : { owner: keptOwners(held.owner, kept) }),
   };
+}
+
+/**
+ * Whether `held` was cut at the text `recorded` was: every region the two cuts
+ * both hold an address for stands at the same lines in each. A region one cut
+ * holds and the other lacks says nothing either way, so two cuts that share no
+ * address are alike.
+ */
+export function cutAlike(held: Cut, recorded: Cut): boolean {
+  for (const [from, block] of landedOn(held, recorded)) {
+    if (held.blocks[from]!.startLine !== recorded.blocks[block]!.startLine) return false;
+    if (held.blocks[from]!.endLine !== recorded.blocks[block]!.endLine) return false;
+  }
+  return true;
+}
+
+/** Whether some region of `held` lands on one of `recorded`: the two cuts hold an address in common. */
+export function sharesRegion(held: Cut, recorded: Cut): boolean {
+  return landedOn(held, recorded).size > 0;
+}
+
+/** Each held region a recorded one lands on, by {@link landing} over one text, and the recorded one. */
+function landedOn(held: Cut, recorded: Cut): Map<number, number> {
+  const to = new Map<number, number>();
+  for (const [block, from] of landing(recorded, held, true).entries()) if (from >= 0) to.set(from, block);
+  return to;
+}
+
+/** `owner` over the regions at `kept`, each walking out past the regions left out to the nearest kept one. */
+function keptOwners(owner: Uint32Array, kept: readonly number[]): Uint32Array {
+  const at = new Map(kept.map((from, position) => [from, position]));
+  return Uint32Array.from(kept, (from) => {
+    let around = owner[from]!;
+    while (around !== NO_OWNER && !at.has(around)) around = owner[around]!;
+    return around === NO_OWNER ? NO_OWNER : at.get(around)!;
+  });
 }
 
 /**
@@ -67,7 +101,7 @@ export function relined(held: SetExecutionModule, recorded: SetExecutionModule):
  * region lands only on the held one at its own lines, and the rest are absent
  * from the other cut rather than its neighbours.
  */
-export function landing(recorded: SetExecutionModule, before: SetExecutionModule, sameText: boolean): Int32Array {
+export function landing(recorded: Cut, before: Cut, sameText: boolean): Int32Array {
   // A layer asks one pair this up to four times: whether its text is the same,
   // where its cases land, and twice again for the before layer.
   const memo = landed[sameText ? 1 : 0];
@@ -81,11 +115,11 @@ export function landing(recorded: SetExecutionModule, before: SetExecutionModule
 
 /** {@link landing} by the text the pair was named at: `[other, same]`. Modules are read-only, so an answer stands while both do. */
 const landed = [
-  new WeakMap<SetExecutionModule, WeakMap<SetExecutionModule, Int32Array>>(),
-  new WeakMap<SetExecutionModule, WeakMap<SetExecutionModule, Int32Array>>(),
+  new WeakMap<Cut, WeakMap<Cut, Int32Array>>(),
+  new WeakMap<Cut, WeakMap<Cut, Int32Array>>(),
 ] as const;
 
-function landingOf(recorded: SetExecutionModule, before: SetExecutionModule, sameText: boolean): Int32Array {
+function landingOf(recorded: Cut, before: Cut, sameText: boolean): Int32Array {
   if (!sameText && !sameNumbering(before.blocks, recorded.blocks)) return new Int32Array(recorded.blocks.length).fill(-1);
   const [heldCount, recordedCount] = [addressCounts(before.blocks), addressCounts(recorded.blocks)];
   const seen = new Map<string, number>();
@@ -104,7 +138,13 @@ function landingOf(recorded: SetExecutionModule, before: SetExecutionModule, sam
   });
 }
 
-type Region = SetExecutionModule['blocks'][number];
+/** What one cut of a module says of a region: its address, its kind and the lines it stands at. */
+type Region = Pick<SetExecutionModule['blocks'][number], 'kind' | 'name' | 'path' | 'startLine' | 'endLine'>;
+
+/** A module as one cut of its text: a case index's module, or a snapshot's rows of it. */
+export interface Cut {
+  readonly blocks: readonly Region[];
+}
 
 function address(block: Region): string {
   return `${block.name}\0${block.path}`;

@@ -9,6 +9,7 @@ import {
   VANTAGE,
   createLineReader,
   handle,
+  askedInput,
   askedTool,
   wantsTree,
   type JsonRpcRequest,
@@ -43,8 +44,12 @@ export interface ServerOptions<Subject = RunReport> {
    * refresh and answered from the previous value would make *this* request the
    * stale one, which is the request that matters: the agent asking is the agent
    * that just re-ran.
+   *
+   * `input` is the arguments the call names, so a host whose subject is fetched
+   * from somewhere — a deployment's decision history — fetches the window the
+   * call asked for rather than all of it. Absent for anything but a call.
    */
-  readonly subject: (asked?: string) => Subject | Promise<Subject>;
+  readonly subject: (asked?: string, input?: Readonly<Record<string, unknown>>) => Subject | Promise<Subject>;
 
   /**
    * How the subject is kept for the next request, where the default will not do.
@@ -98,7 +103,7 @@ export function serve<Subject>(options: ServerOptions<Subject>): () => void {
     }
 
     queue = queue.then(async () => {
-      const subject = await options.subject(askedTool(request));
+      const subject = await options.subject(askedTool(request), askedInput(request));
       const tree = wantsTree(request, options.served) ? await options.tree?.() : undefined;
       const response = handle(request, () => subject, options.served, {
         ...(previous === undefined ? {} : { previous }),
@@ -137,7 +142,8 @@ export interface ReportFileOptions {
    * travels. So the root arrives here, and where it does not, a question with a
    * start point in it is refused: answering it out of the paths the run
    * recorded would be answering a question about a tree from something that is
-   * not one.
+   * not one. A watcher reads a spec file a question names from here too, so a
+   * path an agent's editor spelled from `/` is the name a reporter gave.
    */
   readonly root?: string;
   /** Where the scan index is kept, so a second question does not re-parse the tree. */
@@ -285,6 +291,7 @@ export async function serveVantage(streams: ReportFileOptions = {}): Promise<Ser
     // only once a watcher is listening.
     served: { ...VANTAGE, tools: [...VANTAGE.tools, continuing(attached.observatory)] },
     subject: () => attached.observatory.snapshot(),
+    ...(streams.root === undefined ? {} : { root: streams.root }),
   });
 
   return {

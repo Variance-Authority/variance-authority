@@ -72,36 +72,9 @@ export async function decoderFor(config: Config): Promise<PngDecoder | undefined
 }
 
 /**
- * Where the render cache goes: in the cache, never beside the baselines.
- *
- * A durable store is also a render cache, keyed by document digest. Left where
- * the baselines are, the cache of an LFS store lands inside a tracked, LFS-routed
- * directory and is committed exactly like a baseline — and unlike a baseline it
- * gains an entry for every edit and is worthless the moment the next one lands.
- * The repository then grows without bound with images nobody will ever look at,
- * and the quota that was bought for baselines pays for them.
- *
- * **Why the location is allowed to fall back to the environment, when nothing
- * else is.** The config file refuses inferred values because they change what is
- * observed. This one cannot: the cache is content-addressed by document digest
- * under an identity digest, so a lookup either finds an image painted from this
- * exact document by this exact machine or finds nothing. A wrong location, a
- * stale entry, or a cache shared between projects can therefore cost a re-render
- * and can never produce a wrong image, so `cacheRootFor` may answer from
- * `VARIANCE_AUTHORITY_CACHE` when the repository names no `cacheRoot`.
- *
- * *What it costs.* A directory the baselines do not reach, which is why it
- * prunes itself rather than waiting to be found. See {@link sweepRenderCache},
- * which every run applies.
- */
-export function renderCacheRoot(config: Pick<Config, 'cacheRoot'>): string {
-  return join(cacheOf(config), 'renders');
-}
-
-/**
  * Where suite indexes are kept: this run's, and any a share handed over.
  *
- * In the cache, on the same argument as the render cache above and with one
+ * In the cache, on the same argument as `renderCacheRoot` in `renders.ts`, and one
  * more. An index is addressed by the commit it was written at, so a wrong
  * location costs a fetch and never an answer; and because the address is a
  * commit rather than a branch, a checkout that moves between branches
@@ -398,6 +371,7 @@ export async function storeFor(config: Config): Promise<RasterStore> {
   switch (baselines.kind) {
     case 'directory': {
       const { createDurableStore } = await import('@variance-authority/store/durable');
+      const { renderCacheRoot } = await import('./renders.js');
       // Same rule as the LFS arm below, and for the same reason: every on-disk
       // placement in `docs/placement.md` is a directory the operator commits, so
       // the tracked root holds baselines and nothing else. See
@@ -413,6 +387,7 @@ export async function storeFor(config: Config): Promise<RasterStore> {
     }
     case 'lfs': {
       const { createLfsStore } = await import('@variance-authority/store/lfs');
+      const { renderCacheRoot } = await import('./renders.js');
       return createLfsStore({
         root: baselines.root,
         // The tracked root holds baselines and nothing else. See

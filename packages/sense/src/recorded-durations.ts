@@ -175,8 +175,8 @@ function caseDurations(recording: string, limit: number, scope: DurationScope): 
 
 /**
  * Every path the nearest recording of each suite holds a row for, test file or
- * module, in code-unit order: what a reader suggests from when a path it was
- * given is in neither the recording nor the checkout.
+ * module, in code-unit order: what a reader checks a path it was given against
+ * when the checkout does not hold it.
  */
 export function recordedPaths(root: string): readonly string[] {
   const paths = new Set<string>();

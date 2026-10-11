@@ -23,7 +23,7 @@ use crate::help_usage::NamedExport;
 use crate::order::code_unit;
 
 const MAGIC: u32 = 0x5348_4156; // "VAHS", little-endian
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 const NONE: u32 = u32::MAX;
 const USE_KINDS: [&str; 3] = ["source", "test", "story"];
 
@@ -85,10 +85,47 @@ impl<'a> Pool<'a> {
     }
 }
 
-/// The tokenizer and term rule `termsOf` gives the loose pass: short terms
-/// dropped, counted in UTF-16 code units, the rest lowercased; once each.
+/// The tokenizer and term rule `termsOf` gives the loose pass: each token whole
+/// and, when it is written in several words, each word (`words_of`); short
+/// terms dropped, counted in UTF-16 code units, the rest lowercased; once each.
 fn terms_of(split: &Regex, text: &str) -> HashSet<String> {
-    split.split(text).filter(|token| token.encode_utf16().nth(1).is_some()).map(str::to_lowercase).collect()
+    let long = |term: &str| term.encode_utf16().nth(1).is_some();
+    let mut found = HashSet::new();
+    for token in split.split(text) {
+        if long(token) {
+            found.insert(token.to_lowercase());
+        }
+        let words = words_of(token);
+        if words.len() < 2 {
+            continue;
+        }
+        found.extend(words.into_iter().filter(|word| long(word)).map(str::to_lowercase));
+    }
+    found
+}
+
+/// `wordsOf`: the words one token is written in, split where the case or a
+/// digit changes — a lowercase letter before an uppercase one, the last capital
+/// of a run before a lowercase letter, and a digit beside anything that is not one.
+fn words_of(token: &str) -> Vec<&str> {
+    let chars: Vec<(usize, char)> = token.char_indices().collect();
+    let mut words = Vec::new();
+    let mut start = 0;
+    for at in 1..chars.len() {
+        let (offset, here) = chars[at];
+        let before = chars[at - 1].1;
+        let after = chars.get(at + 1).map(|&(_, after)| after);
+        let split = (before.is_lowercase() && here.is_uppercase())
+            || (before.is_uppercase() && here.is_uppercase() && after.is_some_and(char::is_lowercase))
+            || before.is_numeric() != here.is_numeric();
+        if !split {
+            continue;
+        }
+        words.push(&token[start..offset]);
+        start = offset;
+    }
+    words.push(&token[start..]);
+    words
 }
 
 /// `joined`: strings as UTF-8 with a separator, and where each one starts.

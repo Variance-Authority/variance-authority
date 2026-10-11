@@ -384,6 +384,14 @@ export interface NativeNameUse {
   throughLine: number;
 }
 
+/** Who imports one name out of a set of files, and which files pass it on with `export … from`. */
+export interface NativeImporters {
+  /** Ordered by the importing file in code units, then by line. */
+  uses: NativeNameUse[];
+  /** Every file that passes the name on, in code-unit order; none of the files asked about. */
+  through: string[];
+}
+
 /** An import of a file rather than an entry, with the file it resolved to when the index recorded one. */
 export interface NativeByPath {
   specifier: string;

@@ -81,6 +81,9 @@ export type {
 
 export type { Divergence, DivergenceParting } from './divergence.js';
 
+export { piecesOf } from './subject-pieces.js';
+export type { Residue, SubjectPieces, SubjectShare } from './subject-pieces.js';
+
 export { lexiconOf, lexiconOfValues, lexiconValuesOf, structureOf, withExamples, LEXICON_CAP } from './lexicon.js';
 export { LANDMARK_CAP } from './landmark.js';
 export type { Landmark } from './landmark.js';

@@ -163,7 +163,7 @@ export interface Stored {
  * `BlockKind` to `indexOf`, whose parameter is this tuple's own element type, so
  * a member added to the union stops the build there until it is appended here.
  */
-export const KINDS = [
+export const BLOCK_KINDS = [
   'module',
   'function',
   'branch',
@@ -175,7 +175,7 @@ export const KINDS = [
 ] as const satisfies readonly BlockKind[];
 
 export function kindId(kind: BlockKind): number {
-  const id = KINDS.indexOf(kind);
+  const id = BLOCK_KINDS.indexOf(kind);
   // Unreachable from a typed caller; a JavaScript one can still hand over anything.
   if (id < 0) throw new Error(`unknown coverage block kind: ${kind}`);
   return id;

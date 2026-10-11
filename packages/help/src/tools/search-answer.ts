@@ -1,9 +1,10 @@
 import type { Tree } from '@variance-authority/mcp/tools';
 import { opening } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
+import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
-import { looseNames } from './loose.js';
+import { looseNames, matchingTerms } from './loose.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 
 /**
@@ -35,7 +36,11 @@ const FUZZY = 0.2;
 
 /** What a question to `search` says. */
 export interface SearchQuestion {
-  /** A substring of a name or its documentation, matched case-insensitively. */
+  /**
+   * A substring of a name or its documentation, matched case-insensitively; or
+   * several words, which also match a name whose own words — split where the
+   * case or a digit changes — start with every one of them.
+   */
   readonly query: string;
   /** Paths whose imports the answer is confined to. */
   readonly from?: string | readonly string[] | undefined;
@@ -311,7 +316,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
       : { from: area.from, to: area.to, files: area.files.size, entries: area.entries, unresolved: area.unresolved.length };
   const within = area === undefined ? undefined : index.fileIds(area.files);
 
-  const named = index.namesContaining(query);
+  const named = ascending(index.namesContaining(query), namesOfWords(index, query));
   const hits = surface(index, [...publishedOf(index, named), ...index.docsContaining(query)], area, within);
   const answered = new Set(hits.map((hit) => hit.name));
   const rest = exported(index, named, answered, within);
@@ -340,6 +345,34 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   const alsoRest = exported(index, loose, new Set(alsoHits.map((hit) => hit.name)), within);
   const shown = [...alsoFound.shown, ...alsoRest.head(LOOSE_CAP - alsoFound.shown.length)];
   return { answer: { ...answer, loose: { total: alsoFound.total + alsoRest.total, shown } }, area };
+}
+
+/**
+ * Names a query of several words reaches through the words names are written
+ * in, ascending: every word of the query is a word of the name or the start of
+ * one, so `select test files` is `selectTestFiles`. A query of one word is the
+ * substring's alone.
+ */
+function namesOfWords(index: SearchIndex, query: string): readonly number[] {
+  const words = tokensOf(query);
+  if (words.length < 2) return [];
+
+  let held: ReadonlySet<number> | undefined;
+  for (const word of words) {
+    const reached = new Set<number>();
+    for (const term of matchingTerms(index, word, 0)) {
+      for (const name of index.termNames(term)) if (held === undefined || held.has(name)) reached.add(name);
+    }
+    if (reached.size === 0) return [];
+    held = reached;
+  }
+  return [...(held ?? [])];
+}
+
+/** Two lists of ids as one, ascending and without repeats. */
+function ascending(left: readonly number[], right: readonly number[]): readonly number[] {
+  if (right.length === 0) return left;
+  return [...new Set([...left, ...right])].sort((a, b) => a - b);
 }
 
 /**

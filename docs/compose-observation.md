@@ -23,8 +23,8 @@ decision about how subjects get observed, and the page that makes it.
 The four are independent, and answering one does not answer another. A Storybook
 host does not require local rendering, and a Playwright host does not require
 pixels taken in place. Where baselines are stored does not change the verdict a
-run reports — `unchanged`, `changed`, `new` or `incomparable`; what decides
-whether two captures may be compared at all is the renderer that painted them.
+run reports — `unchanged`, `changed`, `new` or `ignored`; what decides
+whether a change is blamed on the renderer is the identity that painted each side.
 
 ## Start from the harness that already sets up the state
 

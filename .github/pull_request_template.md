@@ -28,3 +28,6 @@ touched packages: label a dependency it adds `+` and one it removes `−`. -->
 
 <!-- Delete when empty. Each choice between plausible alternatives, with the
 alternative, and each review finding set aside, with why. One line each. -->
+
+<!-- Last: the output of `yarn variance review --since origin/main --format
+handover`, unedited. Review bots read it before CI has run. -->

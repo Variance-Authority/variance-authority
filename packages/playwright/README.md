@@ -147,15 +147,21 @@ subjects into one document and let one decide the other's verdict.
 | `bundle` | required | IIFE source installing a `PageAgent` at `AGENT_GLOBAL`. Not ESM: a module evaluates asynchronously, so the harness would poll instead of failing the moment the bundle is broken |
 | `viewport` | required | width, height, scale, colour scheme |
 | `fonts` | optional | families this capture is asserted to have; when it is omitted the capture records that nothing was asserted |
-| `features` | optional | environment facts recorded with the capture |
+| `features` | optional | environment facts recorded with the capture. A `prefers-reduced-motion` declared here is the value `stabilize` asks the browser for |
 | `assets` | optional | asset digests recorded with the capture |
 | `subjectId` | `fixture:<subject>` | how a subject name becomes a capture id |
+| `timezoneId`, `locale` | `UTC`, `en-US` | the timezone the page's clock reads in and the language it formats for. Pinned rather than taken from the host, so a date read on two machines is one date, and written to the environment key of every capture. Give the renderer the same pair: it is the renderer that carries them in `RenderIdentity` |
 | `headless` | `true` | set false to watch a case that is behaving oddly |
+| `stabilize` | none | a stabilization recipe whose driver tricks — `no-hover`, `reduced-motion`, `freeze-clock` — are applied before the first navigation. The ids it applied are `harness.driven`, for the page agent to keep in the recipe it records; with `reduced-motion` applied the capture declares `prefers-reduced-motion: reduce` unless `features` declares its own |
 | `prepare` | none | run against the page *before* its first navigation. This is where `observeNetwork` attaches: a watcher installed after `goto` has already missed every asset the document pulled in, and the alternative pays a second page load per run to observe the first one |
 
 `prepare` is a hook rather than a `network` option: the harness only owns the
 browser, so decisions about the environment key — like asset hashing — stay in
 the page, not the harness.
+
+`createObservedHarness(options, network)` is that hook already written: it
+starts `observeNetwork` in `prepare` when `network` is given, and returns the
+harness with the observation, which you close before the harness.
 
 ## What the page was actually served
 
@@ -298,8 +304,8 @@ paint and no second collection**. What that paint costs differs sharply by
 engine and by subject; the table below is the size of it.
 
 The engine is part of `RenderIdentity`, which keys the baseline store: a WebKit
-baseline lands in its own directory, and a Chromium run that finds one reports
-`incomparable`, naming both engines. The supplied stabilization recipe targets
+baseline lands in its own directory, and a Chromium run compared against one
+names both engines as the cause. The supplied stabilization recipe targets
 Chromium — use `prepare` for engine-specific controls needed by Firefox or
 WebKit.
 
@@ -322,8 +328,9 @@ are unaffected because the flags were never passed to them.
 
 **So a WebKit or Firefox raster is comparable only to one from the same host.**
 `RenderIdentity` includes `platform`, so a laptop's baseline and a container's
-are separate baselines and a run reports `incomparable` rather than comparing
-them. That is the safe failure, not a solution: neither answers for the other.
+are separate baselines, and a run compared across them names the platform as the
+cause of every change. That is a named failure, not a solution: neither answers
+for the other.
 If rasters are produced in a container, produce them only there — a local WebKit
 renderer records baselines nothing will ever compare against, and pays the
 raster tier for them. The semantic tier is unaffected and stays local.
@@ -477,10 +484,11 @@ browser.
 |---|---|---|
 | `browser` | `chromium` | which engine paints. Part of `RenderIdentity` |
 | `headless` | `true` | set false to watch a render |
+| `timezoneId`, `locale` | `UTC`, `en-US` | the timezone and language the page is painted in. Part of `RenderIdentity`. Set them to what the collector read in, or a formatted date paints differently from the one that was read |
 | `launchArgs` | `CHROMIUM_RASTER_ARGS` on Chromium, none elsewhere | launch flags that may affect pixels. The exact ordered list is folded into the identity |
-| `fonts` | none | what this machine is **asserted** to have, as `family/weight/style/hash`. A page can ask whether a family resolves and cannot read the bytes behind it, so this is a declaration — and it is what makes a baseline from a different font stack `incomparable` rather than `changed` |
+| `fonts` | none | what this machine is **asserted** to have, as `family/weight/style/hash`. A page can ask whether a family resolves and cannot read the bytes behind it, so this is a declaration — and it is what names a different font stack as the cause when a baseline from one reads `changed` |
 | `waitForFonts` | `true` | wait on `document.fonts.ready` before painting |
-| `stabilization` | the raster recipe | which tricks hold the page still. Folded into the identity, so a baseline made under one recipe and a run under another are `incomparable` |
+| `stabilization` | the raster recipe, which also releases focus | which tricks hold the page still. Folded into the identity, so a baseline made under one recipe and a run under another are compared with the recipe named as the cause. Every document is painted under it, whatever recipe it was collected under |
 | `assemble` | `AssembleOptions` defaults | how the document is turned into a page |
 | `concurrency` | `1` | how many documents may be painted at once. Above 1 each render leases its own page, because `setContent` replaces a page's whole document. Worth having: the raster tier is where a run's time is |
 

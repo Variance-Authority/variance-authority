@@ -85,6 +85,21 @@ const REPORT: RunReport = {
 };
 
 describe('reading the record before writing it', () => {
+  it('records nothing for a subject re-stamped under a moved identity, and says so', () => {
+    // Its pixels did not move: `accept` writes it under this run's identity and
+    // tells neither the record nor the commit about a change nobody approved.
+    const restamped: ObservationRecord = {
+      subject: 'story:upgraded', verdict: 'unchanged', because: 'no pixels differ', changedPixels: 0, regions: [],
+      images: { after: '.variance/candidates/story:upgraded.png' },
+      signals: { identity: 'machine', moved: ['engine chromium@131 → chromium@132'] },
+    };
+    const answer = changelog.run({ ...REPORT, observations: [button('story:button-a'), restamped] }, {});
+
+    expect(answer).toContain('across 1 subject(s)');
+    expect(answer).not.toContain('story:upgraded');
+    expect(answer).toContain("1 subject(s) did not change and are re-stamped under this run's identity");
+  });
+
   it('answers in the lines the commit will carry, not a summary of them', () => {
     const answer = changelog.run(REPORT, {});
 

@@ -50,12 +50,14 @@ import { checkoutRead } from './checkout-read.js';
 import { mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
 import { many } from './prose-counts.js';
 import { restingOf } from './select-before.js';
+import { withCases } from './select-cases.js';
 import { handedDiff, journeyReading } from './select-journey.js';
 import type { Leg } from './select-leg.js';
 import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js';
 import { relationsFor } from './source-graph.js';
 import { suiteBase } from './suite-base.js';
 import { landingRecord, oneRecord, recordedSuite } from './suite-record.js';
+import { headOf } from './suite-share.js';
 import {
   formatSelection,
   selectionNotes,
@@ -294,19 +296,31 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // answered by the comparisons above, which have already said what moved.
   const manifests = [...installs.values()].flatMap((installed) => compared(installed)?.manifests ?? []);
   const unplaced = [...beyond.values()].flatMap((one) => one.unplaced);
+  // A leg past 0 hops cut after a run landed at HEAD also runs the nearer tests
+  // that run left standing: `inLeg` says why.
+  // FIXME: a run landed at HEAD stands in for the earlier leg's, so a commit
+  // made between the legs leaves the far leg cut by hops alone, and the near
+  // tests its wider reading finds run in neither leg.
+  const later = (request.atDistance?.from ?? 0) > 0 && stands.length > 0 && commit === (await headOf(here));
+  const unrunAtHead = later ? stands.flatMap((stand) => stand.tests).sort() : [];
   const ground: SelectGround =
     narrowing === undefined
       ? { kind: 'no-journal' }
       : {
           kind: 'read',
           ...(request.atDistance === undefined || asked?.distances === undefined ? {} : { distances: asked.distances }),
+          ...(unrunAtHead.length === 0 ? {} : { unrunAtHead }),
           narrowing: {
             ...narrowing,
             unread: [...new Set([...withoutManifests(narrowing.unread, manifests), ...unplaced])].sort(),
           },
         };
 
-  return said({ ...rested, ground });
+  const answer = said({ ...rested, ground });
+  // FIXME: a stand's tests were read against their own diff, and the case cut
+  // reads the journal's alone, so a selection with stands runs its files whole.
+  if (request.grain !== 'case' || ground.kind !== 'read' || stands.length > 0) return answer;
+  return await withCases(answer, at, ground.narrowing, selection.changedLines(diff));
 }
 
 /**

@@ -46,6 +46,8 @@ const FIXTURES: Readonly<Record<string, string>> = {
     'label: for (let i = 0; i < 3; i++) { do { continue label } while (f()) }\nfor (const k in o) if (k) g();\nfor await (const x of y) z();\n',
   'functions.js':
     'export default function () { return async () => { await (async function named() { await 1 })() } }\nexport const h = function* () { yield 1 };\nnew Thing(() => 1, function () {});\na.b.c = () => 1;\nx ||= () => 2;\n',
+  'crossing.ts':
+    'function probe() { if (x) return 1 }\nexport async function read(page) {\n  const a = await page.evaluate(() => { if (y) return 2 });\n  return page.$eval("a", (el) => el.id) ?? page.evaluate(probe) ?? (() => 3)();\n}\n',
   'empty.ts': '',
   'only-comment.ts': '// nothing\n',
   'directive-only.js': '"use strict";\n',
@@ -112,7 +114,7 @@ describe('the header', () => {
 
       expect(statements[first]).toMatchObject({
         type: 'VariableDeclaration',
-        declarations: [{ id: { name: '__vaK' } }, {}, {}, {}],
+        declarations: [{ id: { name: '__vaK' } }, {}, {}],
       });
     },
   );

@@ -7,7 +7,8 @@ import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { encodeExecutionIndex } from '@variance-authority/sense/test-selection';
+import { digestString } from '@variance-authority/core/format';
+import { encodeExecutionIndex, recordOfCases, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
 import { refold } from './covering-reach.js';
 import { indexOutput } from './index-command.js';
@@ -43,6 +44,35 @@ async function columnIndexFile(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'variance-covering-'));
   const file = join(dir, 'cases.bin');
   await writeFile(file, encodeExecutionIndex(INDEX));
+  return file;
+}
+
+/**
+ * {@link INDEX} as a record's cases, beside the record a run leaves when it
+ * loaded `src/stabilize.ts` without instrumenting it: a row with no blocks,
+ * and a precondition of the one test file that loaded it.
+ */
+async function recordFile(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'variance-covering-'));
+  const file = join(dir, 'coverage.bin');
+  const held = (name: string) => ({ name, digest: digestString(name) });
+  await writeTestCoverage(file, {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    tests: [
+      { file: 'total.test.ts', complete: true, preconditions: [held('total.test.ts'), held('src/stabilize.ts')] },
+      { file: 'flow.test.tsx', complete: true, preconditions: [held('flow.test.tsx')] },
+    ],
+    modules: [{ file: 'src/stabilize.ts', sourceDigest: digestString('stabilize'), instrumented: false, blocks: [] }],
+  }, { index: encodeExecutionIndex(INDEX) });
+  return file;
+}
+
+/** {@link INDEX} kept as a record's cases, beside coverage that does not read: a record with no coverage at all. */
+async function unreadRecordFile(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'variance-covering-'));
+  const file = join(dir, 'coverage.bin');
+  await writeFile(file, recordOfCases({ index: encodeExecutionIndex(INDEX) }));
   return file;
 }
 
@@ -104,11 +134,85 @@ describe('asking which tests entered a line', () => {
       .rejects.toThrow(/no readable per-case execution index/);
   });
 
-  it('points at the recorded spelling when the path is rooted differently', async () => {
-    const execution = await indexFile();
+  it.each(['apps/shop/src/total.ts', 'lib/total.ts', 'total.ts'])(
+    'refuses `%s`, a path the record does not hold, and names no other path',
+    async (file) => {
+      const execution = await indexFile();
 
-    await expect(covering(parse(['--file', '/abs/src/total.ts', '--execution', execution])))
-      .rejects.toThrow(/record spells it `src\/total\.ts`/);
+      const asked = covering(parse(['--file', file, '--execution', execution]));
+
+      await expect(asked).rejects.toThrow(/a different statement from no test covering it\.$/);
+      await expect(asked).rejects.not.toThrow(/`src\/total\.ts`/);
+    },
+  );
+
+  it('reads an absolute `--file` from the root, which is how the record names files', () => {
+    const root = join(tmpdir(), 'checkout');
+
+    expect(parse(['--file', join(root, 'src/total.ts'), '--root', root])).toMatchObject({ file: 'src/total.ts' });
+    expect(parse(['--file', 'src/total.ts', '--root', root])).toMatchObject({ file: 'src/total.ts' });
+  });
+
+  it.each(['./src/total.ts', 'src/./total.ts', 'lib/../src/total.ts'])('reads `%s` as `src/total.ts`, the same path', (file) => {
+    expect(parse(['--file', file, '--root', join(tmpdir(), 'checkout')])).toMatchObject({ file: 'src/total.ts' });
+  });
+
+  it.each(['/elsewhere/src/total.ts', '../src/total.ts'])('refuses `%s`, a path outside the root', (file) => {
+    expect(() => parse(['--file', file, '--root', join(tmpdir(), 'checkout')])).toThrow(/is outside the checkout/);
+  });
+
+  it('answers a module the run loaded without instrumenting with the test files that loaded it, which a change to it selects', async () => {
+    const execution = await recordFile();
+
+    const answer = await covering(parse(['--file', 'src/stabilize.ts', '--execution', execution]));
+
+    expect(answer.preconditionOf).toEqual(['total.test.ts']);
+    expect(formatCovering(answer, 'text')).toBe(
+      'src/stabilize.ts is a precondition of 1 test file, and a change to it selects every one: the run loaded it ' +
+        'without instrumenting it, or the suite declares it, so no line of it has a recorded case.\n  total.test.ts\n',
+    );
+    expect(formatCovering(answer, 'refs')).toBe('src/stabilize.ts precondition of: total.test.ts; no recorded line\n');
+  });
+
+  it('names only the test files of the cases asked about as holding a precondition', async () => {
+    const execution = await recordFile();
+
+    const asked = await covering(parse(['--file', 'src/stabilize.ts', '--cases', 'total.test.ts', '--execution', execution]));
+    const other = await covering(parse(['--file', 'src/stabilize.ts', '--cases', 'flow.test.tsx', '--execution', execution]));
+
+    expect(asked.preconditionOf).toEqual(['total.test.ts']);
+    expect(other.preconditionOf).toEqual([]);
+    expect(formatCovering(other, 'text')).toBe(
+      'Read from the 1 case of flow.test.tsx, not the whole suite.\n' +
+        'No test file of these cases holds src/stabilize.ts as a precondition: the run loaded it without instrumenting ' +
+        'it, or the suite declares it, so no line of it has a recorded case.\n',
+    );
+    expect(formatCovering(other, 'refs')).toContain('src/stabilize.ts precondition of: no test file of these cases; no recorded line\n');
+  });
+
+  it('still refuses a file the run never loaded, where the same record holds one it loaded uninstrumented', async () => {
+    const execution = await recordFile();
+
+    await expect(covering(parse(['--file', 'src/never.ts', '--execution', execution])))
+      .rejects.toThrow(/is not in the index at/);
+  });
+
+  it('does not say the run never loaded a file when the record\'s coverage, which keeps that, cannot be read', async () => {
+    const execution = await unreadRecordFile();
+
+    const asked = covering(parse(['--file', 'src/stabilize.ts', '--execution', execution]));
+
+    await expect(asked).rejects.toThrow(
+      `\`src/stabilize.ts\` is not in the index at \`${execution}\`, and that record's coverage cannot be read, so whether ` +
+        'a test file loaded it without instrumenting it is not known.',
+    );
+    await expect(asked).rejects.not.toHaveProperty('kind', 'unloaded');
+  });
+
+  it('still refuses a file as never loaded from an index that carries no coverage to hold preconditions', async () => {
+    const asked = covering(parse(['--file', 'src/never.ts', '--execution', await columnIndexFile()]));
+
+    await expect(asked).rejects.toHaveProperty('kind', 'unloaded');
   });
 
   it('separates a line nothing recorded from a line nothing covered', async () => {
@@ -130,7 +234,7 @@ describe('asking which tests entered a line', () => {
  *
  * A fixture diff would exercise the join and prove nothing about the part that
  * breaks: `--since` is a ref, and turning a ref into hunks in the coordinates
- * the index spells files in goes through `git` twice and a merge base once.
+ * the index names files in goes through `git` twice and a merge base once.
  * Every failure of that is silent — the wrong coordinate answers about a file
  * nobody changed, and a list of test names is the same shape either way.
  */

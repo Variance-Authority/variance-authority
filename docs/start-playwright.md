@@ -21,8 +21,8 @@ This integration answers in the vocabulary of your source instead:
   `changed` with zero changed pixels and the before and after ARIA trees
   retained beside the image.
 - A baseline painted under a different browser, platform, device scale factor,
-  or font stack comes back `incomparable`, naming what differs, rather than as a
-  page of changed pixels you have to triage yourself.
+  or font stack is compared and names what moved as the cause, rather than
+  leaving a page of changed pixels you have to triage yourself.
 
 You keep `toHaveScreenshot` wherever you already use it. This does not replace
 it or read its baselines.
@@ -103,11 +103,11 @@ and what it may be compared against.
 **Renderer identity** is what that `v1-…` directory is named for: the renderer
 and its engine build, the OS and architecture, the device scale factor, the
 fonts the renderer actually had, and digests of the stabilization and raster
-settings it used. A reading is only compared against a baseline under the same
-identity. Upgrade Chromium, change `deviceScaleFactor`, or run on a machine with
-a different font stack, and the run reports `incomparable` for that subject
-instead of comparing across the difference. The project's `colorScheme`
-partitions baselines the same way.
+settings it used. A reading is compared against the baseline under its own
+identity first. Upgrade Chromium, change `deviceScaleFactor`, or run on a
+machine with a different font stack, and the run compares against the baseline
+it finds and names what moved as the cause of whatever changed. The project's
+`colorScheme` partitions baselines the same way.
 
 Commit both files. They are ordinary tracked files and they are how the next run
 and CI find the approved state. If your repository ignores `.variance/`, exclude
@@ -117,6 +117,10 @@ its contents rather than the directory so git still descends into it:
 .variance/*
 !.variance/baselines/
 ```
+
+The images a run paints to compare are not baselines, and the fixture keeps them
+out of this directory: they go to `renders/` in [your cache](cache.md), which
+the fixture prunes once in each worker.
 
 A run that cannot read what the last run wrote does not fail — it reports every
 subject `new`. [Baseline placement](placement.md) covers Git LFS and remote

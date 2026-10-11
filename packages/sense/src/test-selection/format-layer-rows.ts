@@ -4,7 +4,7 @@ import { findString, stringBound } from './lookup.js';
 import type { TestCoverageView } from './format-view.js';
 import type { CrossingSetsView } from './crossing-sets-read.js';
 import type { LayeredOrder } from './format-dictionary.js';
-import { KINDS, NO_OWNER } from './format-layout.js';
+import { BLOCK_KINDS, NO_OWNER } from './format-layout.js';
 import { writtenLines } from './written-lines.js';
 import {
   addressKey,
@@ -162,7 +162,7 @@ export function layeredRows(input: {
     return {
       ...(loadedBy.length === 0 ? {} : { loadedBy }),
       ordinal: blockOrdinal[at]!,
-      kind: KINDS[blockKind[at]!]!,
+      kind: BLOCK_KINDS[blockKind[at]!]!,
       ...(blockOwner[at] === NO_OWNER ? {} : { owner: blockOwner[at]! }),
       digest: view.string(blockDigest[at]!),
       name: view.string(blockName[at]!),
@@ -207,7 +207,7 @@ export function layeredRows(input: {
         const block = byAddress.get(key);
         if (
           placeable && block !== undefined && module.instrumented && instrumented &&
-          reusableBlock(block, { kind: KINDS[blockKind[before]!]! })
+          reusableBlock(block, { kind: BLOCK_KINDS[blockKind[before]!]! })
         ) {
           const files: string[] = [];
           for (const test of previousSets.members(blockSet[before]!)) {
@@ -217,7 +217,7 @@ export function layeredRows(input: {
           if (editedRegion(
             { sourceDigest: module.sourceDigest, digest: block.digest },
             { sourceDigest: view.string(moduleSource[at]!), digest: view.string(blockDigest[before]!) },
-          ) && editReaches(readings, module.file, view.string(moduleSource[at]!), module.sourceDigest, KINDS[blockKind[before]!]!)) {
+          ) && editReaches(readings, module.file, view.string(moduleSource[at]!), module.sourceDigest, BLOCK_KINDS[blockKind[before]!]!)) {
             for (const file of files) if (!currentTests.has(file)) stale.add(file);
           }
           continue;

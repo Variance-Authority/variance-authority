@@ -164,6 +164,7 @@ export {
   journeysPath,
   pathsThrough,
   prepareJourneys,
+  testCompositions,
   type ForksBetween,
   type JourneyBlock,
   type JourneyCase,
@@ -176,6 +177,7 @@ export {
   type JourneyMapPlace,
   type SuiteJourneyMap,
   type JourneyPath,
+  type JourneyPiece,
   type JourneySide,
   type PathsThrough,
   type JourneysAmong,
@@ -192,12 +194,16 @@ export {
   type JourneysPrepared,
   type JourneysRegion,
   type PreparedJourneys,
+  type SuiteTestComposition,
+  type TestComposition,
 } from './journeys.js';
 
 export { gitDigests } from './tree.js';
+export { workingTreeChanges, type WorkingTreeChanges } from './working-tree-changes.js';
 export {
   encodeSearch,
   exportedDigest,
+  importersOf,
   readHelp,
   type EncodedSearch,
   type HelpPublish,

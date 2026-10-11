@@ -86,7 +86,7 @@ export function foreseenBy(build: BuildDetail, file: string): Foreseen | null {
         excluded.push(subject);
         break;
       default:
-        // `new`, `incomparable`, and a subject the reach names that this build
+        // `new`, and a subject the reach names that this build
         // has no row for. None of them answered the question.
         uncompared.push(subject);
     }

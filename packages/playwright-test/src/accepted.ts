@@ -1,5 +1,4 @@
 import type { Observation } from '@variance-authority/observe';
-import { bulkSkips } from '@variance-authority/report';
 import type { VarianceRun } from './run.js';
 
 /** Report the state after Playwright's explicit snapshot update promoted it. */
@@ -16,14 +15,13 @@ export function accepted(observation: Observation): Observation {
 }
 
 /**
- * Whether an accepting run adopts this observation's image.
- *
- * `=changed` sweeps the suite as `variance accept --all` does and skips what that
- * sweep skips (`bulkSkips`): an `incomparable` subject not shown to be the same
- * document re-painted under a new recipe, which includes another machine's
- * image. `=all` overwrites every image it takes, as naming a subject does.
+ * Whether an accepting run adopts this observation's image: every one that is
+ * not already the baseline, as `variance accept --all` does. A change painted
+ * under another identity is adopted like any other change (ADR-0090), and an
+ * unchanged one is re-stamped under this run's identity, so the move is named
+ * once rather than on every later run.
  */
 export function adopts(observation: Observation, run: VarianceRun): boolean {
-  if (run.accepting !== true || observation.verdict === 'unchanged') return false;
-  return run.overwriting === true || !bulkSkips(observation);
+  if (run.accepting !== true) return false;
+  return observation.verdict !== 'unchanged' || observation.signals?.identity !== undefined;
 }

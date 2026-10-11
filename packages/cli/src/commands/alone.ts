@@ -137,10 +137,10 @@ export async function alone(
     };
   }
 
-  // Anything that is not `unchanged` leaves the change standing. `incomparable`
-  // and `new` are folded in here deliberately: neither is evidence that the
-  // change was a leak, and reporting "does not reproduce" on the strength of a
-  // baseline we could not read would clear a real regression.
+  // Anything that is not `unchanged` leaves the change standing. `new` is folded
+  // in here deliberately: it is no evidence that the change was a leak, and
+  // reporting "does not reproduce" on the strength of a baseline we could not
+  // read would clear a real regression.
   return {
     alone: {
       reproduced: true,

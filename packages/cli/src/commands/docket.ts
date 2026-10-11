@@ -64,8 +64,29 @@ export interface Group {
   readonly subjects: readonly string[];
 }
 
+/**
+ * Subjects painted under another identity than their baseline, grouped by what
+ * moved: an upgrade, a recipe of this tool, another machine (ADR-0090).
+ *
+ * Unchanged subjects are counted beside the changed ones, because an avalanche
+ * is read in proportion: 1,180 of 1,204 changed under one engine bump is the
+ * upgrade, and the subjects a source change also reached are found in
+ * {@link Docket.causes} like any other.
+ */
+export interface Move {
+  readonly identity: 'recipe' | 'machine';
+  /** Each field that moved, `field before → after`, baseline side first. */
+  readonly moved: readonly string[];
+  readonly changed: readonly string[];
+  /** Moved, every changed pixel inside a mask: neither changed nor left alone. */
+  readonly ignored: number;
+  readonly unchanged: number;
+}
+
 export interface Docket {
   readonly causes: readonly CauseEntry[];
+  /** Largest first; empty when every subject was painted under its baseline's identity. */
+  readonly moves: readonly Move[];
   readonly collateral: Collateral;
   readonly withoutCause: readonly Group[];
   /**
@@ -127,6 +148,7 @@ export function docketOf(report: CliRunReport): Docket {
   const missingFonts = new Map<string, number>();
   const collateralComponents = new Set<string>();
   const collateralSubjects = new Set<string>();
+  const moves = new Map<string, { identity: Move['identity']; moved: readonly string[]; changed: string[]; ignored: number; unchanged: number }>();
 
   let reviewable = 0;
   let fresh = 0;
@@ -140,6 +162,17 @@ export function docketOf(report: CliRunReport): Docket {
       missingFonts.set(font, (missingFonts.get(font) ?? 0) + 1);
     }
 
+    const identity = observation.signals?.identity;
+    if (identity !== undefined) {
+      const moved = observation.signals?.moved ?? [];
+      const key = `${identity}\u0000${moved.join('\u0000')}`;
+      const move = moves.get(key) ?? { identity, moved, changed: [], ignored: 0, unchanged: 0 };
+      if (observation.verdict === 'changed') move.changed.push(observation.subject);
+      else if (observation.verdict === 'ignored') move.ignored += 1;
+      else move.unchanged += 1;
+      moves.set(key, move);
+    }
+
     if (observation.verdict === 'unchanged' || observation.verdict === 'ignored') continue;
     if (observation.verdict === 'new') fresh += 1;
     else reviewable += 1;
@@ -147,7 +180,7 @@ export function docketOf(report: CliRunReport): Docket {
     const lead = observation.regions.find((region) => region.cause) ?? observation.regions[0];
 
     if (lead === undefined) {
-      // `new`, `incomparable`, and anything the cheap tiers settled: a verdict
+      // `new`, and anything the cheap tiers settled: a verdict
       // with no geometry behind it. Grouped by the reason rather than listed one
       // per subject, because 300 subjects with no baseline share one sentence and
       // repeating it 300 times says nothing the count does not.
@@ -214,6 +247,9 @@ export function docketOf(report: CliRunReport): Docket {
 
   return {
     causes: entries,
+    moves: [...moves.values()].sort(
+      (a, b) => b.changed.length + b.ignored + b.unchanged - (a.changed.length + a.ignored + a.unchanged),
+    ),
     collateral: {
       regions: collateralRegions,
       pixels: collateralPixels,

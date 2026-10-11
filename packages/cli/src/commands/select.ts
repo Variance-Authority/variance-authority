@@ -99,6 +99,12 @@ export type SelectGround =
       readonly narrowing: ExecutionNarrowing;
       /** How far the change travelled to each test it selected; asked only for a leg. */
       readonly distances?: readonly TestDistance[];
+      /**
+       * The tests that last ran before the journal's commit, when that commit
+       * is HEAD: no run that landed at HEAD ran them.
+       * Asked only for a leg that starts past 0 hops.
+       */
+      readonly unrunAtHead?: readonly string[];
     }
   | { readonly kind: 'no-journal' }
   | { readonly kind: 'no-coverage' }

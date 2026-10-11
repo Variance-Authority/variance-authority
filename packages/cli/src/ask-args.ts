@@ -63,12 +63,14 @@ export interface ParsedAsk {
   /** `--test <id>`: which test, for the questions about a suite still running. */
   readonly test?: string;
   readonly state?: string;
+  /** `--build <id>`: a review build, for the question about what reviewers decided. */
+  readonly build?: string;
   readonly file?: string;
   /** `--files <path>[,...]`: the files `orient` reads the graph around, as paths from the root. */
   readonly files?: readonly string[];
   /** `--area <id>`: the page of the code map `orient` prints, as its id (`4.1`). */
   readonly area?: string;
-  /** `--name <name>`: an exported name, matched exactly, for `symbol` and `uses`. */
+  /** `--name <name>`: an exported name, matched exactly, for `symbol` and `uses`; a test's name or a word of it, for `test-composition`. */
   readonly name?: string;
   /** `--package <name>`: a workspace package, for `entrypoint` and to narrow `symbol` and `uses`. */
   readonly package?: string;
@@ -118,7 +120,12 @@ export interface ParsedAsk {
    * shape to give; `text` is the default and is never carried.
    */
   readonly format?: 'json';
-  /** Reports to read instead of the configured one. More than one is merged. */
+  /**
+   * The words after the question, as typed: reports to read instead of the
+   * configured one, more than one merged. Kept as typed so a question that
+   * reads no report can refuse the word somebody wrote; `dispatch` resolves
+   * them where it reads them.
+   */
   readonly reports: readonly string[];
 }
 
@@ -140,6 +147,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
   const claims = flags.values.get('--claims');
   const test = flags.values.get('--test');
   const state = flags.values.get('--state');
+  const build = flags.values.get('--build');
   const file = flags.values.get('--file');
   const files = (flags.values.get('--files') ?? '')
     .split(',')
@@ -179,6 +187,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(claims !== undefined ? { claims: resolve(claims) } : {}),
     ...(test !== undefined ? { test } : {}),
     ...(state !== undefined ? { state } : {}),
+    ...(build !== undefined ? { build } : {}),
     ...(file !== undefined ? { file } : {}),
     ...(files.length > 0 ? { files } : {}),
     ...(area !== undefined ? { area } : {}),
@@ -196,6 +205,6 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(offset !== undefined ? { offset } : {}),
     ...(at !== undefined ? { at } : {}),
     ...(format === 'json' ? { format } : {}),
-    reports: reports.map((path) => resolve(path)),
+    reports,
   };
 }

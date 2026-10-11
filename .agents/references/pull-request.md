@@ -69,6 +69,19 @@ not restate it. A test that does not assert the stated symptom does not pin it,
 and what a commit message says about itself is a claim, not evidence.
 `gh pr create --body-file` skips the template, so apply it yourself.
 
+The body ends with the coverage handover, for CodeRabbit, which reviews the
+body before CI has run anything:
+
+```bash
+yarn variance review --since origin/main --format handover
+```
+
+Paste its output under the template, unedited. It names each changed function
+no case reached, the change wrote, or a case reached only from far, from a
+distance not measured or only while its module loaded, with the test file to
+open, and counts the rest. After a rebase, run it again and paste the new
+block over the one between its markers.
+
 Before anything is pushed, three subagents review the change, and a fourth when
 the change writes a top-layer page. Each starts with
 no other context, and each gets only what its question needs, read from your

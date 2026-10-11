@@ -42,7 +42,8 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { layCases, type FreshCases, type ModuleTexts } from './case-landing.js';
+import { followRowsIn } from './case-cuts.js';
+import { layCases, textsIn, type FreshCases, type ModuleTexts } from './case-landing.js';
 import { casesRecordedOver, recordOfCases, withCaseSections } from './case-record.js';
 import { askCoverageFile } from './coverage-file.js';
 import { layeredCoverage } from './format-layer.js';
@@ -107,8 +108,8 @@ export interface CommitRuns {
    * each lockfile and manifest the runs found edited, by the digest of the
    * text kept for it, or `null` for one they found deleted (`kept-install.ts`).
    * Empty when they ran on the commit's own. Absent when that is not known: a
-   * record written before installs were kept, a landing of shards, or runs at
-   * this commit over two installs. A reader compares from `commit` then.
+   * record written before installs were kept, a landing of shards that did not
+   * all name one install, or runs at this commit over two installs. A reader compares from `commit` then.
    */
   readonly installed?: KeptInstall;
 }
@@ -143,10 +144,12 @@ export type RecordedTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
  *
  * `cases` is the run's own case index, laid over the cases the record holds
  * (`case-landing.ts`) and written with the coverage, in the same write. A run
- * that kept no cases carries the record's as they were. A run that instrumented
- * no module lands its cases and nothing else ({@link landUncovered}), except a
- * file it could not finish measuring: probes that fired where nothing could
- * place them leave the file incomplete, which selects it, and that row lands.
+ * that kept no cases carries the record's. Either way a held module the run did
+ * not record is laid onto the cut its rows were landed at (`case-cuts.ts`). A
+ * run that instrumented no module lands its cases and nothing else
+ * ({@link landUncovered}), except a file it could not finish measuring: probes
+ * that fired where nothing could place them leave the file incomplete, which
+ * selects it, and that row lands.
  *
  * The caller holds the index lock: the base read here, the write after it and
  * the record of both are one read-modify-write, so two processes finishing
@@ -173,11 +176,15 @@ export async function landRun(
   const previous = casesRecordedOver(coverageFile);
   // The run's modules are named with the text each was cut from, so a module
   // re-cut over the text the index already holds lands its cases as its rows do.
+  const texts = cases === undefined && previous.index === undefined ? undefined : recordedTexts(coverageFile);
   const laid = cases === undefined
     ? previous
-    : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules }, cases.eyes, recordedTexts(coverageFile), before?.commit);
+    : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules }, cases.eyes, texts, before?.commit);
   const coverage = await layeredCoverage(coverageFile, current, root, cacheRoot);
-  const bytes = Object.values(laid).every((part) => part === undefined) ? coverage : withCaseSections(coverage, laid);
+  // The rows of a module this run did not record may have been re-cut to the
+  // text on disk; the cases held for it are laid onto the same cut.
+  const followed = laid.index === undefined ? laid : followRowsIn(laid, openTestCoverage(coverage), texts);
+  const bytes = Object.values(followed).every((part) => part === undefined) ? coverage : withCaseSections(coverage, followed);
   await writeCoverageBytes(coverageFile, bytes);
   // The snapshot's rows are coordinates in the texts on disk now, and the
   // commit it names holds none of the edited ones. Kept after the write, so a
@@ -249,7 +256,8 @@ async function coveredRecord(coverageFile: string): Promise<Buffer | undefined> 
  * has already read the snapshot to merge over it, and passes that.
  *
  * `installed` is the install `current` ran on, which {@link landRun} keeps; a
- * landing of shards ran nowhere this process can see, and passes none.
+ * landing of shards passes the one their own landings kept, when they agree
+ * (`shardsInstall`).
  */
 export function commitRunsAfter(
   before: RecordedTests | undefined,
@@ -447,11 +455,7 @@ export async function heldCommitRuns(
 /** The text each module of the snapshot at `coverageFile` was cut from; `undefined` when it holds none this build reads. */
 function recordedTexts(coverageFile: string): ModuleTexts | undefined {
   try {
-    return askCoverageFile(coverageFile, (coverage) => {
-      const path = coverage.modulePath.all();
-      const source = coverage.moduleSource.all();
-      return new Map(Array.from(path, (file, module) => [coverage.string(file), coverage.string(source[module]!)]));
-    });
+    return askCoverageFile(coverageFile, textsIn);
   } catch {
     return undefined;
   }

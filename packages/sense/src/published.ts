@@ -32,14 +32,17 @@ import { openSourceIndex, primarySourceIndexPath, sourceIndexPath } from './sour
 import { updateNatively } from './native-update.js';
 import { markCheckout } from './test-selection/cache-layers.js';
 import { openSourceIndexFile, seedSourceIndex, type SourceIndexState } from './source-index-file.js';
+import { SOURCE_INDEX_VERSION } from './source-index-format.js';
 import { usesOf } from './uses.js';
 
 /** One published generation, opened for reading. */
 export interface PublishedSources {
   /** The index file that was read. */
   readonly path: string;
-  /** Whether it was whole, absent, or readable only up to a bad segment. */
+  /** Whether it was whole, absent, or readable only up to a bad segment or one of another format version. */
   readonly state: SourceIndexState;
+  /** The format version the unread segment names, when `state` is `other-version`. */
+  readonly written?: number;
   /** Every file the last update read, sorted by path compared by code unit. */
   readonly records: readonly FileRecord[];
   /**
@@ -70,6 +73,7 @@ export async function readPublishedSources(path: string): Promise<PublishedSourc
   return {
     path,
     state: file.state,
+    ...(file.written === undefined ? {} : { written: file.written }),
     records: [...stored.records.values()]
       .map((held) => held.record)
       .sort((left, right) => left.file < right.file ? -1 : left.file > right.file ? 1 : 0),
@@ -117,6 +121,8 @@ export interface SourceUpdate {
   readonly path: string;
   /** What the index was before this update. */
   readonly was: SourceIndexState;
+  /** The format version the index was written in, when `was` is `other-version`. */
+  readonly written?: number;
   /**
    * What the file system refused when this update wrote the index. Present only
    * then: the counts describe the scan, and the index on disk is what it was.
@@ -170,6 +176,7 @@ export async function updateSourceIndex(
   // that same open rather than off a second one.
   let source = await openSourceIndex(path);
   const was = source.state;
+  const written = source.written;
   // A worktree's first update starts from the primary checkout's generation and
   // pays only for what differs between the two checkouts.
   const primary = options.index === undefined && was === 'missing'
@@ -223,6 +230,7 @@ export async function updateSourceIndex(
   return {
     path,
     was,
+    ...(written === undefined ? {} : { written }),
     ...(refused === undefined ? {} : { refused }),
     files,
     reread: files - reused.size,
@@ -252,9 +260,10 @@ export interface PublishedSourcesOptions {
 /**
  * The published generation, or the reason there is none.
  *
- * Whole: returned as read. Missing or damaged in CI: refused, naming the step
- * the pipeline lacks. Missing or damaged anywhere else: updated once — from the
- * valid prefix, when there is one — with a line saying so, then read.
+ * Whole: returned as read. Missing, damaged, or written in another format
+ * version in CI: refused, naming the step the pipeline lacks. Any of them
+ * anywhere else: updated once — from the valid prefix, when there is one — with
+ * a line saying which of them it was, then read.
  */
 export async function publishedSources(
   root: string,
@@ -266,14 +275,18 @@ export async function publishedSources(
 
   const what = read.state === 'missing'
     ? `no source index is published at ${path}`
-    : `the source index at ${path} is damaged, and reads only up to its first bad segment`;
+    : read.state === 'other-version'
+      ? `the source index at ${path} was written in format version ${String(read.written)}, ` +
+        `and this release reads version ${String(SOURCE_INDEX_VERSION)}`
+      : `the source index at ${path} is damaged, and reads only up to its first bad segment`;
   if (options.ci) {
-    throw new SourceIndexUnpublished(
-      `${what}. In CI the index is a step of the pipeline: restore the cache that holds it, ` +
-      `then run \`${options.step}\` before this command.`,
-    );
+    throw new SourceIndexUnpublished(read.state === 'other-version'
+      ? `${what}. In CI the index is a step of the pipeline: run \`${options.step}\` with this release before this command.`
+      : `${what}. In CI the index is a step of the pipeline: restore the cache that holds it, ` +
+        `then run \`${options.step}\` before this command.`);
   }
-  options.announce(`${what}; updating it from the checkout, which is what \`${options.step}\` does.`);
+  const doing = read.state === 'other-version' ? 'rebuilding' : 'updating';
+  options.announce(`${what}; ${doing} it from the checkout, which is what \`${options.step}\` does.`);
   await updateSourceIndex(root, {
     index: path,
     ...(options.packs === undefined ? {} : { packs: options.packs }),

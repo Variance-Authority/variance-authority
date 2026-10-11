@@ -28,18 +28,21 @@ import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { BuildDetail } from '../review-types.js';
 import { ChangePanel } from './change.js';
 import type { ReviewClient } from './client.js';
+import { ConcernTallyLine, useConcernTally } from './concerns.js';
 import { useCrossing, type Crossing } from './crossing.js';
 import { distanceFrom } from './distance.js';
 import { Impact } from './impact.js';
 import { originsOf } from './grouping.js';
 import { causeOf } from './lead.js';
 import { OriginsPanel } from './origins.js';
-import { SubjectRail } from './rail.js';
-import type { Order, Route } from './route.js';
+import { SubjectRail, queueOf } from './rail.js';
+import type { Order, Route, Task } from './route.js';
 import { RunPage } from './run.js';
+import { SameImageNote, Siblings } from './same-image.js';
 import { needsReview } from './settled.js';
 import { Go, Stalled, Topbar, Waiting, messageOf, type Loaded } from './shell.js';
 import { SubjectPanel } from './subject.js';
+import { Tasks, tasksOf } from './tasks.js';
 import { count, number } from './text.js';
 
 /** The four addresses that live inside one build. */
@@ -114,9 +117,17 @@ function Build({
   readonly build: BuildDetail;
   readonly route: BuildRoute;
   readonly go: (route: Route) => void;
-  readonly reload: () => void;
+  readonly reload: () => Promise<void>;
 }): ReactElement {
   const crossing = useCrossing(client, build);
+  const concerns = useConcernTally(client, build.build);
+  // A decision can open a concern — approving an image an earlier build
+  // rejected does — so both reads follow it. The panel holds its buttons until
+  // the build is back, since until then it holds the baseline version it read.
+  const decided = (): Promise<void> => {
+    concerns.refresh();
+    return reload();
+  };
   const order: Order = (route.page === 'build' ? route.order : undefined) ?? 'story';
 
   const { origins } = originsOf(build);
@@ -129,6 +140,51 @@ function Build({
   // Anchored on the change this render is filed under: on a page with no single
   // change, distance has nothing to be measured from.
   const anchor = subject === undefined ? undefined : causeOf(subject);
+  const tasks = tasksOf(reviewable, build.subjects, concerns.concerns);
+  const task = route.page === 'subject' ? route.task : undefined;
+  const chosen = task === undefined ? undefined : tasks[task];
+  // A task narrows the rail to its renders, and keeps the one on screen in its
+  // place until the reviewer moves: deciding it, or resolving its concern, takes
+  // it out of the task, and the row under the cursor vanishing would turn *next*
+  // into *first*. Still being read, a task lists only that render, so J walks
+  // nowhere it might not belong; one that could not be read narrows nothing,
+  // since an empty rail would say the task was done.
+  // Drawn in the order of the whole build, so a render leaving the task stays
+  // where it was rather than joining the end.
+  const members = typeof chosen === 'object' ? chosen : chosen === undefined && task !== undefined ? [] : undefined;
+  const whole = queueOf(build.subjects);
+  const listed =
+    members === undefined ? reviewable : whole.filter((each) => each === subject || members.includes(each));
+  // The bar walks the queue the rail draws, so *next* is the row below.
+  const queue = queueOf(listed);
+  const at = subject === undefined ? -1 : queue.indexOf(subject);
+  const toSubject = (next: string, within: Task | undefined): Route => ({
+    page: 'subject',
+    build: build.build,
+    subject: next,
+    ...(within === undefined ? {} : { task: within }),
+  });
+  // A render in the chosen task stays on screen; otherwise the task opens on its
+  // first render, so choosing a task never leaves the stage on one it does not
+  // list.
+  const choose = (next: Task | undefined): void => {
+    if (next === undefined) {
+      go(subject === undefined ? { page: 'build', build: build.build } : toSubject(subject.subject, undefined));
+      return;
+    }
+    const covered = tasks[next];
+    if (typeof covered !== 'object') return;
+    const kept = subject !== undefined && covered.includes(subject);
+    const first = whole.find((each) => covered.includes(each));
+    if (kept) go(toSubject(subject.subject, next));
+    else if (first !== undefined) go(toSubject(first.subject, next));
+  };
+  const place = {
+    ...(at < 0 ? {} : { at }),
+    of: queue.length,
+    previous: at > 0 ? queue[at - 1]?.subject : undefined,
+    next: queue[at + 1]?.subject,
+  };
 
   return (
     <div className="va-app">
@@ -141,6 +197,7 @@ function Build({
         <span className={build.pending > 0 ? 'va-pill va-warn' : 'va-pill va-good'}>
           {build.pending > 0 ? `${number(build.pending)} awaiting review` : 'settled'}
         </span>
+        <ConcernTallyLine tally={concerns.tally} />
         <span className="va-topbar-meta">
           <code className="va-commit">{build.commit.slice(0, 8)}</code>
           {build.branch === undefined ? null : <span>{build.branch}</span>}
@@ -158,10 +215,11 @@ function Build({
       ) : (
         <div className="va-body">
           <nav className="va-rail">
+            <Tasks tasks={tasks} chosen={task} onChoose={choose} />
             <Switch build={build.build} order={order} subjects={reviewable} route={route} go={go} />
             {route.page === 'subject' ? (
               <SubjectRail
-                subjects={reviewable}
+                subjects={listed}
                 causes={build.causes.length}
                 variations={build.variations.length}
                 selected={route.subject}
@@ -169,7 +227,7 @@ function Build({
                   go(
                     next === null
                       ? { page: 'build', build: build.build }
-                      : { page: 'subject', build: build.build, subject: next },
+                      : toSubject(next, task),
                   )
                 }
               />
@@ -189,10 +247,16 @@ function Build({
               client={client}
               reviewer={reviewer}
               build={build.build}
+              ran={build.at}
               subject={subject}
+              siblings={<Siblings client={client} build={build} subject={subject.subject} go={go} />}
               {...(anchor === undefined ? {} : { anchor, far: distanceFrom(build, anchor) })}
               sourced={build.causes.some((cause) => cause.file !== undefined)}
-              onDecided={reload}
+              go={go}
+              place={place}
+              onGo={(next) => go(toSubject(next, task))}
+              onDecided={decided}
+              onConcerned={concerns.refresh}
             />
           ) : open !== undefined ? (
             <ChangePanel
@@ -203,7 +267,7 @@ function Build({
               crossing={crossing}
               changes={new Set(origins.map((each) => each.component))}
               go={go}
-              onDecided={reload}
+              onDecided={decided}
             />
           ) : (
             <Opening build={build} crossing={crossing} route={route} go={go} />
@@ -246,7 +310,7 @@ function Switch({
         </span>
       ) : (
         <Go
-          to={{ page: 'subject', build, subject: route.page === 'subject' ? route.subject : first }}
+          to={route.page === 'subject' ? route : { page: 'subject', build, subject: first }}
           go={go}
           className={route.page === 'subject' ? 'va-mode va-on' : 'va-mode'}
           title="One row per render, which is what the run measured"
@@ -310,6 +374,7 @@ function Opening({
           </p>
         )}
 
+        <SameImageNote build={build} go={go} />
         <Since crossing={crossing} />
         <Impact build={build} crossing={crossing} />
 
@@ -344,7 +409,6 @@ function Still({ verdicts }: { readonly verdicts: BuildDetail['verdicts'] }): Re
     verdicts.unchanged === 0 ? undefined : `${number(verdicts.unchanged)} unchanged`,
     verdicts.ignored === 0 ? undefined : `${number(verdicts.ignored)} settled by a rule`,
     verdicts.new === 0 ? undefined : `${count(verdicts.new, 'new subject')}`,
-    verdicts.incomparable === 0 ? undefined : `${count(verdicts.incomparable, 'incomparable')}`,
   ].filter((clause): clause is string => clause !== undefined);
 
   if (said.length === 0) return null;

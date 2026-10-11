@@ -8,7 +8,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
 import { decodeExecutionIndex } from './execution-format.js';
-import { journeyGaps } from './execution-set-format.js';
+import { lineAt, linesOf } from './case-lines.js';
+import { recordedCases } from './case-record.js';
+import { journeyGaps, openSetColumns } from './execution-set-format.js';
 import { finalizeJestJourneys, stitchJourneyArtifacts } from './jest-journey-artifact.js';
 
 // The story format is a CommonJS sandbox module whose own requires resolve only
@@ -150,17 +152,15 @@ describe('the Jest integration', () => {
     await stitchJourneyArtifacts([...journeyFiles].reverse(), reversed);
     await expect(readFile(reversed)).resolves.toEqual(await readFile(assembled));
     const index = decodeExecutionIndex(await readFile(assembled));
-    // Every case that entered a region, by the name the runner resolved. Two of
-    // `alpha.case.ts`'s three are absent for different reasons: the skipped one
-    // is never handed to the runner, so it opens no scope at all, and the one
-    // that only reads a global crossed nothing — the same rule the Vitest seam
-    // applies, since a case with an empty bucket adds a row nobody can select
-    // on.
+    // Every case that ran, by the name the runner resolved, the one that only
+    // reads a global among them though it crossed nothing. The skipped one is
+    // absent: it is never handed to the runner, so it opens no scope at all.
     // `delta.case.ts` among them, which is the placement a search of the realm
     // cannot reach: it imported `it` from `@jest/globals`, so the binding it
     // declared with was never the one on `globalThis`. The runner announces it
     // like any other case and the seam takes its enclosure from the event.
     expect(index.tests.map((test) => test.id)).toEqual([
+      at("test/alpha.case.ts > ran after the project's own setup file"),
       at('test/alpha.case.ts > takes the alpha path'),
       at('test/beta.case.ts > takes the beta path'),
       at('test/delta.case.ts > takes the delta path with registrars it imported'),
@@ -338,5 +338,14 @@ describe('the Jest integration', () => {
     expect(called.get(inLoads('src/confirm.ts'))).toEqual([`${testFile} > confirms on click`]);
     expect(called.get(inLoads('src/editor.ts')) ?? []).toEqual([]);
     expect(called.get(inLoads('src/fallback.ts')) ?? []).toEqual([]);
+
+    // The test's own statement on line 7 is what reached every region `click` entered.
+    const confirms = cases.tests.findIndex((test) => test.id === `${testFile} > confirms on click`);
+    const lines = linesOf(openSetColumns(recordedCases(bytes))!.testLines, confirms)!;
+    const module = cases.modules.findIndex((entry) => entry.file === inLoads('src/confirm.ts'));
+    const reached = cases.modules[module]!.blocks.flatMap((block, at) =>
+      block.crossings.some((crossing) => crossing.test === confirms && crossing.loaded !== true) ? [lineAt(lines, module, at)] : []);
+    expect(reached.length).toBeGreaterThan(0);
+    expect(new Set(reached.map((line) => JSON.stringify(line)))).toEqual(new Set([JSON.stringify({ line: 7, ambient: false })]));
   }, 120_000);
 });

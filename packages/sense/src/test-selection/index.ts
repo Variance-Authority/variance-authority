@@ -71,30 +71,30 @@ export {
 } from './execution-format.js';
 export { mergeExecutionIndexes } from './execution-merge.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
-export { encodeAsSetExecutionIndex, journeyGaps, type JourneyGaps } from './execution-set-format.js';
+export { encodeAsSetExecutionIndex, journeyGaps, openSetColumns, type JourneyGaps, type SetColumns, type StringTable, type TestColumns } from './execution-set-format.js';
 export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
 export { readingLines, type FileReading } from './reading-lines.js';
 export { atDistance, distanceRange, groupByDistance, remaining, type DistanceGroup } from './at-distance.js';
-export { distanceFromView, nearestFirst } from './distance.js';
+export { distanceFromView, nearestFirst, type Bearing, type DistanceOptions, type TestDistance } from './distance.js';
 export { testsReaching, testsReachingFromView, distanceToSource } from './at-source.js';
 export type { SourceAudience, SourceAudienceTest, SourcePoint, SourceRegion };
-// The file list a selection will ask about, so a caller wiring `sourceAt` names the
-// paths the selector names, not a second parse that disagrees at the edges.
+// The file list a selection will ask about, and its hunks' text, so a caller names
+// the paths the selector names, not a second parse that disagrees at the edges.
 export { changedLines, type LineRange } from './diff-lines.js';
+export { hunksOf } from './patch.js';
 // The other half of that wiring, for the ordinary case of a git checkout. It
 // ships because the check is opt-in: a caller that does not know to pass
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.
 export { textAtRecording, textsAt } from './recorded-text.js';
 export { keptDigests, keptTexts } from './kept-texts.js';
-export type { KeptInstall } from './kept-install.js';
+// A landing of shards reads the install each shard's own landing kept.
+export { shardsInstall, type KeptInstall } from './kept-install.js';
 // A text cut as a seam records it, so rows written by hand stand where a
 // landing that cuts the text again puts them.
 export { sourceCut } from './coverage-rows.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
-export type { Bearing, DistanceOptions, TestDistance } from './distance.js';
-export type { Face, Faces, ReachThrough } from './faces.js';
 export { selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
-export { eitherFace, indexFaces } from './faces.js';
+export { eitherFace, indexFaces, type Face, type Faces, type ReachThrough } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
 export { foldTestCoverage, journeyDivergences, mergeCoverage };
 export {
@@ -171,20 +171,14 @@ export { layerTestCoverage, layeredCoverage } from './format-layer.js';
 // file and not wanting the seventy megabytes the answers do not touch. The
 // file-taking queries below are this plus a `finally`.
 export { askCoverageFile, isTestCoverageFile, openCoverageFile, type CoverageFile } from './coverage-file.js';
+export { BLOCK_KINDS } from './format-layout.js';
 export { sharedPreconditions, testsGovernedBy } from './lookup.js';
 // The runs that wrote the case index and the snapshot, and what they were laid over.
 // The lock every writer of a record takes, for a caller that lands one.
 export { withIndexLock } from './index-lock.js';
-export {
-  landCases,
-  lastCaseRunOf,
-  textsOf,
-  type CaseLanding,
-  type LaidRun,
-  type LandedShard,
-  type LastCaseRun,
-  type ModuleTexts,
-} from './case-landing.js';
+export { landCases, lastCaseRunOf, textsOf, type CaseLanding, type LaidRun, type LandedShard, type LastCaseRun, type ModuleTexts } from './case-landing.js';
+export { casesCutApart, type IndexedCut } from './case-index-cut.js';
+export { followRows } from './case-cuts.js';
 export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordOfCases, recordedCases, recordedEyesAt, recordedEyesOf, sharedRecord, withCaseSections, withoutCoverage, type CaseSections } from './case-record.js';
 export { collectedRecord } from './collected-record.js';
 export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';

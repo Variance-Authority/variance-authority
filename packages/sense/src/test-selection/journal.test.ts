@@ -25,6 +25,7 @@ import {
   forgetThePage,
   inRoot,
 } from './__fixtures__/browser-page.js';
+import { inTurn, TURNS_TEST_TIMEOUT_MS } from './__fixtures__/lock-turns.js';
 
 afterEach(forgetThePage);
 
@@ -170,6 +171,30 @@ describe('a browser run records what it executed', () => {
       const coverage = await readTestCoverage(coverageFile);
       const root_ = coverage.modules[0]!.blocks.find((block) => block.kind === 'module')!;
       expect(root_.testFiles).toEqual(['story:price--plain', 'story:price--premium']);
+    });
+  });
+
+  it('marks a module it cannot parse, so an edit to it selects every subject that loaded it', async () => {
+    await inRoot(async (root) => {
+      const cacheRoot = resolve(root, 'cache');
+      const coverageFile = resolve(root, 'coverage.bin');
+      const broken = 'export const = ;\n';
+      const module = resolve(root, 'broken.js');
+      await writeFile(module, broken, 'utf8');
+
+      const transformed = testSelectionProbes({ root }).transform(broken, module);
+
+      expect(transformed?.code.startsWith(`import "variance-authority:execution-collector";${broken}`)).toBe(true);
+      // The module's own text throws wherever it runs; what follows it is the mark.
+      const realm = evaluate(transformed!.code.replace(broken, ''));
+      await recordExecution({
+        root,
+        cacheRoot,
+        coverageFile,
+        subjects: [{ owner: 'story:broken--loaded', journal: realm.collector.drain() }],
+      });
+
+      expect(await selectTestFiles(coverageFile, diffAt('broken.js', 1))).toEqual(['story:broken--loaded']);
     });
   });
 
@@ -384,15 +409,16 @@ describe('a browser run records what it executed', () => {
       const plain = realm.collector.drain();
 
       // Two Playwright workers are two processes over one index. Unlocked, the
-      // later rename would carry only what its own reader saw.
-      const [first, second] = await Promise.all([
-        recordExecution({
+      // later rename would carry only what its own reader saw. Both start at
+      // once and both find the index held; they are let in one at a time.
+      const [first, second] = await inTurn(coverageFile, [
+        () => recordExecution({
           root,
           cacheRoot,
           coverageFile,
           subjects: [{ owner: 'tests/premium.spec.ts', journal: premium }],
         }),
-        recordExecution({
+        () => recordExecution({
           root,
           cacheRoot,
           coverageFile,
@@ -410,7 +436,7 @@ describe('a browser run records what it executed', () => {
         'tests/premium.spec.ts',
       ]);
     });
-  });
+  }, TURNS_TEST_TIMEOUT_MS);
 
   it('lets a story file select the story, through a precondition nothing enters', async () => {
     await inRoot(async (root) => {

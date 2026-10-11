@@ -29,9 +29,9 @@ It reads no config and no run, so it is the whole install check.
 
 | Command | `variance.config.json` | Other input |
 |---|---|---|
-| `ask` about a run (`summary`, `changes`, `composition`, `locate`, `describe`, …), `ask costs`, `adjudicate`, `report`, `changelog`, `accept` | required | the report a finished run left; for `costs`, the mainline's published costs unless you name a report |
+| `ask` about a run (`summary`, `changes`, `composition`, `locate`, `describe`, …), `ask costs`, `ask decisions`, `ask concerns`, `adjudicate`, `report`, `changelog`, `accept` | required | the report a finished run left; for `costs`, the mainline's published costs unless you name a report; for `decisions` and `concerns`, and `changelog` on a `remote` store, the review deployment, read with the share token |
 | `ask` about a running suite (`self`, `run-signals`, `waiting`, `test-signals`, `diff --at`) | required, though never read | a watcher's address |
-| `ask` about the source (`packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `gaps`, `orient`, `journey-map`, `stack`, `slowest-tests`) | none | the checkout |
+| `ask` about the source (`packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `gaps`, `orient`, `journey-map`, `test-composition`, `stack`, `slowest-tests`) | none | the checkout |
 | `watch`, `distill`, `reach` | none | see the reference that owns it |
 | `index` | none | the checkout; it writes what [test selection](references/test-selection.md) and [orient](references/orient.md) read |
 | `covering`, `story`, `select`, `coverage`, `review` | optional; only the root file's `suites` and `cacheRoot` are read; `covering` also reads `names` | the test-selection recording; with more than one suite declared, `--suite <name>`; `variance --help` lists the flags of `coverage` and `review` |
@@ -56,15 +56,15 @@ when its condition holds, not before.
 
 | Question | Read | Then, only if |
 |---|---|---|
-| What did the last run find, and what changed? | [ask a run](references/ask-a-run.md) | you have a description, not a subject id: [locate](references/locate.md) |
+| What did the last run find, and what changed? What did review decide on a subject? | [ask a run](references/ask-a-run.md) | you have a description, not a subject id: [locate](references/locate.md) |
 | I changed UI code. Did the edit land, what else moved, and which declaration moved it? | [check an edit](references/check-an-edit.md) | |
 | What is a suite that has not finished doing? | [live run](references/live-run.md) | nothing arrives: [producers](references/producers.md) |
 | A reading, a field or a domain is unavailable | [producers](references/producers.md) | |
 | Which tests ran this line? What did my change do to the cases? | [covering](references/covering.md) | |
 | Which of them ran it with discounted prices mocked or a flag on? What state did a test run under, and where is its flag-off twin? | [case preconditions](references/case-preconditions.md) | |
 | Where does this one test, or the few I am looking into, go, and in what order? | [story](references/story.md) | |
-| Which tests does this edit need, and which first? What does a distance or a `bearing` mean? | [test selection](references/test-selection.md) | the selection came back whole, missed a config file, or a recorded run times out: [selection wiring](references/selection-wiring.md); you need distances, the `because` trail or a diff that is not a ref: [selection API](references/selection-api.md) |
-| What can this test be reduced to? | [distill](references/distill.md) | an input file is missing: [producers](references/producers.md) |
+| Which tests does this edit need, and which first? What does a distance or a `bearing` mean? | [test selection](references/test-selection.md) | you are writing a suite's `before` or `relations`, the selection came back whole, missed a config file, or a recorded run times out: [selection wiring](references/selection-wiring.md); you need distances, the `because` trail or a diff that is not a ref: [selection API](references/selection-api.md) |
+| What can this test be reduced to? How much of what each test file loads does it use, as percentiles across a suite? | [distill](references/distill.md) | an input file is missing: [producers](references/producers.md) |
 | What does this workspace publish? Where is a name declared, and who imports it? Where are the words of a task, and which packages are they in? | [workspace API](references/workspace-api.md) | you need why a name exists or what it connects to: [what is written about a name](references/written-about-a-name.md) |
 | Where am I in this codebase, what runs here, what can this file import, and which tests are slowest? | [orient](references/orient.md) | |
 | The client holds an MCP connection, or you are writing its config | [MCP](references/mcp.md) | then the row for the question itself |

@@ -208,6 +208,8 @@ Everything below is passed to `storybookCollector(...)` in the module from step
 | `source` | Reports should resolve component names to `file:line`. | Omitted; component names remain available. An empty or mistyped scan is refused. |
 | `baseUrl` | Storybook is already running, e.g. `http://localhost:6006`. | Omitted; the directory containing `subjects.index` is served on loopback for the run. |
 | `headless` | You need to watch collection while debugging. | `true`. |
+| `stabilize` | A story is about its hover, focus, motion or the current date, or your preview has its own determinism strategy. | The standard collection recipe, which also takes the pointer off the page, releases focus, asks for reduced motion and fixes `Date`; `[]` records an untouched story. A list replaces the recipe: start from the exported `DEFAULT_STABILIZE` and filter out what you want read, as in `DEFAULT_STABILIZE.filter((id) => id !== 'no-hover')`. |
+| `now` | Your stories print a date and you want one other than the default. | `2024-06-15T12:00:00.000Z`. An ISO 8601 instant with its zone; anything else is refused before a browser opens. |
 | `network` | Asset bytes at stable URLs must participate in render identity. | `true`; set `false` only when asset URLs are already content-addressed. |
 | `hashAssets` | Your asset URLs already contain their own content hash. | `true`. Read only while `network` is on, so GIF freezing and blanking survive it — this, not `network: false`, is the setting for a content-addressed build. |
 | `wiring` | Your preview's renderer is not React. | `true`. Reads props, context, hook cells and keys into a band of its own; turning it off changes no stored digest. |
@@ -434,8 +436,9 @@ a diff touches.
   URL already identifies the bytes.
 - **The browser is missing:** run `npx playwright install chromium`, then
   `npx variance doctor` again.
-- **A rerun reports `incomparable`:** the approved image was stored under a
-  different identity than this machine produces. `npx variance doctor` lists the
+- **A rerun reports every story `changed`, a moved identity first:** the
+  approved image was stored under a different identity than this machine
+  produces. `npx variance doctor` lists the
   identities the baseline root stores.
 
 ## Boundaries

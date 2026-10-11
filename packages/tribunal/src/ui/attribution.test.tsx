@@ -79,7 +79,7 @@ function build(
     at: '2026-08-30T00:00:00.000Z',
     identity: { browser: 'chromium', viewport: { width: 1280, height: 800 } } as never,
     retention: 'durable',
-    verdicts: { changed: subjects.length, unchanged: 0, new: 0, incomparable: 0, unstable: 0, ignored: 0 },
+    verdicts: { changed: subjects.length, unchanged: 0, new: 0, unstable: 0, ignored: 0 },
     decided: 0,
     pending: subjects.length,
     coverage: { stated: true, failed: 0, excluded: 0, unreached: 0 },
@@ -87,6 +87,7 @@ function build(
     notObserved: [],
     causes: [],
     variations: [],
+    sameImage: [],
     declarations: { ignores: null, sensitivities: null },
     composition: null,
     movements,
@@ -363,6 +364,34 @@ describe('the sentence on the change page is the run’s, rendered', () => {
     );
 
     expect(html).toContain('failed to read the same way twice');
+  });
+
+  it.each([
+    ['suspect', 'nobody has read this render twice yet'],
+    ['flake', 'this render already failed to read the same way twice'],
+  ] as const)('keeps the %s mark apart from the reason it follows', (standing, mark) => {
+    // The mark is its own claim about the render, after a sentence that ends
+    // without a full stop. Printed flush against it, the two read as one
+    // run-on line: *…to reach the first rungnobody has read this render twice yet*.
+    const html = say(
+      originOf(
+        build(
+          [footer],
+          [
+            movement({
+              cause: 'unexplained',
+              upstream: undefined,
+              because:
+                'nothing was asked about what changed, so nothing here explains it — run with `--against` to reach the first rung',
+              standing,
+            }),
+          ],
+        ),
+        'CardFooter',
+      ),
+    );
+
+    expect(html.replace(/<[^>]+>/g, '')).toContain(`to reach the first rung · ${mark}`);
   });
 });
 

@@ -19,6 +19,7 @@ import { instrumentModeOf } from '../instrument/index.js';
 import type { CoverageBlock, CoverageModule } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { sourceCut } from './coverage-rows.js';
+import { heldAround } from './region-around.js';
 
 /**
  * A row with both crossing lists replaced, each distinct and in code-unit
@@ -276,42 +277,19 @@ export interface Crossings {
  * without the other would leave a row whose subset is not a subset of what it
  * came from, and would narrow nothing in exchange.
  *
- * The walk stops at the module root, which is addressed the same way in every
- * cut of a file and so is never itself born, and a `seen` set stops it anyway on
- * an owner chain that points at itself. Each row is resolved once and the answer
- * is kept for the rows below it, so the whole module costs one pass.
+ * The walk follows each row's owner and stops at the module root, which is
+ * addressed the same way in every cut of a file and so is never itself born;
+ * {@link heldAround} walks it, and walks the case index's regions by the same
+ * owners, which the fold writes beside them.
  */
 export function crossingsAround(
   blocks: readonly CoverageBlock[],
   held: (block: CoverageBlock) => Crossings | undefined,
 ): (block: CoverageBlock) => Crossings {
-  const none: Crossings = { testFiles: [], loadedBy: [] };
   const byOrdinal = new Map(blocks.map((block) => [block.ordinal, block] as const));
-  const resolved = new Map<number, Crossings>();
-  return (block: CoverageBlock): Crossings => {
-    const handed: CoverageBlock[] = [];
-    const seen = new Set<number>();
-    let at: CoverageBlock | undefined = block;
-    let answer = none;
-    while (at !== undefined && !seen.has(at.ordinal)) {
-      seen.add(at.ordinal);
-      const already = resolved.get(at.ordinal);
-      if (already !== undefined) {
-        answer = already;
-        break;
-      }
-      const own = held(at);
-      if (own !== undefined) {
-        resolved.set(at.ordinal, own);
-        answer = own;
-        break;
-      }
-      handed.push(at);
-      at = at.owner === undefined ? undefined : byOrdinal.get(at.owner);
-    }
-    for (const row of handed) resolved.set(row.ordinal, answer);
-    return answer;
-  };
+  const owner = (block: CoverageBlock): CoverageBlock | undefined =>
+    block.owner === undefined ? undefined : byOrdinal.get(block.owner);
+  return heldAround(owner, held, { testFiles: [], loadedBy: [] });
 }
 
 /**

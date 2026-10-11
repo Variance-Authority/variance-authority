@@ -32,6 +32,7 @@
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { cutOf, type CaseCut } from './case-cut.js';
 import { projectPath } from './instrumented-modules.js';
 import { shardOf, type ShardAsked } from './shard-placement.js';
 import { selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
@@ -72,6 +73,19 @@ export interface SelectingOptions {
   readonly selection?: () => Promise<SuiteSelection>;
   /** The suite's recorded times, read once, and only by a run under `--shard`. */
   readonly times?: () => Promise<SuiteTimes>;
+  /**
+   * Told, as each sequencer is made, whether the run asked for `--shard`, as
+   * the runner resolved it: the sequencer is made under any reporter, and a
+   * command-line `--reporter` replaces the seam's.
+   */
+  readonly sharded?: (asked: boolean) => void;
+  /**
+   * Handed the cases the selection skips in the files it kept, keyed by the
+   * absolute path the run knows each by, when it skips any. It may be handed
+   * them more than once in a run — `shard` and `sort` each keep files — so it
+   * merges what it is handed.
+   */
+  readonly cut?: (cases: CaseCut) => void;
   /** Where the count goes; stderr unless a test says otherwise. */
   readonly say?: (line: string) => void;
   /**
@@ -102,6 +116,7 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
 
     constructor(ctx: SequencerContext) {
       this.#ctx = ctx;
+      options.sharded?.(shardAsked(ctx.config.shard) !== undefined);
     }
 
     async shard<T extends Spec>(files: T[]): Promise<T[]> {
@@ -143,7 +158,10 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
         for (const line of selectedLines(selection, discovered.map(name))) say(line);
       }
       said = true;
-      return files.filter((file) => !selection.skip.has(name(moduleOf(file))));
+      const kept = files.filter((file) => !selection.skip.has(name(moduleOf(file))));
+      const cut = cutOf(selection, kept.map(moduleOf), options.root);
+      if (cut.size > 0) options.cut?.(cut);
+      return kept;
     }
   }
   return Selecting;

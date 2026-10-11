@@ -4,7 +4,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { routeCollector, type Collector } from './index.js';
+import { routeCollector, type Collected, type Collector } from './index.js';
+import { documentDigest } from '@variance-authority/core/format';
 
 /**
  * A built directory, taken as a suite.
@@ -112,5 +113,132 @@ chromium_('a built directory as a suite', () => {
     await expect(bare.plan()).rejects.toThrow(/no \.html file/);
     await bare.close();
     rmSync(empty, { recursive: true, force: true });
+  }, 120_000);
+});
+
+/** A 1×1 PNG, base64, so the build has a file a stylesheet can name. */
+const HERO = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
+  'base64',
+);
+
+/** One read of the home page of `site`, from a collector serving it on a port of its own. */
+async function readServed(site: string, region: { timezoneId?: string } = {}): Promise<Collected> {
+  const served = await routeCollector({ directory: site, roots: ['#app'] })({
+    config: { viewport: { width: 800, height: 600, deviceScaleFactor: 1, colorScheme: 'light' }, ...region },
+  });
+
+  try {
+    const plan = await served.plan();
+    const home = plan.subjects.find((planned) => planned.subject.id === '/');
+    return await served.collect(home!);
+  } finally {
+    await served.close();
+  }
+}
+
+/** One read of the home page of `site`, by a browser launched with `TZ` set to `timezone`. */
+async function readIn(timezone: string, site: string): Promise<Collected> {
+  const before = process.env.TZ;
+  process.env.TZ = timezone;
+  try {
+    return await readServed(site);
+  } finally {
+    if (before === undefined) delete process.env.TZ;
+    else process.env.TZ = before;
+  }
+}
+
+/** A page that formats one fixed instant, so the timezone it runs in decides its text. */
+function clockSite(): string {
+  const site = mkdtempSync(join(tmpdir(), 'variance-timezone-'));
+  writeFileSync(
+    join(site, 'index.html'),
+    '<!doctype html><html><body><main id="app"><time id="when"></time></main>' +
+      '<script>document.getElementById("when").textContent = ' +
+      'new Date(Date.UTC(2024, 0, 1, 0, 30)).toLocaleString();</script>' +
+      '</body></html>',
+  );
+  return site;
+}
+
+/** What a read is compared by, and the text that decides it. */
+function readingOf(reading: Collected) {
+  if (!reading.ok) throw new Error('collection failed');
+  return {
+    semanticDigest: reading.snapshot?.environment.semanticDigest,
+    renderHash: reading.snapshot?.renderHash,
+    text: /<time id="when"[^>]*>([^<]*)</.exec(reading.document.html)?.[1],
+  };
+}
+
+chromium_('one build, read in two timezones', () => {
+  it('reads one key and one render whichever timezone the host is in', async () => {
+    // The page formats one fixed instant — no clock involved — so only the
+    // timezone decides its text. A browser that took the host's would read a
+    // change on a laptop that CI never sees, with no edit anywhere.
+    const site = clockSite();
+
+    try {
+      const utc = readingOf(await readIn('UTC', site));
+      const west = readingOf(await readIn('America/Los_Angeles', site));
+
+      expect(west).toEqual(utc);
+    } finally {
+      rmSync(site, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  it('reads to another key when the config declares another timezone', async () => {
+    // A declared timezone is a render input like the viewport: the text moved,
+    // and so did the key, so the two reads are not compared as one subject.
+    const site = clockSite();
+
+    try {
+      const utc = readingOf(await readServed(site));
+      const tokyo = readingOf(await readServed(site, { timezoneId: 'Asia/Tokyo' }));
+
+      expect(tokyo.text).not.toBe(utc.text);
+      expect(tokyo.semanticDigest).not.toBe(utc.semanticDigest);
+    } finally {
+      rmSync(site, { recursive: true, force: true });
+    }
+  }, 120_000);
+});
+
+chromium_('one build, served twice', () => {
+  it('reads to the same key and the same hashes whichever port served it', async () => {
+    // The server listens on port 0, so every run serves the build from an
+    // origin nobody chose. The author wrote `/hero.png`; the engine computes
+    // `url("http://127.0.0.1:<port>/hero.png")` and the wire records the
+    // absolute URL. If either reaches an identity, the same bytes on disk are a
+    // different baseline on every run — a change blamed on a moved identity, with
+    // no edit anywhere. The document digest addresses the render cache, so a port
+    // that reached it would repaint every page on every run.
+    const site = mkdtempSync(join(tmpdir(), 'variance-port-'));
+    writeFileSync(join(site, 'hero.png'), HERO);
+    writeFileSync(
+      join(site, 'index.html'),
+      '<!doctype html><html><body><main id="app">' +
+        '<div style="width:40px;height:40px;background-image:url(/hero.png)"></div>' +
+        '</main></body></html>',
+    );
+
+    try {
+      const first = await readServed(site);
+      const second = await readServed(site);
+      if (!first.ok || !second.ok) throw new Error('collection failed');
+
+      const identity = (reading: Collected & { ok: true }) => ({
+        semanticDigest: reading.snapshot?.environment.semanticDigest,
+        documentDigest: documentDigest(reading.document),
+        styleHash: reading.snapshot?.styleHash,
+        renderHash: reading.snapshot?.renderHash,
+      });
+
+      expect(identity(second)).toEqual(identity(first));
+    } finally {
+      rmSync(site, { recursive: true, force: true });
+    }
   }, 120_000);
 });

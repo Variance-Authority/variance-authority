@@ -193,8 +193,8 @@ export async function ingestBuild(
         .prepare(
           `INSERT OR REPLACE INTO build_variations
              (project, build, subject, parent, identical, bands, unobserved, components,
-              digest, how, because)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              digest, how, step, because)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           project,
@@ -210,6 +210,7 @@ export async function ingestBuild(
           variation.components === undefined ? null : JSON.stringify(variation.components),
           variation.digest ?? null,
           variation.how ?? null,
+          variation.step === undefined ? null : JSON.stringify(variation.step),
           variation.because,
         ),
     );

@@ -11,12 +11,16 @@ import {
   formatDistillation,
   formatFileDistillation,
   formatScopeDistillation,
+  scopeRows,
   type Distillation,
   type EyesAttempt,
   type FileDistillation,
+  type ScopeDistillInput,
   type ScopeDistillation,
   type ScopeRecord,
+  type ScopeRow,
 } from '@variance-authority/distill';
+import { checkoutPath } from '@variance-authority/sense';
 import {
   declaredSuites,
   decodeTestCoverage,
@@ -36,7 +40,11 @@ import { asOperator, nothingRecorded } from './suite-record.js';
 export interface DistillOptions {
   /** The case's id, its exact title, or a part of the title. */
   readonly test?: string;
-  /** A part of the test file's path, which narrows `test`; alone, the file to read. */
+  /**
+   * The test file's path, from `root` or from the file system's root, which
+   * narrows `test`; alone, the file to read. It names that file only, and one
+   * outside `root` is refused.
+   */
   readonly file?: string;
   /** With neither `test` nor `file`, the directory whose test files are read; absent, every test file. */
   readonly from?: string;
@@ -60,13 +68,14 @@ export interface DistillOptions {
  */
 export async function distillFiles(options: DistillOptions): Promise<Distillation | FileDistillation | ScopeDistillation> {
   if (options.test === undefined && options.file === undefined) return distillRecords(options);
+  const file = options.file === undefined ? undefined : recordedPath(options.root, options.file);
   const record = options.execution ?? (await recordedExecutionFile(options.root, options.suite));
   // One read: the index and the journals are then one run's, whatever lands between.
   const bytes = await recordAt(record);
   try {
     const execution = executionIndexOf(bytes);
-    if (options.test === undefined && options.file !== undefined) {
-      const input = { file: options.file, execution, coverage: coverageOf(bytes, record) };
+    if (options.test === undefined && file !== undefined) {
+      const input = { file, execution, coverage: coverageOf(bytes, record) };
       const flat = distillFile(input);
       // The graph is read only when there is a load to give a cause, or a mock to hold against it: the scan costs more than the record.
       if (!flat.modules?.some(({ entered }) => entered === 0) && !(await mocksIn(options.root, flat.file))) return flat;
@@ -81,7 +90,7 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
     const section = recordedEyesOf(bytes);
     return distill({
       ...(options.test === undefined ? {} : { test: options.test }),
-      ...(options.file === undefined ? {} : { file: options.file }),
+      ...(file === undefined ? {} : { file }),
       root: options.root,
       execution,
       ...(section === undefined ? {} : { eyes: journalsOf(section.journals), watched: section.watched }),
@@ -92,12 +101,42 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
   }
 }
 
+/** `file` spelled as the record spells its rows, repository-relative with `/`, or the refusal of a path outside `root`. */
+function recordedPath(root: string, file: string): string {
+  const asked = checkoutPath(root, file);
+  if ('outside' in asked) throw new OperatorError(asked.outside);
+  return asked.path;
+}
+
 /**
  * A scope read across records: the one named, else every declared suite's,
  * else the repository's one. Every test file is read on its own, and the file
  * graph only once, when some file loaded a module no case of it entered.
  */
 async function distillRecords(options: DistillOptions): Promise<ScopeDistillation> {
+  const input = await scopeOf(options);
+  const flat = asOperator(() => distillScope(input));
+  if (flat.spills.length === 0) return flat;
+  const graph = await fileGraph(options.root);
+  return distillScope({ ...input, ...causesFrom(graph) });
+}
+
+/**
+ * A scope read across records as {@link distillFiles} reads it with no case and
+ * no file named, one row a test file; the suites that kept no record are named
+ * beside the rows. No row names an import, so the file graph is not read.
+ */
+export async function distillRows(options: Omit<DistillOptions, 'test' | 'file'>): Promise<{
+  readonly rows: readonly ScopeRow[];
+  readonly unrecorded?: readonly string[];
+}> {
+  const input = await scopeOf(options);
+  const rows = asOperator(() => [...scopeRows(input)]);
+  return { rows, ...(input.unrecorded === undefined ? {} : { unrecorded: input.unrecorded }) };
+}
+
+/** The records a scope is read from, and the declared suites that kept none. */
+async function scopeOf(options: Omit<DistillOptions, 'test' | 'file'>): Promise<ScopeDistillInput> {
   const named = options.execution !== undefined || options.suite !== undefined;
   const declared = named ? undefined : suitesOf(options.root);
   const records: ScopeRecord[] = [];
@@ -120,15 +159,11 @@ async function distillRecords(options: DistillOptions): Promise<ScopeDistillatio
     });
   }
   if (records.length === 0) throw nothingRecorded(options.root, unrecorded);
-  const input = {
+  return {
     ...(options.from === undefined ? {} : { within: options.from }),
     records,
     ...(unrecorded.length === 0 ? {} : { unrecorded }),
   };
-  const flat = asOperator(() => distillScope(input));
-  if (flat.spills.length === 0) return flat;
-  const graph = await fileGraph(options.root);
-  return distillScope({ ...input, ...causesFrom(graph) });
 }
 
 /** A record's bytes, or the operator's refusal when nothing is recorded there. */

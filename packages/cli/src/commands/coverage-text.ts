@@ -10,7 +10,7 @@
  */
 
 import type { TestFileMotion } from '@variance-authority/sense/test-selection';
-import { coverageParts as parts, coverageRows, grouped, ratio } from './coverage-summary.js';
+import { coverageParts as parts, coverageRows, coverageSum, grouped, ratio, signed } from './coverage-summary.js';
 import { text as escape } from './report-html-elements.js';
 import type { CoverageFormat } from '../coverage-args.js';
 import type { CoverageSource } from './coverage-source.js';
@@ -119,14 +119,16 @@ function markdown(answer: Coverage): string {
     `Percentages count the ${regionCount(answer.count.regions)} in ${files(answer.count.files)} the recorded suites loaded. Module-load execution is counted separately.`,
     ...coverageBreakdown(answer),
   ];
+  if (answer.source !== undefined || answer.sourceMissed !== undefined) {
+    lines.push('', `<details><summary>${escape(breakdownLabel(answer))}: source beyond the recordings</summary>`, ...sourceMarkdown(answer), '', '</details>');
+  }
   return `${lines.join('\n')}\n`;
 }
 
 /** Detailed counts and provenance, shared with the combined review. */
 export function coverageBreakdown(answer: Coverage): readonly string[] {
   const { count, base } = answer;
-  const label = answer.suites.length === 1 ? answer.suites[0]!.suite ?? 'the record' : 'All recorded suites';
-  const lines = ['', `<details><summary>${escape(label)}: execution breakdown and changed regions</summary>`, '', `<sub>${escape(heading(answer))}</sub>`, ''];
+  const lines = ['', `<details><summary>${escape(breakdownLabel(answer))}: execution breakdown and changed regions</summary>`, '', `<sub>${escape(heading(answer))}</sub>`, ''];
   if (answer.suites.filter((suite) => suite.from !== undefined).length > 1) {
     lines.push(`Any suite: ${countCell(count.run, base?.run)} regions executed by cases (${ratioCell(count.run, count.regions, base?.run, base?.regions)}).`, '');
   }
@@ -142,13 +144,18 @@ export function coverageBreakdown(answer: Coverage): readonly string[] {
   if (count.load > 0) lines.push(`| Module-load execution only | ${grouped(count.load)} | ${share(count.load)} |`);
   lines.push(`| Not executed | ${grouped(count.none)} | ${share(count.none)} |`);
   if (count.unjoined > 0) lines.push('', `${grouped(count.unjoined)} regions could not be joined across suites.`);
+  let counted = 0;
   for (const suite of answer.suites) {
     const name = suite.suite ?? 'the record';
+    const now = suite.from === undefined ? undefined : count.suites[counted];
+    const was = suite.from === undefined ? undefined : base?.suites[counted];
+    if (suite.from !== undefined) counted += 1;
     if (suite.recorded !== undefined) lines.push('', `${name} recorded at ${short(suite.recorded)}.`);
     if (suite.base !== undefined) {
       lines.push('', `${name} compared with ${short(suite.base.commit)}.`);
-      lines.push('', `Regions that changed the count: ${parts(suite.base.change).join(' · ')}.`);
-      lines.push(...namedTestFiles(suite, suite.base.change.testFiles).map((line) => `- ${line.trim()}`));
+      lines.push('', reconciled(`\`${name}\``, suite.base.change, now?.run, was?.run));
+      const named = namedTestFiles(suite, suite.base.change.testFiles).map((line) => `- ${line.trim()}`);
+      if (named.length > 0) lines.push(...named, '', 'A region several test files ran is counted under each of them, so these counts do not add up to the suite\'s.');
     }
     if (suite.baseMissed !== undefined) lines.push('', `${name}: ${suite.baseMissed}`);
   }
@@ -156,10 +163,24 @@ export function coverageBreakdown(answer: Coverage): readonly string[] {
     lines.push('', 'No aggregate comparison: not every recorded suite has a baseline.');
   }
   lines.push('', '</details>');
-  if (answer.source !== undefined || answer.sourceMissed !== undefined) {
-    lines.push('', `<details><summary>${escape(label)}: source beyond the recordings</summary>`, ...sourceMarkdown(answer), '', '</details>');
-  }
   return lines;
+}
+
+function breakdownLabel(answer: Coverage): string {
+  return answer.suites.length === 1 ? answer.suites[0]!.suite ?? 'the record' : 'All recorded suites';
+}
+
+/**
+ * A suite's change in regions run, beside the parts it is made of, so a reader
+ * checks one against the other. Parts that do not add up are said to, never
+ * left for the reader to find.
+ */
+function reconciled(name: string, change: Parameters<typeof parts>[0], now: number | undefined, was: number | undefined): string {
+  const said = parts(change).join(' · ');
+  if (now === undefined || was === undefined) return `${name} regions that changed the count: ${said}.`;
+  const sum = coverageSum(change);
+  const off = sum === now - was ? '' : ` These parts add to ${signed(sum)}, not ${signed(now - was)}.`;
+  return `${name} regions run by cases, ${grouped(was)} → ${grouped(now)} (${signed(now - was)}): ${said}.${off}`;
 }
 
 /**

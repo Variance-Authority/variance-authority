@@ -17,10 +17,10 @@ the images and look. Three differences:
   component that rendered it, and to the `file:line` it was written at when the
   build emits source locations. That chain — region to box to component to
   line — is described in [attribution](attribution.md).
-- **A baseline from a different machine is refused, not diffed.** A run whose
-  browser build, platform, device scale factor or font stack differs from the
-  one that painted the baseline comes back `incomparable`, naming what differs,
-  instead of a page of changed pixels you have to triage.
+- **A baseline from a different machine is diffed with the machine named.** A
+  run whose browser build, platform, device scale factor or font stack differs
+  from the one that painted the baseline names what moved as the cause, before
+  any component, instead of a page of changed pixels you have to triage.
 - **The image does not come from the tab.** The mounted subtree is read as a
   document and repainted by one Chromium the Vitest process owns, so the
   baseline is a repaintable thing rather than a photograph of whichever browser
@@ -116,22 +116,11 @@ so git still descends into it:
 ```gitignore
 .variance/*
 !.variance/baselines/
-.variance/baselines/**/by-document/
 ```
 
-The third line matters. A durable store is also a render cache, keyed by the
-digest of the document that produced each image, and on this path it lands in a
-`by-document/` directory inside the baseline root. It gains an entry on every
-edit and is worth nothing after the next one, so keep it out of the commit — or
-move it entirely by building the store yourself and passing it as `store`:
-
-```ts
-import { createDurableStore } from '@variance-authority/store/durable';
-
-variancePlugin({
-  store: createDurableStore('.variance/baselines', { cacheRoot: '.variance/renders' }),
-});
-```
+The images a run paints to compare are not baselines, and the plugin keeps them
+out of this directory: they go to `renders/` in [your cache](cache.md), which
+the plugin prunes when the run closes.
 
 [Baseline placement](placement.md) covers Git LFS and remote stores for corpora
 too large to commit as blobs.
@@ -237,17 +226,16 @@ included), `regions` (the attributed changed regions), `missingFonts`,
 `rendered` (`false` when the image came from the cache), and `signals`, which
 reports the document and the pixels as separately observed boundaries.
 
-There are five verdicts:
+There are four verdicts:
 
 | verdict | what it means |
 | --- | --- |
-| `unchanged` | the stored baseline and this run's image were comparable, and no pixels differ |
-| `changed` | pixels differ; `regions` names what drew them |
-| `new` | no baseline exists for this subject under this renderer identity. Not a pass and not a failure |
-| `incomparable` | a baseline exists but was painted under a different identity, so the comparison is refused. The reason names the fields that differ, and whether they are the machine or only this tool's recipe. Never read it as zero difference |
+| `unchanged` | the stored baseline and this run's image were compared, and no pixels differ |
+| `changed` | pixels differ; `regions` names what drew them, and the reason names a moved identity first |
+| `new` | no baseline exists for this subject. Not a pass and not a failure |
 | `ignored` | pixels differ and every one of them fell inside something you excluded |
 
-`assertUnchanged` throws on all four of the others, `ignored` included, because
+`assertUnchanged` throws on all three of the others, `ignored` included, because
 it asserts exactly what its name says.
 
 ## Run the first review loop
@@ -269,12 +257,11 @@ bytes that became the baseline are the bytes the run produced. Open the PNG it
 wrote before you commit it. Run the suite again and the subject reports
 `unchanged`.
 
-`--update` reaches every selected test, so it skips the `incomparable` subjects
-`variance accept --all` skips: an image another machine painted, and a
-re-painted recipe whose document moved. Nothing compared either one with
-anything. Set `accept: false` on the plugin to keep baselines out of `--update`
-altogether, or `accept: true` for a job whose whole purpose is to write them,
-which adopts every image it painted.
+`--update` reaches every selected test and adopts what `variance accept --all`
+adopts: every changed candidate, whatever identity painted its baseline. Set
+`accept: false` on the plugin to keep baselines out of `--update` altogether, or
+`accept: true` for a job whose whole purpose is to write them, which adopts
+every image it painted.
 
 ## Read a failure
 
@@ -288,38 +275,38 @@ rather than blame, so a container pushed by an edit can outrank the edit itself.
 
 The images themselves are files. The approved baseline is the `.png` under the
 baseline directory, beside the `.json` recording what painted it. The candidate
-this run painted is in the render cache, under `by-document/`, named by the
+this run painted is in `renders/` in [your cache](cache.md), named by the
 digest of the document it was painted from.
 
 ## Make CI judge a baseline you approved locally
 
-A baseline is only compared against a reading made under the same **renderer
-identity**: the renderer and its engine build, the OS and architecture, the
-device scale factor, the fonts the renderer actually had, and digests of the
-stabilization and raster settings it used. Baselines are partitioned by it —
+A baseline is filed under the **renderer identity** that painted it: the
+renderer and its engine build, the OS and architecture, the device scale factor,
+the fonts the renderer actually had, and digests of the stabilization and raster
+settings it used. Baselines are partitioned by it —
 that is the `v1-6c1f…` directory the `.png` lives under.
 
 This is why the tab's own screenshot is not used. A live screenshot has nothing
 behind it that records which machine, which scale and which font stack produced
-it, so nothing can decide whether a later run is entitled to compare against it.
+it, so nothing can name the machine when a later run differs from it.
 
-The consequence is that a baseline approved on your laptop is usually not
-comparable on a CI runner: different platform, different fonts. The run reports
-that — every such subject reports `incomparable`, naming the fields that differ —
-rather than reporting a day of changed pixels nobody caused. Two ways to get a
-verdict instead of a refusal:
+The consequence is that a baseline approved on your laptop usually changes on a
+CI runner: different platform, different fonts. The run says so — every such
+subject names the fields that moved as the cause of its change — rather than
+reporting a day of changed pixels nobody caused. Two ways to get a verdict about
+your code instead of the machine:
 
 - **Approve on the machine that judges.** Run the suite with `-u` in the CI
   image, commit what it wrote, and every later CI run compares against a
   baseline its own identity painted. Running the same suite on your laptop then
-  reports `incomparable` for those subjects: the local run cannot judge them.
+  names the machine as the cause of every change those subjects report.
 - **Point every run at one renderer.** Pass `renderer` to the plugin — any
   `Renderer`, including one `connectRenderer` from
   `@variance-authority/remote/renderer` opens against a pinned machine running
   `serveRenderer`. Laptop and CI then share an identity because the same machine
   paints for both. That machine's renderer identity is fetched rather than
-  declared, so a misconfigured endpoint cannot pass a comparability check it
-  should fail.
+  declared, so a misconfigured endpoint cannot pass for the identity it does not
+  paint under.
 
 [Baseline placement](placement.md) covers where the bytes live under either
 choice.

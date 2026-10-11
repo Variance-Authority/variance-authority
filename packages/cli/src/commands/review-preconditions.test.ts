@@ -93,7 +93,7 @@ describe('the cases a review lists under a changed function, with what each arra
   const cwd = process.cwd();
   afterEach(() => process.chdir(cwd));
 
-  it('prints each case\'s preconditions the way `covering` does, and a name the cases span on the function\'s line', async () => {
+  it('keeps each case\'s preconditions in the JSON, and names the values the cases span on the function\'s row', async () => {
     const { root, first } = await changed(SAID);
 
     const answer = await review(parse(['--since', first, '--root', root]));
@@ -106,13 +106,7 @@ describe('the cases a review lists under a changed function, with what each arra
     ]);
     const markdown = formatReview(answer, 'markdown');
     // `network` is said by one case only, so it does not split the cases and the summary leaves it out.
-    expect(markdown).toContain('<details><summary>🟢 <code>applyDiscount</code> — 3 cases in 1 test file; ran under flag=ff-off, flag=ff-on</summary>');
-    expect(markdown).toContain([
-      `- \`${SPEC}\``,
-      `  - flag off — flag=ff-off (${SPEC}:7)`,
-      `  - flag on — flag=ff-on (${SPEC}:3), network=mocked (${SPEC}:1)`,
-      '  - plain',
-    ].join('\n'));
+    expect(markdown).toMatch(/\| 🟢 \| `applyDiscount` \|[^\n]*\| 3; ran under flag=ff-off, flag=ff-on \|/u);
     expect(markdown).not.toContain('unmeasured');
   });
 
@@ -131,7 +125,7 @@ describe('the cases a review lists under a changed function, with what each arra
 
     const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
 
-    expect(markdown).toContain('— 2 cases in 1 test file; ran under Locale=de, Locale=fr, zone=West, zone=east</summary>');
+    expect(markdown).toContain('| 2; ran under Locale=de, Locale=fr, zone=West, zone=east |');
   });
 
   it('keeps a flag set and a flag said as the text `true` apart, as `covering` prints them', async () => {
@@ -142,7 +136,7 @@ describe('the cases a review lists under a changed function, with what each arra
 
     const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
 
-    expect(markdown).toContain('— 2 cases in 1 test file; ran under flag, flag=true</summary>');
+    expect(markdown).toContain('| 2; ran under flag, flag=true |');
   });
 
   it('prints a value as its text, never as markup the comment would render', async () => {
@@ -153,8 +147,7 @@ describe('the cases a review lists under a changed function, with what each arra
 
     const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
 
-    expect(markdown).toContain('ran under label=&lt;/summary&gt;, label=&lt;b&gt;x&lt;/b&gt;</summary>');
-    expect(markdown).toContain(`  - bold — label=&lt;b&gt;x&lt;/b&gt; (${SPEC}:1)`);
+    expect(markdown).toContain('ran under label=&lt;/summary&gt;, label=&lt;b&gt;x&lt;/b&gt; |');
     expect(markdown).not.toContain('<b>x</b>');
     expect(markdown.split('</summary>').length).toBe(markdown.split('<summary>').length);
   });
@@ -177,7 +170,7 @@ describe('the cases a review lists under a changed function, with what each arra
     expect(region?.called.every((called) => !('preconditions' in called))).toBe(true);
     const markdown = formatReview(answer, 'markdown');
     expect(markdown).toContain("The record holds no case's preconditions, so the state these cases ran under is unmeasured.");
-    expect(markdown).toContain('<details><summary>🟢 <code>applyDiscount</code> — 3 cases in 1 test file</summary>');
+    expect(markdown).toMatch(/\| 🟢 \| `applyDiscount` \|[^\n]*\| 3 \|/u);
   });
 
   it('counts the cases nobody listened to when the others said what they arranged', async () => {

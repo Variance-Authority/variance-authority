@@ -55,6 +55,16 @@ export const INITIALIZING = [
   ...SOURCE.split('\n'),
 ].join('\n');
 
+/**
+ * The same decision, called once by the top level while the module evaluates
+ * and again by whichever case reads the export: a region entered both ways.
+ */
+export const CALLED_WHILE_EVALUATING = [
+  ...SOURCE.split('\n').slice(0, -1),
+  'const DEFAULT = price(1);',
+  ...SOURCE.split('\n').slice(-1),
+].join('\n');
+
 export const LABEL_PREMIUM_LINE = 3;
 export const LABEL_PLAIN_LINE = 5;
 export const LATER_PLAIN_LINE = 7 + PLAIN_LINE;
@@ -136,6 +146,27 @@ export function twoCases(root: string, source = SOURCE): {
       plain = realm.collector.drain();
     },
   };
+}
+
+/**
+ * The plain case, then the premium one, on one page. The module evaluates
+ * inside the plain case's window, as a page a case opens or a lazy chunk
+ * evaluates it, or, `eager`, in a window of its own drained before either case.
+ */
+export async function casesOverOneLoad(
+  root: string,
+  source: string,
+  eager: boolean,
+): Promise<{ readonly load?: ExecutionJournal; readonly plain: ExecutionJournal; readonly premium: ExecutionJournal }> {
+  const module = resolve(root, 'price.js');
+  await writeFile(module, source, 'utf8');
+  const realm = evaluate(testSelectionProbes({ root }).transform(source, module)!.code);
+  const load = eager ? realm.collector.drain() : undefined;
+  realm.price(1);
+  const plain = realm.collector.drain();
+  realm.price(20);
+  const premium = realm.collector.drain();
+  return { ...(load === undefined ? {} : { load }), plain, premium };
 }
 
 /**

@@ -54,7 +54,7 @@ export const journeyMapTool: Tool<unknown> = {
     if (file === '') throw new Error('`journey-map` takes `--file`, the path of the file to map around');
     const asked = checkoutPath(root, file);
     if ('outside' in asked) throw new Error(asked.outside);
-    // Git is asked about the path once, and the recording's readers and the typo check all read that answer.
+    // Git is asked about the path once, and the recording's readers and the unknown-path check all read that answer.
     const listing = checkoutListing(root, asked.path);
     const terms = termsOf(input);
     const suites = journeyMaps(root, asked.path, terms, listing);
@@ -67,8 +67,8 @@ export const journeyMapTool: Tool<unknown> = {
       else refused.push(`${of}${map.notRecorded}`);
     }
     if (answers.length === 0) {
-      // A path neither the checkout nor the recording's commit holds is a typo, not a file no test ran; the
-      // map itself answers a directory, an ignored file and a file deleted since the recording.
+      // A path neither the checkout nor the recording's commit holds is refused as not held, rather than answered
+      // as a file no test ran; the map itself answers a directory, an ignored file and a file deleted since the recording.
       const somewhere = !('unread' in listing) && (listing.directory || listing.ignored);
       if (!somewhere && !suites.some(({ known }) => known?.existed === true)) refuseUnknownPath(root, asked.path, recordedOnce(root), listing);
       throw new Error(refused.join('\n'));

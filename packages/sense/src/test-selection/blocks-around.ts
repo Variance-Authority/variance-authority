@@ -6,7 +6,7 @@
  * parser says read a changed value (`reading.ts`).
  */
 
-import { KINDS } from './format-layout.js';
+import { BLOCK_KINDS } from './format-layout.js';
 import type { TestCoverageView } from './format-view.js';
 import type { LineRange } from './diff-lines.js';
 import { NO_LINE } from './written-lines.js';
@@ -25,7 +25,7 @@ export function regionOf(coverage: TestCoverageView, file: string, block: number
 
 /** Whether the block is the module's own region, which is every test that loaded the file. */
 export function moduleRegion(coverage: TestCoverageView, block: number): boolean {
-  return KINDS[coverage.blockKind.at(block)] === 'module';
+  return BLOCK_KINDS[coverage.blockKind.at(block)] === 'module';
 }
 
 /**
@@ -207,7 +207,7 @@ export function rowsOf(coverage: TestCoverageView): RegionRows {
     start: (row) => coverage.blockStart.at(row),
     end: (row) => coverage.blockEnd.at(row),
     source: (row) => coverage.blockSource.at(row) === 1,
-    kind: (row) => KINDS[coverage.blockKind.at(row)]!,
+    kind: (row) => BLOCK_KINDS[coverage.blockKind.at(row)]!,
   };
 }
 

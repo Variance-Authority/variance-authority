@@ -39,8 +39,9 @@ npm install --save-dev @variance-authority/sense
 ```
 
 Node 22.15 or newer. Vitest (`^2.1.9 || ^3.0.0 || ^4.0.0`) and Jest
-(`^30.0.0`) are optional peer dependencies: install the runner whose seam you
-use, and your own copy is the one that runs. Under an older Jest, a
+(`^30.0.0`, with the `@jest/globals` and `jest-circus` it installs) are
+optional peer dependencies: install the runner whose seam you use, and your own
+copy is the one that runs. Under an older Jest, a
 configuration that selects throws while it loads and names the version it
 found. Storybook and Playwright come from sibling packages rather than from
 here, and are covered below.
@@ -92,6 +93,16 @@ same list. `--shard` places that list by the time each file took on the last
 recorded run, as [sharding](../../docs/sharding.md) shows. Watch mode does not select.
 `@variance-authority/cli` has to be installed in the project; when the checkout cannot resolve it, the run fails and the message
 names the package.
+
+`VARIANCE_AUTHORITY_GRAIN=case` also skips, inside each selected file, the
+cases that entered none of the changed regions. The sequencer writes their
+names to one file before any worker starts, and the case runner marks them
+skipped in `onCollected`, as `it.skip` would; under Jest, a `jest-circus`
+`run_start` handler does the same. Nothing reaches argv. A file runs whole
+whenever the record cannot say which cases the change reached, and a file run
+in part is recorded incomplete, so the next selection runs it whole, and while
+some test last ran at an earlier commit than the latest run, every file runs
+whole. File grain is the default; any value other than `file` or `case` fails the run.
 
 ### Ask for the skip list yourself
 
@@ -155,8 +166,8 @@ missing snapshot, a snapshot from another machine, and a first run all leave
   whole inside `entered`. It comes back empty unless you pass `sourceAt`,
   because nothing looked — which reads exactly like frames that agree.
 - `because` — one entry per selected test, in the order of `entered`, listing
-  every reason it is there: a `region` (file, name, path and lines of the
-  innermost recorded block a changed line fell in), a `precondition` by name, a
+  every reason it is there: a `region` (file, name, path and lines of a
+  recorded block a changed line charged), a `precondition` by name, a
   `reader` (a place in `reader` that reads the value `name`, declared in `file`,
   that the change altered), or an `importer` with the trail from the changed
   file to the file the test was found through. Print it beside each path a
@@ -319,7 +330,7 @@ and each name selects the tests recorded under it.
 ### Options on the Vitest seam
 
 The optional second argument accepts `root`, `suite`, `coverageFile`,
-`include`, `preconditions`, `mode`, `continuations`, and `selection`.
+`include`, `unprobed`, `preconditions`, `mode`, `continuations`, `cadence`, and `selection`.
 
 | option | default | use it when |
 |---|---|---|
@@ -327,9 +338,11 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | `suite` | none; required once the root config declares `suites` | the repository declares its suites, and this configuration runs one of them. It cannot be combined with `coverageFile` |
 | `coverageFile` | the cache path above | CI needs a named artifact |
 | `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path, except for a build whose sibling map leads to exactly one source: it receives that source's path first, and the module's own only if it refuses the source ([below](#a-library-loaded-from-its-build)) |
+| `unprobed` | none | product source a probe cannot sit in, such as a module whose functions you hand to `page.evaluate`, where the first probe throws. It is asked under the same names as `include`, and wins over it; the module runs unprobed with a mark at the end of its text, and a change to it selects every test that loaded it. A module you build into a bundle and inject into a page is not loaded by any test, so no mark reaches it: name the bundle's entry in the [`before`](https://variance-authority.dev/docs/changes-before-and-beyond#how-a-change-before-reach-is-declared) of the suite that injects it |
 | `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings or a fixture read with `fs` |
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
+| `cadence` | on | `false` leaves test files as you wrote them, and the record without the test line that reached each region ([below](#record-which-test-line-reached-a-region)) |
 | `selection` | read from `@variance-authority/cli` when `VARIANCE_AUTHORITY_SINCE` is set | you compute the selection yourself: a function returning the `SuiteSelection` whose `skip` the run removes |
 
 The config file Vite loaded, the local modules it imports and the configured
@@ -422,11 +435,12 @@ yarn exec variance journeys stitch \
 do the same from code, pass the changed lines to `narrowByJourneys`, and pass
 `read` from `readJourneyChange(diff, before, { root, relations })`, where
 `before` returns the text the patch was written against. A journey file carries
-no source text, so without `read` a line is charged to the region it falls in,
-and a comment above a function falls in the module's own region, which every
-file that imports the module ran. With `read`, a file whose change runs nothing
-charges nothing, and a file whose load-time behaviour did not change charges
-only the functions its lines fall in.
+no source text, so without `read` a line is charged as `covering --line`
+charges it: to the region it falls in, and to the region around it when the
+line opens a branch or a function. A comment above a function falls in the
+module's own region, which every file that imports the module ran. With `read`,
+a file whose change runs nothing charges nothing, and a file whose load-time
+behaviour did not change charges only the functions its lines charge.
 
 ### Follow a Jest case into a service it calls
 
@@ -571,8 +585,11 @@ export default withTestSelection({
 ```
 
 The second argument accepts `root`, `suite`, `coverageFile`, `preconditions`,
-`mode`, `continuations`, and `selection`, with the meanings above. Jest does not report which
-config file it loaded, so name it in `preconditions`. There is no `include`:
+`unprobed`, `mode`, `continuations`, `cadence`, and `selection`, with the meanings above. Jest does not report which
+config file it loaded, so name it in `preconditions`. `unprobed` is a list of
+globs rather than a function, because Jest hands its transformer options as
+data; relative globs resolve against `root`, as `preconditions` do, and a glob
+that opens with `!` keeps a module probed, as it does in `testMatch`. There is no `include`:
 product source is every JavaScript and TypeScript module the configuration's
 `testMatch` or `testRegex` does not name, less dependencies and built output that
 is not [a library loaded from its build](#a-library-loaded-from-its-build). A
@@ -653,6 +670,65 @@ modules by path, and you can name them yourself:
 `@variance-authority/sense/jest-setup`, and
 `@variance-authority/sense/jest-reporter`.
 
+### Place the probes from your own Rust transform
+
+Wrapped as above, the probes go into the text before your transformer sees it.
+When that transformer is your own Rust — over swc, oxc or anything else — it can
+place them itself, inside its own pipeline. The package ships the instrumenter
+as a Rust crate, the code its own addon runs, so a project that installed sense
+already has the version its runtime reads:
+
+```toml
+# Cargo.toml
+[dependencies]
+variance-sense-instrument = { path = "node_modules/@variance-authority/sense/native/instrument" }
+```
+
+Your transformer declares the recipe it was built with, and the wrapper then
+hands it each module as Jest read it, with `options.senseProbes` saying where
+the probes go:
+
+```js
+// transformer.cjs, around your addon
+const native = require('./transform.node');
+
+module.exports = {
+  senseRecipe: (mode) => native.senseRecipe(mode),
+  process: (source, path, options) => ({ code: native.transform(source, path, options.senseProbes) }),
+};
+```
+
+```rust
+use variance_sense_instrument::{instrument, recipe, Mode};
+
+/// `options.senseProbes`, as your binding hands it over.
+pub struct SenseProbes {
+    pub file: String,
+    pub module: String,
+    pub mode: String,
+}
+
+fn sense_recipe(mode: &str) -> String {
+    recipe(if mode == "entries" { Mode::Entries } else { Mode::Presence })
+}
+
+fn with_probes(source: String, probes: Option<SenseProbes>) -> String {
+    let Some(p) = probes else { return source };
+    let mode = if p.mode == "entries" { Mode::Entries } else { Mode::Presence };
+    instrument(&source, &p.file, &p.module, mode).map_or(source, |done| done.code)
+}
+```
+
+Run `instrument` before your own parse: every probe stays on its line, and the
+text stays the language it was. `senseProbes` is absent for a test file, a file
+outside product source and a file Jest loads before the collector exists, and
+`instrument` returns nothing for a text it cannot parse; either way the module
+runs without probes. A module `unprobed` names reaches your transformer without
+`senseProbes` too, already carrying the wrapper's mark at the end of its text. The wrapper compares `senseRecipe` with this package's
+recipe when Jest loads it, and refuses one built from other sources of the
+crate, naming both; a `senseRecipe` that answers nothing for the mode leaves
+the transformer a plain one, given the text with the probes already in.
+
 ## Cut an Rstest run down to a diff
 
 Rstest builds the suite with Rspack and runs what it built, so the recording
@@ -675,7 +751,7 @@ export default defineConfig(withTestSelection({
 ```
 
 The second argument accepts `root`, `suite`, `coverageFile`, `include`,
-`preconditions`, `mode`, and `continuations`, with the meanings above. Rstest
+`unprobed`, `preconditions`, `mode`, `continuations`, and `cadence`, with the meanings above. Rstest
 does not report which config file it loaded, so name it in `preconditions`. The
 loader runs ahead of SWC, on the text you wrote, so the lines a record carries
 are the ones you edited.
@@ -758,8 +834,9 @@ process.exitCode = failed ? 1 : 0;
 Each function has one place in your runner:
 
 - **`startRecording` goes in the process that starts the run.** It takes
-  `root`, `suite`, `coverageFile`, `preconditions`, `mode` and
-  `continuations`, with the meanings they have on the Vitest seam. Name your
+  `root`, `suite`, `coverageFile`, `preconditions`, `mode`,
+  `continuations` and `cadence`, with the meanings they have on the Vitest
+  seam. Name your
   runner's own files and configuration in `preconditions`: nothing loads them
   through a transform, so nothing else records that a test's outcome depends
   on them. The call sets `VARIANCE_AUTHORITY_RECORDING`, which every child
@@ -776,11 +853,16 @@ Each function has one place in your runner:
   whatever a loader registered before it hands on. It needs Node 22.15 or
   newer. `include` narrows which files count as product source; the default
   is JavaScript and TypeScript inside the checkout, without test files,
-  dependencies or built output.
+  dependencies or built output. `unprobed` names the ones a probe cannot sit
+  in, as it does on the Vitest seam.
+  It also cuts the test file being observed, statement by statement, so each
+  case records [which of its lines reached each region](#record-which-test-line-reached-a-region).
 - **`instrumentModule` replaces it if your runner already transforms
   source.** Call it last, on the JavaScript about to run, with the `map` from
   the file on disk when an earlier step moved lines. Records then name the
-  lines you edited, not the lines the transform emitted.
+  lines you edited, not the lines the transform emitted. Run each test file
+  through `cutTestFile` the same way: it leaves every line where it was and
+  carries an inline map for the columns it moved.
 - **`observeTestFile` goes around each test file,** in the process that runs
   it, before that process loads the file. Run each case through
   `observer.case(name, body)`, where `name` is the declaration path, such as
@@ -1244,9 +1326,11 @@ again only the files whose blob changed. Its result names the state it found
 
 `readPublishedSources(path)` opens a published index and reads nothing from Git
 or the disk beyond it. `publishedSources(root, options)` is the reader with a
-policy for a missing or damaged index: with `ci: true` it throws
-`SourceIndexUnpublished`, whose message names `step`; otherwise it updates once,
-calls `announce` with a line that names the update, and reads. Pass your
+policy for an index that is missing, damaged, or written in another format
+version (`state: 'other-version'`, with the version in `written`): with
+`ci: true` it throws `SourceIndexUnpublished`, whose message names `step`;
+otherwise it updates once, calls `announce` with a line that says which of the
+three it found, and reads. Pass your
 runner's own answer for `ci` — the `ci-info` package is what Jest reads.
 `sourcesWithin` returns the records a scan seeded from `dirs` and `before` would
 have produced, so a reader with a narrower question gets the narrower graph
@@ -1702,9 +1786,25 @@ records nothing would look like a run in which nothing ran.
 
 If a module cannot be parsed, `instrument` returns `undefined`. Check for that
 before reading `result.blocks`: a missing result and an empty block list are
-different facts, and only the caller can keep them apart. A function stringified
-into a browser, worker, or other realm loses the generated runtime declarations
-and throws at its first probe.
+different facts, and only the caller can keep them apart.
+
+A function stringified into a browser, worker, or other realm loses the
+generated runtime declarations and throws at its first probe. The transform
+leaves one kind bare: the function a module passes to Playwright's or
+Puppeteer's `evaluate`, `evaluateAll`, `evaluateHandle`, `evaluateOnNewDocument`,
+`addInitScript`, `waitForFunction`, `$eval` or `$$eval`, matched by method name
+on any receiver. It finds the function when you write it at the call, or name a
+function declaration, or a variable never reassigned, of the same module.
+That function gets no probes; an edit inside it is charged to the region around
+it, which is the module's when it is declared at the top level. A function
+declaration exists from the moment its block starts, so when you write one after
+an early `return`, it gets a region probed where the block starts: an edit
+inside it reaches the tests that returned early too. Every `case` of a `switch`
+is one block, so a declaration under one case is charged to the tests that
+reached the `switch`, whichever case they took. A function you import and pass,
+take as a parameter, or build with `new Function` is not found, so leave the
+module that writes it uninstrumented: out of the seam's `include`, or not passed
+to `instrument`.
 
 The third argument is the id the probes report, and defaults to the file. When
 the journals go to `recordExecution`, pass `moduleId(file, sourceText)` from
@@ -1923,9 +2023,24 @@ test/checkout.test.tsx > checkout > submits
 A name is the coordinate, so the identity is the name and not the runner's
 positional id, which changes the moment a case is inserted above it. Two cases
 in one file may share a coordinate; the repeat is numbered, so the second reads
-`<coordinate>#1`. Any other producer of an `ExecutionIndex` — and anything
-joining against one, such as an Eyes journal read by `variance distill` — has to
-key the same test by the same string.
+`<coordinate>#1`. A case run by a named project carries the project's name in
+front, the way Vitest prints it:
+`|compiled| test/checkout.test.tsx > checkout > submits`. The name is the one
+the runner gives the project:
+
+| Runner | The project's name |
+| --- | --- |
+| Vitest | `test.name`, else its `package.json` name or directory; an inline project without one is named by its place in the list |
+| Jest | `displayName`, a string or its `name` |
+| Playwright | `name` |
+
+So a file two projects both run is two cases, and a run filtered to one project
+(`--project`, `--selectProjects`) or split into shards names each case the same
+as a full run. A project without a name keeps the plain coordinate, and so does
+every Rstest case: its case context does not name the project. Any other
+producer of an
+`ExecutionIndex` — and anything joining against one, such as an Eyes journal
+read by `variance distill` — has to key the same test by the same string.
 
 A case owns a crossing when the probe fired while that case was the one
 running, not inside a start-and-stop bracket around it. A suite runs its cases
@@ -1991,6 +2106,52 @@ index records. Recording 4,011 cases over 364 test files of this repository
 produced 28.8 MB of the JSON above against a 681 KB snapshot. The index answers
 a coding agent asking which five of two hundred cases walked the branch you just
 changed; selecting test files over every region there is reads the snapshot.
+
+### Record which test line reached a region
+
+A case's crossings name the regions it reached, not the statement of the test
+that reached each one. Under the Vitest, Jest and Rstest seams, and under
+[a runner of your own](#record-a-runner-this-package-has-no-seam-for), every
+case also records, for each region it crossed, the line of the test statement
+that first reached it, and whether that statement was the case's own or a
+hook's. Those lines are the test's cadence: what each of its statements added
+to what the case reached. Under Playwright, `withTestSelection` from
+[`@variance-authority/playwright-test`](../playwright-test/README.md#record-which-spec-line-reached-each-region)
+records the same lines for what a spec's page reached.
+
+The seam's transform puts a call in front of every statement of a test or hook
+body in a test file. It goes into nested blocks but not into nested functions,
+so the callback you hand to `waitFor` belongs to the statement that hands it
+over. The call stores the length of the case's log beside the statement's line;
+it takes no snapshot and reads nothing. When the case closes, each region is
+charged to the last statement before its first entry:
+
+| The region was first reached by | It is recorded at |
+| --- | --- |
+| a statement of the case | that statement's line |
+| a `beforeEach` or another hook, and not by the case itself | the hook's statement, flagged as a hook's |
+| an import or top-level code, before any statement ran | line 0, flagged as a hook's |
+
+The transform finds a body by the registrar it is handed to: `it`, `test`,
+their `.each`, `.only` and `.skip`, and the four hooks, inside `describe` and
+Playwright's `test.describe`. A body handed over by
+name, one a registrar from `test.extend` or a renamed import takes, and one a
+helper outside the test file writes, such as a shared conformance suite, run
+uncut, and their cases record no lines. So does every case a record written
+without them carried. The record keeps such a
+case apart from one that reached nothing: lines not recorded is not an empty
+answer. When a case's asynchronous work interleaves differently from run to
+run, the line recorded is the one this run reached the region from. Selection
+reads none of it: which cases run is still decided by the crossings.
+
+On this repository's 8,191 cases the lines add 105 KB to a 4.79 MB record,
+2.2%, and on MUI's `mui-material`, 4,822 cases, 66 KB to 2.70 MB, 2.4%. The
+suite's duration stays inside its run-to-run spread on both, over three runs
+each with and without them: 48.9–51.9 s against 48.8–56.3 s here, 16.2–16.5 s
+against 16.0–17.2 s on MUI.
+
+Pass `cadence: false` to leave test files as you wrote them and write no lines.
+A Jest journey run leaves test files as they are either way.
 
 ### Record the state each test ran under
 
@@ -2104,6 +2265,7 @@ same under every host:
 | `@variance-authority/sense/rstest-loader` | the loader `withTestSelection` names by path, for a configuration assembled by hand | Rstest `^0.12.0` |
 | `@variance-authority/sense/runner` | recording from a runner with no seam: opening and folding the run, instrumenting what it loads, and bracketing each test file and case | Node 22.15 or newer, and one test file at a time per process |
 | `@variance-authority/sense/test-selection` | selecting from a diff, placing a selection by distance, reading, folding and writing the snapshot, measuring deviation, and `coveringTests` | the snapshot a runner or journal seam wrote; an import graph for the distance and asset walks |
+| `@variance-authority/sense/cache-root` | `cacheRootFor`, the checkout's cache directory, without loading the parser and resolver | a checkout |
 | `@variance-authority/sense` | `scanRelations`, the source index, and Git content digests | a readable checkout for the scan; persistence is optional |
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |
 | `@variance-authority/sense/lock` | reading which packages an install changed between two revisions, and how they rest on each other | the lockfile's text at both revisions; nothing else, and no `node_modules` |

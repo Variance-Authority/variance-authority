@@ -39,6 +39,7 @@ import {
   coveringTests,
   anyStopped,
   coveringTestsInFile,
+  keepsCases,
   ranWhileLoading,
   stoppedBefore,
   stateOf,
@@ -57,6 +58,8 @@ import { OperatorError } from '../exit.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { hopsToTests, identities, nearbyWitnesses, refold, type Narrowing } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
+import { unloadedFile, unreadPreconditions } from './covering-unloaded.js';
+import { heldAsPrecondition } from './held-as-precondition.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { listedIn, namesAt, placesNoCase, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
@@ -109,6 +112,12 @@ export interface Covering {
   readonly state?: RangeState;
   /** Present when the question named a file and nothing narrower. */
   readonly ranges?: readonly CoveringRange[];
+  /**
+   * Present instead of every other reading when the record holds no line of
+   * the file and test files hold it as a precondition: those files, which a
+   * change to it selects whole (`covering-unloaded.ts`).
+   */
+  readonly preconditionOf?: readonly string[];
   /**
    * Where the line numbers stand, when the file could be framed against the
    * snapshot: `recorded` when the held text is the one the suite ran over,
@@ -237,15 +246,16 @@ async function ask(
   const { index, files, before } = await readIndex(from, new Map([[file, []]]));
   const module = index.modules.find((candidate) => candidate.file === file);
   if (module === undefined) {
-    throw new OperatorError(
-      `\`${file}\` is not in the index at \`${from}\`, which holds ${
-        files.length
-      } file${files.length === 1 ? '' : 's'}. A file the run never loaded has no answer ` +
-        `here, and that is a different statement from no test covering it. ${
-          spelling(file, files)
-        }`,
-      { kind: 'unloaded' },
-    );
+    const held = heldAsPrecondition(from, [file]);
+    const loaded = held?.of.get(file);
+    // The record holds every test file's preconditions; `--cases` and `--where` ask about the cases left in the index.
+    const asked = request.cases === undefined && request.where === undefined
+      ? undefined
+      : new Set(index.tests.map((test) => test.file));
+    if (loaded !== undefined) return { file, preconditionOf: asked === undefined ? loaded : loaded.filter((test) => asked.has(test)), from };
+    // An index with no coverage beside it, as a foreign tool writes, holds no preconditions to read.
+    if (held === undefined && keepsCases(from)) throw unreadPreconditions(file, from);
+    throw unloadedFile(file, from, files.length);
   }
 
   const near = await nearbyWitnesses(request as CoveringAt);
@@ -467,23 +477,4 @@ async function loadersFor(
 
 function fileGraph(root: string): Promise<Relations> {
   return relationsFor(root, ['.'], [], []);
-}
-
-
-/**
- * Point at the closest spelling rather than printing the whole index.
- *
- * A path given to this command is usually the right file and the wrong root:
- * the record spells a module the way the run saw it, and a reader who pasted an
- * editor path is one prefix away. Three candidates answer that; a list of every
- * recorded file answers nothing and scrolls the refusal off the screen.
- */
-function spelling(file: string, files: readonly string[]): string {
-  const tail = file.slice(file.lastIndexOf('/') + 1);
-  const near = files
-    .filter((candidate) => candidate === tail || candidate.endsWith(`/${tail}`))
-    .sort();
-  return near.length === 0
-    ? `Nothing recorded ends in \`${tail}\`.`
-    : `The record spells it ${near.slice(0, 3).map((candidate) => `\`${candidate}\``).join(', ')}.`;
 }

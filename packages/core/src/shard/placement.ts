@@ -85,6 +85,11 @@ export type ShardCountReason =
   | 'setup'
   /** The slowest group is the longest share already, and no shard finishes before it. */
   | 'slowest group'
+  /**
+   * The budget is no longer than the setup, which every shard spends before its
+   * first group, so no count meets it; the count is the one that finishes soonest.
+   */
+  | 'setup over budget'
   /** The most shards allowed. */
   | 'max';
 
@@ -131,7 +136,8 @@ export const MATRIX_LIMIT = 256;
  * Every count is weighed, not only the next, because whole groups split
  * unevenly: a third shard can save nothing where a fourth saves a lot. Either
  * way the count stops where the longest share is the slowest group, because
- * past that no shard finishes sooner.
+ * past that no shard finishes sooner. A budget no longer than the setup is met
+ * by no count, and the setup, not the slowest group, is why.
  */
 export function shardCount(costs: readonly number[], options: ShardCountOptions): ShardCount {
   if (costs.length === 0) return { shards: 0, load: [], wall: 0, why: 'nothing to run' };
@@ -150,10 +156,12 @@ export function shardCount(costs: readonly number[], options: ShardCountOptions)
   const reached = (shards: ReturnType<typeof at>) => shards.wall - options.setup <= slowest;
 
   if (options.budget !== undefined) {
+    // With no setup, the slowest group is what no count gets under, not the setup.
+    const unmet = options.setup > 0 && options.budget <= options.setup;
     for (let here = at(1); ; here = at(here.shards + 1)) {
       if (here.wall <= options.budget) return counted(here, 'within budget');
-      if (reached(here)) return counted(here, 'slowest group');
-      if (here.shards === limit) return counted(here, 'max');
+      if (reached(here)) return counted(here, unmet ? 'setup over budget' : 'slowest group');
+      if (here.shards === limit) return counted(here, unmet ? 'setup over budget' : 'max');
     }
   }
 

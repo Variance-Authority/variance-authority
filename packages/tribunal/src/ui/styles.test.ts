@@ -129,7 +129,7 @@ describe('REVIEW_STYLES', () => {
     // back into smoothing.
     expect(renderings.length).toBeGreaterThan(1);
     for (const rule of renderings) expect(rule.body).toContain('image-rendering: pixelated');
-    for (const selector of ['.va-plate img', '.va-side-by-side img']) {
+    for (const selector of ['.va-plate img', '.va-side-by-side img', '.va-variation-side img']) {
       expect(RULES.find((rule) => rule.selector === selector)?.body).toContain('pixelated');
     }
   });

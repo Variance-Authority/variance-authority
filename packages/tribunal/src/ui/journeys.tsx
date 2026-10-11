@@ -34,19 +34,11 @@
 
 import type { ReactElement } from 'react';
 import type { JourneyRegionRecord, JourneysReport, VariationRecord } from '@variance-authority/report';
+import { columnsOf, familyOf, type FamilyColumn } from '../family.js';
 import type { BuildDetail } from '../review-types.js';
 import { Timeline, forkLabel } from './journey-timeline.js';
 import { treeOf } from './journey-tree.js';
 import { count } from './text.js';
-
-/** One story of a family, as a column of its rows. */
-export interface JourneyColumn {
-  readonly subject: string;
-  /** The part of the id that names it within the family. */
-  readonly member: string;
-  /** The member it varies from, when the run read the two as a pair. */
-  readonly from?: string;
-}
 
 /** What one column did with one row. `absent` is a module it never entered. */
 export type JourneyCell = 'entered' | 'missed' | 'absent';
@@ -61,48 +53,9 @@ export interface JourneyRow {
 
 export interface JourneyFamily {
   readonly name: string;
-  readonly columns: readonly JourneyColumn[];
+  readonly columns: readonly FamilyColumn[];
   /** Empty for a family that took one path. */
   readonly rows: readonly JourneyRow[];
-}
-
-/** `story:cart-card--item` is `story:cart-card` and `item`; an id with no `--` is its own family. */
-function split(id: string): { readonly family: string; readonly member: string } {
-  const at = id.indexOf('--');
-  return at < 0 ? { family: id, member: id } : { family: id.slice(0, at), member: id.slice(at + 2) };
-}
-
-/**
- * The family's members in the lattice's order: what nothing varies from first,
- * then what varies from it, depth first. Within a rank the shortest name leads,
- * then the name: a base is the name its variations add to, so where the run
- * read no lattice among them, `full` still comes before `loading`.
- */
-function columnsOf(
-  members: readonly { readonly subject: string; readonly member: string }[],
-  variations: readonly VariationRecord[],
-): readonly JourneyColumn[] {
-  const own = new Map(members.map((member) => [member.subject, member.member]));
-  const parents = new Map<string, string>();
-  for (const variation of variations) {
-    if (variation.parent !== undefined && own.has(variation.subject) && own.has(variation.parent)) {
-      parents.set(variation.subject, variation.parent);
-    }
-  }
-  const byRank = (a: { readonly member: string }, b: { readonly member: string }): number =>
-    a.member.length - b.member.length || a.member.localeCompare(b.member);
-  const armsOf = (parent: string | undefined): readonly JourneyColumn[] =>
-    members
-      .filter((member) => parents.get(member.subject) === parent)
-      .sort(byRank)
-      .flatMap((member): readonly JourneyColumn[] => {
-        const from = parent === undefined ? undefined : own.get(parent);
-        return [
-          from === undefined ? { subject: member.subject, member: member.member } : { ...member, from },
-          ...armsOf(member.subject),
-        ];
-      });
-  return armsOf(undefined);
 }
 
 /**
@@ -119,7 +72,7 @@ export function familiesOf(
 ): readonly JourneyFamily[] {
   const grouped = new Map<string, { readonly subject: string; readonly member: string }[]>();
   for (const subject of journeys.whole) {
-    const { family, member } = split(subject);
+    const { family, member } = familyOf(subject);
     grouped.set(family, [...(grouped.get(family) ?? []), { subject, member }]);
   }
 
@@ -132,7 +85,7 @@ export function familiesOf(
 }
 
 /** The module rows this family is split by: the module itself, then its parted regions. */
-function rowsOf(journeys: JourneysReport, columns: readonly JourneyColumn[]): readonly JourneyRow[] {
+function rowsOf(journeys: JourneysReport, columns: readonly FamilyColumn[]): readonly JourneyRow[] {
   const rows: JourneyRow[] = [];
   // Some entered and some did not. A column that never entered the module is
   // `absent` on every region row and is not a split on its own: the module row

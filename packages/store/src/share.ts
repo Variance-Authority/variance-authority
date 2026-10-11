@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, rename, rmdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, rmdir, stat, utimes, writeFile } from 'node:fs/promises';
 import { dirname, join, normalize, sep } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import {
@@ -37,6 +37,8 @@ class OutsideRoot extends Error {}
 const LOCK_WAIT_MS = 5_000;
 /** A lock older than this was left by a writer that died, and is taken over. */
 const LOCK_STALE_MS = 60_000;
+/** How often a holder marks its lock alive: often enough that a live lock never reaches {@link LOCK_STALE_MS}. */
+const LOCK_REFRESH_MS = LOCK_STALE_MS / 4;
 
 /**
  * A line as files: `<root>/<kind>/<name>/manifest.json`, the line's entries
@@ -51,7 +53,8 @@ const LOCK_STALE_MS = 60_000;
  * and the condition is held by a lock directory, because `mkdir` is the one
  * operation that is atomic on every filesystem an operator might point this at,
  * NFS included. A writer that dies holding it leaves a lock the next writer
- * takes over after a minute.
+ * takes over after a minute; a writer that lives keeps its lock fresh for as
+ * long as it writes (see {@link hold}).
  *
  * A line's directory keeps the case of its name, so on a volume that folds case
  * two lines can be one directory. That line is refused and read as absent, never
@@ -100,6 +103,7 @@ export function createDirectoryLineCell(root: string): LineCell {
     async store(line, write) {
       const dir = lineDir(line);
       const lock = join(dir, '.lock');
+      let lease: Lease | undefined;
       try {
         await mkdir(dir, { recursive: true });
         // After the mkdir, so it holds against a writer in any process: once the
@@ -116,10 +120,12 @@ export function createDirectoryLineCell(root: string): LineCell {
               'case-sensitive volume, or give the two branches names that differ by more than case',
           };
         }
-        if (!(await acquire(lock))) return 'conflict';
+        lease = await acquire(lock);
       } catch (error) {
         return missOf(dir, error);
       }
+      if (lease === undefined) return 'conflict';
+      const holding = lease;
       try {
         // The spelling was checked above and cannot change, so the manifest is read without asking again.
         const held = await read(dir);
@@ -129,12 +135,17 @@ export function createDirectoryLineCell(root: string): LineCell {
         // TODO: an entry or image no manifest names any more stays on disk, and a
         // branch's line outlives the branch; nothing here deletes.
         for (const [path, bytes] of write.blobs) await place(where(line, path), bytes);
-        await place(join(dir, 'manifest.json'), write.manifest);
-        return 'written';
+        // A writer that stalled past the stale limit may have lost the lock to one
+        // that took it for abandoned. Asked once the manifest's bytes are staged,
+        // so the only step left between the answer and the commit is one rename.
+        // FIXME: a writer frozen past the stale limit inside that step still
+        // renames over the next writer's manifest; closing it needs the commit
+        // itself to be conditional on the version it replaces.
+        return (await place(join(dir, 'manifest.json'), write.manifest, () => holding.owns())) ? 'written' : 'conflict';
       } catch (error) {
         return missOf(dir, error);
       } finally {
-        await rmdir(lock).catch(() => undefined);
+        await holding.release();
       }
     },
   };
@@ -182,32 +193,168 @@ async function foldOf(root: string, line: ShareLine): Promise<Fold | undefined> 
   return undefined;
 }
 
-async function acquire(lock: string): Promise<boolean> {
+/** A line's lock, held. */
+interface Lease {
+  /**
+   * Whether the lock is still this writer's: no other writer can have taken it
+   * for dead yet. Throws what the file system said when a refused stamp is why
+   * it is not.
+   */
+  owns(): Promise<boolean>;
+  /** Stop keeping the lock fresh, and remove it if it is still this writer's. */
+  release(): Promise<void>;
+}
+
+/**
+ * Take a line's lock, waiting up to {@link LOCK_WAIT_MS} for a live holder, or
+ * answer `undefined` when the wait runs out.
+ *
+ * A pass that does not sleep has made progress: the lock was gone by the time
+ * its age was read, or a dead writer's lock was removed. Failing to read a
+ * lock's age, or to remove a dead writer's lock, throws, so the write answers
+ * what the file system said instead of waiting on a lock it cannot judge.
+ */
+async function acquire(lock: string): Promise<Lease | undefined> {
   const until = Date.now() + LOCK_WAIT_MS;
   for (;;) {
     try {
+      const made = Date.now();
       await mkdir(lock);
-      return true;
+      return hold(lock, made);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
     }
-    const since = await stat(lock).then((held) => Date.now() - held.mtimeMs, () => 0);
-    if (since > LOCK_STALE_MS) await rmdir(lock).catch(() => undefined);
-    else if (Date.now() > until) return false;
-    else await sleep(20);
+    const seen = await mtimeOf(lock);
+    if (seen === undefined || (Date.now() - seen > LOCK_STALE_MS && (await breakStale(lock, seen)))) continue;
+    if (Date.now() > until) return undefined;
+    await sleep(20);
   }
+}
+
+/**
+ * Remove a dead writer's lock whose time was `seen`, unless it was replaced
+ * since; `false` when another writer is removing it.
+ *
+ * Judging a lock's age and removing it are two calls, and between them another
+ * writer can remove the same dead lock and make its own. So the removal is
+ * claimed first, by a `mkdir` named for the time that was judged, and under the
+ * claim the lock is removed only if its time is still `seen`. A live holder's
+ * lock never has that time: its holder keeps it fresh (see {@link hold}), and
+ * the dead one was older than {@link LOCK_STALE_MS}.
+ *
+ * A writer that dies holding the claim leaves it behind; the claim is broken
+ * once it is as old as a dead lock.
+ */
+async function breakStale(lock: string, seen: number): Promise<boolean> {
+  const claim = `${lock}.${String(seen)}`;
+  try {
+    await mkdir(claim);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    const claimed = await mtimeOf(claim);
+    if (claimed !== undefined && Date.now() - claimed > LOCK_STALE_MS) await rmdir(claim).catch(unlessMissing);
+    return false;
+  }
+  try {
+    if ((await mtimeOf(lock)) === seen) await rmdir(lock).catch(unlessMissing);
+    return true;
+  } finally {
+    // Kept quiet: a failure here would replace what the removal answered, and
+    // once the lock is gone no writer judges the time this claim names again.
+    await rmdir(claim).catch(() => undefined);
+  }
+}
+
+/**
+ * Keep a lock this writer made at `made` fresh until it is released.
+ *
+ * The holder stamps the lock's time every {@link LOCK_REFRESH_MS}, so a write
+ * that runs past {@link LOCK_STALE_MS} still looks alive to the next writer. Its
+ * own clock says whether the lock is still its own: while its last stamp is
+ * younger than the stale limit, less one refresh as margin for a file system
+ * that keeps whole seconds, no other writer can have taken the lock for dead.
+ * A stamp counts from when it was asked for, and only if it landed inside that
+ * limit, so a stamp delayed in flight cannot vouch for a lock judged dead
+ * meanwhile. Once the holder cannot vouch, it stops stamping and leaves the lock
+ * alone, since it may already be another writer's.
+ */
+function hold(lock: string, made: number): Lease {
+  let stamped = made;
+  const owned = (): boolean => Date.now() - stamped < LOCK_STALE_MS - LOCK_REFRESH_MS;
+  // The last stamp the file system refused, answered once the holder can no longer vouch for its lock.
+  let failed: unknown;
+  let refreshed: Promise<void> = Promise.resolve();
+  const refresh = async (): Promise<void> => {
+    if (!owned()) return;
+    const asked = Date.now();
+    try {
+      await utimes(lock, asked / 1000, asked / 1000);
+    } catch (error) {
+      // A lock gone from under its holder is not its own any more, whoever makes the next one.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') stamped = -Infinity;
+      else failed = error;
+      return;
+    }
+    if (owned()) stamped = asked;
+  };
+  // Chained, so no stamp overlaps another or a look at ownership.
+  const timer = setInterval(() => (refreshed = refreshed.then(refresh)), LOCK_REFRESH_MS);
+  timer.unref();
+  return {
+    async owns() {
+      await refreshed;
+      if (owned()) return true;
+      if (failed !== undefined) throw failed;
+      return false;
+    },
+    async release() {
+      clearInterval(timer);
+      await refreshed;
+      // Kept quiet: release runs after the write has its answer, and a lock left
+      // behind is a dead writer's to the next one, which answers its own removal.
+      if (owned()) await rmdir(lock).catch(() => undefined);
+    },
+  };
+}
+
+/** A path's modification time, or `undefined` when nothing is there; any other failure throws. */
+async function mtimeOf(path: string): Promise<number | undefined> {
+  try {
+    return (await stat(path)).mtimeMs;
+  } catch (error) {
+    unlessMissing(error);
+    return undefined;
+  }
+}
+
+function unlessMissing(error: unknown): void {
+  if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
 }
 
 let placed = 0;
 
-async function place(path: string, bytes: Uint8Array): Promise<void> {
+/** Writes `bytes` to `path` whole, and only when `ready` still says so once they are staged; whether it did. */
+async function place(path: string, bytes: Uint8Array, ready?: () => Promise<boolean>): Promise<boolean> {
   await mkdir(dirname(path), { recursive: true });
   // Counted as well as timed: two lines placing one image in one millisecond
   // would otherwise stage it under one name, and one rename would find nothing.
   placed += 1;
   const staged = `${path}.${process.pid.toString(36)}${Date.now().toString(36)}-${placed.toString(36)}.part`;
   await writeFile(staged, bytes);
+  let go: boolean;
+  try {
+    go = ready === undefined || (await ready());
+  } catch (error) {
+    // Kept quiet: the write answers what `ready` said, not what the cleanup did.
+    await rm(staged, { force: true }).catch(() => undefined);
+    throw error;
+  }
+  if (!go) {
+    await rm(staged, { force: true });
+    return false;
+  }
   await rename(staged, path);
+  return true;
 }
 
 async function readHeld(path: string): Promise<Uint8Array | ShareMiss> {

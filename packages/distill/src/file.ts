@@ -12,7 +12,11 @@ import { causesOf, importOf, SHARED, UNSEEN, type LoadCause } from './own.js';
 
 /** What names one test file, and the two readings of the record it is read from. */
 export interface FileDistillInput {
-  /** A part of the test file's path, as the record spells it. */
+  /**
+   * The test file's repository-relative path, as the record spells it. Only
+   * that file is read: a recorded path that contains it or ends in it is
+   * another file.
+   */
   readonly file: string;
   /** The record's case index: which cases entered which regions. */
   readonly execution: ExecutionIndex;
@@ -66,6 +70,8 @@ export interface FileDistillation {
   readonly cases: readonly ExecutionTest[];
   /** Modules the file loaded that declare a function, other than the test file itself. */
   readonly loaded: number;
+  /** Their lines, summed; a module whose top level kept no lines counts none. */
+  readonly lines: number;
   /**
    * The loaded modules fewer than all of the cases entered: none first, then
    * fewest, then longest. Absent when the case index keeps no cases for the
@@ -100,13 +106,19 @@ export function distillFile(input: FileDistillInput): FileDistillation {
   return readTestFile(testFileOf(input.coverage, input.file), input);
 }
 
-/** {@link distillFile} for a test file named exactly as the record spells it. */
+/** {@link distillFile} without the refusal of a test file the record does not hold. */
 export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>): FileDistillation {
   const index = indexed(input.coverage, input.execution);
   const cases = index.cases.get(file) ?? [];
   const candidates = (index.loads.get(file) ?? []).filter((module) => module.file !== file);
   const mocks = input.shadows === undefined ? [] : misplacedOf(input.shadows(file));
-  const base = { file, cases: cases.map(({ test }) => test), loaded: candidates.length, ...(mocks.length === 0 ? {} : { mocks }) };
+  const base = {
+    file,
+    cases: cases.map(({ test }) => test),
+    loaded: candidates.length,
+    lines: candidates.reduce((sum, module) => sum + (linesOf(module) ?? 0), 0),
+    ...(mocks.length === 0 ? {} : { mocks }),
+  };
   if (cases.length === 0) return { ...base, withheld: `the record keeps no cases for ${file}.` };
   if (index.incomplete.has(file)) {
     return {
@@ -160,7 +172,7 @@ export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>
   };
   const modules = candidates
     .map((module): LoadedModule => {
-      const lines = module.blocks.find((block) => block.kind === 'module')?.endLine;
+      const lines = linesOf(module);
       const count = entered.get(module.file)!;
       return {
         file: module.file,
@@ -214,6 +226,11 @@ function indexed(coverage: TestCoverage, execution: ExecutionIndex): Indexed {
   return index;
 }
 
+/** A module's lines: where its top level ends, or absent when it kept none. */
+function linesOf(module: CoverageModule): number | undefined {
+  return module.blocks.find((block) => block.kind === 'module')?.endLine;
+}
+
 function push<T>(map: Map<string, T[]>, key: string, value: T): void {
   const list = map.get(key);
   if (list === undefined) map.set(key, [value]);
@@ -235,19 +252,18 @@ function enteredBy(module: ExecutionIndex['modules'][number], mine: ReadonlySet<
   return entered;
 }
 
-/** How many test files a refusal names. */
+/** How many cases a refusal names. */
 const AVAILABLE_SHOWN = 5;
 
-/** The one recorded test file the path part names: exactly, else the only one containing it. */
-function testFileOf(coverage: TestCoverage, part: string): string {
-  const files = coverage.tests.map((test) => test.file);
-  if (files.includes(part)) return part;
-  const found = files.filter((file) => file.includes(part)).sort(compare);
-  if (found.length === 1) return found[0]!;
-  if (found.length === 0) throw new Error(`The record holds no test file in \`${part}\`.`);
-  const shown = found.slice(0, AVAILABLE_SHOWN).join(', ');
-  const more = found.length > AVAILABLE_SHOWN ? `, and ${found.length - AVAILABLE_SHOWN} more` : '';
-  throw new Error(`${found.length} recorded test files in \`${part}\`: ${shown}${more}; name one`);
+/**
+ * `file`, when the record holds a test file by that name. A refusal names no
+ * other path: two paths are two files, so none the record holds is the one asked.
+ */
+function testFileOf(coverage: TestCoverage, file: string): string {
+  if (coverage.tests.some((test) => test.file === file)) return file;
+  throw new Error(
+    `The record holds no test file \`${file}\`. It names each test file by its path from the repository root, with \`/\`.`,
+  );
 }
 
 function compare(left: string, right: string): number {

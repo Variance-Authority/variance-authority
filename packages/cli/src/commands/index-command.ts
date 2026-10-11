@@ -266,6 +266,7 @@ function describe(update: SourceUpdate): string {
       ? `source index built: ${files}, at ${update.path}`
       : `source index built on ${update.from}: ${files}, ${reread}, at ${update.path}`;
     case 'damaged': return `source index repaired: ${files}, ${reread}, at ${update.path}`;
+    case 'other-version': return `source index rebuilt over one written in format version ${String(update.written)}: ${files}, ${reread}, at ${update.path}`;
     case 'published': return `source index updated: ${files}, ${reread}, at ${update.path}`;
   }
 }

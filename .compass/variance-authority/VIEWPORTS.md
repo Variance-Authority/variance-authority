@@ -298,8 +298,8 @@ sequenceDiagram
   CMP->>IDN: identityFor(document) — the identity this run would paint under
   CMP->>STO: describe(key, identity)
   STO-->>CMP: the sidecar: stored digest, comparability, fonts, marks
-  alt digests agree, or the baseline is another machine's
-    CMP-->>CMP: unchanged / incomparable — no image was read
+  alt digests agree under one identity
+    CMP-->>CMP: unchanged — no image was read
   else nothing settled it
     CMP->>STO: find(key, identity) — the prior reading, partitioned by identity
     CMP->>DEF: a document to paint
@@ -385,8 +385,8 @@ sequenceDiagram
   `packages/raster/src/codec.ts` is the field-by-field rebuild every sidecar,
   wire response and cache read-back passes through — a field silently dropped
   there produces a write key and a lookup key that differ, and the run then
-  reports **incomparable** naming the same machine on both sides. This is what
-  decides which **baseline** the comparison is allowed to reach at all; a store
+  names a moved identity whose two sides are the same machine. This is what
+  decides which **baseline** the lookup reaches first; a store
   that cannot answer raises `RasterStoreError` with `REFUSAL` and never an
   absence.
 - Render only if settling did not answer. `renderOnce` in
@@ -788,9 +788,9 @@ flowchart TB
   never trusted. Absent configuration returns `null`, which means the surface is
   not drawn; there is no anonymous view to fall back to.
 - Credential to `Granted`. `grant` in `packages/tribunal/src/worker-auth.ts`
-  digests the presented bearer and both secrets to a fixed 32 bytes and always
-  compares both, so *which token is this* costs the same either way; the answer
-  is `'ingest' | 'review' | null`. `refuseWeakTokens` refuses at construction
+  digests the presented bearer and every secret to a fixed 32 bytes and always
+  compares each, so *which token is this* costs the same either way; the answer
+  is `'ingest' | 'review' | 'share' | null`. `refuseWeakTokens` refuses at construction
   under sixteen characters or two equal values. `createTribunal` in
   `packages/tribunal/src/worker.ts` calls `grant` before the URL is even parsed,
   and `UNAUTHENTICATED` is one identical sentence for a wrong token, a missing

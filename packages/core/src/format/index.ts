@@ -29,6 +29,8 @@ export { accessibilitySnapshot } from './accessibility.js';
 export type { ObservationProfile, ProfileId } from './profile.js';
 export { JSDOM_PROFILE, CHROMIUM_PROFILE, profileById, tierOfProfile } from './profile.js';
 
+export { assetUrl, pageOrigin, withoutOrigin } from './origin.js';
+
 export type { Tier } from './tier.js';
 export { tierReaches } from './tier.js';
 
@@ -37,6 +39,7 @@ export type {
   EnvironmentKey,
   EnvironmentDelta,
   EnvironmentField,
+  PageRegion,
   Viewport,
 } from './environment.js';
 export { environmentKey, diffEnvironments } from './environment.js';
@@ -45,6 +48,7 @@ export {
   INTERVENTIONS,
   SEMANTIC_RECIPE,
   COLLECT_RECIPE,
+  DEFAULT_STABILIZE,
   LAYOUT_RECIPE,
   RASTER_RECIPE,
   holdAnimations,
@@ -58,6 +62,7 @@ export {
   conflicts,
   interventionById,
   recipeOf,
+  recipeToDrive,
   recipeCss,
   recipeScreenshot,
   recipeDigest,
@@ -71,6 +76,8 @@ export type {
   ScreenshotOptions,
   SettleTarget,
 } from './stabilize.js';
+export { DEFAULT_NOW, driveBeforeLoad, driveBeforeRead, featuresOf, forDriver } from './drive.js';
+export type { DriverState, DriverTarget, MotionPreference } from './intervention.js';
 
 export type { Provenance, OwnerFrame, SourceLocation, StackFrame } from './provenance.js';
 export { propsDigest, heldDigest, jsxSourceOf, relativizeSource, JSX_SOURCE } from './provenance.js';
@@ -88,7 +95,7 @@ export type {
   SubjectRef,
   Diagnostic,
 } from './capture.js';
-export { mergeDiagnostics } from './capture.js';
+export { intersectionArea, mergeDiagnostics } from './capture.js';
 
 export type {
   SemanticSnapshot,

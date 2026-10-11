@@ -1,0 +1,35 @@
+import type { PageRegion } from '@variance-authority/core/format';
+import { fail, optionalText, quote, type ParseOptions } from './config-values.js';
+
+/**
+ * The `timezoneId` and `locale` keys, each refused by its field when the runtime
+ * cannot read it.
+ *
+ * Absent, the renderer pins `UTC` and `en-US`, never the host's: a date the page
+ * formats would otherwise read one way on a laptop in Sydney and another on a
+ * runner in Virginia, from one build. Declared here, the renderer pins these
+ * instead. Both join the environment key and the render identity, so a project
+ * that changes one compares every image against the baselines painted under the
+ * other, names the moved field as the cause of what changed, and accepts them again.
+ */
+export function parseRegion(root: Record<string, unknown>, options: ParseOptions): PageRegion {
+  const timezoneId = optionalText(root, 'timezoneId', options);
+  const locale = optionalText(root, 'locale', options);
+  if (timezoneId !== undefined && !readable(() => new Intl.DateTimeFormat('en-US', { timeZone: timezoneId }))) {
+    fail('timezoneId', `must be a timezone the IANA database names, such as "Europe/Berlin", not ${quote(timezoneId)}`, options);
+  }
+  if (locale !== undefined && !readable(() => Intl.getCanonicalLocales(locale))) {
+    fail('locale', `must be a BCP 47 language tag, such as "de-DE", not ${quote(locale)}`, options);
+  }
+  return { ...(timezoneId === undefined ? {} : { timezoneId }), ...(locale === undefined ? {} : { locale }) };
+}
+
+function readable(read: () => unknown): boolean {
+  try {
+    read();
+    return true;
+  } catch (error) {
+    if (error instanceof RangeError) return false;
+    throw error;
+  }
+}

@@ -138,9 +138,13 @@ one walk, not two — the caller that narrows and the caller that explains read
 the same call, because a run that skipped a **subject** for one reason and
 printed another would be worse than one that printed nothing.
 
-It states what it skipped; it does not decide what that costs. It never selects
-individual test cases, except where the product owns the execution surface and a
-single story is the unit of execution.
+It states what it skipped; it does not decide what that costs. Its unit is the
+test file, and the gate's grain stays the file. Asked for the case grain, it
+also names, within each file it keeps, the cases that entered none of the
+changed regions, and the runner marks them skipped through its own task modes;
+every doubt about which cases a change reached keeps the file whole, and a file
+run in part is recorded incomplete. Where the product owns the execution
+surface, a single story is the unit of execution.
 
 ## Implementation coordinates
 
@@ -166,6 +170,11 @@ single story is the unit of execution.
   measured, over runtime edges only
 - `packages/sense/src/test-selection/select.ts` — `selectTestFilesFromView` and
   `narrowByExecutionFromView`, the same rules over test files
+- `packages/cli/src/commands/select-cases.ts` — `casesToSkip`, the cases of a
+  kept file that entered none of the changed regions, and every doubt that keeps
+  the file whole
+- `packages/sense/src/test-selection/case-cut.ts` — the cut, carried from the
+  process that read the selection to the workers that skip it
 
 ## Diagram
 

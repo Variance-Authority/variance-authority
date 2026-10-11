@@ -7,8 +7,12 @@ import {
 } from '@variance-authority/observe';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import type { BaselineKey, RasterStore, Renderer } from '@variance-authority/raster';
-import { bulkSkips } from '@variance-authority/report';
-import { createDurableStore } from '@variance-authority/store/durable';
+import { cacheRootFor } from '@variance-authority/sense/cache-root';
+import {
+  createDurableStore,
+  renderCacheIn,
+  sweepRenderCache,
+} from '@variance-authority/store/durable';
 import { OBSERVE_COMMAND, type Observed, type ObserveRequest } from './protocol.js';
 
 /**
@@ -39,9 +43,8 @@ export interface VarianceNodeOptions {
    * Whether this run may promote a candidate to a baseline.
    *
    * Absent reads Vitest's own `--update`, which is the flag a person already
-   * types for the snapshots in the same suite. That is a sweep, so it skips the
-   * `incomparable` subjects `variance accept --all` skips: another machine's
-   * image, and a re-painted recipe whose document moved. Set it to `false` to
+   * types for the snapshots in the same suite, and it adopts what `variance
+   * accept --all` adopts: every candidate that changed. Set it to `false` to
    * hold baselines out of `--update`, and to `true` for a job whose whole
    * purpose is to write them, which adopts every candidate it painted.
    */
@@ -61,12 +64,24 @@ export interface VarianceCommands {
 }
 
 export function varianceCommands(options: VarianceNodeOptions = {}): VarianceCommands {
-  const store = options.store ?? createDurableStore(options.baselines ?? '.variance/baselines');
+  // A store opened here is on a root somebody commits, so its render cache goes
+  // where `variance run` puts it, and is bounded when the run closes, as there.
+  const renders =
+    options.store === undefined ? renderCacheIn(cacheRootFor(process.cwd())) : undefined;
+  const store =
+    options.store ??
+    createDurableStore(options.baselines ?? '.variance/baselines', { cacheRoot: renders! });
   let renderer: Promise<Renderer> | undefined = undefined;
 
   // Opened on the first observation rather than here. A watch-mode session that
   // edits a test file and never reaches a `variance()` call should not be
   // holding a browser open for the afternoon.
+  //
+  // FIXME: this renderer paints in UTC and en-US whatever timezone and locale
+  // the tab ran in, and the capture records neither, so a page that formats a
+  // date reads one text on a Sydney laptop and another in CI, and the key
+  // cannot tell the two apart. The plugin cannot see the provider's context
+  // options, so it does not know which region was chosen rather than inherited.
   const painting = (): Promise<Renderer> => {
     renderer ??= options.renderer === undefined
       ? createPlaywrightRenderer()
@@ -91,13 +106,12 @@ export function varianceCommands(options: VarianceNodeOptions = {}): VarianceCom
       // band it is; until then an observation from this surface carries the
       // other bands and says nothing about that one.
 
-      // `--update` is a sweep over every selected test, so it skips what
-      // `variance accept --all` skips. A run declared `accept: true` is a job
-      // whose purpose is writing baselines, and adopts whatever it painted.
-      const accepting =
-        options.accept === true ||
-        (options.accept === undefined && updating(context) && !bulkSkips(observation));
-      if (accepting && observation.verdict !== 'unchanged') {
+      // `--update` sweeps every selected test as `variance accept --all` does.
+      const accepting = options.accept === true || (options.accept === undefined && updating(context));
+      // An unchanged subject under a moved identity is re-stamped, so the move
+      // is named once rather than on every later run.
+      const restamp = observation.verdict === 'unchanged' && observation.signals?.identity !== undefined;
+      if (accepting && (observation.verdict !== 'unchanged' || restamp)) {
         await promote(store, painter, artifact, key);
       }
 
@@ -110,11 +124,13 @@ export function varianceCommands(options: VarianceNodeOptions = {}): VarianceCom
       };
     },
     close: async () => {
-      if (renderer === undefined) return;
-      const opened = await renderer;
-      renderer = undefined;
-      // A renderer the caller supplied is a lifetime the caller owns.
-      if (options.renderer === undefined) await opened.close();
+      if (renderer !== undefined) {
+        const opened = renderer;
+        renderer = undefined;
+        // A renderer the caller supplied is a lifetime the caller owns.
+        if (options.renderer === undefined) await (await opened).close();
+      }
+      if (renders !== undefined) await sweepRenderCache(renders);
     },
   };
 }

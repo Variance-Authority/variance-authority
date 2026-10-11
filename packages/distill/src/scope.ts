@@ -77,25 +77,7 @@ export interface ScopeDistillation {
  */
 export function distillScope(input: ScopeDistillInput): ScopeDistillation {
   const within = input.within === undefined ? undefined : directoryOf(input.within);
-  const inside = (file: string): boolean => within === undefined || file.startsWith(`${within}/`);
-  const readings: { readonly suite?: string; readonly reading: FileDistillation }[] = [];
-  for (const record of input.records) {
-    const files = [...new Set(record.coverage.tests.map((test) => test.file))].filter(inside).sort(compare);
-    for (const file of files) {
-      const reading = readTestFile(file, {
-        execution: record.execution,
-        coverage: record.coverage,
-        ...(input.imports === undefined ? {} : { imports: input.imports }),
-        ...(input.lazy === undefined ? {} : { lazy: input.lazy }),
-        ...(input.republishes === undefined ? {} : { republishes: input.republishes }),
-      });
-      readings.push({ ...(record.suite === undefined ? {} : { suite: record.suite }), reading });
-    }
-  }
-  if (readings.length === 0) {
-    throw new Error(within === undefined ? 'The record holds no test file.' : `The record holds no test file under \`${within}\`.`);
-  }
-
+  const readings = [...readingsOf(input)];
   const gathered = new Map<string, { cause?: SpillCause; modules: Set<string>; files: Set<string>; lines: number }>();
   let loads = 0;
   let lines = 0;
@@ -147,6 +129,64 @@ export function distillScope(input: ScopeDistillInput): ScopeDistillation {
     lines,
     spills,
   };
+}
+
+/** One test file of a scope: what it loaded, and what of that no case of it entered. */
+export interface ScopeRow {
+  readonly suite?: string;
+  readonly file: string;
+  /** How many cases the record keeps for the file. */
+  readonly cases: number;
+  /** The modules it loaded that declare a function, other than itself, and their lines. */
+  readonly loaded: { readonly modules: number; readonly lines: number };
+  /** Of those, the ones no case of the file entered. Absent when the reading is withheld. */
+  readonly unentered?: { readonly modules: number; readonly lines: number };
+  /** Why the file's cases cannot say what it did without. */
+  readonly withheld?: string;
+}
+
+/**
+ * Every test file of a scope, one row each, in the order {@link distillScope}
+ * reads them: a row a test file at a time, for a reader that wants the
+ * distribution across test files rather than the imports they share.
+ */
+export function* scopeRows(input: ScopeDistillInput): Generator<ScopeRow, void, undefined> {
+  for (const { suite, reading } of readingsOf(input)) {
+    const unentered = (reading.modules ?? []).filter(({ entered }) => entered === 0);
+    yield {
+      ...(suite === undefined ? {} : { suite }),
+      file: reading.file,
+      cases: reading.cases.length,
+      loaded: { modules: reading.loaded, lines: reading.lines },
+      ...(reading.withheld === undefined
+        ? { unentered: { modules: unentered.length, lines: unentered.reduce((sum, module) => sum + (module.lines ?? 0), 0) } }
+        : { withheld: reading.withheld }),
+    };
+  }
+}
+
+/** Each test file of the scope read on its own, record by record; refuses a scope that holds none. */
+function* readingsOf(input: ScopeDistillInput): Generator<{ readonly suite?: string; readonly reading: FileDistillation }, void, undefined> {
+  const within = input.within === undefined ? undefined : directoryOf(input.within);
+  const inside = (file: string): boolean => within === undefined || file.startsWith(`${within}/`);
+  let read = 0;
+  for (const record of input.records) {
+    const files = [...new Set(record.coverage.tests.map((test) => test.file))].filter(inside).sort(compare);
+    for (const file of files) {
+      const reading = readTestFile(file, {
+        execution: record.execution,
+        coverage: record.coverage,
+        ...(input.imports === undefined ? {} : { imports: input.imports }),
+        ...(input.lazy === undefined ? {} : { lazy: input.lazy }),
+        ...(input.republishes === undefined ? {} : { republishes: input.republishes }),
+      });
+      read += 1;
+      yield { ...(record.suite === undefined ? {} : { suite: record.suite }), reading };
+    }
+  }
+  if (read === 0) {
+    throw new Error(within === undefined ? 'The record holds no test file.' : `The record holds no test file under \`${within}\`.`);
+  }
 }
 
 /** `packages/app/`, `./packages/app` and `packages/app` name one directory. */

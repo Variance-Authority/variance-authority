@@ -15,8 +15,16 @@
  * what the probes mean is written: the reporter cuts the module again from the
  * file and the digest its probes report.
  *
- * A module the instrumenter cannot read reaches the inner transformer as it
- * is.
+ * A module the instrumenter cannot read, and one `unprobed` names, reaches the
+ * inner transformer as it is with one mark after its last line.
+ *
+ * A transformer that places the probes itself — a Rust pipeline linking the
+ * instrumenter crate the package ships — says so with `senseRecipe`, and is
+ * then handed each module untouched, with {@link SenseProbes} saying where its
+ * probes go. A module `unprobed` names is marked here and handed over without
+ * them, since the mark is not a probe the crate places. A module it hands back
+ * with no probe in it, which is what the crate leaves of one it cannot parse,
+ * is marked after the transform.
  */
 
 import { createHash } from 'node:crypto';
@@ -25,8 +33,10 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import picomatch from 'picomatch';
-import { instrumentationId, PROBE_RUNTIME, type InstrumentMode } from '../instrument/index.js';
-import { captureModule } from './captured-modules.js';
+import { cadence, type CutTestFile } from '../instrument/cadence.js';
+import { behindCut, inlineBehindCut } from './cut-map.js';
+import { probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { markUnplaced, placeModule, planModule } from './captured-modules.js';
 import { defaultInclude } from './instrumented-modules.js';
 import type { SelectionTransformerConfig } from './jest.js';
 import type { TransformSourceMap } from './source-lines.js';
@@ -47,6 +57,20 @@ export interface JestTransformRequest {
   readonly configString: string;
   readonly instrument: boolean;
   readonly transformerConfig?: unknown;
+  /** What a transformer with a `senseRecipe` places in this module; absent places nothing. */
+  readonly senseProbes?: SenseProbes;
+}
+
+/**
+ * Where one module's probes go, handed to a transformer that places them: the
+ * arguments of `instrument` in the instrumenter crate.
+ */
+export interface SenseProbes {
+  /** The project path the module is parsed as: only its extension is read. */
+  readonly file: string;
+  /** The id the probes report. */
+  readonly module: ModuleId;
+  readonly mode: InstrumentMode;
 }
 
 export interface JestTransformedSource {
@@ -57,6 +81,13 @@ export interface JestTransformedSource {
 /** The shape of a transformer as Jest loads one, sync or async. */
 export interface JestTransformer {
   readonly canInstrument?: boolean;
+  /**
+   * The recipe this transformer places sense's probes with under `mode`, from
+   * the instrumenter crate's `recipe`. A transformer that has one is handed
+   * {@link SenseProbes} instead of a text that carries them, and one whose
+   * recipe is not this package's is refused before it transforms anything.
+   */
+  senseRecipe?(mode: InstrumentMode): string;
   getCacheKey?(source: string, path: string, options: JestTransformRequest): string;
   getCacheKeyAsync?(source: string, path: string, options: JestTransformRequest): Promise<string>;
   process?(source: string, path: string, options: JestTransformRequest): JestTransformedSource;
@@ -98,17 +129,39 @@ export async function createTransformer(
     : await loadTransformer(root, config.transformer);
   const innerConfig = typeof config.transformer === 'string' ? undefined : config.transformer?.[1];
   const mode = config.mode ?? 'presence';
-  const instrumentation = instrumentationId(mode);
+  const recipe = probeRecipe(mode);
+  const theirs = inner?.senseRecipe?.(mode);
+  const places = theirs !== undefined;
+  if (places && theirs !== recipe) {
+    const name = typeof config.transformer === 'string' ? config.transformer : config.transformer?.[0];
+    throw new Error(
+      `${name} places sense's probes as ${theirs}, and this sense reads ${recipe}: ` +
+        'build it against node_modules/@variance-authority/sense/native/instrument',
+    );
+  }
   const excluded = new Set((config.exclude ?? []).map((file) => resolve(file)));
+  const how: Placing = { mode, excluded, unprobed: unprobedMatcher(config.unprobed) };
+  const cuts = config.cadence !== false;
+  const cutOf = (source: string, path: string, options: JestTransformRequest): CutTestFile | undefined =>
+    cuts && isTestFile(path, options.config) ? cadence(source, path) : undefined;
+  // The project's transformer maps the cut text, so its map is moved back to
+  // the file on disk: Jest writes an inline snapshot into the call a frame
+  // names, by line and column, and refuses a file whose calls it cannot find.
+  // A transformer that returns no map, `@swc/jest` among them, leaves it inline.
+  const behind = (transformed: JestTransformedSource, cut: CutTestFile | undefined): JestTransformedSource => {
+    if (cut === undefined) return transformed;
+    if (transformed.map == null || transformed.map === '') {
+      return { ...transformed, code: inlineBehindCut(transformed.code, cut.shifts) };
+    }
+    return { ...transformed, map: behindCut(transformed.map, cut.shifts) };
+  };
   const forInner = (options: JestTransformRequest): JestTransformRequest => ({
     ...options,
     ...(innerConfig === undefined ? {} : { transformerConfig: innerConfig }),
   });
   const keyOf = (source: string, path: string, options: JestTransformRequest, innerKey: string | undefined): string =>
     createHash('sha1')
-      .update(instrumentation)
-      .update('\0')
-      .update(PROBE_RUNTIME)
+      .update(recipe)
       .update('\0')
       .update(innerKey ?? defaultKey(source, path, options))
       .update('\0')
@@ -117,6 +170,10 @@ export async function createTransformer(
       .update(JSON.stringify(innerConfig ?? null))
       .update('\0')
       .update(excluded.has(resolve(path)) ? 'excluded' : '')
+      .update('\0')
+      .update(JSON.stringify(config.unprobed ?? null))
+      .update('\0')
+      .update(cuts ? 'cadence' : '')
       .digest('hex')
       .slice(0, 32);
   const innerKeyAsync = inner?.getCacheKeyAsync ?? inner?.getCacheKey;
@@ -129,26 +186,56 @@ export async function createTransformer(
     getCacheKeyAsync: async (source, path, options) =>
       keyOf(source, path, options, await innerKeyAsync?.(source, path, forInner(options))),
     processAsync: async (source, path, options) => {
-      const code = place(root, path, options, source, mode, excluded);
-      return innerProcessAsync === undefined ? { code } : innerProcessAsync(code, path, forInner(options));
+      const cut = cutOf(source, path, options);
+      const text = cut?.code ?? source;
+      if (innerProcessAsync === undefined) return bare(root, path, options, text, how, cut);
+      const handed = places ? handOver(root, path, forInner(options), text, how) : undefined;
+      if (handed !== undefined) return behind(marked(await innerProcessAsync(text, path, handed), handed), cut);
+      return behind(await innerProcessAsync(place(root, path, options, text, how), path, forInner(options)), cut);
     },
   };
-  if (inner === undefined || inner.process !== undefined) {
+  const innerProcess = inner?.process?.bind(inner);
+  if (inner === undefined || innerProcess !== undefined) {
     transformer.process = (source, path, options) => {
-      const code = place(root, path, options, source, mode, excluded);
-      return inner?.process === undefined ? { code } : inner.process(code, path, forInner(options));
+      const cut = cutOf(source, path, options);
+      const text = cut?.code ?? source;
+      if (innerProcess === undefined) return bare(root, path, options, text, how, cut);
+      const handed = places ? handOver(root, path, forInner(options), text, how) : undefined;
+      if (handed !== undefined) return behind(marked(innerProcess(text, path, handed), handed), cut);
+      return behind(innerProcess(place(root, path, options, text, how), path, forInner(options)), cut);
     };
   }
   return transformer;
+}
+
+/** What decides where a module's probes go, the same for every module of one transformer. */
+interface Placing {
+  readonly mode: InstrumentMode;
+  readonly excluded: ReadonlySet<string>;
+  readonly unprobed: ((file: string) => boolean) | undefined;
+}
+
+/** What no wrapped transformer touches: the probes, or the cut and its map. */
+function bare(
+  root: string,
+  path: string,
+  options: JestTransformRequest,
+  text: string,
+  how: Placing,
+  cut: CutTestFile | undefined,
+): JestTransformedSource {
+  const code = place(root, path, options, text, how);
+  return cut === undefined ? { code } : { code, map: JSON.stringify(cut.map) };
 }
 
 /**
  * Probes on the project's text.
  *
  * A test file is not a module: nothing enters one, and its own edit is what
- * runs it. Which files are tests is the project's `testMatch` or `testRegex`,
- * read from the configuration Jest hands every transform, matched the way
- * Jest's own search matches them.
+ * runs it. It is cut instead, before this, unless `cadence` is off. Which
+ * files are tests is the project's `testMatch` or `testRegex`, read from the
+ * configuration Jest hands every transform, matched the way Jest's own search
+ * matches them.
  *
  * Every probe is placed on the line it reports, so the wrapped transformer's
  * map names the right line of the project's source for a stack trace.
@@ -158,12 +245,49 @@ function place(
   path: string,
   options: JestTransformRequest,
   source: string,
-  mode: InstrumentMode,
-  excluded: ReadonlySet<string>,
+  { mode, excluded, unprobed }: Placing,
 ): string {
   if (excluded.has(resolve(path)) || isTestFile(path, options.config)) return source;
-  const original = (at: string) => (at === path ? source : readFileSync(at, 'utf8'));
-  return captureModule(root, path, source, defaultInclude, mode, original)?.code ?? source;
+  return placeModule(root, path, source, defaultInclude, unprobed, mode, originalOf(path, source))?.code ?? source;
+}
+
+/**
+ * The same decisions as {@link place}, handed to a transformer that places the
+ * probes itself; `undefined` for a module {@link place} marks, which that
+ * transformer is handed already marked.
+ */
+function handOver(
+  root: string,
+  path: string,
+  options: JestTransformRequest,
+  source: string,
+  { mode, excluded, unprobed }: Placing,
+): JestTransformRequest | undefined {
+  if (excluded.has(resolve(path)) || isTestFile(path, options.config)) return options;
+  const plan = planModule(root, path, source, defaultInclude, originalOf(path, source), unprobed);
+  if (plan === undefined) return options;
+  return plan.marked ? undefined : { ...options, senseProbes: { file: plan.file, module: plan.id, mode } };
+}
+
+/** What a transformer that places the probes made of a module it was handed probes for, marked when it placed none. */
+function marked(done: JestTransformedSource, handed: JestTransformRequest): JestTransformedSource {
+  const id = handed.senseProbes?.module;
+  return id === undefined ? done : { ...done, code: markUnplaced(done.code, id) };
+}
+
+/** The file as Jest read it is the text it handed over; any other is read from disk. */
+function originalOf(path: string, source: string): (at: string) => string {
+  return (at) => (at === path ? source : readFileSync(at, 'utf8'));
+}
+
+/**
+ * The `unprobed` globs as one predicate over absolute paths, read as Jest reads
+ * `testMatch` ({@link globMatcher}). The wrapper resolved each with
+ * `path.resolve`, which spells a Windows path with backslashes, so each is
+ * slashed first, as Jest slashes the paths it matches.
+ */
+function unprobedMatcher(globs: readonly string[] | undefined): ((file: string) => boolean) | undefined {
+  return globs === undefined || globs.length === 0 ? undefined : globMatcher(globs.map(slashed));
 }
 
 /** What Jest hashes when a transformer declares no key of its own. */
@@ -182,9 +306,8 @@ function defaultKey(source: string, path: string, options: JestTransformRequest)
 const testMatchers = new Map<string, (path: string) => boolean>();
 
 /**
- * Jest's own reading of `testMatch` and `testRegex`: a glob list where a path
- * must match one positive pattern and no negated one, dotfiles included, and a
- * regex list where any pattern decides.
+ * Jest's own reading of `testMatch` and `testRegex`: a glob list read by
+ * {@link globMatcher}, and a regex list where any pattern decides.
  */
 function isTestFile(path: string, config: JestProjectConfig): boolean {
   const globs = config.testMatch ?? [];
@@ -192,19 +315,30 @@ function isTestFile(path: string, config: JestProjectConfig): boolean {
   const identity = JSON.stringify([globs, regexes]);
   let matcher = testMatchers.get(identity);
   if (matcher === undefined) {
-    const positive = globs.filter((glob) => !glob.startsWith('!')).map((glob) => picomatch(glob, { dot: true }));
-    const negative = globs.filter((glob) => glob.startsWith('!')).map((glob) => picomatch(glob.slice(1), { dot: true }));
+    const matches = globMatcher(globs);
     const patterns = regexes.map((regex) => new RegExp(regex));
-    matcher = (candidate) => {
-      const slashed = candidate.replaceAll(/\\(?![$()+.?^{}])/g, '/');
-      return (
-        (positive.some((match) => match(slashed)) && !negative.some((match) => match(slashed))) ||
-        patterns.some((pattern) => pattern.test(candidate))
-      );
-    };
+    matcher = (candidate) => matches(candidate) || patterns.some((pattern) => pattern.test(candidate));
     testMatchers.set(identity, matcher);
   }
   return matcher(path);
+}
+
+/**
+ * Jest's reading of a glob list: a path matches one positive pattern and no
+ * negated one, dotfiles included, with a Windows separator read as `/`.
+ */
+function globMatcher(globs: readonly string[]): (path: string) => boolean {
+  const positive = globs.filter((glob) => !glob.startsWith('!')).map((glob) => picomatch(glob, { dot: true }));
+  const negative = globs.filter((glob) => glob.startsWith('!')).map((glob) => picomatch(glob.slice(1), { dot: true }));
+  return (path) => {
+    const candidate = slashed(path);
+    return positive.some((match) => match(candidate)) && !negative.some((match) => match(candidate));
+  };
+}
+
+/** Jest's `replacePathSepForGlob`: a backslash is a separator unless it escapes a glob's special character. */
+function slashed(path: string): string {
+  return path.replaceAll(/\\(?![$()+.?^{}])/g, '/');
 }
 
 /**

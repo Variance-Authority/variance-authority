@@ -96,6 +96,9 @@ fn project(file: &str, changed: &[JourneyChange]) -> Result<JourneyProjection, S
         let Some(module) = journey.module_of(&change.file)? else { continue };
         let ranges = pairs(&change.ranges);
         let regions = journey.regions(module)?;
+        // FIXME: a region is read by `overlaps`, which needs its source, so an
+        // unwritten `else` on a changed line projects no cases here while
+        // `select --execution` (`charge_line`) selects them.
         let every = ranges.is_empty() || regions.iter().any(|region| overlaps(region, &ranges) && region.loaded);
         let blocks = regions
             .iter()

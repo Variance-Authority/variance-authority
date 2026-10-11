@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { configDefaults, defineConfig, mergeConfig } from 'vitest/config';
 import { withTestSelection } from '@variance-authority/sense/vitest';
 import { nativeSources } from './tools/native-sources.mjs';
-import { probeable } from './tools/page-side.mjs';
+import { marked, probeable } from './tools/page-side.mjs';
 
 /** This file's directory, so the exclusions read the same from any cwd. */
 const ROOT = import.meta.dirname;
@@ -71,12 +71,21 @@ const TEST = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
  * Everything the runner transforms, minus the modules that cannot hold a probe.
  *
  * The subtraction is `tools/page-side.mjs`, which explains itself and names its
- * own check. Nothing is subtracted quietly: every entry there is a module whose
- * functions leave this process, and the list exists because the alternative —
+ * own check. Nothing is subtracted quietly: every entry there is a module that
+ * is sent to a page whole, or the probe runtime itself — a module that sends
+ * only its own functions keeps its probes outside them — and the list exists
+ * because the alternative —
  * a probe that tolerates its own absence — was tried and rejected.
  */
-const instrumentable = (file: string) =>
-  (PRODUCT.test(file) || BUILT.test(file)) && MODULE.test(file) && !TEST.test(file) && probeable(ROOT, file);
+const source = (file: string) => (PRODUCT.test(file) || BUILT.test(file)) && MODULE.test(file) && !TEST.test(file);
+const instrumentable = (file: string) => source(file) && probeable(ROOT, file);
+
+/**
+ * The page-side modules that are still loaded here, marked as loaded rather
+ * than probed: an edit to one selects every test that loaded it, which a
+ * reading of its importers alone cannot promise.
+ */
+const unprobed = (file: string) => source(file) && marked(ROOT, file);
 
 /** What every slice runs under. */
 const shared = defineConfig({
@@ -95,8 +104,8 @@ const shared = defineConfig({
     // A temporary directory of each test's own, so the machine's index turn a
     // test takes is its own and no other test's or developer's index waits on
     // it, or it on them. The file says why a turn made the recording depend on
-    // scheduling.
-    setupFiles: ['tools/temporary-per-test.ts', 'tools/no-selection-in-tests.ts'],
+    // scheduling. Each of the others says what it keeps from a test.
+    setupFiles: ['tools/temporary-per-test.ts', 'tools/no-selection-in-tests.ts', 'tools/no-ci-run-in-tests.ts'],
   },
   esbuild: {
     jsx: 'automatic',
@@ -201,6 +210,7 @@ export const selectionOf = (name: SliceName) => ({
   // The suite this run is, as the root `variance.config.json` declares it.
   suite: name,
   include: instrumentable,
+  unprobed,
   // What governs every observation rather than any one of them. The seam
   // declares the config file Vite loaded and the local modules it imports, and
   // the selection reads the manifests and the lockfile as the install they

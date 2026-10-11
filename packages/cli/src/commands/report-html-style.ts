@@ -65,7 +65,6 @@ border-radius:3px;padding:.1rem .4rem;max-width:100%;overflow-wrap:anywhere}
 .bar{display:flex;height:4px;border-radius:2px;overflow:hidden;background:var(--charcoal)}
 .seg{display:block}
 .seg.changed,.seg.new{background:var(--orange)}
-.seg.incomparable{background:var(--fold)}
 .seg.failed{background:#c0392b}
 .seg.ignored{background:var(--warm)}
 .seg.excluded{background:var(--charcoal);box-shadow:inset 0 0 0 1px var(--hairline)}
@@ -77,7 +76,6 @@ color:var(--quiet);display:flex;align-items:center;gap:.35rem}
 .key b{font-variant-numeric:tabular-nums;color:var(--ivory);font-weight:600}
 .key i{width:6px;height:6px;border-radius:1px;display:block}
 .key.changed i,.key.new i{background:var(--orange)}
-.key.incomparable i{background:var(--fold)}
 .key.failed i{background:#c0392b}
 .key.failed b{color:#e5705f}
 .key.ignored i{background:var(--warm)}
@@ -120,7 +118,7 @@ font:inherit;color:inherit;border-radius:0 4px 4px 0}
 .dot{width:6px;height:6px;border-radius:50%;flex:none;background:var(--warm)}
 .dot.changed{background:var(--orange)}
 .dot.new{background:var(--green)}
-.dot.incomparable,.dot.failed{background:#c0392b}
+.dot.failed{background:#c0392b}
 .pane{padding:1.25rem 1.5rem 6rem;min-width:0}
 
 /* sections */

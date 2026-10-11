@@ -46,7 +46,8 @@ Distill identifies candidates; the confirming run establishes which ones can go.
 
 Name the case with `--test` and the file that declares it with `--file`.
 `--test` takes the recorded id, the case's exact title, or a part of the title;
-`--file` takes any part of the test file's path:
+`--file` takes the test file's path, relative to the checkout or absolute, and
+names that file alone:
 
 ```bash
 variance distill --file test/checkout.spec.ts --test submits
@@ -76,10 +77,12 @@ the same answer; it does not open a browser, run a test, or edit source.
 A run that records with [Sense](../packages/sense/README.md) and watches its
 page with [Eyes](eyes.md) writes both readings into the same record, keyed by
 the same case. Sense keys a case by its coordinate: the project-relative test
-file, then the describe path and the test name, joined by ` > `.
+file, then the describe path and the test name, joined by ` > `. A case that a
+named project ran leads with that project's name between bars.
 
 ```text
 test/checkout.spec.ts > checkout > submits
+|chromium| test/checkout.spec.ts > checkout > submits
 ```
 
 That is the id `--test` takes. Distill looks it up exactly. It does not fall
@@ -339,8 +342,9 @@ is for one file, and every test file the import reaches stops paying.
 
 You choose the scope:
 
-- **`--from <dir>`** reads the test files under a directory spelled from the
-  repository root: a folder or a package.
+- **`--from <dir>`** reads the test files under a directory, a folder or a
+  package, named from the repository root or from `/`. A directory outside the
+  checkout is refused.
 - **`--suite <name>`** alone reads every test file of one suite.
 - **Nothing** reads every test file of every declared suite, and names a
   declared suite that has not recorded. On a small project that is one answer

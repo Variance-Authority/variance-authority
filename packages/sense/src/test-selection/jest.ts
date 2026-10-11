@@ -23,11 +23,14 @@
  *   a test-selection run still folds its file-level journals into its snapshot.
  */
 
+import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
+import { configuredPath, environmentPaths, projectRoot, setupPaths } from './jest-config-paths.js';
 import { placingSequencer } from './jest-placing.js';
+import { projectNamed } from './jest-projects.js';
 import { selectingFilter } from './jest-selection.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
@@ -61,6 +64,16 @@ export interface JestTestSelectionOptions {
    */
   readonly preconditions?: readonly string[];
   /**
+   * Globs naming product source no probe may sit in: a module whose functions
+   * cross into a page as text, where the first probe would throw. Relative
+   * globs resolve against the root, as `preconditions` do; a module matches
+   * under the path Jest hands the transform or the source its map names, and
+   * a glob that opens on `!` leaves out what it matches, as in `testMatch`. Each
+   * is marked as loaded at its end instead of probed, and an edit to it
+   * selects every test that loaded it.
+   */
+  readonly unprobed?: readonly string[];
+  /**
    * `presence` probes every arrival region; `entries` probes modules and
    * functions only, and costs a fraction of it. Both record which functions
    * ran before the file's first test.
@@ -91,6 +104,14 @@ export interface JestTestSelectionOptions {
    * concurrent. Leave it off the rest of the time.
    */
   readonly continuations?: boolean;
+  /**
+   * Whether each statement of a test or a hook is cut, so the record says which
+   * line of the test first reached each region its case entered. On by default.
+   * The cut is one call per statement the test runs, and it reaches the record
+   * only as a line per case; turn it off to record a suite exactly as it ran
+   * before cuts existed.
+   */
+  readonly cadence?: boolean;
   /**
    * The selection this run is handed, read once when Jest first filters what
    * it found. A `filter` drops what it may skip after the project's own, and
@@ -156,8 +177,12 @@ export interface SelectionTransformerConfig {
   readonly transformer?: string | readonly [string, Record<string, unknown>];
   /** Absolute paths Jest evaluates before `setupFiles` can install the probe collector. */
   readonly exclude?: readonly string[];
+  /** Absolute globs naming the modules marked as loaded rather than probed. */
+  readonly unprobed?: readonly string[];
   /** The probe recipe; `presence` when absent. */
   readonly mode?: InstrumentMode;
+  /** Whether test files are cut, statement by statement; they are unless this is `false`. */
+  readonly cadence?: boolean;
 }
 
 /** What the reporter is handed. */
@@ -176,6 +201,8 @@ export interface SelectionReporterConfig {
   readonly mode?: InstrumentMode;
   /** Whether that recording follows each case through the async context, and names the runaways. */
   readonly continuations?: boolean;
+  /** Whether the run drops what a selection skips. A shard of a run that does not records alone. */
+  readonly selected?: true;
 }
 
 /** What the reporter is handed when it records journeys and nothing else. */
@@ -220,6 +247,16 @@ export const CONTINUATIONS_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_CONTINU
  * cache directory.
  */
 export const STORY_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_STORY';
+
+/**
+ * The global a project's sandbox reads its own name from, set in that project's
+ * `globals` and read by `jest-setup.cts` when it names a case.
+ *
+ * Through `globals` because a worker learns which project it runs a file for
+ * from nothing else the sandbox can reach: `expect.getState()` names the file
+ * and the case, and the same file under two projects is the same path.
+ */
+const PROJECT_GLOBAL = 'variance-authority.project';
 
 /** Jest's pattern for the modules it transforms when nothing is configured. */
 const DEFAULT_PATTERN = '\\.[jt]sx?$';
@@ -270,8 +307,13 @@ export function withTestSelection(
   const inline = inlineProjects(config);
   const mode = options.mode;
   const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
+  // A negated glob stays negated: `!` is Jest's, not part of the path.
+  const unprobed = options.unprobed?.map((glob) =>
+    glob.startsWith('!') ? `!${resolve(rootDir, glob.slice(1))}` : resolve(rootDir, glob));
+  const placing = { mode, unprobed };
+  const cadence = options.cadence !== false;
   const projects = inline?.map((project) =>
-    instrumented(project, root, projectRoot(project, rootDir), mode, declared));
+    instrumented(project, root, projectRoot(project, rootDir), placing, declared, cadence));
   const preconditions = [
     ...environmentPaths(config, rootDir),
     ...setupPaths(config, rootDir),
@@ -293,12 +335,17 @@ export function withTestSelection(
   const times = timesFrom({ root, from: rootDir, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) });
 
   return {
-    ...(projects === undefined ? instrumented(config, root, rootDir, mode, declared) : config),
+    ...(projects === undefined ? instrumented(config, root, rootDir, placing, declared, cadence) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
-    ...(selection === undefined ? {} : selectingFilter(config, { root, rootDir, selection })),
+    ...(selection === undefined ? {} : selectingFilter(config, {
+      root, rootDir, selection, cutFile: resolve(dirname(coverageFile), `.cut-${process.pid}-${randomUUID()}.json`),
+    })),
     ...placingSequencer(config, { root, rootDir, times }),
-    reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
+    reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, {
+      ...reporter,
+      ...(selection === undefined ? {} : { selected: true }),
+    }]],
   };
 }
 
@@ -319,7 +366,7 @@ export function withJourneyCoverage(
     throw new Error(`trace ${JSON.stringify(options.trace)} is not a path: name the module that exports your tracing, as ./… or <rootDir>/…`);
   }
   const journeyProject = (project: JestConfig, at: string): JestConfig =>
-    traced(instrumented(project, root, at, options.mode, declared), at, trace);
+    traced(instrumented(project, root, at, { mode: options.mode, unprobed: undefined }, declared, false), at, trace);
   const projects = inline?.map((project) => journeyProject(project, projectRoot(project, rootDir)));
   const reporter: JourneyReporterConfig = {
     root,
@@ -387,8 +434,9 @@ function instrumented(
   config: JestConfig,
   root: string,
   rootDir: string,
-  mode: InstrumentMode | undefined,
+  { mode, unprobed }: { readonly mode: InstrumentMode | undefined; readonly unprobed: readonly string[] | undefined },
   declared: readonly string[],
+  cadence: boolean,
 ): JestConfig {
   const configured = config.transform === undefined
     ? { [DEFAULT_PATTERN]: 'babel-jest' }
@@ -409,50 +457,23 @@ function instrumented(
           root,
           ...(transformer === undefined ? {} : { transformer }),
           ...(exclude.length === 0 ? {} : { exclude }),
+          ...(unprobed === undefined ? {} : { unprobed }),
           ...(mode === undefined ? {} : { mode }),
+          ...(cadence ? {} : { cadence: false }),
         },
       ],
     ]),
   );
 
+  const project = projectNamed(config['displayName']);
   return {
     ...config,
     rootDir,
     transform,
+    ...(project === undefined ? {} : { globals: { ...(config['globals'] as object | undefined), [PROJECT_GLOBAL]: project } }),
     setupFiles: [SELECTION_GLOBALS, ...(config.setupFiles ?? [])],
     setupFilesAfterEnv: [...(config.setupFilesAfterEnv ?? []), SELECTION_SETUP],
   };
-}
-
-/** A project's `rootDir`, absolute, with the top level's `<rootDir>` spelled out; the top level's own when it has none. */
-function projectRoot(project: JestConfig, root: string): string {
-  return resolve(root, (project.rootDir ?? '.').replace(/^<rootDir>\/?/, ''));
-}
-
-/**
- * The setup entries that are files of the project's, as absolute paths.
- *
- * Jest resolves a setup entry the way `require` would: `<rootDir>/…`, `./…`
- * and `/…` are paths, and anything else — `jest-canvas-mock`, `dotenv/config`
- * — is a package. A package is not a precondition a diff can carry, and
- * reading it as a path is a missing file that fails the reporter and loses the
- * run's snapshot entirely.
- */
-function setupPaths(config: JestConfig, rootDir: string): readonly string[] {
-  return [...(config.setupFiles ?? []), ...(config.setupFilesAfterEnv ?? [])]
-    .flatMap((file) => configuredPath(file, rootDir));
-}
-
-/** A custom environment runs before `setupFiles`, so it is an input and never probed source. */
-function environmentPaths(config: JestConfig, rootDir: string): readonly string[] {
-  return config.testEnvironment === undefined ? [] : configuredPath(config.testEnvironment, rootDir);
-}
-
-/** Resolve one configuration entry only when it names a file rather than a package. */
-function configuredPath(file: string, rootDir: string): readonly string[] {
-  return file.startsWith('<rootDir>') || file.startsWith('.') || file.startsWith('/')
-    ? [resolve(rootDir, file.replace(/^<rootDir>\/?/, ''))]
-    : [];
 }
 
 export { mergeCoverage } from './merge.js';

@@ -9,8 +9,9 @@ stays the same loop, only shorter.
 `vitest --changed` and `jest --onlyChanged` run every test that imports a file
 you changed. Edit one function in a module half the suite imports, and half the
 suite runs. A recorded run knows which of those tests executed that function,
-and only those run. Each run then updates the record, so your next edit is
-measured from what ran last rather than from your branch point.
+and only those run. Under Jest and Vitest it can also skip the cases inside a
+file that did not execute it. Each run then updates the record, so your next
+edit is measured from what ran last rather than from your branch point.
 
 Wrap the runner configuration once and run the suite once. That run writes the
 [record](execution-record.md): which test file executed which lines of which
@@ -89,14 +90,61 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 `0-2` runs the tests within two imports of the edit, including a test whose own
 source you changed, which is zero. `3-` runs the rest. Every selected file runs
 in one of the two: a test the record cannot place runs in the one that holds
-the furthest hop measured, or in `3-` when none was. A test recorded
-incomplete, such as one a partial run over your edit left, runs in the leg of
-the shortest import path it ran to a changed file it loaded, or only in `3-`
-when it ran none, so a near edit still needs `3-` while the record holds one. A
-new test runs in both. A value that is not a range fails the run rather than
-running another leg. The first leg is feedback, not a verdict;
+the furthest hop measured, or in `3-` when none was. When a run was saved at
+the commit you are on, as `0-2` saves its own, `3-` also runs any selected file
+within two imports that still last ran before it. A test recorded incomplete,
+such as one a partial run over your edit left, runs in the leg of the shortest
+import path it ran to a changed file it loaded, or only in `3-` when it ran
+none, so a near edit still needs `3-` while the record holds one. A new test
+runs in both. A value that is not a range fails the run rather than running
+another leg. The first leg is feedback, not a verdict;
 [distance](distance.md) is the page about what a hop count tells you and what
 it does not.
+
+## Skip the cases your edit did not reach
+
+A selected file runs every case it declares, though the record knows which of
+them entered the code you changed. Under Jest and Vitest,
+`VARIANCE_AUTHORITY_GRAIN=case` skips the rest:
+
+```bash
+VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_GRAIN=case npx vitest run
+```
+
+The skipped cases show as skipped, as `it.skip` would show them, and the stderr
+line counts them: `selected 2 of 340, skipping 31 cases in 2 of them`. A file
+runs whole when the record cannot say which of its cases your edit reached:
+
+- the last run of the file was cut. A file run in part is recorded
+  incomplete, because the cases it skipped recorded nothing, and a test that
+  did not pass whole runs again. So the next selection runs it whole, whatever
+  that edit touched, which records it complete again: over a loop of edits to
+  the same code, every other run of the file is cut;
+- you changed the test file itself;
+- the file was selected for a change the record does not split by case: a
+  fixture it declares as a precondition, a file it reads from disk, or a
+  changed file the record holds no lines for, charged to the tests that ran
+  what imports it;
+- the changed code ran while a module loaded, such as an import at the top of
+  the test file, which every case of the file waits on;
+- the record holds the file as running the changed code, but none of its cases
+  entering it;
+- a test of the suite last ran at an earlier commit than the latest run. Once
+  you commit between runs, the tests a selected run left out keep the commit
+  they last ran at, and every selected file runs whole until one run takes the
+  suite to a single commit.
+
+Within a file that is cut, a case that shares its full name with a case your
+edit reached runs too, because the runner skips by name.
+
+The cut reads each case's own reach, so it trusts the cases of a file not to
+depend on each other. A case that reads what an earlier case left, such as a
+memoized result or a variable its `describe` shares, is skipped when it entered
+nothing your edit changed, though the value it reads did change. Skipping a
+case that sets up a later one fails the later one instead. Where the cases of
+a file depend on their order, run it at file grain. Playwright and Rstest
+run every selected file whole, and watch mode does not select at either grain.
+File grain is the default, and `VARIANCE_AUTHORITY_GRAIN=file` names it.
 
 ## Each run moves the starting point
 

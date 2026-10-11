@@ -1,6 +1,8 @@
 import {
   EDGE_KINDS,
-  RUNTIME_EDGES,
+  NOTHING,
+  WHOLE,
+  carried,
   dependentsOf,
   idOf,
   nodeAt,
@@ -52,6 +54,12 @@ import type { Disowned } from './shadowed.js';
  * by an edge nobody saw. The walk does not start there: that edge is the
  * record's to answer, and where the record has no row to answer it with, the
  * edge is absent, which selects nothing.
+ *
+ * A file a moved value's reading could not read, holding no row and no test,
+ * is walked the same way from itself (`wholes`): it may read or hand on the
+ * value anywhere, and everything that imports it loads it, so every test that
+ * loaded it is what can be said. A row without probes of its own is asked of
+ * the table, as one on the way is.
  *
  * A test the snapshot says *holds* the changed file — it is a precondition of
  * the test, under any of its names — is left to the preconditions, which
@@ -176,6 +184,8 @@ export interface ImporterAnswer {
    * names it asked for.
    */
   readonly governed: GovernedTests;
+  /** Test rows that loaded a file the caller asked to have answered whole → those files. */
+  readonly wholes: ReadonlyMap<number, readonly string[]>;
 }
 
 /** Tests holding a set of names, and the names no test declared. */
@@ -187,9 +197,6 @@ export interface GovernedTests {
 }
 
 const ASSET = EDGE_KINDS.indexOf('asset');
-/** The edge kinds a runtime loads through, as a byte lookup over `EDGE_KINDS`. */
-const LOADS = new Uint8Array(EDGE_KINDS.length);
-for (const kind of RUNTIME_EDGES) LOADS[EDGE_KINDS.indexOf(kind)] = 1;
 
 /**
  * `rowed` is every name the caller answered from an instrumented row: a changed
@@ -198,6 +205,9 @@ for (const kind of RUNTIME_EDGES) LOADS[EDGE_KINDS.indexOf(kind)] = 1;
  * `disowned` is the caller's `disownedIn` over the same coverage and
  * `options.relations`: a chain that ends at a module a test mocked does not
  * reach that test, for the reason a region of it does not (`shadowed.ts`).
+ *
+ * `wholes` is every file the caller could not read and holds no row for, to be
+ * answered by every test that loaded it.
  */
 export function answerByImporters(
   coverage: TestCoverageView,
@@ -206,10 +216,11 @@ export function answerByImporters(
   options: ExecutionNarrowingOptions,
   disowned: Disowned | undefined,
   also: ReadonlySet<string> = new Set(),
+  wholes: readonly string[] = [],
 ): ImporterAnswer {
   const { relations } = options;
-  if (relations === undefined || changed.length === 0 || options.unmeasured === 'nothing') {
-    return { selected: new Map(), unread: changed, governed: testsGovernedBy(coverage, [...also]) };
+  if (relations === undefined || changed.length + wholes.length === 0 || options.unmeasured === 'nothing') {
+    return { selected: new Map(), unread: changed, governed: testsGovernedBy(coverage, [...also]), wholes: new Map() };
   }
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   // Every test a walk reached, with what reached it — held rather than
@@ -217,11 +228,12 @@ export function answerByImporters(
   // preconditions the test carries, and those are not read until the walks have
   // finished naming every file worth asking the table about. `from` is the
   // changed module a runtime walk started at, for the mock cut; the other walks
-  // leave it to the row.
+  // leave it to the row. `whole` is the file a walk answering one whole began at.
   interface Reached {
     readonly reason: ImporterReason;
     readonly seed: readonly string[];
     readonly from: string | undefined;
+    readonly whole?: string;
   }
   const reached: Array<Reached & { readonly test: number }> = [];
   // A module the build read but could not instrument has a row with no blocks
@@ -246,6 +258,7 @@ export function answerByImporters(
     trail: readonly string[],
     seed: readonly string[],
     from: string | undefined,
+    whole?: string,
   ): boolean => {
     const node = nodeAt(relations, id);
     if (node === undefined || node.kind !== 'file') return false;
@@ -255,11 +268,12 @@ export function answerByImporters(
       answers.set(id, answer);
     }
     const reason: ImporterReason = { kind: 'importer', trail };
-    for (const test of answer.tests) reached.push({ test, reason, seed, from });
+    const entry: Reached = whole === undefined ? { reason, seed, from } : { reason, seed, from, whole };
+    for (const test of answer.tests) reached.push({ test, ...entry });
     for (const name of answer.governs) {
       const entries = governing.get(name);
-      if (entries === undefined) governing.set(name, [{ reason, seed, from }]);
-      else entries.push({ reason, seed, from });
+      if (entries === undefined) governing.set(name, [entry]);
+      else entries.push(entry);
     }
     return answer.answered;
   };
@@ -294,6 +308,16 @@ export function answerByImporters(
       );
     }
   }
+  // A file answered whole is its own first step: a test that holds it, or a row
+  // of it without probes, loaded it. No test declares it as a changed file, so
+  // nothing is left to the preconditions.
+  for (const file of wholes) {
+    const id = idOf(relations, 'file', file);
+    if (id === undefined || read(id, [file], [], file, file)) continue;
+    importersUntil(relations, id, walk, (other, trail) =>
+      read(other, trail.map((step) => relations.names[step]!), [], file, file),
+    );
+  }
 
   // The one read: which tests hold a changed file, which hold a module the
   // walks reached that carries no probes, and which hold a name the caller
@@ -303,13 +327,19 @@ export function answerByImporters(
   ]);
 
   const selected = new Map<number, ImporterReason[]>();
-  const keep = (test: number, { reason, seed, from }: Reached): void => {
+  const whole = new Map<number, string[]>();
+  const keep = (test: number, { reason, seed, from, whole: file }: Reached): void => {
     // A test that declares the changed file itself is already selected by its
     // preconditions, and a chain that reached it would only say so again.
     if ((held.tests.get(test) ?? []).some((name) => seed.includes(name))) return;
     // A test that mocked the changed module, or the file it loaded it through,
     // never ran it.
     if (from !== undefined && disowned?.(from, test) === true) return;
+    if (file !== undefined) {
+      const files = whole.get(test) ?? [];
+      if (!files.includes(file)) whole.set(test, [...files, file]);
+      return;
+    }
     const reasons = selected.get(test) ?? [];
     // One walk reaching a test through two rows of one module is one reason.
     if (reasons.includes(reason)) return;
@@ -323,7 +353,7 @@ export function answerByImporters(
     }
   }
 
-  return { selected, unread: unread.sort(codeUnitOrder), governed: asked(held, also) };
+  return { selected, unread: unread.sort(codeUnitOrder), governed: asked(held, also), wholes: whole };
 }
 
 /** What one file a walk reached answers, before a walk's trail is put on it. */
@@ -417,22 +447,14 @@ function importersUntil(
   walk: { readonly mask: Uint8Array; readonly via: Int32Array },
   answers: (id: NodeId, trail: readonly NodeId[]) => boolean,
 ): void {
-  const { offset, target, kind } = relations.dependents;
-  const queue: NodeId[] = [seed];
-  const traversal = { ...walk, nodes: queue };
-  walk.mask[seed] = 1;
-  for (let head = 0; head < queue.length; head += 1) {
-    const node = queue[head]!;
-    if (node !== seed && answers(node, trailOf(traversal, node))) continue;
-    for (let edge = offset[node]!; edge < offset[node + 1]!; edge += 1) {
-      const next = target[edge]!;
-      if (LOADS[kind[edge]!] !== 1 || walk.mask[next] === 1) continue;
-      walk.mask[next] = 1;
-      walk.via[next] = node;
-      queue.push(next);
-    }
-  }
-  for (const node of queue) {
+  const traversal = { ...walk, nodes: [] };
+  const { entered } = carried(
+    relations.dependents,
+    [[seed, WHOLE]],
+    { hand: (node) => (answers(node, trailOf(traversal, node)) ? NOTHING : WHOLE) },
+    walk,
+  );
+  for (const node of entered) {
     walk.mask[node] = 0;
     walk.via[node] = -1;
   }

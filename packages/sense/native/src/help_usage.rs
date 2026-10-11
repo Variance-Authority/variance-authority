@@ -7,14 +7,14 @@
 
 // compass: variance-authority.reach.relations
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use napi_derive::napi;
 use rayon::prelude::*;
 
 use crate::compact::Layer;
 use crate::orient_map_read::beside;
-use crate::package_graph::{fold, join_parses, Crossing};
+use crate::package_graph::{fold, join_parses, passed_on, At, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 
 #[napi(object)]
@@ -122,6 +122,27 @@ impl Targets<'_> {
     }
 }
 
+/// The names one request of the parse at `row` takes, each a use of `key`:
+/// every binding but `*`, and every member read off the module the request
+/// holds whole, through `import()` or `import * as`.
+fn taken(layer: &Layer, row: usize, request: usize, key: &str, by: &str, at: &str, kind: &str) -> Vec<NameUse> {
+    let (text, parses) = (&layer.stored, &layer.parses);
+    let first = parses.requests.at(row) as usize;
+    let line = parses.request_line.at(request);
+    let mut names = Vec::new();
+    for binding in parses.request_bindings.range(request) {
+        let imported = text.text(parses.binding_imported.at(binding));
+        if imported == "*" { continue; }
+        names.push(NameUse { key: key.to_owned(), name: imported.to_owned(), by: by.to_owned(), at: at.to_owned(), line: parses.binding_line.at(binding), r#type: parses.binding_type[binding] == 1, kind: kind.to_owned(), through: None, through_line: 0 });
+    }
+    let through = if text.text(parses.request_kind.at(request)) == "dynamic" { "dynamic" } else { "namespace" };
+    for member in parses.members.range(row) {
+        if parses.member_request.at(member) as usize != request - first { continue; }
+        names.push(NameUse { key: key.to_owned(), name: text.text(parses.member_name.at(member)).to_owned(), by: by.to_owned(), at: at.to_owned(), line: parses.member_line.at(member), r#type: false, kind: kind.to_owned(), through: Some(through.to_owned()), through_line: line });
+    }
+    names
+}
+
 fn collect(layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -> Part {
     let mut part = Part::default();
     let (stored, records) = (&layers[crossing.at.0].stored, &layers[crossing.at.0].records);
@@ -152,17 +173,7 @@ fn collect(layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -
         let (package, key) = requested(value);
         if !targets.packages.contains(package) { continue; }
         let line = parses.request_line.at(request);
-        let mut names = Vec::new();
-        for binding in parses.request_bindings.range(request) {
-            let imported = text.text(parses.binding_imported.at(binding));
-            if imported == "*" { continue; }
-            names.push(NameUse { key: key.clone(), name: imported.to_owned(), by: by.to_owned(), at: at.to_owned(), line: parses.binding_line.at(binding), r#type: parses.binding_type[binding] == 1, kind: kind.to_owned(), through: None, through_line: 0 });
-        }
-        let through = if text.text(parses.request_kind.at(request)) == "dynamic" { "dynamic" } else { "namespace" };
-        for member in parses.members.range(row) {
-            if parses.member_request.at(member) as usize != request - first { continue; }
-            names.push(NameUse { key: key.clone(), name: text.text(parses.member_name.at(member)).to_owned(), by: by.to_owned(), at: at.to_owned(), line: parses.member_line.at(member), r#type: false, kind: kind.to_owned(), through: Some(through.to_owned()), through_line: line });
-        }
+        let names = taken(&layers[layer], row, request, &key, by, at, kind);
         let into = match targets.landing(package, &key) {
             Landing::Opened => {
                 part.names.extend(names);
@@ -218,3 +229,131 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: 
     out.unreadable.extend(reasons);
     out
 }
+
+/// Who imports one name out of a set of files, and which files pass it on.
+#[napi(object)]
+pub struct Importers {
+    /// Every use, ordered by the importing file in code units, then by line.
+    pub uses: Vec<NameUse>,
+    /// Every file that passes the name on with `export … from`, under the name
+    /// it exports, in code-unit order; none of the files asked about.
+    pub through: Vec<String>,
+}
+
+/// Every import, by any file on the chain, of `name` out of one of `files`:
+/// the bindings and member reads that take it through a request the index
+/// resolved to one of them. A relative import is read like one between
+/// packages, which `usage` does not record. Each use's `key` is the specifier
+/// as written, and its `name` the name it takes, which a re-export can rename.
+///
+/// What an `export … from` passes on is `passed_on`'s answer, the one the
+/// package graph reads: that is no use, and the file that writes it is
+/// followed instead under the name it exports, so an import through a barrel
+/// is listed and the barrel is not. A bare `export *` passes on every name but
+/// `default`. A type-only re-export passes nothing on and is listed where it
+/// is written. Each file is followed once per name, so a cycle of re-exports
+/// ends.
+pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &str) -> Importers {
+    let folded = fold(layers);
+    let mut seen: HashSet<(String, String)> = files.iter().map(|file| (file.clone(), name.to_owned())).collect();
+    let mut wanted: HashMap<String, HashSet<String>> = HashMap::new();
+    for file in files {
+        wanted.entry(file.clone()).or_default().insert(name.to_owned());
+    }
+    let (mut found, mut through) = (Vec::new(), HashSet::new());
+    while !wanted.is_empty() {
+        let (uses, passed) = importers_of(root, layers, &folded, &wanted);
+        found.extend(uses);
+        wanted = HashMap::new();
+        for (file, exported) in passed {
+            if seen.insert((file.clone(), exported.clone())) {
+                through.insert(file.clone());
+                wanted.entry(file).or_default().insert(exported);
+            }
+        }
+    }
+    found.sort_by(|a, b| crate::order::code_unit(&a.at, &b.at).then(a.line.cmp(&b.line)));
+    let mut through: Vec<String> = through.into_iter().filter(|file| !files.contains(file)).collect();
+    through.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
+    Importers { uses: found, through }
+}
+
+/// One step of `importers`: the uses of each wanted name out of its file, and
+/// each `(file, name)` a re-export passes one of them on as.
+fn importers_of(
+    root: &str,
+    layers: &[Layer],
+    folded: &HashMap<&str, At>,
+    wanted: &HashMap<String, HashSet<String>>,
+) -> (Vec<NameUse>, Vec<(String, String)>) {
+    let lands = |at: At| {
+        let (stored, records) = (&layers[at.0].stored, &layers[at.0].records);
+        records.targets_present[at.1] == 1
+            && records.targets.range(at.1).any(|target| stored.optional(records.target_path.at(target)).is_some_and(|path| wanted.contains_key(path)))
+    };
+    let mut crossings: Vec<Crossing> = folded
+        .iter()
+        .filter(|&(_, &at)| lands(at))
+        .map(|(&file, &at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
+        .collect();
+    crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
+    join_parses(layers, &mut crossings);
+    let paths = beside(root, crossings.iter().map(|crossing| crossing.file));
+    let owners = owners(root, &paths);
+    let parts: Vec<(Vec<NameUse>, Vec<(String, String)>)> = crossings
+        .par_iter()
+        .map(|crossing| {
+            let (mut found, mut passed) = (Vec::new(), Vec::new());
+            let Some((layer, row)) = crossing.parse else { return (found, passed) };
+            let (stored, records) = (&layers[crossing.at.0].stored, &layers[crossing.at.0].records);
+            let resolved: Vec<Option<&str>> =
+                records.targets.range(crossing.at.1).map(|target| stored.optional(records.target_path.at(target))).collect();
+            let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
+            // A record whose targets do not line up with the parse's requests answers none of them.
+            if resolved.len() != parses.requests.range(row).len() { return (found, passed); }
+            let first = parses.requests.at(row) as usize;
+            let by = match owners.files.get(crossing.file) {
+                Some(&(owner, _)) if owner != NO_OWNER => owners.packages[owner as usize].name.as_str(),
+                _ => "",
+            };
+            let kind = kind_of(crossing.file);
+            for request in parses.requests.range(row) {
+                let Some(names) = resolved[request - first].and_then(|path| wanted.get(path)) else { continue };
+                let written = text.text(parses.request_value.at(request));
+                let uses = taken(&layers[layer], row, request, written, by, crossing.file, kind).into_iter().filter(|taken| names.contains(&taken.name));
+                if text.text(parses.request_kind.at(request)) != "reexports" {
+                    found.extend(uses);
+                    continue;
+                }
+                let every = || names.iter().filter(|name| *name != "default").map(|name| (crossing.file.to_owned(), name.clone()));
+                match passed_on(&layers[layer], row, request) {
+                    // An export list the parse never recorded reads as the whole module.
+                    None => passed.extend(every()),
+                    Some(listed) => {
+                        for (imported, exported) in listed {
+                            match exported {
+                                None if imported == "*" => passed.extend(every()),
+                                // `export * as ns` passes a namespace: the name is a member read off it.
+                                Some(_) if imported == "*" => {}
+                                Some(exported) if names.contains(imported) => passed.push((crossing.file.to_owned(), exported.to_owned())),
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                found.extend(uses.filter(|taken| taken.r#type));
+            }
+            (found, passed)
+        })
+        .collect();
+    let (mut found, mut passed) = (Vec::new(), Vec::new());
+    for (uses, passes) in parts {
+        found.extend(uses);
+        passed.extend(passes);
+    }
+    (found, passed)
+}
+
+#[cfg(test)]
+#[path = "help_usage_tests.rs"]
+mod tests;

@@ -13,9 +13,8 @@ import type { Described } from './store.js';
  * `RenderIdentity` grows: the digest is what partitions baselines, and a field
  * added to it is a field two machines can differ in. The settlement decides
  * "only the recipe moved" by asking the digest, so a field the wording has not
- * learned yet is still a difference — and a run that differs in it, under a
- * moved recipe besides, is refused rather than painted for `accept --all` to
- * adopt another machine's image.
+ * learned yet is still a difference, and the cause a run carries names it as
+ * one rather than calling the change the recipe's alone.
  *
  * The field is simulated by widening `identityDigest`, its owner, in this file
  * alone: no field the digest covers today is outside the wording's list, which
@@ -51,7 +50,7 @@ const document: RenderDocument = {
 };
 
 describe('a recipe move alongside a field the wording does not name', () => {
-  it('refuses, and paints nothing', () => {
+  it('renders, and names the recipe and the unnamed field', () => {
     const stored = {
       ...IDENTITY,
       rasterization: 'v1:8040e1a2e35d148b301ebd30e5ed66c6',
@@ -70,16 +69,14 @@ describe('a recipe move alongside a field the wording does not name', () => {
     };
 
     const settlement = settle(documentDigest(document), found, mine);
-    expect(settlement).toMatchObject({ kind: 'settled', verdict: 'incomparable' });
+    expect(settlement.kind).toBe('render');
     expect(settlement.because).toContain('rasterization e5ed66c6 → 865368fe');
-    expect(settlement.because).not.toContain('only the recipe moved');
-    expect(settlement.because).not.toContain('accept');
-    expect(settlement.because).toContain('no image was produced');
+    expect(settlement.because).toContain('a field of the render identity this version does not name');
   });
 });
 
 describe('a field the wording does not name, and nothing else', () => {
-  it('refuses with both machines described in full, since no narrower sentence is true', () => {
+  it('renders with both machines described in full, since no narrower sentence is true', () => {
     const stored = { ...IDENTITY, antialias: 'grayscale' } as RenderIdentity;
     const mine = { ...IDENTITY, antialias: 'subpixel' } as RenderIdentity;
     const found: Described = {
@@ -90,11 +87,8 @@ describe('a field the wording does not name, and nothing else', () => {
     };
 
     const settlement = settle(documentDigest(document), found, mine);
-    expect(settlement).toMatchObject({ kind: 'settled', verdict: 'incomparable' });
+    expect(settlement.kind).toBe('render');
     expect(settlement.because).toContain('was painted by');
     expect(settlement.because).toContain('playwright-chromium');
-    expect(settlement.because).toContain('nothing here was compared');
-    expect(settlement.because).not.toMatch(/machine-bound|not comparable/);
-    expect(settlement.because).not.toContain('only the recipe moved');
   });
 });

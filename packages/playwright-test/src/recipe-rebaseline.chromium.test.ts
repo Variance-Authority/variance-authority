@@ -10,13 +10,13 @@ import type { Renderer } from '@variance-authority/raster';
 import { CHROMIUM_RASTER_ARGS, createVariance } from './index.js';
 
 /**
- * `--update-snapshots` after an upgrade that moved only the recipe.
+ * `--update-snapshots` after an upgrade that moved the recipe.
  *
- * The incomparable reason for a recipe-only difference names "the test runner's
- * update-snapshots flag" as the way back. Deferred capture settles before it
- * renders, so the flag can only keep that promise if the settlement paints: a
- * refusal there returns before anything reaches `promote`, and the flag adopts
- * nothing.
+ * Deferred capture settles before it renders, and a baseline under an older
+ * recipe is compared anyway, with the recipe named as the cause (ADR-0090). The
+ * flag adopts a change under a moved recipe as it adopts any change, so the
+ * settlement has to paint: a refusal there would return before anything reached
+ * `promote`, and the flag would adopt nothing.
  */
 
 const BROWSER_AVAILABLE = ((): boolean => {
@@ -111,26 +111,18 @@ chromium_('deferred capture after a recipe-only upgrade', () => {
     expect(compared.verdict).toBe('unchanged');
   }, 60_000);
 
-  it('leaves a moved document to =all, which a reviewer narrows to the one test', async () => {
-    // Nothing compared the new image against anything: the recipe moved and so
-    // did the cart. `=changed` sweeps the suite, so it skips this one, the
-    // way `variance accept --all` does; `=all` overwrites every image it takes.
+  it('adopts a moved document under =changed, naming the recipe that moved with it', async () => {
+    // The recipe moved and so did the cart. The pair is compared, the change is
+    // a change, and `=changed` adopts it the way `variance accept --all` does.
     const old = 'v1:8040e1a2e35d148b301ebd30e5ed66c6';
     const recipe = 'v1:54323cded938fde38b41cdd3865368fe';
     await page!.setContent('<main><section id="cart"><h1>Cart</h1><p>Empty</p></section></main>');
     await observeCart(old, 'all', 'cart/moved');
 
     await page!.setContent('<main><section id="cart"><h1>Cart</h1><p>3 items</p></section></main>');
-    const passed = await observeCart(recipe, 'changed', 'cart/moved');
-    expect(passed.verdict).toBe('incomparable');
-    expect(passed.because).toContain('the document changed too');
-    expect(passed.because).not.toContain('accepted under --update-snapshots');
-
-    // Still under the old recipe's baseline: nothing was written.
-    expect((await observeCart(recipe, 'none', 'cart/moved')).verdict).toBe('incomparable');
-
-    const adopted = await observeCart(recipe, 'all', 'cart/moved');
+    const adopted = await observeCart(recipe, 'changed', 'cart/moved');
     expect(adopted.because).toContain('accepted under --update-snapshots');
+    expect(adopted.because).toContain('rasterization e5ed66c6 → 865368fe');
     expect((await observeCart(recipe, 'none', 'cart/moved')).verdict).toBe('unchanged');
   }, 60_000);
 });

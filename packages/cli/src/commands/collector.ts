@@ -239,8 +239,8 @@ export interface Collector {
    * Another standing world from the same recipe, for a second worker.
    *
    * Same build, same server, same origin — a world served from another port is
-   * another page as far as a baseline is concerned, and every comparison against
-   * it would be `incomparable`. A worker is a whole collector: the run hands it
+   * another page as far as a baseline is concerned, and every subject would read
+   * changed with the port as its cause. A worker is a whole collector: the run hands it
    * subjects in its own serial lane and closes it before this one.
    *
    * Absent means one world, and a run configured with `workers` says so.

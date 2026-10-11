@@ -33,6 +33,31 @@ describe('the selection the environment asks for', () => {
     )).toThrow('VARIANCE_AUTHORITY_AT_DISTANCE=near is not a range of hop counts');
   });
 
+  it('refuses a grain that is neither the file nor the case', () => {
+    expect(() => selectionFrom(
+      { VARIANCE_AUTHORITY_SINCE: 'main', VARIANCE_AUTHORITY_GRAIN: 'test' },
+      { root: '/checkout' },
+      () => {},
+    )).toThrow('VARIANCE_AUTHORITY_GRAIN=test is not a grain');
+  });
+
+  it('asks the cli for the cases when the grain is the case, and for files otherwise', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-selection-grain-'));
+    try {
+      const cli = resolve(root, 'node_modules', '@variance-authority', 'cli');
+      await mkdir(cli, { recursive: true });
+      await writeFile(resolve(cli, 'package.json'), JSON.stringify({ name: '@variance-authority/cli', type: 'module', main: 'index.js' }));
+      await writeFile(resolve(cli, 'index.js'), 'export async function selectSuite(request) { return { notes: [JSON.stringify(request.grain ?? null)] }; }');
+      const asked = async (env: NodeJS.ProcessEnv) => (await selectionFrom({ VARIANCE_AUTHORITY_SINCE: '', ...env }, { root }, () => {})!()).notes;
+
+      expect(await asked({ VARIANCE_AUTHORITY_GRAIN: 'case' })).toEqual(['"case"']);
+      expect(await asked({ VARIANCE_AUTHORITY_GRAIN: 'file' })).toEqual(['null']);
+      expect(await asked({})).toEqual(['null']);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('refuses by name where the checkout does not resolve the cli that reads it', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-selection-environment-'));
     try {

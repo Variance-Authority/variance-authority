@@ -332,7 +332,8 @@ loudest first: `a11y`, `geometry`, `token`, `content`, `texture`.
 | `hashAssets` | Your asset URLs already include their own content hash. | `true`. Read only while `network` is on; GIF freezing, blanking and `portable` retention stay. |
 | `wiring` | This route is not React, so the fiber walk buys nothing. | `true`. A band of its own; turning it off changes no stored digest. |
 | `holdings` | Application values behind the nodes are evidence you want recorded. | `false`. Changes the structure digest — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
-| `stabilize` | The application has its own determinism strategy. | The standard collection recipe; `[]` records an untouched page. |
+| `stabilize` | The application has its own determinism strategy, or a route should be read hovered, focused, animated or at the real time. | The standard collection recipe, which also takes the pointer off the page, releases focus, asks for reduced motion and fixes `Date`; `[]` records an untouched page. A list replaces the recipe: start from the exported `DEFAULT_STABILIZE` and filter out what you want read, as in `DEFAULT_STABILIZE.filter((id) => id !== 'freeze-clock')`. |
+| `now` | Your pages print a date and you want one other than the default. | `2024-06-15T12:00:00.000Z`. An ISO 8601 instant with its zone; anything else is refused when the collector is created. |
 
 ## Readiness and loading
 

@@ -119,7 +119,7 @@ Choose it when:
 - capturing in one process and painting in another is acceptable.
 
 Nothing inside jsdom decides a verdict — the run's answer for a subject, such as
-`new`, `unchanged`, `changed` or `incomparable`. The verdict comes from the
+`new`, `unchanged`, `changed` or `ignored`. The verdict comes from the
 later run that paints the capture. jsdom also has no layout engine, so a changed
 pixel region on this path is reported without the component that drew it. To
 keep a real engine inside the test instead, use

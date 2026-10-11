@@ -271,29 +271,72 @@ pub(crate) fn overlaps(region: &Region, ranges: &[(u32, u32)]) -> bool {
     region.source && ranges.iter().any(|(start, end)| region.start <= *end && *start <= region.end)
 }
 
-/// The source regions innermost at `line` among `candidates`, by the rule
-/// `innermostAt` in `reverse.ts` states: a region holding the line that holds
-/// no other region holding it, unless the two share a span.
-pub(crate) fn innermost_at(candidates: &[Region], line: u32, into: &mut Vec<Region>) {
+/// Whether a region, with source or without, holds a line of one of the
+/// inclusive `ranges`: the regions `charge_line` may charge for them. A region
+/// written without an origin holds no line at both ends, so it holds none.
+pub(crate) fn holds_any(region: &Region, ranges: &[(u32, u32)]) -> bool {
+    let to = region.start.max(region.end);
+    ranges.iter().any(|(start, end)| region.start <= *end && *start <= to)
+}
+
+/// Add to `into` the regions among `candidates` an edit to `line` charges, by
+/// the rule `chargeLine` in `blocks-around.ts` states, in their order among
+/// `candidates`: the narrowest regions with source holding the line, the next
+/// ones out while a charged region's text on the line sits beside theirs, any
+/// region whose own text is on the line, and every region without source on
+/// it. `kinds[at]` is the kind of `candidates[at]`. Nothing, as
+/// `blocksChargedAt` answers, when no region with source holds the line.
+pub(crate) fn charge_line(candidates: &[Region], kinds: &[&str], line: u32, into: &mut Vec<Region>) {
     into.clear();
     if line < 1 {
         return;
     }
-    let holds = |region: &Region| region.source && region.start <= line && line <= region.end;
-    for region in candidates {
-        if !holds(region) {
+    let mut found: Vec<usize> = Vec::new();
+    let mut around: Vec<usize> = Vec::new();
+    for (at, region) in candidates.iter().enumerate() {
+        if region.start > line || region.start.max(region.end) < line {
             continue;
         }
-        let inner = candidates.iter().any(|other| {
-            other.at != region.at
-                && holds(other)
-                && region.start <= other.start
-                && region.end >= other.end
-                && (region.start != other.start || region.end != other.end)
-        });
-        if !inner {
-            into.push(*region);
+        if region.source {
+            around.push(at);
+        } else {
+            found.push(at);
         }
+    }
+    if around.is_empty() {
+        return;
+    }
+    let span = |at: usize| i64::from(candidates[at].end) - i64::from(candidates[at].start);
+    around.sort_by_key(|at| span(*at));
+    let mut index = 0;
+    let mut outwards = true;
+    while index < around.len() {
+        let width = span(around[index]);
+        let mut next = index;
+        while next < around.len() && span(around[next]) == width {
+            next += 1;
+        }
+        let group = &around[index..next];
+        let beside_resume = group.iter().all(|at| kinds[*at] == "resume");
+        let shares = group.iter().any(|at| shares_line(&candidates[*at], kinds[*at], line, beside_resume));
+        if outwards || shares {
+            found.extend_from_slice(group);
+        }
+        outwards = shares;
+        index = next;
+    }
+    found.sort_unstable();
+    found.dedup();
+    into.extend(found.into_iter().map(|at| candidates[at]));
+}
+
+/// Whether the region's text on `line` sits beside a wider region's, by the
+/// rule `sharesLine` in `blocks-around.ts` states.
+fn shares_line(region: &Region, kind: &str, line: u32, unaccompanied: bool) -> bool {
+    match kind {
+        "module" | "continuation" => false,
+        "resume" => unaccompanied,
+        _ => region.start == line || (kind == "function" && region.end == line),
     }
 }
 

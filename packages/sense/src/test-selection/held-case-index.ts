@@ -1,9 +1,10 @@
 import { UNHEARD, preconditionStrings, preconditionWords } from './case-precondition-column.js';
+import type { CaseLines } from './case-lines.js';
 import type { CrossingSetsPool } from './crossing-sets.js';
 import { durationColumn, stoppedColumn, type SetColumns } from './execution-set-columns.js';
 import { moduleAt, openSetColumns, writeSetColumns, type SetExecutionModule } from './execution-set-format.js';
 import { below, mergedDictionary } from './format-dictionary.js';
-import { NO_DURATION } from './format-layout.js';
+import { NO_DURATION, NO_OWNER } from './format-layout.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { stringBound } from './lookup.js';
 import type { ExecutionTest } from './reverse.js';
@@ -125,13 +126,15 @@ export type LaidTest = number | ExecutionTest;
 /**
  * Write a layer's output: what {@link encodeSetExecutionIndex} writes for the
  * same cases and modules, every carried string copied as stored bytes rather
- * than decoded and interned again. `modules` come in code-unit order of path.
+ * than decoded and interned again. `modules` come in code-unit order of path,
+ * and `lines`, where the layer carries any, name them by their place there.
  */
 export function writeLaid(
   held: HeldIndex,
   tests: readonly LaidTest[],
   modules: readonly LaidModule[],
   sets: CrossingSetsPool,
+  lines?: readonly (CaseLines | undefined)[],
 ): Buffer {
   const columns = held.columns;
   const marked = new Uint8Array(held.size);
@@ -218,12 +221,17 @@ export function writeLaid(
   const blockSource = new Uint8Array(blockCount);
   const blockCalled = new Uint32Array(blockCount);
   const blockLoaded = new Uint8Array(blockCount);
+  // An owner is carried where either side recorded one; a region neither did names none.
+  const owned = columns.blockOwner !== undefined || modules.some((module) => !('row' in module) && module.owner !== undefined);
+  const blockOwner = owned ? new Uint32Array(blockCount).fill(NO_OWNER) : undefined;
   let block = 0;
   for (const [at, module] of modules.entries()) {
     moduleBlocks[at] = block;
     blockCalled.set(module.called, block);
     blockLoaded.set(module.loaded, block);
     if ('row' in module) {
+      const first = columns.moduleBlocks[module.row]!;
+      if (columns.blockOwner !== undefined) blockOwner?.set(columns.blockOwner.subarray(first, columns.moduleBlocks[module.row + 1]!), block);
       moduleFile[at] = remap[columns.moduleFile[module.row]!]!;
       for (let from = columns.moduleBlocks[module.row]!; from < columns.moduleBlocks[module.row + 1]!; from += 1) {
         blockKind[block] = remap[columns.blockKind[from]!]!;
@@ -237,6 +245,7 @@ export function writeLaid(
       continue;
     }
     moduleFile[at] = id(module.file);
+    if (module.owner !== undefined) blockOwner?.set(module.owner, block);
     for (const region of module.blocks) {
       blockKind[block] = id(region.kind);
       blockName[block] = id(region.name);
@@ -253,6 +262,7 @@ export function writeLaid(
     strings: { blob: dictionary.blob, offsets: dictionary.offsets },
     testId, testFile, testName, testStopped, testDuration, testPreconditions,
     moduleFile, moduleBlocks,
-    blockKind, blockName, blockPath, blockStart, blockEnd, blockSource, blockCalled, blockLoaded,
+    blockKind, blockName, blockPath, blockStart, blockEnd, blockSource, blockCalled, blockLoaded, blockOwner,
+    testLines: lines,
   }, sets);
 }

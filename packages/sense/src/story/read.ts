@@ -36,7 +36,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative } from 'node:path';
 import type { BlockKind } from '../instrument/index.js';
 import { askCoverageFile } from '../test-selection/coverage-file.js';
-import { KINDS } from '../test-selection/format-layout.js';
+import { BLOCK_KINDS } from '../test-selection/format-layout.js';
 import type { TestCoverageView } from '../test-selection/format-view.js';
 import { findModules } from '../test-selection/lookup.js';
 import { NO_LINE } from '../test-selection/written-lines.js';
@@ -340,7 +340,7 @@ function regionsOf(view: TestCoverageView, file: string, count: number): Region[
     for (let block = first; block < end; block += 1) {
       const start = view.blockStart.at(block);
       regions[view.blockOrdinal.at(block)] = {
-        kind: KINDS[view.blockKind.at(block)]!,
+        kind: BLOCK_KINDS[view.blockKind.at(block)]!,
         name: view.string(view.blockName.at(block)),
         path: view.string(view.blockPath.at(block)),
         ...(start === NO_LINE ? {} : { startLine: start, endLine: view.blockEnd.at(block) }),

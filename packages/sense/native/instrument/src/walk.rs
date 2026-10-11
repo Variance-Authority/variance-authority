@@ -14,9 +14,9 @@
 //! that visits the same nodes in another order is a different recording, not a
 //! faster one.
 //!
-//! What each decision opens is in `instrument_decisions.rs`, and how a region is
+//! What each decision opens is in `walk_decisions.rs`, and how a region is
 //! named — its step label, its scope, and the name it takes from where it is
-//! written — is in `instrument_names.rs`.
+//! written — is in `walk_names.rs`.
 //!
 //! ## Nothing is re-printed
 //!
@@ -42,25 +42,45 @@
 //! ownership and digests are the ordinary walk's, computed over the regions that
 //! are left, so a function keeps the address it has under the full walk.
 //!
+//! ## Functions that leave the realm
+//!
+//! A function the module hands to a page as text — `crossing.rs` finds them
+//! before the descent starts — is entered for its name and left at once: it
+//! takes its anonymous number, so every function after it keeps its address,
+//! and opens no region, so its text is the enclosing region's and carries no
+//! probe into a realm that has no `__va`.
+//!
+//! A declaration is the exception to the enclosing region. It is hoisted: it
+//! exists from the moment its block is entered, and can be handed over before
+//! a branch that leaves, so its text, written after that branch, is in a
+//! continuation the test that left never reached. Such a declaration opens the
+//! region it would have as a function, owned by the region its block is
+//! entered with and probed where the block's statements start, ahead of
+//! anything that can leave. Nothing is placed in its text. Every case of a
+//! `switch` is one block, so a declaration under any case is charged to the
+//! region the `switch` is reached in, and probed in its discriminant.
+//!
 //! ## Offsets
 //!
 //! Offsets are UTF-8 bytes throughout. Every offset is a node boundary, so the
 //! mapping to the JavaScript side's UTF-16 offsets is monotone and every
 //! comparison made here in bytes answers the same there.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
 use oxc_ast::ast::*;
 use oxc_ast_visit::{walk, Visit};
-use oxc_span::GetSpan;
+use oxc_span::{GetSpan, Span};
 use oxc_syntax::scope::ScopeFlags;
 
-#[path = "instrument_decisions.rs"]
+#[path = "walk_decisions.rs"]
 mod decisions;
-#[path = "instrument_names.rs"]
+#[path = "walk_hoisted.rs"]
+mod hoisted;
+#[path = "walk_names.rs"]
 mod names;
-#[path = "instrument_params.rs"]
+#[path = "walk_params.rs"]
 mod params;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -114,6 +134,8 @@ impl Scope {
 
 pub struct Walker {
     entries: bool,
+    /// The functions whose text leaves this realm, by span: `crossing.rs`.
+    crossing: HashSet<(u32, u32)>,
     pub blocks: Vec<Block>,
     pub edits: Vec<Edit>,
     pub texts: String,
@@ -121,12 +143,17 @@ pub struct Walker {
     path: String,
     owner: u32,
     hint: Option<String>,
+    /// The crossing declaration the statement being walked is, when control can skip its text.
+    declared: Option<hoisted::Declared>,
+    /// The slot a `switch` hands the case it walks next: every case is its block.
+    cased: Option<hoisted::Slot>,
 }
 
 impl Walker {
-    pub fn new(entries: bool) -> Self {
+    pub fn new(entries: bool, crossing: HashSet<(u32, u32)>) -> Self {
         Self {
             entries,
+            crossing,
             blocks: Vec::new(),
             edits: Vec::new(),
             texts: String::new(),
@@ -134,6 +161,8 @@ impl Walker {
             path: String::new(),
             owner: 0,
             hint: None,
+            declared: None,
+            cased: None,
         }
     }
 
@@ -169,9 +198,18 @@ impl Walker {
     }
 
     pub fn list(&mut self, statements: &[Statement], path: &str, owner: u32) {
+        // A case's declarations are its switch's, whatever precedes them.
+        let (slot, cased) = match self.cased.take() {
+            Some(slot) => (Some(slot), true),
+            None => (self.slot(statements, owner), false),
+        };
         let mut current = owner;
         for (index, statement) in statements.iter().enumerate() {
+            if let (Some(slot), Some(span), true) = (slot, self.declaration(statement), cased || current != owner) {
+                self.declared = Some(hoisted::Declared { span, slot });
+            }
             let decision = self.at(path, current, |w| w.statement(statement));
+            self.declared = None;
             let (Some(label), Some(next)) = (decision, statements.get(index + 1)) else {
                 continue;
             };
@@ -243,19 +281,31 @@ impl Walker {
     /// region opens before the parameters are walked, and a function in a default
     /// value is owned by the function whose parameter it is. The probe stands in
     /// the body, unless binding a parameter can throw: then it stands in front of
-    /// that parameter, by the rewrite `instrument_params.rs` describes, because a
+    /// that parameter, by the rewrite `walk_params.rs` describes, because a
     /// call that throws while binding has arrived.
-    fn entered(&mut self, own: Option<String>, params: &FormalParameters, body: Body, arrow: bool) {
+    ///
+    /// A function whose text leaves this realm holds nothing: its text, nested
+    /// functions and all, is the enclosing region's, unless it is a declaration
+    /// in a continuation or a case, which opens a region with nothing in it. It still
+    /// takes its name, so every other function keeps the address it would have.
+    fn entered(&mut self, span: Span, own: Option<String>, params: &FormalParameters, body: Body, arrow: bool) {
         let hint = self.hint.take();
         self.named(own.or(hint));
-        let owner = self.owner;
-
         let end = match body {
             // A TypeScript overload signature or an `abstract` method has no body at all.
             Body::None => None,
             Body::Block(body) => Some(body.span.end),
             Body::Expression(expression) => Some(expression.span().end),
         };
+        if self.crossing.contains(&(span.start, span.end)) {
+            if let (Some(declared), Some(end)) = (self.declared.take_if(|it| it.span == (span.start, span.end)), end) {
+                self.hoisted(declared.slot, params.span.start, end);
+            }
+            self.scopes.pop();
+            return;
+        }
+        let owner = self.owner;
+
         let Some(end) = end else {
             self.at("", owner, |w| w.visit_formal_parameters(params));
             self.scopes.pop();
@@ -329,7 +379,7 @@ impl<'a> Visit<'a> for Walker {
             FunctionType::FunctionDeclaration | FunctionType::FunctionExpression => {
                 let own = it.id.as_ref().map(|id| id.name.to_string());
                 let body = it.body.as_deref().map_or(Body::None, Body::Block);
-                self.entered(own, &it.params, body, false);
+                self.entered(it.span, own, &it.params, body, false);
             }
             // An overload signature or an `abstract` method opens nothing.
             _ => {
@@ -344,7 +394,7 @@ impl<'a> Visit<'a> for Walker {
             ArrowFunctionBody::FunctionBody(body) => Body::Block(body),
             expression => Body::Expression(expression.to_expression()),
         };
-        self.entered(None, &it.params, body, true);
+        self.entered(it.span, None, &it.params, body, true);
     }
 
     fn visit_class(&mut self, it: &Class<'a>) {

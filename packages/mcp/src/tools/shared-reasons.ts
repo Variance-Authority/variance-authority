@@ -5,8 +5,8 @@ import { byReason } from '@variance-authority/report';
  * once, with a count, and the subjects named under it.
  *
  * A reason many subjects share is almost never about any one of them. An
- * upgrade that moves the identity key makes every subject `incomparable` for
- * one reason, and a first run makes every subject `new` for one; printed per
+ * upgrade that moves the identity key changes every subject for one cause, and
+ * a first run makes every subject `new` for one; printed per
  * subject, a 4,705-subject run said one sentence 4,697 times, and its remedy
  * was in each copy and in none of the first lines. Every subject is still named
  * — a count alone leaves an agent unable to act on any one of them — but the

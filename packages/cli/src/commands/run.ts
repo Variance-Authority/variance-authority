@@ -82,10 +82,10 @@ export {
   historyFor,
   journeyAgainst,
   recordedJourneys,
-  renderCacheRoot,
   storeFor,
   writeArtifactToDisk,
 } from './resources.js';
+export { renderCacheRoot } from './renders.js';
 export { relationsFor, scanSourceDirs } from './source-graph.js';
 export { narrowingFor } from './narrowing.js';
 export { changedSince, diffSince, indexPosition } from './since.js';

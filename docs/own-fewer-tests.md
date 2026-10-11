@@ -101,6 +101,74 @@ change. Keep the smallest set of tests that can expose the risks you would act
 on, at the boundaries that own those risks, for as long as those decisions
 remain live.
 
+## Ask what one test is made of
+
+A flow test that checks out a cart also prices it, applies the coupon and
+renders the summary, and each of those has a narrower test of its own. What the
+flow test adds is what is left when you take its narrower tests away. That
+subtraction only works region by region. Two coverage totals subtract to a
+number, and a number cannot name the code only the flow test runs. The
+command reads the same per-case index `withTestSelection` writes, from
+[the section above](#ask-which-tests-cover-a-line):
+
+```bash
+npx variance ask test-composition --file src/cart/flow.test.tsx --name 'checks out'
+```
+
+```text
+src/cart/flow.test.tsx  checks out: a footprint of 9 regions; 31 more are structure, run by more than half of the 412 recorded tests.
+
+Pieces, smaller tests inside it, most shared first:
+  src/cart/total.test.ts  splits a discount  (3 of its 3 regions inside it)
+  src/cart/Cart.test.tsx  renders a coupon  (2 of its 2 regions inside it)
+
+Pieces ran 5 of its 9 regions. The other 4 no piece ran:
+Its own layer, in modules no piece ran:
+  src/cart/checkout.ts:12-30  function submitOrder
+  src/cart/checkout.ts:18-21  branch in submitOrder
+Paths of a piece's modules only it takes; a test nearer that code would run them more cheaply:
+  src/cart/total.ts:40-44  branch in applyDiscount
+  src/cart/total.ts:47  branch in applyDiscount
+```
+
+The test's **footprint** is the regions it ran, less **structure**: regions more
+than half the recorded tests ran, the setup and shared modules every test goes
+through. A **piece** is a smaller test with at least nine tenths of its
+footprint inside this one; a **whole** is a larger test holding at least nine
+tenths of this one, and is listed after the pieces when one exists. Tests with
+exactly the same footprint are neither: the answer gives their count on its
+second line.
+
+What no piece ran splits in two:
+
+- **Its own layer** is regions in modules no piece ran: the code only this test
+  witnesses, and the reason to keep it.
+- **Paths of a piece's modules** are regions of a module a piece ran, on paths
+  only this test takes. A narrower test could run them more cheaply, and that is
+  usually where a unit test is missing.
+
+Every count is execution, so a piece is a test that ran the same code, not one
+that checks the same thing. A test that mocks a module runs none of it, and
+reads as having nothing in common with the tests of that module. A test its
+pieces explain completely is not redundant either: the order the flow calls its
+parts in is not a region of any one part.
+
+To settle it, break the code and see who fails. Change one line the pieces ran —
+[`covering`](#ask-which-tests-cover-a-line) names the tests that ran it — and
+run the pieces and the flow test against the same break:
+
+- **A piece fails too.** The flow test is a second witness for that line, at a
+  slower boundary.
+- **Only the flow test fails.** It checks something there no piece checks, and
+  it keeps its place.
+
+A flow test with no own layer, where every break you try fails a piece too,
+checks only how its parts are put together. Keep it if that order of calls is a
+risk you act on. Otherwise it is the test to retire, or to cut down to the one
+assertion about the order. For one candidate test read on its own rather than
+against its pieces, [Distill](distill.md) separates what it loaded, covered and
+addressed.
+
 ## Do you need a test?
 
 Add a test when its result can change what happens next. It might prevent a
@@ -247,8 +315,10 @@ code may still provide the same answer.
 [Ask which tests cover a line](#ask-which-tests-cover-a-line) names the cases
 that covered a region. The file-level [execution record](execution-record.md)
 answers the same question by test file, and shows how much source each test
-loads with it. Both readings
-identify a conversation rather than a verdict.
+loads with it. [Ask what one test is made
+of](#ask-what-one-test-is-made-of) names the narrower tests inside one test, and
+the code only it runs. Each reading identifies a conversation rather than a
+verdict.
 
 Kent Beck's [Programmer Test
 Principles](https://medium.com/@kentbeck_7670/programmer-test-principles-d01c064d7934)

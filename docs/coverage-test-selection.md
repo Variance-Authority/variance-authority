@@ -211,7 +211,9 @@ in.
 So in a well-tested codebase the graph and the run give answers that are far
 apart. A [journey](journeys.md) is the set of code one test ran, stored after
 the run. It keeps no order: the order is a [test story](test-stories.md),
-written only when you ask for one. Selection reads journeys. A change to code in some test's journey selects
+written only when you ask for one. Under a test runner each test also keeps,
+for each region, the line of the test that first reached it, and selection
+does not read it. Selection reads journeys. A change to code in some test's journey selects
 that test. A change to code in no journey selects nothing, because no test ran
 it. In the record, a shared module is charged to the tests that ran the changed
 code. In the graph, it is charged to every test that imports it, and most of a
@@ -423,10 +425,16 @@ Some reads cannot be placed in one function, and those charge the whole module:
   looked for as well. A copy, `===`, `!` and `typeof` convert nothing.
 - A namespace passed on whole, such as `configure(limits)`, or a module loaded
   by `require` or `import()`, gives the parser no name to match.
+- An importer whose text cannot be read, such as a Flow file, may read the name
+  anywhere or pass it on, so every test that loaded it is selected, through the
+  file graph when the record has no data for it. A test that mocked it ran
+  none of its text and is not selected.
 
 The search goes one import deep: it looks in the files that import the declaring
 file, and further only through a file that re-exports the name, such as a
-barrel with `export { MAX_ITEMS } from "./limits"`. Names are matched by
+barrel with `export { MAX_ITEMS } from "./limits"`. `limits.ts` is one of those
+files when it imports its own value back, as a namespace of itself or through
+such a barrel, under any local name. Names are matched by
 spelling, without resolving scopes. A parameter named `MAX_ITEMS` counts as a
 read, which selects more tests and never fewer. A test that loaded `limits.ts`
 through an import the file graph does not list is printed by name as `unseen`

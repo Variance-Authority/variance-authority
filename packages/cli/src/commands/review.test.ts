@@ -1,10 +1,7 @@
-import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-import { digestString } from '@variance-authority/core/format';
-import { updateSourceIndex } from '@variance-authority/sense';
+import { basename, join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   caseSectionsAt,
   commitRunsFile,
@@ -12,33 +9,17 @@ import {
   landRun,
   testCoverageFile,
   withCaseSections,
-  writeTestCoverage,
-  type ExecutionBlock,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
+import { updateSourceIndex } from '@variance-authority/sense';
 import { main } from '../bin.js';
 import { readFlags } from '../args.js';
-import { OperatorError } from '../exit.js';
 import { parseReviewArgs } from '../review-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { probedModule } from './mainline-fixture.js';
 import { review } from './review.js';
 import { formatReview, REVIEW_MARKER } from './review-text.js';
-
-const BEFORE = 'export function applyDiscount(price: number): number {\n  return price * 0.9;\n}\n';
-const AFTER = `${BEFORE.replace('0.9', '0.8')}\nexport function round(price: number): number {\n  return Math.round(price);\n}\n`;
-const TEST = "import { applyDiscount } from '../src/total';\nit('discounts', () => applyDiscount(1));\n";
-
-const DISCOUNTS = { id: 'test/total.test.ts > discounts', file: 'test/total.test.ts', name: 'discounts', stopped: false };
-const ROUNDS = { id: 'test/total.test.ts > rounds', file: 'test/total.test.ts', name: 'rounds', stopped: false };
-const GONE = { id: 'test/round.test.ts > rounds up', file: 'test/round.test.ts', name: 'rounds up', stopped: false };
-
-function block(name: string, startLine: number, endLine: number, tests: readonly number[]): ExecutionBlock {
-  return { kind: 'function', name, path: name, startLine, endLine, source: true, crossings: tests.map((test) => ({ test, distance: 0 })) };
-}
-
-const git = (at: string, args: readonly string[]): string =>
-  execFileSync('git', args, { cwd: at, stdio: 'pipe', encoding: 'utf8' }).trim();
+import { AFTER, DISCOUNTS, ROUNDS, block, changed, git, roundedBy } from './review-fixture.js';
 
 function parse(argv: readonly string[]) {
   return parseReviewArgs(readFlags(argv, 'review', flagsFor('review'), synopsisFor('review')));
@@ -46,74 +27,10 @@ function parse(argv: readonly string[]) {
 
 describe('a review of what a change did, after the run that recorded it', () => {
   const cwd = process.cwd();
-  afterEach(() => process.chdir(cwd));
-
-  /** `main` at the base, the change in the working tree, and the run after it recorded. */
-  async function changed(options: { readonly gone?: boolean; readonly suites?: readonly string[] } = {}): Promise<{ root: string; first: string; against: string }> {
-    const root = await mkdtemp(join(tmpdir(), 'variance-review-'));
-    await mkdir(join(root, 'src'));
-    await mkdir(join(root, 'test'));
-    git(root, ['init', '--quiet', '--initial-branch', 'main']);
-    git(root, ['config', 'user.email', 'fixture@example.test']);
-    git(root, ['config', 'user.name', 'Fixture']);
-    await writeFile(join(root, 'src/total.ts'), BEFORE);
-    await writeFile(join(root, 'test/total.test.ts'), TEST);
-    await writeFile(join(root, 'config.json'), '{}\n');
-    if (options.suites !== undefined) {
-      const suites = Object.fromEntries(options.suites.map((name) => [name, { kind: 'unit' }]));
-      await writeFile(join(root, 'variance.config.json'), JSON.stringify({ suites }));
-    }
-    git(root, ['add', '-A']);
-    git(root, ['commit', '--quiet', '-m', 'first']);
-    const first = git(root, ['rev-parse', 'HEAD']);
-
-    await writeFile(join(root, 'src/total.ts'), AFTER);
-    await writeFile(join(root, 'test/total.test.ts'), `${TEST}it('rounds', () => {});\n`);
-    await writeFile(join(root, 'config.json'), '{ "strict": true }\n');
-    process.chdir(root);
-    // A test the run recorded and the tree no longer holds, so the import graph has no node for it.
-    const extra = options.gone === true ? ['test/round.test.ts'] : [];
-
-    const coverageFile = testCoverageFile(root, { suite: options.suites?.[0] });
-    await mkdir(dirname(coverageFile), { recursive: true });
-    await writeTestCoverage(coverageFile, {
-      version: 3,
-      instrumentation: 'fixture',
-      commit: first,
-      tests: [
-        { file: 'test/total.test.ts', complete: true, preconditions: [{ name: 'config.json', digest: digestString('{}') }] },
-        ...extra.map((file) => ({ file, complete: true, preconditions: [] })),
-      ],
-      modules: [{
-        file: 'src/total.ts',
-        sourceDigest: digestString(AFTER),
-        instrumented: true,
-        blocks: [
-          { ordinal: 0, kind: 'function', digest: digestString('applyDiscount'), name: 'applyDiscount', path: 'applyDiscount', startLine: 1, endLine: 3, source: true, testFiles: ['test/total.test.ts'] },
-          { ordinal: 1, kind: 'function', digest: digestString('round'), name: 'round', path: 'round', startLine: 5, endLine: 7, source: true, testFiles: extra },
-        ],
-      }],
-    });
-    const now: ExecutionIndex = {
-      tests: [DISCOUNTS, ROUNDS, ...(extra.length === 0 ? [] : [GONE])],
-      modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0]), block('round', 5, 7, extra.length === 0 ? [] : [2])] }],
-    };
-    await writeFile(coverageFile, withCaseSections(await readFile(coverageFile), { index: encodeExecutionIndex(now) }));
-    // What the pipeline's `variance index` step publishes after the run; under CI, review refuses to build it itself.
-    await updateSourceIndex(root);
-
-    // The base's record, copied aside before the run the way a pipeline does it.
-    const against = join(await mkdtemp(join(tmpdir(), 'variance-review-base-')), 'coverage.bin');
-    await writeTestCoverage(against, { version: 3, instrumentation: 'fixture', tests: [], modules: [] }, {
-      index: encodeExecutionIndex({
-        tests: [DISCOUNTS],
-        modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0])] }],
-      }),
-      // The commit the base was recorded at, which the regions are paired through the diff from.
-      last: Buffer.from(JSON.stringify({ commit: first, at: '2026-01-01T00:00:00.000Z', files: [], cases: [] })),
-    });
-    return { root, first, against };
-  }
+  afterEach(() => {
+    process.chdir(cwd);
+    vi.unstubAllEnvs();
+  });
 
   it('reads the record of the suite it is named, or of the only suite the root declares', async () => {
     const { root, first, against } = await changed({ suites: ['unit'] });
@@ -122,6 +39,35 @@ describe('a review of what a change did, after the run that recorded it', () => 
 
     expect(regions(await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--root', root])))).toEqual(['applyDiscount', 'round']);
     expect(regions(await review(parse(['--since', first, '--against', against, '--root', root])))).toEqual(['applyDiscount', 'round']);
+  });
+
+  it('reads the changed regions from every declared suite when coverage is requested', async () => {
+    const { root, first, against } = await changed({ suites: ['unit', 'browser'] });
+    await roundedBy(root, first, 'browser');
+    const round = (answer: Awaited<ReturnType<typeof review>>) =>
+      answer.files.find((file) => file.file === 'src/total.ts')?.regions?.find((region) => region.name === 'round');
+
+    const joined = round(await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--coverage', '--root', root])));
+    expect(joined).toMatchObject({ reach: 'near', cases: 1, tests: ['test/total.test.ts'] });
+    expect(joined?.called.map((test) => test.id)).toEqual([ROUNDS.id]);
+    expect(round(await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--root', root])))?.cases).toBe(0);
+  });
+
+  it('takes no region from a suite that ran the changed file as other text', async () => {
+    const { root, first, against } = await changed({ suites: ['unit', 'browser'] });
+    await roundedBy(root, first, 'browser', `${AFTER}\n`);
+    const answer = await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--coverage', '--root', root]));
+
+    expect(answer.files.find((file) => file.file === 'src/total.ts')?.regions?.map(({ name, cases }) => [name, cases])).toEqual([['applyDiscount', 1], ['round', 0]]);
+  });
+
+  it('says the named suite has not run the change, though another suite ran it and answers for its regions', async () => {
+    const { root, first, against } = await changed({ suites: ['unit', 'browser'], text: `${AFTER}\n` });
+    await roundedBy(root, first, 'browser');
+    const answer = await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--coverage', '--root', root]));
+
+    expect(answer.record).toBe('before');
+    expect(answer.files.find((file) => file.file === 'src/total.ts')?.regions?.map(({ name, cases }) => [name, cases])).toEqual([['applyDiscount', 0], ['round', 1]]);
   });
 
   it('refuses to pick one of several declared suites for the reader', async () => {
@@ -139,15 +85,15 @@ describe('a review of what a change did, after the run that recorded it', () => 
     const total = answer.files.find((file) => file.file === 'src/total.ts');
     // A new export changes what the module's namespace holds, so the reading is `values`, not `bodies`.
     expect(total?.verdict).toBe('values');
-    expect(total?.regions?.map((region) => [region.name, region.reach, region.written, region.called])).toEqual([
-      ['applyDiscount', 'near', false, [{ id: 'test/total.test.ts > discounts', file: 'test/total.test.ts', name: 'discounts' }]],
-      ['round', 'unwalked', true, []],
+    expect(total?.regions?.map((region) => [region.name, region.reach, region.edit, region.changedLineCases, region.called])).toEqual([
+      ['applyDiscount', 'near', 'modified', 1, [{ id: 'test/total.test.ts > discounts', file: 'test/total.test.ts', name: 'discounts' }]],
+      ['round', 'unwalked', 'new', 0, []],
     ]);
     expect(answer.files.find((file) => file.file === 'test/total.test.ts')?.cases).toEqual({ added: ['rounds'], removed: [] });
 
     const text = formatReview(answer, 'text');
-    expect(text).toContain('2 changed regions in 1 file, 1 of them new.');
-    expect(text).toContain('- 1 no case covered, 1 of them new.');
+    expect(text).toContain('2 changed regions in 1 file: 1 new, 1 modified.');
+    expect(text).toContain('- 1 no case covered: 1 new.');
     expect(text).toContain('Cases: 1 added, 0 removed, in 1 test file.');
     expect(text).toContain('- config.json: 1 of 1 test files');
     expect(text).toContain('  src/total.ts:5-7 function round — no case covered it (new)');
@@ -156,12 +102,77 @@ describe('a review of what a change did, after the run that recorded it', () => 
     expect(markdown.startsWith(`${REVIEW_MARKER}\n`)).toBe(true);
     expect(markdown).toContain('### 🧭 What this change did');
     expect(markdown).toContain('> [!WARNING]\n> **1 of 2 changed functions has code no case ran:** `round`.');
-    expect(markdown).toContain('<details><summary>🔴 Where no case ran: 1 place in 1 function</summary>\n\n- `src/total.ts:5-7` function `round`');
-    expect(markdown).toContain('<details><summary>🟢 <code>applyDiscount</code> — 1 case in 1 test file</summary>\n\n`src/total.ts:1-3`\n\n- `test/total.test.ts`\n  - discounts');
+    expect(markdown).toContain('<details><summary>🔴 Where no case ran: 1 place in 1 function</summary>\n\n- `src/total.ts:5-7` function `round` (new)');
+    expect(markdown).toContain('| 🟢 | `applyDiscount` | modified | `src/total.ts:1-3` | 1 | 1 | `test/total.test.ts` |');
+    expect(markdown).toContain('🟢 a test importing the file ran it · 🟡 only tests further away ran it');
+    // The diagram of the changed functions follows their table, folded.
+    expect(markdown.indexOf('"🔴 round · new<br/>no case"]:::none')).toBeGreaterThan(markdown.indexOf('| 🟢 | `applyDiscount`'));
     expect(markdown).not.toContain('| **');
+    // The cases a change added are read before the counts of what ran.
+    expect(markdown.indexOf('✏️ Cases added and removed')).toBeLessThan(markdown.indexOf('🔴 Where no case ran'));
+    // A dirty tree is no commit, so nothing is linked and the header says so.
+    expect(answer.head).toEqual({ commit: first, parents: [], dirty: true });
+    expect(markdown).toContain(`Reviewed the working tree over \`${first.slice(0, 12)}\`. Changes since \`${first.slice(0, 12)}\`.`);
     expect(markdown).toContain('⚙️ `config.json` changed, and the one test file loads it before any import.');
     expect(markdown).toContain('<details><summary>✏️ Cases added and removed: +1 −0 in 1 test file</summary>');
     expect(markdown).toContain('- `test/total.test.ts`\n  - + rounds');
+  });
+
+  it('says which package the changed functions are in, whose tests ran them and which packages import them', async () => {
+    const { root, first } = await changed();
+    await writeFile(join(root, 'src/package.json'), JSON.stringify({ name: '@o/total' }));
+    // A package that imports only a type from the changed file still imports it: its owner reads the change too.
+    await mkdir(join(root, 'types'));
+    await writeFile(join(root, 'types/package.json'), JSON.stringify({ name: '@o/types' }));
+    await writeFile(join(root, 'types/price.ts'), "import type { round } from '../src/total';\nexport type Rounding = typeof round;\n");
+    // A package that reads the file without importing it does not: nothing in it calls the change.
+    await mkdir(join(root, 'notes'));
+    await writeFile(join(root, 'notes/package.json'), JSON.stringify({ name: '@o/notes' }));
+    await writeFile(join(root, 'notes/source.ts'), '/// <depends path="../src/total.ts" />\nexport const shown = 1;\n');
+    git(root, ['add', 'types', 'notes']);
+    await updateSourceIndex(root);
+
+    const answer = await review(parse(['--since', first, '--root', root]));
+
+    // The test file sits under no manifest, so the root's directory is its package.
+    expect(answer.changedPackages).toEqual([
+      { package: '@o/total', path: 'src', functions: 2, reaches: { near: 1, unwalked: 1 }, own: false, tests: ['.'], importers: 2 },
+    ]);
+  });
+
+  it('names the pull request\'s commit, the base and the merge CI ran, and links each place at that merge', async () => {
+    const { root, first, against } = await changed();
+    // GitHub checks out a merge of the pull request into its base, and the suite runs there.
+    git(root, ['checkout', '--quiet', '-b', 'topic']);
+    git(root, ['add', 'src', 'test', 'config.json']);
+    git(root, ['commit', '--quiet', '-m', 'change']);
+    const head = git(root, ['rev-parse', 'HEAD']);
+    git(root, ['checkout', '--quiet', '--detach', first]);
+    git(root, ['merge', '--quiet', '--no-ff', '-m', 'merge', 'topic']);
+    const merge = git(root, ['rev-parse', 'HEAD']);
+    git(root, ['remote', 'add', 'origin', 'git@github.com:o/r.git']);
+    const short = (commit: string) => `\`${commit.slice(0, 12)}\``;
+
+    // A merge no pull request event names, such as one landing on main, is a commit like any other.
+    const landed = formatReview(await review(parse(['--since', first, '--against', against, '--root', root])), 'markdown');
+    expect(landed).toContain(`Reviewed ${short(merge)}. Changes since`);
+    expect(landed).not.toContain('merged into');
+
+    const event = join(root, '..', `${basename(root)}-event.json`);
+    await writeFile(event, JSON.stringify({ pull_request: { head: { sha: head } } }));
+    vi.stubEnv('GITHUB_ACTIONS', 'true');
+    vi.stubEnv('GITHUB_EVENT_NAME', 'pull_request');
+    vi.stubEnv('GITHUB_EVENT_PATH', event);
+    const answer = await review(parse(['--since', first, '--against', against, '--root', root]));
+
+    expect(answer.head).toEqual({ commit: merge, parents: [first, head], pull: head, blob: `https://github.com/o/r/blob/${merge}` });
+    const markdown = formatReview(answer, 'markdown');
+    expect(markdown).toContain(
+      `Reviewed ${short(head)} (merged into ${short(first)} as ${short(merge)} for this run). Changes since ${short(first)}.`,
+    );
+    expect(markdown).toContain(`If the pull request's head is no longer ${short(head)}, this review describes an earlier commit.`);
+    expect(markdown).toContain(`- [\`src/total.ts:5-7\`](https://github.com/o/r/blob/${merge}/src/total.ts#L5-L7) function \`round\` (new)`);
+    expect(markdown).toContain(`| 🟢 | \`applyDiscount\` | modified | [\`src/total.ts:1-3\`](https://github.com/o/r/blob/${merge}/src/total.ts#L1-L3) |`);
   });
 
   it('says what the change might do when the record ran the changed module as other text', async () => {
@@ -202,9 +213,13 @@ describe('a review of what a change did, after the run that recorded it', () => 
     expect(answer.runs).not.toHaveProperty('standing');
     expect(formatReview(answer, 'text')).toContain('the commit the recording was at before these runs. 2 runs recorded 1 test file.');
     const select = `\`variance select --since ${first.slice(0, 12)}\``;
-    expect(formatReview(answer, 'markdown')).toContain(`🎯 All 1 test file ran at this commit. ${select} lists the ones this change reaches.`);
+    // The runs record names no commit of its own, so the comment names none either.
+    expect(formatReview(answer, 'markdown')).toContain(`🎯 All 1 test file ran in these runs. ${select} lists the ones this change reaches.`);
     expect(formatReview({ ...answer, suite: 4 }, 'markdown')).toContain(
-      `🎯 **1 of 4 test files ran** at this commit, 25% of the suite; the other 3 kept the rows recorded before it. ${select}`,
+      `🎯 **1 of 4 test files ran** in these runs, 25% of the suite; the other 3 kept the rows recorded before them. ${select}`,
+    );
+    expect(formatReview({ ...answer, runs: { ...answer.runs!, commit: 'e'.repeat(40) } }, 'markdown')).toContain(
+      `🎯 All 1 test file ran at \`eeeeeeeeeeee\`. ${select}`,
     );
   });
 
@@ -306,7 +321,7 @@ describe('a review of what a change did, after the run that recorded it', () => 
     const markdown = formatReview(answer, 'markdown');
     expect(markdown).not.toContain('Lost every case');
     expect(markdown).not.toContain('old name');
-    expect(markdown).toContain('No case index was written at this commit for the one test file run at this commit, so no case is compared against the base.');
+    expect(markdown).toContain('No case index was written at `cccccccccccc` for the one test file run there, so no case is compared against the base.');
     expect(formatReview(answer, 'text')).toContain('Not compared, no case index was written at this commit for: test/total.test.ts.');
   });
 
@@ -374,7 +389,7 @@ describe('a review of what a change did, after the run that recorded it', () => 
     expect(answer.motion).toEqual({ base: { from: record, kind: 'before' }, lastRunUnread: record });
     expect(answer.files.find((file) => file.file === 'test/total.test.ts')?.cases).toBeUndefined();
     expect(formatReview(answer, 'markdown')).toContain(
-      'Which test files a run at this commit wrote to the case index could not be read, so no case is compared against the base.',
+      'Which test files a run at `cccccccccccc` wrote to the case index could not be read, so no case is compared against the base.',
     );
     expect(formatReview(answer, 'text')).toContain(`Not compared: ${record} could not be read`);
   });
@@ -411,35 +426,6 @@ describe('a review of what a change did, after the run that recorded it', () => 
     expect(written?.cases).toEqual({ added: ['counts'], removed: [] });
   });
 
-  it('lists a bounded number of moved regions and files in the comment, and cuts the comment to GitHub\'s limit', async () => {
-    const { root, first, against } = await changed();
-    const answer = await review(parse(['--since', first, '--against', against, '--root', root]));
-    expect(answer.motion?.unwritten).toBeUndefined();
-    const regions = Array.from({ length: 100 }, (_, at) => ({
-      file: 'src/total.ts', startLine: at + 1, endLine: at + 1, kind: 'function' as const, name: `f${at + 1}`,
-      motion: 'lost' as const, before: [DISCOUNTS], now: [],
-    }));
-    const unread = Array.from({ length: 50 }, (_, at) => `src/unread-${at}.ts`);
-    const moved = { regions, counts: { lost: 100, hidden: 0, thinned: 0, gained: 0 }, testFiles: [], unread };
-    const unwritten = Array.from({ length: 5000 }, (_, at) => `test/skipped-${at}.chromium.test.ts`);
-
-    const listed = formatReview({ ...answer, motion: { base: { from: against, kind: 'record' }, moved, unwritten } }, 'markdown');
-
-    expect(listed).toContain('  lost     src/total.ts 40-40 function f40 — was test/total.test.ts > discounts');
-    expect(listed).not.toContain('function f41 —');
-    expect(listed).toContain('... and 60 more regions, not listed here; --format json lists every one.');
-    expect(listed).toContain('src/unread-39.ts, and 10 more files, which --format json lists.');
-    expect(listed).toContain('test/skipped-39.chromium.test.ts, and 4960 more test files, which --format json lists.');
-    expect(listed).not.toContain('test/skipped-40.');
-
-    const files = Array.from({ length: 3000 }, (_, at) => ({ file: `src/generated/module-${at}.ts`, created: true }));
-    const cut = formatReview({ ...answer, files }, 'markdown');
-
-    expect(cut.length).toBeLessThanOrEqual(65_536);
-    expect(cut.startsWith(`${REVIEW_MARKER}\n`)).toBe(true);
-    expect(cut).toMatch(/<\/details>\n\n<\/details>\n\n> \d+ characters of this review are not shown, because GitHub rejects a comment longer than 65536\. `--format json` prints the whole review/);
-  });
-
   it('writes the answer beside what it prints when given a directory', async () => {
     const { root, first, against } = await changed();
     const out = join(await mkdtemp(join(tmpdir(), 'variance-review-out-')), 'review');
@@ -456,24 +442,6 @@ describe('a review of what a change did, after the run that recorded it', () => 
     expect(await readFile(join(out, 'review.md'), 'utf8')).toContain(REVIEW_MARKER);
   });
 
-  it('is refused as unrecorded when no run listed itself and no base is named', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'variance-review-bare-'));
-
-    await expect(review(parse(['--root', root]))).rejects.toThrow(/no run has listed itself/);
-  });
-
-  it('refuses a runs record that is there and cannot be read, as an operator error naming it', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'variance-review-unread-'));
-    const runs = commitRunsFile(testCoverageFile(root));
-    await mkdir(runs, { recursive: true });
-
-    const refused = review(parse(['--root', root]));
-
-    await expect(refused).rejects.toBeInstanceOf(OperatorError);
-    await expect(refused).rejects.toThrow(`the runs record at ${runs} could not be read`);
-    await expect(refused).rejects.toThrow('run the suite, which rewrites it; delete it first only if it is a directory.');
-  });
-
   it('carries every declared suite into the saved review when coverage is requested', async () => {
     const { root, first, against } = await changed({ suites: ['unit', 'browser'] });
     const out = join(await mkdtemp(join(tmpdir(), 'variance-review-evidence-')), 'review');
@@ -487,9 +455,5 @@ describe('a review of what a change did, after the run that recorded it', () => 
     expect(printed).toContain('| `browser` | Unrecorded |');
     expect(printed).toContain('### Test evidence');
     expect(await readFile(join(out, 'review.md'), 'utf8')).toBe(printed);
-  });
-
-  it('refuses a format it does not write', () => {
-    expect(() => parse(['--format', 'html'])).toThrow(/--format must be text, markdown or json/);
   });
 });

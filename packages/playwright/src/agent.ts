@@ -1,4 +1,4 @@
-import type { Viewport } from '@variance-authority/core/format';
+import type { PageRegion, Viewport } from '@variance-authority/core/format';
 
 /**
  * The contract between the harness (Node) and the page (browser).
@@ -29,8 +29,11 @@ import type { Viewport } from '@variance-authority/core/format';
  */
 export const AGENT_GLOBAL = '__variance_authority_page_agent__';
 
-/** Everything the page needs that only the harness knows. */
-export interface CaptureRequest {
+/**
+ * Everything the page needs that only the harness knows. Its region is the one
+ * the harness opened the page in, for the environment key.
+ */
+export interface CaptureRequest extends PageRegion {
   /** Opaque to the harness; the bundle decides what a subject is. */
   readonly subject: string;
   readonly variant: string;

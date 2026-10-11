@@ -170,10 +170,13 @@ chromium_('the additive Playwright path', () => {
       },
     });
     try {
-      const incomparable = await changedIdentity.observe(page!.locator('#cart'), {
+      // Compared anyway, with the launch arguments that moved named as the cause.
+      const moved = await changedIdentity.observe(page!.locator('#cart'), {
         subjectId: 'cart/in-place',
       });
-      expect(incomparable.verdict).toBe('incomparable');
+      expect(['unchanged', 'changed']).toContain(moved.verdict);
+      expect(moved.signals?.identity).toBeDefined();
+      expect(moved.signals?.moved?.length).toBeGreaterThan(0);
     } finally {
       await changedIdentity.close();
     }

@@ -56,3 +56,39 @@ describe('a configuration that records what it ran', () => {
     ]);
   });
 });
+
+describe('a configuration whose specs are cut statement by statement', () => {
+  // Beside the wrapper, which is where Playwright `require`s it from.
+  const PLUGIN = expect.stringMatching(/^\/.*\/cadence-babel\.cjs$/u);
+
+  it('compiles every spec with the cadence plugin by default', () => {
+    expect(withTestSelection({})['@playwright/test']).toEqual({ babelPlugins: [[PLUGIN]] });
+  });
+
+  it('keeps the plugins the configuration already had, ahead of the cut', () => {
+    const wrapped = withTestSelection({ '@playwright/test': { babelPlugins: [['/repo/own.cjs', { on: true }]], other: 1 } });
+
+    expect(wrapped['@playwright/test']).toEqual({ babelPlugins: [['/repo/own.cjs', { on: true }], [PLUGIN]], other: 1 });
+  });
+
+  it('leaves the cut it requires untranspiled, beside what the configuration already left', () => {
+    // Linked into a workspace, sense resolves outside `node_modules`, and
+    // Playwright's transpiler would load its ES modules as CommonJS.
+    const SENSE = expect.stringMatching(/^\*\*\/.*\/sense\/dist\/\*\*$/u);
+
+    expect(withTestSelection({}).build).toEqual({ external: [SENSE] });
+    expect(withTestSelection({ build: { external: ['**/*bundle.js'], other: 1 } }).build).toEqual({
+      external: ['**/*bundle.js', SENSE],
+      other: 1,
+    });
+  });
+
+  it('compiles the specs as they were when cadence is off', () => {
+    const config = { '@playwright/test': { babelPlugins: [['/repo/own.cjs']] }, build: { external: ['**/*bundle.js'] } };
+
+    expect(withTestSelection({}, { cadence: false })).not.toHaveProperty('@playwright/test');
+    expect(withTestSelection({}, { cadence: false })).not.toHaveProperty('build');
+    expect(withTestSelection(config, { cadence: false })['@playwright/test']).toBe(config['@playwright/test']);
+    expect(withTestSelection(config, { cadence: false }).build).toBe(config.build);
+  });
+});

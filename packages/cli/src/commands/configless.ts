@@ -110,6 +110,13 @@ export async function answerConfigless(
     // are the whole input, so a project that has never configured this tool can
     // still be handed a pair of files somebody else recorded.
     case 'distill': {
+      if (parsed.format === 'jsonl') {
+        const { distillRows } = await import('./distill.js');
+        const { rows, unrecorded } = await distillRows(parsed);
+        for (const row of rows) streams.out(`${JSON.stringify(row)}\n`);
+        if (unrecorded !== undefined) streams.err(`Not recorded: ${unrecorded.length === 1 ? 'suite' : 'suites'} ${unrecorded.join(', ')}.\n`);
+        return EXIT_CLEAN;
+      }
       const { distillFiles, formatDistill } = await import('./distill.js');
       streams.out(formatDistill(await distillFiles(parsed), parsed.format));
       return EXIT_CLEAN;
@@ -181,6 +188,11 @@ export async function answerConfigless(
         streams.out(formatReview(await reviewFromRun({ run: parsed.fromRun, artifact: parsed.artifact ?? REVIEW_ARTIFACT, root: parsed.root }), parsed.format));
         return EXIT_CLEAN;
       }
+      if (parsed.format === 'handover') {
+        const { formatHandover, handover } = await import('./review-handover.js');
+        streams.out(formatHandover(await handover(parsed)));
+        return EXIT_CLEAN;
+      }
       const answer = await reviewWithCoverage(parsed);
       if (parsed.out !== undefined) {
         await mkdir(parsed.out, { recursive: true });
@@ -248,19 +260,8 @@ export async function answerConfigless(
     // splits by, in a repository that may configure this tool for nothing else.
     case 'shards': {
       const { shardsOutput } = await import('./shards-command.js');
-      const { suite, since, collected, setup, budget, max, workers, unrecorded, format } = parsed;
-      streams.out(await shardsOutput({
-        cwd: process.cwd(),
-        setup,
-        format,
-        ...(suite === undefined ? {} : { suite }),
-        ...(since === undefined ? {} : { since }),
-        ...(collected === undefined ? {} : { collected }),
-        ...(budget === undefined ? {} : { budget }),
-        ...(max === undefined ? {} : { max }),
-        ...(workers === undefined ? {} : { workers }),
-        ...(unrecorded === undefined ? {} : { unrecorded }),
-      }));
+      const { command: _shards, ...asked } = parsed;
+      streams.out(await shardsOutput({ cwd: process.cwd(), ...asked }));
       return EXIT_CLEAN;
     }
 

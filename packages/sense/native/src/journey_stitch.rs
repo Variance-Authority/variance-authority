@@ -10,7 +10,7 @@ use crate::journey_columns;
 use crate::journey_format::{self, EncodedModule, Gaps, SetPool};
 use crate::journey_journal::{self, Test};
 use crate::journey_output;
-use crate::journey_record::{self, Block, Module};
+use crate::journey_record::{self, Block, Module, NO_OWNER};
 use crate::order;
 
 #[napi(object)]
@@ -65,6 +65,12 @@ struct ShardModule {
     loaded: Vec<bool>,
 }
 
+/// One way a file was cut, with the owners that cut named where known.
+struct Inventory {
+    blocks: Vec<Block>,
+    owners: Option<Vec<u32>>,
+}
+
 struct Stitched {
     bytes: Vec<u8>,
     tests: u32,
@@ -80,7 +86,7 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
         return Err("no journey artifacts were named".to_owned());
     }
     let mut shards = Vec::with_capacity(files.len());
-    let mut inventories: HashMap<String, Vec<Vec<Block>>> = HashMap::new();
+    let mut inventories: HashMap<String, Vec<Inventory>> = HashMap::new();
     for file in files {
         let bytes = fs::read(file).map_err(|error| format!("cannot read {file}: {error}"))?;
         let shard = read_shard(&bytes, &mut inventories)
@@ -93,13 +99,13 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
     // joined by its own and the union is numbered again, as one fold over every
     // shard's frames numbers it; otherwise it is joined by case id.
     let by_runner = shards.iter().all(|shard| shard.tests.iter().all(|test| test.runner.is_some()));
-    let key = |test: &Test| -> (String, String, String) {
+    let key = |test: &Test| -> (String, String, String, Option<String>) {
         match &test.runner {
-            Some(runner) if by_runner => (test.file.clone(), test.name.clone(), runner.clone()),
-            _ => (test.id.clone(), String::new(), String::new()),
+            Some(runner) if by_runner => (test.file.clone(), test.name.clone(), runner.clone(), test.project.clone()),
+            _ => (test.id.clone(), String::new(), String::new(), None),
         }
     };
-    let mut tests_by_key: HashMap<(String, String, String), Test> = HashMap::new();
+    let mut tests_by_key: HashMap<(String, String, String, Option<String>), Test> = HashMap::new();
     for test in shards.iter().flat_map(|shard| &shard.tests) {
         if let Some(before) = tests_by_key.get_mut(&key(test)) {
             if before.file != test.file || before.name != test.name {
@@ -119,11 +125,12 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
     if by_runner {
         tests.sort_by(|left, right| {
             let runner = |test: &Test| test.runner.clone().unwrap_or_default();
-            case_id::order((&left.file, &left.name, &runner(left)), (&right.file, &right.name, &runner(right)))
+            case_id::order((&left.file, &left.name, left.project.as_deref(), &runner(left)),
+                (&right.file, &right.name, right.project.as_deref(), &runner(right)))
         });
         let mut ids = CaseIds::default();
         for test in &mut tests {
-            test.id = ids.next(&test.file, &test.name)?;
+            test.id = ids.next(&test.file, &test.name, test.project.as_deref())?;
         }
     }
     tests.sort_by(|left, right| {
@@ -131,7 +138,7 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
             .then_with(|| order::code_unit(&left.file, &right.file))
             .then_with(|| order::code_unit(&left.name, &right.name))
     });
-    let test_at: HashMap<(String, String, String), u32> = tests
+    let test_at: HashMap<(String, String, String, Option<String>), u32> = tests
         .iter()
         .enumerate()
         .map(|(at, test)| (key(test), at as u32))
@@ -140,24 +147,30 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
         shard.local_to_global = shard.tests.iter().map(|test| test_at[&key(test)]).collect();
     }
 
-    let mut shapes: Vec<(String, Vec<Vec<Block>>)> = inventories.into_iter().collect();
+    let mut shapes: Vec<(String, Vec<Inventory>)> = inventories.into_iter().collect();
     shapes.sort_by(|left, right| order::code_unit(&left.0, &right.0));
     let mut modules = Vec::with_capacity(shapes.len());
     let mut landings: Vec<Vec<Vec<u32>>> = Vec::with_capacity(shapes.len());
     let mut renumbered = Vec::new();
     for (file, mut held) in shapes {
-        let (blocks, lands) = if held.len() == 1 {
-            (held.pop().unwrap_or_default(), Vec::new())
-        } else {
-            let cut: Vec<&[Block]> = held.iter().map(Vec::as_slice).collect();
-            let reconciled = journey_record::reconcile(&cut);
-            renumbered.push(file.clone());
-            (reconciled.blocks, reconciled.lands)
+        // Owners are positions among the module's own regions, so one cut
+        // carries them as they are and a reconciled one reads them again.
+        let (blocks, owners, lands) = match held.pop() {
+            Some(only) if held.is_empty() => (only.blocks, only.owners, Vec::new()),
+            last => {
+                held.extend(last);
+                let cut: Vec<&[Block]> = held.iter().map(|inventory| inventory.blocks.as_slice()).collect();
+                let owned: Vec<Option<&[u32]>> = held.iter().map(|inventory| inventory.owners.as_deref()).collect();
+                let reconciled = journey_record::reconcile(&cut, &owned);
+                renumbered.push(file.clone());
+                (reconciled.blocks, reconciled.owners, reconciled.lands)
+            }
         };
         modules.push(Module {
             id: file.clone(),
             file,
             blocks,
+            owners,
         });
         landings.push(lands);
     }
@@ -270,7 +283,7 @@ pub fn stitch_journeys_to(files: Vec<String>, output: String) -> napi::Result<Jo
     })
 }
 
-fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) -> Result<Shard, String> {
+fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inventory>>) -> Result<Shard, String> {
     let decoded = journey_columns::decode(bytes, journey_format::FORMAT)?;
     let strings = strings(&decoded)?;
     let ids = decoded.words("tests.id")?;
@@ -282,11 +295,13 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
     let said = if decoded.has(case_preconditions::COLUMN) { Some(decoded.words(case_preconditions::COLUMN)?) } else { None };
     // A shard written before cases carried their runner's id is joined by case id.
     let runners = if decoded.has(case_id::COLUMN) { Some(decoded.words(case_id::COLUMN)?) } else { None };
+    let projects = if decoded.has(case_id::PROJECT_COLUMN) { Some(decoded.words(case_id::PROJECT_COLUMN)?) } else { None };
     if files.len() != ids.len()
         || names.len() != ids.len()
         || settled.as_ref().is_some_and(|column| column.len() != ids.len())
         || said.as_ref().is_some_and(|column| column.len() != ids.len())
         || runners.as_ref().is_some_and(|column| column.len() != ids.len())
+        || projects.as_ref().is_some_and(|column| column.len() != ids.len())
     {
         return Err("test columns disagree".to_owned());
     }
@@ -295,6 +310,8 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
             id: string(&strings, ids[at])?.to_owned(),
             file: string(&strings, files[at])?.to_owned(),
             name: string(&strings, names[at])?.to_owned(),
+            // No column, or `UNNAMED` in it, is a case no named project ran.
+            project: projects.as_ref().map(|column| column[at]).filter(|word| *word != case_id::UNNAMED).map(|word| string(&strings, word).map(str::to_owned)).transpose()?,
             runner: runners.as_ref().map(|column| string(&strings, column[at]).map(str::to_owned)).transpose()?,
             settled: settled.as_ref().map_or(journey_journal::UNSETTLED, |column| column[at]),
             preconditions: match said.as_ref().map(|column| column[at]) {
@@ -313,11 +330,14 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
     let starts = decoded.words("blocks.start")?;
     let ends = decoded.words("blocks.end")?;
     let sources = decoded.bytes("blocks.source")?;
+    // A shard written before regions named their owners has no owner column.
+    let owners = if decoded.has(journey_format::OWNER) { Some(decoded.words(journey_format::OWNER)?) } else { None };
     if module_blocks.len() != module_files.len() + 1 || called.len() != loaded.len() {
         return Err("module columns disagree".to_owned());
     }
     if [block_names.len(), paths.len(), starts.len(), ends.len(), sources.len(), called.len()]
         .into_iter()
+        .chain(owners.as_ref().map(Vec::len))
         .any(|length| length != kinds.len())
     {
         return Err("block columns disagree".to_owned());
@@ -340,14 +360,8 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
                 source: sources[block] == 1,
             }))
             .collect::<Result<_, String>>()?;
-        let held = inventories.entry(file.clone()).or_default();
-        let inventory = match held.iter().position(|known| *known == blocks) {
-            Some(inventory) => inventory,
-            None => {
-                held.push(blocks);
-                held.len() - 1
-            }
-        };
+        let owned = owners.as_ref().map(|column| column[first..last].to_vec());
+        let inventory = held_inventory(inventories.entry(file.clone()).or_default(), &file, blocks, owned)?;
         modules.push(ShardModule {
             file,
             inventory,
@@ -363,6 +377,34 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
         local_to_global: Vec::new(),
         gaps: journey_format::read_gaps(&decoded, &strings)?,
     })
+}
+
+/// Where `blocks` stands among the cuts of `file` read so far, with the owners
+/// a shard named for it. An owner is a region before its own, so one that is
+/// not is refused before a walk up the owners could follow it. One cut names
+/// one set of owners: a shard that carries them fills in for one written
+/// before they were, and two shards naming different owners for one cut are
+/// refused rather than one picked.
+fn held_inventory(held: &mut Vec<Inventory>, file: &str, blocks: Vec<Block>, owned: Option<Vec<u32>>) -> Result<usize, String> {
+    if owned.as_ref().is_some_and(|owners| owners.iter().enumerate().any(|(at, owner)| *owner != NO_OWNER && *owner as usize >= at)) {
+        return Err(format!("{file} names an owner after its region in {}", journey_format::OWNER));
+    }
+    match held.iter().position(|known| known.blocks == blocks) {
+        Some(inventory) => {
+            match (&held[inventory].owners, &owned) {
+                (Some(known), Some(named)) if known != named => {
+                    return Err(format!("two shards name different owners for one cut of {file} in {}", journey_format::OWNER));
+                }
+                (None, Some(_)) => held[inventory].owners = owned,
+                _ => {}
+            }
+            Ok(inventory)
+        }
+        None => {
+            held.push(Inventory { blocks, owners: owned });
+            Ok(held.len() - 1)
+        }
+    }
 }
 
 pub(crate) fn strings(decoded: &journey_columns::Decoded) -> Result<Vec<String>, String> {
@@ -451,3 +493,7 @@ pub(crate) fn decode_set(bytes: &[u8], tests: usize) -> Result<Vec<u32>, String>
     }
     Ok(members)
 }
+
+#[cfg(test)]
+#[path = "journey_stitch_tests.rs"]
+mod tests;

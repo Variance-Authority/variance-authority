@@ -82,7 +82,7 @@ npx variance-authority-help search viewport --from packages/app/ --just-answer
 
 The verbs each take the same arguments as the tool of the same name below:
 `packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `orient`,
-`slowest-tests`, `journey-map`, `stack`, `gaps`. An entrypoint is
+`slowest-tests`, `journey-map`, `test-composition`, `stack`, `gaps`. An entrypoint is
 one import specifier a package's `exports` map opens — `@scope/pkg` and
 `@scope/pkg/deep` are two of them. Add `--root <dir>` when you are not standing
 in the repository you are asking about.
@@ -134,7 +134,7 @@ interface Viewport
 
 Nothing is written above this declaration.
 
-docs_uses names the 60 places this is imported, nearest to a file you name first.
+docs_uses names the 60 places another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.
 ```
 
 ## The questions
@@ -147,13 +147,14 @@ stays available without taking space from the first answer.
 |---|---|---|
 | `packages` / `docs_packages` | nothing | every import specifier the repository publishes, with how heavily used and how well documented each is, for each package that declares no entry, how many of its names and files other packages import by path, and for each package that declares one, how many imports reach past it; then the `entrypoint --package` questions for the most-imported specifier and the first row of each count |
 | `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first. Asked by a package's name, also the imports that reach past its entry, or, for a package that declares no entry, the imports of its files by path, counted one row per file; asked by one of those files' specifiers, how many files import each name through it; for a package that opens only subpaths, the specifiers it opens in place of the names. Ends with the narrower questions: the first row's specifier, and `uses` on the name the most files take through it |
-| `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it |
-| `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first |
-| `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, then the names exported without being published, then the ones only a looser reading finds |
+| `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it; for a name a file exports and no entry publishes, the file, the line and how many imports reach that file, directly or through a file that passes it on |
+| `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well. For a name a file exports and no entry publishes, the imports the source index resolved |
+| `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, then the ones only a looser reading finds |
 | `grep` / `docs_grep` | a pattern, and a path to answer from | the lines `rg` matches in the files that path imports, or that import it, nearest first |
 | `orient` / `docs_orient` | nothing, an area id, or files you already have as paths from the root | with no files, the code map `variance index` keeps beside the source index: areas of packages with their size, dependency layers, most-imported packages and the areas they import from. With files, the package each file is in with the names it imports from other packages and the names they import from it, the recorded test cases that ran each file, the functions in other files that call into it and those it calls, with how each call is known, the [package flows](https://variance-authority.dev/docs/orientation#choose-the-entrance-from-what-you-have) those cases take through it, and the narrower questions to ask next; `path:line` narrows the calls to the function holding that line |
 | `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have entered (`to`), and how many rows to list | the test files, then the test cases, the latest recorded run spent longest in, with the duration their runner reported, and how many recorded files and cases have none |
 | `journey-map` / `docs_journey_map` | one file, optionally words of the task | how many recorded tests entered that file, the paths through each of its functions, then the code beyond it those tests entered, nearest first |
+| `test-composition` / `docs_test_composition` | a test file, optionally the test's name or a word of it | the smaller tests whose recorded regions sit inside this test's (its pieces), the larger tests holding it (its wholes), and the regions no piece entered: modules only it enters, and paths through a piece's modules only it takes. Regions more than half the suite entered are counted apart as structure. [Ask what one test is made of](https://variance-authority.dev/docs/own-fewer-tests#ask-what-one-test-is-made-of) |
 | `stack` / `docs_stack` | a file or folder | every third-party package that location can already use: its role, how the owning manifest declares it, its version, how many times the code imports it, and each agent skill it ships in `skills/<name>/SKILL.md`, with the file to read. [Use the packages your project already installed](https://variance-authority.dev/docs/tech-stack) |
 | `gaps` / `docs_gaps` | nothing | names other packages import that carry no documentation |
 
@@ -346,7 +347,7 @@ npx variance-authority-help .
 
 The tools are named `docs_packages`, `docs_entrypoint`, `docs_symbol`,
 `docs_uses`, `docs_search`, `docs_grep`, `docs_orient`, `docs_slowest_tests`,
-`docs_journey_map`, `docs_stack` and `docs_gaps`, and they answer in the same
+`docs_journey_map`, `docs_test_composition`, `docs_stack` and `docs_gaps`, and they answer in the same
 words as the verbs above. `variance serve` serves the same tools under the same names,
 so a workspace with the CLI declares one server and asks it about both the run
 and the source.

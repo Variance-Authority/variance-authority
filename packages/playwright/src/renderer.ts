@@ -4,10 +4,12 @@ import {
   conflicts,
   digestValue,
   documentDigest,
+  driveBeforeLoad,
   recipeCss,
   recipeDigest,
   recipeScreenshot,
   settleRecipe,
+  type PageRegion,
   type Raster,
   type Recipe,
   type RenderDocument,
@@ -16,6 +18,7 @@ import {
 } from '@variance-authority/core/format';
 import { captureSubject } from './capture.js';
 import { ENGINE_TYPES, type BrowserEngine } from './engines.js';
+import { pinnedRegion } from './viewport.js';
 import {
   assertClosedResources,
   refuseMissingResources,
@@ -62,9 +65,10 @@ import {
  * ## Why this needs no new comparison rule
  *
  * The engine is already in {@link RenderIdentity}, which already keys the store
- * and already decides comparability. A WebKit baseline therefore lands in its own
- * directory, and a Chromium run that finds it reports `incomparable` and names
- * both engines — by the machinery that was there for two laptops, unchanged.
+ * and already names the cause of a cross-machine change. A WebKit baseline
+ * therefore lands in its own directory, and a Chromium run that finds it is
+ * compared with it and names both engines as the cause — by the machinery that
+ * was there for two laptops, unchanged.
  * Nothing about cross-engine support required a cross-engine concept.
  *
  * **What is not claimed.** The tricks in the stabilization recipe are written
@@ -90,7 +94,8 @@ export const CHROMIUM_RASTER_ARGS = [
   '--font-render-hinting=none',
 ] as const;
 
-export interface PlaywrightRendererOptions {
+/** Each page opens in {@link PageRegion}'s timezone and language: `UTC` and `en-US` by default. */
+export interface PlaywrightRendererOptions extends PageRegion {
   readonly headless?: boolean;
 
   /**
@@ -110,8 +115,8 @@ export interface PlaywrightRendererOptions {
    * Asserted, not detected: a page can ask whether a family resolves, and cannot
    * read the bytes behind it. This is the caller's declaration of what the
    * machine is, and it goes straight into the identity digest — which is the
-   * mechanism by which a durable baseline written on a machine with a different
-   * font stack is reported incomparable instead of compared.
+   * mechanism by which a change against a durable baseline written on a machine
+   * with a different font stack names the font stack as its cause.
    */
   readonly fonts?: readonly string[];
 
@@ -127,9 +132,8 @@ export interface PlaywrightRendererOptions {
    * with a different mechanism, or add its own without editing this package.
    * Every shipped trick is applied from outside the subject, so nothing in the
    * product is shaped by it. The recipe is folded into the renderer's identity:
-   * a baseline made under one recipe and a run made under another are
-   * `incomparable`, not `changed`, because what differs is this option rather
-   * than anybody's code.
+   * a baseline made under one recipe and a run made under another are compared,
+   * and what changed names this option as its cause rather than anybody's code.
    */
   readonly stabilization?: Recipe;
 
@@ -163,6 +167,7 @@ export async function createPlaywrightRenderer(
   const browser = await ENGINE_TYPES[engine].launch({ headless, args: [...launchArgs] });
   const recipe = options.stabilization ?? RASTER_RECIPE;
   const holdStill = recipeCss(recipe);
+  const settledWithoutWaits = recipe.filter((intervention) => intervention.trick !== 'wait');
   const shot = recipeScreenshot(recipe);
   // Two objects, because two identity fields ask different questions. `raster`
   // is what this renderer decided; `screenshot` is that plus whatever the recipe
@@ -180,6 +185,8 @@ export async function createPlaywrightRenderer(
         clashes.map((clash) => `${clash.governs} (${clash.ids.join(', ')})`).join('; '),
     );
   }
+
+  const region = pinnedRegion(options);
 
   try {
     const identity: RenderIdentity = {
@@ -200,21 +207,35 @@ export async function createPlaywrightRenderer(
       // keeps the same digest. Folding `shot` in as well made `rasterization`
       // disagree: `hideCaret` moved from `screenshot: { caret: 'hide' }` to a
       // `caret-color` hold in 0.2.0, the images came out byte-identical, and
-      // every baseline in the world went `incomparable` over a spelling.
+      // every baseline in the world was refused over a spelling.
       //
       // What belongs here is what the machine does to the pixels no recipe
-      // asked for: which browser, launched how, photographed into what format.
+      // asked for: which browser, launched how, opened in which timezone and
+      // locale, photographed into what format. The page's scripts run here, so
+      // a date they format is painted in this renderer's timezone, not the one the
+      // collector read in; an image from another timezone is not this one's.
       rasterization: digestValue({
         browser: { headless, launchArgs: [...launchArgs] },
+        page: region,
         screenshot: raster,
       }),
     };
 
     const concurrency = Math.max(1, options.concurrency ?? 1);
     const activeResources = new WeakMap<BrowserContext, Set<string>>();
-    const pool = new PagePool(browser, concurrency, (context, url) => {
-      activeResources.get(context)?.add(`websocket ${url}`);
-    });
+    const pool = new PagePool(
+      browser,
+      concurrency,
+      region,
+      (context, url) => {
+        activeResources.get(context)?.add(`websocket ${url}`);
+      },
+      // Once per page: the pointer, the clock and the media preference survive
+      // `setContent`, and nothing in a render moves the pointer.
+      async (page) => {
+        await driveBeforeLoad(recipe, page);
+      },
+    );
 
     // One expression, used by `render` to stamp the raster and by the pipeline
     // to look a baseline up. Two expressions is how the write key and the lookup
@@ -251,9 +272,10 @@ export async function createPlaywrightRenderer(
           // would discard a sheet added before it.
           if (holdStill !== '') await page.addStyleTag({ content: holdStill });
 
-          // Every wait the recipe asks for, and nothing else. A recipe with no
-          // waits — the structure-and-style rung — pays for none of this.
-          if (options.waitForFonts !== false) await settleRecipe(recipe, page);
+          // Every settle the recipe asks for, and nothing else. A recipe with no
+          // waits — the structure-and-style rung — pays for none of this, and
+          // `waitForFonts: false` turns off the waits alone: `no-focus` still runs.
+          await settleRecipe(options.waitForFonts === false ? settledWithoutWaits : recipe, page);
 
           const missingFonts = await page.evaluate(probeFonts, familiesOf(document.fonts));
 
@@ -378,7 +400,10 @@ function probeFonts(families: readonly string[]): string[] {
 class PagePool {
   readonly #browser: Browser;
   readonly #limit: number;
+  readonly #region: Required<PageRegion>;
   readonly #onWebSocket: (context: BrowserContext, url: string) => void;
+  /** The recipe's driver tricks, applied to each page as it opens. */
+  readonly #drive: (page: Page) => Promise<void>;
   /** Idle pages, per viewport key. A render takes one and puts it back. */
   readonly #idle = new Map<string, Page[]>();
   #leased = 0;
@@ -387,11 +412,15 @@ class PagePool {
   constructor(
     browser: Browser,
     limit: number,
+    region: Required<PageRegion>,
     onWebSocket: (context: BrowserContext, url: string) => void,
+    drive: (page: Page) => Promise<void>,
   ) {
     this.#browser = browser;
     this.#limit = limit;
+    this.#region = region;
     this.#onWebSocket = onWebSocket;
+    this.#drive = drive;
   }
 
   /**
@@ -443,9 +472,11 @@ class PagePool {
       viewport: { width: viewport.width, height: viewport.height },
       deviceScaleFactor: viewport.deviceScaleFactor,
       colorScheme: viewport.colorScheme,
+      ...this.#region,
       serviceWorkers: closed ? 'block' : 'allow',
     });
     const page = await context.newPage();
+    await this.#drive(page);
     if (closed) {
       await context.routeWebSocket(/.*/, async (route) => {
         this.#onWebSocket(context, route.url());

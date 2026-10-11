@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { heardAcross, heardOf } from './case-precondition-column.js';
 import { packCase, settledAcross, timedAcross, unpackCase } from './cases.js';
+import { linesAcross } from './reached-lines.js';
 import { codeUnitOrder, isMissing } from './instrumented-modules.js';
 import type { ObservedEyes } from './eyes-record.js';
 import { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
@@ -115,7 +116,7 @@ export async function foldStage(directory: string): Promise<StagedExecution> {
 }
 
 function caseOwner(observed: ObservedCase): string {
-  return packCase(observed.file, observed.name, observed.id);
+  return packCase(observed.file, observed.name, observed.id, observed.project);
 }
 
 /** What the workers wrote, ordered by who it belongs to and then by itself. */
@@ -134,7 +135,10 @@ function inWrittenOrder<T>(written: readonly T[], owner: (one: T) => string): re
  * first.
  */
 function foldCases(observations: readonly ObservedCase[]): readonly ObservedCase[] {
-  const settled = new Map<string, { stopped?: boolean; duration?: number; said?: ObservedCase['said']; eyes?: readonly ObservedEyes[] }>();
+  const settled = new Map<
+    string,
+    { stopped?: boolean; duration?: number; said?: ObservedCase['said']; eyes?: readonly ObservedEyes[]; lines?: ObservedCase['lines'] }
+  >();
   const staging = observations.map((observed) => {
     const owner = caseOwner(observed);
     const held = settled.get(owner) ?? {};
@@ -143,6 +147,7 @@ function foldCases(observations: readonly ObservedCase[]): readonly ObservedCase
       ...settledAcross(held.stopped, observed.stopped),
       ...timedAcross(held.duration, observed.duration),
       ...heardOf(heardAcross(held.said, observed.said)),
+      ...linesAcross(held.lines, observed.lines),
       ...(held.eyes === undefined && observed.eyes === undefined ? {} : { eyes }),
     });
     return { owner, journal: observed.journal };

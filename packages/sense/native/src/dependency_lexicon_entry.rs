@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::{fs, path::{Path, PathBuf}};
 use oxc_allocator::Allocator;
 use sha2::{Digest, Sha256};
-use crate::read::read_module;
+use crate::read::read_module_and_tree;
 use crate::resolve::Resolvers;
 use super::purposes::purpose;
 use super::skilled::skills;
@@ -70,7 +70,9 @@ impl Reader<'_> {
     fn read(&mut self, file: &Path) -> Vec<Name> {
         let Ok(source) = fs::read_to_string(file) else { return Vec::new() };
         self.sources.insert(file.to_owned());
-        let parsed = read_module(&file.to_string_lossy(), &source, &Allocator::default(), true);
+        let path = file.to_string_lossy();
+        let allocator = Allocator::default();
+        let (parsed, program) = read_module_and_tree(&path, &source, &allocator, true);
         if parsed.unknown.is_some() { return Vec::new(); }
         let utf16: Vec<u16> = source.encode_utf16().collect();
         let mut names = BTreeMap::<(String, String), Name>::new();
@@ -136,10 +138,7 @@ impl Reader<'_> {
         }
         if names.is_empty() {
             // `export =` publishes what the module record does not hold, so the
-            // tree answers it, parsed once for both readings.
-            let path = file.to_string_lossy();
-            let allocator = Allocator::default();
-            let program = crate::dependency_namespace::parse(&path, &source, &allocator);
+            // tree the record was read from answers it, for both readings.
             for symbol in crate::dependency_namespace::exported_namespace(&path, &source, &program, &parsed.symbols) {
                 let name = Name { name: symbol.name, kind: symbol.kind,
                     at: relative(self.root, file), line: symbol.line,

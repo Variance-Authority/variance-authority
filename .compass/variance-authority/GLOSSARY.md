@@ -268,9 +268,9 @@ arguments.
 
 ### Product appearance
 
-Why a baseline taken on one machine is *incomparable* on another rather than
-red, and why the store is partitioned so the wrong baseline is not where the
-lookup looks.
+Why a baseline taken on one machine and compared on another names the machine
+as the cause of what moved, and why the store is partitioned so a lookup finds
+this machine's own baseline first.
 
 ### Implementation aliases
 
@@ -338,7 +338,7 @@ The judgement for one subject in one run. A green verdict is never one word.
 
 ### Product appearance
 
-Per subject, one of `unchanged`, `changed`, `new`, `incomparable`, `ignored`.
+Per subject, one of `unchanged`, `changed`, `new`, `ignored`.
 `unstable` and `order-dependent` are carried beside that word rather than
 substituted for it, because a subject reported green by a run that also found it
 unstable is a different object from a subject reported green. **Not observed**
@@ -371,12 +371,12 @@ difference was absorbed by a declared rule.
 The word that lets a suite answer how much of its green it earned and how much
 it declared.
 
-## **Incomparable**
+## **Moved identity**
 
 ### Meaning
 
-The answer when two readings were produced under identities that may not be
-compared, or when one side has evidence the other does not.
+The renderer identity fields that differ between a baseline and the run
+compared with it, each with both values, baseline side first.
 
 ### Bounded context
 
@@ -384,7 +384,15 @@ compared, or when one side has evidence the other does not.
 
 ### Product appearance
 
-Never red and never green. Comparing anyway would be a false claim of sameness.
+The cause a verdict carries, never a verdict: the two images are compared, and
+`signals.identity` says whether only this tool's recipe moved (`recipe`) or
+anything else did (`machine`), while `signals.moved` and the `because` sentence
+name each field. The pull-request comment groups subjects by it under *Painted
+under another identity*.
+
+### Implementation aliases
+
+`signals.identity`, `signals.moved`, `identityCause`
 
 ## **Unobserved**
 
@@ -983,6 +991,24 @@ for a rejection.
 ### Product appearance
 
 One answer per **cause** on the review surface, with the reviewer's name on it.
+
+## **Concern**
+
+### Meaning
+
+What a reviewer suspects about one **subject**: a title, optionally a place on
+the render, evidence and a hypothesis, and an append-only trail from open to
+investigating to resolved. Kept apart from the **decision** on the same subject:
+neither settles the other.
+
+### Bounded context
+
+[**Review**](./DOMAIN.md#review)
+
+### Product appearance
+
+*Looks suspicious* on a subject page, the concerns card under the decision, and
+a count on the build's header.
 
 ## **Changelog**
 

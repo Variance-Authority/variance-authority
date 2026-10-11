@@ -156,9 +156,12 @@ A miss is a refusal on stderr. `variance ask` exits `2`;
 
 A name no entry publishes, but that another package imports by the path of its
 file, is answered rather than refused: where it is declared, why nothing
-publishes it, and each import of it. A name that is exported without being
-published and that nothing imports is still refused, and the refusal names the
-file and line that export it.
+publishes it, and each import of it. A name a file exports and no entry
+publishes is answered too: the file and line that export it, the line as the
+checkout holds it, and how many imports the source index resolved to that file,
+within its package as well as across. Two files that export one name are told
+apart, each with its own count, and an installed name it matches, which a file
+that passes it on exports without declaring, is said after it. Only a name nothing exports is refused.
 
 `symbol` prints what a name is and how to call it. For why it exists and what it
 connects to, read [what is written about a name](written-about-a-name.md).
@@ -175,7 +178,26 @@ no members is left out rather than shown empty.
 A published name that nothing imports is a different answer, not an empty list:
 
 ```
-`PagesOptions` is published and nothing in this workspace imports it. docs_symbol has its signature and what is written above it.
+`PagesOptions` is published and nothing in this workspace imports it; a read through an `export * as` namespace and a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.
+```
+
+The imports within the name's own package come from the source index: every
+import that resolved to the file declaring it, or to a file that passes it on
+with `export … from`, which is followed under the name it exports and is not
+listed itself, in another package as well. A name an entry publishes under
+another name than its declaration is read from that entry. An import of a renamed re-export ends `(as <name>)`. A read
+through an `export * as` namespace, and a call through a qualified path, such as
+Rust's `crate::order::code_unit(…)`, are not listed, and the answer ends by
+saying so. With `--package` naming one subpath specifier, an import through
+another specifier of the same package is left to that one. When the source
+index is missing or does not read, the imports from other packages by their
+published path are still listed, and the answer says why the rest are not.
+
+A name a file exports and no entry publishes is answered from the source index
+alone, the same way. The first line names where it is exported:
+
+```
+`roundTax` is imported in 1 place, and no entry publishes it; it is exported at packages/lib/src/internal/math.ts:5.
 ```
 
 **`uses --from` sorts; `search --from` narrows.** On `uses`, `--from` is the
@@ -195,8 +217,8 @@ specifier before it is the import line you will write, and it goes to
 `--package` when the same name is published from more than one place. So after
 `@variance-authority/core/format · Viewport [interface] …` the next question is
 `symbol --name Viewport`, not `symbol --name @variance-authority/core/format`. An
-unpublished line has a `path:line` instead: there is nothing to pass to
-`symbol`, so open the file.
+unpublished line has a `path:line` instead of a specifier: open the file, or
+pass its name to `symbol` and `uses`, which answer it from the source index.
 
 `variance index` also publishes a lexicon of the installed direct third-party
 packages, and `search` reads it. Once that lexicon exists, every answer has a

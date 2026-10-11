@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { forksBetween, journeysAmong, journeysAround, journeyMap, journeysPath, pathsThrough, prepareJourneys } from './journeys.js';
+import { forksBetween, journeysAmong, journeysAround, journeyMap, journeysPath, pathsThrough, prepareJourneys, testCompositions } from './journeys.js';
 import { updateSourceIndex } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 import { withCaseSections } from './test-selection/case-record.js';
@@ -191,6 +191,15 @@ describe('journeys read as masks', () => {
     expect(forks?.sides?.map((side) => [side.end, side.only, side.near, side.best, side.forks ?? null])).toEqual([['a', 1, 0, 1 / 3, null]]);
     expect(pathsThrough(root, { file: 'src/api.ts', line: 2 }, 'no such suite')).toBeUndefined();
 
+    // Two of three cases entered every region `finds` entered, so all of it is structure and it has no footprint.
+    const [composed] = testCompositions(root, join(root, 'test/api.test.ts'), 'finds');
+    const { composition } = composed ?? {};
+    expect([composition?.test?.name, composition?.test?.blocks, composition?.structure, composition?.alike]).toEqual(['finds', 0, 3, 0]);
+    expect(composition?.own).toEqual([]);
+    expect(testCompositions(root, 'test/api.test.ts')[0]?.composition.notRecorded).toBe(
+      'test/api.test.ts declares 3 recorded tests; name one of them:\n  finds\n  finds again\n  misses',
+    );
+
     const map = journeyMap(root, 'src/api.ts');
     expect([map?.suite, map?.entered, map?.kept, map?.structure, map?.spine, map?.branches]).toEqual([3, 3, 3, 0, [], []]);
     expect(map?.tests.map((test) => [test.name, test.blocks, test.alike])).toEqual([
@@ -203,5 +212,16 @@ describe('journeys read as masks', () => {
       ['put', 2, 1],
     ]);
     expect(journeyMap(root, 'src/api.ts', ['AGAIN'])?.tests.map((test) => test.name)).toEqual(['finds again']);
+  });
+
+  it('compose a test that no other case shares into its own layer alone', () => {
+    record(recording(3));
+
+    const [composed] = testCompositions(root, 'test/api.test.ts', 'gets');
+    const { composition } = composed ?? {};
+    expect([composition?.suite, composition?.test?.blocks, composition?.structure, composition?.explained]).toEqual([4, 2, 0, 0]);
+    expect([composition?.pieces, composition?.wholes, composition?.reached]).toEqual([[], [], []]);
+    expect(composition?.own.map((block) => `${block.file}:${block.line}`)).toEqual(['src/api.ts:1', 'src/api.ts:4']);
+    expect(testCompositions(root, '../elsewhere.test.ts')[0]?.composition.notRecorded).toMatch(/elsewhere/u);
   });
 });

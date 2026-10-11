@@ -2,8 +2,10 @@
 //!
 //! The rules are `narrowByJourneys` (`test-selection/execution-select.ts`), which
 //! stays as the reading when no addon reached the machine and as the oracle this
-//! is tested against. A changed line is charged to the innermost region holding
-//! it and selects the cases that entered that region. A file named whole, a file
+//! is tested against. A changed line is charged as `chargeLine`
+//! (`test-selection/blocks-around.ts`) charges it — the innermost region holding
+//! it, and the region around it too when the line opens a region and carries
+//! its text — and selects the cases that entered a charged region. A file named whole, a file
 //! with no row, and a region that ran while its module evaluated are answered by
 //! the file graph, plus the record's own entrants wherever it holds a row. A
 //! changed test file selects itself, and a path neither knows is `unread`. A
@@ -29,7 +31,7 @@ use napi_derive::napi;
 
 use crate::journey_graph::{Graph, JourneyGraph};
 use crate::journey_query::JourneyChange;
-use crate::journey_read::{innermost_at, overlaps, pairs, Journey, Region};
+use crate::journey_read::{charge_line, holds_any, pairs, Journey, Region};
 
 #[napi(object)]
 pub struct JourneySelection {
@@ -119,13 +121,14 @@ impl<'a> Selecting<'a> {
         let journey = self.journey;
         let settled = read == Some("bodies");
         let candidates: Vec<Region> =
-            journey.regions(module)?.into_iter().filter(|region| overlaps(region, ranges)).collect();
+            journey.regions(module)?.into_iter().filter(|region| holds_any(region, ranges)).collect();
+        let kinds = candidates.iter().map(|region| journey.text(region.kind)).collect::<Result<Vec<_>, _>>()?;
         let mut chosen: Vec<Region> = Vec::new();
-        let mut innermost = Vec::new();
+        let mut charged = Vec::new();
         for (start, end) in ranges {
             for line in (*start).max(1)..=*end {
-                innermost_at(&candidates, line, &mut innermost);
-                chosen.extend(&innermost);
+                charge_line(&candidates, &kinds, line, &mut charged);
+                chosen.extend(&charged);
             }
         }
         chosen.sort_unstable_by_key(|region| region.at);

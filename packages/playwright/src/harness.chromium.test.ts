@@ -145,6 +145,29 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness', () => {
   it('reports nothing on the page console', () => {
     expect(harness.pageErrors()).toEqual([]);
   });
+
+  it('reads the clock in UTC and formats for en-US when the run declares neither', async () => {
+    // The host's timezone and language are what a page gets otherwise, and a date
+    // formatted with neither named renders a different string on every machine.
+    expect(await harness.page.evaluate(regionOf)).toEqual({ timeZone: 'UTC', language: 'en-US' });
+  });
+});
+
+const regionOf = () => ({
+  timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  language: navigator.language,
+});
+
+describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a declared timezone and locale', () => {
+  it('opens the page in the timezone and language the run declares', async () => {
+    const harness = await createHarness({ ...OPTIONS, timezoneId: 'Asia/Tokyo', locale: 'de-DE' });
+
+    try {
+      expect(await harness.page.evaluate(regionOf)).toEqual({ timeZone: 'Asia/Tokyo', language: 'de-DE' });
+    } finally {
+      await harness.close();
+    }
+  }, 60_000);
 });
 
 describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a document the harness did not open', () => {

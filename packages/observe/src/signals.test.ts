@@ -106,7 +106,9 @@ describe('independent document, pixel and browser accessibility signals', () => 
     });
   });
 
-  it('refuses one-sided accessibility evidence instead of reading it as empty', async () => {
+  it('reports one-sided accessibility evidence as a change instead of reading it as empty', async () => {
+    // Evidence that appears on one side is a change in what the subject is
+    // recorded as, and the reviewer who accepts it gives the axis a baseline.
     const before = raster('v1:before', quiet, namedSave);
     const { accessibility: _missing, ...withoutAccessibility } = before;
     void _missing;
@@ -118,15 +120,27 @@ describe('independent document, pixel and browser accessibility signals', () => 
     );
 
     expect(result).toMatchObject({
-      verdict: 'incomparable',
+      verdict: 'changed',
       signals: {
         accessibility: {
-          verdict: 'incomparable',
+          verdict: 'changed',
           after: { roots: ['- button "Submit"'] },
         },
       },
     });
+    expect(result.because).toContain('the baseline has no browser accessibility snapshot');
     expect(result.signals?.accessibility?.before).toBeUndefined();
+  });
+
+  it('compares accessibility trees from different engines and names the engines', async () => {
+    const result = await observeRasters(
+      'button',
+      raster('v1:before', quiet, namedSave),
+      raster('v1:after', quiet, accessibilitySnapshot('webkit@18.0', ['- button "Save"'])),
+    );
+
+    expect(result.verdict).toBe('unchanged');
+    expect(result.signals?.accessibility?.verdict).toBe('unchanged');
   });
 
   it('treats an observed empty ARIA tree as a signal rather than missing evidence', async () => {

@@ -56,8 +56,7 @@ function info(): TestInfo {
 /** The accepted baseline's size, read out of the one PNG the store keeps for the subject. */
 async function storedSize(root: string): Promise<{ width: number; height: number }> {
   const entries = await readdir(root, { recursive: true });
-  // `by-document/` is the render cache beside the baseline, holding the same image.
-  const images = entries.filter((entry) => entry.endsWith('.png') && !entry.includes('by-document'));
+  const images = entries.filter((entry) => entry.endsWith('.png'));
   expect(images).toHaveLength(1);
   const png = await readFile(join(root, images[0]!));
   return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };

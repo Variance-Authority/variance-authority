@@ -83,7 +83,7 @@ export function isKept<T>(answer: Answer<T>): answer is T {
  * A single number would be a lie by aggregation. `structure` compares across
  * tiers and `style` and `geometry` do not, so a blended rate for a project that
  * runs both tiers counts the same edit twice for one band and mixes two
- * incomparable observations for the others.
+ * observations of different things for the others.
  */
 export interface BandChurn {
   readonly band: Band;

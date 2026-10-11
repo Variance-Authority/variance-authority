@@ -129,6 +129,28 @@ describe('distill over a scope of test files', () => {
     expect(answer.out).toContain('  src/cart.ts imports src/chart.ts: 1 module(s) in 1 test file(s), 30 line(s)');
   });
 
+  it('reads `--from` the way the record spells a directory, from the checkout', async () => {
+    // A shell hands over `./app`, `lib/../app` and an editor's absolute path;
+    // each is one directory, and the record names it from the root with `/`.
+    const root = await checkout();
+
+    for (const asked of ['./app', 'lib/../app', join(root, 'app')]) {
+      const answer = await run(['distill', '--from', asked]);
+      expect(answer.err).toBe('');
+      expect(answer.out).toContain('app in suite unit: 1 test file(s), each read.');
+    }
+  });
+
+  it('refuses a `--from` outside the checkout rather than reading nothing under it', async () => {
+    const root = await checkout();
+    const elsewhere = join(dirname(root), 'elsewhere');
+
+    const answer = await run(['distill', '--from', elsewhere]);
+
+    expect(answer.code).toBe(EXIT_OPERATOR);
+    expect(answer.err).toContain(`${elsewhere} is outside the checkout at ${root}`);
+  });
+
   it('names a declared suite that has not recorded, and reads the rest', async () => {
     await checkout({ e2e: false });
 
@@ -173,5 +195,53 @@ describe('distill over a scope of test files', () => {
 
     expect(answer.code).toBe(EXIT_OPERATOR);
     expect(answer.err).toContain('--from');
+  });
+
+  it('writes one JSON line for each test file of the scope with `--format jsonl`', async () => {
+    await checkout();
+
+    const answer = await run(['distill', '--format', 'jsonl']);
+
+    expect(answer.code).toBe(EXIT_CLEAN);
+    expect(answer.out.endsWith('\n')).toBe(true);
+    const row = (suite: string, file: string) =>
+      ({ suite, file, cases: 1, loaded: { modules: 2, lines: 35 }, unentered: { modules: 1, lines: 30 } });
+    expect(answer.out.trimEnd().split('\n').map((line) => JSON.parse(line))).toEqual([
+      row('e2e', E2E[0]!),
+      ...UNIT.map((file) => row('unit', file)),
+    ]);
+  });
+
+  it('names a suite that has not recorded on stderr, beside the rows of the rest', async () => {
+    await checkout({ e2e: false });
+
+    const answer = await run(['distill', '--format', 'jsonl']);
+
+    expect(answer.code).toBe(EXIT_CLEAN);
+    expect(answer.out.trimEnd().split('\n')).toHaveLength(UNIT.length);
+    expect(answer.err).toBe('Not recorded: suite e2e.\n');
+  });
+
+  it('refuses `--format jsonl` beside `--test` or `--file`, which read no scope', async () => {
+    await checkout();
+
+    const answers = [
+      await run(['distill', '--file', 'cart.test', '--format', 'jsonl']),
+      await run(['distill', '--test', 'cart.test > adds', '--format', 'jsonl']),
+    ];
+
+    for (const answer of answers) {
+      expect(answer.code).toBe(EXIT_OPERATOR);
+      expect(answer.err).toContain('`--format jsonl` writes one line for each test file of a scope');
+    }
+  });
+
+  it('names jsonl among the formats when it refuses one it does not write', async () => {
+    await checkout();
+
+    const answer = await run(['distill', '--format', 'yaml']);
+
+    expect(answer.code).toBe(EXIT_OPERATOR);
+    expect(answer.err).toContain('--format must be text, json or jsonl, not `yaml`');
   });
 });

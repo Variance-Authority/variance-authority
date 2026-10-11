@@ -230,8 +230,8 @@ describe('a store that cannot answer', () => {
   });
 
   it('refuses a baseline whose comparability it was not told', async () => {
-    // Neither default is available. `true` compares two machines; `false` reports
-    // every subject incomparable. Both are verdicts invented by a parser.
+    // Neither default is available. `true` hides a moved machine; `false` names
+    // one on every subject. Both are causes invented by a parser.
     const store = createRemoteStore({
       endpoint: 'http://stub',
       fetch: async () =>

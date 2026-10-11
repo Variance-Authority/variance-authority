@@ -23,10 +23,13 @@
 import { execFileSync } from 'node:child_process';
 import { readFile, rm } from 'node:fs/promises';
 import { carriedSources } from './carried-sources.js';
+import { followRowsIn } from './case-cuts.js';
+import { textsIn, type ModuleTexts } from './case-landing.js';
 import { caseSectionsOf, withCaseSections } from './case-record.js';
 import { layerCaseIndex } from './case-layer.js';
 import { commitRunsFile, readCommitRuns, writeCommitRuns, type CommitRuns, type StandingEntry } from './commit-runs.js';
-import { decodeSetExecutionIndex, encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
+import { linesOf } from './case-lines.js';
+import { decodeSetExecutionIndex, encodeOwnedSetExecutionIndex, openSetColumns, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes } from './eyes-record.js';
 import { decodeTestCoverage } from './format.js';
 import { layerTestCoverage } from './format-layer.js';
@@ -95,6 +98,7 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
   let own: TestCoverage;
   let milestone: Buffer;
   let instrumentation: string;
+  let texts: ModuleTexts;
   try {
     ownBytes = await readFile(coverageFile);
     own = decodeTestCoverage(ownBytes);
@@ -106,6 +110,7 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
     // Rows recorded under other probes cannot be laid over the milestone's:
     // it answers for every test.
     instrumentation = whole.view.instrumentation;
+    texts = textsIn(whole.view);
   } catch {
     return { repinned: false, why: 'unreadable' };
   }
@@ -125,9 +130,12 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
 
   const ownCases = caseSectionsOf(ownBytes);
   const milestoneCases = caseSectionsOf(milestone);
-  const cases = repinnedCases(milestoneCases.index, ownCases.index, kept);
-  const eyes = repinnedEyes(milestoneCases.eyes, ownCases, cases, kept);
   const view = openTestCoverage(bytes);
+  // The milestone's rows of a module this checkout did not record may have been
+  // re-cut to the text on disk; the cases held for it are laid onto the same cut.
+  const laid = repinnedCases(milestoneCases.index, ownCases.index, kept);
+  const cases = laid === undefined ? undefined : followRowsIn({ index: laid }, view, texts).index;
+  const eyes = repinnedEyes(milestoneCases.eyes, ownCases, cases, kept);
   const recorded = Array.from(view.testPath.all(), (path) => view.string(path));
   const runs = repinnedRuns(await readCommitRuns(coverageFile), own.commit, record, states, recorded, kept);
 
@@ -170,8 +178,9 @@ function ownSubset(own: TestCoverage, tests: ReadonlySet<string>): TestCoverage 
  * record's own. Without either there is nothing this checkout's cases could
  * be laid on, and the record carries none.
  */
-function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array | undefined, tests: ReadonlySet<string>): Uint8Array | undefined {
-  if (own === undefined || openSetExecutionIndex(own) === undefined || tests.size === 0) return milestone;
+export function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array | undefined, tests: ReadonlySet<string>): Uint8Array | undefined {
+  const opened = own === undefined ? undefined : openSetExecutionIndex(own);
+  if (own === undefined || opened === undefined || tests.size === 0) return milestone;
   const index = decodeSetExecutionIndex(own);
   // Crossings name a case by its position, so the kept cases are renumbered.
   const at = new Map<number, number>();
@@ -180,20 +189,33 @@ function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array | unde
     at.set(position, at.size);
     return true;
   });
-  const fresh = encodeAsSetExecutionIndex({
-    tests: cases,
-    // A module no kept case entered keeps the milestone's layout of it.
-    modules: index.modules.flatMap((module) => {
-      const blocks = module.blocks.map((block) => ({
-        ...block,
-        crossings: block.crossings.flatMap((crossing) => {
-          const test = at.get(crossing.test);
-          return test === undefined ? [] : [{ ...crossing, test }];
-        }),
-      }));
-      return blocks.some((block) => block.crossings.length > 0) ? [{ ...module, blocks }] : [];
-    }),
+  // A module no kept case entered keeps the milestone's layout of it. One that
+  // is kept keeps its regions in place, so the owners it recorded still hold;
+  // they are carried by place, as two cuts of one file can stand side by side.
+  const kept = index.modules.flatMap((module, place) => {
+    const blocks = module.blocks.map((block) => ({
+      ...block,
+      crossings: block.crossings.flatMap((crossing) => {
+        const test = at.get(crossing.test);
+        return test === undefined ? [] : [{ ...crossing, test }];
+      }),
+    }));
+    return blocks.some((block) => block.crossings.length > 0) ? [{ module: { ...module, blocks }, owner: opened.modules[place]?.owner, place }] : [];
   });
+  // A kept case's lines name its modules by place, so they follow the kept modules.
+  const table = openSetColumns(own)?.testLines;
+  const moved = new Map(kept.map(({ place }, to) => [place, to]));
+  const lines = table === undefined ? undefined : [...at.keys()].map((position) => {
+    const held = linesOf(table, position);
+    return held === undefined ? undefined : {
+      ...held,
+      segments: new Map([...held.segments].flatMap(([place, segment]) => {
+        const to = moved.get(place);
+        return to === undefined ? [] : [[to, segment] as const];
+      })),
+    };
+  });
+  const fresh = encodeOwnedSetExecutionIndex({ tests: cases, modules: kept.map(({ module }) => module) }, kept.map(({ owner }) => owner), lines);
   return layerCaseIndex(milestone, fresh, { ran: tests, finished: tests, present: () => true }).merged;
 }
 

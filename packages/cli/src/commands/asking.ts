@@ -2,9 +2,11 @@ import { didYouMean } from '@variance-authority/core';
 import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import {
   COSTS_TOOLS,
+  REVIEW_TOOLS,
   TOOLS,
   VANTAGE_TOOLS,
   type CostsSubject,
+  type ReviewTool,
   type Tool,
 } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
@@ -81,6 +83,8 @@ export interface Question {
   readonly source?: Tool<Help>;
   /** Asked of the times a run recorded, or absent when it is not a question about cost. */
   readonly costs?: Tool<CostsSubject>;
+  /** Asked of what review settled, or absent when it is not a question about review. */
+  readonly review?: ReviewTool;
 }
 
 /** Every question, each knowing which subjects it answers about. */
@@ -96,6 +100,7 @@ function questionsOf(): readonly Question[] {
   }
   for (const tool of HELP_TOOLS) found.set(tool.name, { tool, source: tool });
   for (const tool of COSTS_TOOLS) found.set(tool.name, { tool, costs: tool });
+  for (const tool of REVIEW_TOOLS) found.set(tool.name, { tool, review: tool });
 
   return [...found.values()];
 }
@@ -138,7 +143,8 @@ const PLACEHOLDER: Readonly<Record<string, string>> = {
   claims: '<path>',
   test: '<id>',
   state: '<state>',
-  file: '<text>',
+  build: '<id>',
+  file: '<path>',
   files: '<path>[,...]',
   name: '<name>',
   package: '<name>',
@@ -234,11 +240,7 @@ export function inputFor(
     const argument = accepted.find((entry) => entry.property === property);
     if (argument === undefined) {
       const flags = accepted.map((entry) => entry.flag);
-      throw new OperatorError(
-        `\`--${property}\` is not an argument \`variance ask ${questionOf(tool)}\` takes; it ` +
-          `takes ${flags.length === 0 ? 'none' : flags.join(', ')}` +
-          `${didYouMean(`--${property}`, flags)}`,
-      );
+      throw new OperatorError(`${notTaken(tool, `--${property}`)}.${didYouMean(`--${property}`, flags)}`);
     }
     // A list a tool declares is typed once, comma-separated, like `--files`.
     input[property] = argument.kind === 'list' && typeof value === 'string'
@@ -265,6 +267,34 @@ export function inputFor(
   }
 
   return input;
+}
+
+/**
+ * Refuse the words typed after a question that reads none of them.
+ *
+ * Every word after the question is a report path, and a question about the
+ * code, or one asked of a watcher, reads no report. Left unread, `ask packages
+ * @kbn/name` answers every package and `ask search --query rule executor`
+ * searches for `rule`, each with exit 0. So a word is refused in the sentence
+ * a flag the question does not take is refused in.
+ */
+export function refuseWords(tool: Asked, words: readonly string[] | undefined): void {
+  const word = words?.[0];
+  if (word === undefined) return;
+  // A word left over is most often the second word of a value typed unquoted.
+  const quoted = argumentsOf(tool).some((argument) => argument.kind === 'text')
+    ? ' A value of more than one word is one argument, in quotes.'
+    : '';
+  throw new OperatorError(`${notTaken(tool, word)}.${quoted}`);
+}
+
+/** That a question does not take what was typed, and what it takes instead. */
+function notTaken(tool: Asked, typed: string): string {
+  const flags = argumentsOf(tool).map((entry) => entry.flag);
+  return (
+    `\`${typed}\` is not an argument \`variance ask ${questionOf(tool)}\` takes; it ` +
+    `takes ${flags.length === 0 ? 'none' : flags.join(', ')}`
+  );
 }
 
 /** Greedy, on spaces, and nothing else. The descriptions are prose, not layout. */

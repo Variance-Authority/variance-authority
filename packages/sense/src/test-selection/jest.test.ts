@@ -52,6 +52,7 @@ describe('withJourneyCoverage for Jest', () => {
         root: '/repo',
         transformer: '@swc/jest',
         exclude: ['/repo/test/environment.ts'],
+        cadence: false,
       }],
     });
     expect(configured.setupFiles).toEqual([SELECTION_GLOBALS]);
@@ -81,6 +82,8 @@ describe('withJourneyCoverage for Jest', () => {
     expect(() => withJourneyCoverage({ rootDir }, { journeyFile: 'journeys.bin', trace: '@sentry/node' }))
       .toThrow(/is not a path/);
   });
+
+  it.todo('marks the modules `unprobed` names as loaded, as withTestSelection does — needs `unprobed` on JestJourneyCoverageOptions');
 });
 
 async function project(): Promise<string> {
@@ -210,6 +213,8 @@ describe('withTestSelection for Jest', () => {
         displayName: 'node',
         rootDir: '/repo/packages/node',
         transform: { '\\.[jt]sx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: 'babel-jest' }] },
+        // The sandbox learns its project's name from here, for the case ids.
+        globals: { 'variance-authority.project': 'node' },
         setupFiles: [SELECTION_GLOBALS, '<rootDir>/setup.js'],
         setupFilesAfterEnv: [SELECTION_SETUP],
       },
@@ -218,6 +223,7 @@ describe('withTestSelection for Jest', () => {
         testEnvironment: 'jsdom',
         rootDir: '/repo',
         transform: { '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest' }] },
+        globals: { 'variance-authority.project': 'dom' },
         setupFiles: [SELECTION_GLOBALS],
         setupFilesAfterEnv: [SELECTION_SETUP],
       },
@@ -241,6 +247,39 @@ describe('withTestSelection for Jest', () => {
       'default',
       [SELECTION_REPORTER, { root: '/repo', coverageFile: '/repo/coverage.bin', preconditions: [], mode: 'entries' }],
     ]);
+  });
+
+  it('hands every transform the modules named unprobed, as globs under rootDir', () => {
+    const configured = withTestSelection(
+      { rootDir: '/repo', transform: { '\\.tsx?$': '@swc/jest' } },
+      { coverageFile: 'coverage.bin', unprobed: ['src/page/**', '/elsewhere/world.ts'] },
+    );
+
+    expect(configured.transform).toEqual({
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest', unprobed: ['/repo/src/page/**', '/elsewhere/world.ts'] }],
+    });
+  });
+
+  it('keeps a negated unprobed glob negated when it resolves it under rootDir', () => {
+    const configured = withTestSelection(
+      { rootDir: '/repo', transform: { '\\.tsx?$': '@swc/jest' } },
+      { coverageFile: 'coverage.bin', unprobed: ['src/page/**', '!src/page/keep.ts'] },
+    );
+
+    expect(configured.transform).toEqual({
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest', unprobed: ['/repo/src/page/**', '!/repo/src/page/keep.ts'] }],
+    });
+  });
+
+  it('tells every transform to leave test files uncut when `cadence` is off', () => {
+    const configured = withTestSelection(
+      { rootDir: '/repo', transform: { '\\.tsx?$': '@swc/jest' } },
+      { coverageFile: 'coverage.bin', cadence: false },
+    );
+
+    expect(configured.transform).toEqual({
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest', cadence: false }],
+    });
   });
 
   it('refuses a project named by path rather than instrumenting half the run', () => {

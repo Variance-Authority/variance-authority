@@ -44,6 +44,7 @@ export type {
   ChurnRecord,
   DriftRecord,
   VariationRecord,
+  VariationStep,
 } from './format.js';
 
 export type { JourneysReport, JourneyParting, JourneyRegionRecord } from './journeys.js';
@@ -56,6 +57,9 @@ export type {
   PartingRecord,
   MovementRecord,
   SubjectStructureRecord,
+  SubjectPiecesRecord,
+  SubjectShareRecord,
+  ResidueRecord,
   BoundaryRow,
 } from './composition.js';
 
@@ -126,8 +130,8 @@ export {
 } from './changelog-message.js';
 export type { CommitMessageOptions } from './changelog-message.js';
 
-export { bulkSkips, promotionOf, selectByShape, whyNotWhole } from './promotion.js';
-export type { Promotion, PromotionOptions } from './promotion.js';
+export { promotionOf, selectByShape, whyNotWhole } from './promotion.js';
+export type { Promotion } from './promotion.js';
 
 export { byReason } from './shared-reasons.js';
 

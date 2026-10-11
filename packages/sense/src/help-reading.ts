@@ -13,7 +13,7 @@
 // compass: variance-authority.report.agent-surface
 
 import { native, nativeRefusal } from './native.js';
-import type { NativeIndexedUsage } from './native-orient.js';
+import type { NativeImporters, NativeIndexedUsage } from './native-orient.js';
 import { sourceIndexPath } from './source-index.js';
 
 type NamedExport = NativeIndexedUsage['exported'][number];
@@ -83,6 +83,7 @@ export interface NativeHelp {
   readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[], declared: string[]): Promise<HelpReading | null>;
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
+  importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
 }
 
 function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<NativeHelp[Name]> {
@@ -119,4 +120,23 @@ export function encodeSearch(published: PublishedRows, exported: readonly NamedE
 /** The digest `HelpReading.exportedDigest` states, of a list JavaScript holds. */
 export function exportedDigest(exported: readonly NamedExport[]): string {
   return entry('digestExported')([...exported]);
+}
+
+/**
+ * Every import of `name` out of one of `files`, repo-relative, by any file the
+ * index at `index` holds — an import within a package as well as one across
+ * packages, which the Help value does not record — ordered by the importing
+ * file in code units, then by line; `undefined` when no index was published.
+ * A file that passes the name on with `export … from` is followed under the
+ * name it exports and named in `through`, and is no use. Each use's `key` is
+ * the specifier as the importing file wrote it, and its `name` the name it
+ * takes, which such a file can rename. Throws when the index does not read.
+ */
+export function importersOf(
+  root: string,
+  files: readonly string[],
+  name: string,
+  index: string = sourceIndexPath(root),
+): NativeImporters | undefined {
+  return entry('importersOf')(root, index, [...files], name) ?? undefined;
 }

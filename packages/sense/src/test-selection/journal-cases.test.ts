@@ -15,17 +15,22 @@ import {
   stageExecution,
   stagingDirectory,
   type ExecutionJournal,
+  type ObservedCase,
 } from './journal.js';
 import { readTestCoverage, selectTestFiles } from './index.js';
 import { coveringChange, coveringTests, ranWhileLoading, type ExecutionIndex } from './reverse.js';
 import { decodeExecutionIndex } from './execution-format.js';
+import { openSetExecutionIndex } from './execution-set-format.js';
+import { NO_OWNER } from './format-layout.js';
 import { caseIndexOf } from './case-record.js';
 import preconditions from './case-preconditions.cjs';
 import {
+  CALLED_WHILE_EVALUATING,
   INITIALIZING,
   LABEL_PLAIN_LINE,
   PLAIN_LINE,
   PREMIUM_LINE,
+  casesOverOneLoad,
   diffAt,
   forgetThePage,
   inRoot,
@@ -77,6 +82,11 @@ describe('a driver that can tell its cases apart', () => {
       const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
       expect(named(index, PREMIUM_LINE)).toEqual(['charges twice above ten']);
       expect(named(index, PLAIN_LINE)).toEqual(['charges the amount below it']);
+      // Each branch names the region around it, so a later run that cuts a
+      // region this one never held hands it that region's cases.
+      const [price] = openSetExecutionIndex((await caseIndexOf(coverageFile))!).modules;
+      const around = (line: number) => price!.owner?.[price!.blocks.findLastIndex((block) => block.startLine <= line && line <= block.endLine)] ?? NO_OWNER;
+      expect([around(PREMIUM_LINE), around(PLAIN_LINE)].map((owner) => price!.blocks[owner]?.name)).toEqual(['price', 'price']);
       // A selection reader opens the same record and reads it as it did.
       expect((await readTestCoverage(coverageFile))?.tests.map((test) => test.file)).toEqual(['e2e/price.spec.ts']);
     });
@@ -112,6 +122,65 @@ describe('a driver that can tell its cases apart', () => {
       const [change] = coveringChange(index, new Map([['price.js', [{ start: LABEL_PLAIN_LINE, end: LABEL_PLAIN_LINE }]]]));
       expect(change?.regions.length).toBeGreaterThan(0);
       expect(change?.regions.filter((region) => region.passengers !== undefined)).toEqual([]);
+    });
+  });
+});
+
+describe('a case that is the first to need a module', () => {
+  // A page each case opens evaluates its modules inside that case, and a chunk
+  // a case is the first to import evaluates inside it too. What the case calls
+  // once the module has evaluated is its own, as it would be had the module
+  // evaluated before the case began: the evaluation is the only thing that
+  // moved, and a function the top level called is the case's when the case
+  // calls it again.
+  it('credits it with what it called afterwards, as an eager load does, handed over or staged', async () => {
+    const readings = new Map<string, unknown>();
+    // `twice`: the load's window and the call's are two drains of the one
+    // case, as a fixture that drains at each snapshot hands them over.
+    for (const [eager, twice] of [[true, false], [true, true], [false, false]]) {
+      for (const staged of [false, true]) {
+        forgetThePage();
+        await inRoot(async (root) => {
+          const cacheRoot = resolve(root, 'cache');
+          const coverageFile = resolve(root, 'coverage.bin');
+          const page = await casesOverOneLoad(root, CALLED_WHILE_EVALUATING, eager);
+          const subjects = [page.load, page.plain, page.premium]
+            .filter((journal) => journal !== undefined)
+            .map((journal) => ({ owner: 'e2e/price.spec.ts', journal, complete: true }));
+          const below = { file: 'e2e/price.spec.ts', name: 'charges the amount below ten', id: 'b' };
+          const handed = [
+            ...(twice ? [{ ...below, journal: page.load! }] : []),
+            { ...below, journal: page.plain },
+            { file: 'e2e/price.spec.ts', name: 'charges twice above it', id: 'a', journal: page.premium },
+          ];
+          let cases: readonly ObservedCase[] = handed;
+          if (staged) {
+            const directory = resolve(root, '.stage');
+            // One worker per case, each writing what it saw.
+            for (const observed of handed) await stageExecution(directory, { subjects: [], cases: [observed] });
+            cases = (await foldStage(directory)).cases!;
+          }
+          await recordExecution({ root, cacheRoot, coverageFile, subjects, cases });
+          const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
+          readings.set(`${eager ? 'eager' : 'inline'}${twice ? ', read twice' : ''}${staged ? ', staged' : ''}`, {
+            plain: named(index, PLAIN_LINE),
+            premium: named(index, PREMIUM_LINE),
+            // The file's record gives what ran while the module evaluated to
+            // every file that consumed it, the evaluating one included, so a
+            // file loses nothing either way.
+            file: await selectTestFiles(coverageFile, diffAt('price.js', PLAIN_LINE)),
+          });
+        });
+      }
+    }
+    const expected = { plain: ['charges the amount below ten'], premium: ['charges twice above it'], file: ['e2e/price.spec.ts'] };
+    expect(Object.fromEntries(readings)).toEqual({
+      eager: expected,
+      'eager, staged': expected,
+      'eager, read twice': expected,
+      'eager, read twice, staged': expected,
+      inline: expected,
+      'inline, staged': expected,
     });
   });
 });

@@ -17,7 +17,7 @@ vi.mock('./preconditions.js', async (original) => ({
 }));
 
 const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
-const INSTRUMENTATION = 'sense:instrument/presence-v5';
+const INSTRUMENTATION = 'sense:instrument/presence-v6';
 const SOURCE = ['export function price(amount) {', '  return amount * 2;', '}'].join('\n');
 
 interface Scope {
@@ -105,7 +105,7 @@ describe('the case a Playwright test runs as', () => {
         await recorder.note(page, 'tests/checkout.spec.ts', { name: 'checkout > pays', id: 'runner-id-1' });
       });
       await recorder.close();
-      expect(recordedEyesAt(coverageFile)).toEqual({ watched: ['tests/checkout.spec.ts > checkout > pays'], journals: [] });
+      expect(recordedEyesAt(coverageFile)).toEqual({ watched: ['|chromium| tests/checkout.spec.ts > checkout > pays'], journals: [] });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

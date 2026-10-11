@@ -7,13 +7,16 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CHECKOUT_MARKER } from './cache-layers.js';
+import { lineAt, linesOf } from './case-lines.js';
+import { caseIndexOf } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
+import { openSetColumns } from './execution-set-format.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
 // The runner's modules `require` the collectors, so they are loaded built, and
 // through the export a runner's author imports.
-const { instrumentModule, observeTestFile, registerRecording, RECORDING_VARIABLE } =
+const { cutTestFile, instrumentModule, observeTestFile, registerRecording, RECORDING_VARIABLE } =
   (await import('@variance-authority/sense/runner')) as typeof import('./runner.js');
 
 const execute = promisify(execFile);
@@ -90,6 +93,20 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
     ]);
   }, 60_000);
 
+  it('selects every file that loaded a module named unprobed, for an edit to a line none of them ran', async () => {
+    const { coverageFile } = await record('--weigh-unprobed');
+
+    const weigh = await readFile(resolve(fixture, 'src/weigh.mts'), 'utf8');
+    const line = lineIn(weigh, "    return 'heavy';");
+    const diff = `--- a/${at('src/weigh.mts')}\n+++ b/${at('src/weigh.mts')}\n@@ -${line},1 +${line},1 @@\n-    return 'heavy';\n+    return 'weighty';`;
+
+    await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([at('test/alpha.case.mjs'), at('test/beta.case.mjs')]);
+    expect(decodeTestCoverage(await readFile(coverageFile)).modules.find((module) => module.file === at('src/weigh.mts')))
+      .toEqual(expect.objectContaining({ instrumented: false, blocks: [] }));
+  }, 60_000);
+
+  it.todo('marks a module a runner with its own transform must not probe — needs a marking sibling of `instrumentModule` published on `./runner`');
+
   it('names each case by its declaration path, and gives a branch only to the case that walked it', async () => {
     const { coverageFile } = await record();
     const index = decodeExecutionIndex(await readFile(coverageFile));
@@ -117,6 +134,31 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
       at('test/alpha.case.mjs > decide > waits, then takes the alpha path'),
     ]);
     expect(walking('took B')).toEqual([at('test/beta.case.mjs > decide > takes the beta path')]);
+  }, 60_000);
+
+  it('says which line of each case reached the branch it took, unless the run turns cuts off', async () => {
+    const source = await readFile(resolve(fixture, 'src/label.cjs'), 'utf8');
+    const test = await readFile(resolve(fixture, 'test/alpha.case.mjs'), 'utf8');
+    const reaching = async (coverageFile: string, name: string) => {
+      const cases = await caseIndexOf(coverageFile);
+      if (cases === undefined) throw new Error('the run wrote no execution index');
+      const index = decodeExecutionIndex(cases);
+      const module = index.modules.findIndex((entry) => entry.file === at('src/label.cjs'));
+      const line = lineIn(source, "return 'took A'");
+      const block = index.modules[module]!.blocks.findLastIndex((entry) => entry.startLine <= line && line <= entry.endLine);
+      const lines = linesOf(openSetColumns(cases)!.testLines, index.tests.findIndex((entry) => entry.id === at(`test/alpha.case.mjs > ${name}`)));
+      return lines === undefined ? undefined : lineAt(lines, module, block);
+    };
+
+    const { coverageFile } = await record();
+    expect(await reaching(coverageFile, 'decide > takes the alpha path'))
+      .toEqual({ line: lineIn(test, "if (decide('alpha')"), ambient: false });
+    // The awaited case waited first; the call after the wait reached the branch.
+    expect(await reaching(coverageFile, 'decide > waits, then takes the alpha path'))
+      .toEqual({ line: test.split('\n').findLastIndex((text) => text.includes("decide('alpha')")) + 1, ambient: false });
+
+    const uncut = await record('--no-cadence');
+    expect(await reaching(uncut.coverageFile, 'decide > takes the alpha path')).toBeUndefined();
   }, 60_000);
 
   it('keeps the duration the runner passed to `finish` for each file and for each case it named', async () => {
@@ -181,10 +223,31 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
     try {
       const code = 'export const answer = 42;\n';
       expect(instrumentModule(code, resolve(fixture, 'src/answer.mjs'))).toBe(code);
+      expect(cutTestFile(code, resolve(fixture, 'test/alpha.case.mjs'))).toBe(code);
       expect(registerRecording()).toBeUndefined();
       expect(observeTestFile(resolve(fixture, 'test/alpha.case.mjs'))).toBeUndefined();
     } finally {
       if (open !== undefined) process.env[RECORDING_VARIABLE] = open;
+    }
+  });
+
+  it('marks a module it cannot parse as loaded, so the test that loaded it still reports it', () => {
+    const { [RECORDING_VARIABLE]: open } = process.env;
+    process.env[RECORDING_VARIABLE] = JSON.stringify({
+      root: repository,
+      runDirectory: fixture,
+      caseDirectory: fixture,
+      mode: 'presence',
+      continuations: false,
+    });
+    try {
+      const broken = 'export const = ;\n';
+      const code = instrumentModule(broken, resolve(fixture, 'src/broken.mjs'));
+      expect(code.startsWith(broken)).toBe(true);
+      expect(code.slice(broken.length)).toMatch(new RegExp(`${at('src/broken.mjs')}@[0-9a-f]+[\\s\\S]*__vaE\\(\\);$`));
+    } finally {
+      if (open === undefined) delete process.env[RECORDING_VARIABLE];
+      else process.env[RECORDING_VARIABLE] = open;
     }
   });
 });

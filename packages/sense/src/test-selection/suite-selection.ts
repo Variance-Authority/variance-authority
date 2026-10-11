@@ -17,6 +17,13 @@ export interface SuiteSelection {
    * runner discovers and the record never saw is not here, so it runs.
    */
   readonly skip: ReadonlySet<string>;
+  /**
+   * Test files that run in part: each to the names of the cases the run may
+   * skip there, spelled as the record names them. A case not named runs, and
+   * so does every case of a file not here. Absent, every file that runs, runs
+   * whole, which is the file grain and the default.
+   */
+  readonly cases?: ReadonlyMap<string, readonly string[]>;
   /** Which reading could not be made, when one could not: nothing is skipped. */
   readonly declined?: string;
   /** What a person reads after the count. Never parsed. */
@@ -48,12 +55,17 @@ export type SuiteTimes =
  */
 export function selectedLines(selection: SuiteSelection, discovered: readonly string[]): readonly string[] {
   const all = new Set(discovered);
-  const kept = [...all].filter((file) => !selection.skip.has(file)).length;
+  const kept = [...all].filter((file) => !selection.skip.has(file));
+  const cut = kept.flatMap((file) => selection.cases?.get(file) ?? []).length;
+  const inPart = kept.filter((file) => (selection.cases?.get(file)?.length ?? 0) > 0).length;
   const headline =
     selection.declined !== undefined
       ? `declined: ${selection.declined}`
-      : kept === 0
+      : kept.length === 0
         ? `selected none of ${all.size}`
-        : `selected ${kept} of ${all.size}`;
-  return [`variance-authority: ${headline}`, ...selection.notes.map((note) => `  ${note}`)];
+        : `selected ${kept.length} of ${all.size}`;
+  const part = cut === 0 ? '' : `, skipping ${count(cut, 'case')} in ${inPart} of them`;
+  return [`variance-authority: ${headline}${part}`, ...selection.notes.map((note) => `  ${note}`)];
 }
+
+const count = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`;

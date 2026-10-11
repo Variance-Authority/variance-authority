@@ -116,7 +116,7 @@ kind:
 {
   "before": [".github/workflows", ".nvmrc"],
   "suites": {
-    "unit": { "kind": "unit", "before": ["vitest.config.ts", "test/setup.ts"] },
+    "unit": { "kind": "unit", "before": ["vitest.config.ts", "test/global-setup.ts"] },
     "e2e": { "kind": "e2e", "relations": false, "before": ["playwright.config.ts", "src/main.tsx"] }
   },
   "source": { "dirs": ["src"], "relations": true }
@@ -125,8 +125,19 @@ kind:
 
 A runner config names its setup files and its environment as strings —
 `setupFiles: ['./test/setup.ts']`, `testEnvironment: 'jsdom'` — and a string
-is not an import, so nothing in the graph runs from the config to them. Name
-each setup file beside the config.
+is not an import, so nothing in the graph runs from the config to them. The
+runner integrations record some of them on every test they run, as
+preconditions: Vitest records the config file Vite loaded, the local modules it
+imports, its `setupFiles`, `snapshotSerializers` and `diff` file; Jest records
+`testEnvironment`, `setupFiles` and `setupFilesAfterEnv` when they are files of
+the repository; Rstest records `setupFiles`. Every test a configuration runs
+declares them, so a change to one selects every test it governs. Name the rest
+in `before`: `globalSetup` in every runner, Jest's `globalTeardown`, Jest's and
+Rstest's config file, Jest's `moduleNameMapper` and `transform` targets, and
+everything a Playwright config names. Name a recorded file too, as the example
+does with `vitest.config.ts`, when its change must run every test file: a
+recorded file reruns only the recorded tests that declared it, and a `before`
+entry also runs the tests no recording has seen.
 
 Each entry is matched against the diff by path, so naming a directory of
 workflows is one line rather than one per file. A directory is also walked: every
@@ -148,10 +159,9 @@ everything below it.
 `variance select` reads both: the top-level list and the list of the suite whose
 record it reads, or with `--execution` the suite `--suite` names. A change to anything either one reaches runs that whole suite,
 and `select` names what put it there. A suite with no `before` has nothing
-before its reach, and `select` prints that beside its answer. The Vitest
-integration also declares the config file Vite loaded and the local modules it
-imports, and the Vitest, Jest and Rstest integrations take a `preconditions`
-option: every test they record declares each file it lists, and a change to one
+before its reach, and `select` prints that beside its answer. Beside what they
+record themselves, the Vitest, Jest and Rstest integrations take a
+`preconditions` option: every test they record declares each file it lists, and a change to one
 selects every test that declares it. A changed file nothing imports and nothing
 declares selects nothing, and `select` names it.
 

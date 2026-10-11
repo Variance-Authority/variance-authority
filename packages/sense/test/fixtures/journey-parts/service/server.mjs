@@ -14,27 +14,39 @@ const here = dirname(fileURLToPath(import.meta.url));
 // land in the journey-keyed factory.
 const journeys = collectJourneys();
 
+const probes = testSelectionProbes({ root: here, label: process.env.VARIANCE_AUTHORITY_HEAD });
+
 /** What a build does, done here so the fixture owns no bundler. */
-async function instrumented() {
-  const source = resolve(here, 'pricing.mjs');
-  const code = await readFile(source, 'utf8');
-  const probes = testSelectionProbes({ root: here, label: process.env.VARIANCE_AUTHORITY_HEAD });
-  const transformed = probes.transform(code, source);
-  const built = resolve(process.env.VARIANCE_AUTHORITY_BUILD, `pricing-${process.pid}.mjs`);
-  await mkdir(dirname(built), { recursive: true });
+async function instrumented(name) {
+  const source = resolve(here, name);
   // The collector import is the page's half; this realm already has a factory.
-  await writeFile(built, transformed.code.replace(/^import "[^"]+";/, ''), 'utf8');
+  return probes.transform(await readFile(source, 'utf8'), source).code.replace(/^import "[^"]+";/, '');
+}
+
+async function imported(name) {
+  const built = resolve(process.env.VARIANCE_AUTHORITY_BUILD, `${name.replace(/\.\w+$/, '')}-${process.pid}.mjs`);
+  await mkdir(dirname(built), { recursive: true });
+  await writeFile(built, await instrumented(name), 'utf8');
   return import(pathToFileURL(built).href);
 }
 
-const { quote, refund } = await instrumented();
+const { quote, refund } = await imported('pricing.mjs');
+// Built now and evaluated by the first request that asks for a standing, as a
+// loader that requires a module where it is first needed would.
+const standingScript = await instrumented('standing.js');
+const standing = (tier) => {
+  if (globalThis.__standing === undefined) new Function(standingScript)();
+  return globalThis.__standing(tier);
+};
 
 const server = createServer((request, response) => {
   const url = new URL(request.url, 'http://localhost');
   journeys.enter(request.headers.cookie, () => {
     const answer = url.pathname === '/refund'
       ? refund(Number(url.searchParams.get('amount')))
-      : quote(url.searchParams.get('currency'));
+      : url.pathname === '/standing'
+        ? standing(url.searchParams.get('tier'))
+        : quote(url.searchParams.get('currency'));
     response.writeHead(200, { 'content-type': 'text/plain' }).end(answer);
   });
 });

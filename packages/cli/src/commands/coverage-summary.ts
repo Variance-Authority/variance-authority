@@ -3,29 +3,44 @@ import type { SuiteChange } from '@variance-authority/sense/test-selection';
 import { code } from './comment-text.js';
 import type { Coverage } from './coverage.js';
 
-/** The motion owns the change; subtracting totals would lose its causes. */
+/**
+ * The parts of a suite's change in regions run, each signed by what it does to
+ * the count, so they add up to the count's own change. Fewer cases is said
+ * unsigned: those regions still run.
+ */
 export function coverageParts(change: SuiteChange): readonly string[] {
   const said: string[] = [];
-  if (change.gained > 0) said.push(`gained ${grouped(change.gained)}`);
-  if (change.lost > 0) said.push(`lost ${grouped(change.lost)}`);
-  if (change.hidden > 0) said.push(`hidden ${grouped(change.hidden)}`);
-  if (change.thinned > 0) said.push(`${grouped(change.thinned)} kept fewer cases`);
-  if (change.written.regions > 0) said.push(`written ${grouped(change.written.regions)}, ${grouped(change.written.run)} run`);
-  if (change.deleted.regions > 0) said.push(`deleted ${grouped(change.deleted.regions)}, ${grouped(change.deleted.run)} had run`);
-  if (change.arrived.files.length > 0) said.push(`now loads ${files(change.arrived.files.length)}, ${grouped(change.arrived.run)} of ${grouped(change.arrived.regions)} run`);
-  if (change.departed.files.length > 0) said.push(`no longer loads ${files(change.departed.files.length)}, ${grouped(change.departed.run)} had run`);
-  return said.length === 0 ? ['no region gained, lost, written or deleted'] : said;
+  const regions = (count: number, word: string) => `${grouped(count)} ${word}${count === 1 ? '' : 's'}`;
+  if (change.gained > 0) said.push(`+${grouped(change.gained)} newly run`);
+  if (change.lost > 0) said.push(`−${grouped(change.lost)} no longer run`);
+  if (change.hidden > 0) said.push(`−${grouped(change.hidden)} no longer run after a case stopped`);
+  if (change.thinned > 0) said.push(`${grouped(change.thinned)} run by fewer cases`);
+  if (change.written.regions > 0) said.push(`+${grouped(change.written.run)} run in ${regions(change.written.regions, 'added region')}`);
+  if (change.deleted.regions > 0) said.push(`−${grouped(change.deleted.run)} had run in ${regions(change.deleted.regions, 'removed region')}`);
+  if (change.arrived.files.length > 0) said.push(`+${grouped(change.arrived.run)} run in ${grouped(change.arrived.files.length)} newly loaded file${change.arrived.files.length === 1 ? '' : 's'}`);
+  if (change.departed.files.length > 0) said.push(`−${grouped(change.departed.run)} had run in ${files(change.departed.files.length)} no longer loaded`);
+  return said.length === 0 ? ['no region newly run, no longer run, added or removed'] : said;
+}
+
+/** What the signed parts of `change` add to: the change in regions run they account for. */
+export function coverageSum(change: SuiteChange): number {
+  return change.gained - change.lost - change.hidden + change.written.run - change.deleted.run + change.arrived.run - change.departed.run;
+}
+
+/** `+2`, `−3`, `0`. */
+export function signed(value: number): string {
+  return value > 0 ? `+${grouped(value)}` : value < 0 ? `−${grouped(-value)}` : '0';
 }
 
 function executionChange(change: SuiteChange): string {
   const said: string[] = [];
   const regions = (count: number) => `${grouped(count)} region${count === 1 ? '' : 's'}`;
-  if (change.lost > 0) said.push(`${regions(change.lost)} lost every case`);
-  if (change.hidden > 0) said.push(`${regions(change.hidden)} lost every case after a case stopped`);
-  if (change.gained > 0) said.push(`${grouped(change.gained)} additional region${change.gained === 1 ? '' : 's'} ran`);
-  if (change.thinned > 0) said.push(`${regions(change.thinned)} kept fewer cases`);
+  if (change.lost > 0) said.push(`${regions(change.lost)} no longer run`);
+  if (change.hidden > 0) said.push(`${regions(change.hidden)} no longer run after a case stopped`);
+  if (change.gained > 0) said.push(`${regions(change.gained)} newly run`);
+  if (change.thinned > 0) said.push(`${regions(change.thinned)} run by fewer cases`);
   if (change.written.regions > 0 || change.deleted.regions > 0 || change.arrived.files.length > 0 || change.departed.files.length > 0) {
-    said.push('Recorded code changed; see coverage details');
+    said.push('Code changed; see coverage details');
   }
   return said.length === 0 ? 'No change in recorded case execution' : said.join(' · ');
 }

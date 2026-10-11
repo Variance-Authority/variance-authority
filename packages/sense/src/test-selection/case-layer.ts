@@ -1,7 +1,10 @@
 import type { SetId } from './crossing-sets.js';
+import { NO_OWNER } from './format-layout.js';
 import { openSetExecutionIndex, type OpenedSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
+import { LaidLines } from './case-layer-lines.js';
 import { HeldIndex, writeLaid, type CarriedModule, type LaidModule, type LaidTest } from './held-case-index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
+import { heldAround } from './region-around.js';
 import { landing, relined, strayed } from './region-landing.js';
 import type { ExecutionTest } from './reverse.js';
 import { EMPTY, Translation } from './set-translation.js';
@@ -96,8 +99,12 @@ export interface CaseLayers {
  * carried cases land on them by address — the region's name and structural
  * path, told apart by occurrence — and kind, the rule the snapshot carries its
  * rows by. A region the text no longer has drops its carried cases rather than
- * guessing a place for them. A module this run did not record keeps the regions
- * it was recorded with, as it did before any partial run.
+ * guessing a place for them. A region the index never held takes the cases of
+ * the nearest region around it that some landed on, as a row born in a re-cut
+ * takes the crossings around it ({@link carriedFrom}). A module this run did
+ * not record keeps the regions it was recorded with, as it did before any
+ * partial run, and the landing then lays it onto the cut its rows were landed
+ * at (`case-cuts.ts`).
  *
  * The before layer is cut at the lines of the text it is named at. A held
  * module the run recorded from that text is read at the recorded lines where
@@ -127,30 +134,30 @@ export function layerCaseIndex(
   // is not should be laid only over what it can answer for.
   if (held === undefined) return { merged: Buffer.from(fresh), cases: () => last, last, announced };
 
-  const { tests, fromHeld, fromRun, merged } = layeredCases(held, run, files);
+  const { tests, fromHeld, fromRun, merged, heldAt, runAt } = layeredCases(held, run, files);
   const runModules = new Map(run.modules.map((module) => [module.file, module]));
+  const runModuleAt = new Map(run.modules.map((module, at) => [module, at]));
+  const lines = LaidLines.open(held.columns.testLines, run.lines, heldAt, runAt, tests.length);
   const modules: LaidModule[] = [];
   for (const { row, recorded } of moduleUnion(held, runModules)) {
     if (recorded === undefined) {
       const kept = carriedRow(held, row!, fromHeld, false);
-      if (kept !== undefined) modules.push(kept);
+      if (kept !== undefined) {
+        lines?.carried(modules.length, row!);
+        modules.push(kept);
+      }
       continue;
     }
     const before = row === undefined ? undefined : held.module(row);
     // A name that says same text over lines an older text numbered apart is
     // the snapshot's, not the index's: those cases land where the numbering agrees.
-    const file = recorded.file;
-    const same = files.sameText?.(file) === true && before !== undefined && relined(before, recorded) !== undefined;
-    const lands = before === undefined ? undefined : landing(recorded, before, same);
-    const called = new Uint32Array(recorded.blocks.length);
-    const loaded = new Uint8Array(recorded.blocks.length);
-    for (let block = 0; block < recorded.blocks.length; block += 1) {
-      const own = fromRun(recorded.called[block]!);
-      const from = lands?.[block] ?? -1;
-      called[block] = from < 0 ? own : merged.union(own, fromHeld(before!.called[from]!));
-      loaded[block] = recorded.loaded[block]! | (from < 0 ? 0 : before!.loaded[from]!);
-    }
-    modules.push({ file, blocks: recorded.blocks, called, loaded });
+    const same = files.sameText?.(recorded.file) === true && before !== undefined && relined(before, recorded) !== undefined;
+    modules.push(laidOn(
+      recorded,
+      (block) => fromRun(recorded.called[block]!),
+      before === undefined ? undefined : { row: row!, module: before, same },
+      { fromHeld, merged, lines, at: modules.length, runModule: runModuleAt.get(recorded)! },
+    ));
   }
 
   const unlined: string[] = [];
@@ -176,13 +183,49 @@ export function layerCaseIndex(
     return lined ?? module;
   });
   return {
-    merged: writeLaid(held, tests.map((test) => test.laid), modules, merged.pool()),
+    merged: writeLaid(held, tests.map((test) => test.laid), modules, merged.pool(), lines?.finish()),
     cases: () => tests.map((test) => (typeof test.laid === 'number' ? held.string(held.columns.testId[test.laid]!) : test.laid.id)),
     last,
     announced,
     ...(before === undefined ? {} : { before }),
     ...(unlined.length === 0 ? {} : { unlined }),
   };
+}
+
+/**
+ * `recorded`'s regions, each with the cases `own` names and the held cases that
+ * land on it from `held`: by address and kind ({@link landing}), and for a
+ * region the held cut never had, from the nearest region around it
+ * ({@link carriedFrom}). `held.same` says both cuts were taken from one text.
+ * Each region is handed to `layer.lines` as a region of the `layer.at`-th
+ * module written.
+ */
+export function laidOn(
+  recorded: SetExecutionModule,
+  own: (block: number) => SetId,
+  held: { readonly row: number; readonly module: SetExecutionModule; readonly same: boolean } | undefined,
+  layer: {
+    readonly fromHeld: (set: SetId) => SetId;
+    readonly merged: Translation;
+    readonly lines: LaidLines | undefined;
+    readonly at: number;
+    readonly runModule: number;
+  },
+): SetExecutionModule {
+  const { fromHeld, merged, lines } = layer;
+  const lands = held === undefined ? undefined : carriedFrom(recorded.owner, landing(recorded, held.module, held.same));
+  const called = new Uint32Array(recorded.blocks.length);
+  const loaded = new Uint8Array(recorded.blocks.length);
+  for (let block = 0; block < recorded.blocks.length; block += 1) {
+    const mine = own(block);
+    const from = lands?.(block) ?? -1;
+    const carriedIn = from < 0 ? undefined : fromHeld(held!.module.called[from]!);
+    called[block] = carriedIn === undefined ? mine : merged.union(mine, carriedIn);
+    lines?.recorded(layer.at, block, layer.runModule, merged.members(mine),
+      carriedIn === undefined ? undefined : { row: held!.row, block: from, members: merged.members(carriedIn) });
+    loaded[block] = recorded.loaded[block]! | (from < 0 ? 0 : held!.module.loaded[from]!);
+  }
+  return { file: recorded.file, blocks: recorded.blocks, called, loaded, ...(recorded.owner === undefined ? {} : { owner: recorded.owner }) };
 }
 
 /** A case of the output, with the keys it is ordered by: see {@link HeldIndex.key}. */
@@ -198,11 +241,14 @@ interface KeyedCase {
  * sets onto them. A held case is read as its ids: only its file is decoded,
  * once a file, to ask whether the run retired it.
  */
-function layeredCases(held: HeldIndex, run: OpenedSetExecutionIndex, files: CaseRunFiles): {
+export function layeredCases(held: HeldIndex, run: OpenedSetExecutionIndex, files: CaseRunFiles): {
   readonly tests: readonly KeyedCase[];
   readonly merged: Translation;
   readonly fromHeld: (set: SetId) => SetId;
   readonly fromRun: (set: SetId) => SetId;
+  /** Each held row's output case, -1 for a dropped one, and each run case's. */
+  readonly heldAt: Int32Array;
+  readonly runAt: readonly number[];
 } {
   const { testId, testFile, testName } = held.columns;
   const goneFiles = new Map<number, boolean>();
@@ -237,9 +283,11 @@ function layeredCases(held: HeldIndex, run: OpenedSetExecutionIndex, files: Case
   }
 
   const merged = new Translation(tests.length);
-  const fromHeld = merged.from(held.columns.sets, placed(testId, heldAt, gone));
-  const fromRun = merged.from(run.sets, run.tests.map((test) => runAt.get(test.id)!));
-  return { tests, merged, fromHeld, fromRun };
+  const heldPlaces = placed(testId, heldAt, gone);
+  const runPlaces = run.tests.map((test) => runAt.get(test.id)!);
+  const fromHeld = merged.from(held.columns.sets, heldPlaces);
+  const fromRun = merged.from(run.sets, runPlaces);
+  return { tests, merged, fromHeld, fromRun, heldAt: heldPlaces, runAt: runPlaces };
 }
 
 /**
@@ -271,6 +319,32 @@ function moduleUnion(
   }
   for (; next < recorded.length; next += 1) union.push({ recorded: recorded[next]!.module });
   return union;
+}
+
+/**
+ * The held region each region recorded now carries its cases and load flag
+ * from: its landing, and for a region the held cut never had, the landing of
+ * the nearest region around it — the reading `crossingsAround` gives a
+ * row born in a re-cut, by the same owners and the same walk. Without it the
+ * two layers disagree: the rows say every test that stood on the enclosing
+ * region stands on the new one, and the case index says nobody does.
+ *
+ * `owners` is the cut's own word for the region around each one, which no
+ * reading of lines can stand in for: a branch on the line a sibling ends sits
+ * inside the sibling's lines and is the function's. An index that recorded no
+ * owners names no region around any, and a born region there takes nothing.
+ * Where nothing landed there is nothing to hand down, and where everything
+ * landed nothing is born, so neither walks.
+ *
+ * -1 where nothing is carried.
+ */
+function carriedFrom(owners: Uint32Array | undefined, lands: Int32Array): (block: number) => number {
+  if (owners === undefined || !lands.includes(-1) || !lands.some((from) => from >= 0)) return (block) => lands[block]!;
+  return heldAround<number, number>(
+    (block) => (owners[block] === NO_OWNER ? undefined : owners[block]),
+    (block) => (lands[block]! >= 0 ? lands[block] : undefined),
+    -1,
+  );
 }
 
 /** The held module named `file`, as an object, when the index holds one. */
@@ -336,7 +410,7 @@ function beforeRun(
 }
 
 /** A held row read at the regions it was stored with, or nothing when no case is left in it; `unloaded` clears its load flags. */
-function carriedRow(held: HeldIndex, row: number, from: (set: SetId) => SetId, unloaded: boolean): CarriedModule | undefined {
+export function carriedRow(held: HeldIndex, row: number, from: (set: SetId) => SetId, unloaded: boolean): CarriedModule | undefined {
   const { moduleBlocks, blockCalled, blockLoaded } = held.columns;
   const [first, last] = [moduleBlocks[row]!, moduleBlocks[row + 1]!];
   const called = new Uint32Array(last - first);
@@ -383,7 +457,7 @@ function namedIn(held: HeldIndex, files: Iterable<string>): ReadonlyMap<number, 
 }
 
 /** The modules a run recorded, by the id of their path in `held`; one `held` lacks is none of its rows. */
-function recordedIn(held: HeldIndex, runModules: ReadonlyMap<string, SetExecutionModule>): ReadonlyMap<number, SetExecutionModule> {
+export function recordedIn(held: HeldIndex, runModules: ReadonlyMap<string, SetExecutionModule>): ReadonlyMap<number, SetExecutionModule> {
   const found = new Map<number, SetExecutionModule>();
   for (const module of runModules.values()) {
     const key = held.key(module.file);

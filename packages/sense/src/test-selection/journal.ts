@@ -45,9 +45,9 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
-import { executionIndexFrom } from './cases.js';
+import { ownedExecutionIndexFrom } from './cases.js';
 import { eyesOfCases } from './eyes-record.js';
-import { encodeAsSetExecutionIndex } from './execution-set-format.js';
+import { encodeOwnedSetExecutionIndex } from './execution-set-format.js';
 import {
   caseJournals,
   joinObservations,
@@ -97,7 +97,15 @@ export type { InstrumentMode };
 // What a driver observed, and how a run recorded by several processes is
 // joined: both are the journal seam's surface, and neither is this file's
 // subject, which is the one call that turns a journal into the index.
-export { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
+export {
+  enterModules,
+  enteredModules,
+  joinObservations,
+  modulesEntered,
+  type EnteredModules,
+  type ObservedCase,
+  type ObservedSubject,
+} from './observed.js';
 export type { ObservedEyes } from './eyes-record.js';
 export { listenForPreconditions, type PreconditionListener, type PreconditionStanding } from './precondition-listener.js';
 export { preconditionText, type CasePrecondition } from './case-precondition-column.js';
@@ -374,11 +382,12 @@ export async function recordExecution(
   // laid over by id and never replaced by file.
   const observed = options.cases ?? [];
   const eyes = eyesOfCases(observed);
+  const owned = observed.length === 0 ? undefined : ownedExecutionIndexFrom(caseJournals(observed), byId);
   const cases =
-    observed.length === 0
+    owned === undefined
       ? undefined
       : {
-          fresh: encodeAsSetExecutionIndex(executionIndexFrom(caseJournals(observed), byId)),
+          fresh: encodeOwnedSetExecutionIndex(owned.index, owned.owners, owned.lines),
           run: { tests, ...(commit === undefined ? {} : { commit }) },
           ...(eyes === undefined ? {} : { eyes }),
         };

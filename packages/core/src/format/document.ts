@@ -1,6 +1,7 @@
 import type { Diagnostic, SubjectRef } from './capture.js';
 import type { Viewport } from './environment.js';
 import { digestValue, type Digest } from './hash.js';
+import { pageOrigin, withoutOrigin } from './origin.js';
 import type { ComponentHash } from './snapshot.js';
 
 /**
@@ -180,6 +181,7 @@ export interface FrameElement {
  * never a wrong image.
  */
 export function documentDigest(document: RenderDocument): Digest {
+  const origin = pageOrigin(document.baseUrl);
   return digestValue({
     documentVersion: document.documentVersion,
     html: document.html,
@@ -199,12 +201,16 @@ export function documentDigest(document: RenderDocument): Digest {
     inherited: { ...document.inherited },
     fonts: [...document.fonts],
     ...(document.assets ? { assets: { ...document.assets } } : {}),
-    ...(document.baseUrl !== undefined ? { baseUrl: document.baseUrl } : {}),
+    // The base and the page's own resources as paths: a collector serves the
+    // build on a free port, and a digest holding it would miss the render cache
+    // on every run. The document keeps both absolute, because the renderer
+    // resolves against them; a resource another origin serves stays absolute.
+    ...(document.baseUrl !== undefined ? { baseUrl: withoutOrigin(document.baseUrl, origin) } : {}),
     ...(document.resources !== undefined
       ? {
           resources: Object.fromEntries(
             Object.entries(document.resources).map(([url, resource]) => [
-              url,
+              withoutOrigin(url, origin),
               { ...resource },
             ]),
           ),
@@ -249,8 +255,8 @@ export interface RenderIdentity {
    * The gap itself is acceptable; a *difference* in it between two runs is not,
    * because the images then differ for a reason that is not the code and the
    * report blames whichever component sits under the pixels. Folding it in here
-   * makes that comparison `incomparable` instead, by the same mechanism that
-   * refuses a cross-machine one.
+   * names that gap as the cause of the change instead, by the same mechanism
+   * that names a moved machine.
    *
    * Optional only because a renderer may predate the field. Absent means the
    * renderer did not record what it did, which is emphatically not the same as

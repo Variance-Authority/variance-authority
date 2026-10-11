@@ -1,10 +1,9 @@
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
+import { checkout, commit, paragraph, run } from './ask-packages-fixture.js';
 
 /**
  * `variance ask` over the shape a large monorepo's internal libraries take: a
@@ -20,7 +19,6 @@ import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
  */
 
 const cwd = process.cwd();
-let commit: (message: string) => void = () => {};
 
 beforeEach(() => {
   process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-deep-cache-'));
@@ -45,82 +43,6 @@ const TYPED = {
   'packages/typed/src/shout.ts': 'export const shout = (text: string): string => text;\n',
   'apps/app/src/typed.ts': "import { shout } from '@acme/typed';\nexport const typed = shout('hey');\n",
 };
-
-/** The paragraph of `text` that opens with `heading`. */
-function paragraph(text: string, heading: RegExp): string {
-  return text.split('\n\n').find((block) => heading.test(block)) ?? '';
-}
-
-function checkout(more: Readonly<Record<string, string>> = {}): string {
-  // The cache is keyed by the path the checkout is at, which a temporary directory's name is not on macOS.
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-deep-')));
-  const files: Record<string, string> = {
-    '.gitignore': 'node_modules\n',
-    'package.json': JSON.stringify({ private: true, workspaces: ['packages/*', 'apps/*'] }),
-    'tsconfig.json': JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@acme/lib-exports/src/*': ['packages/lib-exports/src/*'] } } }),
-    'packages/lib/package.json': JSON.stringify({ name: '@acme/lib', main: 'src/index.ts' }),
-    'packages/lib/src/index.ts': "export { greet } from './greet.js';\n",
-    'packages/lib/src/greet.ts': 'export function greet(name: string): string {\n  return name;\n}\n',
-    'packages/lib/src/internal/math.ts':
-      'export function addTax(amount: number): number {\n  return amount * 1.2;\n}\n\nexport const roundTax = (amount: number): number => amount;\n',
-    'packages/lib/src/internal/deep/format.ts': 'export function formatPrice(amount: number): string {\n  return `$${amount}`;\n}\n',
-    'packages/lib-exports/package.json': JSON.stringify({ name: '@acme/lib-exports', exports: { '.': './src/index.ts' } }),
-    'packages/lib-exports/src/index.ts': 'export const slug = (title: string): string => title;\n',
-    'packages/lib-exports/src/internal/clamp.ts': 'export const clamp = (value: number): number => value;\n',
-    'packages/kit/package.json': JSON.stringify({ name: '@acme/kit' }),
-    'packages/kit/src/money/tax.ts': 'export function taxOf(amount: number): number {\n  return amount / 5;\n}\n\nexport const unusedRate = 0.2;\n',
-    'packages/kit/src/ui/Button.ts': "export const Button = (label: string): string => `[${label}]`;\n",
-    'packages/kit/src/orphan.ts': 'export const orphan = 1;\n',
-    'packages/kit-private/package.json': JSON.stringify({ name: '@acme/kit-private', private: true }),
-    'packages/kit-private/src/stamp.ts': 'export const stamp = (text: string): string => text;\n',
-    'apps/app/package.json': JSON.stringify({
-      name: '@acme/app',
-      private: true,
-      dependencies: { '@acme/lib': '*', '@acme/lib-exports': '*', '@acme/kit': '*', '@acme/kit-private': '*' },
-    }),
-    'apps/app/src/hello.ts': "import { greet } from '@acme/lib';\nexport const hello = greet('app');\n",
-    'apps/app/src/total.ts': "import { addTax } from '@acme/lib/src/internal/math';\nexport const total = addTax(10);\n",
-    'apps/app/src/label.ts': "import { formatPrice } from '@acme/lib/src/internal/deep/format';\nexport const label = formatPrice(3);\n",
-    'apps/app/src/bounded.ts': "import { clamp } from '@acme/lib-exports/src/internal/clamp';\nexport const bounded = clamp(140);\n",
-    'apps/app/src/checkout.ts':
-      "import { taxOf } from '@acme/kit/src/money/tax';\nimport { Button } from '@acme/kit/src/ui/Button';\nexport const checkout = Button(String(taxOf(10)));\n",
-    'apps/app/src/stamped.ts': "import { stamp } from '@acme/kit-private/src/stamp';\nexport const stamped = stamp('paid');\n",
-    ...more,
-  };
-  for (const [path, text] of Object.entries(files)) {
-    mkdirSync(dirname(join(root, path)), { recursive: true });
-    writeFileSync(join(root, path), text);
-  }
-  mkdirSync(join(root, 'node_modules/@acme'), { recursive: true });
-  symlinkSync('../../packages/lib', join(root, 'node_modules/@acme/lib'));
-  symlinkSync('../../packages/lib-exports', join(root, 'node_modules/@acme/lib-exports'));
-  symlinkSync('../../packages/kit', join(root, 'node_modules/@acme/kit'));
-  symlinkSync('../../packages/kit-private', join(root, 'node_modules/@acme/kit-private'));
-  for (const path of Object.keys(more)) {
-    const dir = /^packages\/([^/]+)\/package\.json$/u.exec(path)?.[1];
-    if (dir !== undefined) symlinkSync(`../../packages/${dir}`, join(root, `node_modules/@acme/${dir}`));
-  }
-  const git = (args: readonly string[]): void => {
-    execFileSync('git', args, { cwd: root, stdio: 'pipe' });
-  };
-  commit = (message) => {
-    git(['add', '-A']);
-    git(['commit', '--quiet', '-m', message]);
-  };
-  git(['init', '--quiet', '--initial-branch', 'main']);
-  git(['config', 'user.email', 'fixture@example.test']);
-  git(['config', 'user.name', 'Fixture']);
-  commit('the checkout');
-  process.chdir(root);
-  return root;
-}
-
-async function run(argv: readonly string[]): Promise<{ code: number; out: string; err: string }> {
-  let out = '';
-  let err = '';
-  const code = await main(argv, { out: (text) => { out += text; }, err: (text) => { err += text; } });
-  return { code, out, err };
-}
 
 describe('variance ask over a private app that reaches into another package', () => {
   it('lists a package published by `main` alone, and counts the deep imports into either package', async () => {
@@ -169,23 +91,109 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(symbol.code).toBe(EXIT_CLEAN);
     expect(symbol.out).toContain("import { greet } from '@acme/lib';");
     expect(symbol.out).toContain('declared at packages/lib/src/greet.ts:1');
+    expect(symbol.out).toContain(
+      'docs_uses names the 1 place another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.',
+    );
 
     const uses = await run(['ask', 'uses', '--name', 'greet']);
     expect(uses.code).toBe(EXIT_CLEAN);
     expect(uses.out).toContain('apps/app/src/hello.ts:1 — @acme/app');
   });
 
-  it('keeps refusing a name nothing imports, naming where it is exported, and a name nothing exports', async () => {
+  it('answers `uses` for a name exported and not published, listing the imports the index resolved to its file', async () => {
+    checkout({ 'packages/lib/src/internal/rounded.ts': "import { roundTax } from './math.js';\nexport const rounded = roundTax(2);\n" });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'roundTax']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('`roundTax` is imported in 1 place, and no entry publishes it; it is exported at packages/lib/src/internal/math.ts:5.');
+    expect(out).toMatch(/^packages\/lib\/src\/internal\/rounded\.ts:1 — @acme\/lib$/m);
+  });
+
+  it('answers `uses` for a name exported and not published that nothing imports, saying so', async () => {
     checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    const exported = 'is not published by this workspace; it is exported, without being published, at packages/lib/src/internal/math.ts:5';
-    for (const verb of ['uses', 'symbol']) {
-      const unimported = await run(['ask', verb, '--name', 'roundTax']);
-      expect(unimported.code).toBe(EXIT_OPERATOR);
-      expect(unimported.err).toContain(`\`roundTax\` ${exported}`);
-      expect(unimported.out).toBe('');
+    const { code, out } = await run(['ask', 'uses', '--name', 'roundTax']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain(
+      '`roundTax` is exported, without being published, at packages/lib/src/internal/math.ts:5, and nothing in this workspace imports it; a read through an `export * as` namespace and a call through a qualified path are not counted.',
+    );
+  });
 
+  it('answers `symbol` for a name exported and not published: what it is, where it is declared, and who imports it', async () => {
+    checkout({ 'packages/lib/src/internal/rounded.ts': "import { roundTax } from './math.js';\nexport const rounded = roundTax(2);\n" });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
+    expect(out).toContain('export const roundTax = (amount: number): number => amount;');
+    expect(out).toMatch(/Imported in 1 place\b/);
+  });
+
+  it('answers `symbol` for two unpublished exports of one name, each with the imports of its own file', async () => {
+    checkout({
+      'packages/lib/src/internal/rounded.ts': "import { roundTax } from './math.js';\nexport const rounded = roundTax(2);\n",
+      'packages/kit/src/money/round.ts': 'export const roundTax = (amount: number): number => Math.round(amount);\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(paragraph(out, /^roundTax\nexported, without being published, at packages\/lib\//)).toMatch(/Imported in 1 place\b/);
+    expect(paragraph(out, /^roundTax\nexported, without being published, at packages\/kit\//)).toContain(
+      'Nothing in this workspace imports it; a read through an `export * as` namespace and a call through a qualified path are not counted.',
+    );
+
+    const uses = await run(['ask', 'uses', '--name', 'roundTax']);
+    expect(uses.out).toMatch(/^`roundTax` is imported in 1 place, and no entry publishes it; it is exported at packages\/\w+\/src\/\S+:\d+ and 1 more\.$/m);
+  });
+
+  it('answers `symbol` and `uses` asked with the specifier of one file from the export in that file alone', async () => {
+    checkout({
+      'packages/lib/src/other.ts': 'export const roundTax = (amount: number): number => amount;\n',
+      // A directory beside a file of the same name: the file is what the specifier resolves to.
+      'packages/lib/src/other/index.ts': 'export const roundTax = (amount: number): number => amount;\n',
+      'packages/lib/src/tax/index.ts': 'export const roundTax = (amount: number): number => amount;\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax', '--package', '@acme/lib/src/other']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('exported, without being published, at packages/lib/src/other.ts:1 by @acme/lib');
+    expect(out).not.toContain('packages/lib/src/internal/math.ts');
+    expect(out).not.toContain('packages/lib/src/other/index.ts');
+
+    const directory = await run(['ask', 'symbol', '--name', 'roundTax', '--package', '@acme/lib/src/tax']);
+    expect(directory.out).toContain('exported, without being published, at packages/lib/src/tax/index.ts:1 by @acme/lib');
+    expect(directory.out).not.toContain('packages/lib/src/other');
+
+    const uses = await run(['ask', 'uses', '--name', 'roundTax', '--package', '@acme/lib/src/other.js']);
+    expect(uses.out).toContain('exported, without being published, at packages/lib/src/other.ts:1,');
+    expect(uses.out).not.toContain('more.');
+
+    const imported = await run(['ask', 'symbol', '--name', 'roundTax', '--package', '@acme/lib/src/internal/math']);
+    expect(imported.out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
+    expect(imported.out).not.toContain('packages/lib/src/other.ts');
+  });
+
+  it('leaves out the line of an unpublished export the checkout has since rewritten', async () => {
+    const root = checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    writeFileSync(join(root, 'packages/lib/src/internal/math.ts'), 'export function addTax(amount: number): number {\n  return amount;\n}\n\nexport const unrelated = 1;\n');
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
+    expect(out).not.toContain('export const unrelated');
+  });
+
+  it('keeps refusing a name nothing exports', async () => {
+    checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    for (const verb of ['uses', 'symbol']) {
       const unwritten = await run(['ask', verb, '--name', 'neverWritten']);
       expect(unwritten.code).toBe(EXIT_OPERATOR);
       expect(unwritten.err).toContain('`neverWritten` is not published by this workspace, and no published name contains it');

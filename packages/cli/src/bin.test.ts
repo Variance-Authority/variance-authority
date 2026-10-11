@@ -130,7 +130,7 @@ describe('parseArgs', () => {
       config: resolve('variance.config.json'),
       question: 'describe',
       subject: 'story:card',
-      reports: [resolve('shard-a.json')],
+      reports: ['shard-a.json'],
     });
   });
 
