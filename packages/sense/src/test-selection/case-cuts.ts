@@ -12,9 +12,9 @@
  *
  * So after every landing, each held module whose rows now stand at another
  * text is laid onto the rows' cut by the rule a run's recorded module takes the
- * held cases by ({@link laidOn}): by address and kind, a region born in the
- * re-cut taking the cases of the region around it, and a region the cut has no
- * place for dropping its cases. A module none of whose cases land leaves the
+ * held cases by ({@link laidOn}): through the edit between the two texts, a
+ * region born in the re-cut taking the cases of the region around it, and a
+ * region the edit touched dropping its cases. A module none of whose cases land leaves the
  * index, as one no run kept cases of is absent from it, rather than standing at
  * lines no text holds. A module whose index already stands at the rows' lines, as one a
  * run recorded does, is carried as it is.
@@ -30,7 +30,8 @@ import { BLOCK_KINDS, NO_OWNER } from './format-layout.js';
 import type { TestCoverageView } from './format-view.js';
 import { HeldIndex, writeLaid, type LaidModule } from './held-case-index.js';
 import type { TestCoverage } from './index.js';
-import { relined } from './region-landing.js';
+import { cutAlike } from './region-landing.js';
+import { landedThrough, type EditOf, type Edits } from './region-edit.js';
 import { EMPTY } from './set-translation.js';
 import { writtenLines } from './written-lines.js';
 
@@ -48,18 +49,28 @@ export function followRows(
   sections: CaseSections,
   landed: Pick<TestCoverage, 'modules'> | undefined,
   texts: ModuleTexts | undefined,
+  edits: Edits,
 ): CaseSections {
   if (sections.index === undefined || landed === undefined || texts === undefined) return sections;
   const cuts = new Map<string, SetExecutionModule>();
+  const digests = new Map<string, string>();
   for (const module of landed.modules) {
-    if (module.instrumented && moved(texts, module.file, module.sourceDigest)) cuts.set(module.file, cutOf(module.file, module.blocks));
+    if (!module.instrumented || !moved(texts, module.file, module.sourceDigest)) continue;
+    cuts.set(module.file, cutOf(module.file, module.blocks));
+    digests.set(module.file, module.sourceDigest);
   }
-  return followed(sections, cuts);
+  return followed(sections, cuts, (file) => edits(file, texts.get(file)!, digests.get(file)!));
 }
 
 /** {@link followRows} over the columns of the snapshot a landing wrote, decoding only the modules that moved. */
-export function followRowsIn(sections: CaseSections, landed: TestCoverageView, texts: ModuleTexts | undefined): CaseSections {
+export function followRowsIn(
+  sections: CaseSections,
+  landed: TestCoverageView,
+  texts: ModuleTexts | undefined,
+  edits: Edits,
+): CaseSections {
   if (sections.index === undefined || texts === undefined) return sections;
+  const digests = new Map<string, string>();
   const path = landed.modulePath.all();
   const source = landed.moduleSource.all();
   const instrumented = landed.moduleInstrumented.all();
@@ -69,6 +80,7 @@ export function followRowsIn(sections: CaseSections, landed: TestCoverageView, t
     if (instrumented[module] !== 1) continue;
     const file = landed.string(path[module]!);
     if (!moved(texts, file, landed.string(source[module]!))) continue;
+    digests.set(file, landed.string(source[module]!));
     const blocks: CutRegion[] = [];
     for (let block = bounds[module]!; block < bounds[module + 1]!; block += 1) {
       const owner = landed.blockOwner.at(block);
@@ -84,7 +96,7 @@ export function followRowsIn(sections: CaseSections, landed: TestCoverageView, t
     }
     cuts.set(file, cutOf(file, blocks));
   }
-  return followed(sections, cuts);
+  return followed(sections, cuts, (file) => edits(file, texts.get(file)!, digests.get(file)!));
 }
 
 /** Whether a module's rows stand at another text than the one they stood at before the landing; a module nobody named is not known to have moved. */
@@ -99,9 +111,9 @@ function cutOf(file: string, blocks: readonly CutRegion[]): SetExecutionModule {
   return { file, ...cut, called: new Uint32Array(cut.blocks.length).fill(EMPTY), loaded: new Uint8Array(cut.blocks.length) };
 }
 
-function followed(sections: CaseSections, cuts: RowCuts): CaseSections {
+function followed(sections: CaseSections, cuts: RowCuts, edit: EditOf): CaseSections {
   if (sections.index === undefined || cuts.size === 0) return sections;
-  const index = followCuts(sections.index, cuts);
+  const index = followCuts(sections.index, cuts, edit);
   return index === undefined ? sections : { ...sections, index };
 }
 
@@ -110,7 +122,7 @@ function followed(sections: CaseSections, cuts: RowCuts): CaseSections {
  * `undefined` when every one already stands at it, or the index is one this
  * build does not lay over.
  */
-function followCuts(previous: Uint8Array, cuts: RowCuts): Buffer | undefined {
+function followCuts(previous: Uint8Array, cuts: RowCuts, edit: EditOf): Buffer | undefined {
   const held = HeldIndex.open(previous);
   if (held === undefined) return undefined;
   const cutAt = recordedIn(held, cuts);
@@ -118,7 +130,7 @@ function followCuts(previous: Uint8Array, cuts: RowCuts): Buffer | undefined {
   const onto = new Map<number, SetExecutionModule>();
   for (const row of rows) {
     const cut = cutAt.get(held.columns.moduleFile[row]!);
-    if (cut !== undefined && relined(held.module(row), cut) !== held.module(row)) onto.set(row, cut);
+    if (cut !== undefined && !cutAlike(held.module(row), cut)) onto.set(row, cut);
   }
   if (onto.size === 0) return undefined;
 
@@ -141,7 +153,8 @@ function followCuts(previous: Uint8Array, cuts: RowCuts): Buffer | undefined {
     // text here, so the empty set is pure absence.
     // A region whose cases land names their lines to `lines` as it is laid, so
     // a module that keeps none named nothing, and leaving it out shifts nobody.
-    const laid = laidOn(cut, () => EMPTY, { row, module: held.module(row), same: false },
+    const module = held.module(row);
+    const laid = laidOn(cut, () => EMPTY, { row, module, lands: landedThrough(module, cut, edit(module.file)) },
       { fromHeld, merged, lines, at: modules.length, runModule: -1 });
     if (laid.called.some((set) => set !== EMPTY) || laid.loaded.includes(1)) modules.push(laid);
   }

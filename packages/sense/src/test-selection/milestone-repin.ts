@@ -24,7 +24,7 @@ import { execFileSync } from 'node:child_process';
 import { readFile, rm } from 'node:fs/promises';
 import { carriedSources } from './carried-sources.js';
 import { followRowsIn } from './case-cuts.js';
-import { textsIn, type ModuleTexts } from './case-landing.js';
+import { textsIn, textsOf, type ModuleTexts } from './case-landing.js';
 import { caseSectionsOf, withCaseSections } from './case-record.js';
 import { layerCaseIndex } from './case-layer.js';
 import { commitRunsFile, readCommitRuns, writeCommitRuns, type CommitRuns, type StandingEntry } from './commit-runs.js';
@@ -34,6 +34,7 @@ import { layEyes, readableEyes } from './eyes-record.js';
 import { decodeTestCoverage } from './format.js';
 import { layerTestCoverage } from './format-layer.js';
 import { openTestCoverage, wholeCoverage } from './format-view.js';
+import { editsBetween, type EditOf } from './region-edit.js';
 import { withIndexLock } from './index-lock.js';
 import type { TestCoverage } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
@@ -133,8 +134,15 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
   const view = openTestCoverage(bytes);
   // The milestone's rows of a module this checkout did not record may have been
   // re-cut to the text on disk; the cases held for it are laid onto the same cut.
-  const laid = repinnedCases(milestoneCases.index, ownCases.index, kept);
-  const cases = laid === undefined ? undefined : followRowsIn({ index: laid }, view, texts).index;
+  // The milestone's cases were cut at its texts and this checkout's at its own;
+  // the cases land through the edit between them.
+  const edits = editsBetween(root, undefined, [record.commit, own.commit]);
+  const ownTexts = textsOf(own);
+  const laid = repinnedCases(milestoneCases.index, ownCases.index, kept, (file) => {
+    const [from, to] = [texts.get(file), ownTexts.get(file)];
+    return from === undefined || to === undefined ? undefined : edits(file, from, to);
+  });
+  const cases = laid === undefined ? undefined : followRowsIn({ index: laid }, view, texts, edits).index;
   const eyes = repinnedEyes(milestoneCases.eyes, ownCases, cases, kept);
   const recorded = Array.from(view.testPath.all(), (path) => view.string(path));
   const runs = repinnedRuns(await readCommitRuns(coverageFile), own.commit, record, states, recorded, kept);
@@ -176,9 +184,15 @@ function ownSubset(own: TestCoverage, tests: ReadonlySet<string>): TestCoverage 
 /**
  * The milestone's case index with the cases of `tests` laid over it from the
  * record's own. Without either there is nothing this checkout's cases could
- * be laid on, and the record carries none.
+ * be laid on, and the record carries none. `edit` gives, of a module, the edit
+ * from the text the milestone cut it at to the text this checkout did.
  */
-export function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array | undefined, tests: ReadonlySet<string>): Uint8Array | undefined {
+export function repinnedCases(
+  milestone: Uint8Array | undefined,
+  own: Uint8Array | undefined,
+  tests: ReadonlySet<string>,
+  edit?: EditOf,
+): Uint8Array | undefined {
   const opened = own === undefined ? undefined : openSetExecutionIndex(own);
   if (own === undefined || opened === undefined || tests.size === 0) return milestone;
   const index = decodeSetExecutionIndex(own);
@@ -216,7 +230,7 @@ export function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array
     };
   });
   const fresh = encodeOwnedSetExecutionIndex({ tests: cases, modules: kept.map(({ module }) => module) }, kept.map(({ owner }) => owner), lines);
-  return layerCaseIndex(milestone, fresh, { ran: tests, finished: tests, present: () => true }).merged;
+  return layerCaseIndex(milestone, fresh, { ran: tests, finished: tests, present: () => true, ...(edit === undefined ? {} : { edit }) }).merged;
 }
 
 /**

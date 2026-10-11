@@ -227,12 +227,14 @@ describe('a case index carried over a module whose text moved on disk', () => {
     expect(landed.index).toEqual(landed.rows);
   });
 
-  it('leaves the index, where the run recorded the module at a text no address carries its cases onto', async () => {
-    // The run's rows replace the module's; none of the regions the index held
-    // has an address in them, so no case it held is known to stand anywhere.
+  it('stands at the lines the run recorded, with the cases of the callback the edit left alone', async () => {
+    // The run's rows replace the module's. A callback and two comment lines
+    // written in front of the two leave each of them whole, five lines down:
+    // each keeps the case that ran it, and the one written in front has none.
     const landed = await landOver(SEATED, RESEATED, false, FILE);
 
-    expect(landed.index).toBeUndefined();
+    expect(landed.index).toEqual(['anon#0 4-6', 'anon#1 7-9', 'anon#2 10-12']);
+    expect(landed.covering).toEqual({ 'n + 1': [caseOf(ONE)], 'n * 2': [caseOf(TWO)] });
   });
 
   it('stands at the lines the rows were re-cut to, when the record is repinned onto a newer milestone', async () => {

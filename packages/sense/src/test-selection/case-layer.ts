@@ -5,7 +5,8 @@ import { LaidLines } from './case-layer-lines.js';
 import { HeldIndex, writeLaid, type CarriedModule, type LaidModule, type LaidTest } from './held-case-index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { heldAround } from './region-around.js';
-import { landing, relined, strayed } from './region-landing.js';
+import { landedThrough, NO_EDIT, type EditOf } from './region-edit.js';
+import { relined, strayed } from './region-landing.js';
 import type { ExecutionTest } from './reverse.js';
 import { EMPTY, Translation } from './set-translation.js';
 
@@ -18,10 +19,18 @@ export interface CaseRunFiles {
   /** Whether a test file the index holds is still in the checkout. */
   readonly present: (file: string) => boolean;
   /**
+   * The edit between the text the index's regions of `file` were cut from and
+   * the text the run recorded it from, as git's hunks between the two. Held
+   * cases land on the regions it left alone, at the lines it places them; a
+   * region it touched carries none. Absent when `file`'s text on either side
+   * cannot be had: the whole module is then read as changed. A caller that
+   * gives no `edit` knows no texts and reads the two cuts as one text.
+   */
+  readonly edit?: EditOf;
+  /**
    * Whether the run recorded `file` from the text the index's regions of it
-   * were cut from. Same text is the same numbering, so its held cases land by
-   * address however the two cuts filled a counter, as the rows beside them do
-   * in `mergeCoverage`. Absent when nobody can say, and the numbering decides.
+   * are named at. Only the before layer asks: a module so recorded is cut at
+   * the lines the run recorded it at. Absent when nobody can say.
    */
   readonly sameText?: (file: string) => boolean;
   /**
@@ -96,15 +105,15 @@ export interface CaseLayers {
  * checkout still holds it.
  *
  * A module this run recorded is read at the regions it recorded now, and the
- * carried cases land on them by address — the region's name and structural
- * path, told apart by occurrence — and kind, the rule the snapshot carries its
- * rows by. A region the text no longer has drops its carried cases rather than
- * guessing a place for them. A region the index never held takes the cases of
- * the nearest region around it that some landed on, as a row born in a re-cut
- * takes the crossings around it ({@link carriedFrom}). A module this run did
- * not record keeps the regions it was recorded with, as it did before any
- * partial run, and the landing then lays it onto the cut its rows were landed
- * at (`case-cuts.ts`).
+ * carried cases land on them through the edit between the text they were cut
+ * at and the text the run recorded ({@link landedThrough}): a region the edit
+ * left alone keeps its cases at the lines the edit places it, and a region it
+ * touched carries none, its tests counting as changed. Nothing is paired by
+ * name. A region the index never held takes the cases of the nearest region
+ * around it that some landed on, as a row born in a re-cut takes the crossings
+ * around it ({@link carriedFrom}). A module this run did not record keeps the
+ * regions it was recorded with, as it did before any partial run, and the
+ * landing then lays it onto the cut its rows were landed at (`case-cuts.ts`).
  *
  * The before layer is cut at the lines of the text it is named at. A held
  * module the run recorded from that text is read at the recorded lines where
@@ -149,13 +158,13 @@ export function layerCaseIndex(
       continue;
     }
     const before = row === undefined ? undefined : held.module(row);
-    // A name that says same text over lines an older text numbered apart is
-    // the snapshot's, not the index's: those cases land where the numbering agrees.
-    const same = files.sameText?.(recorded.file) === true && before !== undefined && relined(before, recorded) !== undefined;
+    // The held cases land through the edit from the text they were cut at to
+    // the text this run recorded: the regions it left alone, where it places them.
+    const lands = before === undefined ? undefined : landedThrough(before, recorded, (files.edit ?? (() => NO_EDIT))(recorded.file));
     modules.push(laidOn(
       recorded,
       (block) => fromRun(recorded.called[block]!),
-      before === undefined ? undefined : { row: row!, module: before, same },
+      before === undefined ? undefined : { row: row!, module: before, lands: lands! },
       { fromHeld, merged, lines, at: modules.length, runModule: runModuleAt.get(recorded)! },
     ));
   }
@@ -194,16 +203,15 @@ export function layerCaseIndex(
 
 /**
  * `recorded`'s regions, each with the cases `own` names and the held cases that
- * land on it from `held`: by address and kind ({@link landing}), and for a
- * region the held cut never had, from the nearest region around it
- * ({@link carriedFrom}). `held.same` says both cuts were taken from one text.
- * Each region is handed to `layer.lines` as a region of the `layer.at`-th
- * module written.
+ * land on it from `held`: the region `held.lands` names for it
+ * ({@link landedThrough}), and for a region the held cut never had, the nearest
+ * region around it ({@link carriedFrom}). Each region is handed to `layer.lines`
+ * as a region of the `layer.at`-th module written.
  */
 export function laidOn(
   recorded: SetExecutionModule,
   own: (block: number) => SetId,
-  held: { readonly row: number; readonly module: SetExecutionModule; readonly same: boolean } | undefined,
+  held: { readonly row: number; readonly module: SetExecutionModule; readonly lands: Int32Array } | undefined,
   layer: {
     readonly fromHeld: (set: SetId) => SetId;
     readonly merged: Translation;
@@ -213,7 +221,7 @@ export function laidOn(
   },
 ): SetExecutionModule {
   const { fromHeld, merged, lines } = layer;
-  const lands = held === undefined ? undefined : carriedFrom(recorded.owner, landing(recorded, held.module, held.same));
+  const lands = held === undefined ? undefined : carriedFrom(recorded.owner, held.lands);
   const called = new Uint32Array(recorded.blocks.length);
   const loaded = new Uint8Array(recorded.blocks.length);
   for (let block = 0; block < recorded.blocks.length; block += 1) {

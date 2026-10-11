@@ -1,10 +1,13 @@
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { landCases, lastCaseRunOf, layCases } from './case-landing.js';
 import type { CaseSections } from './case-record.js';
 import { CrossingSets } from './crossing-sets.js';
+import { digestString } from '../digest.js';
 import { decodeExecutionIndex, encodeExecutionIndex } from './execution-format.js';
 import { decodeRecordedEyes, encodeRecordedEyes, type EyesSection, type RecordedEyes } from './eyes-record.js';
 import {
@@ -46,6 +49,21 @@ function read(bytes: Uint8Array | undefined): Record<string, string[]> {
   return calls;
 }
 
+/** Commit `files` in a repository at the test's root and name the commit. */
+function commitOf(files: Readonly<Record<string, string>>): string {
+  const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  git('init', '--quiet');
+  git('config', 'user.email', 'fixture@example.invalid');
+  git('config', 'user.name', 'Fixture');
+  for (const [file, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, file)), { recursive: true });
+    writeFileSync(join(root, file), text);
+  }
+  git('add', '--all');
+  git('commit', '--quiet', '--message', 'the base');
+  return git('rev-parse', 'HEAD');
+}
+
 const whole = (file: string) => ({ file, complete: true });
 
 /** A shard's record, carrying the cases its seam kept. */
@@ -85,10 +103,12 @@ describe('landCases', () => {
     const first = await shard('shard-1.bin', index({ 'b.test.ts > two': ['gamma'] }));
     const second = await shard('shard-2.bin', index({ 'c.test.ts > three': ['alpha'] }));
 
+    // Both recorded `src/shared.ts` from the text the index was cut from: no edit, so every held case stays where it stood.
+    const same = [{ file: 'src/shared.ts', sourceDigest: 'v1:base' }];
     const { landing, sections } = landCases(record, previous, root, [
-      { path: first, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')] } },
-      { path: second, coverage: { commit: 'c0ffee', tests: [whole('c.test.ts')] } },
-    ]);
+      { path: first, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')], modules: same } },
+      { path: second, coverage: { commit: 'c0ffee', tests: [whole('c.test.ts')], modules: same } },
+    ], new Map([['src/shared.ts', 'v1:base']]));
 
     expect(landing).toEqual({ laid: record, shards: 2 });
     expect(read(sections.index)).toEqual({
@@ -143,19 +163,25 @@ describe('landCases', () => {
 
   it('names the text a run at the same commit re-cut a before module to, so a reader can tell it from the base', () => {
     // Two local invocations at one commit: the second has only the index the
-    // first laid, whose `src/shared.ts` is already cut to the new text.
-    const head = ['delta', ...regions];
-    const changed = [{ file: 'src/shared.ts', sourceDigest: 'v1:head' }];
-    const once = layCases(previous, index({ 'a.test.ts > one': ['alpha'] }, head), root, {
-      commit: 'c0ffee', tests: [whole('a.test.ts')], modules: changed,
-    }, undefined, new Map([['src/shared.ts', 'v1:base']]));
-    expect(lastCaseRunOf(once)?.beforeTexts).toEqual({ 'src/shared.ts': 'v1:base' });
+    // first laid, whose `src/shared.ts` is already cut to the new text. The
+    // edit between the two texts is a line written above the module, which
+    // leaves each region alone, so the cases carry to the lines it places them.
+    const [base, head] = [regions.join('\n') + '\n', ['delta', ...regions].join('\n') + '\n'];
+    const commit = commitOf({ 'src/shared.ts': base });
+    writeFileSync(join(root, 'src/shared.ts'), head);
+    const [baseDigest, headDigest] = [digestString(base), digestString(head)];
+    const changed = [{ file: 'src/shared.ts', sourceDigest: headDigest }];
+    const heads = ['delta', ...regions];
+    const once = layCases(previous, index({ 'a.test.ts > one': ['alpha'] }, heads), root, {
+      commit, tests: [whole('a.test.ts')], modules: changed,
+    }, undefined, new Map([['src/shared.ts', baseDigest]]), commit);
+    expect(lastCaseRunOf(once)?.beforeTexts).toEqual({ 'src/shared.ts': baseDigest });
 
-    const twice = layCases(once, index({ 'b.test.ts > two': ['beta'] }, head), root, {
-      commit: 'c0ffee', tests: [whole('b.test.ts')], modules: changed,
-    }, undefined, new Map([['src/shared.ts', 'v1:head']]));
+    const twice = layCases(once, index({ 'b.test.ts > two': ['beta'] }, heads), root, {
+      commit, tests: [whole('b.test.ts')], modules: changed,
+    }, undefined, new Map([['src/shared.ts', headDigest]]), commit);
 
-    expect(lastCaseRunOf(twice)?.beforeTexts).toEqual({ 'src/shared.ts': 'v1:head' });
+    expect(lastCaseRunOf(twice)?.beforeTexts).toEqual({ 'src/shared.ts': headDigest });
   });
 
   it('keeps a before module an earlier shard re-cut at its lines when a later shard that did not record it retires cases of it', async () => {
@@ -266,8 +292,8 @@ describe('landCases', () => {
     }));
 
     const { landing, sections } = landCases(record, previous, root, [
-      { path: rows, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')] } },
-    ]);
+      { path: rows, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')], modules: [{ file: 'src/shared.ts', sourceDigest: 'v1:base' }] } },
+    ], new Map([['src/shared.ts', 'v1:base']]));
 
     expect(landing).toEqual({ laid: record, shards: 1 });
     expect(read(sections.index)).toEqual({ 'a.test.ts > one': ['alpha'], 'b.test.ts > two': ['gamma'] });

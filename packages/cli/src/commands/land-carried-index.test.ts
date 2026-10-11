@@ -1,7 +1,10 @@
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { digestString } from '@variance-authority/core/format';
 import {
   caseSectionsAt,
   coveringTests,
@@ -23,6 +26,9 @@ import { published, wholeRecord } from './mainline-fixture.js';
  * are asked by line, so they must stand there too.
  */
 
+const exec = promisify(execFile);
+const git = async (cwd: string, ...args: string[]) => (await exec('git', args, { cwd })).stdout;
+
 const FILE = 'src/math.ts';
 const OTHER = 'src/other.ts';
 const ONE = 'test/one.test.ts';
@@ -30,8 +36,11 @@ const TWO = 'test/two.test.ts';
 const THREE = 'test/three.test.ts';
 
 // `a` and `b`, then the same two with two lines written above them: every region keeps its address, two lines down.
-const AT_FIRST = { digest: 'first', module: [1, 7], a: [1, 3], b: [5, 7] } as const;
-const MOVED = { digest: 'moved', module: [1, 9], a: [3, 5], b: [7, 9] } as const;
+// The texts are real: the edit between them is what places the held cases.
+const FIRST_TEXT = 'export function a() {\n  return 1;\n}\n\nexport function b() {\n  return 2;\n}\n';
+const MOVED_TEXT = `// written\n// above\n${FIRST_TEXT}`;
+const AT_FIRST = { digest: digestString(FIRST_TEXT), module: [1, 7], a: [1, 3], b: [5, 7] } as const;
+const MOVED = { digest: digestString(MOVED_TEXT), module: [1, 9], a: [3, 5], b: [7, 9] } as const;
 
 type Text = typeof AT_FIRST | typeof MOVED;
 
@@ -69,10 +78,16 @@ afterEach(async () => {
 
 describe('landJourneys over a module a shard recorded at another text and kept no case of', () => {
   it('lays the cases the record held of it onto the lines its rows were landed at', async () => {
-    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const { dir } = await published(home, { publish: false, record: wholeRecord });
     await mkdir(join(dir, 'test'), { recursive: true });
     for (const test of [ONE, TWO, THREE]) await writeFile(join(dir, test), '', 'utf8');
     const into = join(home, 'landed.bin');
+    // The module is committed at its first text, which the mainline's record names, and the checkout holds the moved one.
+    const mathFile = join(dir, FILE);
+    await writeFile(mathFile, FIRST_TEXT, 'utf8');
+    await git(dir, 'add', FILE);
+    await git(dir, 'commit', '--quiet', '-m', 'math');
+    const first = (await git(dir, 'rev-parse', 'HEAD')).trim();
     const whole = (file: string) => ({ file, complete: true, preconditions: [] });
     const block = (kind: string, name: string, [startLine, endLine]: readonly [number, number], tests: readonly number[]): ExecutionBlock =>
       ({ kind, name, path: name, startLine, endLine, source: true, crossings: tests.map((test) => ({ test, distance: 0 })) });
@@ -115,6 +130,7 @@ describe('landJourneys over a module a shard recorded at another text and kept n
     }, {
       index: encodeExecutionIndex({ tests: [caseOf(THREE)], modules: [{ file: OTHER, blocks: [block('module', '', [1, 1], [0])] }] }),
     });
+    await writeFile(mathFile, MOVED_TEXT, 'utf8');
     await landJourneys(dir, [shard], into);
 
     const functions = (blocks: readonly { readonly kind: string; readonly name: string; readonly startLine?: number; readonly endLine?: number }[]) =>
