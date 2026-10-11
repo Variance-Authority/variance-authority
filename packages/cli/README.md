@@ -414,14 +414,13 @@ Not loaded by stories (visual): a run that never loaded the file has no answer a
 ```
 
 Once any suite answers, the answers come first, then any suite that has never
-run. A suite that never loaded the file costs one line at the end. When no
-suite answers, each says why in full, with the record it read, since a wrong
-path is then the likely cause. The record names files from the repository
-root, so give `--file` that way, or as an absolute path; one outside the root
-is refused. A refusal names the
-path you asked and no other: `apps/shop/src/checkout/total.ts` is a different
-file from `src/checkout/total.ts`, and so is any other recorded path of the same
-name.
+run. A suite that never loaded the file costs one line at the end. When no suite
+answers, each says why in full, with the record it read, since a wrong path is
+then the likely cause. The record names files from the repository root, so give
+`--file` that way, or as an absolute path; one outside the root is refused. A
+refusal names the path you asked and no other: `apps/shop/src/checkout/total.ts`
+is a different file from `src/checkout/total.ts`, and so is any other recorded
+path of the same name.
 
 In JSON the answer is a `suites` list. Each entry is that suite's own answer
 with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`
