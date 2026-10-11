@@ -207,3 +207,93 @@ describe('the tests a re-cut owes a run', () => {
     expect(owedByRecut(before, after, () => true)).toEqual([]);
   });
 });
+
+/**
+ * Two effects, each holding a callback of `items.map`: the callbacks are
+ * namesakes too, one inside each effect, and the second effect holds a branch
+ * of its own. Alpha entered the first effect and its callback; beta entered
+ * the second effect around its callback and branch, and delta entered all three.
+ */
+const NESTED = `export function Widget(props) {
+  useEffect(() => {
+    items.map((x) => {
+      return x + 1;
+    });
+    open(props.a);
+  }, [props]);
+
+  useEffect(() => {
+    items.map((x) => {
+      return x + 2;
+    });
+    if (props.b) {
+      close(props.b);
+    }
+  }, [props]);
+
+  return props.a;
+}
+`;
+
+const DELTA = 'test/delta.test.ts';
+const EVERY = [ALPHA, BETA, DELTA];
+
+/**
+ * {@link NESTED} with its first effect taken out and a third written behind
+ * the second, holding the callback body the first effect held.
+ */
+const NESTED_SHIFTED = `export function Widget(props) {
+  useEffect(() => {
+    items.map((x) => {
+      return x + 2;
+    });
+    if (props.b) {
+      close(props.b);
+    }
+  }, [props]);
+
+  useEffect(() => {
+    items.map((x) => {
+      return x + 1;
+    });
+    reset(props.c);
+  }, [props]);
+
+  return props.a;
+}
+`;
+
+/** The crossings on each region at `name` and `path`, in the order they are cut. */
+function crossings(coverage: TestCoverage, name: string, path = 'entry'): readonly (readonly string[])[] {
+  return coverage.modules[0]!.blocks.filter((block) => block.name === name && block.path === path).map((block) => block.testFiles);
+}
+
+/** {@link NESTED} re-recorded over `source` by a run in which gamma rendered the component and entered nothing inside it. */
+function rerecordedNested(source: string): TestCoverage {
+  const recorded = widget(BASELINE, NESTED, [EVERY, EVERY, [ALPHA], [ALPHA], [BETA, DELTA], [DELTA], [DELTA], [BETA]]);
+  return mergeCoverage(recorded, widget(LOCAL, source, [[GAMMA], [GAMMA]]));
+}
+
+describe('regions inside namesakes', () => {
+  it('keeps the crossing of a region inside a namesake its body paired', () => {
+    // The branch is inside the second effect, which pairs by its body; under
+    // it the branch pairs by its address and keeps delta, rather than taking
+    // the effect's beta as a region born in it would.
+    expect(crossings(rerecordedNested(NESTED_SHIFTED), 'Widget/useEffect.arg0', 'if#0/then')).toEqual([[DELTA]]);
+  });
+
+  it('pairs a namesake inside a paired namesake by its address there, whatever its body', () => {
+    // Under the second effect only one callback answers to `map.arg0`, so it
+    // is that callback edited, not a namesake whose body went.
+    const merged = rerecordedNested(NESTED_SHIFTED.replace('return x + 2;', 'return x + 3;'));
+
+    expect(crossings(merged, 'Widget/useEffect.arg0/map.arg0')).toEqual([[DELTA], EVERY]);
+  });
+
+  it('carries nothing onto the regions inside a namesake paired with nothing, even a body one of them held', () => {
+    // The third effect holds the callback body alpha entered in the first, but
+    // which effect holds it is the question the effect's body did not answer:
+    // the callback takes the crossings around it, not alpha's alone.
+    expect(crossings(rerecordedNested(NESTED_SHIFTED), 'Widget/useEffect.arg0/map.arg0')).toEqual([[DELTA], EVERY]);
+  });
+});
