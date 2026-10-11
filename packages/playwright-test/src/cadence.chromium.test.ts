@@ -39,19 +39,34 @@ afterAll(async () => {
   await Promise.all(directories.map((directory) => rm(directory, { recursive: true, force: true })));
 });
 
-/** The line of the spec that reached each function of `src/shop.ts`, after one run with `env`. */
-async function reachedAfter(env: Readonly<Record<string, string>>): Promise<Readonly<Record<string, unknown>>> {
+interface Run {
+  /** The line of the spec that reached each function of `src/shop.ts`. */
+  readonly reached: Readonly<Record<string, unknown>>;
+  /** The title of every Playwright API step the run showed, in order. */
+  readonly steps: readonly string[];
+}
+
+/** One run of the fixture with `env`. */
+async function runWith(env: Readonly<Record<string, string>>): Promise<Run> {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-playwright-cadence-'));
   directories.push(directory);
   const coverageFile = resolve(directory, 'coverage.bin');
+  const stepsFile = resolve(directory, 'steps.txt');
   await promisify(execFile)(
     process.execPath,
     [resolve(repository, 'node_modules/@playwright/test/cli.js'), 'test', '--config', resolve(fixture, 'playwright.config.mjs')],
     {
       cwd: fixture,
-      env: { ...process.env, ...env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: resolve(directory, 'cache') },
+      env: {
+        ...process.env,
+        ...env,
+        VARIANCE_AUTHORITY_COVERAGE: coverageFile,
+        VARIANCE_AUTHORITY_CACHE: resolve(directory, 'cache'),
+        VARIANCE_AUTHORITY_STEPS: stepsFile,
+      },
     },
   );
+  const steps = existsSync(stepsFile) ? (await readFile(stepsFile, 'utf8')).split('\n').filter(Boolean) : [];
   const cases = await caseIndexOf(coverageFile);
   if (cases === undefined) throw new Error('the run wrote no execution index');
   const index = decodeExecutionIndex(cases);
@@ -66,7 +81,7 @@ async function reachedAfter(env: Readonly<Record<string, string>>): Promise<Read
     const block = index.modules[module]!.blocks.findLastIndex((entry) => entry.startLine <= line && line <= entry.endLine);
     reached[name] = lines === undefined ? undefined : lineAt(lines, module, block);
   }
-  return reached;
+  return { reached, steps };
 }
 
 describe.runIf(BROWSER_AVAILABLE)('a Playwright spec cut statement by statement', () => {
@@ -74,8 +89,15 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright spec cut statement by statement'
     const spec = (await readFile(resolve(fixture, 'tests/shop.spec.ts'), 'utf8')).split('\n');
     const line = (statement: string) => ({ line: spec.findIndex((text) => text.endsWith(`// ${statement}`)) + 1, ambient: false });
 
-    expect(await reachedAfter({})).toEqual({ open: line('opens'), choose: line('chooses'), pay: line('pays') });
-    expect(await reachedAfter({ VARIANCE_AUTHORITY_CADENCE: 'off' })).toEqual({ open: undefined, choose: undefined, pay: undefined });
+    const cut = await runWith({});
+    const uncut = await runWith({ VARIANCE_AUTHORITY_CADENCE: 'off' });
+
+    expect(cut.reached).toEqual({ open: line('opens'), choose: line('chooses'), pay: line('pays') });
+    expect(uncut.reached).toEqual({ open: undefined, choose: undefined, pay: undefined });
+    // The drains are the recording's, not the test's: none shows as a step, in
+    // the report, the trace or the inspector.
+    expect(cut.steps).toEqual(uncut.steps);
+    expect(cut.steps.filter((title) => /evaluate/i.test(title))).toEqual([]);
   }, 120_000);
 
   it.todo('flags a region a beforeEach or afterEach statement reached first as a hook’s — needs the cut to say which body it is in');

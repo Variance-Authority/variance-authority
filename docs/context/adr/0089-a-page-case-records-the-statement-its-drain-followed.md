@@ -2,8 +2,8 @@
 
 **Status:** accepted
 **Date:** 2026-10-11
-**Extends:** [ADR-0088](0088-a-case-records-the-test-line-that-reached-each-region.md)
-decision 4 (which seams cut)
+**Extends:** [ADR-0088](0088-a-case-records-the-test-line-that-reached-each-region.md) (which
+seams cut)
 **Relates to:** [ADR-0056](0056-a-journey-is-the-places-visited.md) decision 1
 (record places),
 [spec 0100](../../specs/0100-a-case-ends-where-it-decides.md) (a case ends
@@ -80,6 +80,11 @@ test looked, and claims only that.
   the statement that replaced it is read, where with `cadence: false` only the
   teardown drain reads the page and a replaced document is gone by then. So
   turning it off can drop regions from a case's set, not only its lines.
+- A drain the test makes would be a step of its own in the report, the trace
+  and the inspector, before every statement. It runs as one of Playwright's
+  internal calls instead, through its client's `_wrapApiCall`, which Playwright
+  does not document; `cadence.chromium.test.ts` fails if a drain shows as a
+  step.
 - Playwright compiles every file outside `node_modules` it loads as CommonJS,
   including a workspace-linked Sense, so `withTestSelection` adds Sense's
   `dist/` to `build.external`.

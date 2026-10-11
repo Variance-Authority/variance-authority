@@ -11,7 +11,7 @@ if (coverageFile === undefined || cacheRoot === undefined) {
 
 export default defineConfig(
   withTestSelection(
-    { testDir: 'tests', workers: 1, reporter: [['line']] },
+    { testDir: 'tests', workers: 1, reporter: [['line'], ['./steps-reporter.mjs']] },
     { root, cacheRoot, coverageFile, cadence: process.env['VARIANCE_AUTHORITY_CADENCE'] !== 'off' },
   ),
 );

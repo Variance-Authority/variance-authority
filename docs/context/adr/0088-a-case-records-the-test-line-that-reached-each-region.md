@@ -4,8 +4,8 @@
 **Date:** 2026-10-10
 **Narrows:** [ADR-0056](0056-a-journey-is-the-places-visited.md) decision 1
 (record places)
-**Extended by:** [ADR-0089](0089-a-page-case-records-the-statement-its-drain-followed.md)
-decision 4 (a custom runner and Playwright cut too)
+**Extended by:** [ADR-0089](0089-a-page-case-records-the-statement-its-drain-followed.md) (a
+custom runner and Playwright cut too)
 **Relates to:** [ADR-0076](0076-a-story-is-the-order-one-case-visited.md) (a
 story is the order one case visited),
 [spec 0100](../../specs/0100-a-case-ends-where-it-decides.md) (a case ends

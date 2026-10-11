@@ -46,6 +46,7 @@ import { listen, type Wire } from '@variance-authority/wire/listen';
 import { resolve } from 'node:path';
 import { absorb, accumulation, type Accumulated } from './accumulated.js';
 import type { ExecutionRecording } from './execution-recording.js';
+import { quietly } from './quiet.js';
 import { reachedLines } from './reached-lines.js';
 import { caseKey, ownerOf, type ObservedTest } from './test-coordinate.js';
 
@@ -198,7 +199,7 @@ export function createExecutionRecorder(
       looked.set(key, [...(looked.get(key) ?? []), ...(journal === undefined ? [] : [{ attempt, journal }])]);
     },
     note: async (page, owner, subject, line) => {
-      const journal = await drainExecution(page);
+      const journal = await quietly(page, () => drainExecution(page));
       if (journal === undefined) return;
       seen = true;
       instrumentation = journal.instrumentation;
