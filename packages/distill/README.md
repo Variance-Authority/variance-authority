@@ -144,7 +144,8 @@ variance distill --file test/checkout.spec.ts --test submits
 ```
 
 `--test` takes the case's id, its exact title, or a part of the title.
-`--file` takes any part of the test file's path. When more than one case fits,
+`--file` takes the test file's path, relative to the checkout or absolute, and
+names that file alone. When more than one case fits,
 the command prints their ids and stops, and you pass one of them to `--test`.
 `--file` alone reads the whole file instead: the modules it loaded that no
 case, or only some of its cases, entered, each module no case entered under the

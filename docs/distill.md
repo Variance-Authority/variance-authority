@@ -46,7 +46,8 @@ Distill identifies candidates; the confirming run establishes which ones can go.
 
 Name the case with `--test` and the file that declares it with `--file`.
 `--test` takes the recorded id, the case's exact title, or a part of the title;
-`--file` takes any part of the test file's path:
+`--file` takes the test file's path, relative to the checkout or absolute, and
+names that file alone:
 
 ```bash
 variance distill --file test/checkout.spec.ts --test submits

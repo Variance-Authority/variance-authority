@@ -12,7 +12,11 @@ import { causesOf, importOf, SHARED, UNSEEN, type LoadCause } from './own.js';
 
 /** What names one test file, and the two readings of the record it is read from. */
 export interface FileDistillInput {
-  /** A part of the test file's path, as the record spells it. */
+  /**
+   * The test file's repository-relative path, as the record spells it. Only
+   * that file is read: a recorded path that contains it or ends in it is
+   * another file.
+   */
   readonly file: string;
   /** The record's case index: which cases entered which regions. */
   readonly execution: ExecutionIndex;
@@ -102,7 +106,7 @@ export function distillFile(input: FileDistillInput): FileDistillation {
   return readTestFile(testFileOf(input.coverage, input.file), input);
 }
 
-/** {@link distillFile} for a test file named exactly as the record spells it. */
+/** {@link distillFile} without the refusal of a test file the record does not hold. */
 export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>): FileDistillation {
   const index = indexed(input.coverage, input.execution);
   const cases = index.cases.get(file) ?? [];
@@ -251,16 +255,21 @@ function enteredBy(module: ExecutionIndex['modules'][number], mine: ReadonlySet<
 /** How many test files a refusal names. */
 const AVAILABLE_SHOWN = 5;
 
-/** The one recorded test file the path part names: exactly, else the only one containing it. */
-function testFileOf(coverage: TestCoverage, part: string): string {
-  const files = coverage.tests.map((test) => test.file);
-  if (files.includes(part)) return part;
-  const found = files.filter((file) => file.includes(part)).sort(compare);
-  if (found.length === 1) return found[0]!;
-  if (found.length === 0) throw new Error(`The record holds no test file in \`${part}\`.`);
-  const shown = found.slice(0, AVAILABLE_SHOWN).join(', ');
-  const more = found.length > AVAILABLE_SHOWN ? `, and ${found.length - AVAILABLE_SHOWN} more` : '';
-  throw new Error(`${found.length} recorded test files in \`${part}\`: ${shown}${more}; name one`);
+/**
+ * `file`, when the record holds a test file by that name. A refusal shows a few
+ * of the names it does hold, so the reader sees how the record spells them.
+ */
+function testFileOf(coverage: TestCoverage, file: string): string {
+  const files = [...new Set(coverage.tests.map((test) => test.file))].sort(compare);
+  if (files.includes(file)) return file;
+  const shown = files.slice(0, AVAILABLE_SHOWN).map((recorded) => `  ${recorded}`);
+  throw new Error([
+    `The record holds no test file \`${file}\`.`,
+    `It records ${files.length} test file(s)${files.length === 0 ? '.' : ', of which:'}`,
+    ...shown,
+    ...(files.length > shown.length ? [`  and ${files.length - shown.length} more.`] : []),
+    'Name a test file by its repository-relative path, as the record spells it.',
+  ].join('\n'));
 }
 
 function compare(left: string, right: string): number {

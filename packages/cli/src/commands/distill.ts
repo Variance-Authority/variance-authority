@@ -20,6 +20,7 @@ import {
   type ScopeRecord,
   type ScopeRow,
 } from '@variance-authority/distill';
+import { checkoutPath } from '@variance-authority/sense';
 import {
   declaredSuites,
   decodeTestCoverage,
@@ -39,7 +40,11 @@ import { asOperator, nothingRecorded } from './suite-record.js';
 export interface DistillOptions {
   /** The case's id, its exact title, or a part of the title. */
   readonly test?: string;
-  /** A part of the test file's path, which narrows `test`; alone, the file to read. */
+  /**
+   * The test file's path, from `root` or from the file system's root, which
+   * narrows `test`; alone, the file to read. It names that file only, and one
+   * outside `root` is refused.
+   */
   readonly file?: string;
   /** With neither `test` nor `file`, the directory whose test files are read; absent, every test file. */
   readonly from?: string;
@@ -63,13 +68,14 @@ export interface DistillOptions {
  */
 export async function distillFiles(options: DistillOptions): Promise<Distillation | FileDistillation | ScopeDistillation> {
   if (options.test === undefined && options.file === undefined) return distillRecords(options);
+  const file = options.file === undefined ? undefined : recordedPath(options.root, options.file);
   const record = options.execution ?? (await recordedExecutionFile(options.root, options.suite));
   // One read: the index and the journals are then one run's, whatever lands between.
   const bytes = await recordAt(record);
   try {
     const execution = executionIndexOf(bytes);
-    if (options.test === undefined && options.file !== undefined) {
-      const input = { file: options.file, execution, coverage: coverageOf(bytes, record) };
+    if (options.test === undefined && file !== undefined) {
+      const input = { file, execution, coverage: coverageOf(bytes, record) };
       const flat = distillFile(input);
       // The graph is read only when there is a load to give a cause, or a mock to hold against it: the scan costs more than the record.
       if (!flat.modules?.some(({ entered }) => entered === 0) && !(await mocksIn(options.root, flat.file))) return flat;
@@ -84,7 +90,7 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
     const section = recordedEyesOf(bytes);
     return distill({
       ...(options.test === undefined ? {} : { test: options.test }),
-      ...(options.file === undefined ? {} : { file: options.file }),
+      ...(file === undefined ? {} : { file }),
       root: options.root,
       execution,
       ...(section === undefined ? {} : { eyes: journalsOf(section.journals), watched: section.watched }),
@@ -93,6 +99,13 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
     if (error instanceof OperatorError) throw error;
     throw new OperatorError(error instanceof Error ? error.message : String(error));
   }
+}
+
+/** `file` spelled as the record spells its rows, repository-relative with `/`, or the refusal of a path outside `root`. */
+function recordedPath(root: string, file: string): string {
+  const asked = checkoutPath(root, file);
+  if ('outside' in asked) throw new OperatorError(asked.outside);
+  return asked.path;
 }
 
 /**
