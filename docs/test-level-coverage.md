@@ -235,6 +235,11 @@ address in the module's tree rather than its place in the module's text. So
 inserting a function above it renumbers everything and retires nothing: a
 crossing is dropped only when the new text has no region at that address. Line
 numbers are coordinates *into* the recorded text, not the thing recorded.
+The rows keep a crossing through an edit by that address, and a digest per
+region catches a mispair. The case axis holds no digest, so it follows the edit
+itself: a region the `git diff -U0` hunks leave alone keeps its cases at the
+lines the hunks place it, and a region they touch carries none and counts as
+changed.
 
 **A crossing is a pair.** One row is *this case covered this region*, and the
 index is those pairs and nothing else: three parallel integer columns, sorted

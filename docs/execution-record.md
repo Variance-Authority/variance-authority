@@ -389,6 +389,21 @@ next diff will be in. A module whose text cannot be read as source has no
 table to place them in: it stays as it was, and every test that covered
 it is demoted.
 
+**The case index follows the edit, not the address.** The rows keep a crossing
+by the region's address because the digests catch a mispair. The case index
+holds no digest, so the only evidence it has of what an edit touched is the edit
+itself: the `git diff -U0` hunks between the text it was cut from and the text
+you recorded. A region the hunks leave alone keeps its cases, at the lines the
+hunks place it. A region they touch carries none, so its tests count as changed
+and selection runs them; the module and every region around an edited one are
+touched with it. A region the edit wrote has no recorded cases of its own and
+takes those of the untouched region around it. Two regions that share a name,
+such as two `useEffect(() => …)` callbacks, are told apart by where the text
+puts them, and never by their order or their name: delete the first, write a new
+one behind the second, and the cases of the old second stay with the body that
+survives. When either text cannot be found, the whole file counts as changed and
+selection widens to every case that touched it.
+
 ### From a crossing back to a line
 
 The record joins a block to the file two ways. `sourceDigest` on the module
