@@ -19,7 +19,7 @@ import { flagsFor, synopsisFor } from '../usage.js';
 import { probedModule } from './mainline-fixture.js';
 import { review } from './review.js';
 import { formatReview, REVIEW_MARKER } from './review-text.js';
-import { AFTER, DISCOUNTS, ROUNDS, block, changed, git, roundedBy } from './review-fixture.js';
+import { AFTER, AFTER_LINES, DISCOUNTS, LEAD, LEAD_LINES, ROUNDS, block, changed, git, recordTotal, roundedBy } from './review-fixture.js';
 
 function parse(argv: readonly string[]) {
   return parseReviewArgs(readFlags(argv, 'review', flagsFor('review'), synopsisFor('review')));
@@ -59,6 +59,23 @@ describe('a review of what a change did, after the run that recorded it', () => 
     const answer = await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--coverage', '--root', root]));
 
     expect(answer.files.find((file) => file.file === 'src/total.ts')?.regions?.map(({ name, cases }) => [name, cases])).toEqual([['applyDiscount', 1], ['round', 0]]);
+  });
+
+  it('takes no region from a suite whose cases were cut at other text than its snapshot', async () => {
+    const { root, first, against } = await changed({ suites: ['unit', 'browser'], tree: LEAD, lines: LEAD_LINES });
+    // A run that kept no case: its snapshot re-cut to the tree, its case index carried at the base's lines.
+    await recordTotal(testCoverageFile(root, { suite: 'browser' }), {
+      commit: first,
+      text: LEAD,
+      lines: LEAD_LINES,
+      tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
+      entered: { applyDiscount: [], round: [] },
+      index: { tests: [ROUNDS], modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', ...AFTER_LINES.applyDiscount, []), block('round', ...AFTER_LINES.round, [])] }] },
+    });
+    const answer = await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--coverage', '--root', root]));
+
+    expect(answer.files.find((file) => file.file === 'src/total.ts')?.regions?.map(({ name, startLine, endLine, cases }) => [name, startLine, endLine, cases]))
+      .toEqual([['applyDiscount', 2, 4, 1], ['round', 6, 8, 0]]);
   });
 
   it('says the named suite has not run the change, though another suite ran it and answers for its regions', async () => {
