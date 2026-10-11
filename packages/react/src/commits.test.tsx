@@ -214,10 +214,15 @@ describe('waiting for quiet', () => {
     // ticker does and what `act` exists to prevent.
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
 
+    // Ticking stops before the root unmounts, so no update is still queued on a
+    // fiber the unmount deletes.
+    const ticking = { on: true };
     function Ticker() {
       const [n, setN] = useState(0);
       useEffect(() => {
-        const id = setInterval(() => setN((value) => value + 1), 5);
+        const id = setInterval(() => {
+          if (ticking.on) setN((value) => value + 1);
+        }, 5);
         return () => clearInterval(id);
       }, []);
       return h('span', null, String(n));
@@ -241,6 +246,8 @@ describe('waiting for quiet', () => {
     // at all rather than sitting at the bottom of it.
     expect(quiet.restless.map((entry) => entry.name)).not.toContain('Page');
 
+    ticking.on = false;
+    expect((await awaitQuiet(tap, { quietFor: 20, timeout: 250 })).settled).toBe(true);
     tap.stop();
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   });

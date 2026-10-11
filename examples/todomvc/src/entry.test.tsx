@@ -209,10 +209,15 @@ describe('a page that never finishes', () => {
     (globalThis as ActEnvironment).IS_REACT_ACT_ENVIRONMENT = false;
     sheets();
 
+    // Ticking stops before the root unmounts, so no update is still queued on a
+    // fiber the unmount deletes.
+    const ticking = { on: true };
     function LiveCount() {
       const [seconds, setSeconds] = useState(0);
       useEffect(() => {
-        const id = setInterval(() => setSeconds((value) => value + 1), 5);
+        const id = setInterval(() => {
+          if (ticking.on) setSeconds((value) => value + 1);
+        }, 5);
         return () => clearInterval(id);
       }, []);
       return h(Text, { tone: 'muted' }, `${String(seconds)}s ago`);
@@ -246,6 +251,8 @@ describe('a page that never finishes', () => {
     expect(named).not.toContain('Page');
     expect(named).not.toContain('Chip');
 
+    ticking.on = false;
+    expect((await awaitQuiet(tap, { quietFor: 20, timeout: 250 })).settled).toBe(true);
     root.unmount();
     container.remove();
     (globalThis as ActEnvironment).IS_REACT_ACT_ENVIRONMENT = true;

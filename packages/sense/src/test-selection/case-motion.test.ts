@@ -151,6 +151,18 @@ describe('the cases the comparison left out', () => {
     expect(caseMotion(index([A], [block('apply', 1, [0])]), index([A], [block('apply', 1, [])]), { ...UNCHANGED, retained }).regions).toEqual([]);
   });
 
+  it('keep their test file where it was, as they keep the region', () => {
+    // B's file did not run now: its case is retained, and still reaches `apply`.
+    const base = index([B], [block('apply', 1, [0])]);
+    const now = index([A], [block('apply', 1, [])]);
+    const retained = index([B], [block('apply', 1, [0])]);
+
+    const motion = caseMotion(base, now, { ...UNCHANGED, retained });
+
+    expect(motion.regions).toEqual([]);
+    expect(motion.testFiles).toEqual([]);
+  });
+
   it('credit nothing in a cut of the module other than the one the current record holds', () => {
     // The retained cut still holds the first of two `.filter` callbacks, which
     // the current record does not: by occurrence, its case would land on the

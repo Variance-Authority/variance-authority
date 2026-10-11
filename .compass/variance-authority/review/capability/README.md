@@ -4,8 +4,10 @@
 
 ## Responsibility
 
-Decides which of a deployment's two secrets a caller presented, and whether that
-**capability** may do what the chosen route requires.
+Decides which of a deployment's secrets a caller presented — ingest, review, or
+the optional share token — and whether that **capability** may do what the
+chosen route requires. The share token reads a share and what review settled,
+and never writes or decides.
 
 ## Bounded context
 
@@ -13,16 +15,16 @@ Decides which of a deployment's two secrets a caller presented, and whether that
 
 ## Inputs and outputs
 
-In: the credential on a request, and the two secrets the deployment was
-constructed with. Out: one of two capabilities or nothing at all, and — at the
+In: the credential on a request, and the secrets the deployment was
+constructed with. Out: one of three capabilities or nothing at all, and — at the
 mount — the authorization header the answer implies.
 
-At construction it takes the two secrets and refuses the deployment outright:
-under sixteen characters, or the two being one value.
+At construction it takes the secrets and refuses the deployment outright: any
+under sixteen characters, or any two being one value.
 
 ## Depends on
 
-Nothing. It is structural about its inputs, seeing two secrets and
+Nothing. It is structural about its inputs, seeing the secrets and
 not the deployment's project or its retention window, so that authentication
 cannot be made to depend on either by a later edit.
 
@@ -50,8 +52,13 @@ where the next person reading that repository can see it.
 
 - `packages/tribunal/src/worker-auth.ts` — `grant` decides which secret was
   presented; `refuseWeakTokens` is the construction-time refusal;
-  `requires` is the after-routing check; `UNAUTHENTICATED` is the one sentence a
-  caller holding neither ever gets
+  `requires` is the after-routing check; `readable` admits ingest and review to
+  history reads; `attested` admits review and share to what review settled and
+  refuses ingest; `sharable` admits ingest to a share and share to reading it;
+  `UNAUTHENTICATED` is the one sentence a caller holding no token ever gets
+- `packages/tribunal/src/worker-attested.ts` — the read-only review routes,
+  the changelog and the decision history, each checked by `attested` before
+  its method
 - `packages/tribunal/src/next.ts` — `TribunalRouteOptions.authorize`, and the
   header replaced rather than added, so a caller sending its own bearer
   cannot choose its own capability

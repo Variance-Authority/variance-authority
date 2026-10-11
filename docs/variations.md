@@ -111,8 +111,7 @@ the base — the nearest coordinate the run actually planned:
 
 ```text
 story:checkout--glass-ff-on  →  story:checkout--glass
-story:checkout--glass        →  story:checkout--green
-story:checkout--green        →  story:checkout--default
+story:checkout--glass        →  story:checkout--default
 ```
 
 One axis per link, still, and now the link records which axis it was:
@@ -123,6 +122,11 @@ subject at two coordinates: `colour` is `glass` here and `green` there, and
 every other axis is the same word in both — so what is measured above is that
 axis and nothing else.
 ```
+
+The record carries the same answer as data: a `step` naming the `axis`, its
+`position` among your `names` axes counting from 0, the parent's value as
+`from` and this subject's as `to`. A pair found any other way has no `step`,
+because nothing read a coordinate for it.
 
 Two consequences to plan for:
 
@@ -182,6 +186,52 @@ rather than quietly answered with a guess. And a link read off a name is marked
 as such — in the record, in the sentence, and in its own group in the answer —
 because *somebody said so* and *a name implied it* are not the same evidence.
 
+## See two axes at once
+
+A link compares a subject with one neighbour. `checkout--glass-ff-on` is read
+against `checkout--glass`, and nothing puts it beside `checkout--ff-on`, its
+neighbour on the other axis — so whether `colour` and `flag` interact is never
+in view.
+
+When a family — a base and every subject that varies from it — varies on exactly
+two axes and every link in it was read by your `names`, the run page of
+`tribunal`, the review service, draws it as a grid with the base in the corner.
+The axis your `names` lists first runs down, so the grid reads the way a
+name does.
+
+With only `colour` and `flag` configured —
+
+```json
+{
+  "names": {
+    "axes": [
+      { "axis": "colour", "values": ["green", "glass"] },
+      { "axis": "flag", "values": ["ff-off", "ff-on"] }
+    ]
+  }
+}
+```
+
+— `story:checkout` names no value on either axis, so it sits at both bases, and its
+family is drawn as:
+
+```text
+colour ↓  flag →   ff-off                 ff-on
+green              story:checkout         story:checkout--ff-on
+glass              story:checkout--glass  story:checkout--glass-ff-on
+```
+
+Each cell is the subject's picture, at one scale for the whole grid. A
+combination nothing in the family is at is an empty cell that names its two
+values. The pairs stay listed underneath with what each measured, without
+repeating their pictures.
+
+A family on one axis is already a list of pairs. A family on three or more axes,
+or with any member linked by a `variance-parent:` tag, stays as pairs too: the
+grid places a subject only by the coordinate your names gave it. Under the
+three-axis configuration earlier on this page, `checkout--empty` joins the family
+on `state`, so that family stays as pairs.
+
 ## What it is not
 
 **It is not a verdict.** A dark story is darker than its light parent; a narrow
@@ -206,8 +256,8 @@ after the run is outside this surface.
 
 ## Read it
 
-`npx variance report --config variance.config.json` prints the section above when a
-run has one.
+`npx variance report --config variance.config.json` prints a run's variations, as
+pairs, when it has any.
 
 The same content is in the run artifact — the machine-readable record a run writes —
 and an agent asks for it by name:

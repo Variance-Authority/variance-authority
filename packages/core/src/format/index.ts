@@ -29,6 +29,8 @@ export { accessibilitySnapshot } from './accessibility.js';
 export type { ObservationProfile, ProfileId } from './profile.js';
 export { JSDOM_PROFILE, CHROMIUM_PROFILE, profileById, tierOfProfile } from './profile.js';
 
+export { assetUrl, pageOrigin, withoutOrigin } from './origin.js';
+
 export type { Tier } from './tier.js';
 export { tierReaches } from './tier.js';
 
@@ -88,7 +90,7 @@ export type {
   SubjectRef,
   Diagnostic,
 } from './capture.js';
-export { mergeDiagnostics } from './capture.js';
+export { intersectionArea, mergeDiagnostics } from './capture.js';
 
 export type {
   SemanticSnapshot,

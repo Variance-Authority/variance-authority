@@ -59,8 +59,8 @@ export interface FoldInput extends FoldShape {
 /** The visitor {@link FoldInput.replay} feeds. Its shape is the journal reader's. */
 export interface JournalVisitor {
   test(file: string): void;
-  wants?(id: ModuleId): boolean;
-  module(id: ModuleId, hits: Uint32Array, shared: Uint32Array, loaded: Uint32Array): void;
+  wants?(id: ModuleId, cut: boolean): boolean;
+  module(id: ModuleId, hits: Uint32Array, shared: Uint32Array, loaded: Uint32Array, lines?: Uint32Array): void;
 }
 
 export interface FoldedCrossings {

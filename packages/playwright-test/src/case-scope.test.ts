@@ -17,7 +17,7 @@ vi.mock('./preconditions.js', async (original) => ({
 }));
 
 const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
-const INSTRUMENTATION = 'sense:instrument/presence-v5';
+const INSTRUMENTATION = 'sense:instrument/presence-v6';
 const SOURCE = ['export function price(amount) {', '  return amount * 2;', '}'].join('\n');
 
 interface Scope {

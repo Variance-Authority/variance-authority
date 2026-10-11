@@ -1,6 +1,8 @@
 import type { CaptureArtifact } from '@variance-authority/core';
 import {
   digestBytes,
+  pageOrigin,
+  withoutOrigin,
   type Digest,
   type Holding,
   type Provenance,
@@ -101,8 +103,12 @@ export async function capture(
   const acquired = acquireDocument(root, acquireOptions);
   const urls = resourceUrls(root, acquired);
   const resources = await closeResources(urls, options.resolveResource);
+  // Keyed as `assetsFor` keys a served page's: an asset the page's own origin
+  // serves by its path, so the port a Vitest browser page was served on is no
+  // part of the environment. `resources` keeps the URL the bytes are asked by.
+  const origin = pageOrigin(owner.baseURI);
   const assets = Object.fromEntries(
-    Object.entries(resources).map(([url, resource]) => [url, resource.digest]),
+    Object.entries(resources).map(([url, resource]) => [withoutOrigin(url, origin), resource.digest]),
   );
   const raw = collect(root, {
     ...acquireOptions,

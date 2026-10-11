@@ -90,6 +90,8 @@ nothing to diff against, so its holder runs everything.
   runner-independent point query
 - `packages/sense/src/test-selection/format.ts` — interned paths and a
   compressed-sparse-row region-to-test relation
+- `packages/sense/src/test-selection/case-lines.ts` — per case, the test line
+  that first reached each region it crossed, stored as runs over the regions
 
 ## Diagram
 

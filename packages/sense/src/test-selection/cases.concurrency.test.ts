@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
 import { probeRuntime } from '../instrument/index.js';
+import caseOwner from './case-owner.cjs';
 import journals from './journal-format.cjs';
 
 /**
@@ -64,13 +65,13 @@ function cases(va: Probe) {
  */
 function report(collector: ReturnType<typeof collectors.scoped>): Record<string, unknown> {
   const seen: Record<string, number[]> = {};
-  const ambient = journals.packCase('', '', '');
+  const ambient = caseOwner.packCase('', '', '');
   for (const frame of journals.unpackFrames(journals.packFrames(collector.finish('').frames ?? []))) {
     const { testFile, modules } = journals.decodeJournal(frame);
     const row = modules.find((module) => module.id === 'm');
     if (row === undefined) continue;
     // These keys are bare, so a frame named `A\0finished` holds the key in its first field.
-    const name = testFile === ambient ? 'ambient' : journals.unpackCase(testFile).file;
+    const name = testFile === ambient ? 'ambient' : caseOwner.unpackCase(testFile).file;
     // Ordinal 0 is the module itself, which every bucket it was touched in
     // holds: the ambient bucket has it from the module's evaluation alone.
     const ordinals = row.hits.filter((ordinal) => ordinal > 0);

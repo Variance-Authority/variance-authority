@@ -8,7 +8,7 @@
  * across builds until somebody resolves it, and never touched by a decision.
  */
 
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
 import type { Concern, ConcernState, ConcernTally, RaiseConcern } from '../concern-types.js';
 import type { SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
@@ -18,10 +18,41 @@ import { when } from './text.js';
 
 export { evidenceFor } from './concern-form.js';
 
+/**
+ * A request from outside the card to open its form, in a state. `seq` counts the
+ * requests, so asking twice for the same state is still two requests.
+ */
+export interface Asked {
+  readonly state: ConcernState;
+  readonly seq: number;
+}
+
 type Loaded =
   | { readonly kind: 'loading' }
   | { readonly kind: 'failed'; readonly message: string }
   | { readonly kind: 'ready'; readonly concerns: readonly Concern[] };
+
+/**
+ * Read one subject's trail into the card. Only the newest read may write: an
+ * earlier one answering last would put back a trail from before a decision.
+ * The returned function drops this read's answer.
+ */
+function readTrail(
+  client: ReviewClient,
+  subject: string,
+  setLoaded: (loaded: Loaded) => void,
+  reads: { current: number },
+): () => void {
+  const mine = ++reads.current;
+  const newest = (): boolean => reads.current === mine;
+  client.concerns({ subject }).then(
+    (answer) => newest() && setLoaded({ kind: 'ready', concerns: answer.concerns }),
+    (error: unknown) => newest() && setLoaded({ kind: 'failed', message: messageOf(error) }),
+  );
+  return () => {
+    if (newest()) reads.current += 1;
+  };
+}
 
 /** The concerns card on a subject page: its trail, and the form that adds to it. */
 export function Concerns({
@@ -29,39 +60,66 @@ export function Concerns({
   reviewer,
   build,
   subject,
+  asked,
+  onWriting,
   onChanged,
+  read = 0,
 }: {
   readonly client: ReviewClient;
   readonly reviewer: string;
   readonly build: string;
   readonly subject: SubjectView;
+  /** The bar under the page asking for the form, and the state to start it in. */
+  readonly asked?: Asked | undefined;
+  /** Told when the form opens and closes, so a key elsewhere cannot leave a draft behind. */
+  readonly onWriting?: ((writing: boolean) => void) | undefined;
   /** Told after every concern that landed, so a count elsewhere can follow. */
   readonly onChanged?: (() => void) | undefined;
+  /** Moves when something other than this card may have written to the trail — a decision can. */
+  readonly read?: number;
 }): ReactElement {
   const [loaded, setLoaded] = useState<Loaded>({ kind: 'loading' });
   const [writing, setWriting] = useState(false);
+  const [startAs, setStartAs] = useState<ConcernState>('open');
+  const card = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   // The subject on screen. The page keeps this panel from subject to subject, so
   // a write that answers after the reviewer moved on belongs to a trail that is
   // no longer drawn, and is dropped rather than added to the next one's.
   const shown = useRef(subject.subject);
+  const reads = useRef(0);
 
   useEffect(() => {
-    let live = true;
     shown.current = subject.subject;
     setLoaded({ kind: 'loading' });
     setWriting(false);
     setBusy(false);
     setFailed(null);
-    client.concerns({ subject: subject.subject }).then(
-      (answer) => live && setLoaded({ kind: 'ready', concerns: answer.concerns }),
-      (error: unknown) => live && setLoaded({ kind: 'failed', message: messageOf(error) }),
-    );
-    return () => {
-      live = false;
-    };
+    return readTrail(client, subject.subject, setLoaded, reads);
   }, [client, subject.subject]);
+
+  // A decision can add to the trail, and a draft open beside it is the
+  // reviewer's: the trail is read again and the form is left as it was.
+  const lastRead = useRef(read);
+  useEffect(() => {
+    if (lastRead.current === read) return;
+    lastRead.current = read;
+    return readTrail(client, subject.subject, setLoaded, reads);
+  }, [client, subject.subject, read]);
+
+  // Both before paint: a browser runs the next keydown as soon as the form is
+  // drawn, and a J that reached the bar before it heard would leave the draft.
+  useLayoutEffect(() => onWriting?.(writing), [onWriting, writing]);
+
+  // Only a new request opens the form: the panel outlives the subject, and the
+  // last request is still in its props when the reviewer moves to the next one.
+  useLayoutEffect(() => {
+    if (asked === undefined) return;
+    setStartAs(asked.state);
+    setWriting(true);
+    card.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [asked]);
 
   /**
    * Put a written concern where the list had it, or at the end when it is new.
@@ -108,7 +166,7 @@ export function Concerns({
     void write(() => client.moveConcern(concern.id, { state, by: reviewer }));
 
   return (
-    <div className="va-concerns">
+    <div className="va-concerns" ref={card}>
       {failed === null ? null : <p className="va-failure">{failed}</p>}
       {loaded.kind === 'loading' ? <p className="va-note">Reading concerns…</p> : null}
       {loaded.kind === 'failed' ? <p className="va-failure">{loaded.message}</p> : null}
@@ -133,12 +191,21 @@ export function Concerns({
           build={build}
           reviewer={reviewer}
           busy={busy}
+          initial={startAs}
+          asked={asked?.seq}
           onSave={(input) => void save(input)}
           onCancel={() => setWriting(false)}
         />
       ) : (
         <p className="va-actions">
-          <button type="button" className="va-suspicious" onClick={() => setWriting(true)}>
+          <button
+            type="button"
+            className="va-suspicious"
+            onClick={() => {
+              setStartAs('open');
+              setWriting(true);
+            }}
+          >
             Looks suspicious
           </button>
         </p>
@@ -213,12 +280,21 @@ export function ConcernTrail({
   );
 }
 
-/** The tally of a build, or why it could not be read, and a way to read it again. */
+/**
+ * The concerns a build showed and their tally, or why they could not be read,
+ * and a way to read them again. A string is the reason; undefined is not yet.
+ */
 export function useConcernTally(
   client: ReviewClient,
   build: string,
-): { readonly tally: ConcernTally | string | undefined; readonly refresh: () => void } {
-  const [tally, setTally] = useState<ConcernTally | string | undefined>(undefined);
+): {
+  readonly tally: ConcernTally | string | undefined;
+  readonly concerns: readonly Concern[] | string | undefined;
+  readonly refresh: () => void;
+} {
+  const [read, setRead] = useState<
+    { readonly tally: ConcernTally | undefined; readonly concerns: readonly Concern[] } | string | undefined
+  >(undefined);
   // Only the latest request draws. An answer overtaken by a later one — for
   // another build, or for this one after another write — is dropped, so a slow
   // answer never counts the wrong build or an older count of this one.
@@ -226,19 +302,24 @@ export function useConcernTally(
   const refresh = useCallback(() => {
     const asked = ++latest.current;
     client.concerns({ seenIn: build }).then(
-      (answer) => asked === latest.current && setTally(answer.tally),
-      (error: unknown) => asked === latest.current && setTally(messageOf(error)),
+      (answer) => asked === latest.current && setRead({ tally: answer.tally, concerns: answer.concerns }),
+      (error: unknown) => asked === latest.current && setRead(messageOf(error)),
     );
   }, [client, build]);
   useEffect(() => {
-    setTally(undefined);
+    setRead(undefined);
     refresh();
   }, [refresh]);
-  return { tally, refresh };
+  return typeof read === 'object'
+    ? { tally: read.tally, concerns: read.concerns, refresh }
+    : { tally: read, concerns: read, refresh };
 }
 
 /**
  * The concerns standing on a build, as one line for its header.
+ *
+ * It counts concerns and says so: the rail's tasks count the renders they stand
+ * on, and two concerns on one render are two here and one there.
  *
  * Nothing at all when nothing was ever flagged: a row of three zeros on every
  * build is a header teaching its reader to skip it.
@@ -260,7 +341,7 @@ export function ConcernTallyLine({
   if (tally.open + tally.investigating + tally.resolved === 0) return null;
   return (
     <span className="va-concern-tally">
-      <b>{tally.open} flagged</b> · {tally.investigating} investigating · {tally.resolved} resolved
+      concerns: <b>{tally.open} open</b> · {tally.investigating} investigating · {tally.resolved} resolved
     </span>
   );
 }

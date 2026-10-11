@@ -2,6 +2,7 @@ import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.
 import { durationWord, NO_DURATION, NO_OWNER, validSections, type Header, type Section } from './format-layout.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import { PRECONDITIONS_COLUMN, UNHEARD } from './case-precondition-column.js';
+import { LINES_COLUMN, LINES_OFFSETS, type LinesTable } from './case-lines.js';
 import type { ExecutionTest } from './reverse.js';
 
 /** The version that recorded the set of cases that loaded each region, read as the flag its set implies. */
@@ -29,6 +30,8 @@ export interface TestColumns {
   readonly testDuration: Uint32Array | undefined;
   /** Absent in an index that listened to no case. */
   readonly testPreconditions: Uint32Array | undefined;
+  /** The line that reached each region a case crossed; absent in an index written without cuts. */
+  readonly testLines: LinesTable | undefined;
 }
 
 /** The string table: sorted by code unit, each string once. */
@@ -94,7 +97,19 @@ export function testColumns(opened: OpenedSections, strings: number): TestColumn
     if ((testStopped[test] ?? 0) > STOPPED) throw invalid();
   }
   for (const id of testPreconditions ?? []) if (id !== UNHEARD && id >= strings) throw invalid();
-  return { testId, testFile, testName, testStopped, testDuration, testPreconditions };
+  // Written since a cut case carries the line that reached each region; a file without it cut none.
+  const testLines = opened.found.has(LINES_COLUMN) ? linesTable(opened, testCount) : undefined;
+  return { testId, testFile, testName, testStopped, testDuration, testPreconditions, testLines };
+}
+
+function linesTable(opened: OpenedSections, testCount: number): LinesTable {
+  const offsets = columnWords(opened, LINES_OFFSETS);
+  if (offsets.length !== testCount + 1) throw invalid();
+  const blob = columnBlob(opened, LINES_COLUMN, offsets);
+  for (let test = 0; test < testCount; test += 1) {
+    if (offsets[test + 1]! < offsets[test]! || offsets[test + 1]! > blob.length) throw invalid();
+  }
+  return { blob, offsets };
 }
 
 export function setColumns(opened: OpenedSections): SetColumns {

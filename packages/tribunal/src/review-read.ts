@@ -10,7 +10,9 @@ import type {
   SensitivityLedger,
   SubjectReach,
   VariationRecord,
+  VariationStep,
 } from '@variance-authority/report';
+import { asksRepeats } from './repeats.js';
 import {
   ReviewError,
   number,
@@ -26,6 +28,7 @@ import type {
   MovementView,
   Placement,
   ReachView,
+  Repeats,
   SubjectView,
 } from './review-types.js';
 
@@ -90,7 +93,11 @@ export function docket(subjects: readonly SubjectView[]): readonly Cause[] {
     });
 }
 
-export function toSubjectView(row: Row, decision: DecisionRecord | null): SubjectView {
+export function toSubjectView(
+  row: Row,
+  decision: DecisionRecord | null,
+  repeats: Repeats,
+): SubjectView {
   const what = 'a build subject';
   const truncated = optionalText(row, 'truncated', what);
   const missingFonts = optionalText(row, 'missing_fonts', what);
@@ -100,6 +107,7 @@ export function toSubjectView(row: Row, decision: DecisionRecord | null): Subjec
   const relaxed = optionalText(row, 'relaxed', what);
   const moved = optionalText(row, 'moved', what);
   const after = optionalText(row, 'after_key', what);
+  const verdict = text(row, 'verdict', what) as ObservationRecord['verdict'];
   const width = row['candidate_width'];
   const height = row['candidate_height'];
   const wasWide = row['baseline_width'];
@@ -107,7 +115,7 @@ export function toSubjectView(row: Row, decision: DecisionRecord | null): Subjec
 
   return {
     subject: text(row, 'subject', what),
-    verdict: text(row, 'verdict', what) as ObservationRecord['verdict'],
+    verdict,
     because: text(row, 'because', what),
     changedPixels: number(row, 'changed_pixels', what),
     regions: JSON.parse(text(row, 'regions', what)) as RegionRecord[],
@@ -141,6 +149,10 @@ export function toSubjectView(row: Row, decision: DecisionRecord | null): Subjec
     ...(typeof wasWide === 'number' && typeof wasTall === 'number'
       ? { baseline: { width: wasWide, height: wasTall } }
       : {}),
+    // Only a kept candidate has a key to look for, and only a render a reviewer
+    // decides on asks for it. Without either, the image was not never seen
+    // before; the question was not asked.
+    ...(after !== undefined && asksRepeats(verdict) ? { repeats } : {}),
   };
 }
 
@@ -166,6 +178,7 @@ export function toVariation(row: Row): VariationRecord {
   const components = optionalText(row, 'components', what);
   const digest = optionalText(row, 'digest', what);
   const how = optionalText(row, 'how', what);
+  const step = stepOf(optionalText(row, 'step', what));
 
   return {
     subject: text(row, 'subject', what),
@@ -177,7 +190,31 @@ export function toVariation(row: Row): VariationRecord {
     ...(components !== undefined ? { components: JSON.parse(components) as string[] } : {}),
     ...(digest !== undefined ? { digest } : {}),
     ...(how === 'declared' || how === 'named' ? { how } : {}),
+    ...(step !== undefined ? { step } : {}),
   };
+}
+
+/**
+ * A stored step, read back only when it is the whole coordinate.
+ *
+ * A step missing a value cannot place a subject, and placing it anyway would
+ * put a picture in the wrong cell of a grid somebody reads as a comparison. So
+ * anything short of three strings and a position reads as no step, and the
+ * page draws the pair as a pair.
+ */
+function stepOf(stored: string | undefined): VariationStep | undefined {
+  if (stored === undefined) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stored);
+  } catch {
+    return undefined;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return undefined;
+  const { axis, position, from, to } = parsed as Record<string, unknown>;
+  if (typeof axis !== 'string' || typeof from !== 'string' || typeof to !== 'string') return undefined;
+  if (typeof position !== 'number' || !Number.isInteger(position) || position < 0) return undefined;
+  return { axis, position, from, to };
 }
 
 /**

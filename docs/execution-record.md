@@ -687,8 +687,9 @@ below is one stage of that call.
    nothing. `bodies` — what the module does as it loads and every binding's
    value are equal — charges the regions around the lines and never the
    module's own region. `values` charges the same regions, and every region
-   that reads a binding whose value moved: in the file, and in each direct
-   importer on a runtime edge, further only through a re-export. A read at
+   that reads a binding whose value moved: in the file, under its own name or
+   through an import that brings it back, and in each direct importer on a
+   runtime edge, further only through a re-export. A read at
    load charges that module, and an importer that hands a namespace on whole
    charges its module. An import that binds a name is a use by the functions
    that read it, so an import added to a file charges those functions and not
@@ -698,12 +699,15 @@ below is one stage of that call.
    declared file, or an importer that starts or stops loading one, is `load`,
    and its reading lists the declared files in `effects`. A test that crossed the
    changed module through no importer the graph holds is listed in `unseen` and
-   charged nothing. `load` charges the lines as step 4 does. Under `bodies`
+   charged nothing. An importer whose text cannot be read charges its module,
+   or, with no row, every test step 6's walk finds behind it. `load` charges
+   the lines as step 4 does. Under `bodies`
    or `values`, text inserted in a gap no region spans charges nothing. A file
    without `sourceAt`, whose hunks do not apply to the recorded text, whose
    text does not parse, or on a machine without the scanner's native addon is
    charged by its lines, and `readings` records which. Two parses per side per
-   changed file, and one parse per importer of a moved value.
+   changed file, and one parse per importer of a moved value, plus one more each
+   time another path reaches that importer with a name no earlier path brought.
 4. **Lines to blocks.** Each charged line costs one scan of the module's
    blocks, O(B). Every synthesized region containing the line is charged. Source
    regions containing it are grouped by span, and the narrowest group is
@@ -808,7 +812,7 @@ and `shared` the subset of `hits` whose counter had the `EVALUATING` bit set.
 already above zero in the snapshot the setup file took before the file's first
 test: regions covered as a consequence of loading. Presence only: the counts
 never leave the process. The ordinals index the recipe the build instrumented
-under — `sense:instrument/presence-v5`, or `sense:instrument/entries-v2` when
+under — `sense:instrument/presence-v6`, or `sense:instrument/entries-v3` when
 the seam was asked for `mode: 'entries'`, which numbers the module and each
 function and nothing between — and every reader refuses a journal or
 snapshot cut under the other.
@@ -864,7 +868,7 @@ covered under that id. [`journeys.md`](journeys.md) is their page. The type
 ```json
 {
   "version": 1,
-  "instrumentation": "sense:instrument/presence-v5",
+  "instrumentation": "sense:instrument/presence-v6",
   "head": "api",
   "scope": "journey",
   "lost": 0,

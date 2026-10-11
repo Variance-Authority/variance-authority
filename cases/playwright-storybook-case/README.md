@@ -27,8 +27,9 @@ two workers:
 A page's crossings are read once the test is done with its browser context:
 after every `afterEach`, while the pages are still open, from every frame of
 every page. A document that was replaced during the test, by a second `goto`, a
-reload, a removed frame or a closed tab, cannot be read afterwards. The spec is
-still recorded with what its last document executed, but it is marked
+reload, a removed frame or a closed tab, cannot be read afterwards. Each spec
+is also read before every statement, so the spec is still recorded with what
+each document executed up to the statement that replaced it, but it is marked
 incomplete. An incomplete record is never trusted to show that the spec did not
 reach a change, so the next selection runs that spec instead of skipping it.
 
@@ -73,10 +74,10 @@ that line, and asks `narrowByExecution` about it:
 - **`return amount - 10`**: `after-each`, `manager` and `navigate` entered it.
   All three reached it after a click: in the hook, inside the manager's iframe,
   and after the navigation.
-- **`return amount;`** in `price`: only `popup` entered it. `navigate` rendered a
-  plain price too, but in the document its second `goto` replaced. So it is not
-  listed as having entered the line, and it is not listed as whole either. A
-  selection built on this answer runs it anyway.
+- **`return amount;`** in `price`: `navigate` and `popup` entered it.
+  `navigate` rendered the plain price in the document its second `goto`
+  replaced, and the read before that `goto` kept it. It is not listed as whole,
+  because what that document did during the `goto` went with it.
 
 ## Scope
 

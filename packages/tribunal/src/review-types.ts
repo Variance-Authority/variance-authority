@@ -14,6 +14,8 @@ import type {
 import type { TribunalBindings } from './bindings.js';
 import type { TribunalChangelog, TribunalChangelogQuery } from './changelog.js';
 import type { BuildIngest } from './review-ingest-types.js';
+import type { SweepReport } from './review-sweep.js';
+import type { SameImage } from './same-image.js';
 
 /**
  * What a review store takes and what it answers with — and nothing that runs.
@@ -42,6 +44,26 @@ export interface DecisionRecord {
   readonly by: string;
   readonly note?: string;
   readonly at: string;
+}
+
+/** A decision as recording it answered. */
+export interface Decided extends DecisionRecord {
+  /** The concern an approval opened because an earlier build rejected the same image; the approval stands. */
+  readonly concern?: number;
+}
+
+/** One decision in the history, with the build and subject it was made on. */
+export interface DecisionEntry extends DecisionRecord {
+  readonly build: string;
+  readonly subject: string;
+}
+
+/** Which decisions to read. Both filters narrow; neither set reads the project's. */
+export interface DecisionsQuery {
+  readonly build?: string;
+  readonly subject?: string;
+  /** How many, newest first. 200 when unset. */
+  readonly limit?: number;
 }
 
 export interface BuildSummary {
@@ -130,8 +152,45 @@ export interface SubjectView {
    * width would read as identical everywhere except a hairline at the edge.
    */
   readonly baseline?: { readonly width: number; readonly height: number };
+  /**
+   * The document digest of the baseline an approval of this subject would
+   * replace, read when this view was. `null` when there is none yet.
+   *
+   * Echoed back on a decision, which is refused when the baseline is no longer
+   * this one. Absent from a view that did not read it, and a decision without it
+   * is not checked.
+   */
+  readonly baselineVersion?: string | null;
   /** `true` when the candidate carries the sidecar an approval would promote. */
   readonly approvable: boolean;
+  readonly decision: DecisionRecord | null;
+  /**
+   * The earlier builds of this project in which this subject kept the same
+   * candidate, matched on its content key. Absent when the subject kept no
+   * candidate, and on an `unchanged` or `ignored` render, which no reviewer
+   * decides on; `{ count: 0, builds: [] }` when no earlier build still held here
+   * kept that image.
+   */
+  readonly repeats?: Repeats;
+}
+
+/**
+ * Where a candidate was seen before, and what was decided about it there.
+ *
+ * `count` is every earlier build that kept the image; `builds` names at most
+ * eight of them, the decided ones first with the latest decision leading, then
+ * the undecided ones, newest first.
+ */
+export interface Repeats {
+  readonly count: number;
+  readonly builds: readonly RepeatedIn[];
+}
+
+/** One earlier build that kept the image, with the decision it ended on. */
+export interface RepeatedIn {
+  readonly build: string;
+  /** When the build ran. */
+  readonly at: string;
   readonly decision: DecisionRecord | null;
 }
 
@@ -180,6 +239,15 @@ export interface BuildDetail extends BuildSummary {
    * one fact.
    */
   readonly variations: readonly VariationRecord[];
+
+  /**
+   * Stories of one component whose candidates are the same image, byte for byte.
+   *
+   * Read from the store, not the report: an image is kept under its SHA-256, so
+   * two subjects holding one `after` object rendered the same PNG. Empty when no
+   * two stories of a component did. A subject with no candidate is in no group.
+   */
+  readonly sameImage: readonly SameImage[];
 
   /**
    * What the commit reaches, and per subject whether it reaches that one.
@@ -363,48 +431,6 @@ export interface Cause {
   readonly collateralPixels: number;
 }
 
-export interface SweepReport {
-  /** Builds removed. */
-  readonly builds: number;
-  /**
-   * Builds past the window that were **kept**, because somebody still has to
-   * look at them.
-   *
-   * A `durable` build with an undecided `changed` subject is the only copy of
-   * the image that change would be approved from. Sweeping it deletes the
-   * evidence and makes the change permanently unapprovable through this
-   * service, so the window does not apply to it and this is where that shows
-   * up. A number that climbs is a review queue nobody is working — which is
-   * worth seeing, and is the reason this is reported rather than silently done.
-   */
-  readonly held: number;
-  /** Subject rows removed with them. */
-  readonly subjects: number;
-  /** Stored images removed: the ones nothing refers to any more. */
-  readonly objects: number;
-  /**
-   * Render cache entries dropped, by the same window.
-   *
-   * Nothing used to remove one of these, ever. A cache entry is pure
-   * optimisation — losing one costs a re-render of a document nothing has asked
-   * for in the whole retention period — and it was the one table here with no
-   * bound on it at all.
-   */
-  readonly cached: number;
-  /**
-   * Decisions those builds carried, which are **kept**, not removed.
-   *
-   * Named for what happened to them, because every other number here is a
-   * removal and an operator reading `decisions: 4` beside them concludes four
-   * approvals were deleted — the one thing this store promises never happens
-   * ([ADR-0021](../../../docs/context/adr/0021-approval-promotes-an-image-that-already-exists.md)).
-   * The count is worth reporting: it is how much attribution outlived the build
-   * that proposed it, and a sweep that returned zero here forever would be a
-   * retention policy quietly disagreeing with the trigger on the table.
-   */
-  readonly decisionsKept: number;
-}
-
 export interface ReviewStore {
   ingest(build: BuildIngest): Promise<void>;
   builds(limit?: number): Promise<readonly BuildSummary[]>;
@@ -416,7 +442,21 @@ export interface ReviewStore {
     readonly decision: Decision;
     readonly by: string;
     readonly note?: string;
-  }): Promise<DecisionRecord>;
+    /**
+     * The {@link SubjectView.baselineVersion} the decision was taken against.
+     * When given on an approval and no longer current, the approval is refused
+     * with `BaselineMoved` and nothing is recorded, but only where the
+     * approvals that moved it changed a region this build changed too.
+     * Omitted, or on a rejection, nothing is checked.
+     */
+    readonly baselineVersion?: string | null;
+  }): Promise<Decided>;
+  /**
+   * Every decision recorded, newest first, including the ones a later decision
+   * reversed. The build page shows the current decision per subject; this is the
+   * history behind it, and it outlives the build, as the table it reads does.
+   */
+  decisions(query?: DecisionsQuery): Promise<readonly DecisionEntry[]>;
   /**
    * Why the baselines are what they are — every approval, grouped by what changed.
    *

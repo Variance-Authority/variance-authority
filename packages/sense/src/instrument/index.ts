@@ -119,14 +119,26 @@
  * Every inserted site calls the declarations in the generated module directly.
  * Re-evaluating an instrumented function's source in another realm loses those
  * declarations and throws, exposing that configuration error at its first probe.
+ *
+ * A function the module itself hands to a page is the exception the walk can
+ * see: the argument of `evaluate`, `addInitScript`, `waitForFunction`, `$eval`
+ * and the rest of Playwright's and Puppeteer's serializing calls, written at the
+ * call or bound in the module to a function, by a declaration or a variable,
+ * that is never reassigned. It gets no probe, and its text belongs to the
+ * region around it — except a declaration written after a branch that can
+ * leave or under a `case`, which exists from its block's start and gets a
+ * region probed where the block is entered. A
+ * function written in another module and sent from this one is not visible
+ * here, and the module that wrote it stays uninstrumented.
  */
 
 import { instrumenter, spliced as splice, type Block, type BlockKind, type InstrumentMode } from './spliced.js';
 
 export type { Block, BlockKind, InstrumentMode };
+export { cadence, columnBehindCut, type CutSourceMap, type CutTestFile } from './cadence.js';
 
 /** Changes whenever two instrumented block universes must not share observations. */
-export const INSTRUMENTATION_ID = 'sense:instrument/presence-v5';
+export const INSTRUMENTATION_ID = 'sense:instrument/presence-v6';
 
 /**
  * The recipe each mode emits under. One identity per mode, because the two
@@ -136,7 +148,7 @@ export const INSTRUMENTATION_ID = 'sense:instrument/presence-v5';
  */
 const IDS: Readonly<Record<InstrumentMode, string>> = {
   presence: INSTRUMENTATION_ID,
-  entries: 'sense:instrument/entries-v2',
+  entries: 'sense:instrument/entries-v3',
 };
 
 export function instrumentationId(mode: InstrumentMode = 'presence'): string {

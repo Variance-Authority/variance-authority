@@ -12,8 +12,8 @@ import {
 import type {
   BuildDetail,
   BuildSummary,
+  Decided,
   Decision,
-  DecisionRecord,
   SweepReport,
   TribunalChangelog,
   TribunalChangelogQuery,
@@ -90,13 +90,19 @@ export interface ReviewClient {
   flakiness(subject: string, window?: Window): Promise<Flakiness>;
   /** The most recent recorded reading of one component in one subject, or `null`. */
   lastChanged(subject: string, component: string): Promise<Observation | null>;
+  /**
+   * Record a decision. `baselineVersion` is the subject's
+   * `SubjectView.baselineVersion` as the page read it: given, the service
+   * answers 409 when the baseline has moved since; omitted, it checks nothing.
+   */
   decide(
     build: string,
     subject: string,
     decision: Decision,
     by: string,
     note?: string,
-  ): Promise<DecisionRecord>;
+    baselineVersion?: string | null,
+  ): Promise<Decided>;
   sweep(days?: number): Promise<SweepReport>;
   /**
    * What reviewers suspect, apart from what they decided.
@@ -122,11 +128,25 @@ export interface ReviewClient {
   imageBlob(build: string, subject: string, kind: 'before' | 'after' | 'diff'): Promise<Blob>;
 }
 
+/**
+ * The two baselines a refused decision was caught between: the one the page read
+ * and the one standing now, each the document it was painted from, `null` for
+ * none. The service's 409 carries them beside its sentence.
+ */
+export interface MovedBaseline {
+  readonly read: string | null;
+  readonly current: string | null;
+  /** Why the change it moved by could not be told apart from this one, when the service says. */
+  readonly clash?: string;
+}
+
 export class ReviewRequestError extends Error {
   override readonly name = 'ReviewRequestError';
   constructor(
     message: string,
     readonly status: number,
+    /** What moved, when the refusal was a baseline that moved under the decision. */
+    readonly moved?: MovedBaseline,
   ) {
     super(message);
   }
@@ -149,9 +169,12 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
 
     const response = await send(`${base}${path}`, { ...init, headers });
     if (!response.ok) {
+      const body = await read(response);
+      const moved = movedIn(body);
       throw new ReviewRequestError(
-        `${init?.method ?? 'GET'} ${path} answered ${response.status}: ${await quote(response)}`,
+        `${init?.method ?? 'GET'} ${path} answered ${response.status}: ${quote(body)}`,
         response.status,
+        moved,
       );
     }
     return (await response.json()) as T;
@@ -197,10 +220,15 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
       return body.observation;
     },
 
-    decide: (build, subject, decision, by, note) =>
-      call<DecisionRecord>(`/review/builds/${encode(build)}/subjects/${encode(subject)}/decision`, {
+    decide: (build, subject, decision, by, note, baselineVersion) =>
+      call<Decided>(`/review/builds/${encode(build)}/subjects/${encode(subject)}/decision`, {
         method: 'POST',
-        body: JSON.stringify({ decision, by, ...(note === undefined ? {} : { note }) }),
+        body: JSON.stringify({
+          decision,
+          by,
+          ...(note === undefined ? {} : { note }),
+          ...(baselineVersion === undefined ? {} : { baselineVersion }),
+        }),
       }),
 
     sweep: (days) =>
@@ -242,7 +270,7 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
       );
       if (!response.ok) {
         throw new ReviewRequestError(
-          `GET ${path} answered ${response.status}: ${await quote(response)}`,
+          `GET ${path} answered ${response.status}: ${quote(await read(response))}`,
           response.status,
         );
       }
@@ -269,12 +297,40 @@ function search(parameters: Record<string, string | number | undefined>): string
   return text === '' ? '' : `?${text}`;
 }
 
-/** The server's own sentence, quoted, because it is the one worth reading. */
-async function quote(response: Response): Promise<string> {
+/**
+ * What moved, when the body is the 409 a decision about a moved baseline gets.
+ *
+ * Read from the whole body rather than the quoted excerpt: a sentence naming a
+ * long subject runs past the excerpt, and a cut body parses as nothing.
+ */
+function movedIn(body: string): MovedBaseline | undefined {
+  let parsed: unknown;
   try {
-    const text = await response.text();
-    return text.trim() === '' ? '<no body>' : text.slice(0, 500);
+    parsed = JSON.parse(body);
+  } catch {
+    // A body that is not JSON names nothing that moved; the message quotes it.
+    return undefined;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return undefined;
+  const { read, current, clash } = parsed as Record<string, unknown>;
+  if (!digestOrNone(read) || !digestOrNone(current)) return undefined;
+  return typeof clash === 'string' && clash.trim() !== '' ? { read, current, clash } : { read, current };
+}
+
+function digestOrNone(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+/** The body, or a placeholder saying why there is none. */
+async function read(response: Response): Promise<string> {
+  try {
+    return await response.text();
   } catch {
     return '<body could not be read>';
   }
+}
+
+/** The server's own sentence, quoted, because it is the one worth reading. */
+function quote(body: string): string {
+  return body.trim() === '' ? '<no body>' : body.slice(0, 500);
 }

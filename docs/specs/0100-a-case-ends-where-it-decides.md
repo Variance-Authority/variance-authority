@@ -20,7 +20,10 @@ that ADR-0086 decides and pull request 274 is landing, together with the
 per-region case count it uses to set structure apart.
 **Narrows:** [ADR-0056](../context/adr/0056-a-journey-is-the-places-visited.md)
 decision 1 — a journey records the places a case visited and never their order —
-for the test-runner seams only, by an ADR that lands with item 2.
+for the test-runner seams only, by
+[ADR-0088](../context/adr/0088-a-case-records-the-test-line-that-reached-each-region.md),
+and for a custom runner and a Playwright spec by
+[ADR-0089](../context/adr/0089-a-page-case-records-the-statement-its-drain-followed.md).
 
 ## Purpose
 
@@ -183,11 +186,21 @@ readers walk every case.
    frame stores the line table and the per-region index above. A hook's
    statements cut the log its crossings already go to, which
    [`cases.ts`](../../packages/sense/src/test-selection/cases.ts) makes the
-   file's ambient bucket. Test-composition's answer adds the test line that
-   reached each rarest region, and lists equally rare regions by that line,
-   latest first, as an order to read them in rather than a pick. A record
-   written without cuts reads as *lines not recorded*, never as every region
-   charged to one line.
+   file's ambient bucket. The seam's options take `cadence: false` to leave
+   test files uncut. The record lands first, with nothing reading it but the
+   layer that carries it; the reader lands with item 1, whose leaf it is
+   written beside. Test-composition's answer adds the test line that reached
+   each rarest region, and lists equally rare regions by that line, latest
+   first, as an order to read them in rather than a pick. A record written
+   without cuts reads as *lines not recorded*, never as every region charged
+   to one line.
+   A runner of the user's own cuts the same way: `startRecording` takes
+   `cadence`, `registerRecording` cuts the observed test file and
+   `cutTestFile` serves a runner with its own transform. A Playwright spec has
+   no log in its realm to measure, so `withTestSelection` compiles each spec
+   with an awaited cut, and the `context` fixture drains every frame of every
+   page before each statement: what a drain finds is charged to the statement
+   before it (ADR-0089).
 
 ## Acceptance
 
@@ -206,16 +219,17 @@ On this repository, after `yarn test:unit`:
    rotation…" as sharing one of three tied regions.
 4. The three profile cases named above and "short-circuits on a render-hash
    hit" are each named as sharing the `compareTrees` `if#0/then` leaf.
-5. After item 2, a `beforeEach` statement that adds a region in the file's
-   first case is charged, with its line, in the ambient bucket and in no case's
-   own record; a test body's statement is charged only in its own case.
+5. After item 2, a region a `beforeEach` statement adds and no case reaches
+   itself is charged to that statement's line, flagged as a hook's, in every
+   case of the file; a region a test body's statement adds is charged to its
+   line only in its own case, unflagged.
 6. Reading a record written before item 2 lands reports *lines not recorded*
    for every case, and the leaf is still named from the set, without a line.
 7. The pull request that lands item 1 states, for MUI, how many cases have one
    rarest region. The pull request that lands item 2 states the size the cuts
    add to `coverage.bin` and the time they add to the suite, on this repository
-   and on MUI, and lands only if the size stays under 2% of `coverage.bin` on
-   both.
+   and on MUI. Neither may double what it adds to, and both are kept as small
+   as the cuts allow.
 
 ## What it does not do
 

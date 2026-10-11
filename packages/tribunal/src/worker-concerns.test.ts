@@ -115,10 +115,10 @@ describe('the concern routes', () => {
   });
 
   it('says on /version that this deployment keeps concerns', async () => {
-    expect(TRIBUNAL_API).toBe(4);
+    expect(TRIBUNAL_API).toBeGreaterThanOrEqual(4);
     const version = (await (await call('/version', { token: REVIEW })).json()) as { api: number; schema: number };
-    expect(version.api).toBe(4);
-    expect(version.schema).toBe(19);
+    expect(version.api).toBe(TRIBUNAL_API);
+    expect(version.schema).toBe(20);
   });
 
   it('answers the review page’s own client, raise to move to list', async () => {

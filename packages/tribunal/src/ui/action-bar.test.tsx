@@ -1,0 +1,377 @@
+// @vitest-environment jsdom
+import { act } from 'react';
+import { flushSync } from 'react-dom';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { Decision, SubjectView } from '../review-types.js';
+import type { ReviewClient } from './client.js';
+import { queueOf } from './rail.js';
+import { SubjectPanel, type Place } from './subject.js';
+
+/**
+ * The bar under a subject: what is selected, where it sits in the queue, and
+ * every move a reviewer can make from here, each with the key that makes it.
+ *
+ * Mounted rather than rendered statically, because what the bar is for is the
+ * second subject and the twentieth: the keys, the move to the next one, and the
+ * form a flag opens. None of that is in a first frame.
+ */
+
+function subject(name: string, overrides: Partial<SubjectView> = {}): SubjectView {
+  return {
+    subject: name,
+    verdict: 'changed',
+    because: 'the rendered image differs from the baseline',
+    changedPixels: 1530,
+    regions: [
+      { x: 0, y: 0, width: 10, height: 10, pixels: 90, cause: true, component: 'Button' },
+      { x: 0, y: 20, width: 10, height: 4, pixels: 30, cause: false, component: 'Card' },
+    ],
+    has: { before: true, after: true, diff: true },
+    approvable: true,
+    decision: null,
+    ...overrides,
+  };
+}
+
+let host: HTMLDivElement;
+let root: Root;
+
+beforeEach(() => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  // jsdom lays nothing out, so it has no scrolling; the page and the viewer both
+  // return to the top on a new subject.
+  Element.prototype.scrollTo = () => undefined;
+  window.localStorage.removeItem('va-keys');
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+});
+
+afterEach(() => {
+  act(() => root.unmount());
+  host.remove();
+});
+
+/** A client that records decisions, lists no concerns and has no pictures. */
+function clientThat(): ReviewClient & { readonly decided: [string, Decision][] } {
+  const decided: [string, Decision][] = [];
+  const never = (): Promise<never> => new Promise(() => undefined);
+  return {
+    decided,
+    builds: never,
+    build: never,
+    changelog: never,
+    churn: never,
+    reach: never,
+    flakiness: never,
+    lastChanged: never,
+    sweep: never,
+    async decide(_build: string, on: string, decision: Decision) {
+      decided.push([on, decision]);
+    },
+    concerns: async () => ({ concerns: [], tally: { open: 0, investigating: 0, resolved: 0 } }),
+    raise: never,
+    moveConcern: never,
+    imageUrl: () => '',
+    imageBlob: never,
+  } as unknown as ReviewClient & { readonly decided: [string, Decision][] };
+}
+
+async function show(
+  on: SubjectView,
+  place: Place | undefined,
+  client: ReviewClient = clientThat(),
+): Promise<string[]> {
+  const went: string[] = [];
+  await act(async () => {
+    root.render(
+      <SubjectPanel
+        client={client}
+        reviewer="marina"
+        build="ci-1"
+        subject={on}
+        place={place}
+        onGo={(next) => went.push(next)}
+        onDecided={() => undefined}
+      />,
+    );
+  });
+  return went;
+}
+
+/** A key pressed where a browser sends it: at whatever has the focus. */
+function press(key: string, target: EventTarget = document.activeElement ?? document.body, init: KeyboardEventInit = {}): void {
+  act(() => {
+    target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }));
+  });
+}
+
+function bar(): HTMLElement {
+  return host.querySelector<HTMLElement>('.va-actionbar')!;
+}
+
+function button(name: string): HTMLButtonElement {
+  return [...bar().querySelectorAll('button')].find((each) => each.textContent?.startsWith(name))!;
+}
+
+describe('the bar says what is selected and where it sits', () => {
+  it('names the render, the component that moved, its regions and its place in the queue', async () => {
+    await show(subject('story:cart'), { at: 1, of: 5, previous: 'story:a', next: 'story:b' });
+
+    expect(bar().textContent).toContain('story:cart');
+    expect(bar().textContent).toContain('Button');
+    expect(bar().textContent).toContain('2 regions');
+    expect(bar().textContent).toContain('2 of 5');
+  });
+
+  it('says a render is outside the queue rather than numbering it', async () => {
+    await show(subject('story:still', { verdict: 'unchanged' }), { of: 5, next: 'story:a' });
+
+    expect(bar().textContent).toContain('not in the queue');
+    expect(bar().textContent).not.toContain('of 5');
+  });
+});
+
+describe('every move is a button and a key', () => {
+  it('walks the queue with J and K, and with the buttons', async () => {
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+
+    press('j');
+    press('k');
+    press('j', window);
+    await act(async () => button('Next').click());
+    await act(async () => button('Previous').click());
+
+    expect(went).toEqual(['story:b', 'story:a', 'story:b', 'story:b', 'story:a']);
+  });
+
+  it('offers no previous on the first render and no next on the last', async () => {
+    await show(subject('story:a'), { at: 0, of: 1 });
+
+    expect(button('Previous').disabled).toBe(true);
+    expect(button('Next').disabled).toBe(true);
+  });
+
+  it('leaves a letter to the field that has the focus', async () => {
+    // F and I stay bound while the form is open, so they are the keys a guard
+    // that missed a field would take: the state the reviewer picked would jump.
+    await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    await act(async () => button('Looks suspicious').click());
+
+    press('i', host.querySelector('input[name="title"]')!);
+
+    expect(host.querySelector<HTMLInputElement>('input[name="state"][value="open"]')?.checked).toBe(true);
+  });
+
+  it('leaves a letter alone on a button inside the form', async () => {
+    // Clicking an evidence chip puts the focus on a button, not a field; it is
+    // still the draft's, and I there would move the state the reviewer chose.
+    await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    await act(async () => button('Looks suspicious').click());
+    host.querySelector<HTMLButtonElement>('form button[type="button"]')!.focus();
+
+    press('i');
+
+    expect(host.querySelector<HTMLInputElement>('input[name="state"][value="open"]')?.checked).toBe(true);
+  });
+
+  it('never moves from a text field outside any form, or with a modifier held', async () => {
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    const search = document.createElement('input');
+    host.append(search);
+
+    press('j', search);
+    press('j', document.body, { metaKey: true });
+    press('j', document.body, { ctrlKey: true });
+    press('j', document.body, { altKey: true });
+
+    expect(went).toEqual([]);
+  });
+
+  it('still moves from a slider, which takes no letters', async () => {
+    // The wipe and the blend are sliders, and dragging one is how a reviewer
+    // compares; the keys must not go dead until they click somewhere else.
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    const wipe = document.createElement('input');
+    wipe.type = 'range';
+    host.append(wipe);
+
+    press('j', wipe);
+
+    expect(went).toEqual(['story:b']);
+  });
+
+  it('never moves while the concern form is open, wherever the focus went', async () => {
+    // A reviewer writing a concern clicks the picture to look again, which takes
+    // the focus out of the form; J from there would leave the draft behind. The
+    // button still moves, because a click is not an accident.
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    press('f', document.body);
+    (document.activeElement as HTMLElement | null)?.blur();
+
+    press('j', document.body);
+    press('k', document.body);
+
+    expect(went).toEqual([]);
+    expect(button('Next').querySelector('kbd')).toBeNull();
+    await act(async () => button('Next').click());
+    expect(went).toEqual(['story:b']);
+  });
+
+  it('stands J down in the same commit that draws the form, before any effect after paint', async () => {
+    // A browser runs the next keydown as soon as the form is painted. Were the
+    // bar told only after paint, a quick J would leave the draft that just opened.
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    const key = (letter: string): boolean =>
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: letter, bubbles: true, cancelable: true }));
+    let drawn = false;
+    act(() => {
+      flushSync(() => key('f'));
+      drawn = host.querySelector('.va-concerns form') !== null;
+      key('j');
+    });
+
+    expect(drawn).toBe(true);
+    expect(went).toEqual([]);
+  });
+
+  it('leaves a press alone that something earlier handled, and a key held down', async () => {
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    const taken = (event: Event): void => event.preventDefault();
+    document.body.addEventListener('keydown', taken);
+
+    press('j', document.body);
+    document.body.removeEventListener('keydown', taken);
+    press('j', document.body, { repeat: true });
+    press('j', document.body, { shiftKey: true });
+
+    expect(went).toEqual([]);
+  });
+
+  it('finds the J key on a layout that types another letter there', async () => {
+    // A Russian layout types о where a Latin one types J. The key is the same
+    // key, and a reviewer should not have to switch layouts to walk the queue.
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+
+    press('о', document.body, { code: 'KeyJ' });
+
+    expect(went).toEqual(['story:b']);
+  });
+
+  it('names each move by its words and announces its key apart', async () => {
+    await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+
+    expect(button('Next').getAttribute('aria-keyshortcuts')).toBe('J');
+    expect(button('Next').querySelector('kbd')?.getAttribute('aria-hidden')).toBe('true');
+    expect(bar().tagName).toBe('SECTION');
+  });
+
+  it('reads J with Caps Lock on as J', async () => {
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+
+    press('J', document.body);
+
+    expect(went).toEqual(['story:b']);
+  });
+
+  it('turns every single-letter key off, and says so on the buttons', async () => {
+    // WCAG 2.1.4: speech input types letters, and a screen reader's browse mode
+    // takes them as its own commands, so a reviewer must be able to stop them.
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    await act(async () => button('Keys').click());
+
+    press('j', document.body);
+    press('f', document.body);
+
+    expect(went).toEqual([]);
+    expect(host.querySelector('form')).toBeNull();
+    expect(bar().querySelector('kbd')).toBeNull();
+    expect(button('Keys').getAttribute('aria-checked')).toBe('false');
+    expect(window.localStorage.getItem('va-keys')).toBe('off');
+
+    // The next page this browser opens starts with them off.
+    act(() => root.unmount());
+    root = createRoot(host);
+    await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    expect(button('Keys').getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('still turns the keys off in a browser that keeps nothing', async () => {
+    const went = await show(subject('story:cart'), { at: 1, of: 3, previous: 'story:a', next: 'story:b' });
+    const keep = Storage.prototype.setItem;
+    Storage.prototype.setItem = () => {
+      throw new Error('storage is full');
+    };
+    try {
+      await act(async () => button('Keys').click());
+    } finally {
+      Storage.prototype.setItem = keep;
+    }
+
+    press('j', document.body);
+
+    expect(went).toEqual([]);
+    expect(button('Keys').getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('opens the concern form as open on F and as investigating on I', async () => {
+    await show(subject('story:cart'), { at: 0, of: 1 });
+    press('i', document.body);
+    expect(host.querySelector<HTMLInputElement>('input[name="state"][value="investigating"]')?.checked).toBe(true);
+
+    press('f', document.body);
+    expect(host.querySelector<HTMLInputElement>('input[name="state"][value="open"]')?.checked).toBe(true);
+
+    await act(async () => button('Investigate').click());
+    expect(host.querySelector<HTMLInputElement>('input[name="state"][value="investigating"]')?.checked).toBe(true);
+  });
+
+  it('sets the open form to the asked state each time it is asked, and keeps what was typed', async () => {
+    // A reviewer who picked a state by hand and then asks again from the bar
+    // gets what the bar says, even when it asked for the same state before. The
+    // draft is theirs and stays.
+    await show(subject('story:cart'), { at: 0, of: 1 });
+    press('f', document.body);
+    const title = host.querySelector<HTMLInputElement>('input[name="title"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(title, 'Pay moved left');
+      title.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => host.querySelector<HTMLInputElement>('input[name="state"][value="resolved"]')!.click());
+
+    await act(async () => button('Looks suspicious').click());
+
+    expect(host.querySelector<HTMLInputElement>('input[name="state"][value="open"]')?.checked).toBe(true);
+    expect(host.querySelector<HTMLInputElement>('input[name="title"]')?.value).toBe('Pay moved left');
+  });
+
+  it('decides from the bar, and from no key', async () => {
+    // A key that promotes a baseline is a key a reviewer presses by accident;
+    // moving between renders and opening a form are the moves that cost nothing.
+    const client = clientThat();
+    await show(subject('story:cart'), { at: 0, of: 1 }, client);
+
+    press('a');
+    press('r');
+    await act(async () => button('Approve').click());
+    await act(async () => button('Reject').click());
+
+    expect(client.decided).toEqual([
+      ['story:cart', 'approved'],
+      ['story:cart', 'rejected'],
+    ]);
+  });
+});
+
+describe('queueOf', () => {
+  it('is the rail read top to bottom: verdicts as they first appear, largest first inside each', () => {
+    const order = queueOf([
+      subject('small', { changedPixels: 10 }),
+      subject('fresh', { verdict: 'new', changedPixels: 900 }),
+      subject('large', { changedPixels: 500 }),
+    ]);
+
+    expect(order.map((each) => each.subject)).toEqual(['large', 'small', 'fresh']);
+  });
+});

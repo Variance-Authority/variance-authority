@@ -1,7 +1,7 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   caseSectionsAt,
   commitRunsFile,
@@ -11,6 +11,7 @@ import {
   withCaseSections,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
+import { updateSourceIndex } from '@variance-authority/sense';
 import { main } from '../bin.js';
 import { readFlags } from '../args.js';
 import { parseReviewArgs } from '../review-args.js';
@@ -18,7 +19,7 @@ import { flagsFor, synopsisFor } from '../usage.js';
 import { probedModule } from './mainline-fixture.js';
 import { review } from './review.js';
 import { formatReview, REVIEW_MARKER } from './review-text.js';
-import { AFTER, DISCOUNTS, ROUNDS, block, changed, git } from './review-fixture.js';
+import { AFTER, DISCOUNTS, ROUNDS, block, changed, git, roundedBy } from './review-fixture.js';
 
 function parse(argv: readonly string[]) {
   return parseReviewArgs(readFlags(argv, 'review', flagsFor('review'), synopsisFor('review')));
@@ -26,8 +27,6 @@ function parse(argv: readonly string[]) {
 
 describe('a review of what a change did, after the run that recorded it', () => {
   const cwd = process.cwd();
-  // A review reads the pull request it runs for from CI's event, so these tests run as if outside CI.
-  beforeEach(() => vi.stubEnv('GITHUB_ACTIONS', ''));
   afterEach(() => {
     process.chdir(cwd);
     vi.unstubAllEnvs();
@@ -40,6 +39,35 @@ describe('a review of what a change did, after the run that recorded it', () => 
 
     expect(regions(await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--root', root])))).toEqual(['applyDiscount', 'round']);
     expect(regions(await review(parse(['--since', first, '--against', against, '--root', root])))).toEqual(['applyDiscount', 'round']);
+  });
+
+  it('reads the changed regions from every declared suite when coverage is requested', async () => {
+    const { root, first, against } = await changed({ suites: ['unit', 'browser'] });
+    await roundedBy(root, first, 'browser');
+    const round = (answer: Awaited<ReturnType<typeof review>>) =>
+      answer.files.find((file) => file.file === 'src/total.ts')?.regions?.find((region) => region.name === 'round');
+
+    const joined = round(await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--coverage', '--root', root])));
+    expect(joined).toMatchObject({ reach: 'near', cases: 1, tests: ['test/total.test.ts'] });
+    expect(joined?.called.map((test) => test.id)).toEqual([ROUNDS.id]);
+    expect(round(await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--root', root])))?.cases).toBe(0);
+  });
+
+  it('takes no region from a suite that ran the changed file as other text', async () => {
+    const { root, first, against } = await changed({ suites: ['unit', 'browser'] });
+    await roundedBy(root, first, 'browser', `${AFTER}\n`);
+    const answer = await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--coverage', '--root', root]));
+
+    expect(answer.files.find((file) => file.file === 'src/total.ts')?.regions?.map(({ name, cases }) => [name, cases])).toEqual([['applyDiscount', 1], ['round', 0]]);
+  });
+
+  it('says the named suite has not run the change, though another suite ran it and answers for its regions', async () => {
+    const { root, first, against } = await changed({ suites: ['unit', 'browser'], text: `${AFTER}\n` });
+    await roundedBy(root, first, 'browser');
+    const answer = await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--coverage', '--root', root]));
+
+    expect(answer.record).toBe('before');
+    expect(answer.files.find((file) => file.file === 'src/total.ts')?.regions?.map(({ name, cases }) => [name, cases])).toEqual([['applyDiscount', 0], ['round', 1]]);
   });
 
   it('refuses to pick one of several declared suites for the reader', async () => {
@@ -88,6 +116,28 @@ describe('a review of what a change did, after the run that recorded it', () => 
     expect(markdown).toContain('⚙️ `config.json` changed, and the one test file loads it before any import.');
     expect(markdown).toContain('<details><summary>✏️ Cases added and removed: +1 −0 in 1 test file</summary>');
     expect(markdown).toContain('- `test/total.test.ts`\n  - + rounds');
+  });
+
+  it('says which package the changed functions are in, whose tests ran them and which packages import them', async () => {
+    const { root, first } = await changed();
+    await writeFile(join(root, 'src/package.json'), JSON.stringify({ name: '@o/total' }));
+    // A package that imports only a type from the changed file still imports it: its owner reads the change too.
+    await mkdir(join(root, 'types'));
+    await writeFile(join(root, 'types/package.json'), JSON.stringify({ name: '@o/types' }));
+    await writeFile(join(root, 'types/price.ts'), "import type { round } from '../src/total';\nexport type Rounding = typeof round;\n");
+    // A package that reads the file without importing it does not: nothing in it calls the change.
+    await mkdir(join(root, 'notes'));
+    await writeFile(join(root, 'notes/package.json'), JSON.stringify({ name: '@o/notes' }));
+    await writeFile(join(root, 'notes/source.ts'), '/// <depends path="../src/total.ts" />\nexport const shown = 1;\n');
+    git(root, ['add', 'types', 'notes']);
+    await updateSourceIndex(root);
+
+    const answer = await review(parse(['--since', first, '--root', root]));
+
+    // The test file sits under no manifest, so the root's directory is its package.
+    expect(answer.changedPackages).toEqual([
+      { package: '@o/total', path: 'src', functions: 2, reaches: { near: 1, unwalked: 1 }, own: false, tests: ['.'], importers: 2 },
+    ]);
   });
 
   it('names the pull request\'s commit, the base and the merge CI ran, and links each place at that merge', async () => {
