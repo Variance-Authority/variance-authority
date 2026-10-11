@@ -2974,6 +2974,7 @@
         "distanceFromView": "function",
         "distanceRange": "function",
         "distanceToSource": "function",
+        "editsBetween": "function",
         "eitherFace": "function",
         "encodeAsSetExecutionIndex": "function",
         "encodeExecutionIndex": "function",

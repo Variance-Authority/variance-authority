@@ -21,12 +21,11 @@ import { readTestCoverage, testCoverageFile, type CoverageModule, type TestCover
  * regions it cut. These land both runs the way a runner's teardown does and read
  * where each older test's crossings are afterwards, by the text of the region.
  *
- * A named function keeps its address, so the older tests land on the region
- * they ran. An anonymous one is addressed by its seat among its siblings, and
- * the function written in front takes the seat the recorded one held: carried
- * by address, its test would land on a region it never ran, and the region it
- * did run would read as entered by nobody. Nothing is carried across that
- * shift, and the tests that were on the module are run again.
+ * The edit between the two texts says which regions it left alone: a function
+ * written in front of a recorded one, named or anonymous, leaves it whole, one
+ * seat down, and its older test stays on it. The module the function was
+ * written into changed text, so the tests that were on the module are run
+ * again and the new function is handed none of them.
  */
 
 const FILE = 'src/handlers.ts';
@@ -170,20 +169,24 @@ describe('a local leg at the mainline commit, over a function written in front o
   it('keeps each older test on the region it ran when the function is named', async () => {
     const { coverage, cases, complete } = await landBoth(NAMED, NAMED_INSERTED);
 
-    // The new region also reads the crossings of the module around it, the
-    // rule for a region no run has been asked about (`crossingsAround`), and
-    // its cases are the cases of that module, by the same rule.
+    // The rows hand the new region the crossings around it (`crossingsAround`),
+    // a rule for a region no run has been asked about. The case index hands it
+    // none of the module's: the module changed text, and the function was not
+    // there for any older test to run.
     expect(coverage).toEqual({ 'n + 1': [ONE], 'n * 2': [TWO], 'n - 1': [ONE, THREE, TWO] });
-    expect(cases).toEqual({ 'n + 1': [caseOf(ONE)], 'n * 2': [caseOf(TWO)], 'n - 1': [caseOf(ONE), caseOf(THREE), caseOf(TWO)] });
+    expect(cases).toEqual({ 'n + 1': [caseOf(ONE)], 'n * 2': [caseOf(TWO)], 'n - 1': [caseOf(THREE)] });
     // The module's own region changed text, so the tests on it run again.
     expect(complete).toEqual([THREE]);
   });
 
-  it('carries no older test onto a sibling that took its seat, and runs those tests again', async () => {
+  it('keeps each older test on the region it ran when the function written in front is anonymous', async () => {
     const { coverage, cases, complete } = await landBoth(ANONYMOUS, ANONYMOUS_INSERTED);
 
+    // The rows part anonymous siblings by seat, and the seat shifted: they carry
+    // nothing across it and the tests run again. The index is laid through the
+    // edit, which wrote one callback and left the two older ones whole.
     expect(coverage).toEqual({ 'n + 1': [], 'n * 2': [], 'n - 1': [THREE] });
-    expect(cases).toEqual({ 'n + 1': [], 'n * 2': [], 'n - 1': [caseOf(THREE)] });
+    expect(cases).toEqual({ 'n + 1': [caseOf(ONE)], 'n * 2': [caseOf(TWO)], 'n - 1': [caseOf(THREE)] });
     expect(complete).toEqual([THREE]);
   });
 });

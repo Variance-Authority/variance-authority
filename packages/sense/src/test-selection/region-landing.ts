@@ -70,10 +70,10 @@ export function sharesRegion(held: Cut, recorded: Cut): boolean {
   return landedOn(held, recorded).size > 0;
 }
 
-/** Each held region a recorded one lands on, by {@link landing} over one text, and the recorded one. */
+/** Each held region a recorded one lands on, by {@link landing}, and the recorded one. */
 function landedOn(held: Cut, recorded: Cut): Map<number, number> {
   const to = new Map<number, number>();
-  for (const [block, from] of landing(recorded, held, true).entries()) if (from >= 0) to.set(from, block);
+  for (const [block, from] of landing(recorded, held).entries()) if (from >= 0) to.set(from, block);
   return to;
 }
 
@@ -88,46 +88,42 @@ function keptOwners(owner: Uint32Array, kept: readonly number[]): Uint32Array {
 }
 
 /**
- * For each region recorded now, the held region its cases carry from, or -1.
+ * For each region recorded now, the held region of the same cut it stands for,
+ * or -1.
  *
  * An address is half a seat among siblings: a function written in front of an
- * anonymous one takes the seat it held. Where the two cuts filled a counter
- * differently over different text, an address names another region, and every
- * region is -1. Over the same text the seats are the text's: a run that read a
- * file through its source and its build keeps only the regions both cut alike,
- * so one cut can lack a region the other holds. A seat it lacks among regions
- * told apart only by occurrence moves every later sibling down one, so where
- * the two cuts of one text hold an address a different number of times, a
- * region lands only on the held one at its own lines, and the rest are absent
- * from the other cut rather than its neighbours.
+ * anonymous one takes the seat it held. A run that read a file through its
+ * source and its build keeps only the regions both cut alike, so one cut can
+ * lack a region the other holds. A seat it lacks among regions told apart only
+ * by occurrence moves every later sibling down one, so where the two cuts hold
+ * an address a different number of times, a region lands only on the held one
+ * at its own lines, and the rest are absent from the other cut rather than its
+ * neighbours.
+ *
+ * This answers whether two cuts of one text agree. Where the cases of a region
+ * go over an edit is {@link landedThrough}'s to say, and an address says
+ * nothing of that.
  */
-export function landing(recorded: Cut, before: Cut, sameText: boolean): Int32Array {
-  // A layer asks one pair this up to four times: whether its text is the same,
-  // where its cases land, and twice again for the before layer.
-  const memo = landed[sameText ? 1 : 0];
-  const known = memo.get(recorded)?.get(before);
+function landing(recorded: Cut, before: Cut): Int32Array {
+  // A layer asks one pair this up to four times.
+  const known = landed.get(recorded)?.get(before);
   if (known !== undefined) return known;
-  const found = landingOf(recorded, before, sameText);
-  if (!memo.has(recorded)) memo.set(recorded, new WeakMap());
-  memo.get(recorded)!.set(before, found);
+  const found = landingOf(recorded, before);
+  if (!landed.has(recorded)) landed.set(recorded, new WeakMap());
+  landed.get(recorded)!.set(before, found);
   return found;
 }
 
-/** {@link landing} by the text the pair was named at: `[other, same]`. Modules are read-only, so an answer stands while both do. */
-const landed = [
-  new WeakMap<Cut, WeakMap<Cut, Int32Array>>(),
-  new WeakMap<Cut, WeakMap<Cut, Int32Array>>(),
-] as const;
+/** {@link landing} by pair. Modules are read-only, so an answer stands while both do. */
+const landed = new WeakMap<Cut, WeakMap<Cut, Int32Array>>();
 
-function landingOf(recorded: Cut, before: Cut, sameText: boolean): Int32Array {
-  if (!sameText && !sameNumbering(before.blocks, recorded.blocks)) return new Int32Array(recorded.blocks.length).fill(-1);
+function landingOf(recorded: Cut, before: Cut): Int32Array {
   const [heldCount, recordedCount] = [addressCounts(before.blocks), addressCounts(recorded.blocks)];
   const seen = new Map<string, number>();
-  // Lines are a seat only over one text; two callbacks on one line still part by order.
+  // Lines are a seat among siblings the two cuts hold a different number of; two callbacks on one line still part by order.
   const keyOf = (block: Region): string => {
     const key = address(block);
-    const byOrder = !sameText || heldCount.get(key) === recordedCount.get(key);
-    return addressKey(byOrder ? key : `${key}\0@${block.startLine}-${block.endLine}`, seen);
+    return addressKey(heldCount.get(key) === recordedCount.get(key) ? key : `${key}\0@${block.startLine}-${block.endLine}`, seen);
   };
   const heldAt = new Map<string, number>();
   for (const [at, block] of before.blocks.entries()) heldAt.set(keyOf(block), at);
@@ -162,7 +158,7 @@ function addressCounts(blocks: readonly Region[]): Map<string, number> {
  * changed under a name that says it did not, and nothing tells which.
  */
 export function strayed(held: SetExecutionModule, recorded: SetExecutionModule): boolean {
-  const matched = new Set(landing(recorded, held, true));
+  const matched = new Set(landing(recorded, held));
   const [heldCount, recordedCount] = [addressCounts(held.blocks), addressCounts(recorded.blocks)];
   return held.blocks.some((block, at) =>
     !matched.has(at) && recordedCount.has(address(block)) && heldCount.get(address(block)) !== recordedCount.get(address(block)));

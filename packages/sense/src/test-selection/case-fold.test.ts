@@ -333,7 +333,9 @@ describe('the bounded case fold', () => {
         tests: Object.keys(calls).map((file) => ({ file: `test/${file}`, complete: true })),
         commit,
       }))!;
-      sections = layCases(sections, fresh.fresh, root, fresh.run);
+      // Every invocation records `src/x.ts` from one text, so no edit moves a region between them.
+      sections = layCases(sections, fresh.fresh, root, { ...fresh.run, modules: [{ file: 'src/x.ts', sourceDigest: 'v1:x' }] },
+        undefined, new Map([['src/x.ts', 'v1:x']]));
     };
     const before = async (): Promise<Record<string, number[]>> => {
       const held = decodeExecutionIndex(sections.before!);

@@ -171,7 +171,7 @@ export async function landJourneys(
       texts,
       previous?.commit,
     );
-    const sections = selection.followRows(laid, landed, texts);
+    const sections = selection.followRows(laid, landed, texts, selection.editsBetween(root, undefined, [previous?.commit, landed?.commit]));
     // Shards that measured nothing and kept no case this build reads, over no
     // coverage, leave nothing to write: the target stays as it was.
     const kept = landed !== undefined || Object.values(sections).some((part) => part !== undefined);

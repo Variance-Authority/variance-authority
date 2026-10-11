@@ -202,6 +202,39 @@ function repinOver(text: string, moved: string): Promise<Landed> {
   });
 }
 
+const EDITED = TEXT.replace('n * 2', 'n * 2 + 0');
+
+/**
+ * A milestone over `FILE` at the commit after the mainline's first, holding
+ * `ONE` and `TWO`; then `b` edited and committed, `ONE` run over that edit, and
+ * the record repinned onto the milestone. The cases `ONE` ran land on the
+ * milestone's regions through the edit between the two texts.
+ */
+function repinOverEdit(): Promise<Landed> {
+  return inRepository(TEXT, EDITED, async ({ root, cacheRoot, git }) => {
+    const first = await git('rev-parse', 'HEAD');
+    await git('commit', '--quiet', '--allow-empty', '--message', 'the milestone');
+    const next = await git('rev-parse', 'HEAD');
+    const milestone = testCoverageFile(root, { cacheRoot: resolve(cacheRoot, 'milestone') });
+    await landRun(milestone, recording(FILE, TEXT, [ONE, TWO], next), root, resolve(cacheRoot, 'milestone'), {
+      fresh: casesOf(FILE, TEXT, [ONE, TWO]),
+      run: { tests: [whole(ONE), whole(TWO)], commit: next },
+    });
+    await writeFile(resolve(root, FILE), EDITED, 'utf8');
+    await git('commit', '--quiet', '--all', '--message', 'the edit');
+    const later = await git('rev-parse', 'HEAD');
+    const coverageFile = testCoverageFile(root, { cacheRoot });
+    await landRun(coverageFile, recording(FILE, EDITED, [ONE], later), root, cacheRoot, {
+      fresh: casesOf(FILE, EDITED, [ONE]),
+      run: { tests: [whole(ONE)], commit: later },
+    });
+    await writeOwnLayer(coverageFile, { pinned: { mainline: 'main', commit: first }, ran: [{ commit: later, files: [ONE] }] });
+    const repinned = await repinOwnLayer(coverageFile, { mainline: 'main', commit: next, fetched: '', suite: 'default', coverage: milestone }, root);
+    expect(repinned).toMatchObject({ repinned: true });
+    return coverageFile;
+  });
+}
+
 describe('a case index carried over a module whose text moved on disk', () => {
   it('stands at the lines the rows were re-cut to, when the run kept no cases', async () => {
     const landed = await landOver(TEXT, MOVED, false);
@@ -227,12 +260,14 @@ describe('a case index carried over a module whose text moved on disk', () => {
     expect(landed.index).toEqual(landed.rows);
   });
 
-  it('leaves the index, where the run recorded the module at a text no address carries its cases onto', async () => {
-    // The run's rows replace the module's; none of the regions the index held
-    // has an address in them, so no case it held is known to stand anywhere.
+  it('stands at the lines the run recorded, with the cases of the callback the edit left alone', async () => {
+    // The run's rows replace the module's. A callback and two comment lines
+    // written in front of the two leave each of them whole, five lines down:
+    // each keeps the case that ran it, and the one written in front has none.
     const landed = await landOver(SEATED, RESEATED, false, FILE);
 
-    expect(landed.index).toBeUndefined();
+    expect(landed.index).toEqual(['anon#0 4-6', 'anon#1 7-9', 'anon#2 10-12']);
+    expect(landed.covering).toEqual({ 'n + 1': [caseOf(ONE)], 'n * 2': [caseOf(TWO)] });
   });
 
   it('stands at the lines the rows were re-cut to, when the record is repinned onto a newer milestone', async () => {
@@ -241,5 +276,11 @@ describe('a case index carried over a module whose text moved on disk', () => {
     expect(landed.rows).toEqual(['a 3-5', 'b 7-9']);
     expect(landed.index).toEqual(landed.rows);
     expect(landed.covering).toEqual({ 'n + 1': [caseOf(ONE)], 'n * 2': [caseOf(TWO)] });
+  });
+
+  it('carries the milestone cases only onto the regions the checkout left alone, when the record is repinned', async () => {
+    const landed = await repinOverEdit();
+
+    expect(landed.covering).toEqual({ 'n + 1': [caseOf(ONE)], 'n * 2': [] });
   });
 });
