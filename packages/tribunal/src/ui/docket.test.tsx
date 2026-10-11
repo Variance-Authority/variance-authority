@@ -235,6 +235,36 @@ describe('a build that has not arrived still wears its chrome', () => {
   });
 });
 
+describe('a subject page names the earlier build that kept its image', () => {
+  it('opens that build’s page for the same subject', async () => {
+    HTMLElement.prototype.scrollTo = () => undefined;
+    const now = build('6', [
+      subject({
+        repeats: {
+          count: 1,
+          builds: [{ build: '5', at: '2026-06-01T11:00:00.000Z', decision: null }],
+        },
+      }),
+    ]);
+    const visited: Route[] = [];
+    await act(async () => {
+      root.render(
+        <BuildPage
+          client={clientThat(now, build('5', []))}
+          reviewer="marina"
+          route={{ page: 'subject', build: '6', subject: 'story:card' }}
+          go={(route) => visited.push(route)}
+        />,
+      );
+    });
+
+    const link = host.querySelector<HTMLAnchorElement>('a[href="/builds/5/subjects/story%3Acard"]');
+    act(() => link?.click());
+
+    expect(visited).toEqual([{ page: 'subject', build: '5', subject: 'story:card' }]);
+  });
+});
+
 describe('the bar on a subject walks the rail it sits beside', () => {
   it('numbers the render in the rail’s order and goes to the row below it', async () => {
     // Listed smallest first, so a bar that walked the build's own order would
@@ -262,5 +292,132 @@ describe('the bar on a subject walks the rail it sits beside', () => {
 
     expect(bar.textContent).toContain('1 of 2');
     expect(went).toEqual([{ page: 'subject', build: '6', subject: 'story:small' }]);
+  });
+});
+
+describe('an approval on a subject page reads the concerns again', () => {
+  it('asks for the build’s concerns once more, since an approval can open one', async () => {
+    // Approving an image an earlier build rejected opens a concern. A page that
+    // read the build again and not its concerns would keep the old tally.
+    Element.prototype.scrollTo = () => undefined;
+    let asked = 0;
+    const now = build('6', [subject()]);
+    const client = {
+      ...clientThat(now, build('5', []), async () => {
+        asked += 1;
+        return { concerns: [], tally: { open: 0, investigating: 0, resolved: 0 } };
+      }),
+      imageBlob: () => new Promise(() => undefined),
+      decide: async () => ({ decision: 'approved', by: 'marina', at: '2026-06-01T12:01:00.000Z', concern: 1 }),
+    } as unknown as ReviewClient;
+
+    await act(async () => {
+      root.render(
+        <BuildPage
+          client={client}
+          reviewer="marina"
+          route={{ page: 'subject', build: '6', subject: 'story:card' }}
+          go={() => undefined}
+        />,
+      );
+    });
+    const before = asked;
+    const approve = [...host.querySelectorAll('button')].find((each) => each.textContent?.trim().startsWith('Approve'));
+    await act(async () => approve!.click());
+
+    expect(asked).toBeGreaterThan(before);
+  });
+
+  it('shows the concern the approval opened in the subject’s own trail', async () => {
+    // The card beside the decision reads its subject's trail once, on arrival.
+    // An approval that opened a concern there and left the card as it was
+    // would tell the reviewer nothing happened.
+    Element.prototype.scrollTo = () => undefined;
+    let decided = false;
+    const opened = {
+      id: 1,
+      build: '6',
+      subject: 'story:card',
+      title: 'Approved the image build 5 rejected',
+      evidence: [],
+      by: 'marina',
+      at: '2026-06-01T12:01:00.000Z',
+      state: 'open',
+      events: [],
+    };
+    const now = build('6', [subject()]);
+    const client = {
+      ...clientThat(now, build('5', []), async () => ({
+        concerns: decided ? [opened] : [],
+        tally: { open: decided ? 1 : 0, investigating: 0, resolved: 0 },
+      })),
+      imageBlob: () => new Promise(() => undefined),
+      decide: async () => {
+        decided = true;
+        return { decision: 'approved', by: 'marina', at: '2026-06-01T12:01:00.000Z', concern: 1 };
+      },
+    } as unknown as ReviewClient;
+
+    await act(async () => {
+      root.render(
+        <BuildPage
+          client={client}
+          reviewer="marina"
+          route={{ page: 'subject', build: '6', subject: 'story:card' }}
+          go={() => undefined}
+        />,
+      );
+    });
+    const approve = [...host.querySelectorAll('button')].find((each) => each.textContent?.trim().startsWith('Approve'));
+    await act(async () => approve!.click());
+
+    expect(host.querySelector('.va-subject')?.textContent).toContain('Approved the image build 5 rejected');
+  });
+
+  it('keeps the trail read after the decision when the first read answers last', async () => {
+    // The card's first read can still be on the wire when the decision lands.
+    // Answering last, it would put back the trail from before the approval.
+    Element.prototype.scrollTo = () => undefined;
+    let first: ((answer: unknown) => void) | undefined;
+    let reads = 0;
+    const opened = {
+      id: 1,
+      build: '6',
+      subject: 'story:card',
+      title: 'Approved the image build 5 rejected',
+      evidence: [],
+      by: 'marina',
+      at: '2026-06-01T12:01:00.000Z',
+      state: 'open',
+      events: [],
+    };
+    const tally = { open: 0, investigating: 0, resolved: 0 };
+    const now = build('6', [subject()]);
+    const client = {
+      ...clientThat(now, build('5', []), (query: { subject?: string }) => {
+        if (query.subject === undefined) return Promise.resolve({ concerns: [], tally });
+        reads += 1;
+        if (reads === 1) return new Promise((resolve) => (first = resolve));
+        return Promise.resolve({ concerns: [opened], tally });
+      }),
+      imageBlob: () => new Promise(() => undefined),
+      decide: async () => ({ decision: 'approved', by: 'marina', at: '2026-06-01T12:01:00.000Z', concern: 1 }),
+    } as unknown as ReviewClient;
+
+    await act(async () => {
+      root.render(
+        <BuildPage
+          client={client}
+          reviewer="marina"
+          route={{ page: 'subject', build: '6', subject: 'story:card' }}
+          go={() => undefined}
+        />,
+      );
+    });
+    const approve = [...host.querySelectorAll('button')].find((each) => each.textContent?.trim().startsWith('Approve'));
+    await act(async () => approve!.click());
+    await act(async () => first!({ concerns: [], tally }));
+
+    expect(host.querySelector('.va-subject')?.textContent).toContain('Approved the image build 5 rejected');
   });
 });

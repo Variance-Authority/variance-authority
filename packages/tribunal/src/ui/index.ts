@@ -33,6 +33,7 @@ export {
   type Appearance,
   type Origin,
   type Origins,
+  type Pictures,
   type ReviewAppProps,
   type ViewerMode,
 } from './review.js';

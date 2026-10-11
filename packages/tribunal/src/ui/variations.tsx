@@ -10,7 +10,11 @@
 
 import type { VariationRecord } from '@variance-authority/report';
 import type { ReactElement } from 'react';
-import { Prose } from './shell.js';
+import type { SubjectView } from '../review-types.js';
+import type { ReviewClient } from './client.js';
+import type { Route } from './route.js';
+import { Raster, fit, type Size, union } from './plate.js';
+import { Go, Prose } from './shell.js';
 
 /**
  * Every subject that was read against another subject in the same run.
@@ -36,8 +40,14 @@ import { Prose } from './shell.js';
  */
 export function Variations({
   variations,
+  pictures,
 }: {
   readonly variations: readonly VariationRecord[];
+  /**
+   * Where each side's image comes from. Without it the list is names only, which
+   * is all a host that serves no images can draw.
+   */
+  readonly pictures?: Pictures | undefined;
 }): ReactElement | null {
   if (variations.length === 0) return null;
 
@@ -79,6 +89,7 @@ export function Variations({
               )}
             </p>
             <p className="va-because"><Prose text={variation.because} /></p>
+            {pictures === undefined ? null : <Pair variation={variation} pictures={pictures} />}
           </li>
         ))}
       </ul>
@@ -107,4 +118,122 @@ function axisOf(variation: VariationRecord): string {
   if (variation.identical) return 'reaches nothing';
   const bands = variation.bands ?? [];
   return bands.length === 0 ? 'differs' : bands.join(' · ');
+}
+
+/** What a variation needs to draw its two sides: the build's images and its pages. */
+export interface Pictures {
+  readonly client: ReviewClient;
+  readonly build: string;
+  readonly subjects: readonly SubjectView[];
+  readonly go: (route: Route) => void;
+}
+
+/**
+ * The parent and the arm, side by side, each a link to its own page.
+ *
+ * The list above says what the run measured; this is the comparison it measured,
+ * which a reviewer otherwise makes by opening two pages and remembering one. The
+ * parent comes first because the arm is read as the parent plus an axis.
+ *
+ * Both sides are scaled by one factor: the one that fits the box holding both
+ * into a tile. Each shrunk to its own tile, a narrower arm would be drawn larger
+ * than its parent and the pair would differ everywhere. A side whose size was
+ * never measured is bounded by the tile instead, since no scale can place it.
+ */
+function Pair({
+  variation,
+  pictures,
+}: {
+  readonly variation: VariationRecord;
+  readonly pictures: Pictures;
+}): ReactElement {
+  const arm = sideOf(variation.subject, pictures.subjects);
+  const parent = variation.parent === undefined ? undefined : sideOf(variation.parent, pictures.subjects);
+  const box = union(parent?.size, arm.size);
+  const scale = box === undefined ? undefined : fit(box, TILE);
+
+  return (
+    <ul className="va-variation-pair">
+      {parent === undefined ? null : <Side key="parent" side={parent} scale={scale} pictures={pictures} />}
+      <Side key="arm" side={arm} scale={scale} pictures={pictures} />
+    </ul>
+  );
+}
+
+/** The largest a side is drawn, in CSS pixels; the subject page reads it at size. */
+const TILE = { width: 220, height: 180 } as const;
+
+interface SideOf {
+  readonly id: string;
+  /** Absent when the run has no row for this subject: it was never read. */
+  readonly read: SubjectView | undefined;
+  readonly kind: 'after' | 'before' | undefined;
+  readonly size: Size | undefined;
+}
+
+/**
+ * The image that shows this subject: the candidate when the run kept one, the
+ * baseline when it kept only that, and nothing when it kept neither — with the
+ * dimensions that belong to that image, never the other one's.
+ */
+function sideOf(id: string, subjects: readonly SubjectView[]): SideOf {
+  const read = subjects.find((each) => each.subject === id);
+  if (read?.has.after === true) return { id, read, kind: 'after', size: measured(read.size) };
+  if (read?.has.before === true) return { id, read, kind: 'before', size: measured(read.baseline) };
+  return { id, read, kind: undefined, size: undefined };
+}
+
+/** A recorded size no scale can come from — an empty side — is no measurement. */
+function measured(size: Size | undefined): Size | undefined {
+  return size !== undefined && size.width > 0 && size.height > 0 ? size : undefined;
+}
+
+function Side({
+  side,
+  scale,
+  pictures,
+}: {
+  readonly side: SideOf;
+  readonly scale: number | undefined;
+  readonly pictures: Pictures;
+}): ReactElement {
+  const { client, build, go } = pictures;
+  const { id, read, kind, size } = side;
+
+  // The build has no page for a subject it never read, so that side is not a link.
+  if (read === undefined) {
+    return (
+      <li className="va-variation-side">
+        <span className="va-variation-none va-note">not in this run</span>
+        <span className="va-variation-name">{id}</span>
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <Go to={{ page: 'subject', build, subject: id }} go={go} className="va-variation-side">
+        {kind === undefined ? (
+          // An `unchanged` subject keeps nothing. An empty frame would read as a
+          // render that came out blank, which is another finding.
+          <span className="va-variation-none va-note">no image kept</span>
+        ) : (
+          // The name beneath labels the link; an alt repeating it is read twice.
+          <Raster
+            src={client.imageUrl(build, id, kind)}
+            alt=""
+            size={size}
+            style={
+              size === undefined || scale === undefined
+                ? // Nothing measured places this side, so the tile bounds it.
+                  { maxWidth: `${String(TILE.width)}px`, maxHeight: `${String(TILE.height)}px` }
+                : { width: `${String(Math.round(size.width * scale))}px` }
+            }
+          />
+        )}
+        <span className="va-variation-name">{id}</span>
+        {kind === 'before' ? <span className="va-how">baseline</span> : null}
+      </Go>
+    </li>
+  );
 }

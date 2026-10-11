@@ -12,8 +12,8 @@ import {
 import type {
   BuildDetail,
   BuildSummary,
+  Decided,
   Decision,
-  DecisionRecord,
   SweepReport,
   TribunalChangelog,
   TribunalChangelogQuery,
@@ -102,7 +102,7 @@ export interface ReviewClient {
     by: string,
     note?: string,
     baselineVersion?: string | null,
-  ): Promise<DecisionRecord>;
+  ): Promise<Decided>;
   sweep(days?: number): Promise<SweepReport>;
   /**
    * What reviewers suspect, apart from what they decided.
@@ -221,7 +221,7 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
     },
 
     decide: (build, subject, decision, by, note, baselineVersion) =>
-      call<DecisionRecord>(`/review/builds/${encode(build)}/subjects/${encode(subject)}/decision`, {
+      call<Decided>(`/review/builds/${encode(build)}/subjects/${encode(subject)}/decision`, {
         method: 'POST',
         body: JSON.stringify({
           decision,
