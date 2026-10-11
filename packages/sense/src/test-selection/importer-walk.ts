@@ -7,7 +7,17 @@
  * this file only says which importer is asked next, and with which names.
  */
 
-import { EDGE_KINDS, RUNTIME_EDGES, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
+import {
+  EDGE_KINDS,
+  NODE_KINDS,
+  NOTHING,
+  WHOLE,
+  carried,
+  type Adjacency,
+  type Carry,
+  type NodeId,
+  type Relations,
+} from '@variance-authority/core/relate';
 
 /** Moved names as a file exports them, each to the name it was declared under. */
 export type Carried = ReadonlyMap<string, string>;
@@ -30,56 +40,43 @@ export type Carried = ReadonlyMap<string, string>;
  * Every direct importer is asked, whatever names it binds: a caller that counts
  * the tests behind the importers it was shown as explained relies on seeing
  * every edge into `id`.
+ *
+ * A file that declares it reads another with `/// <depends path>` reads its
+ * text, not a name, so it is asked about the whole file, {@link WHOLE}, as is
+ * every file behind one that hands the whole file on.
+ *
+ * A walk costs what it reaches, not the size of the graph: it is called once
+ * per changed file, and most reach a handful of importers out of hundreds of
+ * thousands of files.
  */
 export function walkImporters(
   relations: Relations,
   id: NodeId,
   moved: Carried,
-  visit: (importer: string, moved: Carried) => Carried,
+  visit: (importer: string, moved: Carry<string>) => Carry<string>,
 ): void {
-  const asked = new Map<NodeId, Set<string>>();
-  let wave: Array<{ readonly id: NodeId; readonly moved: Carried }> = [{ id, moved }];
-  while (wave.length > 0) {
-    const next: typeof wave = [];
-    for (const step of wave) {
-      for (const importer of directImporters(relations, step.id)) {
-        const node = nodeAt(relations, importer);
-        if (node === undefined || node.kind !== 'file') continue;
-        const unasked = unaskedAt(asked, importer, step.moved);
-        if (unasked.size === 0) continue;
-        const passed = visit(node.name, unasked);
-        if (passed.size > 0) next.push({ id: importer, moved: passed });
-      }
-    }
-    wave = next;
-  }
-}
-
-/** The names of `moved` not yet asked of `importer`, marked asked as they are returned. */
-function unaskedAt(asked: Map<NodeId, Set<string>>, importer: NodeId, moved: Carried): Carried {
-  let done = asked.get(importer);
-  if (done === undefined) asked.set(importer, (done = new Set()));
-  const unasked = new Map<string, string>();
-  for (const [name, origin] of moved) {
-    if (done.has(name)) continue;
-    done.add(name);
-    unasked.set(name, origin);
-  }
-  return unasked;
+  const { kinds, names, dependents } = relations;
+  const mask = idle.get(dependents) ?? new Uint8Array(dependents.offset.length - 1);
+  idle.delete(dependents);
+  const { entered } = carried<string>(
+    dependents,
+    [[id, moved]],
+    {
+      arrive: (importer, _from, kind, carry) => (kinds[importer] !== FILE ? NOTHING : kind === DEPENDS ? WHOLE : carry),
+      hand: (importer, arrived) => visit(names[importer]!, arrived),
+    },
+    { seedsHold: false, mask },
+  );
+  for (const node of entered) mask[node] = 0;
+  idle.set(dependents, mask);
 }
 
 /**
- * The files that load this one at runtime, one edge away: a type-only import
- * loads nothing. A file that imports itself is among them.
+ * A cleared mask per graph, lent to one walk at a time and cleared behind it
+ * over the nodes it entered. A walk that throws keeps its mask, and the next
+ * one allocates afresh; a walk inside a visit finds none lent and does too.
  */
-function directImporters(relations: Relations, id: NodeId): readonly NodeId[] {
-  const { offset, target, kind } = relations.dependents;
-  const importers: NodeId[] = [];
-  for (let edge = offset[id]!; edge < offset[id + 1]!; edge += 1) {
-    if (LOADS[kind[edge]!] === 1) importers.push(target[edge]!);
-  }
-  return importers;
-}
+const idle = new WeakMap<Adjacency, Uint8Array>();
 
-const LOADS = new Uint8Array(EDGE_KINDS.length);
-for (const kind of RUNTIME_EDGES) LOADS[EDGE_KINDS.indexOf(kind)] = 1;
+const FILE = NODE_KINDS.indexOf('file');
+const DEPENDS = EDGE_KINDS.indexOf('depends');

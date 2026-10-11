@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { affectedBy, relationsOfFiles, type EdgeUse, type FileRecord } from './index.js';
+import { affectedBy, dependentsOf, idOf, relationsOfFiles, trailOf, type EdgeUse, type FileRecord } from './index.js';
 
 /**
  * The walk narrowed by the names each importer uses.
@@ -98,5 +98,78 @@ describe('a walk narrowed by the names each importer uses', () => {
     const relations = relationsOfFiles(records, { uses: (importer, target) => uses[`${importer}>${target}`] });
     const moved = new Map([['src/a.ts', ['a']], ['src/b.ts', ['b']]]);
     expect(affectedBy(relations, ['src/a.ts', 'src/b.ts'], { moved }).files).toContain('test/b.test.ts');
+  });
+});
+
+describe('a narrowed walk over cycles, self-imports and mocks', () => {
+  const lookup = (uses: Readonly<Record<string, EdgeUse | undefined>>) => (importer: string, target: string) =>
+    uses[`${importer}>${target}`];
+
+  it('carries a name round a cycle of re-exports once, and ends', () => {
+    const records: FileRecord[] = [
+      { file: 'src/a.ts', edges: [{ to: 'src/b.ts', kind: 'reexports' }] },
+      { file: 'src/b.ts', edges: [{ to: 'src/a.ts', kind: 'reexports' }] },
+      { file: 'test/b.test.ts', edges: [{ to: 'src/b.ts', kind: 'imports' }] },
+      { file: 'test/other.test.ts', edges: [{ to: 'src/b.ts', kind: 'imports' }] },
+    ];
+    const relations = relationsOfFiles(records, {
+      uses: lookup({
+        'src/a.ts>src/b.ts': { reexports: [['total', 'total']] },
+        'src/b.ts>src/a.ts': { reexports: [['total', 'total']] },
+        'test/b.test.ts>src/b.ts': { imports: ['total'] },
+        'test/other.test.ts>src/b.ts': { imports: ['label'] },
+      }),
+    });
+
+    expect(affectedBy(relations, ['src/a.ts'], { moved: new Map([['src/a.ts', ['total']]]) }).files).toEqual([
+      'src/a.ts',
+      'src/b.ts',
+      'test/b.test.ts',
+    ]);
+  });
+
+  it('charges every importer of a file that reads itself through a namespace import', () => {
+    const records: FileRecord[] = [
+      { file: 'src/cart.ts', edges: [{ to: 'src/cart.ts', kind: 'imports' }] },
+      { file: 'test/label.test.ts', edges: [{ to: 'src/cart.ts', kind: 'imports' }] },
+    ];
+    const relations = relationsOfFiles(records, {
+      uses: lookup({ 'src/cart.ts>src/cart.ts': {}, 'test/label.test.ts>src/cart.ts': { imports: ['label'] } }),
+    });
+
+    expect(affectedBy(relations, ['src/cart.ts'], { moved: new Map([['src/cart.ts', ['total']]]) }).files).toEqual([
+      'src/cart.ts',
+      'test/label.test.ts',
+    ]);
+  });
+
+  it('does not enter a mocked barrel, nor what reaches the change only through it', () => {
+    const relations = graph();
+    const cart = idOf(relations, 'file', 'src/cart.ts')!;
+    const traversal = dependentsOf(relations, [cart], {
+      moved: new Map([[cart, ['total']]]),
+      avoid: [idOf(relations, 'file', 'src/index.ts')!],
+    });
+
+    expect(traversal.nodes.map((node) => relations.names[node])).toEqual([
+      'src/all.ts',
+      'src/cart.ts',
+      'test/lazy.test.ts',
+      'test/total.test.ts',
+      'Cart',
+    ]);
+  });
+
+  it('explains a test behind a barrel by the barrel it came through', () => {
+    const relations = graph();
+    const cart = idOf(relations, 'file', 'src/cart.ts')!;
+    const traversal = dependentsOf(relations, [cart], { moved: new Map([[cart, ['total']]]) });
+    const test = idOf(relations, 'file', 'test/barrel-total.test.ts')!;
+
+    expect(trailOf(traversal, test).map((node) => relations.names[node])).toEqual([
+      'src/cart.ts',
+      'src/index.ts',
+      'test/barrel-total.test.ts',
+    ]);
   });
 });

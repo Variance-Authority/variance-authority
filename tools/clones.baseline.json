@@ -127,13 +127,6 @@
   },
   {
     "files": [
-      "packages/core/src/relate/narrow.ts",
-      "packages/core/src/relate/reach.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/core/src/rules/normalize/alias.ts",
       "packages/session/src/reads.ts"
     ],
