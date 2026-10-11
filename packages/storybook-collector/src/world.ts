@@ -1,6 +1,5 @@
 import {
-  createHarness,
-  observeNetwork,
+  createObservedHarness,
   type Harness,
   type HarnessOptions,
   type NetworkObservation,
@@ -27,10 +26,10 @@ import {
 
 export interface WorldRecipe {
   /**
-   * Everything `createHarness` needs, except the hook this module owns.
+   * Everything `createHarness` needs, except the hook `createObservedHarness` owns.
    *
    * `prepare` is excluded because the network observation has to be installed
-   * before the first navigation and this is the file that knows it — a caller
+   * before the first navigation and `createObservedHarness` installs it — a caller
    * free to supply its own hook could open the two worlds with two different
    * observers, which is the one difference that would look exactly like
    * pollution.
@@ -55,8 +54,20 @@ export interface World {
   /** The engine string that goes into every subject's key, from the browser itself. */
   readonly engine: string;
 
+  /** The timezone and locale the page was opened in, as they go into every subject's key. */
+  readonly region: Harness['region'];
+
   /** Absent exactly when {@link WorldRecipe.network} was. */
   readonly network?: NetworkObservation;
+
+  /**
+   * The driver tricks applied before the first navigation, which hold for
+   * every reading after it: nothing but this world moves the pointer.
+   *
+   * The ids go to the page agent, which keeps the driver tricks it was told
+   * about and drops the rest, so a reading's recipe is the one that held.
+   */
+  readonly driven: readonly string[];
 
   close(): Promise<void>;
 }
@@ -71,23 +82,14 @@ export interface World {
  * by hand, so the reading that costs a launch is the one worth having.
  */
 export async function openWorld(recipe: WorldRecipe): Promise<World> {
-  let network: NetworkObservation | undefined;
-
-  const harness = await createHarness({
-    ...recipe.harness,
-    ...(recipe.network === undefined
-      ? {}
-      : {
-          prepare: async (page): Promise<void> => {
-            network = await observeNetwork(page, recipe.network as NetworkOptions);
-          },
-        }),
-  });
+  const { harness, network } = await createObservedHarness(recipe.harness, recipe.network);
 
   return {
     page: harness.page,
     engine: harness.engine,
+    region: harness.region,
     ...(network !== undefined ? { network } : {}),
+    driven: harness.driven,
     async close(): Promise<void> {
       await network?.close();
       await harness.close();

@@ -35,7 +35,13 @@ In practice that rules out, inside the rendered output:
 - iteration order over a `Set`, a `Map` built from concurrent writes, or an
   object assembled from parallel promises;
 - a live read — a network call, a database row, a feature flag service;
-- the machine's locale, timezone, or `process.env`, unless you pin them.
+- the machine's locale, timezone, or `process.env`, unless you pin them. The
+  renderer paints in `UTC` and `en-US`, or in the `timezoneId` and `locale` your
+  config declares. Your collector runs inside `variance run`, so a date it
+  formats reads the host's timezone and language unless you pin it to the same
+  pair: start the run as `TZ=UTC npx variance run`, and pass `'en-US'` and
+  `timeZone: 'UTC'` wherever the collector formats, as in
+  `date.toLocaleString('en-US', { timeZone: 'UTC' })`.
 
 Two more requirements come from where the render ends up:
 
@@ -319,6 +325,7 @@ against this file's directory rather than the working directory.
 | `project` | The label this project's rows are filed under in a shared history store. Required even with no history configured. |
 | `profile` | What the run is *capable* of observing — `jsdom` or `chromium`. `jsdom` means structure, ARIA and declared style; `chromium` adds computed style, layout and geometry, and is only honest if your collector read inside a real browser. It does not decide what paints. Set it to match where you acquired. |
 | `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). The fallback for a subject whose planned entry sets no viewport of its own. Keep it equal to the viewport your collector acquires at, since that is what media queries were resolved against. |
+| `timezoneId`, `locale` | The timezone and language the renderer paints in, `UTC` and `en-US` when unset. Your collector's own process keeps the host's unless you pin it to the same pair, as the list above says. Both are part of the render identity, so changing one makes every image `incomparable` against a baseline painted under the other. `accept --all` adopts a subject whose document did not move; one whose document moved too is adopted by `accept <subject-id>` once you have looked ([the first loop](#run-the-first-loop)). |
 | `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent and your `collect` must return `before`. Setting both is refused. |
 | `subjects.kind` | `list` — the ids are in this file. `storybook` — read them from a built story index. `collector` — your `plan()` discovers them, and the config stops being the statement of what is watched. |
 | `baselines.kind` | `directory` — files you commit. `lfs` — the same files through the Git LFS filter. `remote` — an endpoint and a token, with nothing in the repository. No default; see [baseline placement](placement.md). |

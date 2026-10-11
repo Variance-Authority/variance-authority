@@ -1,5 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import type { RunReport } from '@variance-authority/report';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
@@ -10,6 +10,7 @@ import { inputFor, questionFor, questionOf, refuseWords, type Question } from '.
 import { grep, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
+import { repositoryRoot } from '@variance-authority/sense/test-selection';
 import { readTree, type CostsSubject, type Reviewed, type ReviewTool, type Tree } from '@variance-authority/mcp/tools';
 import { questions } from './ask-questions.js';
 import { grepSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
@@ -316,11 +317,13 @@ async function live(
   // The watcher rotates its own previous reading as it hands this one over, so
   // there is nothing to record here and nothing left behind when this exits.
   const reading = await (request.look ?? readVantage)(at);
-  return tool.run(
-    reading.state,
-    input,
-    reading.previous === undefined ? {} : { previous: reading.previous },
-  );
+  // `file` is a path, and a terminal, unlike the watcher, has a directory `./x` is read from.
+  const file = input['file'];
+  const asked = typeof file === 'string' && file !== '' ? { ...input, file: resolve(file) } : input;
+  return tool.run(reading.state, asked, {
+    ...(reading.previous === undefined ? {} : { previous: reading.previous }),
+    root: repositoryRoot(process.cwd()),
+  });
 }
 
 /** A question about a run that finished, asked of the report it left. */

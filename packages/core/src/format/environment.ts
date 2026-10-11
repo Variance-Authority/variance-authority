@@ -13,7 +13,7 @@ import type { ProfileId } from './profile.js';
  * treated as one. Leaving a field out is a correctness bug. When in doubt,
  * include it: over-invalidation costs CI minutes, under-invalidation costs trust.
  */
-export interface EnvironmentInputs {
+export interface EnvironmentInputs extends PageRegion {
   /** Which collector, and therefore which dimensions exist at all (ADR-0002). */
   readonly profile: ProfileId;
 
@@ -68,6 +68,26 @@ export interface EnvironmentInputs {
    * as the absence it is rather than as an empty recipe.
    */
   readonly stabilization?: Digest;
+}
+
+/**
+ * The timezone a page's clock reads in and the language it formats for, as
+ * Playwright names them.
+ *
+ * A page that formats a date or a number without naming a timezone or a language
+ * of its own gets its browser's, so one build reads `12:30 AM` in one timezone
+ * and `4:30 PM` in another — different text, different widths, no edit anywhere.
+ * A collector that opened its page in a region it chose writes it to the
+ * environment key, the way the viewport carries its colour scheme. A field is
+ * absent where nobody chose it: a jsdom capture runs in its Node process, and an
+ * absent field says so rather than naming a timezone nobody set.
+ */
+export interface PageRegion {
+  /** An IANA timezone, such as `Europe/Berlin`. */
+  readonly timezoneId?: string;
+
+  /** A BCP 47 language tag, such as `de-DE`: a run's base locale (spec 0008). */
+  readonly locale?: string;
 }
 
 export interface Viewport {
@@ -128,6 +148,11 @@ export function environmentKey(inputs: EnvironmentInputs): EnvironmentKey {
     // the recipe's first job is to stop an animation from moving `transform`,
     // which is a value the semantic representation carries.
     stabilization: inputs.stabilization,
+    // Text is laid out, so a timezone or a language reaches the box tree, and both
+    // keys carry them. `undefined` is omitted from the canonical form, so a
+    // capture that chose neither keeps the key it had before either existed.
+    timezoneId: inputs.timezoneId,
+    locale: inputs.locale,
   };
 
   // Layout depends on the viewport's size and colour scheme; rasterization also
@@ -171,6 +196,8 @@ export function diffEnvironments(
   scalar('conditions', before.conditions, after.conditions);
   scalar('assets', before.assets, after.assets);
   scalar('stabilization', before.stabilization, after.stabilization);
+  scalar('timezoneId', before.timezoneId, after.timezoneId);
+  scalar('locale', before.locale, after.locale);
 
   return deltas;
 }
@@ -184,7 +211,9 @@ export type EnvironmentField =
   | 'fonts'
   | 'conditions'
   | 'assets'
-  | 'stabilization';
+  | 'stabilization'
+  | 'timezoneId'
+  | 'locale';
 
 export interface EnvironmentDelta {
   readonly field: EnvironmentField;

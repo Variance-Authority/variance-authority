@@ -164,6 +164,9 @@ export async function observeSubject(
   // node, so without it each boundary's props are digested once per descendant.
   const pass = digestPass();
 
+  // FIXME: no timezone or locale reaches the capture, so the environment key
+  // is the same for a tab opened in Tokyo and one opened in UTC (see the FIXME
+  // on `painting` in node.ts).
   const artifact = await capture(root, {
     subject,
     viewport: viewportOf(root.ownerDocument),
@@ -176,6 +179,10 @@ export async function observeSubject(
     ...(options.holdings === true ? { holdingOf } : {}),
     ...(held.digest === undefined ? {} : { stabilization: held.digest }),
   });
+
+  // The test goes on using this page, and a field it focused before it
+  // observed is still the one it types into after.
+  held.refocus();
 
   // TODO: portalled content is not read here. `portalContentOf` finds the
   // subtrees React rendered outside this element — a dialog, a tooltip, a

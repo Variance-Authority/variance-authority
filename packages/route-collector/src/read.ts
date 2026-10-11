@@ -50,7 +50,7 @@ export async function readRoute(
   planned: PlannedSubject,
 ): Promise<Collected> {
   const { config, options, routes, roots, portable, source } = reading;
-  const { page, engine, network } = world;
+  const { page, engine, region, network } = world;
 
   const id = planned.subject.id;
   const readyFor = (subject: string): string | undefined => {
@@ -163,12 +163,16 @@ export async function readRoute(
     subjectId: id,
     viewport: planned.viewport ?? config.viewport,
     engine,
+    ...region,
     ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
     // Only the rules that name a selector cross into the page. A fingerprint
     // rule has nothing for a document to resolve, and sending one would put a
     // digest in a browser that cannot use it.
     ...(selectable.length > 0 ? { ignore: selectable } : {}),
+    // These fields match the Storybook collector's request on purpose and stay apart:
+    // each collector's page agent is its own bundle with its own request type.
     ...(options.stabilize !== undefined ? { stabilize: options.stabilize } : {}),
+    ...(world.driven.length > 0 ? { driven: world.driven } : {}),
     // Sent only when the caller said something. The page agent holds the
     // defaults, so a bundle and a driver built from different checkouts cannot
     // disagree about what absent meant.

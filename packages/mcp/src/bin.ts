@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { repositoryRoot } from '@variance-authority/sense/test-selection';
 import { serveReportFile, serveVantage } from './server.js';
 
 /**
@@ -31,7 +32,7 @@ import { serveReportFile, serveVantage } from './server.js';
 const [, , path] = process.argv;
 
 if (path === '--watch') {
-  const { address } = await serveVantage();
+  const { address } = await serveVantage({ root: repositoryRoot(process.cwd()) });
   process.stderr.write(
     `variance-authority is watching. Start the suite with:\n` +
       `  VARIANCE_AUTHORITY_VANTAGE=${address}\n`,

@@ -5,8 +5,10 @@ only the declared suites, to find the record `--suite` names; a checkout that
 has never configured this tool gets the same answer. Its input is one record:
 the one `covering` reads, the declared suite's `--suite` names, or the file
 `--execution` names. `--test` takes a case id, an exact title or a part of one,
-and `--file` a part of the test file's path; give either or both. More than one
-fitting case is refused with their ids. `--file` alone reads the file instead:
+and `--file` the test file's path, relative to `--root` or absolute; give either
+or both. `--file` names that file alone: a recorded path that contains it or
+ends in it is another file, and a path outside `--root` is refused. More than
+one fitting case is refused with their ids. `--file` alone reads the file instead:
 the modules it loaded, from the record's coverage rows, that no case entered
 and those only some of its cases entered. Each module no case entered is
 listed under the import that made the file load it — the topmost import every
@@ -16,7 +18,7 @@ mock of the listed path. It needs a recorded run, not `--execution` JSON, and is
 withheld when a case stopped or the file's coverage row is incomplete; run the
 file again. Name neither `--test` nor `--file`, and distill reads every test
 file of the record the same way, or with `--from <dir>` every one under a
-directory from the repository root, and ranks each import by the lines it loads
+directory named from the repository root or from `/`, and ranks each import by the lines it loads
 for nothing, counted once in every test file it reaches: the heaviest import
 across a package or a suite. With no `--suite`, that reading takes every
 declared suite and names one that has not recorded. `--root` (default: the working
@@ -29,7 +31,7 @@ same deterministic reading of one case, and needs its test id; the file reading
 is the CLI's.
 
 ```bash
-variance distill --file checkout.test.tsx --test submits
+variance distill --file test/checkout.test.tsx --test submits
 ```
 
 ## How much each test file loads for nothing

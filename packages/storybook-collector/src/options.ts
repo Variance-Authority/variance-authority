@@ -43,6 +43,27 @@ export interface StorybookCollectorOptions {
   readonly headless?: boolean;
 
   /**
+   * Stabilization tricks to hold each story still with, by id. Defaults to
+   * `COLLECT_RECIPE`.
+   *
+   * Name your own list to leave a trick out: a story that is about its hover
+   * state, for one, is read with `no-hover` missing from it. `[]` means
+   * observed untouched, and the environment key records it, so a baseline made
+   * under one list reads `incomparable` against a run made under another.
+   */
+  readonly stabilize?: readonly string[];
+
+  /**
+   * The instant `Date` reads in every story, as an ISO 8601 instant with its
+   * zone. Defaults to `DEFAULT_NOW`, noon UTC on 15 June 2024.
+   *
+   * Applied by the `freeze-clock` trick, so a `stabilize` list without it
+   * leaves the clock running and this unused. A time with no zone is refused
+   * before a browser opens: it names a different instant on every machine.
+   */
+  readonly now?: string;
+
+  /**
    * Watch the wire: hash asset bodies into the environment key, and serve
    * animated GIFs as their first frame. Defaults to `true`.
    *

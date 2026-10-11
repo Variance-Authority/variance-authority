@@ -144,7 +144,8 @@ variance distill --file test/checkout.spec.ts --test submits
 ```
 
 `--test` takes the case's id, its exact title, or a part of the title.
-`--file` takes any part of the test file's path. When more than one case fits,
+`--file` takes the test file's path, relative to the checkout or absolute, and
+names that file alone. When more than one case fits,
 the command prints their ids and stops, and you pass one of them to `--test`.
 `--file` alone reads the whole file instead: the modules it loaded that no
 case, or only some of its cases, entered, each module no case entered under the
@@ -276,7 +277,7 @@ a measured-empty addressed surface.
 | `distill(input)` | `DistillInput` in, `Distillation` out. Throws when the execution index holds no case that fits `test` and `file`, or more than one. |
 | `formatDistillation(result)` | The text above. The CLI and MCP adapters print exactly this. |
 | `parseExecutionIndex(value)` | Validates untyped execution JSON, throwing on the first bad field. |
-| `distillFile(input)` | `FileDistillInput` in, `FileDistillation` out: the modules one test file loaded that no case, or only some cases, entered. Throws when no recorded test file, or more than one, contains `file`. |
+| `distillFile(input)` | `FileDistillInput` in, `FileDistillation` out: the modules one test file loaded that no case, or only some cases, entered. Throws when the record holds no test file at exactly `file`. |
 | `LoadCause` | Why a file loaded a module no case entered: the one `import` every path to it runs through, `shared` with the file where its paths part, or `unseen` by any static import. Set when `FileDistillInput.imports` gives the static imports of each file. |
 | `formatFileDistillation(result)` | The text of a file reading, as the CLI prints it for `--file` alone. |
 | `scopeRows(input)` | `ScopeDistillInput` in, one `ScopeRow` a test file out, as `variance distill --format jsonl` writes them: the file's `suite`, `cases`, what it `loaded` and its lines, and what no case of it `unentered`, or `withheld` with the reason. Throws when the scope holds no recorded test file. |
@@ -293,7 +294,7 @@ declaration — a module's top level, or a function — with its name and line
 range. On an `EnteredModule`, `entered` and `unentered` split those regions, and
 `loadedOnly` is the flag behind the loaded-but-not-covered finding.
 
-`FileDistillInput` carries a part of the test file's path as `file`, the
+`FileDistillInput` carries the test file's repository-relative path as `file`, the
 record's case index as `execution`, and its coverage rows as `coverage`.
 `FileDistillation` counts what the file `loaded` and their `lines`, and lists `LoadedModule` entries — `file`, `lines`, and
 `entered`, how many of the file's cases entered the module — fewest entered

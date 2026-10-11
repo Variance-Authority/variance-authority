@@ -123,9 +123,9 @@ const HERO = Buffer.from(
 );
 
 /** One read of the home page of `site`, from a collector serving it on a port of its own. */
-async function readServed(site: string): Promise<Collected> {
+async function readServed(site: string, region: { timezoneId?: string } = {}): Promise<Collected> {
   const served = await routeCollector({ directory: site, roots: ['#app'] })({
-    config: { viewport: { width: 800, height: 600, deviceScaleFactor: 1, colorScheme: 'light' } },
+    config: { viewport: { width: 800, height: 600, deviceScaleFactor: 1, colorScheme: 'light' }, ...region },
   });
 
   try {
@@ -136,6 +136,75 @@ async function readServed(site: string): Promise<Collected> {
     await served.close();
   }
 }
+
+/** One read of the home page of `site`, by a browser launched with `TZ` set to `timezone`. */
+async function readIn(timezone: string, site: string): Promise<Collected> {
+  const before = process.env.TZ;
+  process.env.TZ = timezone;
+  try {
+    return await readServed(site);
+  } finally {
+    if (before === undefined) delete process.env.TZ;
+    else process.env.TZ = before;
+  }
+}
+
+/** A page that formats one fixed instant, so the timezone it runs in decides its text. */
+function clockSite(): string {
+  const site = mkdtempSync(join(tmpdir(), 'variance-timezone-'));
+  writeFileSync(
+    join(site, 'index.html'),
+    '<!doctype html><html><body><main id="app"><time id="when"></time></main>' +
+      '<script>document.getElementById("when").textContent = ' +
+      'new Date(Date.UTC(2024, 0, 1, 0, 30)).toLocaleString();</script>' +
+      '</body></html>',
+  );
+  return site;
+}
+
+/** What a read is compared by, and the text that decides it. */
+function readingOf(reading: Collected) {
+  if (!reading.ok) throw new Error('collection failed');
+  return {
+    semanticDigest: reading.snapshot?.environment.semanticDigest,
+    renderHash: reading.snapshot?.renderHash,
+    text: /<time id="when"[^>]*>([^<]*)</.exec(reading.document.html)?.[1],
+  };
+}
+
+chromium_('one build, read in two timezones', () => {
+  it('reads one key and one render whichever timezone the host is in', async () => {
+    // The page formats one fixed instant — no clock involved — so only the
+    // timezone decides its text. A browser that took the host's would read a
+    // change on a laptop that CI never sees, with no edit anywhere.
+    const site = clockSite();
+
+    try {
+      const utc = readingOf(await readIn('UTC', site));
+      const west = readingOf(await readIn('America/Los_Angeles', site));
+
+      expect(west).toEqual(utc);
+    } finally {
+      rmSync(site, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  it('reads to another key when the config declares another timezone', async () => {
+    // A declared timezone is a render input like the viewport: the text moved,
+    // and so did the key, so the two reads are not compared as one subject.
+    const site = clockSite();
+
+    try {
+      const utc = readingOf(await readServed(site));
+      const tokyo = readingOf(await readServed(site, { timezoneId: 'Asia/Tokyo' }));
+
+      expect(tokyo.text).not.toBe(utc.text);
+      expect(tokyo.semanticDigest).not.toBe(utc.semanticDigest);
+    } finally {
+      rmSync(site, { recursive: true, force: true });
+    }
+  }, 120_000);
+});
 
 chromium_('one build, served twice', () => {
   it('reads to the same key and the same hashes whichever port served it', async () => {

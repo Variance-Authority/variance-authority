@@ -144,11 +144,39 @@ describe('the CLI distillation boundary', () => {
     const root = checkout();
     await recorded(root, [{ case: CASE, attempt: 1, journal: clicked('src/cart.tsx') }]);
 
-    const answer = await run(['distill', '--file', 'cart.spec', '--test', 'one item', '--format', 'json']);
+    const answer = await run(['distill', '--file', 'test/cart.spec.ts', '--test', 'one item', '--format', 'json']);
 
     expect(answer.code).toBe(EXIT_CLEAN);
     expect(JSON.parse(answer.out).test.id).toBe(CASE);
     expect(JSON.parse(answer.out).attempts).toHaveLength(1);
+  });
+
+  it('reads `--file` given from the working directory or from the file system\'s root as the repository path it names', async () => {
+    const root = checkout();
+    await recorded(root);
+
+    for (const file of ['./test/cart.spec.ts', 'test/../test/cart.spec.ts', join(root, 'test/cart.spec.ts')]) {
+      const alone = await run(['distill', '--file', file, '--format', 'json']);
+      expect(alone.err).toBe('');
+      expect(JSON.parse(alone.out).file).toBe('test/cart.spec.ts');
+      const narrowed = await run(['distill', '--file', file, '--test', 'one item', '--format', 'json']);
+      expect(JSON.parse(narrowed.out).test.id).toBe(CASE);
+    }
+  });
+
+  it('refuses a `--file` outside the checkout, and one that only contains or ends in a recorded path', async () => {
+    const root = checkout();
+    await recorded(root);
+
+    const outside = await run(['distill', '--file', '../test/cart.spec.ts']);
+    expect(outside.code).toBe(EXIT_OPERATOR);
+    expect(outside.err).toContain(`../test/cart.spec.ts is outside the checkout at ${root}`);
+
+    for (const file of ['cart.spec.ts', 'test/cart.spec']) {
+      const part = await run(['distill', '--file', file]);
+      expect(part.code).toBe(EXIT_OPERATOR);
+      expect(part.err).toContain(`The record holds no test file \`${file}\`.`);
+    }
   });
 
   it('refuses a name no recorded case has', async () => {
@@ -267,7 +295,7 @@ describe('the CLI distillation boundary', () => {
     // Published as a pipeline publishes it: under CI a reader refuses to build the index itself.
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    const answer = await run(['distill', '--file', 'cart.spec']);
+    const answer = await run(['distill', '--file', 'test/cart.spec.ts']);
 
     expect(answer.code).toBe(EXIT_CLEAN);
     expect(answer.out).toContain('test/cart.spec.ts: 2 case(s); 5 loaded module(s) declare functions.');
@@ -283,7 +311,7 @@ describe('the CLI distillation boundary', () => {
     ].join('\n'));
     expect(answer.out).toContain('  src/checkout-dialog.tsx — 20 line(s), entered by 1 of 2 case(s)');
     expect(answer.out).not.toContain('src/cart.tsx —');
-    const json = JSON.parse((await run(['distill', '--file', 'cart.spec', '--format', 'json'])).out);
+    const json = JSON.parse((await run(['distill', '--file', 'test/cart.spec.ts', '--format', 'json'])).out);
     expect(json.modules).toEqual([
       { file: 'src/locale-en.tsx', lines: 50, entered: 0, cause: { kind: 'unseen' } },
       {
@@ -337,7 +365,7 @@ describe('the CLI distillation boundary', () => {
     execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'source'], { cwd: root, stdio: 'pipe' });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    const answer = await run(['distill', '--file', 'cart.spec']);
+    const answer = await run(['distill', '--file', 'test/cart.spec.ts']);
 
     expect(answer.code).toBe(EXIT_CLEAN);
     expect(answer.out).toContain([
@@ -355,7 +383,7 @@ describe('the CLI distillation boundary', () => {
     const execution = join(root, 'execution.json');
     writeFileSync(execution, JSON.stringify(plain));
 
-    const answer = await run(['distill', '--file', 'plain', '--execution', execution]);
+    const answer = await run(['distill', '--file', 'plain.test.ts', '--execution', execution]);
 
     expect(answer.code).toBe(EXIT_OPERATOR);
     expect(answer.err).toContain('holds no coverage rows, which say what a test file loaded; name a case with --test');
@@ -372,7 +400,7 @@ describe('the CLI distillation boundary', () => {
     const head = bytes.toString('utf8', 4, 4 + header).replace('"tests.complete"', '"tests.completE"');
     writeFileSync(at, Buffer.concat([bytes.subarray(0, 4), Buffer.from(head, 'utf8'), bytes.subarray(4 + header)]));
 
-    const answer = await run(['distill', '--file', 'plain', '--execution', at]);
+    const answer = await run(['distill', '--file', 'plain.test.ts', '--execution', at]);
 
     expect(answer.code).toBe(EXIT_OPERATOR);
     expect(answer.err).not.toContain('holds no coverage rows');

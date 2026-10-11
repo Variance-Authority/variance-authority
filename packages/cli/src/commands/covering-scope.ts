@@ -18,11 +18,10 @@ import {
   type LastCaseRun,
 } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import { spelling } from './covering-unloaded.js';
 
 /** Which cases an answer was read from, when it was not the whole suite. */
 export interface CoveringScope {
-  /** What was asked: `last`, or the test file as the index spells it. */
+  /** What was asked: `last`, or the test file, named from the repository root. */
   readonly cases: string;
   /** The ids of the cases the answer was read from. */
   readonly tests: readonly string[];
@@ -97,11 +96,11 @@ function lastRun(from: string): LastCaseRun {
   );
 }
 
-/** The test file as the index spells it, whether it was given that way or from here. */
+/** The test file named from the repository root, whether it was given that way or from here. */
 function testFile(index: ExecutionIndex, given: string, root: string): string {
   const files = new Set(index.tests.map((test) => test.file));
   if (files.has(given)) return given;
   const fromRoot = relative(root, resolve(given));
   if (files.has(fromRoot)) return fromRoot;
-  throw new OperatorError(`\`--cases ${given}\` names no test file the index holds a case of. ${spelling(given, files)}`);
+  throw new OperatorError(`\`--cases ${given}\` names no test file the index holds a case of.`);
 }

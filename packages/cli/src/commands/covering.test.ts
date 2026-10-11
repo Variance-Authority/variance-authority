@@ -134,20 +134,31 @@ describe('asking which tests entered a line', () => {
       .rejects.toThrow(/no readable per-case execution index/);
   });
 
-  it('points at the recorded spelling when the path is rooted differently', async () => {
-    const execution = await indexFile();
+  it.each(['apps/shop/src/total.ts', 'lib/total.ts', 'total.ts'])(
+    'refuses `%s`, a path the record does not hold, and names no other path',
+    async (file) => {
+      const execution = await indexFile();
 
-    await expect(covering(parse(['--file', '/abs/src/total.ts', '--execution', execution])))
-      .rejects.toThrow(/record spells it `src\/total\.ts`/);
+      const asked = covering(parse(['--file', file, '--execution', execution]));
+
+      await expect(asked).rejects.toThrow(/a different statement from no test covering it\.$/);
+      await expect(asked).rejects.not.toThrow(/`src\/total\.ts`/);
+    },
+  );
+
+  it('reads an absolute `--file` from the root, which is how the record names files', () => {
+    const root = join(tmpdir(), 'checkout');
+
+    expect(parse(['--file', join(root, 'src/total.ts'), '--root', root])).toMatchObject({ file: 'src/total.ts' });
+    expect(parse(['--file', 'src/total.ts', '--root', root])).toMatchObject({ file: 'src/total.ts' });
   });
 
-  it('names a recorded file that only shares the name as that, not as a spelling of the asked one', async () => {
-    const execution = await indexFile();
+  it.each(['./src/total.ts', 'src/./total.ts', 'lib/../src/total.ts'])('reads `%s` as `src/total.ts`, the same path', (file) => {
+    expect(parse(['--file', file, '--root', join(tmpdir(), 'checkout')])).toMatchObject({ file: 'src/total.ts' });
+  });
 
-    const asked = covering(parse(['--file', 'lib/total.ts', '--execution', execution]));
-
-    await expect(asked).rejects.toThrow(/`src\/total\.ts` only shares its name\.$/);
-    await expect(asked).rejects.not.toThrow(/record spells it/);
+  it.each(['/elsewhere/src/total.ts', '../src/total.ts'])('refuses `%s`, a path outside the root', (file) => {
+    expect(() => parse(['--file', file, '--root', join(tmpdir(), 'checkout')])).toThrow(/is outside the checkout/);
   });
 
   it('answers a module the run loaded without instrumenting with the test files that loaded it, which a change to it selects', async () => {
@@ -223,7 +234,7 @@ describe('asking which tests entered a line', () => {
  *
  * A fixture diff would exercise the join and prove nothing about the part that
  * breaks: `--since` is a ref, and turning a ref into hunks in the coordinates
- * the index spells files in goes through `git` twice and a merge base once.
+ * the index names files in goes through `git` twice and a merge base once.
  * Every failure of that is silent — the wrong coordinate answers about a file
  * nobody changed, and a list of test names is the same shape either way.
  */

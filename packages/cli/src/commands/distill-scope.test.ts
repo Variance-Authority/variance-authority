@@ -129,6 +129,28 @@ describe('distill over a scope of test files', () => {
     expect(answer.out).toContain('  src/cart.ts imports src/chart.ts: 1 module(s) in 1 test file(s), 30 line(s)');
   });
 
+  it('reads `--from` the way the record spells a directory, from the checkout', async () => {
+    // A shell hands over `./app`, `lib/../app` and an editor's absolute path;
+    // each is one directory, and the record names it from the root with `/`.
+    const root = await checkout();
+
+    for (const asked of ['./app', 'lib/../app', join(root, 'app')]) {
+      const answer = await run(['distill', '--from', asked]);
+      expect(answer.err).toBe('');
+      expect(answer.out).toContain('app in suite unit: 1 test file(s), each read.');
+    }
+  });
+
+  it('refuses a `--from` outside the checkout rather than reading nothing under it', async () => {
+    const root = await checkout();
+    const elsewhere = join(dirname(root), 'elsewhere');
+
+    const answer = await run(['distill', '--from', elsewhere]);
+
+    expect(answer.code).toBe(EXIT_OPERATOR);
+    expect(answer.err).toContain(`${elsewhere} is outside the checkout at ${root}`);
+  });
+
   it('names a declared suite that has not recorded, and reads the rest', async () => {
     await checkout({ e2e: false });
 

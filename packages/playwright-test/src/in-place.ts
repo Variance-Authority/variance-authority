@@ -11,7 +11,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { digestValue, documentDigest } from '@variance-authority/core/format';
 import type { AttributedRegion } from '@variance-authority/core/attribute';
-import type { Raster, RenderIdentity, SemanticSnapshot } from '@variance-authority/core/format';
+import type { PageRegion, Raster, RenderIdentity, SemanticSnapshot } from '@variance-authority/core/format';
 import { normalize } from '@variance-authority/core/rules';
 import { observeRasters } from '@variance-authority/observe';
 import { suspenseRefusal } from '@variance-authority/react';
@@ -26,6 +26,7 @@ export async function stableRaster(
   document: Parameters<typeof documentDigest>[0],
   fonts: readonly string[],
   stabilization: RenderIdentity['stabilization'],
+  region: Pick<AcquireRequest, 'timezoneId' | 'locale'>,
   options: InPlaceCaptureOptions,
   snapshot: SemanticSnapshot,
 ): Promise<Raster> {
@@ -53,6 +54,9 @@ export async function stableRaster(
         headless: options.browser.headless,
         launchArgs: [...options.browser.launchArgs],
       },
+      // The page's scripts ran in this timezone and locale, so the dates and
+      // numbers in these pixels were formatted in them.
+      page: { timezoneId: region.timezoneId, locale: region.locale },
       screenshot,
     }),
   };
@@ -110,6 +114,25 @@ export async function stableRaster(
     }
   }
   return first;
+}
+
+/**
+ * The timezone and locale the page under test runs in.
+ *
+ * Asked of the page, because it is the page's own: a suite that set
+ * `timezoneId` or `locale` gets those, and a page the fixtures handed a suite
+ * that set neither runs in `UTC`, pinned by `varianceRendererFixtures`, and
+ * `en-US`, Playwright Test's default. A page handed to `createVariance` runs in
+ * whatever its caller's context opened it in, the host's timezone when that
+ * context set none. Either way the text it lays out was formatted in them, so
+ * both keys and the render that paints it carry them.
+ *
+ * Source, not a function, for the reason {@link PROBE_FONTS} gives.
+ */
+export async function regionOf(page: Page): Promise<Required<PageRegion>> {
+  return (await page.evaluate(
+    `({ timezoneId: Intl.DateTimeFormat().resolvedOptions().timeZone, locale: navigator.language })`,
+  )) as Required<PageRegion>;
 }
 
 /**
@@ -221,6 +244,7 @@ export async function settledCapture(
         held.document,
         about.fonts,
         held.stabilization.digest,
+        request,
         materialization,
         heldSnapshot,
       );

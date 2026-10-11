@@ -154,7 +154,7 @@ variance layers  [--against <index>] [--root <path>] [--format text|markdown|jso
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
-variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
+variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]
 variance story   [--file <text>] [--name <text>] [--label <label>] [--in <package or file> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]
 variance watch
@@ -325,7 +325,8 @@ Name the case by the file that declares it and its title:
 variance distill --file test/checkout.spec.ts --test submits
 ```
 
-`--file` takes any part of the test file's path. `--test` takes the case's
+`--file` takes the test file's path, relative to the checkout or absolute, and
+names that file alone. `--test` takes the case's
 `id`, its exact title, or a part of the title, compared without case. Either
 flag may be given alone. When more than one case fits, the command prints up to
 five of their ids and stops; pass one of them to `--test`. A case Playwright
@@ -425,21 +426,20 @@ Not loaded by stories (visual): a run that never loaded the file has no answer a
 ```
 
 Once any suite answers, the answers come first, then any suite that has never
-run. A suite that never loaded the file costs one line at the end, unless its
-record holds this path under another root, such as
-`apps/shop/src/checkout/total.ts` for `src/checkout/total.ts`: that suite most likely ran the file, and keeps its full
-refusal among the answers. When no suite answers, each says why in full, with
-the record it read and the recorded paths that are this one under another root,
-since a wrong path is then the likely cause. A recorded file that shares only
-the name is named as sharing it, not as the path the record spells.
+run. A suite that never loaded the file costs one line at the end. When no suite
+answers, each says why in full, with the record it read, since a wrong path is
+then the likely cause. The record names files from the repository root, so give
+`--file` that way, or as an absolute path; one outside the root is refused. A
+refusal names the path you asked and no other: `apps/shop/src/checkout/total.ts`
+is a different file from `src/checkout/total.ts`, and so is any other recorded
+path of the same name.
 
 In JSON the answer is a `suites` list. Each entry is that suite's own answer
 with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`
-or to `unloaded`, for a file the suite never loaded. An `unloaded` entry
-carries `spelled`, the recorded paths that are this path under another root,
-only when there is one. A file the suite loaded without instrumenting it is
-answered with `preconditionOf`, the test files that loaded it. `--suite <name>` reads one record alone, answers in the shape a
-repository with one record does, and so gives a suite's refusal in full.
+or to `unloaded`, for a file the suite never loaded. A file the suite loaded without
+instrumenting it is answered with `preconditionOf`, the test files that loaded
+it. `--suite <name>` reads one record alone, answers in the shape a repository with one record does, and so
+gives a suite's refusal in full.
 
 `--format refs` is the same answer for an agent, which pays for every repeated
 name. Each case is numbered once, in a table at the end, and every range names
@@ -2473,6 +2473,7 @@ The remaining top-level keys:
 | `blank` | replaces an image on the wire with a transparent one of the same intrinsic size |
 | `sensitivity` | narrows a named subject to a sensitivity level |
 | `decoder` | which PNG implementation to use |
+| `timezoneId`, `locale` | the IANA timezone and BCP 47 language the collectors read in and the renderer paints in; `UTC` and `en-US` when unset, never the host's. Part of the render identity, so changing one makes every image `incomparable` until it is accepted again |
 | `concurrency` | how many subjects may be in flight at once |
 | `workers` | how many browser worlds one run collects in. Each world collects one subject at a time; a world that finishes takes the next file from a shared queue, longest file first. A collector without `openWorker` collects in one world and the run warns |
 | `intent` | the default `--intent` label |

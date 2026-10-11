@@ -190,6 +190,10 @@ describe('browserless capture archive', () => {
     await expect(readCapture(nodePath)).rejects.toThrow('invalid semantic snapshot');
   });
 
+  it.todo(
+    'keys a capture by the timezone and locale jsdom formatted its text in — needs a declared pair the jsdom run is started in, since the Node process reads the host',
+  );
+
   it('reads why a node was read only in part, and refuses a reason that is not words', async () => {
     const artifact = await capture(mount('<button>Save</button>'), {
       subject: 'button/unread',

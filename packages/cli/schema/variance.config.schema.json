@@ -44,6 +44,18 @@
       "default": "chromium",
       "enum": ["chromium", "firefox", "webkit"]
     },
+    "timezoneId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The IANA timezone the page's clock reads in, such as `Europe/Berlin`. Defaults to `UTC`, never the host's timezone, so a date the page formats reads the same on every machine. Part of the render identity, so a baseline painted in another timezone reads `incomparable`.",
+      "default": "UTC"
+    },
+    "locale": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The BCP 47 language tag the page formats numbers and dates for, such as `de-DE`. Defaults to `en-US`, never the host's language, so a number the page formats reads the same on every machine. Part of the render identity, so a baseline painted for another language reads `incomparable`.",
+      "default": "en-US"
+    },
     "renderer": { "$ref": "#/$defs/renderer" },
     "history": { "$ref": "#/$defs/history" },
     "review": { "$ref": "#/$defs/review" },

@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCallSiteResolver, overlaySourceIndex } from '@variance-authority/core/attribute';
+import { recipeToDrive, type Recipe } from '@variance-authority/core/format';
 import { createDeclarationReader, fetchModules, widthsOf } from '@variance-authority/playwright';
 import { operatorError } from './operator.js';
 import { readRoute, type RouteReading } from './read.js';
@@ -112,6 +113,16 @@ export function routeCollector(
 ): (context: CollectorContext) => Promise<Collector> {
   return async function createCollector(context: CollectorContext): Promise<Collector> {
     const { config, plan } = context;
+    // Resolved here as well as in the page, because the driver applies three of
+    // its tricks and has to know which. An unknown id or an instant with no zone
+    // is the operator's to fix, and is said before a browser opens.
+    let stabilize: Recipe;
+    try {
+      stabilize = recipeToDrive(options);
+    } catch (error) {
+      throw operatorError((error as Error).message, { cause: error });
+    }
+
     const roots = options.roots ?? DEFAULT_ROOTS;
     const entries = Object.entries(options.routes ?? {});
     declaredOnce(options);
@@ -148,7 +159,10 @@ export function routeCollector(
         bundle,
         viewport: config.viewport,
         ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
+        ...(config.timezoneId !== undefined ? { timezoneId: config.timezoneId } : {}),
+        ...(config.locale !== undefined ? { locale: config.locale } : {}),
         ...(options.headless !== undefined ? { headless: options.headless } : {}),
+        stabilize,
       },
       ...(options.network === false
         ? {}
@@ -345,6 +359,7 @@ export function routeCollector(
   };
 }
 
+export { DEFAULT_STABILIZE } from '@variance-authority/core/format';
 export type { SourceScan } from './source.js';
 export type { AcquireRequest, Acquired } from './page-agent.js';
 

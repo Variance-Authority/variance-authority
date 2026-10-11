@@ -1,6 +1,7 @@
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  COLLECT_RECIPE,
   LAYOUT_RECIPE,
   RASTER_RECIPE,
   SEMANTIC_RECIPE,
@@ -68,6 +69,7 @@ describe('two tricks over one property', () => {
   it('finds nothing to report in the shipped recipes', () => {
     expect(conflicts(RASTER_RECIPE)).toEqual([]);
     expect(conflicts(LAYOUT_RECIPE)).toEqual([]);
+    expect(conflicts(COLLECT_RECIPE)).toEqual([]);
   });
 
   it('keeps the two animation tricks separate rather than one flag', () => {
@@ -77,6 +79,33 @@ describe('two tricks over one property', () => {
     expect(holdAnimations.screenshot).toEqual({ animations: 'disabled' });
     expect(pinAnimations.css).toContain('animation-play-state:paused');
     expect(pinAnimations.css).not.toContain('animation:none');
+  });
+});
+
+describe('a page nobody is touching, by default', () => {
+  // A pointer left over a link, a focused input, an animation the page runs
+  // only for people who have not asked it to stop, and a date read off the wall
+  // clock are each a second answer from the same code. A live page is read with
+  // all four held; a caller who wants one back names their own list.
+  it.each(['no-hover', 'no-focus', 'reduced-motion', 'freeze-clock'])('holds %s on a live page', (id) => {
+    expect(COLLECT_RECIPE.map((intervention) => intervention.id)).toContain(id);
+  });
+
+  // A painted document has no script to read the clock or the motion
+  // preference, its `@media` rules were resolved when it was read, and nothing
+  // moves a pointer over it. Only a collected `autofocus` acts again.
+  it.each([
+    { name: 'layout', recipe: LAYOUT_RECIPE },
+    { name: 'raster', recipe: RASTER_RECIPE },
+  ])('holds only no-focus of the four in the $name recipe, where a document is painted', ({ recipe }) => {
+    const ids = recipe.map((intervention) => intervention.id);
+    expect(['no-hover', 'no-focus', 'reduced-motion', 'freeze-clock'].filter((id) => ids.includes(id))).toEqual([
+      'no-focus',
+    ]);
+  });
+
+  it('holds none of them where nothing is laid out', () => {
+    expect(SEMANTIC_RECIPE).toEqual([]);
   });
 });
 

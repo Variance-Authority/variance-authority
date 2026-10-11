@@ -171,7 +171,7 @@ describe('variance ask slowest-tests, somewhere', () => {
     );
   });
 
-  it('refuses a path in neither the recording nor the checkout, and names the nearest recorded one', async () => {
+  it('refuses a path in neither the recording nor the checkout, and names no other path', async () => {
     const root = checkout();
     await twoModules(root);
 
@@ -179,8 +179,10 @@ describe('variance ask slowest-tests, somewhere', () => {
 
     expect(refused.code).toBe(EXIT_OPERATOR);
     expect(refused.out).toBe('');
-    expect(refused.err).toContain('`src/formt.ts` is in neither the recording nor the files');
-    expect(refused.err).toContain('Did you mean `src/format.ts`?');
+    expect(refused.err).toContain(
+      `\`src/formt.ts\` is in neither the recording nor the files git lists under ${root}. Both name each file from the repository root.`,
+    );
+    expect(refused.err).not.toContain('src/format.ts');
   });
 
   it('answers a new file git lists as untracked and not ignored, rather than refusing it as a typo', async () => {

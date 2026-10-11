@@ -255,7 +255,7 @@ async function ask(
     if (loaded !== undefined) return { file, preconditionOf: asked === undefined ? loaded : loaded.filter((test) => asked.has(test)), from };
     // An index with no coverage beside it, as a foreign tool writes, holds no preconditions to read.
     if (held === undefined && keepsCases(from)) throw unreadPreconditions(file, from);
-    throw unloadedFile(file, from, files);
+    throw unloadedFile(file, from, files.length);
   }
 
   const near = await nearbyWitnesses(request as CoveringAt);

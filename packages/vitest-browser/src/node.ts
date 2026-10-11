@@ -78,6 +78,12 @@ export function varianceCommands(options: VarianceNodeOptions = {}): VarianceCom
   // Opened on the first observation rather than here. A watch-mode session that
   // edits a test file and never reaches a `variance()` call should not be
   // holding a browser open for the afternoon.
+  //
+  // FIXME: this renderer paints in UTC and en-US whatever timezone and locale
+  // the tab ran in, and the capture records neither, so a page that formats a
+  // date reads one text on a Sydney laptop and another in CI, and the key
+  // cannot tell the two apart. The plugin cannot see the provider's context
+  // options, so it does not know which region was chosen rather than inherited.
   const painting = (): Promise<Renderer> => {
     renderer ??= options.renderer === undefined
       ? createPlaywrightRenderer()
