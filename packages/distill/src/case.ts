@@ -1,7 +1,7 @@
 // compass: variance-authority/runtime/attention
 import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 
-/** What names one case: its id, title or a part of the title, its file, or both. */
+/** What names one case: its id, title or a part of the title, its file's repository-relative path, or both. */
 export interface CaseQuestion {
   readonly test?: string;
   readonly file?: string;
@@ -19,13 +19,14 @@ const AVAILABLE_SHOWN = 5;
 
 /**
  * The index of the one case the question names: by id, then by exact title,
- * then by a part of the title, each among the cases whose file contains `file`.
+ * then by a part of the title, each among the cases of the test file `file`
+ * names. A recorded path that contains `file` or ends in it is another file.
  */
 export function caseOf(input: CaseQuestion): number {
   const { test: asked, file } = input;
   if (asked === undefined && file === undefined) throw new Error('name a test, a file, or both');
   const tests = input.execution.tests.map((test, at) => ({ test, at }));
-  const inFile = file === undefined ? tests : tests.filter(({ test }) => test.file?.includes(file) === true);
+  const inFile = file === undefined ? tests : tests.filter(({ test }) => test.file === file);
   const found = asked === undefined ? inFile : named(inFile, asked);
   if (found.length === 1) return found[0]!.at;
   if (found.length === 0) throw new Error(unresolved(input.execution, question(input)));

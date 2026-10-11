@@ -325,7 +325,8 @@ Name the case by the file that declares it and its title:
 variance distill --file test/checkout.spec.ts --test submits
 ```
 
-`--file` takes any part of the test file's path. `--test` takes the case's
+`--file` takes the test file's path, relative to the checkout or absolute, and
+names that file alone. `--test` takes the case's
 `id`, its exact title, or a part of the title, compared without case. Either
 flag may be given alone. When more than one case fits, the command prints up to
 five of their ids and stops; pass one of them to `--test`. A case Playwright

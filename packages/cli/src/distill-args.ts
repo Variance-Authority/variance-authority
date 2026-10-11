@@ -7,7 +7,7 @@ import { oneRecord } from './commands/suite-record.js';
 export interface ParsedDistill {
   readonly command: 'distill';
   readonly test?: string;
-  /** A part of the test file's path; with no `test`, the file's loads read against its cases. */
+  /** The test file's path, as given; with no `test`, the file's loads read against its cases. */
   readonly file?: string;
   /**
    * With neither `test` nor `file`, the directory whose test files are read, as
