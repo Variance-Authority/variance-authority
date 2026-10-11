@@ -1,0 +1,40 @@
+name: ripgrep
+description: >-
+  `rg` on PATH, at the release pinned here, for the tests that hand files to
+  ripgrep.
+
+# `docs_grep` shells out to `rg`, and neither the hosted runner nor the
+# Playwright image carries it. Its tests skip on a developer's machine without
+# it and fail on CI without it, as `packages/help/src/__fixtures__/
+# ripgrep-on-path.ts` decides, so every job that runs them takes this step, and
+# a job that runs them without it goes red naming this directory.
+#
+# The release's static musl binary, not the distribution's package: one file
+# runs the same on the bare runner and in the image, as the runner's user or as
+# root, with no package index to fetch and no `sudo`. The version and the
+# checksum are pinned together, so the bytes that run are the bytes reviewed;
+# moving the version means moving the checksum the release publishes beside it.
+
+runs:
+  using: composite
+  steps:
+    - name: ripgrep
+      shell: bash
+      env:
+        VERSION: 15.2.0
+        SHA256: 33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c
+      run: |
+        set -euo pipefail
+        # The pinned binary is the x86-64 Linux one; a runner it does not run on
+        # is refused here rather than at the first test.
+        if [ "$RUNNER_OS" != Linux ] || [ "$RUNNER_ARCH" != X64 ]; then
+          echo "::error::the pinned ripgrep is for Linux X64, and this runner is $RUNNER_OS $RUNNER_ARCH"
+          exit 1
+        fi
+        name="ripgrep-$VERSION-x86_64-unknown-linux-musl"
+        curl --proto '=https' --tlsv1.2 -sSfL -o "$RUNNER_TEMP/$name.tar.gz" \
+          "https://github.com/BurntSushi/ripgrep/releases/download/$VERSION/$name.tar.gz"
+        echo "$SHA256  $RUNNER_TEMP/$name.tar.gz" | sha256sum --check --strict -
+        tar -xzf "$RUNNER_TEMP/$name.tar.gz" -C "$RUNNER_TEMP"
+        echo "$RUNNER_TEMP/$name" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/$name/rg" --version

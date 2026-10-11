@@ -424,6 +424,9 @@ jobs:
 
       - uses: ./.github/actions/build
 
+      # For `docs_grep`'s tests, which fail on CI without `rg` rather than skip.
+      - uses: ./.github/actions/ripgrep
+
       # The mainline's records as `base` read them, downloaded only when it
       # uploaded some. A download that fails then fails the job: going on
       # would ask the line on its own, the read `base` is there to replace.
@@ -1164,6 +1167,10 @@ jobs:
         run: corepack enable && yarn install --immutable
 
       - uses: ./.github/actions/build
+
+      # For the reason written at the same step in `suite`.
+      - uses: ./.github/actions/ripgrep
+        if: matrix.part != 'rules'
 
       - name: lint
         if: matrix.part == 'rules'
