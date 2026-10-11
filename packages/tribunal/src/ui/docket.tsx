@@ -38,6 +38,7 @@ import { OriginsPanel } from './origins.js';
 import { SubjectRail, queueOf } from './rail.js';
 import type { Order, Route, Task } from './route.js';
 import { RunPage } from './run.js';
+import { SameImageNote, Siblings } from './same-image.js';
 import { needsReview } from './settled.js';
 import { Go, Stalled, Topbar, Waiting, messageOf, type Loaded } from './shell.js';
 import { SubjectPanel } from './subject.js';
@@ -248,6 +249,7 @@ function Build({
               build={build.build}
               ran={build.at}
               subject={subject}
+              siblings={<Siblings client={client} build={build} subject={subject.subject} go={go} />}
               {...(anchor === undefined ? {} : { anchor, far: distanceFrom(build, anchor) })}
               sourced={build.causes.some((cause) => cause.file !== undefined)}
               go={go}
@@ -372,6 +374,7 @@ function Opening({
           </p>
         )}
 
+        <SameImageNote build={build} go={go} />
         <Since crossing={crossing} />
         <Impact build={build} crossing={crossing} />
 

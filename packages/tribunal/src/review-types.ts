@@ -15,6 +15,7 @@ import type { TribunalBindings } from './bindings.js';
 import type { TribunalChangelog, TribunalChangelogQuery } from './changelog.js';
 import type { BuildIngest } from './review-ingest-types.js';
 import type { SweepReport } from './review-sweep.js';
+import type { SameImage } from './same-image.js';
 
 /**
  * What a review store takes and what it answers with — and nothing that runs.
@@ -238,6 +239,15 @@ export interface BuildDetail extends BuildSummary {
    * one fact.
    */
   readonly variations: readonly VariationRecord[];
+
+  /**
+   * Stories of one component whose candidates are the same image, byte for byte.
+   *
+   * Read from the store, not the report: an image is kept under its SHA-256, so
+   * two subjects holding one `after` object rendered the same PNG. Empty when no
+   * two stories of a component did. A subject with no candidate is in no group.
+   */
+  readonly sameImage: readonly SameImage[];
 
   /**
    * What the commit reaches, and per subject whether it reaches that one.

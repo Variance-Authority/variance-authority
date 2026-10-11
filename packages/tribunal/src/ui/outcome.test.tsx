@@ -52,6 +52,7 @@ function build(subjects: readonly SubjectView[], reach: ReachView | null): Build
     composition: null,
     causes: [],
     variations: [],
+    sameImage: [],
     reach,
   };
 }

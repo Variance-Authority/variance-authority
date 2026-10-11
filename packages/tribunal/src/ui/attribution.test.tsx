@@ -87,6 +87,7 @@ function build(
     notObserved: [],
     causes: [],
     variations: [],
+    sameImage: [],
     declarations: { ignores: null, sensitivities: null },
     composition: null,
     movements,
