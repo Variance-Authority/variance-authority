@@ -233,13 +233,17 @@ export function decisionsFrom(rows: readonly Row[]): ReadonlyMap<string, Decisio
   return decisions;
 }
 
-/** One `decisions` row, as the record a page and the history both show. */
-function decisionOf(row: Row): DecisionRecord {
+/**
+ * One `decisions` row as the record a reviewer reads. `at` names the column
+ * the decision's time is under, because a query that also selects the build's
+ * own `at` renames one of them.
+ */
+export function decisionOf(row: Row, at = 'at'): DecisionRecord {
   const note = optionalText(row, 'note', 'a decision');
   return {
     decision: text(row, 'decision', 'a decision') === 'approved' ? 'approved' : 'rejected',
     by: text(row, 'decided_by', 'a decision'),
-    at: text(row, 'at', 'a decision'),
+    at: text(row, at, 'a decision'),
     ...(note !== undefined ? { note } : {}),
   };
 }

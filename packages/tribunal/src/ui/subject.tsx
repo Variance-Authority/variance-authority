@@ -19,6 +19,8 @@ import { Findings } from './findings.js';
 import { glanceOf, type Blamed, type Glance } from './glance.js';
 import { SubjectHistory } from './history.js';
 import { MovedHere } from './moved.js';
+import { Repeated } from './repeated.js';
+import type { Route } from './route.js';
 import { messageOf } from './shell.js';
 import { count, number, when } from './text.js';
 import { Viewer } from './viewer.js';
@@ -39,10 +41,12 @@ export function SubjectPanel({
   client,
   reviewer,
   build,
+  ran,
   subject,
   anchor,
   far,
   sourced,
+  go,
   place,
   onGo,
   onDecided,
@@ -51,6 +55,8 @@ export function SubjectPanel({
   readonly client: ReviewClient;
   readonly reviewer: string;
   readonly build: string;
+  /** When that build ran. */
+  readonly ran: string;
   readonly subject: SubjectView;
   /** The change this render is filed under, which distances are measured from. */
   readonly anchor?: string | undefined;
@@ -58,6 +64,8 @@ export function SubjectPanel({
   readonly far?: Ruler | undefined;
   /** Whether the run resolved any source file — see {@link RegionTable}. */
   readonly sourced?: boolean | undefined;
+  /** Opens another page; the earlier builds named under the decision link through it. */
+  readonly go?: ((route: Route) => void) | undefined;
   /** Where this render sits in the rail's queue, for the bar's position and its keys. */
   readonly place?: Place | undefined;
   /** Open another render of this build; without it the bar offers no way along. */
@@ -70,6 +78,7 @@ export function SubjectPanel({
   const [failed, setFailed] = useState<string | null>(null);
   const [asked, setAsked] = useState<Asked | undefined>(undefined);
   const [writing, setWriting] = useState(false);
+  const [decisions, setDecisions] = useState(0);
   const page = useRef<HTMLDivElement>(null);
 
   const suspect = (state: ConcernState): void => setAsked((was) => ({ state, seq: (was?.seq ?? 0) + 1 }));
@@ -90,6 +99,7 @@ export function SubjectPanel({
     setFailed(null);
     try {
       await client.decide(build, subject.subject, decision, reviewer);
+      setDecisions((was) => was + 1);
       onDecided();
     } catch (error) {
       // Kept on the page rather than swallowed. A decision that silently did not
@@ -120,6 +130,7 @@ export function SubjectPanel({
       <aside className="va-aside va-scroll">
         <section className="va-card">
           <h2>Decision</h2>
+          <Repeated subject={subject} ran={ran} go={go} />
           {subject.decision === null ? null : (
             <p className="va-decision">
               {subject.decision.decision} by {subject.decision.by} · {when(subject.decision.at)}
@@ -143,6 +154,7 @@ export function SubjectPanel({
             asked={asked}
             onWriting={setWriting}
             onChanged={onConcerned}
+            read={decisions}
           />
         </section>
 
