@@ -35,6 +35,10 @@ export const waitForFonts: Intervention = {
           const visit = (rules: Rules): void => {
             for (const rule of Array.from(rules)) {
               if (rule.cssRules !== undefined) visit(rule.cssRules);
+              // An `@import` carries its sheet; a cross-origin one hides its rules.
+              try {
+                if (rule.styleSheet != null) visit(rule.styleSheet.cssRules);
+              } catch {}
               // Only a `@font-face` rule carries `src`; a style rule reads empty.
               const source = rule.style?.getPropertyValue('src') ?? '';
               if (source === '') continue;

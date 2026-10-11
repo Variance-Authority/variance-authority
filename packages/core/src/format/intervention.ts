@@ -113,10 +113,11 @@ export interface DriverTarget {
   readonly mouse: { move(x: number, y: number): Promise<void> };
 }
 
-/** A rule as a settle step reads it: its declarations, and the rules it groups. */
+/** A rule as a settle step reads it: its declarations, the rules it groups, and the sheet it imports. */
 interface PageCssRule {
   readonly style?: { getPropertyValue(property: string): string };
   readonly cssRules?: ArrayLike<PageCssRule>;
+  readonly styleSheet?: { readonly cssRules: ArrayLike<PageCssRule> } | null;
 }
 
 export interface Intervention {

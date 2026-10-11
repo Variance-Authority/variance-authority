@@ -74,12 +74,15 @@ const ANIMATED_PAGE = `<!doctype html><html><head><style>
  * After `load` because a font the parser meets holds `load` itself, and the
  * navigation's own timeout then refuses the route. One applied by a script is
  * what a component mounted late looks like, and it reaches `fonts.ready` with
- * the request still open.
+ * the request still open. A second face is declared in a stylesheet the page
+ * imports, whose rules are reached through the import rather than the page's own.
  */
 const LATE_FONT_PAGE = `<!doctype html><html><head><style>
+  @import url(/faces.css);
   @font-face { font-family: Stalled; src: url(/stalled.woff2) format('woff2'); }
   .mounted p { font-family: Stalled, sans-serif; }
-</style></head><body><main id="app"><p>Hello</p></main>
+  .mounted span { font-family: Imported, sans-serif; }
+</style></head><body><main id="app"><p>Hello</p><span>there</span></main>
 <script>addEventListener('load', () => document.body.classList.add('mounted'));</script>
 </body></html>`;
 
@@ -147,7 +150,12 @@ beforeAll(async () => {
   if (!BROWSER_AVAILABLE) return;
 
   server = createServer((request, response) => {
-    if (request.url === '/stalled.woff2') return;
+    if (request.url === '/stalled.woff2' || request.url === '/imported.woff2') return;
+    if (request.url === '/faces.css') {
+      const face = "@font-face { font-family: Imported; src: url(/imported.woff2) format('woff2'); }";
+      response.writeHead(200, { 'content-type': 'text/css' }).end(face);
+      return;
+    }
     const page =
       request.url === '/motion'
         ? MOTION_PAGE
@@ -378,6 +386,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('what the default recipe leaves waiting', ()
         ok: false,
         because: expect.stringMatching(/Stalled from url\(.*\/stalled\.woff2/),
       });
+      expect(outcome).toMatchObject({ because: expect.stringMatching(/Imported from url\(.*\/imported\.woff2/) });
     } finally {
       await collector.close();
     }
