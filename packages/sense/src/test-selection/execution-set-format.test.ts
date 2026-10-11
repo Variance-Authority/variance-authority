@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { NO_OWNER } from './format-layout.js';
-import { encodeSetExecutionIndex, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
+import { CaseLinesBuilder, lineAt, linesOf, lineValue } from './case-lines.js';
+import { encodeSetExecutionIndex, openSetColumns, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import { blob, column, sections } from './format-layout.js';
 
 const tests = [
@@ -80,6 +81,38 @@ describe('the journey set spelling', () => {
       { ...shape, startLine: 1, endLine: 3, loaded: true, crossings: [{ test: 0, distance: 0 }] },
       { ...shape, startLine: 5, endLine: 7, crossings: [{ test: 1, distance: 0 }] },
     ]);
+  });
+
+  it('keeps the line that reached each region, naming modules in the order it writes them', () => {
+    const sets = new CrossingSets(tests.length);
+    const both = sets.intern([0, 1]);
+    const module = (file: string): SetExecutionModule => ({
+      file,
+      blocks: [{ ...shape, startLine: 1, endLine: 3 }, { ...shape, startLine: 5, endLine: 7 }],
+      called: Uint32Array.of(both, both),
+      loaded: Uint8Array.of(0, 0),
+    });
+    // Handed over by place in `modules`, which the index writes in code-unit order of path.
+    const first = new CaseLinesBuilder();
+    first.add(0, 0, lineValue(4, false));
+    first.add(0, 1, lineValue(6, false));
+    first.add(1, 0, lineValue(2, true));
+    first.add(1, 1, lineValue(2, true));
+    const bytes = encodeSetExecutionIndex({
+      tests,
+      modules: [module('src/z.ts'), module('src/a.ts')],
+      sets: sets.pool(),
+      lines: [first.finish(), undefined],
+    });
+
+    const columns = openSetColumns(bytes)!;
+    const read = linesOf(columns.testLines, 0)!;
+    expect([lineAt(read, 1, 0), lineAt(read, 1, 1), lineAt(read, 0, 1)]).toEqual([
+      { line: 4, ambient: false }, { line: 6, ambient: false }, { line: 2, ambient: true },
+    ]);
+    expect(linesOf(columns.testLines, 1)).toBeUndefined();
+    const plain = encodeSetExecutionIndex({ tests, modules: [module('src/a.ts')], sets: sets.pool() });
+    expect(openSetColumns(plain)!.testLines).toBeUndefined();
   });
 
   it('refuses a version it did not write', () => {

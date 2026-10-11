@@ -5,6 +5,7 @@ import { entrypoint } from './tools/entrypoint.js';
 import { gaps } from './tools/gaps.js';
 import { grep } from './tools/grep.js';
 import { journeyMapTool } from './tools/journey-map.js';
+import { testCompositionTool } from './tools/test-composition.js';
 import { orient } from './tools/orient.js';
 import { packages } from './tools/packages.js';
 import { search } from './tools/search.js';
@@ -46,7 +47,9 @@ import { uses } from './tools/uses.js';
  * files the latest recorded run says took longest, as the runner reported them.
  * It sits here because it reads the same recording `docs_orient` reads.
  * `docs_journey_map` reads it too, around one file: the code the tests that
- * entered that file went on to enter, nearest first.
+ * entered that file went on to enter, nearest first. `docs_test_composition`
+ * reads it around one test: the smaller tests inside it, the larger ones
+ * holding it, and what none of its pieces entered.
  *
  * `docs_stack` answers what a location may import that nobody wrote: the
  * third-party packages its owning manifest declares, read from the published
@@ -70,7 +73,7 @@ function dated(tool: Tool<Help>): Tool<Help> {
 
 /** The source-orientation tools shared by shell dispatch and the server. */
 export const HELP_TOOLS: readonly Tool<Help>[] =
-  [packages, entrypoint, symbol, uses, search, grep, orient, slowestTests, journeyMapTool, stack, gaps];
+  [packages, entrypoint, symbol, uses, search, grep, orient, slowestTests, journeyMapTool, testCompositionTool, stack, gaps];
 
 const DATED_HELP_TOOLS = HELP_TOOLS.map(dated);
 
@@ -84,7 +87,7 @@ export const HELP: Served<Help> = {
   tools: DATED_HELP_TOOLS,
 };
 
-export { entrypoint, gaps, grep, journeyMapTool, orient, packages, search, slowestTests, stack, symbol, uses };
+export { entrypoint, gaps, grep, journeyMapTool, orient, packages, search, slowestTests, stack, symbol, testCompositionTool, uses };
 export { formatOrientation, type OrientReading } from './tools/orient-format.js';
 export { answerSearch, searchIndexOf } from './tools/search.js';
 export type {

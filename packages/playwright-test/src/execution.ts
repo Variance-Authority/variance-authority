@@ -21,6 +21,7 @@ import {
   drainExecution,
   joinObservations,
   listenForPreconditions,
+  modulesEntered,
   preconditionOf,
   recordExecution,
   stageExecution,
@@ -339,11 +340,7 @@ export function createExecutionRecorder(
   function journalOf(accumulated: Accumulated) {
     return {
       instrumentation: instrumentation!,
-      modules: [...accumulated.hits].map(([id, ordinals]) => ({
-        id,
-        hits: [...ordinals],
-        shared: [...(accumulated.shared.get(id) ?? [])],
-      })),
+      modules: modulesEntered(accumulated),
     };
   }
 
@@ -351,7 +348,7 @@ export function createExecutionRecorder(
   function caseOf(owner: string, subject: ObservedTest): Accumulated {
     const key = `${owner}\u0000${subject.id}`;
     const held = cases.get(key) ?? {
-      of: { file: owner, name: subject.name, id: subject.id },
+      of: { file: owner, name: subject.name, id: subject.id, ...(subject.project === undefined ? {} : { project: subject.project }) },
       hits: accumulation(),
     };
     cases.set(key, held);

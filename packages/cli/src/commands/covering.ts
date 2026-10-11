@@ -57,6 +57,7 @@ import { OperatorError } from '../exit.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { hopsToTests, identities, nearbyWitnesses, refold, type Narrowing } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
+import { unloadedFile } from './covering-unloaded.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { listedIn, namesAt, placesNoCase, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
@@ -236,17 +237,7 @@ async function ask(
   const file = request.file;
   const { index, files, before } = await readIndex(from, new Map([[file, []]]));
   const module = index.modules.find((candidate) => candidate.file === file);
-  if (module === undefined) {
-    throw new OperatorError(
-      `\`${file}\` is not in the index at \`${from}\`, which holds ${
-        files.length
-      } file${files.length === 1 ? '' : 's'}. A file the run never loaded has no answer ` +
-        `here, and that is a different statement from no test covering it. ${
-          spelling(file, files)
-        }`,
-      { kind: 'unloaded' },
-    );
-  }
+  if (module === undefined) throw unloadedFile(file, from, files);
 
   const near = await nearbyWitnesses(request as CoveringAt);
   const placement = await placementFor(request, from);
@@ -467,23 +458,4 @@ async function loadersFor(
 
 function fileGraph(root: string): Promise<Relations> {
   return relationsFor(root, ['.'], [], []);
-}
-
-
-/**
- * Point at the closest spelling rather than printing the whole index.
- *
- * A path given to this command is usually the right file and the wrong root:
- * the record spells a module the way the run saw it, and a reader who pasted an
- * editor path is one prefix away. Three candidates answer that; a list of every
- * recorded file answers nothing and scrolls the refusal off the screen.
- */
-function spelling(file: string, files: readonly string[]): string {
-  const tail = file.slice(file.lastIndexOf('/') + 1);
-  const near = files
-    .filter((candidate) => candidate === tail || candidate.endsWith(`/${tail}`))
-    .sort();
-  return near.length === 0
-    ? `Nothing recorded ends in \`${tail}\`.`
-    : `The record spells it ${near.slice(0, 3).map((candidate) => `\`${candidate}\``).join(', ')}.`;
 }

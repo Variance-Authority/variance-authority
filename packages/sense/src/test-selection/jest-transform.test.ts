@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
 import { afterEach, describe, expect, it } from 'vitest';
+import { probeRecipe } from '../instrument/index.js';
+import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
 import { createTransformer, type JestTransformRequest, type JestTransformedSource } from './jest-transform.js';
 import { deriveModules, moduleId } from './captured-modules.js';
@@ -106,7 +108,7 @@ function run(file: string, done: JestTransformedSource): { calls: string[]; line
   const [, row, column] = new RegExp(`${file.replaceAll('.', '\\.')}:(\\d+):(\\d+)`).exec(stack) ?? [];
   const map = (typeof done.map === 'string' ? JSON.parse(done.map) : done.map) as TransformSourceMap;
   const offset = done.code.split('\n').slice(0, Number(row) - 1).join('\n').length + Number(column);
-  const entered = engine.lists(engine.read(bucket), true).flatMap((module) => module.hits).length;
+  const entered = probeLists.lists(engine.read(bucket), true).flatMap((module) => module.hits).length;
   return { calls, line: sourceLines(done.code, map, file)(offset, offset)?.[0], entered };
 }
 
@@ -181,5 +183,119 @@ module.exports = {
     expect(calls).toEqual(['require ./add']);
     expect(line).toBe(6);
     expect(entered).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * A transformer that places sense's probes itself, as a Rust pipeline that
+ * links the instrumenter crate does: it declares the recipe it was built with,
+ * and is handed what to place instead of a text that already carries it.
+ */
+describe('a transformer that places the probes itself', () => {
+  const RAW = 'export function pick(value) {\n  return value ? 1 : 2;\n}\n';
+
+  /** A transformer that writes back what it was handed, under the recipe `recipes` gives each mode. */
+  async function placing(recipes: string): Promise<string> {
+    const root = await project('variance-jest-placing-');
+    await writeFile(
+      resolve(root, 'transformer.cjs'),
+      `const recipes = ${recipes};
+module.exports = {
+  senseRecipe: (mode) => recipes[mode],
+  process: (source, path, options) => ({ code: JSON.stringify({ source, probes: options.senseProbes ?? null }) }),
+};
+`,
+    );
+    return root;
+  }
+  const OURS = JSON.stringify({ presence: probeRecipe('presence'), entries: probeRecipe('entries') });
+
+  it('is handed the module untouched, with the file to parse it as and the id its probes report', async () => {
+    const root = await placing(OURS);
+    const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs'), mode: 'entries' });
+
+    const done = transformer.process!(RAW, resolve(root, 'src/pick.js'), transformOptions(root));
+
+    expect(JSON.parse(done.code)).toEqual({
+      source: RAW,
+      probes: { file: 'src/pick.js', module: moduleId('src/pick.js', RAW), mode: 'entries' },
+    });
+  });
+
+  it('is handed the module untouched when Jest transforms asynchronously', async () => {
+    const root = await placing(OURS);
+    const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs') });
+
+    const done = await transformer.processAsync!(RAW, resolve(root, 'src/pick.js'), transformOptions(root));
+
+    expect(JSON.parse(done.code)).toEqual({
+      source: RAW,
+      probes: { file: 'src/pick.js', module: moduleId('src/pick.js', RAW), mode: 'presence' },
+    });
+  });
+
+  it('is given the probes in the text when it has no recipe for the mode', async () => {
+    const root = await placing(JSON.stringify({ presence: probeRecipe('presence') }));
+    const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs'), mode: 'entries' });
+
+    const done = transformer.process!(RAW, resolve(root, 'src/pick.js'), transformOptions(root));
+
+    const handed = JSON.parse(done.code) as { source: string; probes: unknown };
+    expect(handed.probes).toBeNull();
+    expect(handed.source).toContain('.r("src/pick.js@');
+  });
+
+  it('is handed nothing to place in a test file', async () => {
+    const root = await placing(OURS);
+    const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs') });
+
+    const done = transformer.process!(RAW, resolve(root, 'test/pick.case.js'), transformOptions(root));
+
+    expect(JSON.parse(done.code)).toEqual({ source: RAW, probes: null });
+  });
+
+  it('is refused when it was built against another instrumenter', async () => {
+    const root = await placing(JSON.stringify({ presence: 'sense:instrument/presence-v4+v1:00' }));
+
+    await expect(createTransformer({ root, transformer: resolve(root, 'transformer.cjs') })).rejects.toThrow(
+      `places sense's probes as sense:instrument/presence-v4+v1:00, and this sense reads ${probeRecipe('presence')}`,
+    );
+  });
+});
+
+describe('a test file\'s statements', () => {
+  const TEST = "it('adds', () => {\n  expect(1 + 1).toBe(2);\n});\n";
+
+  it('are cut by default, and the cut text is cached under its own key', async () => {
+    const root = await project('variance-jest-cadence-');
+    const path = resolve(root, 'test/add.case.js');
+    const cutting = await createTransformer({ root });
+    const plain = await createTransformer({ root, cadence: false });
+
+    expect(cutting.process!(TEST, path, transformOptions(root)).code).toContain('  __vaC(2);expect(1 + 1)');
+    expect(plain.process!(TEST, path, transformOptions(root)).code).toBe(TEST);
+    expect(cutting.getCacheKey!(TEST, path, transformOptions(root))).not.toBe(plain.getCacheKey!(TEST, path, transformOptions(root)));
+  });
+
+  it('reach a transformer that places the probes itself already cut', async () => {
+    const root = await project('variance-jest-cadence-placing-');
+    await writeFile(resolve(root, 'transformer.cjs'), `module.exports = {
+  senseRecipe: (mode) => ${JSON.stringify(probeRecipe('presence'))},
+  processAsync: async (source) => ({ code: source }),
+};
+`);
+    const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs') });
+
+    const done = await transformer.processAsync!(TEST, resolve(root, 'test/add.case.js'), transformOptions(root));
+
+    expect(done.code).toContain('  __vaC(2);expect(1 + 1)');
+  });
+
+  it('are not cut in a module that is not a test', async () => {
+    const root = await project('variance-jest-cadence-module-');
+
+    const done = (await createTransformer({ root })).process!(TEST, resolve(root, 'src/add.js'), transformOptions(root));
+
+    expect(done.code).not.toContain('__vaC(');
   });
 });

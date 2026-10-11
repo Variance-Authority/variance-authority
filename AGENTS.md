@@ -24,12 +24,37 @@ yarn install && yarn build
 
 Build again after every pull. A stale `dist/` answers questions wrongly rather
 than failing, and the wrong answer looks like a defect in whatever you asked
-about.
+about. It misleads a search the same way: `grep -r` reads `dist/` as if it
+were source, where `rg` and `git grep` skip it as ignored. The shell may be zsh,
+where an unquoted glob such as `--include=*.ts` fails with `no matches found`
+before grep runs.
 
 The primary checkout — the first row of `git worktree list` — is shared: people
 commit on `main` in it while you work, and anything you stage there lands in
 their next commit. Never stage in it. Work in a worktree on a branch cut from
 `origin/main`, and give the worktree its own `yarn install && yarn build`.
+
+## Ask before you grep
+
+This holds in every phase, and outside any task: a question asked in passing is
+still a question about the code. `variance` reads the source index and the
+recording, so it answers by what the code declares and what ran, not by what a
+line happens to spell:
+
+```bash
+yarn variance ask symbol --name <name>     # what it is and where it is declared
+yarn variance ask uses --name <name>       # who imports it
+yarn variance ask search --query <words>   # find a name by what it does
+yarn variance covering --file <path>       # which tests entered a file
+```
+
+Text is `rg`'s: prose, configuration, workflows, logs, session transcripts,
+string literals, and a line in a file you already have open. So is a code
+question `variance` could not answer, and that miss is a defect in `variance`:
+name it in your report.
+
+A subagent you dispatch works from its prompt. Put this rule in the prompt of
+every subagent you send to search code.
 
 ## 1. Refine the task — [refine](.agents/references/refine.md)
 
@@ -60,8 +85,8 @@ the asker's to answer.
 
 Look around:
 
-- `yarn variance ask` before grep: who uses a name, what it is, where it is
-  declared.
+- [Ask before you grep](#ask-before-you-grep): who uses a name, what it is,
+  where it is declared.
 - The `// compass:` coordinate at the top of each file you will touch.
 - Whose answer you need — git, the manifest, the parser, or the recording — and
   whether a stage upstream of your change already computed it.

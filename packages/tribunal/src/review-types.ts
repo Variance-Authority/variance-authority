@@ -44,6 +44,26 @@ export interface DecisionRecord {
   readonly at: string;
 }
 
+/** A decision as recording it answered. */
+export interface Decided extends DecisionRecord {
+  /** The concern an approval opened because an earlier build rejected the same image; the approval stands. */
+  readonly concern?: number;
+}
+
+/** One decision in the history, with the build and subject it was made on. */
+export interface DecisionEntry extends DecisionRecord {
+  readonly build: string;
+  readonly subject: string;
+}
+
+/** Which decisions to read. Both filters narrow; neither set reads the project's. */
+export interface DecisionsQuery {
+  readonly build?: string;
+  readonly subject?: string;
+  /** How many, newest first. 200 when unset. */
+  readonly limit?: number;
+}
+
 export interface BuildSummary {
   readonly project: string;
   readonly build: string;
@@ -132,6 +152,34 @@ export interface SubjectView {
   readonly baseline?: { readonly width: number; readonly height: number };
   /** `true` when the candidate carries the sidecar an approval would promote. */
   readonly approvable: boolean;
+  readonly decision: DecisionRecord | null;
+  /**
+   * The earlier builds of this project in which this subject kept the same
+   * candidate, matched on its content key. Absent when the subject kept no
+   * candidate, and on an `unchanged` or `ignored` render, which no reviewer
+   * decides on; `{ count: 0, builds: [] }` when no earlier build still held here
+   * kept that image.
+   */
+  readonly repeats?: Repeats;
+}
+
+/**
+ * Where a candidate was seen before, and what was decided about it there.
+ *
+ * `count` is every earlier build that kept the image; `builds` names at most
+ * eight of them, the decided ones first with the latest decision leading, then
+ * the undecided ones, newest first.
+ */
+export interface Repeats {
+  readonly count: number;
+  readonly builds: readonly RepeatedIn[];
+}
+
+/** One earlier build that kept the image, with the decision it ended on. */
+export interface RepeatedIn {
+  readonly build: string;
+  /** When the build ran. */
+  readonly at: string;
   readonly decision: DecisionRecord | null;
 }
 
@@ -440,7 +488,13 @@ export interface ReviewStore {
     readonly decision: Decision;
     readonly by: string;
     readonly note?: string;
-  }): Promise<DecisionRecord>;
+  }): Promise<Decided>;
+  /**
+   * Every decision recorded, newest first, including the ones a later decision
+   * reversed. The build page shows the current decision per subject; this is the
+   * history behind it, and it outlives the build, as the table it reads does.
+   */
+  decisions(query?: DecisionsQuery): Promise<readonly DecisionEntry[]>;
   /**
    * Why the baselines are what they are — every approval, grouped by what changed.
    *

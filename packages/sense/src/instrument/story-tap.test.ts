@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { createContext, runInContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import { EVALUATING, instrument } from './index.js';
+import probeLists from './probe-lists.cjs';
 import probeLog from './probe-log.cjs';
 
 /**
@@ -43,7 +44,7 @@ function readable(tape: ReturnType<ReturnType<typeof storyTap.createTap>['read']
 
 /** What each bucket's read-out holds, with the evaluating bit beside each ordinal. */
 function presence(engine: Engine, bucket: ReturnType<Engine['open']>): unknown {
-  return engine.lists(engine.read(bucket), true);
+  return probeLists.lists(engine.read(bucket), true);
 }
 
 describe('a story tap', () => {
@@ -84,6 +85,31 @@ describe('a story tap', () => {
       'E price for#0/body/if#0/else',
       'E price for#0/after',
     ]);
+  });
+
+  it('tapes no visit to the root of a module called into while another evaluates', () => {
+    const engine = probeLog.createEngine(false);
+    engine.use(engine.open('loading'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    const context = createContext({ out: [], __VA__: tap.root });
+    runInContext(instrument(PRICE, 'fixture.js')!.code, context, { filename: 'fixture.js' });
+    engine.use(engine.open('case'));
+    tap.reset();
+
+    // A second module whose top level calls the first, in a bucket that has
+    // not held the first yet: the probe logs the first module's root there,
+    // and nothing visited it. A function scope of its own, as a CommonJS
+    // module has, so its header is not the first module's.
+    const caller = instrument(`cart(1);`, 'caller.js')!.code;
+    runInContext(`(function () {\n${caller}\n})()`, context, { filename: 'caller.js' });
+
+    const first = tap.read().rows.bases[0]!;
+    const count = instrument(PRICE, 'fixture.js')!.blocks.length;
+    const visited = [...tap.read().tape.subarray(0, tap.read().taped)]
+      .map((entry) => (entry & ~EVALUATING) - first)
+      .filter((ordinal) => ordinal >= 0 && ordinal < count);
+    expect(visited).not.toContain(0);
+    expect(visited).toHaveLength(5);
   });
 
   it('leaves the presence record as it is without the tap', () => {

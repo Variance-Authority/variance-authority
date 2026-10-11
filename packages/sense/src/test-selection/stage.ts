@@ -115,7 +115,7 @@ export async function foldStage(directory: string): Promise<StagedExecution> {
 }
 
 function caseOwner(observed: ObservedCase): string {
-  return packCase(observed.file, observed.name, observed.id);
+  return packCase(observed.file, observed.name, observed.id, observed.project);
 }
 
 /** What the workers wrote, ordered by who it belongs to and then by itself. */

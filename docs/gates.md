@@ -118,7 +118,7 @@ track review or flake history.
 | Existing raster library input | **yes** — `observeRasters` and raster `CaptureArtifact`; a foreign image declares its painter, and two painters return `incomparable` rather than a wall of red |
 | Arbitrary PNG CLI upload | **no** — the CLI has no ingest workflow |
 | Renderer identity | **yes** — engine, platform, scale, fonts, stabilization, and launch recipe partition baselines |
-| Hosted comments, reviewers, and flake register | **no** — those are Argos product capabilities |
+| Hosted comments, reviewers, and flake register | **partial** — [`@variance-authority/tribunal`](https://variance-authority.dev/reference/packages/tribunal) keeps concerns, each a reviewer's signed doubt about a render with its region, evidence and every step taken on it, beside the decisions; hosted comment threads and a flake register are Argos's |
 
 **Summary:** Good fit when the team already owns the test browser and wants to
 operate the reporting workflow. Argos remains the better fit when hosted review

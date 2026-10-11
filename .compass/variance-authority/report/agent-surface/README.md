@@ -17,7 +17,9 @@ In: whatever was already read — the run artifact, a live suite held in a
 watching process, **attention** journals and **scenario** evidence from
 [`runtime`](../../runtime/README.md), presentation readings from
 [`presentation`](../../presentation/README.md), the execution index from
-[`reach`](../../reach/README.md), and a workspace's published names — supplied
+[`reach`](../../reach/README.md), a workspace's published names, and the
+decisions and concerns a review deployment recorded, read with its share token
+from [`review`](../../review/README.md) — supplied
 per request so an agent that has just re-run is answered from the new evidence
 rather than the one loaded at start-up.
 

@@ -78,6 +78,8 @@ async function show(build: BuildDetail, route: BuildRoute): Promise<void> {
   const client = {
     build: async () => build,
     imageUrl: (at: string, subject: string, kind: string) => `/img/${at}/${subject}/${kind}`,
+    // The docket's concern panel asks too; an answer that never arrives keeps it out of the way.
+    concerns: () => new Promise(() => undefined),
   } as unknown as ReviewClient;
   await act(async () => {
     root.render(<BuildPage client={client} reviewer="marina" route={route} go={() => undefined} />);

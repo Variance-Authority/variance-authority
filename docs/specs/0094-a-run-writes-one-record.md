@@ -71,8 +71,12 @@ the rows it describes:
 ## One identity
 
 A case is named by the case scope, as the probe names it: `file > name`, with
-the file repository-relative and a repeated name numbered `#1`. Nothing else
-spells a case.
+the file repository-relative and a repeated name numbered `#1` within its
+project. A case a named project ran leads with that project, as Vitest prints
+one: `|project| file > name`. The name comes from the project's configuration,
+so a run filtered to one project or a shard gives a case the same id a full run
+does. A runner that cannot name its project numbers the copy instead. Nothing
+else spells a case.
 
 - **An Eyes journal joins its case by that id, exactly.** The case id is the
   stable Eyes test identity spec 0054 asks the writer to keep: a journal row

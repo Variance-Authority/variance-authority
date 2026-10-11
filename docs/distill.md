@@ -76,10 +76,12 @@ the same answer; it does not open a browser, run a test, or edit source.
 A run that records with [Sense](../packages/sense/README.md) and watches its
 page with [Eyes](eyes.md) writes both readings into the same record, keyed by
 the same case. Sense keys a case by its coordinate: the project-relative test
-file, then the describe path and the test name, joined by ` > `.
+file, then the describe path and the test name, joined by ` > `. A case that a
+named project ran leads with that project's name between bars.
 
 ```text
 test/checkout.spec.ts > checkout > submits
+|chromium| test/checkout.spec.ts > checkout > submits
 ```
 
 That is the id `--test` takes. Distill looks it up exactly. It does not fall

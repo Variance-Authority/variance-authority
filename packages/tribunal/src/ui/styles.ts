@@ -40,11 +40,14 @@
  * Inter and JetBrains Mono first and fall back to the system stacks: this sheet is
  * handed over as text, so it can ask for a face and must not require one.
  */
+import { ACTION_STYLES } from './styles-actions.js';
+import { CONCERN_STYLES } from './styles-concerns.js';
 import { DOCKET_STYLES } from './styles-docket.js';
 import { FINDING_STYLES } from './styles-findings.js';
 import { JOURNEY_STYLES } from './styles-journeys.js';
 import { SAME_IMAGE_STYLES } from './styles-same-image.js';
 import { STAGE_STYLES } from './styles-stage.js';
+import { VARIATION_PICTURE_STYLES } from './styles-variations.js';
 
 /**
  * The whole sheet, in one string, with the stage spliced into the middle of it.
@@ -188,7 +191,7 @@ export const REVIEW_STYLES = `
 .va-mark.va-rejected { color: var(--va-bad); }
 
 .va-stage { background: var(--va-bg); flex: 1; min-width: 0; }
-.va-subject { display: flex; flex: 1; min-height: 0; min-width: 0; }
+.va-subject { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; }
 .va-subject-head { align-items: center; display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.35rem; }
 .va-verdict { border-radius: 999px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; padding: 0.15rem 0.55rem; text-transform: uppercase; }
 .va-verdict.va-changed { background: var(--va-warn-bg); color: var(--va-warn-ink); }
@@ -240,6 +243,7 @@ export const REVIEW_STYLES = `
 /* Two shapes under one component name is two edits, and the sentence saying so
    is the one thing on the card that withdraws the batch approval. */
 .va-note.va-warned { color: var(--va-warn-ink); }
+.va-note.va-rejected { color: var(--va-bad-ink); font-weight: 600; }
 .va-origin-where { display: grid; font-size: 0.86rem; gap: 0.35rem; margin-top: 0.7rem; }
 .va-origin-where li { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .va-origin-subject { font-weight: 600; }
@@ -393,6 +397,7 @@ ${SAME_IMAGE_STYLES}
 .va-variation.va-inert .va-axis { background: var(--va-warn-bg); color: var(--va-warn-ink); }
 .va-variation.va-unlinked .va-axis { background: var(--va-bad-bg); color: var(--va-bad-ink); }
 .va-how { color: var(--va-ink-3); font-size: 0.75rem; }
+${VARIATION_PICTURE_STYLES}
 
 ${STAGE_STYLES}
 ${DOCKET_STYLES}
@@ -415,6 +420,8 @@ ${DOCKET_STYLES}
 .va-stability.va-unknown, .va-churn.va-unknown { color: var(--va-warn); }
 .va-stability.va-flaky { color: var(--va-bad); }
 ${FINDING_STYLES}
+${CONCERN_STYLES}
+${ACTION_STYLES}
 /* Folded, because on a run of three hundred stories this is three hundred lines
    of nothing — and present, because a green subject that is green by declaration
    is the one a mask hides behind. */
@@ -437,7 +444,8 @@ ${FINDING_STYLES}
 @media (max-width: 60rem) {
   .va-body { flex-wrap: wrap; }
   .va-rail { border-right: 0; width: 100%; }
-  .va-subject { flex-wrap: wrap; }
+  .va-subject, .va-stage { flex-basis: 100%; }
+  .va-subject-panes { flex-wrap: wrap; }
   .va-aside { border-left: 0; width: 100%; }
   .va-reach .va-quad { grid-template-columns: minmax(0, 1fr); }
 }

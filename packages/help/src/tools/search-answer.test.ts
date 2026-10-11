@@ -76,7 +76,13 @@ describe('searchNames', () => {
     expect(answer.loose).toBeUndefined();
   });
 
-
+  it('finds a name from the words it is written in, apart', () => {
+    // `keptReading` is the words `kept` and `reading`; the caller who recalls
+    // the words and not the casing must still reach it.
+    const answer = searchNames(INDEX, { query: 'kept reading' });
+    const found = [...(answer.published?.shown ?? []), ...(answer.exported?.shown ?? [])].map((match) => match.name);
+    expect(found).toContain('keptReading');
+  });
 });
 
 describe('the flow from words to orient', () => {

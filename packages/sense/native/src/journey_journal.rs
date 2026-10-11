@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::case_id::{self, CaseIds};
-use crate::case_owner::{journey_of, project_path, unpack_case};
+use crate::case_owner::{journey_of, project_of, project_path, unpack_case};
 use crate::case_preconditions::{self, Precondition};
 use crate::order;
 
@@ -14,6 +14,10 @@ const EYES_MAGIC: [u8; 8] = [0x56, 0x41, 0x45, 0x59, 0x53, 0x00, 0x00, 0x01];
 /// A module is named by its path: tag `1`, then the path. Tag `0`, a numbered
 /// module, is refused as damage — nothing writes one (ADR-0056, amended).
 const NAMED: u8 = 1;
+/// A named row of a cut case (`journal-format.cts`): a fourth list after the
+/// three, the test line each hit was first reached under. This fold carries no
+/// lines, so it reads the row as the named row it extends.
+const NAMED_LINED: u8 = 2;
 
 /// A module's repository-relative path.
 pub type ModuleId = String;
@@ -23,6 +27,8 @@ pub struct Test {
     pub id: String,
     pub file: String,
     pub name: String,
+    /// The project that ran the case; `None` when the run named none.
+    pub project: Option<String>,
     /// The id its runner gave the case, which tells two of one name apart; `None` from a shard written before it was carried.
     pub runner: Option<String>,
     /// How the case settled: [`UNSETTLED`], [`FINISHED`] or [`STOPPED`].
@@ -72,11 +78,12 @@ pub struct CaseRun {
     pub heads: Vec<String>,
 }
 
-/// One case, over every frame written under its file, name and id.
+/// One case, over every frame written under its file, name, id and project.
 struct Coordinate {
     file: String,
     name: String,
     id: String,
+    project: Option<String>,
     /// How the case settled across its frames, by [`settled_across`].
     settled: u8,
     /// Every journey a frame of the case handed out, in replay order.
@@ -98,7 +105,10 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
     };
     replay(&paths, &mut visitor)?;
     visitor.coordinates.sort_by(|left, right| {
-        case_id::order((&left.file, &left.name, &left.id), (&right.file, &right.name, &right.id))
+        case_id::order(
+            (&left.file, &left.name, left.project.as_deref(), &left.id),
+            (&right.file, &right.name, right.project.as_deref(), &right.id),
+        )
     });
 
     let mut frame_tests = vec![0; visitor.frame];
@@ -113,9 +123,10 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
             journey_tests.entry(journey).or_default().push(at as u32);
         }
         tests.push(Test {
-            id: ids.next(&coordinate.file, &coordinate.name)?,
+            id: ids.next(&coordinate.file, &coordinate.name, coordinate.project.as_deref())?,
             file: coordinate.file,
             name: coordinate.name,
+            project: coordinate.project,
             runner: Some(coordinate.id),
             settled: coordinate.settled,
             preconditions: coordinate.said.map(case_preconditions::resolve),
@@ -245,8 +256,8 @@ impl Visitor for PartInspectVisitor<'_> {
 struct InspectVisitor<'a> {
     root: &'a Path,
     coordinates: Vec<Coordinate>,
-    /// Where each case's coordinate is held, by file, name and id.
-    at: HashMap<(String, String, String), usize>,
+    /// Where each case's coordinate is held, by file, name, id and project.
+    at: HashMap<(String, String, String, Option<String>), usize>,
     wanted: HashSet<ModuleId>,
     frame: usize,
 }
@@ -260,7 +271,7 @@ impl Visitor for InspectVisitor<'_> {
             // joined as `inspectCaseRun` joins it.
             let said = case_preconditions::said_of(packed)?.map(|said| case_preconditions::checkout(self.root, said));
             let journey = journey_of(packed);
-            let key = (project_path(self.root, file), name.to_owned(), id.to_owned());
+            let key = (project_path(self.root, file), name.to_owned(), id.to_owned(), project_of(packed).map(str::to_owned));
             match self.at.get(&key) {
                 Some(&held) => {
                     let coordinate = &mut self.coordinates[held];
@@ -273,9 +284,9 @@ impl Visitor for InspectVisitor<'_> {
                 }
                 None => {
                     self.at.insert(key.clone(), self.coordinates.len());
-                    let (file, name, id) = key;
+                    let (file, name, id, project) = key;
                     self.coordinates.push(Coordinate {
-                        file, name, id, settled,
+                        file, name, id, project, settled,
                         journeys: if journey.is_empty() { Vec::new() } else { vec![journey.to_owned()] },
                         said,
                         frames: vec![self.frame],
@@ -354,14 +365,19 @@ fn scan_journal(raw: &[u8], visitor: &mut impl Visitor) -> Result<(), String> {
     let count = read.number()?;
     let mut scratch = Vec::new();
     for _ in 0..count {
-        if read.byte()? != NAMED {
-            return Err(damaged());
-        }
+        let lined = match read.byte()? {
+            NAMED => false,
+            NAMED_LINED => true,
+            _ => return Err(damaged()),
+        };
         let id = read.text()?;
         if !visitor.wants(&id) {
             read.skip()?;
             read.skip()?;
             read.skip()?;
+            if lined {
+                read.skip()?;
+            }
             continue;
         }
         scratch.clear();
@@ -369,6 +385,14 @@ fn scan_journal(raw: &[u8], visitor: &mut impl Visitor) -> Result<(), String> {
         for start in &mut starts {
             *start = scratch.len();
             read.ordinals(&mut scratch)?;
+        }
+        // FIXME: the Jest journey artifact folds here and drops each case's lines (spec 0100).
+        if lined && read.number()? as usize != starts[1] - starts[0] {
+            return Err(damaged());
+        } else if lined {
+            for _ in starts[0]..starts[1] {
+                read.number()?;
+            }
         }
         visitor.module(
             &id,
@@ -464,3 +488,7 @@ fn damaged() -> String {
 fn damaged_cases() -> String {
     "not a variance-authority case journal".to_owned()
 }
+
+#[cfg(test)]
+#[path = "journey_journal_tests.rs"]
+mod tests;

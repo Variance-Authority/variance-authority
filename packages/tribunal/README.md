@@ -34,7 +34,7 @@ npx variance-authority-tribunal
 ```
 variance-authority tribunal listening on http://127.0.0.1:7789
   project:  todomvc
-  database: /home/you/variance-tribunal.db (schema version 18)
+  database: /home/you/variance-tribunal.db (schema version 19)
   objects:  /home/you/variance-tribunal-objects
   review:   served at http://127.0.0.1:7789 — this bind is reachable only from this machine
   auth:     bearer tokens from VARIANCE_TRIBUNAL_INGEST_TOKEN and VARIANCE_TRIBUNAL_REVIEW_TOKEN
@@ -109,7 +109,7 @@ add `baselines` beside it:
 | `VARIANCE_TRIBUNAL_PROJECT` | required | scopes every row and every object key, so one deployment serves several repositories without their `story:card` colliding. There is no default: an invented one puts two projects' baselines in one namespace and the first symptom is a mass `changed` |
 | `VARIANCE_TRIBUNAL_INGEST_TOKEN` | required | written into CI. Writes builds, baselines and history. 16 characters or more |
 | `VARIANCE_TRIBUNAL_REVIEW_TOKEN` | required | given to people. Reads the review surface and decides. 16 characters or more, and not the ingest token |
-| `VARIANCE_TRIBUNAL_SHARE_TOKEN` | unset | given to machines that read the share and write nothing. 16 characters or more, and neither of the other two. Unset, only the ingest token opens the share |
+| `VARIANCE_TRIBUNAL_SHARE_TOKEN` | unset | given to machines that read and never decide: the share, the changelog and the decision history. 16 characters or more, and neither of the other two. Unset, only the ingest token opens the share |
 | `VARIANCE_TRIBUNAL_PORT` | `7789` | a whole number from 0 to 65535, or the process refuses to start |
 | `VARIANCE_TRIBUNAL_HOST` | `127.0.0.1` | the bind address. Any address other machines can connect to also needs `VARIANCE_TRIBUNAL_TRUST_NETWORK` |
 | `VARIANCE_TRIBUNAL_DB` | `variance-tribunal.db` | the SQLite file. Created and migrated on start; the startup line prints its absolute path and its schema version |
@@ -217,7 +217,7 @@ reads four names plus three optional ones:
 | `BUCKET` | binding | R2. Baseline and candidate bytes, and the share; never a row |
 | `INGEST_TOKEN` | secret | written into CI. Writes builds, baselines and history. 16 characters or more |
 | `REVIEW_TOKEN` | secret | given to people. Reads the review surface and decides. 16 characters or more |
-| `SHARE_TOKEN` | secret, optional | given to machines that read the share and write nothing. 16 characters or more |
+| `SHARE_TOKEN` | secret, optional | given to machines that read and never decide: the share, the changelog and the decision history. 16 characters or more |
 | `PROJECT` | var, default `default` | scopes every row and object |
 | `RETENTION_DAYS` | var, default `30` | days of builds `POST /review/sweep` keeps. A value that is not a positive finite number falls back instead of sweeping everything |
 
@@ -241,7 +241,7 @@ be requested anonymously.
 
 | method and path | token | what it does |
 |---|---|---|
-| `GET /version` | any | `{"service":"variance-authority-tribunal","api":3,"schema":18}` |
+| `GET /version` | any | `{"service":"variance-authority-tribunal","api":5,"schema":19}` |
 | `POST /baseline/find` | ingest | the approved image for a key, bytes and all |
 | `POST /baseline/describe` | ingest | the same lookup without moving the image |
 | `POST /baseline/put` | ingest | store an approved image |
@@ -260,8 +260,12 @@ be requested anonymously.
 | `GET /review/builds/{id}` | review | one build: its subjects, their verdicts, their regions, the docket |
 | `POST /review/builds/{id}/subjects/{subject}/decision` | review | `{"decision":"approved"\|"rejected","by":"…","note":"…"}` |
 | `GET /review/builds/{id}/subjects/{subject}/{before\|after\|diff}.png` | review | one image, immutable and cacheable |
-| `GET /review/changelog[?component&subject&since&limit]` | review | every approval, grouped by shape |
+| `GET /review/changelog[?component&subject&since&limit]` | review or share | every approval, grouped by shape |
+| `GET /review/decisions[?build&subject&limit]` | review or share | every decision, newest first, reversals included: `{"decisions":[{"build","subject","decision","by","at","note"}]}`. Names `build`, `subject` or both; `limit` defaults to 200 and goes no higher |
 | `POST /review/sweep[?days=N]` | review | retention, below |
+| `GET /review/concerns[?build&subject&state]` | review or share | the concerns on a subject, or on every subject a build showed, with the build's `tally` per state |
+| `POST /review/concerns` | review | `{"build","subject","title","by","note","hypothesis","region":{x,y,width,height,component},"evidence":["…"],"state"}`. 201 |
+| `POST /review/concerns/{id}` | review | `{"state":"open"\|"investigating"\|"resolved","by","note","hypothesis"}`: the next step of its trail |
 | `GET /share/<mainline\|branch>/<line>/manifest.json` | ingest or share | the line's manifest, with its version as the `ETag`. 404 when nothing was published |
 | `PUT /share/<mainline\|branch>/<line>/manifest.json` | ingest | replace the manifest. With `If-Match: <ETag>` it replaces only that version, and with `If-None-Match: *` only when there is none. A stale version answers 412, and a write with neither header answers 428 |
 | `GET /share/<mainline\|branch>/<line>/entries/<sha256>` | ingest or share | one entry's bytes, immutable and cacheable |
@@ -271,9 +275,11 @@ be requested anonymously.
 The four `/v1` reads take `since`, `until` and `limit` to bound the window, and
 `project` where one deployment is queried for another's rows.
 
-**The review token reads the record and never writes it.** The five reads answer
-the ingest and review tokens because they derive from rows already recorded, and the browser
-drawing a review page sends the review token. `/v1/observations` and
+**The review token reads what runs recorded and never writes it.** The five
+reads answer the ingest and review tokens because they derive from rows already
+recorded, and the browser drawing a review page sends the review token. Concerns
+are not derived: a person wrote them, so raising and moving them is the review
+token's, and reading them is the review and share tokens'. `/v1/observations` and
 `/v1/approvals` are the ingest token's because they write; `/v1/current` is the
 ingest token's because its caller is a run deciding what to write.
 
@@ -299,15 +305,24 @@ configuration serves every machine and only the variable's value differs:
 - **On a machine that only reads what CI published**, such as a laptop running
   `variance ask` or `variance serve`, set it to the share token: the value of
   `VARIANCE_TRIBUNAL_SHARE_TOKEN` on the Node deployment, or of `SHARE_TOKEN`
-  on Cloudflare. With the share token a machine reads `/share/`, and
-  `GET /version` answers it as it answers every token. Every other route
-  answers 403 before it checks the method, so the machine cannot push a build
-  or decide one. A path this deployment does not serve answers 404, as it does
-  for every token. A path under `/share/` that is not a line's manifest, one
-  of its entries or an image answers 400 and names the three it could be.
+  on Cloudflare. With the share token a machine reads `/share/`,
+  `GET /review/changelog`, `GET /review/decisions` and `GET /review/concerns`,
+  and `GET /version` answers it as it answers every token. Every other route
+  answers 403 before it checks the method, so the machine cannot push a build,
+  decide one or raise a concern. A path this deployment does not serve answers
+  404, as it does for every token. A path under `/share/` that is not a line's
+  manifest, one of its entries or an image answers 400 and names the three it
+  could be.
 
 The review token is refused under `/share/`, because it is held by people and by
 the browser drawing the review page.
+
+**What review settled is read with the review or the share token, never the
+ingest token.** The changelog and the decision history are what an agent or a
+developer's machine asks after the fact: was this subject approved, by whom, and
+why. Give that reader the share token, which reads them and cannot decide. The
+ingest token is refused both, because CI holds it, and a build log has no reason
+to read reviews.
 
 Two writers publishing to one line do not lose each other's entries. Each writes
 the manifest against the version it read, the one that lost answers 412, and
@@ -320,8 +335,10 @@ client may send or expect changes. `variance push` queries the API version
 before it uploads and prints both numbers. A CLI newer than its deployment is
 not an error: it works, and what the older deployment lacks shows up somewhere
 else — before API 2 as upload it could have skipped and as an approved subject
-that stays `new`, and before API 3 as a share that is always empty. Until
-something prints both numbers, neither looks like a version mismatch.
+that stays `new`, before API 3 as a share that is always empty, and before API 4
+as a review page that answers 404 when you flag a concern, and before API 5 as a
+share token refused at `/review/changelog` with no `/review/decisions` to read.
+Until something prints both numbers, neither looks like a version mismatch.
 
 ## What a reviewer sees
 
@@ -348,6 +365,78 @@ drifts in nineteen runs out of twenty. Two numbers are drawn as missing rather
 than as zero: a flake rate is **absent** until a run has read every subject
 twice, and a coverage that was never stated is unknown rather than clean.
 
+A render you decide on, whose candidate is the same image an earlier build kept,
+says so in its Decision card. A candidate is stored under the SHA-256 of its
+bytes, so two builds that kept one key for a subject kept one picture. Only
+builds rendered by the same identity count: a baseline is kept per identity, so
+a decision made on another engine or platform says nothing about this one. The
+line names the earlier build, links to the subject there, and gives the decision
+made on it with who made it. **An image an earlier build rejected** is drawn as a
+rejection: it is a render you already rejected, not a new defect. You can still
+approve it, since accepting a known defect is how the change it blocks gets
+merged, and the approval then opens a concern titled with the build that
+rejected it, carrying who rejected it and their note, so the defect stays on record. The
+decision's answer carries the concern's id as `concern`. A second approval in
+the same build opens no second concern, and neither does an image whose latest
+earlier decision approved it. **An image
+approved before this build ran, on a render that still differs from its
+baseline**, is drawn as a warning, and the line says only that: the render may
+alternate, a change may have been reverted, or the baseline moved again. An
+approval made after this build ran replaced the very baseline this build was
+compared to, so it is named without the warning. Only builds this deployment
+still keeps are counted, so a build removed by `POST /review/sweep` is not named.
+A render that is `unchanged` or `ignored`, or kept no candidate, has no line.
+
+Every move on a subject sits in one bar under the picture, beside what it acts
+on: the subject, the component it names as the cause, its regions, and where it
+stands in the rail — *2 of 5*, or *not in the queue* for one opened by a link.
+Single keys reach the moves that cost nothing to undo: <kbd>J</kbd> and
+<kbd>K</kbd> walk the rail in the order it is drawn, <kbd>F</kbd> opens a
+concern and <kbd>I</kbd> opens one already under investigation, as
+*Investigate* does. *Approve* and *Reject* have no key, because a key that
+promotes a baseline is a key pressed by accident. No key fires while a modifier,
+Shift included, is held, while the focus is in a text field or anywhere in a
+form, or as a held key repeats; a slider such as the wipe keeps them. While the
+concern form is open, J and K do nothing wherever the focus went, so no key
+leaves a draft behind; *Next* and *Previous* still move. F and I on an open
+form change its state and keep what was typed.
+On a layout that does not type Latin letters, the keys are the ones in the
+same place. *Keys off* at the end of the bar turns
+every single-letter key off, for speech input and screen readers that take
+letters as their own commands; the browser remembers the choice.
+
+A render you would not approve and cannot yet call wrong has a third answer.
+*Looks suspicious*, in the bar or under the subject's concerns, raises a **concern**: a
+title, the region you mean or the whole render, the components, files or the
+baseline you are pointing at, a note and your hypothesis. It moves between
+open, investigating and resolved, each step with a name on it. It stays on the
+subject, shown with its trail on every later build that reports it; resolving it
+closes it without removing it. Its region is a place on the image of the build
+it was raised in, so it names a place nobody can see once that build is swept;
+the component it carries still says what was there, as `Button · 24×18 at
+154,85`. A concern and a decision never settle each other: approving does not resolve
+a concern, and resolving one approves nothing. One approval does open a concern:
+approving an image an earlier build rejected, which accepts a known defect and
+keeps it on record. The build's header counts the
+concerns its subjects carry, and says so when it could not read them rather than
+showing none.
+
+The top of the rail names the work a build still asks for: **Unreviewed**,
+**Open**, **Investigating** and **Resolved**, each with the number of renders
+it covers. *Unreviewed* counts what the header's *awaiting review* counts; the
+other three are the states a concern moves through. Two concerns on one render
+count once, since a render is what you open. Choosing a task narrows the rail to
+its renders, and J, K and the bar walk that list. The render on screen keeps its
+place in that list until you move on, even once approving it or resolving its
+concern takes it out of the task, so J still goes to the row below. The header's
+own line counts concerns, not renders, as
+`concerns: 2 open · 1 investigating · 0 resolved`. The address carries the
+task, as `?task=open`, so a link opens the same list. A concern task includes renders the build left unchanged: a concern
+raised two builds ago still stands on a render that has not moved since, and
+nothing else on the page would lead you to it. A task with nothing in it cannot
+be chosen. When the concerns could not be read, the three concern tasks show `?`
+and say why instead of a count of zero.
+
 The run page — *what this run read*, one link from the docket — shows **where
 the subjects parted**, when the build was instrumented with probes and so has
 a [journey](https://variance-authority.dev/docs/journeys) for each subject. The
@@ -358,6 +447,15 @@ that another covered, with the file and the lines. The count of subjects the
 journal covers is drawn even when nothing parted: no partings among five subjects
 is agreement, and among one it is nothing at all. A build with no journal draws
 no panel.
+
+The same page lists the run's **variations**: each subject read against the
+subject it varies from, with the pair that renders one image first. Each pair is
+drawn as its two pictures, parent first, at one scale and at their own pixel
+grid, and each picture links to its subject's page. A side shows its candidate
+when the run kept one and its baseline, labelled `baseline`, when the run kept
+only that. A side the run kept no image for, or never read, says which instead of
+drawing an empty frame, and one it never read has no page to link to. A variation
+whose parent the run did not observe draws the one picture it has.
 
 **Stories of one component that render the same image** are named on the
 docket, though no diff shows them: both are `new`, or both changed the same
@@ -401,7 +499,14 @@ changes[0]?.builds;    // where the approvals came from
 
 `changelog` takes `component` (substring, case-insensitive), `subject` (exact),
 `since` (ISO 8601) and `limit` (default 500). The route takes the same four as
-query parameters.
+query parameters, refuses a `limit` above 500 with 400, and answers the review
+token and the share token.
+
+`decisions` is the history under the approvals: every decision recorded,
+rejections and reversals included, newest first. It takes `build`, `subject` and
+`limit` (default 200), and `GET /review/decisions` takes the same three. The route
+refuses a reading that names neither a build nor a subject, and a `limit` above
+200, with 400.
 
 **One row is written per approval, and its columns are copies, not a join.** The
 regions, the commit, the intent and the reviewer are frozen at the moment of
@@ -472,7 +577,7 @@ export default {
 | `project` | required | scopes every row and every object key. There is no default, for the reason given above |
 | `ingestToken` | required | written into CI. Writes builds, baselines and history. 16 characters or more |
 | `reviewToken` | required | given to people. Reads the review surface and decides. 16 characters or more, and not the same string as `ingestToken` |
-| `shareToken` | unset | given to machines that read the share and write nothing. 16 characters or more, and neither of the other two. Unset, only `ingestToken` opens `/share/` |
+| `shareToken` | unset | given to machines that read and never decide: the share, the changelog and the decision history. 16 characters or more, and neither of the other two. Unset, only `ingestToken` opens `/share/` |
 | `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied on request, not on a timer — a Worker has no timer, and this package will not invent a cron you did not ask for. Wire it to a scheduled trigger, call it from a CI job, or never |
 | `now` | the wall clock | supplies every recorded `at`; override it when the deployment has its own clock source |
 
@@ -630,8 +735,8 @@ looked, `[]` means inspected and clean. The same distinction applies to findings
 
 **Two tokens, and they may not be equal.** The ingest token lives in CI
 configuration and writes builds, baselines, history and the share; the review
-token belongs to people and decides. An optional share token only reads the
-share. Construction refuses a token under 16 characters and refuses any two that
+token belongs to people and decides. An optional share token reads the share,
+the changelog and the decision history, and never decides. Construction refuses a token under 16 characters and refuses any two that
 are identical.
 
 **Which token a route requires is only revealed to a caller who already has
@@ -642,7 +747,7 @@ not a webhook, not telemetry — the pipeline reports to the service, and the
 service reports to nobody.
 
 **The record is append-only, and the database enforces it.** Runs, observations,
-token values and decisions all have `UPDATE` and `DELETE` triggers, so a direct
+token values, decisions and concerns all have `UPDATE` and `DELETE` triggers, so a direct
 `wrangler d1 execute` against the database is refused too.
 
 ## Retention
@@ -652,7 +757,7 @@ rows, their coverage rows, and every image they kept. It **reports counts** for
 everything it removed — `builds`, `subjects`, `objects`.
 
 What it does not remove: **promoted baselines** (what the next run compares
-against), **decisions**, and the **changelog**. The fourth count,
+against), **decisions**, **concerns**, and the **changelog**. The fourth count,
 `decisionsKept`, is how many approvals outlived the builds this call removed, not
 a fourth removal.
 

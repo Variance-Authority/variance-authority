@@ -13,6 +13,7 @@ import { NO_OWNER } from './format-layout.js';
 import eyesFrames from './eyes-frame.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import preconditions from './case-preconditions.cjs';
+import caseOwner from './case-owner.cjs';
 import journalFormat from './journal-format.cjs';
 import { nativeModule } from './jest-journey-artifact.js';
 
@@ -150,7 +151,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
     await writeFile(resolve(cases, 'worker.vac'), packFrames([
       journalFormat.encodeJournal(
         preconditions.packSaid(
-          journalFormat.settledCase(packCase('/repo/test/branch.test.ts', 'alpha', '1'), true),
+          caseOwner.settledCase(packCase('/repo/test/branch.test.ts', 'alpha', '1'), true),
           [['clock', 'frozen', '/repo/test/branch.test.ts:2', 0]],
         ),
         new Map([['src/branch.ts', counters(3, [0, 1])]]),
@@ -159,7 +160,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
         // A settled case with a journey and what it said: the journey is the
         // fifth field, what the case said the sixth.
         preconditions.packSaid(
-          journalFormat.packJourney(journalFormat.settledCase(packCase('/repo/test/branch.test.ts', 'beta', '2'), false), 'a'.repeat(32)),
+          caseOwner.packJourney(caseOwner.settledCase(packCase('/repo/test/branch.test.ts', 'beta', '2'), false), 'a'.repeat(32)),
           [['network', 'mocked', '/repo/test/branch.test.ts:4', preconditions.CASE_LEVEL]],
         ),
         new Map([['src/branch.ts', counters(3, [0, 2])]]),

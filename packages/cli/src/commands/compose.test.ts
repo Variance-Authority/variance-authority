@@ -91,6 +91,25 @@ describe('compositionOf — the census', () => {
   it('carries no truncation marker when nothing was cut', () => {
     expect(report?.truncated).toBeUndefined();
   });
+
+  it('carries each subject\'s pieces, the narrower subjects inside it', () => {
+    // Two more stories make the suite five, so `Button`, in three of them, is
+    // structure and the rest is footprint: the danger story's icon and the quiet
+    // page's app and footer are all inside the default page.
+    const wider = compositionOf({
+      subjects: [
+        ...SUITE,
+        { subject: 'story:badge--default', instances: [instance({ component: 'Badge' })] },
+        { subject: 'story:link--default', instances: [instance({ component: 'Link' })] },
+      ],
+      observations: [],
+    });
+    const page = wider?.structure?.find((each) => each.subject === 'story:page--default')?.pieces;
+
+    expect([page?.footprint, page?.structure, page?.explained]).toEqual([3, 1, 3]);
+    expect(page?.pieces.map((piece) => piece.subject)).toEqual(['story:page--quiet', 'story:ds-button--danger']);
+    expect([page?.own, page?.inContext]).toEqual([[], []]);
+  });
 });
 
 describe('compositionOf — what moved, and where it was read from', () => {

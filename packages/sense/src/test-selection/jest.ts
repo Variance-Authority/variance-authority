@@ -23,11 +23,13 @@
  *   a test-selection run still folds its file-level journals into its snapshot.
  */
 
+import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
 import { placingSequencer } from './jest-placing.js';
+import { projectNamed } from './jest-projects.js';
 import { selectingFilter } from './jest-selection.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
@@ -91,6 +93,14 @@ export interface JestTestSelectionOptions {
    * concurrent. Leave it off the rest of the time.
    */
   readonly continuations?: boolean;
+  /**
+   * Whether each statement of a test or a hook is cut, so the record says which
+   * line of the test first reached each region its case entered. On by default.
+   * The cut is one call per statement the test runs, and it reaches the record
+   * only as a line per case; turn it off to record a suite exactly as it ran
+   * before cuts existed.
+   */
+  readonly cadence?: boolean;
   /**
    * The selection this run is handed, read once when Jest first filters what
    * it found. A `filter` drops what it may skip after the project's own, and
@@ -158,6 +168,8 @@ export interface SelectionTransformerConfig {
   readonly exclude?: readonly string[];
   /** The probe recipe; `presence` when absent. */
   readonly mode?: InstrumentMode;
+  /** Whether test files are cut, statement by statement; they are unless this is `false`. */
+  readonly cadence?: boolean;
 }
 
 /** What the reporter is handed. */
@@ -223,6 +235,16 @@ export const CONTINUATIONS_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_CONTINU
  */
 export const STORY_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_STORY';
 
+/**
+ * The global a project's sandbox reads its own name from, set in that project's
+ * `globals` and read by `jest-setup.cts` when it names a case.
+ *
+ * Through `globals` because a worker learns which project it runs a file for
+ * from nothing else the sandbox can reach: `expect.getState()` names the file
+ * and the case, and the same file under two projects is the same path.
+ */
+const PROJECT_GLOBAL = 'variance-authority.project';
+
 /** Jest's pattern for the modules it transforms when nothing is configured. */
 const DEFAULT_PATTERN = '\\.[jt]sx?$';
 
@@ -272,8 +294,9 @@ export function withTestSelection(
   const inline = inlineProjects(config);
   const mode = options.mode;
   const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
+  const cadence = options.cadence !== false;
   const projects = inline?.map((project) =>
-    instrumented(project, root, projectRoot(project, rootDir), mode, declared));
+    instrumented(project, root, projectRoot(project, rootDir), mode, declared, cadence));
   const preconditions = [
     ...environmentPaths(config, rootDir),
     ...setupPaths(config, rootDir),
@@ -295,10 +318,12 @@ export function withTestSelection(
   const times = timesFrom({ root, from: rootDir, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) });
 
   return {
-    ...(projects === undefined ? instrumented(config, root, rootDir, mode, declared) : config),
+    ...(projects === undefined ? instrumented(config, root, rootDir, mode, declared, cadence) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
-    ...(selection === undefined ? {} : selectingFilter(config, { root, rootDir, selection })),
+    ...(selection === undefined ? {} : selectingFilter(config, {
+      root, rootDir, selection, cutFile: resolve(dirname(coverageFile), `.cut-${process.pid}-${randomUUID()}.json`),
+    })),
     ...placingSequencer(config, { root, rootDir, times }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, {
       ...reporter,
@@ -324,7 +349,7 @@ export function withJourneyCoverage(
     throw new Error(`trace ${JSON.stringify(options.trace)} is not a path: name the module that exports your tracing, as ./… or <rootDir>/…`);
   }
   const journeyProject = (project: JestConfig, at: string): JestConfig =>
-    traced(instrumented(project, root, at, options.mode, declared), at, trace);
+    traced(instrumented(project, root, at, options.mode, declared, false), at, trace);
   const projects = inline?.map((project) => journeyProject(project, projectRoot(project, rootDir)));
   const reporter: JourneyReporterConfig = {
     root,
@@ -394,6 +419,7 @@ function instrumented(
   rootDir: string,
   mode: InstrumentMode | undefined,
   declared: readonly string[],
+  cadence: boolean,
 ): JestConfig {
   const configured = config.transform === undefined
     ? { [DEFAULT_PATTERN]: 'babel-jest' }
@@ -415,15 +441,18 @@ function instrumented(
           ...(transformer === undefined ? {} : { transformer }),
           ...(exclude.length === 0 ? {} : { exclude }),
           ...(mode === undefined ? {} : { mode }),
+          ...(cadence ? {} : { cadence: false }),
         },
       ],
     ]),
   );
 
+  const project = projectNamed(config['displayName']);
   return {
     ...config,
     rootDir,
     transform,
+    ...(project === undefined ? {} : { globals: { ...(config['globals'] as object | undefined), [PROJECT_GLOBAL]: project } }),
     setupFiles: [SELECTION_GLOBALS, ...(config.setupFiles ?? [])],
     setupFilesAfterEnv: [...(config.setupFilesAfterEnv ?? []), SELECTION_SETUP],
   };

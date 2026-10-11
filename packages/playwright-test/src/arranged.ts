@@ -27,6 +27,8 @@ export interface SnapshotCase {
   readonly name: string;
   /** Playwright's test id, stable across retries. */
   readonly id: string;
+  /** The project that ran it; absent for an unnamed one. */
+  readonly project?: string;
   /**
    * What the case had said when the snapshot was taken, resolved as its row
    * resolves it. Absent when the run did not listen, which is not the same as

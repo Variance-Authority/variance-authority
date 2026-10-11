@@ -121,7 +121,7 @@ type NativeUsage = ReturnType<NonNullable<Awaited<ReturnType<typeof readHelp>>>[
 type NativeUse = NativeUsage['names'][number];
 
 /** A use as the addon hands it over: `through` flattened, and `null` for absent. */
-function useOf(use: NativeUse): Use {
+export function useOf(use: NativeUse): Use {
   return {
     by: use.by, at: use.at, line: use.line, type: use.type, kind: use.kind,
     ...(use.through === undefined || use.through === null ? {} : { through: { kind: use.through, line: use.throughLine } }),

@@ -1,12 +1,15 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
-import type { Help } from '@variance-authority/package/help';
+import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
 import { entriesNamed, isPackage, specifierOf, unfound } from './find.js';
 import { block } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage, type ThirdPartyMatch } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { provenance } from './third-party.js';
+import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 
 /**
  * `docs_symbol` — one name, in full.
@@ -22,7 +25,8 @@ export const symbol: Tool<Help> = {
     'Everything known about one exported name: what it is, the import line that reaches it, the ' +
     'file and line that declares it, its full signature, its documentation — or, where nothing is ' +
     'written above it, the README passage that names it — and which packages import it. Names are ' +
-    'matched exactly, including installed third-party declarations when the API catalogue is ' +
+    'matched exactly, including a name exported and not published, answered with where it is declared, and ' +
+    'installed third-party declarations when the API catalogue is ' +
     'published, and, given `from`, as the workspace that owns that path resolves them; use docs_search ' +
     'when the exact name is not known, docs_uses for local import sites.',
   inputSchema: {
@@ -63,10 +67,18 @@ export const symbol: Tool<Help> = {
     const byPath = found.length === 0 ? sitesByPath(help, name, wanted) : [];
     if (byPath.length > 0) return importedByPath(help, name, byPath);
 
+    // Exported for a neighbour and never published: the workspace's own name,
+    // said first. An installed name it matches is said after it, since a file
+    // that passes an installed binding on exports it without declaring it.
+    const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
+    const own = exported.length > 0 ? [exportedOnly(name, exported, invocation?.root)] : [];
+
     if (found.length === 0 && invocation?.root !== undefined) {
       const at = startPointArg(input, 'from');
       const paths = at === undefined ? undefined : typeof at === 'string' ? [at] : [...at];
       const everywhere = queryDependencyLexicon(invocation.root, name, undefined, true, wanted, 100);
+      // No lexicon of installed names says nothing against the workspace's own export.
+      if (everywhere === undefined && own.length > 0) return own.join('\n\n');
       if (everywhere === undefined) throw new Error(`the dependency lexicon is not published; run \`variance index\` before asking about \`${name}\``);
       const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, 100);
       const shown = here ?? everywhere;
@@ -87,13 +99,15 @@ export const symbol: Tool<Help> = {
         const owner = here.scope.location?.join(', ') ?? 'the manifest that owns it';
         const where = paths.join(', ');
         return [
+          ...own,
           `\`${name}\` is not usable from ${where}: ${owner} does not declare or import it. It is offered under:`,
           ...everywhere.shown.map(described),
           ...cut(everywhere),
         ].join('\n\n');
       }
-      if (shown.total > 0 || silent.length > 0) return [...shown.shown.map(described), ...cut(shown), ...silent].join('\n\n');
+      if (shown.total > 0 || silent.length > 0) return [...own, ...shown.shown.map(described), ...cut(shown), ...silent].join('\n\n');
     }
+    if (own.length > 0) return own.join('\n\n');
     if (found.length === 0) throw new Error(unfound(help, name, wanted));
 
     const [first] = found;
@@ -166,4 +180,47 @@ function declaration(help: Help, name: string, site: PathSite): { readonly at: s
   if (to !== undefined) return help.exported.find((held) => held.name === name && held.at === to);
   const owned = help.exported.filter((held) => held.name === name && held.by === site.owner);
   return owned.length === 1 ? owned[0] : undefined;
+}
+
+/**
+ * One name a file exports and no entry publishes: where each export is written,
+ * the line itself when the checkout is at hand, and how many imports the source
+ * index resolved to that file. Exports that share a name are told apart, each
+ * with the imports of its own file.
+ */
+function exportedOnly(name: string, exported: readonly Named[], root: string | undefined): string {
+  return exported
+    .map((held) => {
+      const imports = root === undefined ? undefined : importsOf(root, [held], name);
+      return [
+        name,
+        `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
+        ...(root === undefined ? [] : lineOf(root, held)),
+        ...(imports === undefined ? [] : [importedIn(imports.length)]),
+      ].join('\n');
+    })
+    .join('\n\n');
+}
+
+/** How many places import one export, read off the source index. */
+function importedIn(count: number): string {
+  return count === 0
+    ? `Nothing in this workspace imports it; ${UNCOUNTED}.`
+    : `Imported in ${count} ${count === 1 ? 'place' : 'places'}; docs_uses lists them, nearest to a file you name first.`;
+}
+
+/**
+ * The line an export is written on, as the checkout holds it now; nothing when
+ * the file is gone or the line no longer holds the name, since the index read
+ * an older text.
+ */
+function lineOf(root: string, held: Named): readonly string[] {
+  let text: string;
+  try {
+    text = readFileSync(join(root, held.at), 'utf8');
+  } catch {
+    return [];
+  }
+  const line = text.split(/\r?\n/)[held.line - 1]?.trim();
+  return line === undefined || !line.includes(held.name) ? [] : [line];
 }

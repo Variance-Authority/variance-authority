@@ -94,10 +94,10 @@ they stop and list the suites.
 
 `variance covering` asks the other question, which suites ran this code, so it
 reads every declared suite's record and answers under each suite's name and
-kind. A suite that never loaded the file is listed as such, and so is a suite
-with no recording yet. A payment module your unit suite walked and your visual
-suite never loaded reads as exactly that. `--suite <name>` asks one record
-alone.
+kind. Suites that never loaded the file are named together after the answers,
+and a suite with no recording yet says so. A payment module your unit suite
+walked and your visual suite never loaded reads as exactly that. `--suite
+<name>` asks one record alone.
 
 ## What each host records
 

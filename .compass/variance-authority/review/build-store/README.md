@@ -20,7 +20,8 @@ this deployment does not understand is refused rather than stored as a shape
 whose fields it would then misread.
 
 Out: a build list, one build's summary and **docket**, one **subject**'s view
-with the current decision against it, and the bytes behind an image address.
+with the current decision against it and the earlier builds that kept the same
+candidate with theirs, and the bytes behind an image address.
 
 ## Depends on
 
@@ -31,6 +32,7 @@ Nothing in this block.
 - [`review-router`](../review-router/README.md) — everything the read paths answer with
 - [`decision`](../decision/README.md) — the subject row a promotion is built
   from, and the build row an explanation is frozen from
+- [`concern`](../concern/README.md) — the subject row a concern must be raised on
 - [`review-surface`](../review-surface/README.md) — the shapes it draws a build from
 - [`retention-sweep`](../retention-sweep/README.md) — the rows and object keys a window removes
 
@@ -68,6 +70,9 @@ damage rather than as a run that kept nothing.
   current decision is the highest sequence, never the newest timestamp),
   `docket`, `toSubjectView`, and the
   readers for reach, composition, movements and declarations
+- `packages/tribunal/src/repeats.ts` — the earlier builds of the project that
+  kept a subject's candidate, matched on its content key, each with the decision
+  it ended on
 - `packages/tribunal/src/same-image.ts` — the stories of one component whose
   candidates are stored under one key, so one image under several names, read
   from the keys already held and never from a new upload

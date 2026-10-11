@@ -3,6 +3,7 @@ import { stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Opening, Use } from '@variance-authority/package/help';
 import { how, sitesByPath } from './by-path.js';
 import { entriesNamed, isPackage, unfound } from './find.js';
+import { UNCOUNTED, exportedAt, exportsNamed, importsOf, indexMissing, indexUnread } from './unpublished.js';
 
 /**
  * `docs_uses` — how this repository actually writes a name.
@@ -45,6 +46,12 @@ import { entriesNamed, isPackage, unfound } from './find.js';
  * that exports it. That import is listed like any other, saying whether it is a
  * deep import — past the entry its package declares — or an import from a
  * package that declares none.
+ *
+ * ## An unpublished export is answered
+ *
+ * A name a file exports and no entry publishes is answered from the source
+ * index: every import, within its package or across one, that resolved to a
+ * file exporting it.
  */
 
 /** A site, and how it names the module it imports when that is a file path. */
@@ -95,7 +102,11 @@ function held(use: Use): string {
 }
 
 /** Every site of one name, across every door it is published from, without duplicates. */
-function sitesOf(found: readonly (readonly [Documented, Opening, Entry])[], byPath: readonly Site[]): readonly Site[] {
+function sitesOf(
+  found: readonly (readonly [Documented, Opening, Entry])[],
+  byPath: readonly Site[],
+  within: readonly Site[],
+): readonly Site[] {
   const seen = new Set<string>();
   const sites: Site[] = [];
 
@@ -107,7 +118,7 @@ function sitesOf(found: readonly (readonly [Documented, Opening, Entry])[], byPa
       sites.push(use);
     }
   }
-  for (const use of byPath) {
+  for (const use of [...byPath, ...within]) {
     const key = `${use.at}:${use.line}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -121,7 +132,8 @@ export const uses: Tool<Help> = {
   description:
     'Every file:line in the workspace that imports one exported name, including reads through ' +
     '`import()` or `import * as`, marked with the line that loads the module, and imports that ' +
-    'name the file by path, marked as such. Stories and tests are listed apart. `from`, the file ' +
+    'name the file by path, marked as such. A name exported and not published is answered from ' +
+    'the source index, imports within its package included. Stories and tests are listed apart. `from`, the file ' +
     'you are in, sorts sites by shared path.',
   inputSchema: {
     type: 'object',
@@ -142,7 +154,7 @@ export const uses: Tool<Help> = {
     additionalProperties: false,
   },
 
-  run(help, input) {
+  run(help, input, invocation) {
     const name = stringArg(input, 'name');
     const wanted = typeof input['package'] === 'string' && input['package'] !== '' ? input['package'] : undefined;
     const from = typeof input['from'] === 'string' && input['from'] !== '' ? input['from'] : undefined;
@@ -156,9 +168,16 @@ export const uses: Tool<Help> = {
     const byPath: Site[] = sitesByPath(help, name, wanted)
       .filter((site) => found.length === 0 || (site.held.to !== undefined && declared.has(site.held.to)))
       .map((site) => ({ ...site.taken, how: how(site) }));
-    if (found.length === 0 && byPath.length === 0) throw new Error(unfound(help, name, wanted));
+    const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
+    if (found.length === 0 && byPath.length === 0 && exported.length === 0) throw new Error(unfound(help, name, wanted));
+    const root = invocation?.root;
+    const within = exported.length === 0 || root === undefined ? undefined : importsOf(root, exported, name);
+    if (exported.length > 0 && within === undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, root));
 
-    const sites = sitesOf(found, byPath);
+    const sites = sitesOf(found, byPath, within ?? []);
+    if (sites.length === 0 && exported.length > 0) {
+      return `\`${name}\` is exported, without being published, at ${exportedAt(exported)}, and nothing in this workspace imports it; ${UNCOUNTED}.`;
+    }
     if (sites.length === 0) {
       return `\`${name}\` is published and nothing in this workspace imports it. docs_symbol has its signature and what is written above it.`;
     }
@@ -175,13 +194,16 @@ export const uses: Tool<Help> = {
 
     const dynamic = sites.filter((use) => use.through?.kind === 'dynamic').length;
     const loaded = dynamic === 0 ? '.' : `, ${dynamic} through import(), which loads the module when the call runs.`;
-    const published = found.length === 0 ? ', and no entry publishes it' : '';
+    const published =
+      found.length > 0 ? '' : exported.length > 0 ? `, and no entry publishes it; it is exported at ${exportedAt(exported)}` : ', and no entry publishes it';
     return [
       `\`${name}\` is imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}${published}${loaded}`,
       nearest,
       ...listed(stories, 'Stories:'),
       ...listed(tests, 'Tests:'),
       ...listed(source, 'Source:'),
+      // The imports by package path are in the Help value; the rest are not.
+      ...(exported.length > 0 && within === undefined ? [`\nImports that do not name a package path are not listed: ${indexUnread(root)}.`] : []),
     ].join('\n');
   },
 };

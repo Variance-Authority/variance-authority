@@ -28,6 +28,11 @@ export interface SuiteRequest {
   /** The change, handed in as a patch file; `-` is stdin. */
   readonly diff?: string;
   readonly noGit?: boolean;
+  /**
+   * `case` also names, in each test file that runs, the cases that ran none of
+   * the change (`SuiteSelection.cases`). The file is the grain when absent.
+   */
+  readonly grain?: 'file' | 'case';
 }
 
 /** The selection, with the whole reading it was cut from, for a caller that prints it. */

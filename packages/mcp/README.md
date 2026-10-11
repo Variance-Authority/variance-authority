@@ -173,7 +173,7 @@ placeholders: use ids from your own run, and a digest `variance_changes` printed
 | `variance_diff` | how the current supplied state differs from the previous successful MCP tool invocation | after rerunning or replacing the supplied evidence |
 | `variance_changes` | the distinct changes behind the changed subjects, most decidable first, each with the command that settles it | immediately after the summary, before touching any individual subject |
 | `variance_adjudicate` | this run against **what you said you were doing**: declared and delivered, changed and undeclared, and declared and never happened | you edited something and are reading your own run — declare before you read the diff |
-| `variance_composition` | the run's subjects compared to **each other**: the component graph, the renderings two examples share, and why each changed component changed — including *nothing here explains it*; with `subject`, what one subject is made of and which of its renderings other subjects share | a change has no obvious author, or you are about to call something flaky |
+| `variance_composition` | the run's subjects compared to **each other**: the component graph, the renderings two examples share, and why each changed component changed — including *nothing here explains it*; with `subject`, what one subject is made of, which of its renderings other subjects share, the smaller subjects inside it and the larger ones holding it, and what only it renders | a change has no obvious author, or you are about to call something flaky |
 | `variance_locate` | the subjects a `query` describes, matched over every name the run wrote down — ids, examples, accessible names, text, components, creators, files, roles, tokens, and the source-code regions its tests covered — each hit printing the field it matched | you can describe the subject and do not know its id |
 | `variance_variations` | the measured difference between a subject and the subject it declares as its parent, such as a feature flag, theme, or viewport | reviewing what a variant changes rather than whether it regressed |
 | `variance_changelog` | what accepting this run would write into the baseline record: the lines the commit will add, and the subjects that would be refused | before proposing an `accept` command, because the record is written once and outlives the run |
@@ -371,6 +371,64 @@ console.log(costs.run({
     { subject: 'route:/pricing', ms: 400 },
   ],
 }, { limit: 5, from: ['src'] }));
+```
+
+## Say what review decided and suspects
+
+`variance_decisions` answers from the review deployment's record: every
+approval and rejection, newest first, with the build, the subject, who decided
+and the note they left. A call names a `subject`, a `build` or both, and one
+that names neither is refused; `limit` is 20 unless you set it, and 200 at most. A subject rejected and then approved is two rows, because
+the rejection's note is often the only place the reason is written; the earlier
+row for the same build and subject is marked `(replaced)`, so the first row for
+a pair is the one that stands. `REVIEW_TOOLS` holds it, and its subject is a
+`DecisionsSubject` — the deployment it was read from, and a `ReviewDecisionEntry`
+per decision.
+
+It is a subject of its own because a decision is a fact about a deployment, not
+about a run. `variance serve` fetches the window a call names with the share
+token, which reads what review settled and never decides, so an agent holding
+this connection cannot approve or reject anything. Keep the token in an
+environment variable that the share declaration names:
+`"token": { "env": "VARIANCE_SHARE_TOKEN" }`. `variance ask decisions` calls the
+same tool from a shell; see [the CLI](../cli/README.md).
+
+```js
+import { REVIEW_TOOLS } from '@variance-authority/mcp/tools';
+
+const [decisions] = REVIEW_TOOLS;
+console.log(decisions.run({
+  from: 'https://variance.example.com',
+  decisions: [
+    { build: 'ci-42', subject: 'story:card', decision: 'approved', by: 'reviewer', at: '2026-08-21T10:14:02Z', note: 'padding is intended' },
+    { build: 'ci-42', subject: 'story:card', decision: 'rejected', by: 'reviewer', at: '2026-08-21T09:50:11Z' },
+  ],
+}, { subject: 'story:card' }));
+```
+
+`variance_concerns` answers, from the same deployment and with the same token,
+what reviewers suspect without having decided: each concern on a render, with
+its title, its state (`open`, `investigating` or `resolved`), the region and
+component it is about, what the reviewer pointed at, and every step since with
+its note and hypothesis. A call names a `subject`, a `build` or both, and
+`state` keeps one state. A `build` reads the concerns on every subject that
+build showed, whichever build raised them, and the answer counts them by state.
+Its subject is a `ConcernsSubject`, a `ReviewConcern` per concern. Every tool in
+`REVIEW_TOOLS` is a `ReviewTool`: it names the `route` its subject is read from
+and the `query` a call's input sends there, so a host reads them all one way.
+
+```js
+const [, concerns] = REVIEW_TOOLS;
+console.log(concerns.run({
+  from: 'https://variance.example.com',
+  concerns: [{
+    id: 7, build: 'ci-42', subject: 'story:card', title: 'The border is clipped',
+    region: { x: 154, y: 85, width: 24, height: 18, component: 'Button' },
+    evidence: ['the right border'], by: 'reviewer', at: '2026-08-21T09:40:00Z', state: 'open',
+    events: [{ state: 'open', by: 'reviewer', at: '2026-08-21T09:40:00Z', note: 'the right edge is cut' }],
+  }],
+  tally: { open: 1, investigating: 0, resolved: 0 },
+}, { build: 'ci-42' }));
 ```
 
 ## Watch a suite that has not finished

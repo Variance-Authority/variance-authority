@@ -30,6 +30,14 @@ export interface SelectionRun {
    * folds from when a command-line `--reporter` replaced the reporter.
    */
   readonly finishedDirectory: string;
+  /**
+   * Where the run's sequencer writes the cases a selection skips, for the case
+   * runner in each worker to read between collecting a file and running it.
+   * See `case-cut.ts`.
+   */
+  readonly cutFile: string;
+  /** The cases the selection skips in the files this run kept: each such file is recorded incomplete. */
+  readonly cut: Map<string, readonly string[]>;
   readonly modules: Map<ModuleId, CapturedModule>;
   /** Every file whose text every observation depended on, whichever configuration ran it. */
   readonly preconditions: Set<string>;
@@ -51,6 +59,11 @@ export interface SelectionRun {
    * it, and `defaultInclude` stands until a wrapper says otherwise.
    */
   include: (file: string) => boolean;
+  /**
+   * Which files are tests, and so cut as well as probed where `include` takes
+   * them, carried for the same reason as `include`; absent cuts nothing.
+   */
+  cadence: ((file: string) => boolean) | undefined;
   /** Files this seam generated, which no transform may instrument. */
   readonly shims: Set<string>;
   /**
@@ -108,12 +121,15 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     runDirectory,
     caseDirectory: `${runDirectory}-cases`,
     finishedDirectory: `${runDirectory}-files`,
+    cutFile: `${runDirectory}-cut.json`,
+    cut: new Map<string, readonly string[]>(),
     modules: new Map<ModuleId, CapturedModule>(),
     preconditions: new Set<string>(),
     configs: new Map<string, Set<string>>(),
     runConfig: undefined,
     mode,
     include: defaultInclude,
+    cadence: undefined,
     shims: new Set<string>(),
     made: new Set<string>(),
     cases: true,

@@ -15,9 +15,11 @@
 
 import async_hooks = require('node:async_hooks');
 import crypto = require('node:crypto');
+import caseOwner = require('./case-owner.cjs');
 import journals = require('./journal-format.cjs');
 import eyesFrames = require('./eyes-frame.cjs');
 import preconditions = require('./case-preconditions.cjs');
+import probeCuts = require('../instrument/probe-cuts.cjs');
 import probeLog = require('../instrument/probe-log.cjs');
 import storyTap = require('../instrument/story-tap.cjs');
 import stories = require('../story/format.cjs');
@@ -151,7 +153,7 @@ function attach(holder: Holder, continuations: boolean, story = false): Engine {
     }
     return found;
   }
-  const engine = probeLog.createEngine(continuations);
+  const engine = probeLog.createEngine(continuations, probeCuts.createCuts());
   holder.__VA__ = story ? storyTap.createTap(engine, storyTap.TAPE_LIMIT).root : engine.root;
   return engine;
 }
@@ -293,12 +295,12 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, roo
     const journey = journeys.get(bucket.key);
     // What the case said it arranged; the file's own bucket is no case.
     const said = bucket.key === AMBIENT ? undefined : recorder.take(bucket.key);
-    // A case that stopped before it crossed anything is still a case that
-    // stopped: its frame is what tells a reader the journey was cut short. One
-    // that only named its preconditions still has them to carry.
-    if (view.rows.length === 0 && settled !== true && journey === undefined && !said?.length) return undefined;
-    const settledOwner = settled === undefined ? name : journals.settledCase(name, settled);
-    const owner = journey === undefined ? settledOwner : journals.packJourney(settledOwner, journey);
+    // A case that crossed nothing is still a case that ran: its frame names it
+    // in the case index, and says how it settled. Only the file's own bucket
+    // has nothing to write when it entered nothing.
+    if (view.rows.length === 0 && settled === undefined && journey === undefined && !said?.length) return undefined;
+    const settledOwner = settled === undefined ? name : caseOwner.settledCase(name, settled);
+    const owner = journey === undefined ? settledOwner : caseOwner.packJourney(settledOwner, journey);
     frames.push(journals.encodeLog(said === undefined ? owner : preconditions.packSaid(owner, said), view));
     foldInto(union, view);
     return view;
@@ -424,7 +426,7 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, roo
     enter, journey, phase, within, where, ...attention?.scope, begin, leave,
   };
 
-  const ambientKey = (testFile: string): string => journals.packCase(testFile, '', '');
+  const ambientKey = (testFile: string): string => caseOwner.packCase(testFile, '', '');
   return {
     scoped: true,
     seal(testFile) {

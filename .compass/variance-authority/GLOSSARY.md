@@ -984,6 +984,24 @@ for a rejection.
 
 One answer per **cause** on the review surface, with the reviewer's name on it.
 
+## **Concern**
+
+### Meaning
+
+What a reviewer suspects about one **subject**: a title, optionally a place on
+the render, evidence and a hypothesis, and an append-only trail from open to
+investigating to resolved. Kept apart from the **decision** on the same subject:
+neither settles the other.
+
+### Bounded context
+
+[**Review**](./DOMAIN.md#review)
+
+### Product appearance
+
+*Looks suspicious* on a subject page, the concerns card under the decision, and
+a count on the build's header.
+
 ## **Changelog**
 
 ### Meaning

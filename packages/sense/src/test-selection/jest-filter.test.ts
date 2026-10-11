@@ -1,8 +1,9 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
+import { CUT_VARIABLE } from './case-cut.js';
 import filter from './jest-filter.cjs';
 import { SELECTION_FILTER, selectingFilter } from './jest-selection.js';
 import type { SuiteSelection } from './suite-selection.js';
@@ -59,6 +60,26 @@ describe('the Jest filter that drops what a selection may skip', () => {
     await expect(filter([at('dom/c.test.ts')])).resolves.toEqual({ filtered: [at('dom/c.test.ts')] });
     expect(reads).toBe(1);
     expect(lines).toEqual(['variance-authority: selected 1 of 2', '  one note', 'variance-authority: selected 1 of 1']);
+  });
+
+  it('writes what each project\'s kept files skip into one cut, and names it for the workers', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-cut-'));
+    temporary.push(directory);
+    const cutFile = resolve(directory, 'cut.json');
+    const before = process.env[CUT_VARIABLE];
+    const cases = new Map([['unit/a.test.ts', ['one']], ['dom/c.test.ts', ['two']], ['unit/skipped.test.ts', ['three']]]);
+    selectingFilter({}, { root, rootDir, cutFile, selection: async () => selection(['unit/skipped.test.ts'], { cases }), argv: [], say: () => {} });
+
+    try {
+      await filter([at('unit/a.test.ts'), at('unit/skipped.test.ts')]);
+      await filter([at('dom/c.test.ts')]);
+
+      expect(process.env[CUT_VARIABLE]).toBe(cutFile);
+      expect(JSON.parse(await readFile(cutFile, 'utf8'))).toEqual({ [at('unit/a.test.ts')]: ['one'], [at('dom/c.test.ts')]: ['two'] });
+    } finally {
+      if (before === undefined) delete process.env[CUT_VARIABLE];
+      else process.env[CUT_VARIABLE] = before;
+    }
   });
 
   it('runs the project\'s own filter first, in either shape Jest has asked a filter to return', async () => {
