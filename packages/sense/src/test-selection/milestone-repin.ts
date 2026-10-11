@@ -23,6 +23,8 @@
 import { execFileSync } from 'node:child_process';
 import { readFile, rm } from 'node:fs/promises';
 import { carriedSources } from './carried-sources.js';
+import { followRowsIn } from './case-cuts.js';
+import { textsIn, type ModuleTexts } from './case-landing.js';
 import { caseSectionsOf, withCaseSections } from './case-record.js';
 import { layerCaseIndex } from './case-layer.js';
 import { commitRunsFile, readCommitRuns, writeCommitRuns, type CommitRuns, type StandingEntry } from './commit-runs.js';
@@ -96,6 +98,7 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
   let own: TestCoverage;
   let milestone: Buffer;
   let instrumentation: string;
+  let texts: ModuleTexts;
   try {
     ownBytes = await readFile(coverageFile);
     own = decodeTestCoverage(ownBytes);
@@ -107,6 +110,7 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
     // Rows recorded under other probes cannot be laid over the milestone's:
     // it answers for every test.
     instrumentation = whole.view.instrumentation;
+    texts = textsIn(whole.view);
   } catch {
     return { repinned: false, why: 'unreadable' };
   }
@@ -126,9 +130,12 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
 
   const ownCases = caseSectionsOf(ownBytes);
   const milestoneCases = caseSectionsOf(milestone);
-  const cases = repinnedCases(milestoneCases.index, ownCases.index, kept);
-  const eyes = repinnedEyes(milestoneCases.eyes, ownCases, cases, kept);
   const view = openTestCoverage(bytes);
+  // The milestone's rows of a module this checkout did not record may have been
+  // re-cut to the text on disk; the cases held for it are laid onto the same cut.
+  const laid = repinnedCases(milestoneCases.index, ownCases.index, kept);
+  const cases = laid === undefined ? undefined : followRowsIn({ index: laid }, view, texts).index;
+  const eyes = repinnedEyes(milestoneCases.eyes, ownCases, cases, kept);
   const recorded = Array.from(view.testPath.all(), (path) => view.string(path));
   const runs = repinnedRuns(await readCommitRuns(coverageFile), own.commit, record, states, recorded, kept);
 

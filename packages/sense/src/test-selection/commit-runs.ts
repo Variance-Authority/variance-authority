@@ -43,7 +43,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { followRowsIn } from './case-cuts.js';
-import { layCases, type FreshCases, type ModuleTexts } from './case-landing.js';
+import { layCases, textsIn, type FreshCases, type ModuleTexts } from './case-landing.js';
 import { casesRecordedOver, recordOfCases, withCaseSections } from './case-record.js';
 import { askCoverageFile } from './coverage-file.js';
 import { layeredCoverage } from './format-layer.js';
@@ -455,11 +455,7 @@ export async function heldCommitRuns(
 /** The text each module of the snapshot at `coverageFile` was cut from; `undefined` when it holds none this build reads. */
 function recordedTexts(coverageFile: string): ModuleTexts | undefined {
   try {
-    return askCoverageFile(coverageFile, (coverage) => {
-      const path = coverage.modulePath.all();
-      const source = coverage.moduleSource.all();
-      return new Map(Array.from(path, (file, module) => [coverage.string(file), coverage.string(source[module]!)]));
-    });
+    return askCoverageFile(coverageFile, textsIn);
   } catch {
     return undefined;
   }

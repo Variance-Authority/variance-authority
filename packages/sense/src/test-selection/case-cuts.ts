@@ -1,9 +1,10 @@
 /**
  * The case index laid onto the text its rows were landed at.
  *
- * A landing re-cuts a carried module's rows to the text on disk when every
- * region keeps its address (`carriedSources` in `merge-carry.ts`), and lays a
- * run's own cases onto the modules that run recorded. A module the run did not
+ * A landing — a run's, `variance land`'s, or a repin onto a newer milestone —
+ * re-cuts a carried module's rows to the text on disk when every region keeps
+ * its address (`carriedSources` in `merge-carry.ts`), and lays a run's own
+ * cases onto the modules that run recorded. A module the run did not
  * record keeps the case regions it was recorded with, and after the re-cut
  * those are lines of a text the record no longer names. Every reader asks the
  * index by line, so it would charge an edit to whichever region stood at that
@@ -13,9 +14,9 @@
  * text is laid onto the rows' cut by the rule a run's recorded module takes the
  * held cases by ({@link laidOn}): by address and kind, a region born in the
  * re-cut taking the cases of the region around it, and a region the cut has no
- * place for dropping its cases. A module none of whose cases lands leaves the
- * index, which sends a reader to the file graph rather than reading no test as
- * the answer. A module whose index already stands at the rows' lines, as one a
+ * place for dropping its cases. A module none of whose cases land leaves the
+ * index, as one no run kept cases of is absent from it, rather than standing at
+ * lines no text holds. A module whose index already stands at the rows' lines, as one a
  * run recorded does, is carried as it is.
  */
 
@@ -134,6 +135,10 @@ function followCuts(previous: Uint8Array, cuts: RowCuts): Buffer | undefined {
       }
       continue;
     }
+    // FIXME: a region born in the re-cut whose owners recorded none landed is
+    // laid with no case, inside a module that stays: absent read as no test,
+    // where the rows widen from the region around it. Nothing ran over the new
+    // text here, so the empty set is pure absence.
     // A region whose cases land names their lines to `lines` as it is laid, so
     // a module that keeps none named nothing, and leaving it out shifts nobody.
     const laid = laidOn(cut, () => EMPTY, { row, module: held.module(row), same: false },

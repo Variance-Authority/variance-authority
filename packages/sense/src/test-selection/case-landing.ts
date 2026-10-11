@@ -15,6 +15,7 @@ import { caseSectionsAt, type CaseSections } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes, type EyesSection } from './eyes-record.js';
+import type { TestCoverageView } from './format-view.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoverageModule, CoverageTest } from './index.js';
 import type { ExecutionTest } from './reverse.js';
@@ -35,6 +36,13 @@ export type ModuleTexts = ReadonlyMap<string, string>;
 /** The text of each module `coverage` holds. */
 export function textsOf(coverage: Pick<LaidRun, 'modules'> | undefined): ModuleTexts {
   return new Map((coverage?.modules ?? []).map((module) => [module.file, module.sourceDigest]));
+}
+
+/** {@link textsOf} over a snapshot's columns. */
+export function textsIn(coverage: TestCoverageView): ModuleTexts {
+  const path = coverage.modulePath.all();
+  const source = coverage.moduleSource.all();
+  return new Map(Array.from(path, (file, module) => [coverage.string(file), coverage.string(source[module]!)]));
 }
 
 /** One run's own case index, and what the run tells the index about its files. */
