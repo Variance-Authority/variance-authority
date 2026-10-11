@@ -1,6 +1,8 @@
 import {
   EDGE_KINDS,
-  RUNTIME_EDGES,
+  NOTHING,
+  WHOLE,
+  carried,
   dependentsOf,
   idOf,
   nodeAt,
@@ -195,9 +197,6 @@ export interface GovernedTests {
 }
 
 const ASSET = EDGE_KINDS.indexOf('asset');
-/** The edge kinds a runtime loads through, as a byte lookup over `EDGE_KINDS`. */
-const LOADS = new Uint8Array(EDGE_KINDS.length);
-for (const kind of RUNTIME_EDGES) LOADS[EDGE_KINDS.indexOf(kind)] = 1;
 
 /**
  * `rowed` is every name the caller answered from an instrumented row: a changed
@@ -448,22 +447,14 @@ function importersUntil(
   walk: { readonly mask: Uint8Array; readonly via: Int32Array },
   answers: (id: NodeId, trail: readonly NodeId[]) => boolean,
 ): void {
-  const { offset, target, kind } = relations.dependents;
-  const queue: NodeId[] = [seed];
-  const traversal = { ...walk, nodes: queue };
-  walk.mask[seed] = 1;
-  for (let head = 0; head < queue.length; head += 1) {
-    const node = queue[head]!;
-    if (node !== seed && answers(node, trailOf(traversal, node))) continue;
-    for (let edge = offset[node]!; edge < offset[node + 1]!; edge += 1) {
-      const next = target[edge]!;
-      if (LOADS[kind[edge]!] !== 1 || walk.mask[next] === 1) continue;
-      walk.mask[next] = 1;
-      walk.via[next] = node;
-      queue.push(next);
-    }
-  }
-  for (const node of queue) {
+  const traversal = { ...walk, nodes: [] };
+  const { entered } = carried(
+    relations.dependents,
+    [[seed, WHOLE]],
+    { hand: (node) => (answers(node, trailOf(traversal, node)) ? NOTHING : WHOLE) },
+    walk,
+  );
+  for (const node of entered) {
     walk.mask[node] = 0;
     walk.via[node] = -1;
   }
