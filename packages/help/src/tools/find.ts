@@ -1,5 +1,6 @@
 import type { Documented, Entry, Help, Opening } from '@variance-authority/package/help';
 import { everyEntry } from '@variance-authority/package/help';
+import { importsByPath } from './by-path.js';
 
 /**
  * Locating the thing a question is about, and refusing well when it is not there.
@@ -114,7 +115,12 @@ export function unfound(help: Help, name: string, within: string | undefined): s
   if (exported.length > 0) {
     const [first] = exported;
     const more = exported.length > 1 ? ` and ${exported.length - 1} more` : '';
-    return `\`${name}\` is not published by ${where}; it is exported, without being published, at ${first?.at}:${first?.line}${more}.`;
+    const unknown =
+      within !== undefined &&
+      exported.some((held) => within.startsWith(`${held.by}/`)) &&
+      !importsByPath(help, within).some(([deep]) => deep.specifier === within && deep.to !== undefined);
+    const why = unknown ? `; no import of ${where} in this workspace resolved to a file, so the file it names is not known` : '';
+    return `\`${name}\` is not published by ${where}; it is exported, without being published, at ${first?.at}:${first?.line}${more}${why}.`;
   }
   const around = [...published].filter((held) => held.toLowerCase().includes(lowered)).length;
   if (around > 0) {

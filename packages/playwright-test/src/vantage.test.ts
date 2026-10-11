@@ -37,7 +37,7 @@ function info(over: Partial<TestInfo> = {}): TestInfo {
   return {
     testId: 't-1',
     title: 'adds an item',
-    titlePath: ['chromium', join(process.cwd(), 'specs/cart.spec.ts'), 'the cart', 'adds an item'],
+    titlePath: ['specs/cart.spec.ts', 'the cart', 'adds an item'],
     file: join(process.cwd(), 'specs/cart.spec.ts'),
     workerIndex: 3,
     project: { name: 'chromium' },
@@ -89,7 +89,7 @@ describe('varianceVantageFixtures', () => {
     const { said, vantage } = watcher();
 
     try {
-      await watched(vantage, info({ file: spec, titlePath: ['chromium', spec, 'the cart', 'adds an item'] }));
+      await watched(vantage, info({ file: spec, titlePath: ['specs/cart.spec.ts', 'the cart', 'adds an item'] }));
     } finally {
       started.mockRestore();
     }
@@ -100,13 +100,12 @@ describe('varianceVantageFixtures', () => {
   it('leaves the project out when the suite never named one', async () => {
     const { said, vantage } = watcher();
 
-    // An unnamed project is an empty leading entry in the path, not a missing
-    // one, and both halves of that fact are read here.
+    // An unnamed project is an empty name, and the title does not carry it.
     await watched(
       vantage,
       info({
         project: { name: '' } as TestInfo['project'],
-        titlePath: ['', 'specs/cart.spec.ts', 'the cart', 'adds an item'],
+        titlePath: ['specs/cart.spec.ts', 'the cart', 'adds an item'],
       }),
     );
 
@@ -117,9 +116,19 @@ describe('varianceVantageFixtures', () => {
   it('keeps a title that is only the test', async () => {
     const { said, vantage } = watcher();
 
-    await watched(vantage, info({ titlePath: ['chromium', 'adds an item'] }));
+    await watched(vantage, info({ titlePath: ['specs/cart.spec.ts', 'adds an item'] }));
 
     expect(said.opened[0]?.identity.title).toBe('adds an item');
+  });
+
+  it('names a test by the position of its titles, whatever they spell', async () => {
+    const { said, vantage } = watcher();
+
+    // The first entry is the file, and every entry after it is a title, even
+    // one that spells the file's leaf or the project.
+    await watched(vantage, info({ titlePath: ['specs/cart.spec.ts', 'cart.spec.ts', 'chromium', 'adds an item'] }));
+
+    expect(said.opened[0]?.identity.title).toBe('cart.spec.ts › chromium › adds an item');
   });
 
   it('carries the first lines of the failure it ended on', async () => {

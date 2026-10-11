@@ -23,16 +23,19 @@ export interface ObservedTest {
 /**
  * Where a test is declared, as the execution index names it.
  *
- * Playwright's own `titlePath` opens with the project and the file. The file is
- * the owner and the project is carried beside the name, so what is left is the
- * path a person reads in the report, and the one a `describe` in a diff moves.
+ * Playwright's own `titlePath` is the file relative to `testDir`, then each
+ * enclosing `describe`, then the test's title; the project is not in it. The
+ * file is the owner and the project is recorded beside the name, so the name is
+ * the rest: the path a person reads in the report, and the one a `describe` in
+ * a diff moves.
  */
 export function testOf(testInfo: TestInfo): ObservedTest {
-  const path = [...testInfo.titlePath];
   const project = testInfo.project.name;
-  if (path[0] === project) path.shift();
-  if (path[0] !== undefined && testInfo.file.endsWith(path[0])) path.shift();
-  return { name: path.join(' > '), id: testInfo.testId, ...(project === '' ? {} : { project }) };
+  return {
+    name: testInfo.titlePath.slice(1).join(' > '),
+    id: testInfo.testId,
+    ...(project === '' ? {} : { project }),
+  };
 }
 
 /** The test file a subject's crossings belong to, repository-relative. */

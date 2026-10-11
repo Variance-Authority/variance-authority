@@ -63,7 +63,7 @@ async function namedWhenSaid(when: 'comparing' | 'reading the accessibility tree
     const testInfo = {
       project: { name: 'chromium' },
       file: resolve(root, owner),
-      titlePath: ['chromium', owner, 'mocked', 'pays'],
+      titlePath: [owner, 'mocked', 'pays'],
       testId: 'one',
     } as unknown as TestInfo;
     const standing: PreconditionStanding = { at: 'case', key: caseKey(owner, 'one') };
