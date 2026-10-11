@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, rename, rmdir, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, rmdir, stat, utimes, writeFile } from 'node:fs/promises';
 import { dirname, join, normalize, sep } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import {
@@ -125,6 +125,7 @@ export function createDirectoryLineCell(root: string): LineCell {
         return missOf(dir, error);
       }
       if (lease === undefined) return 'conflict';
+      const holding = lease;
       try {
         // The spelling was checked above and cannot change, so the manifest is read without asking again.
         const held = await read(dir);
@@ -134,14 +135,17 @@ export function createDirectoryLineCell(root: string): LineCell {
         // TODO: an entry or image no manifest names any more stays on disk, and a
         // branch's line outlives the branch; nothing here deletes.
         for (const [path, bytes] of write.blobs) await place(where(line, path), bytes);
-        // A writer that stalled past the stale limit may have lost the lock to one that took it for abandoned.
-        if (!(await lease.owns())) return 'conflict';
-        await place(join(dir, 'manifest.json'), write.manifest);
-        return 'written';
+        // A writer that stalled past the stale limit may have lost the lock to one
+        // that took it for abandoned. Asked once the manifest's bytes are staged,
+        // so the only step left between the answer and the commit is one rename.
+        // FIXME: a writer frozen past the stale limit inside that step still
+        // renames over the next writer's manifest; closing it needs the commit
+        // itself to be conditional on the version it replaces.
+        return (await place(join(dir, 'manifest.json'), write.manifest, () => holding.owns())) ? 'written' : 'conflict';
       } catch (error) {
         return missOf(dir, error);
       } finally {
-        await lease.release();
+        await holding.release();
       }
     },
   };
@@ -329,14 +333,20 @@ function unlessMissing(error: unknown): void {
 
 let placed = 0;
 
-async function place(path: string, bytes: Uint8Array): Promise<void> {
+/** Writes `bytes` to `path` whole, and only when `ready` still says so once they are staged; whether it did. */
+async function place(path: string, bytes: Uint8Array, ready?: () => Promise<boolean>): Promise<boolean> {
   await mkdir(dirname(path), { recursive: true });
   // Counted as well as timed: two lines placing one image in one millisecond
   // would otherwise stage it under one name, and one rename would find nothing.
   placed += 1;
   const staged = `${path}.${process.pid.toString(36)}${Date.now().toString(36)}-${placed.toString(36)}.part`;
   await writeFile(staged, bytes);
+  if (ready !== undefined && !(await ready())) {
+    await rm(staged, { force: true });
+    return false;
+  }
   await rename(staged, path);
+  return true;
 }
 
 async function readHeld(path: string): Promise<Uint8Array | ShareMiss> {

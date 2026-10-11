@@ -8,7 +8,8 @@ A publish to a directory line keeps its lock fresh while it writes, so a write
 that runs past a minute is no longer taken for a dead writer's and written over.
 A writer that has gone 45 s without freshening its lock gives it up before
 another writer could take it for dead: it writes no manifest and answers that the line moved,
-so the publish reads the line again. The same holds for a writer whose lock is
+so the publish reads the line again. It asks once the manifest is staged, so
+nothing but the rename that commits it follows the answer. The same holds for a writer whose lock is
 gone, or whose freshening landed too late to count. When two writers find one dead
 writer's lock, one removes it and the other waits for the lock that writer
 makes.

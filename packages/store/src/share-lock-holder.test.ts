@@ -130,6 +130,26 @@ describe('a line lock and its holder', () => {
     await expect(real.stat(lock), 'the other writer still holds its lock').resolves.toBeDefined();
   });
 
+  it('writes no manifest and leaves no staged one behind, when its lock was taken while it wrote the manifest', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const cell = createDirectoryLineCell(root);
+    const line = join(root, 'mainline', 'main');
+    vi.mocked(writeFile).mockImplementation((async (...args: Parameters<typeof writeFile>) => {
+      if (String(args[0]).includes('manifest.json')) {
+        // Stalled past the stale limit on the manifest's own bytes, after its last look at the lock.
+        vi.setSystemTime(Date.now() + STALE_MS + 1_000);
+        await real.rmdir(lock);
+        await real.mkdir(lock);
+      }
+      return real.writeFile(...args);
+    }) as typeof writeFile);
+
+    const blobs = new Map([['entries/a', ascii('a')]]);
+    expect(await cell.store(MAIN, { manifest: ascii('{"format":1,"entries":[]}'), blobs })).toBe('conflict');
+    expect((await readdir(line)).filter((name) => name.startsWith('manifest.json'))).toEqual([]);
+    await expect(real.stat(lock), 'the other writer still holds its lock').resolves.toBeDefined();
+  });
+
   it('stops stamping a lock it can no longer vouch for, and leaves it in place', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
     const cell = createDirectoryLineCell(root);
