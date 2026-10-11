@@ -427,7 +427,8 @@ Some reads cannot be placed in one function, and those charge the whole module:
   by `require` or `import()`, gives the parser no name to match.
 - An importer whose text cannot be read, such as a Flow file, may read the name
   anywhere or pass it on, so every test that loaded it is selected, through the
-  file graph when the record has no data for it.
+  file graph when the record has no data for it. A test that mocked it ran
+  none of its text and is not selected.
 
 The search goes one import deep: it looks in the files that import the declaring
 file, and further only through a file that re-exports the name, such as a
