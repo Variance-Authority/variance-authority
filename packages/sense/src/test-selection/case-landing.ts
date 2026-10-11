@@ -164,14 +164,14 @@ export function layCases(
   // text, so its before of them is not the base's. `beforeTexts` names that
   // text, and a reader leaves those modules unmeasured rather than compare
   // them; keeping the base's cut of every module would keep a second index.
-  const before = again ? layerBefore(previous.before, retired, ran) : retired;
-  const beforeTexts = textsOfBefore(
-    before,
-    retired,
-    base === undefined ? held : base.texts,
-    again ? prior.beforeTexts : undefined,
-    new Set(unlined),
-  );
+  const cut = base === undefined ? held : base.texts;
+  const kept = again ? prior.beforeTexts : undefined;
+  // Two texts named differ; one nobody named is the commit both layers are named at.
+  const before = again ? layerBefore(previous.before, retired, ran, (file) => {
+    const [was, now] = [kept?.[file], cut?.get(file)];
+    return was === undefined || now === undefined || was === now;
+  }) : retired;
+  const beforeTexts = textsOfBefore(before, retired, cut, kept, new Set(unlined));
   const at = again ? (prior.files.some((test) => ran.has(test)) ? undefined : prior.before) : prior === undefined ? stands : prior.commit;
   const files = [...ran].sort(codeUnitOrder);
   // A file laid over no index has no base; running it again at this commit

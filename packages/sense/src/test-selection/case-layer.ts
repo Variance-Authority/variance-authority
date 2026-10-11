@@ -365,17 +365,23 @@ function heldModule(held: HeldIndex, file: string): SetExecutionModule | undefin
  * a review of a pull request would compare only the last invocation's files
  * with the base. A file this run ran again keeps what it retired this time,
  * which is the run before it, as a re-run in the edit loop wants.
+ *
+ * Both layers are named at one commit, so a module of each is cut from one
+ * text unless `sameText` says the two were cut from different ones, and its
+ * namesakes pair by occurrence. Laid as across an edit they would pair with
+ * nothing, and each would take the cases of the region around it.
  */
 export function layerBefore(
   kept: Uint8Array | undefined,
   retired: Uint8Array | undefined,
   ran: ReadonlySet<string>,
+  sameText: (file: string) => boolean,
 ): Buffer | undefined {
   if (kept === undefined) return retired === undefined ? undefined : Buffer.from(retired);
   if (retired === undefined) return Buffer.from(kept);
   // A deleted test file stays: its cases are what the base had, and that is
   // what a comparison with the base reports as gone.
-  return layerCaseIndex(kept, retired, { ran, finished: ran, present: () => true }).merged;
+  return layerCaseIndex(kept, retired, { ran, finished: ran, present: () => true, sameText }).merged;
 }
 
 /**

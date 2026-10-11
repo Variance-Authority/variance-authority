@@ -1,8 +1,13 @@
 // Laying a run's cases over an index whose regions share an address, told
 // apart only by the order they were cut in, when the text moved between them.
 
-import { describe, expect, it } from 'vitest';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { layCases } from './case-landing.js';
 import { layerCaseIndex } from './case-layer.js';
+import type { CaseSections } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { linesOf, nestedAt, ran } from './__fixtures__/case-index.js';
 
@@ -64,4 +69,46 @@ describe('siblings told apart only by occurrence, one taken out in front and one
   // Paired by occurrence, alpha lands on beta's body (FIXME in
   // `region-landing.ts`).
   it.todo('carries neither effect\'s cases onto the one at its occurrence when an older text put both effects at the lines the recorded one does — needs the case index to record each region\'s digest');
+});
+
+describe('the before layer of a suite run in two invocations at one commit', () => {
+  const [alpha, beta] = ['alpha.test.ts > opens', 'beta.test.ts > closes'];
+  const file = 'src/widget.ts';
+  const effect = 'Widget/useEffect.arg0';
+  const text = new Map([[file, 'v1:one']]);
+  const cut = (cases: readonly string[], widget: readonly string[], first: readonly string[]) => nestedAt(cases, file, [
+    ['module', '', [1, 11], widget],
+    ['function', 'Widget', [1, 10], widget],
+    ['function', effect, [2, 4], first],
+    ['function', effect, [6, 8], []],
+  ]);
+  const at = (commit: string, test: string) => ({ commit, tests: [{ file: test, complete: true }], modules: [{ file, sourceDigest: 'v1:one' }] });
+
+  let root: string;
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'variance-namesakes-before-'));
+    for (const test of ['alpha.test.ts', 'beta.test.ts']) await writeFile(join(root, test), '');
+  });
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('keeps each namesake\'s cases where the base had them, since both invocations retired cuts of one text', () => {
+    // CI's two selection waves: the near one ran alpha, the far one beta, both
+    // at the merge commit, over a base that never changed the widget. Each
+    // retired its own file's cases at the base's text, and the second lays
+    // what it retired over what the first did.
+    const base: CaseSections = {
+      index: cut([alpha, beta], [alpha, beta], [alpha]),
+      last: Buffer.from(JSON.stringify({ commit: 'base', at: '2026-10-11T00:00:00.000Z', files: ['alpha.test.ts', 'beta.test.ts'], cases: [alpha, beta] })),
+    };
+    const near = layCases(base, cut([alpha], [alpha], [alpha]), root, at('merge', 'alpha.test.ts'), undefined, text);
+    const far = layCases(near, cut([beta], [beta], []), root, at('merge', 'beta.test.ts'), undefined, text);
+
+    const before = decodeExecutionIndex(far.before!);
+    const effects = before.modules[0]!.blocks
+      .filter((block) => block.name === effect)
+      .map((block) => block.crossings.map((crossing) => before.tests[crossing.test]!.id));
+    expect(effects).toEqual([[alpha], []]);
+  });
 });
