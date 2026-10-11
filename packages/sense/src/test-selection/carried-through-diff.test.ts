@@ -12,6 +12,7 @@ import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { NO_OWNER } from './format-layout.js';
 import { encodeSetExecutionIndex } from './execution-set-format.js';
+import { coveringTests } from './reverse.js';
 import { readTestCoverage, testCoverageFile, type CoverageModule, type TestCoverage } from './index.js';
 
 /**
@@ -118,6 +119,8 @@ function onEffects(text: string, blocks: readonly { readonly name: string; reado
 interface Landed {
   readonly coverage: Record<string, string[]>;
   readonly cases: Record<string, string[]>;
+  /** The cases `variance covering --line` names at the line of the call in the landed text. */
+  readonly covering: (call: string) => string[];
 }
 
 /** The mainline's run over `base` for ONE and TWO, then a local leg at the same commit over `dirty` for THREE. */
@@ -157,7 +160,9 @@ async function landBoth(base: string, dirty: string, options: { readonly commitB
     const module = landed.modules.find((row) => row.file === FILE)!;
     const index = decodeExecutionIndex(caseSectionsAt(coverageFile).index!);
     const caseModule = index.modules.find((row) => row.file === FILE)!;
+    const lines = dirty.split('\n');
     return {
+      covering: (call) => coveringTests(index, { file: FILE, line: lines.findIndex((line) => line.includes(call)) + 1 }).map((test) => test.id).sort(),
       coverage: onEffects(dirty, module.blocks.map((block) => ({ ...block, on: block.testFiles }))),
       cases: onEffects(dirty, caseModule.blocks.map((block) => ({ ...block, on: block.crossings.map((crossing) => index.tests[crossing.test]!.id) }))),
     };
@@ -198,5 +203,14 @@ describe('the cases of a mainline run, carried onto a local leg through the edit
 
     expect(cases['second();']).toEqual([caseOf(TWO)]);
     expect(cases['third();']).not.toContain(caseOf(TWO));
+  });
+
+  it('names, for a later edit of each effect, the tests that ran that effect and no other', async () => {
+    const { covering } = await landBoth(TWO_EFFECTS, SWAPPED);
+
+    // The query a change to a line is answered by: the survivor's body selects
+    // TWO alone, the effect written behind it THREE alone.
+    expect(covering('second();')).toEqual([caseOf(TWO)]);
+    expect(covering('third();')).toEqual([caseOf(THREE)]);
   });
 });
