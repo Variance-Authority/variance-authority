@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -9,7 +10,8 @@ import { intersectionSource } from './ask-source.js';
  * `variance ask intersection` reads its names from the checkout, through the
  * source index. An ask that finds every file already in the index must still
  * have their names: a file the index serves is not a file that declares
- * nothing.
+ * nothing. The fixture is committed, so the scan knows every file's digest
+ * and the second ask is served from the index rather than parsed again.
  */
 
 let root: string;
@@ -26,6 +28,10 @@ beforeAll(() => {
   write('src/store/index.ts', "import { selectBalance } from './selectors';\nexport { selectBalance };\n");
   write('src/store/selectors.ts', 'export const selectBalance = (state: { balance: number }) => state.balance;\n');
   write('src/old/selectors.ts', 'export const selectBalance = () => 0;\n');
+  const commit = (...args: string[]): void => void execFileSync('git', ['-C', root, ...args]);
+  commit('init', '--quiet');
+  commit('add', '.');
+  commit('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'fixture');
 });
 
 afterAll(() => rmSync(root, { recursive: true, force: true }));
