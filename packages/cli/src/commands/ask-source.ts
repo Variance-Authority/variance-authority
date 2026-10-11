@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
-import { answerSearch, discover, grep, journeyMapTool, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
+import { answerSearch, discover, grep, intersection, journeyMapTool, namesWanted, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
 import { readTree, startPointArg, stringArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
@@ -88,6 +88,27 @@ export async function grepSource(root: string, input: Readonly<Record<string, un
 export async function discoverSource(root: string, input: Readonly<Record<string, unknown>>): Promise<Answering> {
   const read = await readNamedTree(root, input);
   return { answer: () => discover.run(undefined, input, { ...read, root }), at: undefined };
+}
+
+/**
+ * `intersection` asks each of its questions over one reading: the workspace
+ * value the name questions read, the tree when any question names a path, and
+ * each file's names when a `discover` among them reads names — which only the
+ * scan that draws the tree holds, so the tree is drawn there instead.
+ */
+export async function intersectionSource(
+  root: string,
+  input: Readonly<Record<string, unknown>>,
+  reading: SourceReadOptions,
+): Promise<Answering> {
+  const named = namesWanted(input);
+  const sourced = await readSource(root, { ...reading, tree: reading.tree === true && !named });
+  const tree = sourced.tree?.();
+  const drawn = named ? await readNamedTree(root, input) : tree === undefined ? {} : { tree };
+  return {
+    answer: () => intersection.run(sourced.help, input, { ...drawn, root }),
+    at: workspaceGeneration(sourced.help),
+  };
 }
 
 /**

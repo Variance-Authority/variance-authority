@@ -6,15 +6,16 @@ import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, questionFor, questionOf, refuseWords, type Question } from './asking.js';
-import { discover, grep, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
+import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
 import { readTree, type CostsSubject, type Reviewed, type ReviewTool, type Tree } from '@variance-authority/mcp/tools';
 import { flagged, type Flagged } from './ask-flagged.js';
+import { intersectionInput } from './ask-intersection.js';
 import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
-import { discoverSource, grepSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
+import { discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
 import { readVantage } from './watch.js';
@@ -233,14 +234,17 @@ export async function askSource(request: SourceRequest): Promise<string> {
   if (tool === undefined) {
     throw new OperatorError(`\`${request.question}\` is about a run, not the source; ask it of a report`);
   }
-  refuseWords(tool, request.reports);
+  // `intersection` is the one source question whose words are its own: each
+  // is a whole question, in quotes.
+  const crossing = tool.name === intersection.name;
+  if (!crossing) refuseWords(tool, request.reports);
 
   // Refused before anything is read: a question that has no shape to give
   // would otherwise answer in prose to a caller about to parse it.
   if (request.format === 'json' && tool.name !== search.name) {
     throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\``);
   }
-  const input = inputFor(tool, flagged(request));
+  const input = crossing ? intersectionInput(request.reports ?? [], request.limit) : inputFor(tool, flagged(request));
   const changed = request.changedFile === undefined ? undefined : await readChanged(request.changedFile);
   const taints = request.taintFile === undefined ? undefined : [await readTaint(request.taintFile)];
   if (request.justAnswer === true && (changed !== undefined || taints !== undefined)) {
@@ -260,6 +264,7 @@ export async function askSource(request: SourceRequest): Promise<string> {
     : tool.name === search.name ? await searchSource(process.cwd(), input, reading)
     : tool.name === grep.name ? await grepSource(process.cwd(), input)
     : tool.name === discover.name ? await discoverSource(process.cwd(), input)
+    : crossing ? await intersectionSource(process.cwd(), input, reading)
     : tool.name === orient.name ? orientSource(process.cwd(), input)
     : tool.name === slowestTests.name ? slowestSource(process.cwd(), input)
     : tool.name === journeyMapTool.name ? journeyMapSource(process.cwd(), input)
