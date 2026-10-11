@@ -335,14 +335,13 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
  * `RasterStore` contract's own instruction: returning nothing for a baseline that
  * exists but was written elsewhere reports "we have never seen this", and "we have
  * seen this, on a machine you are not" is a different and much more useful
- * sentence — it is the one that produces `incomparable` instead of a silent
- * re-record.
+ * sentence — it is the one that compares against that image and names the
+ * machine as the cause, instead of a silent re-record.
  *
- * Where the directory store scans siblings in whatever order `readdir` returns,
- * this takes the most recently written. Both satisfy the contract; only one of
- * them gives the same answer twice when three machines have written the subject,
- * and an `incomparable` message that names a different machine on each run is a
- * message nobody can act on.
+ * This takes the most recently written, and the lowest identity digest between
+ * two written in one millisecond, so three machines that have written the
+ * subject get the same answer twice. A cause that names a different machine on
+ * each run is a cause nobody can act on.
  */
 async function locate(
   db: D1Like,
@@ -361,7 +360,7 @@ async function locate(
                   components, finding_marks, object_key, identity_digest
              FROM baselines
             WHERE project = ? AND subject = ? AND label = ?
-            ORDER BY (identity_digest = ?) DESC, at_ms DESC
+            ORDER BY (identity_digest = ?) DESC, at_ms DESC, identity_digest
             LIMIT 1`,
         )
         .bind(project, key.subject, label, mine)

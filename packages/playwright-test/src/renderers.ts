@@ -17,7 +17,7 @@
  * A suite that declares no `timezoneId` gets `UTC`, not the host's. Playwright
  * Test opens a context in the host's timezone when nothing sets one, so a page
  * read on a laptop in Sydney and one read on a CI runner in UTC would carry
- * different keys and read `incomparable`. Its `locale` needs no pin: Playwright
+ * different keys, and every change would name the timezone. Its `locale` needs no pin: Playwright
  * Test already defaults it to `en-US`, the default the collectors pin.
  */
 

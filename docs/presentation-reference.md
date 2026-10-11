@@ -254,7 +254,7 @@ Presence remains meaningful:
 
 Presentation consequence, renderer impact, and the visual-regression **verdict**
 — the run's answer for one subject, such as `unchanged`, `changed` or
-`incomparable` — remain separate axes. Storing a signal applies no policy and
+`new` — remain separate axes. Storing a signal applies no policy and
 never changes that verdict.
 
 ## Authority and limits

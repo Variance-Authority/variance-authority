@@ -113,7 +113,7 @@ there and is never spent on chrome: it marks the cause, and nothing else.
 | `--va-warn` | `#e0a458` | Amber: changed, pending, not observed |
 | `--va-warn-bg` | `#2a2118` | Field behind an amber pill or panel |
 | `--va-warn-ink` | `#f0c48a` | Text on that field |
-| `--va-bad` | `#e5695c` | Red: refused, incomparable, unstable, failed |
+| `--va-bad` | `#e5695c` | Red: refused, unstable, failed |
 | `--va-bad-bg` | `#2c1b18` | Field behind a red pill or panel |
 | `--va-bad-ink` | `#f3a99e` | Text on that field |
 

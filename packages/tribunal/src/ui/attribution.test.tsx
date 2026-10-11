@@ -79,7 +79,7 @@ function build(
     at: '2026-08-30T00:00:00.000Z',
     identity: { browser: 'chromium', viewport: { width: 1280, height: 800 } } as never,
     retention: 'durable',
-    verdicts: { changed: subjects.length, unchanged: 0, new: 0, incomparable: 0, unstable: 0, ignored: 0 },
+    verdicts: { changed: subjects.length, unchanged: 0, new: 0, unstable: 0, ignored: 0 },
     decided: 0,
     pending: subjects.length,
     coverage: { stated: true, failed: 0, excluded: 0, unreached: 0 },

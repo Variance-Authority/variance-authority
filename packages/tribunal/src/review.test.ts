@@ -34,7 +34,6 @@ describe('a build is the report a run already wrote', () => {
       changed: 1,
       unchanged: 1,
       new: 0,
-      incomparable: 0,
       ignored: 0,
     });
     expect(detail?.subjects[0]?.regions).toHaveLength(2);
@@ -380,7 +379,7 @@ describe('a variation is carried, and is never a verdict', () => {
 
     // Three variations, and not one of them is a subject awaiting anybody. A
     // variation reported as pending would be a subject flagged for existing.
-    expect(detail?.verdicts).toEqual({ changed: 1, unchanged: 1, new: 0, incomparable: 0, ignored: 0 });
+    expect(detail?.verdicts).toEqual({ changed: 1, unchanged: 1, new: 0, ignored: 0 });
     expect(detail?.pending).toBe(1);
     expect(detail?.causes).toHaveLength(1);
   });

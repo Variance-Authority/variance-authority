@@ -95,6 +95,7 @@ export function summaryStatements(
     // `pending` in SQL rather than by subtraction, because the two lists are not
     // complements: a subject can carry a decision and a verdict nothing pends
     // on, and counting those out of the needing list is what this does.
+    // `incomparable` is a row written before ADR-0090, a pair nobody diffed.
     bind(
       `SELECT s.build AS build, COUNT(*) AS n FROM build_subjects s
         WHERE s.project = ? AND ${scope.where('s')}
@@ -152,7 +153,6 @@ export function summarize(project: string, row: Row, counts: SummaryCounts): Bui
     unchanged: 0,
     changed: 0,
     new: 0,
-    incomparable: 0,
     ignored: 0,
   };
   for (const entry of counts.verdicts) {

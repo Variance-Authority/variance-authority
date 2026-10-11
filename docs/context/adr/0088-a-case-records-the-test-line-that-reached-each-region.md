@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-10-10
+**Amended by:** [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) — a reading under another clock, instant, timezone or locale is compared, with the moved recipe named as the cause; where this record says `incomparable`, read `changed` with that cause
 **Narrows:** [ADR-0056](0056-a-journey-is-the-places-visited.md) decision 1
 (record places)
 **Extended by:** [ADR-0089](0089-a-page-case-records-the-statement-its-drain-followed.md) (a

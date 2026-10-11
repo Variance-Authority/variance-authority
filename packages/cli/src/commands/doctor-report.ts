@@ -32,20 +32,9 @@ export function exitForDiagnosis(diagnosis: Diagnosis): ExitCode {
   if (diagnosis.renderer.checked === false) return EXIT_CLEAN;
   if (!diagnosis.renderer.available) return EXIT_OPERATOR;
 
-  /**
-   * A store this machine cannot compare against is a machine that cannot do the
-   * work, which is what exit 2 means (ADR-0017).
-   *
-   * The bar this has to clear is the one the font probe fails: a diagnostic that
-   * fails CI on a false positive gets removed. It clears it, because this is not
-   * a probe — the store's layout *is* the partition, so a run here would report
-   * `incomparable` for every subject and produce no verdict at all. Exiting 0
-   * would hand that runner a green doctor and a red morning.
-   *
-   * Only reachable when a renderer opened, the root exists, and it was scanned.
-   * Every other state leaves `comparable` absent and lands above.
-   */
-  return diagnosis.baselines.comparable === false ? EXIT_OPERATOR : EXIT_CLEAN;
+  // A store another machine painted is a finding, not a refusal: the run
+  // compares every subject and names the machine as the cause (ADR-0090).
+  return EXIT_CLEAN;
 }
 
 export function formatDiagnosis(diagnosis: Diagnosis): string {
@@ -80,7 +69,7 @@ export function formatDiagnosis(diagnosis: Diagnosis): string {
       : []),
     '',
     `baselines: ${diagnosis.baselines.kind}${
-      diagnosis.baselines.comparable === false ? ' — NOT COMPARABLE HERE' : ''
+      diagnosis.baselines.paintedHere === false ? ' — PAINTED ELSEWHERE' : ''
     }`,
     `  ${diagnosis.baselines.because}`,
     ...partitionLines(diagnosis.baselines.partitions ?? []),

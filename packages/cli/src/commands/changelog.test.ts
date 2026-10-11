@@ -84,7 +84,7 @@ describe('the message `accept` leaves for the workflow to commit', () => {
 
     const said = await writeAcceptMessage({
       report: report(),
-      result: { accepted: [{ subject: 'story:card', from: 'a.png' }], refused: [], alreadyBaseline: 0 },
+      result: { accepted: [{ subject: 'story:card', from: 'a.png' }], refused: [], alreadyBaseline: 0, restamped: 0 },
       selection: 'all',
       path,
       message: 'chore(variance): regenerate baselines',
@@ -105,7 +105,7 @@ describe('the message `accept` leaves for the workflow to commit', () => {
 
     const said = await writeAcceptMessage({
       report: report(),
-      result: { accepted: [], refused: [], alreadyBaseline: 3 },
+      result: { accepted: [], refused: [], alreadyBaseline: 3, restamped: 0 },
       selection: 'all',
       path,
       message: 'chore(variance): regenerate baselines',

@@ -69,7 +69,7 @@ function withoutPixels(
   const diagnosticsField = diagnostics.length === 0 ? {} : { diagnostics };
   const accessibilityField = accessibility === undefined ? {} : { accessibility };
 
-  // A subject that gained or lost its pixels. Deliberately not `incomparable`:
+  // A subject that gained or lost its pixels. Changed, with no identity cause:
   // nothing about the two records is mismatched — same painter, same subject,
   // same kind of evidence — and the transition is itself the most reviewable
   // thing that can happen to such a subject. An empty wrapper that started
@@ -162,9 +162,8 @@ function withoutPixels(
  * outside every component is still a change.
  *
  * Only here, where the document is the verdict and nothing it leaves out can
- * reach a pixel. A painted subject is decided by its pixels, and an
- * incomparable one carries the raw answer, which is what lets `accept --all`
- * adopt a recipe bump only where the markup did not move at all.
+ * reach a pixel. A painted subject is decided by its pixels, whatever identity
+ * painted them.
  */
 function documentMovedUnpainted(before: Raster, after: Raster): 'unchanged' | 'changed' {
   if (before.documentDigest === after.documentDigest) return 'unchanged';

@@ -95,7 +95,12 @@ describe('a partition named with the raw digest', () => {
   it('is read ahead of another machine`s partition, so a comparable baseline wins', async () => {
     const store = createDurableStore(root);
     await store.put({ subject: 'button' }, rasterOf(MAC, 'v1:doc', 'TUFD'));
-    await store.put({ subject: 'button' }, rasterOf(RUNNER, 'v1:doc', 'UlVO'));
+    // Both copies, as an earlier store left them: a put now moves the baseline.
+    const elsewhere = await mkdtemp(join(tmpdir(), 'va-partition-'));
+    await createDurableStore(elsewhere).put({ subject: 'button' }, rasterOf(RUNNER, 'v1:doc', 'UlVO'));
+    const runner = digestFileName(identityDigest(RUNNER));
+    await rename(join(elsewhere, runner), join(root, runner));
+    await rm(elsewhere, { recursive: true, force: true });
     await spellWithColon(root, MAC);
 
     const found = await store.find({ subject: 'button' }, MAC);

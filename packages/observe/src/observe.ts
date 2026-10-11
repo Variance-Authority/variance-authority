@@ -10,17 +10,15 @@ import type {
   Diagnostic,
   Raster,
   RenderDocument,
-  RenderIdentity,
   SemanticSnapshot,
 } from '@variance-authority/core/format';
 import type { Level } from '@variance-authority/core/judge';
-import { identityDigest } from '@variance-authority/core/format';
 import type { PngDecoder } from '@variance-authority/png';
 import {
-  incomparableBecause,
-  recipeOnly,
+  identityCause,
   type BaselineKey,
   type CompareOptions,
+  type IdentityCause,
   type RasterComparison,
   type RasterStore,
   type Renderer,
@@ -48,17 +46,6 @@ export type RasterVerdict =
   | 'changed'
   /** No baseline for this subject. Not a pass, and not a failure. */
   | 'new'
-  /**
-   * A baseline exists, produced by a different machine.
-   *
-   * The verdict that keeps the durable mode honest. Comparing across identities
-   * yields a large, confident diff caused by a font stack or a driver, which the
-   * report would then attribute to whichever component happens to sit under the
-   * pixels — so the comparison is refused instead. `unchanged` is never available
-   * here: an unobservable difference must never be reported as no difference
-   * (ADR-0002, ADR-0008).
-   */
-  | 'incomparable'
   /**
    * Pixels differed, and every one of them fell inside something the operator
    * excluded (spec 0024).
@@ -90,19 +77,20 @@ export interface Observation {
   /**
    * The three independently observed boundaries and the retained ARIA diff.
    *
-   * A missing member was not measured. An `incomparable` subject carries
-   * `document` and `identity`: no pixels were compared, and only an image of
-   * the same document whose recipe alone moved may be adopted by a bulk
-   * acceptance (`promotionOf`).
+   * A missing member was not measured. A subject compared across two render
+   * identities carries `identity` and `moved`: the cause of whatever the
+   * comparison found (ADR-0090).
    */
   readonly signals?: {
     readonly document: 'unchanged' | 'changed';
     /**
-     * Set on an `incomparable` subject: `recipe` when the two identities differ
-     * in the recipe digests alone (`recipeOnly`), `machine` for any other
-     * difference, including one nobody recorded.
+     * Set when the two images were painted under different identities: `recipe`
+     * when they differ in the recipe digests alone (`recipeOnly`), `machine` for
+     * any other difference, including one nobody recorded.
      */
     readonly identity?: 'recipe' | 'machine';
+    /** The identity fields that moved, as `field a → b`, stored side first. */
+    readonly moved?: readonly string[];
     /**
      * `unobservable` when the subject occupies no pixels — a wrapper whose only
      * child went to a portal, a mount with no children. Distinct from
@@ -112,7 +100,7 @@ export interface Observation {
      */
     readonly pixels?: 'unchanged' | 'changed' | 'unobservable';
     readonly accessibility?: {
-      readonly verdict: 'unchanged' | 'changed' | 'incomparable';
+      readonly verdict: 'unchanged' | 'changed';
       readonly before?: AccessibilitySnapshot;
       readonly after?: AccessibilitySnapshot;
     };
@@ -310,14 +298,12 @@ export interface ObserveOptions extends CompareInputs {
  * already an `undefined` that `decide` handles by saying less, so the reduction
  * arrives as absent fields in the observation rather than as a second code path.
  *
- * **The identities are checked here, and nowhere else could do it.** The two
- * other paths get comparability for free — `observePair` renders both sides with
- * one renderer in one run, and `observeAgainstBaseline` gets it from the store
- * lookup, which knows what a baseline was written under. This one is handed two
- * rasters from anywhere, so it is the only entry point where a caller can
- * compare a WebKit baseline against a Chromium run, or an iOS simulator capture
- * against a Figma export. Pixels are machine-bound; two identities is one word,
- * and the alternative is a wall of red with no cause attached to it.
+ * **Two identities are a cause, never a refusal.** This entry point is handed
+ * two rasters from anywhere, so a caller can compare a WebKit baseline against
+ * a Chromium run, or an iOS simulator capture against a Figma export. The
+ * pixels are compared all the same, and the identity that moved is named as
+ * the cause of whatever they show (ADR-0090): a wall of red with its cause
+ * attached is reviewable, and silence is not.
  */
 export async function observeRasters(
   subject: string,
@@ -325,25 +311,14 @@ export async function observeRasters(
   after: Raster,
   options: CompareInputs = {},
 ): Promise<Observation> {
-  if (identityDigest(before.identity) !== identityDigest(after.identity)) {
-    return {
-      subject,
-      verdict: 'incomparable',
-      because: incomparableBecause(before, after, {
-        stored: 'the before image',
-        current: 'the after image',
-      }),
-      regions: [],
-      rendered: false,
-      missingFonts: [],
-      signals: {
-        document: documentMoved(before, after),
-        identity: identityMoved(before.identity, after.identity),
-      },
-    };
-  }
-
-  return await decideRasters(subject, before, after, false, options);
+  return withCause(
+    await decideRasters(subject, before, after, false, options),
+    identityCause(before.identity, after.identity, {
+      stored: 'the before image',
+      current: 'the after image',
+    }),
+    documentMoved(before, after),
+  );
 }
 
 /**
@@ -375,9 +350,10 @@ export async function observePair(
 /**
  * **Durable**: render this side, compare against a stored baseline.
  *
- * The baseline is looked up under *any* identity and the comparability check is
- * explicit, so a run on the wrong machine says so in one sentence instead of
- * failing every subject for reasons nobody can attribute.
+ * The baseline is looked up under *any* identity, its own first. One found
+ * under another identity is compared all the same, and the identity that moved
+ * is the cause the observation carries, so a run on another machine or after
+ * an upgrade shows every diff with the reason beside it.
  *
  * The key is `identityFor(document)`, never `renderer.identity`: the raster this
  * run is about to produce will be *written* under the former, and a lookup that
@@ -419,40 +395,40 @@ export async function observeAgainstBaseline(
     };
   }
 
-  if (!found.comparable) {
-    return {
-      subject: document.subject.id,
-      verdict: 'incomparable',
-      because: incomparableBecause(
-        { identity: found.storedUnder, documentDigest: found.raster.documentDigest },
-        { identity, documentDigest: fresh.raster.documentDigest },
-      ),
-      regions: [],
-      rendered: fresh.rendered,
-      missingFonts: fresh.raster.missingFonts,
-      signals: {
-        document: documentMoved(found.raster, fresh.raster),
-        identity: identityMoved(found.storedUnder, identity),
-      },
-      ...declaredField,
-    };
-  }
-
-  return await decideRasters(document.subject.id, found.raster, fresh.raster, fresh.rendered, options);
+  return withCause(
+    await decideRasters(document.subject.id, found.raster, fresh.raster, fresh.rendered, options),
+    identityCause(found.storedUnder, identity),
+    documentMoved(found.raster, fresh.raster),
+  );
 }
 
 /**
- * Whether two rasters were painted from different documents, as the signal an
- * incomparable observation carries in place of a pixel comparison.
+ * An observation with the identity that moved between its two images as its
+ * cause: named first in the sentence, and typed in `signals` for a report to
+ * group an avalanche by. Unchanged when nothing moved.
  */
+export function withCause(
+  observation: Observation,
+  cause: IdentityCause | undefined,
+  document: 'unchanged' | 'changed',
+): Observation {
+  if (cause === undefined) return observation;
+  return {
+    ...observation,
+    because: `${cause.because}; ${observation.because}`,
+    signals: {
+      document,
+      ...observation.signals,
+      identity: cause.identity,
+      moved: cause.moved,
+    },
+  };
+}
+
+/** Whether two rasters were painted from different documents. */
 export function documentMoved(
   before: Pick<Raster, 'documentDigest'>,
   after: Pick<Raster, 'documentDigest'>,
 ): 'unchanged' | 'changed' {
   return before.documentDigest === after.documentDigest ? 'unchanged' : 'changed';
-}
-
-/** Which part of the render identity differs between two incomparable images. */
-export function identityMoved(stored: RenderIdentity, current: RenderIdentity): 'recipe' | 'machine' {
-  return recipeOnly(stored, current) ? 'recipe' : 'machine';
 }

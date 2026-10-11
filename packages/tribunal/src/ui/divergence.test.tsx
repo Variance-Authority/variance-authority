@@ -57,7 +57,7 @@ function build(id: string, subjects: readonly SubjectView[]): BuildDetail {
     at: '2026-06-01T12:00:00.000Z',
     identity: { renderer: 'playwright-chromium', engine: 'chromium@131' } as never,
     retention: 'durable',
-    verdicts: { changed: 1, unchanged: 0, new: 0, incomparable: 0, unstable: 0, ignored: 0, failed: 0 },
+    verdicts: { changed: 1, unchanged: 0, new: 0, unstable: 0, ignored: 0, failed: 0 },
     decided: 0,
     pending: 1,
     coverage: { stated: true, failed: 0, excluded: 0, unreached: 0 },
@@ -133,7 +133,7 @@ describe('a verdict that describes no comparison is never placed on the axis', (
   });
 
   it('sets aside a subject this run did not compare', () => {
-    expect(shiftOf(subject({ verdict: 'incomparable' }), subject({ verdict: 'changed' }))).toBe(
+    expect(shiftOf(subject({ verdict: 'new', changedPixels: 0 }), subject({ verdict: 'changed' }))).toBe(
       'uncompared',
     );
   });

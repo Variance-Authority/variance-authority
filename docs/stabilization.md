@@ -41,9 +41,9 @@ export default routeCollector({
 ```
 
 Every baseline records the list it was taken under. A run under a new list
-does not report each subject, one named UI state such as a story or a route,
-as changed: it reports it `incomparable`, and the baseline you accept under the
-new list starts over. `@variance-authority/storybook-collector` exports the same
+compares each subject, one named UI state such as a story or a route, and names
+the moved recipe as the cause of whatever changed; the baseline you accept under
+the new list starts over. `@variance-authority/storybook-collector` exports the same
 `DEFAULT_STABILIZE` for `storybookCollector`.
 
 The `variance` fixture in `@variance-authority/playwright-test` fixes `Date` on
@@ -350,16 +350,15 @@ The recipe digest is a **render input** itself, in the semantic key as well as
 the full one. So:
 
 - A baseline collected untouched and a run collected held still are **two
-  baselines**. They are never compared, and the run reports `incomparable`
-  rather than inventing a component to blame.
+  baselines**. The run compares them and names the recipe as the cause of
+  every change, rather than inventing a component to blame.
 - Turning a trick off, adding one, or retuning one is a re-baseline the run
   prints, on the run it happens, instead of a mass diff you have to work out.
-  The `incomparable` reason names the recipe digest that moved, the run still
-  paints each subject, and `variance accept --all` adopts the new images once
-  you have looked at them. A subject whose document moved in the same run is
-  a change no comparison has read, so `--all` skips it and you accept it
-  by its id. An upgrade of variance-authority that changes the recipe reads
-  the same way.
+  Each change names the recipe digest that moved, the subjects it left
+  unchanged say so too, and `variance accept --all` adopts the new images once
+  you have looked at them. The reason also says whether a subject's document
+  moved in the same run, so a change of yours reads apart from the recipe's.
+  An upgrade of variance-authority that changes the recipe reads the same way.
 - `undefined` means *observed untouched*, and is absent from the key, not
   present-and-empty — because "no recipe ran" and "an empty recipe ran" are the
   same state and neither should look like a confident value.
@@ -469,9 +468,9 @@ export default routeCollector({
 
 `storybookCollector` takes the same option, and the `variance` fixture in
 `@variance-authority/playwright-test` takes it as `varianceNow`. The instant is
-part of the recipe the environment key records, so a baseline read at one
-instant is `incomparable` with a run read at another, rather than reported as a
-change your code made.
+part of the recipe the environment key records, so a run read at another
+instant than its baseline names the moved instant as the cause, rather than
+reporting a change your code made.
 
 ### Where each one applies
 

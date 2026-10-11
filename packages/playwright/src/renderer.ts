@@ -65,9 +65,10 @@ import {
  * ## Why this needs no new comparison rule
  *
  * The engine is already in {@link RenderIdentity}, which already keys the store
- * and already decides comparability. A WebKit baseline therefore lands in its own
- * directory, and a Chromium run that finds it reports `incomparable` and names
- * both engines — by the machinery that was there for two laptops, unchanged.
+ * and already names the cause of a cross-machine change. A WebKit baseline
+ * therefore lands in its own directory, and a Chromium run that finds it is
+ * compared with it and names both engines as the cause — by the machinery that
+ * was there for two laptops, unchanged.
  * Nothing about cross-engine support required a cross-engine concept.
  *
  * **What is not claimed.** The tricks in the stabilization recipe are written
@@ -114,8 +115,8 @@ export interface PlaywrightRendererOptions extends PageRegion {
    * Asserted, not detected: a page can ask whether a family resolves, and cannot
    * read the bytes behind it. This is the caller's declaration of what the
    * machine is, and it goes straight into the identity digest — which is the
-   * mechanism by which a durable baseline written on a machine with a different
-   * font stack is reported incomparable instead of compared.
+   * mechanism by which a change against a durable baseline written on a machine
+   * with a different font stack names the font stack as its cause.
    */
   readonly fonts?: readonly string[];
 
@@ -131,9 +132,8 @@ export interface PlaywrightRendererOptions extends PageRegion {
    * with a different mechanism, or add its own without editing this package.
    * Every shipped trick is applied from outside the subject, so nothing in the
    * product is shaped by it. The recipe is folded into the renderer's identity:
-   * a baseline made under one recipe and a run made under another are
-   * `incomparable`, not `changed`, because what differs is this option rather
-   * than anybody's code.
+   * a baseline made under one recipe and a run made under another are compared,
+   * and what changed names this option as its cause rather than anybody's code.
    */
   readonly stabilization?: Recipe;
 
@@ -207,7 +207,7 @@ export async function createPlaywrightRenderer(
       // keeps the same digest. Folding `shot` in as well made `rasterization`
       // disagree: `hideCaret` moved from `screenshot: { caret: 'hide' }` to a
       // `caret-color` hold in 0.2.0, the images came out byte-identical, and
-      // every baseline in the world went `incomparable` over a spelling.
+      // every baseline in the world was refused over a spelling.
       //
       // What belongs here is what the machine does to the pixels no recipe
       // asked for: which browser, launched how, opened in which timezone and

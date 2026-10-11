@@ -100,8 +100,9 @@ const CLOCK_ID = 'freeze-clock';
  *
  * The id carries the instant when it is not {@link DEFAULT_NOW}, as
  * `freeze-clock@2031-01-02T03:04:05.000Z`, so the instant is in the recipe's
- * digest and so in the environment key: a baseline read at one instant is
- * `incomparable` with a run read at another, rather than `changed`.
+ * digest and so in the environment key: a baseline read at one instant and a
+ * run read at another are compared, and the instant is named as the cause of
+ * whatever changed.
  *
  * The cost: code that measures elapsed time with `Date.now()`, such as a
  * debounce, sees no time pass and never fires. `performance.now()` keeps

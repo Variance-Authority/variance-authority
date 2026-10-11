@@ -7,8 +7,8 @@
  *
  * Separate from the format because this is the part with a **version on it**.
  * `RULESET_VERSION` and `ALLOWLIST_VERSION` are folded into the identity of every
- * answer downstream, so changing a rule here makes stored results incomparable
- * rather than silently comparable — and a reader who wants to know *why* two runs
+ * answer downstream, so changing a rule here is named as the cause of every
+ * stored result it moves rather than passing silently — and a reader who wants to know *why* two runs
  * disagree ends up in this directory rather than anywhere else.
  */
 

@@ -52,14 +52,16 @@ An explanation does not approve anything. Nothing accepts a baseline on your
 behalf, so a cause you understand still goes to review as a change to accept or
 reject.
 
-Two verdicts are not code problems at all, and `explain-verdict` prints
+Two answers are not code problems at all, and `explain-verdict` prints
 that before you go looking for an edit:
 
 - `new` means no baseline has been approved for that subject yet.
-- `incomparable` means a baseline exists but another browser, platform, scale
-  factor or font stack rendered it, or an older recipe of variance-authority
-  did. The reason names which. When only the recipe moved and the document is
-  the one the baseline was painted from, the new image is a re-baseline.
+- a `changed` whose reason opens with a moved identity means another browser,
+  platform, scale factor or font stack painted the baseline, a different tool
+  declared as its painter made one of the two images, or an older recipe
+  of variance-authority did. The reason names which. When only the recipe moved
+  and the document is the one the baseline was painted from, the new image is a
+  re-baseline.
 
 Where the evidence for a hop is missing — no component name on an element, no
 second reading to part against — the answer stops at the last hop it could

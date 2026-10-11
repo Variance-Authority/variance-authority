@@ -334,7 +334,7 @@ describe('absorbing by shape rather than by place', () => {
 /**
  * The ledger on the paths where nothing was compared.
  *
- * `new`, `incomparable` and a settlement from a digest all return before a
+ * `new` and a settlement from a digest both return before a
  * single pixel is subtracted, and every one of them still carries the operator's
  * exclusions. The run-level ledger reads a rule's absence as *this rule resolved
  * nowhere* and tells the operator to delete it, so a fresh checkout with no

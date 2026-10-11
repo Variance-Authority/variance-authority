@@ -7,25 +7,24 @@ import type { VarianceRun } from './run.js';
 /**
  * `--update-snapshots` is this package's accept, and `variance accept` is the
  * CLI's. A suite updated one way and a report accepted the other must adopt the
- * same images, so every verdict and document signal is asked of both:
- * `=changed` sweeps the suite as `--all` does, and `=all` adopts what a name
- * would. An image already present keeps the image rule out of the answer.
+ * same images, so every verdict and identity signal is asked of both. An image
+ * already present keeps the image rule out of the answer.
  */
 
-const VERDICTS = ['unchanged', 'changed', 'new', 'incomparable', 'ignored'] as const;
+const VERDICTS = ['unchanged', 'changed', 'new', 'ignored'] as const;
 const DOCUMENTS = [undefined, 'unchanged', 'changed'] as const;
 const IDENTITIES = [undefined, 'recipe', 'machine'] as const;
 
-const RUNS: ReadonlyArray<{ readonly flag: string; readonly run: VarianceRun; readonly bulk: boolean }> = [
-  { flag: '=changed', run: { id: 'a', accepting: true, overwriting: false } as VarianceRun, bulk: true },
-  { flag: '=all', run: { id: 'a', accepting: true, overwriting: true } as VarianceRun, bulk: false },
+const RUNS: ReadonlyArray<{ readonly flag: string; readonly run: VarianceRun }> = [
+  { flag: '=changed', run: { id: 'a', accepting: true } as VarianceRun },
+  { flag: '=all', run: { id: 'a', accepting: true } as VarianceRun },
 ];
 
 describe('adopts', () => {
   for (const verdict of VERDICTS) {
     for (const document of DOCUMENTS) {
       for (const identity of IDENTITIES) {
-        for (const { flag, run, bulk } of RUNS) {
+        for (const { flag, run } of RUNS) {
           const named = `${verdict}, document ${String(document)}, identity ${String(identity)}, under ${flag}`;
           it(`agrees with variance accept on ${named}`, () => {
           const signals =
@@ -41,30 +40,32 @@ describe('adopts', () => {
           };
           const observation = { subject: 'story:a', verdict, because: 'asked', ...signals } as unknown as Observation;
 
-          expect(adopts(observation, run)).toBe(promotionOf(record, { bulk }).kind === 'promotable');
+          expect(adopts(observation, run)).toBe(promotionOf(record).kind === 'promotable');
           });
         }
       }
     }
   }
 
-  it("leaves another machine's image of an unchanged document to =all", () => {
+  it("adopts another machine's change under either flag", () => {
     const foreign = {
       subject: 'story:a',
-      verdict: 'incomparable',
+      verdict: 'changed',
       because: 'asked',
-      signals: { document: 'unchanged', identity: 'machine' },
+      signals: { document: 'unchanged', identity: 'machine', moved: ['engine chromium@131 → chromium@132'] },
     } as unknown as Observation;
-    expect(adopts(foreign, RUNS[0]!.run)).toBe(false);
+    expect(adopts(foreign, RUNS[0]!.run)).toBe(true);
     expect(adopts(foreign, RUNS[1]!.run)).toBe(true);
-    const recipe = { ...foreign, signals: { document: 'unchanged', identity: 'recipe' } } as unknown as Observation;
-    expect(adopts(recipe, RUNS[0]!.run)).toBe(true);
   });
 
-  it('leaves an incomparable that does not say its document to =all', () => {
-    const unsaid = { subject: 'story:a', verdict: 'incomparable', because: 'asked' } as unknown as Observation;
-    expect(adopts(unsaid, RUNS[0]!.run)).toBe(false);
-    expect(adopts(unsaid, RUNS[1]!.run)).toBe(true);
+  it('re-stamps an unchanged subject under a moved identity', () => {
+    const unmoved = {
+      subject: 'story:a',
+      verdict: 'unchanged',
+      because: 'asked',
+      signals: { identity: 'recipe', moved: ['rasterization e5ed66c6 → 865368fe'] },
+    } as unknown as Observation;
+    expect(adopts(unmoved, RUNS[0]!.run)).toBe(true);
   });
 
   it('adopts nothing in a run that does not accept', () => {

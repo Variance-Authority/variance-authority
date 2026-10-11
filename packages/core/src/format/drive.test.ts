@@ -229,7 +229,7 @@ describe('the instant, as part of what a reading is keyed by', () => {
     stabilization: recipeDigest(recipeToDrive(now === undefined ? {} : { now })),
   });
 
-  it('keys two instants apart, so a baseline read at one is incomparable with a run read at the other', () => {
+  it('keys two instants apart', () => {
     const at2024 = environmentKey(inputs());
     const at2031 = environmentKey(inputs('2031-01-02T03:04:05Z'));
 

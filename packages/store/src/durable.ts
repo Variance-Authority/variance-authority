@@ -1,6 +1,6 @@
 // compass: variance-authority.retention
 
-import { mkdir, readFile, readdir, rm, rmdir, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, rmdir, stat, utimes, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   digestFileName,
@@ -23,7 +23,8 @@ import {
 } from '@variance-authority/raster';
 import { orAbsent } from './absent.js';
 import { held } from './held.js';
-import { holder, identityOfPartition, partitionsOf, pathFor } from './placement.js';
+import { identities, sameLine, searched } from './line.js';
+import { holder, partitionsOf, pathFor } from './placement.js';
 import type { BaselineLayout } from './placement.js';
 
 /**
@@ -121,11 +122,16 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
     record: pathFor(holder(recordRoot, layout, key), partition, key, layout),
   });
 
+  const identityAt =
+    (key: BaselineKey) =>
+    async (partition: string): Promise<RenderIdentity | null> =>
+      (await readSidecar(placesFor(key, partition)))?.identity ?? null;
+
   return {
     retention: 'durable',
 
     async find(key, identity): Promise<Found | null> {
-      for await (const { partition, comparable } of searched(holderFor(key), identityDigest(identity))) {
+      for await (const { partition, comparable } of searched(holderFor(key), identity, identityAt(key))) {
         const found = await load(placesFor(key, partition));
         if (found !== null) return { raster: found.raster, comparable, storedUnder: found.identity };
       }
@@ -137,7 +143,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
       // only stat-ing the image. Written out rather than expressed in terms of
       // `find`, because "in terms of `find`" is precisely the megabyte this
       // exists to not spend.
-      for await (const { partition, comparable } of searched(holderFor(key), identityDigest(identity))) {
+      for await (const { partition, comparable } of searched(holderFor(key), identity, identityAt(key))) {
         const sidecar = await readSidecar(placesFor(key, partition));
         if (sidecar === null) continue;
         return {
@@ -160,7 +166,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
     },
 
     async put(key, raster): Promise<void> {
-      const [written, legacy] = partitionsOf(identityDigest(raster.identity));
+      const [written] = partitionsOf(identityDigest(raster.identity));
       const places = placesFor(key, written);
       await mkdir(dirname(places.record), { recursive: true });
       // No image for a subject that has none. The sidecar alone is the whole
@@ -177,7 +183,11 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
         `${JSON.stringify({ ...raster, bytes: undefined }, null, 2)}\n`,
         'utf8',
       );
-      await retire(placesFor(key, legacy));
+      // A put moves the baseline along its line: a copy left there would be compared later.
+      for (const other of await identities(holderFor(key))) {
+        const painter = other === written ? null : await identityAt(key)(other);
+        if (painter !== null && sameLine(painter, raster.identity)) await retire(placesFor(key, other));
+      }
     },
 
     /**
@@ -276,52 +286,8 @@ interface Places {
 }
 
 /**
- * The identities that have written here, or none because nobody has.
- *
- * Scanned in the **record** root rather than the image root. Every baseline has
- * a record and only a pictured one has an image, so a scan of the images would
- * miss the identity that painted a subject with no pixels — and report `new` for
- * a subject another machine has already recorded, which is the exact sentence
- * this scan exists to prevent.
- *
- * A root that does not exist is a legitimate empty answer — the first run on a
- * fresh checkout creates it on `put`. A root that exists and cannot be listed is
- * not: the sibling scan is the only thing that turns a wrong-machine run into
- * `incomparable` instead of `new`, so a directory this process was refused would
- * otherwise quietly downgrade that sentence into the one that re-records.
- */
-async function identities(holder: string): Promise<readonly string[]> {
-  const entries = await orAbsent(() => readdir(holder, { withFileTypes: true }), holder);
-  if (entries === null) return [];
-  return entries
-    .filter((entry) => entry.isDirectory() && identityOfPartition(entry.name) !== undefined)
-    .map((entry) => entry.name);
-}
-
-/**
- * The partitions a lookup reads, in the order it reads them, and whether each is this machine's.
- *
- * This machine's written name first and alone, so a hit costs no `readdir`.
- * Then the scan, with this machine's raw-digest name ahead of every other
- * identity: a subject held under both would otherwise answer `incomparable`
- * from a neighbour while a comparable baseline sat one directory over.
- */
-async function* searched(
-  holder: string,
-  mine: Digest,
-): AsyncGenerator<{ partition: string; comparable: boolean }> {
-  const [written, legacy] = partitionsOf(mine);
-  yield { partition: written, comparable: true };
-  const scanned = await identities(holder);
-  if (scanned.includes(legacy)) yield { partition: legacy, comparable: true };
-  for (const other of scanned) {
-    if (identityOfPartition(other) !== mine) yield { partition: other, comparable: false };
-  }
-}
-
-/**
- * Remove the raw-digest pair `put` just superseded, and its directories once empty:
- * an accept moves a baseline rather than leaving a second copy for the fallback.
+ * Remove a pair `put` just superseded, and its directories once empty: an
+ * accept moves a baseline rather than leaving a second copy for the fallback.
  */
 async function retire(places: Places): Promise<void> {
   await rm(`${places.image}.png`, { force: true });

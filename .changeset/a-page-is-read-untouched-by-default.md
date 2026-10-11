@@ -11,12 +11,12 @@
 
 A subject is read with nothing hovered, nothing focused, motion reduced and `Date` fixed
 
-Every layout and raster baseline made before this release reads `incomparable`
-once; a semantic baseline, read in jsdom, does not move. The default recipes
-gained tricks, so the stabilization digest every reading records has
-changed. Only the recipe moved, so `variance accept --all` adopts each subject
-whose document is the one its baseline was painted from, as for any recipe
-change.
+Every layout and raster baseline made before this release is compared under a
+moved recipe once; a semantic baseline, read in jsdom, does not move. The
+default recipes gained tricks, so the stabilization digest every reading records
+has changed, and each subject names that recipe as the cause of whatever it
+reports. Review the changes and adopt them with `variance accept --all`, as for
+any recipe change.
 
 The standard collection recipe now also holds:
 
@@ -66,8 +66,8 @@ from `@variance-authority/core/format`. `routeCollector` and
 `storybookCollector` take a `now` option to choose another. It must be an ISO
 8601 instant with its zone; anything else is refused before a browser opens.
 An instant other than the default is spelled in the clock's id,
-`freeze-clock@<instant>`, so it is part of the environment key, and a baseline taken at one instant reads `incomparable`
-against a run at another.
+`freeze-clock@<instant>`, so it is part of the environment key, and a baseline taken at one instant is compared
+with a run at another with the moved instant named as the cause.
 
 To read a subject hovered, focused, animated or at the real time, pass your own
 `stabilize` list without that trick: `DEFAULT_STABILIZE`, the ids of the

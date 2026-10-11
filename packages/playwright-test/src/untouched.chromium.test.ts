@@ -222,7 +222,7 @@ chromium_('a page the variance fixture hands a test', () => {
     }
   }, 60_000);
 
-  it('records the clock and the motion preference it set, so a reading without them is not compared', async () => {
+  it('records the clock and the motion preference it set, so a reading without them names them as its cause', async () => {
     const context = await browser!.newContext({ viewport: { width: 400, height: 200 } });
     try {
       const page = await context.newPage();
@@ -242,7 +242,8 @@ chromium_('a page the variance fixture hands a test', () => {
 
       await observeLocator({ ...runtime('all'), driven }, subject, options);
       expect((await observeLocator({ ...runtime('none'), driven }, subject, options)).verdict).toBe('unchanged');
-      expect((await observeLocator(runtime('none'), subject, options)).verdict).toBe('incomparable');
+      const undriven = await observeLocator(runtime('none'), subject, options);
+      expect(undriven.signals?.moved?.some((field) => field.startsWith('stabilization'))).toBe(true);
     } finally {
       await context.close();
     }

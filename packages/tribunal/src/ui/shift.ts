@@ -93,7 +93,7 @@ export function divergeFrom(now: BuildDetail, prior: BuildDetail): Divergence {
  * `ignored` belongs here and reads as though it does not. A declaration decided
  * it, but the comparison it decided happened: there was a baseline, there were
  * differing pixels, and every one of them landed somewhere the operator wrote
- * down. Filing it with `incomparable` told a reviewer *no baseline was put beside
+ * down. Filing it with `new` would tell a reviewer *no baseline was put beside
  * them here* about subjects that were compared — an absence invented on top of a
  * measurement, which is the one thing this panel exists not to do.
  */

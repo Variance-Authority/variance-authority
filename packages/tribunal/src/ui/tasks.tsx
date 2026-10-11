@@ -20,7 +20,7 @@ import { TASKS, type Task } from './route.js';
 import { number } from './text.js';
 
 /** The verdicts a decision settles, as `pending` in `review-summary.ts` counts them. */
-const PENDS: ReadonlySet<SubjectView['verdict']> = new Set(['changed', 'new', 'incomparable']);
+const PENDS: ReadonlySet<SubjectView['verdict']> = new Set(['changed', 'new']);
 
 const NAMES: Readonly<Record<Task, string>> = {
   unreviewed: 'Unreviewed',

@@ -91,26 +91,6 @@ export async function decide(
     ...(accessibility === undefined ? {} : { accessibility }),
   };
 
-  if (accessibility?.verdict === 'incomparable') {
-    return {
-      subject,
-      verdict: 'incomparable',
-      because:
-        accessibility.before === undefined
-          ? 'the baseline has no browser accessibility snapshot, so this run cannot call the accessibility boundary unchanged'
-          : accessibility.after === undefined
-            ? 'this run did not capture a browser accessibility snapshot, so it cannot compare the baseline accessibility boundary'
-            : 'the two browser accessibility snapshots were produced by different engines or formats',
-      comparison,
-      regions: [],
-      rendered,
-      missingFonts,
-      signals,
-      ...attribution,
-      ...diagnosticsField,
-    };
-  }
-
   const byRule: Record<string, number> = {};
   for (const [index, box] of boxes.entries()) {
     byRule[box.rule] = (byRule[box.rule] ?? 0) + (subtraction.cleared[index] ?? 0);
@@ -216,7 +196,12 @@ export async function decide(
     return {
       subject,
       verdict: 'changed',
-      because: 'the browser accessibility tree changed while no pixels changed',
+      because:
+        accessibility?.before === undefined
+          ? 'the baseline has no browser accessibility snapshot and this run captured one, while no pixels changed'
+          : accessibility.after === undefined
+            ? 'this run captured no browser accessibility snapshot where the baseline has one, while no pixels changed'
+            : 'the browser accessibility tree changed while no pixels changed',
       comparison,
       regions: [],
       rendered,
@@ -326,27 +311,28 @@ export function accessibilityBetween(
   const left = before.accessibility;
   const right = after.accessibility;
   if (left === undefined && right === undefined) return undefined;
+  // Evidence on one side only is a change in what the subject is recorded as,
+  // never an empty tree: accepting it gives the axis its baseline.
   if (left === undefined || right === undefined) {
     return {
-      verdict: 'incomparable',
+      verdict: 'changed',
       ...(left === undefined ? {} : { before: left }),
       ...(right === undefined ? {} : { after: right }),
     };
   }
-  if (left.producer !== right.producer || left.engine !== right.engine) {
-    return { verdict: 'incomparable', before: left, after: right };
-  }
-  return {
-    verdict: left.digest === right.digest ? 'unchanged' : 'changed',
-    before: left,
-    after: right,
-  };
+  // The digest covers the producer and the engine, so trees from two engines
+  // are compared by what they expose; the engine that moved is the cause.
+  const same =
+    left.digest === right.digest ||
+    (left.roots.length === right.roots.length &&
+      left.roots.every((root, index) => root === right.roots[index]));
+  return { verdict: same ? 'unchanged' : 'changed', before: left, after: right };
 }
 
 /**
  * What the snapshot declared, before anything was compared.
  *
- * Every path that returns before a comparison — `new`, `incomparable`, and the
+ * Every path that returns before a comparison — `new` and the
  * settlement that answers from a digest — still has an operator's exclusions on
  * its snapshot, and used to report none. The run-level ledger derives "this rule
  * resolved nowhere" from the absence, so a fresh checkout with no baselines told

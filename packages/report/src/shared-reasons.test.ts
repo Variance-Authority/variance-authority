@@ -12,13 +12,13 @@ import { byReason } from './shared-reasons.js';
 describe('byReason', () => {
   it('folds subjects with one label and one reason into a group, in the order first seen', () => {
     const groups = byReason([
-      { label: 'incomparable', because: 'recipe moved', subject: 'a' },
+      { label: 'changed', because: 'recipe moved', subject: 'a' },
       { label: 'new', because: 'no baseline', subject: 'b' },
-      { label: 'incomparable', because: 'recipe moved', subject: 'c' },
+      { label: 'changed', because: 'recipe moved', subject: 'c' },
     ]);
 
     expect(groups).toEqual([
-      { label: 'incomparable', because: 'recipe moved', subjects: ['a', 'c'] },
+      { label: 'changed', because: 'recipe moved', subjects: ['a', 'c'] },
       { label: 'new', because: 'no baseline', subjects: ['b'] },
     ]);
   });

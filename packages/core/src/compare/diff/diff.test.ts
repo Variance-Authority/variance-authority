@@ -9,7 +9,7 @@ const snap = (raw: RawCapture) => normalize(raw);
 
 const diff = (before: RawCapture, after: RawCapture) => diffSnapshots(snap(before), snap(after));
 
-describe('refusing incomparable snapshots', () => {
+describe('refusing snapshots of two different kinds', () => {
   const tree = () => capture({ root: node({ tag: 'p', text: 'hi' }) });
 
   it('rejects a cross-profile comparison outright', () => {

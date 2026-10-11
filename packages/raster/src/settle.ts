@@ -3,7 +3,7 @@ import type {
   Digest,
   RenderIdentity,
 } from '@variance-authority/core/format';
-import { describeIdentity, incomparableBecause, NOT_COMPARED, recipeOnly } from './renderer.js';
+import { describeIdentity, identityCause } from './renderer.js';
 import type { Described } from './store.js';
 
 /**
@@ -28,7 +28,7 @@ import type { Described } from './store.js';
 export type Settlement =
   | {
       readonly kind: 'settled';
-      readonly verdict: 'unchanged' | 'incomparable';
+      readonly verdict: 'unchanged';
       readonly because: string;
       /**
        * Fonts the renderer lacked when the baseline was painted.
@@ -74,12 +74,11 @@ export type Settlement =
  * on inputs that genuinely repaint differently, and the honest place to fix that
  * is the document, with `AssembleOptions.extraCss`.
  *
- * **The baseline is another machine's.** Refused rather than rendered. Producing
- * the image would buy a diff nobody is permitted to read, since pixels are
- * machine-bound and the difference would be attributed to whichever component
- * happens to sit under it (ADR-0011). A baseline this machine painted under an
- * older recipe of this tool is not another machine's: it renders, so the run
- * leaves the image that re-baselines it.
+ * **The baseline was painted under another identity.** Rendered, so the two
+ * images are compared and the identity that moved is carried as the cause of
+ * whatever the comparison finds (ADR-0090). An upgrade of a browser or of this
+ * tool moves every subject at once, and only the diff of each shows the few
+ * that are regressions.
  *
  * **Anything else renders.** Including `new`, where the *verdict* is already
  * settled — there is no baseline, and no image changes that. It renders anyway,
@@ -117,11 +116,10 @@ export function settle(
   /**
    * The identity this run would paint under.
    *
-   * What lets the refusal name what differs between the two sides, and a
-   * difference in this tool's recipe alone be told from a different machine
-   * (see `incomparableBecause`). Absent, the caller has not said what it paints
-   * under, so nothing shows its machine is the baseline's: the refusal names
-   * the stored side alone and nothing is painted.
+   * What lets the sentence name what differs between the two sides (see
+   * `identityCause`). Absent, the caller has not said what it paints under, so
+   * the sentence names the stored side alone; the comparison after the render
+   * names what moved.
    */
   mine?: RenderIdentity,
   accessibility?: AccessibilitySnapshot,
@@ -134,37 +132,13 @@ export function settle(
   }
 
   if (!found.comparable) {
-    if (mine === undefined) {
-      return {
-        kind: 'settled',
-        verdict: 'incomparable',
-        because:
-          `a baseline exists but was rendered by ${describeIdentity(found.storedUnder)}, and ` +
-          `this run did not say what it paints under, so no image was produced; ${NOT_COMPARED}`,
-      };
-    }
-
-    const stored = { identity: found.storedUnder, documentDigest: found.documentDigest };
-    const current = { identity: mine, documentDigest: digest };
-    // Painted, because this run's image is the candidate. The machine is the
-    // same and only this tool's recipe moved, so there is no other machine's image to
-    // protect; refusing here left a run with no candidate, nothing `accept` could
-    // promote, and a directory to delete by hand. Painted whether or not the
-    // document moved too: the sentence says which, and only an unmoved document
-    // is called a re-baseline or adopted in bulk. The verdict stays
-    // `incomparable` — the lookup after the render reaches it with the same
-    // sentence — and the image is what makes it acceptable.
-    if (recipeOnly(found.storedUnder, mine)) {
-      // FIXME: the image is painted and not compared, so a recipe change that
-      // moved no pixels and one that moved half the page read alike, and a
-      // moved document reaches review with no regions. Comparing the two images
-      // here, with the verdict still `incomparable`, would show both.
-      return { kind: 'render', because: incomparableBecause(stored, current) };
-    }
+    // Rendered, and compared after the render: another identity is the cause
+    // of whatever the comparison finds, never a reason to skip it (ADR-0090).
     return {
-      kind: 'settled',
-      verdict: 'incomparable',
-      because: `${incomparableBecause(stored, current)} and no image was produced`,
+      kind: 'render',
+      because:
+        (mine === undefined ? undefined : identityCause(found.storedUnder, mine)?.because) ??
+        `a baseline exists, painted under another identity (${describeIdentity(found.storedUnder)})`,
     };
   }
 

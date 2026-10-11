@@ -95,7 +95,8 @@ prefer.
 never sees this DOM: media queries in the applicable CSS are evaluated against
 these values and the result is written into the capture. `deviceScaleFactor`
 and `colorScheme` are part of what the baseline is stored under, so changing
-either moves the subject to a partition where nothing has been approved yet.
+either compares the subject with the old image and names the moved value as the
+cause, until you accept.
 
 ### Resources arrive as bytes or the capture fails
 

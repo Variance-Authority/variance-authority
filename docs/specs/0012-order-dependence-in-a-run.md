@@ -110,10 +110,10 @@ Only the first column is needed to classify, and only the first column shipped:
 vs `S` column refines a confirmed regression that is *also* order-dependent, and
 is not built.
 
-`incomparable` and `new` from the clean comparison are folded into "leaves the
-change standing" deliberately. Neither is evidence that the change was a leak,
-and reporting "does not reproduce" on the strength of a baseline that could not
-be read would clear a real regression.
+`new` from the clean comparison is folded into "leaves the change standing"
+deliberately. It is no evidence that the change was a leak, and reporting "does
+not reproduce" on the strength of a baseline that does not exist would clear a
+real regression.
 
 ## What it costs
 

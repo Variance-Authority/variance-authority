@@ -238,8 +238,8 @@ export async function recordedRegions(
  * took of each module's text, against the text on disk. A file it holds no
  * module for, or that cannot be read, is not one, and neither is one `index`,
  * the case index read from the record, cut at other text than the snapshot: the
- * index names no text of its own, and a run that kept no case moves the
- * snapshot on without it.
+ * index names no text of its own, and one a landing wrote before the index
+ * followed its rows can stand at lines the snapshot moved on from.
  */
 export async function ranAsTree(coverageFile: string, root: string, files: readonly string[], index: ExecutionIndex): Promise<ReadonlySet<string>> {
   if (files.length === 0) return new Set();

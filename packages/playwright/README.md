@@ -304,8 +304,8 @@ paint and no second collection**. What that paint costs differs sharply by
 engine and by subject; the table below is the size of it.
 
 The engine is part of `RenderIdentity`, which keys the baseline store: a WebKit
-baseline lands in its own directory, and a Chromium run that finds one reports
-`incomparable`, naming both engines. The supplied stabilization recipe targets
+baseline lands in its own directory, and a Chromium run compared against one
+names both engines as the cause. The supplied stabilization recipe targets
 Chromium — use `prepare` for engine-specific controls needed by Firefox or
 WebKit.
 
@@ -328,8 +328,9 @@ are unaffected because the flags were never passed to them.
 
 **So a WebKit or Firefox raster is comparable only to one from the same host.**
 `RenderIdentity` includes `platform`, so a laptop's baseline and a container's
-are separate baselines and a run reports `incomparable` rather than comparing
-them. That is the safe failure, not a solution: neither answers for the other.
+are separate baselines, and a run compared across them names the platform as the
+cause of every change. That is a named failure, not a solution: neither answers
+for the other.
 If rasters are produced in a container, produce them only there — a local WebKit
 renderer records baselines nothing will ever compare against, and pays the
 raster tier for them. The semantic tier is unaffected and stays local.
@@ -485,9 +486,9 @@ browser.
 | `headless` | `true` | set false to watch a render |
 | `timezoneId`, `locale` | `UTC`, `en-US` | the timezone and language the page is painted in. Part of `RenderIdentity`. Set them to what the collector read in, or a formatted date paints differently from the one that was read |
 | `launchArgs` | `CHROMIUM_RASTER_ARGS` on Chromium, none elsewhere | launch flags that may affect pixels. The exact ordered list is folded into the identity |
-| `fonts` | none | what this machine is **asserted** to have, as `family/weight/style/hash`. A page can ask whether a family resolves and cannot read the bytes behind it, so this is a declaration — and it is what makes a baseline from a different font stack `incomparable` rather than `changed` |
+| `fonts` | none | what this machine is **asserted** to have, as `family/weight/style/hash`. A page can ask whether a family resolves and cannot read the bytes behind it, so this is a declaration — and it is what names a different font stack as the cause when a baseline from one reads `changed` |
 | `waitForFonts` | `true` | wait on `document.fonts.ready` before painting |
-| `stabilization` | the raster recipe, which also releases focus | which tricks hold the page still. Folded into the identity, so a baseline made under one recipe and a run under another are `incomparable`. Every document is painted under it, whatever recipe it was collected under |
+| `stabilization` | the raster recipe, which also releases focus | which tricks hold the page still. Folded into the identity, so a baseline made under one recipe and a run under another are compared with the recipe named as the cause. Every document is painted under it, whatever recipe it was collected under |
 | `assemble` | `AssembleOptions` defaults | how the document is turned into a page |
 | `concurrency` | `1` | how many documents may be painted at once. Above 1 each render leases its own page, because `setContent` replaces a page's whole document. Worth having: the raster tier is where a run's time is |
 

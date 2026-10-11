@@ -55,7 +55,8 @@ order replaces this and keeps everything else.
 
 The cheap exits come first and each of them is a different word. Two **digests**
 that agree settle the subject with no image read at all. An identity mismatch
-answers `incomparable` — never red, never green. A missing **baseline** answers
+is no exit: the two images are compared and the identity that moved is carried
+as the cause of the word chosen. A missing **baseline** answers
 `new`. A mask with nothing left in it answers `unchanged` when nothing was
 absorbed and `ignored` when something was, and the two are never spelled the same
 way: a suite has to be able to say how much of its green it earned and how much

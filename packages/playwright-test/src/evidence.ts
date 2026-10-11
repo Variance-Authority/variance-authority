@@ -33,8 +33,7 @@ export interface Evidence {
 /**
  * Which verdicts are worth a pair.
  *
- * `changed` and `incomparable` are what a person stops on. `ignored` joins them
- * for the reason the report writer takes it: the verdict means pixels *did*
+ * `changed` is what a person stops on. `ignored` joins it for the reason the report writer takes it: the verdict means pixels *did*
  * differ and every one fell inside a mask somebody wrote, which makes it the one
  * verdict where the question is about the mask rather than the render -- and
  * "has this ignore grown over a regression?" is answerable from a `before` and a
@@ -44,7 +43,7 @@ export interface Evidence {
  * nothing to compare against in the second.
  */
 function worthLooking(verdict: Observation['verdict']): boolean {
-  return verdict === 'changed' || verdict === 'incomparable' || verdict === 'ignored';
+  return verdict === 'changed' || verdict === 'ignored';
 }
 
 /**
@@ -93,10 +92,7 @@ export async function writeEvidence(
   // occupied nothing when it was recorded, and the candidate is the whole story.
   const before = stored === undefined || !pictured(stored) ? undefined : stored;
   // No stored image means nothing to subtract from, and a diff against nothing
-  // is the candidate painted red. Omitted rather than written: an `incomparable`
-  // subject whose baseline came from another environment has no `before` *here*
-  // even though one exists in the store, and inventing one would show a reviewer
-  // a comparison the run refused to make.
+  // is the candidate painted red, so it is omitted rather than written.
   if (before === undefined) return { after };
 
   const beforePath = `${base}.before.png`;

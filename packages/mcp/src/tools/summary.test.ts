@@ -19,14 +19,14 @@ const REPORT: RunReport = {
   observations: [
     ...['a', 'b', 'c'].map((name) => ({
       subject: `page/${name}`,
-      verdict: 'incomparable' as const,
+      verdict: 'changed' as const,
       because,
       changedPixels: 0,
       regions: [],
     })),
     {
       subject: 'page/alone',
-      verdict: 'incomparable',
+      verdict: 'changed',
       because: 'a baseline exists under another machine',
       changedPixels: 0,
       regions: [],
@@ -36,7 +36,7 @@ const REPORT: RunReport = {
 
 describe('the summary', () => {
   it('states a reason many subjects share once, with a count, and still names each subject', () => {
-    // An upgrade that moves the identity key makes every subject incomparable
+    // An upgrade that moves the identity key changes every subject
     // for one reason. Printed per subject, a 4,705-subject run said the same
     // two-identity sentence 4,697 times, and a reader looking for what to do
     // had to notice it was one sentence. Said once, the count and the remedy
@@ -44,9 +44,9 @@ describe('the summary', () => {
     const text = toolByName('variance_summary')!.run(REPORT, {}) as string;
 
     expect(text.split(because).length - 1).toBe(1);
-    expect(text).toContain(`[incomparable] 3 subjects: ${because}`);
+    expect(text).toContain(`[changed] 3 subjects: ${because}`);
     for (const name of ['a', 'b', 'c']) expect(text).toContain(`    page/${name}`);
     // A reason only one subject has stays on that subject's line.
-    expect(text).toContain('[incomparable] page/alone: a baseline exists under another machine');
+    expect(text).toContain('[changed] page/alone: a baseline exists under another machine');
   });
 });

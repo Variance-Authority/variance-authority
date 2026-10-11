@@ -181,7 +181,6 @@ export const REVIEW_STYLES = `
 .va-dot { border-radius: 50%; flex: none; height: 8px; width: 8px; }
 .va-dot.va-changed { background: var(--va-warn); }
 .va-dot.va-new { background: var(--va-accent); }
-.va-dot.va-incomparable { background: var(--va-bad); }
 .va-dot.va-unstable { background: var(--va-bad); }
 .va-dot.va-failed { background: var(--va-bad); }
 .va-dot.va-ignored { background: var(--va-ink-3); }
@@ -196,7 +195,6 @@ export const REVIEW_STYLES = `
 .va-verdict { border-radius: 999px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; padding: 0.15rem 0.55rem; text-transform: uppercase; }
 .va-verdict.va-changed { background: var(--va-warn-bg); color: var(--va-warn-ink); }
 .va-verdict.va-new { background: var(--va-info-bg); color: var(--va-info-ink); }
-.va-verdict.va-incomparable { background: var(--va-bad-bg); color: var(--va-bad-ink); }
 .va-verdict.va-unstable { background: var(--va-bad-bg); color: var(--va-bad-ink); }
 .va-because { color: var(--va-ink-2); font-size: 0.88rem; }
 

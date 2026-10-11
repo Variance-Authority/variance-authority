@@ -85,7 +85,7 @@ config key for one — so the last column is where each shows up in what you rea
 | Kind | Takes | Gives | Needs | You meet it when |
 |---|---|---|---|---|
 | **acquire** | a live tree | capture material — a document or an in-place raster | a DOM or browser | a subject is reported failed with the sentence your collector refused it with |
-| **prepare** | a subject | a subject that reads the same twice | varies; each declares its own | a baseline made under a different recipe comes back `incomparable` rather than as a diff |
+| **prepare** | a subject | a subject that reads the same twice | varies; each declares its own | a baseline made under a different recipe comes back with its diff and the recipe named as the cause |
 | **render** | a document | pixels | a browser, here or elsewhere | `variance doctor` prints the renderer as `available` or `NOT AVAILABLE` with the launch error |
 | **hash** | anything | an identity | nothing | a run finishes having painted nothing, because the digests matched |
 | **compare** | two of a kind | a difference | nothing | the verdict on a subject is `changed` and a diff image lands beside the report |
@@ -152,15 +152,16 @@ neither can change which CSS rules match or what they declare.
 
 **2. Anything that could change the answer is part of the result's identity.**
 The machine, the engine, the scale factor, the fonts, the tricks applied. Two
-results whose identities differ come back as one word:
+results whose identities differ are still compared, and the verdict carries the
+cause first:
 
 ```
-incomparable
+changed — engine chromium@131 → chromium@132
 ```
 
-The report names which part of the identity differs. It never means zero
-difference, and it is never rendered as a diff — a difference in conditions
-reported as a difference in your product is a confident wrong answer.
+The report names which part of the identity moved, before any component. A
+difference in conditions reported as a difference in your product, with nothing
+said about the conditions, is a confident wrong answer.
 
 **3. Not measured, measured as zero, and unobservable are three states.** The run
 prints which of the three it is rather than collapsing any two into a pass. When

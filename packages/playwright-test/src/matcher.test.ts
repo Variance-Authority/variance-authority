@@ -35,7 +35,7 @@ const SOURCE: SourceIndex = {
 
 describe('toBeUnchanged', () => {
   it('passes on exactly the one verdict that means nothing moved', () => {
-    const verdicts = ['unchanged', 'changed', 'new', 'ignored', 'incomparable', 'unstable', 'failed'] as const;
+    const verdicts = ['unchanged', 'changed', 'new', 'ignored', 'unstable', 'failed'] as const;
 
     const passing = verdicts.filter((verdict) => toBeUnchanged(observation({ verdict })).pass);
 

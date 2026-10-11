@@ -40,7 +40,7 @@ import { SCENARIOS } from './scenarios.js';
  * baselines are ordinary PNGs, so the reading end takes them as they are and
  * produces the named, file-resolved report the count could not. But a foreign
  * baseline arrives with **no identity attached** — no engine, no scale factor, no
- * font list, no platform — and identity is what `incomparable` is decided from.
+ * font list, no platform — and identity is what names the cause of a change.
  * So an imported baseline is comparable *by assumption*, which is exactly the
  * confident-wrong-answer this project refuses everywhere it controls the artifact.
  *
@@ -256,16 +256,16 @@ live('a baseline the incumbent recorded', () => {
 
   it('carries no identity, which is what migration actually costs', () => {
     // The honest half. A durable baseline of ours is stored partitioned by
-    // renderer identity so that a run on a different machine is `incomparable`
-    // — one sentence — rather than every subject failing for reasons nobody can
-    // attribute (ADR-0011).
+    // renderer identity so that a run on a different machine names the machine
+    // that moved — one cause — rather than every subject failing for reasons
+    // nobody can attribute (ADR-0090).
     //
     // A foreign baseline has none of that. The directory name is a project name
     // the operator chose, the file name is the subject, and nothing anywhere
     // states the engine, the scale factor or the fonts it was painted with. So
-    // an imported baseline can only be compared *by assumption*, and the verdict
-    // that protects against a wrong assumption is unavailable for exactly as
-    // long as the import lasts.
+    // an imported baseline can only be compared *by assumption*, and the cause
+    // that names a wrong assumption is unavailable for exactly as long as the
+    // import lasts.
     const carried = readdirSync(THEIRS).map((name) => name.replace(/\.png$/, ''));
     const subjects = SCENARIOS.filter((s) => s.baseline === 'recorded').map((s) => s.id);
 
@@ -284,7 +284,7 @@ live('a baseline the incumbent recorded', () => {
         '\n  platform           (absent)   which is true and worthless' +
         '\n  the document       (absent) — so no cheap tier, and no ordering' +
         '\n' +
-        '\n  consequence        `incomparable` is not available for an imported subject,' +
+        '\n  consequence        no moved identity can be named for an imported subject,' +
         '\n                     and its regions can only be ranked by area.' +
         '\n                     Import to get moving; let the imported generation age' +
         '\n                     out as subjects are re-recorded under an identity.\n',

@@ -156,9 +156,11 @@ chromium_('what a test leaves behind before it observes', () => {
     await observe(page!, subject, info('all'), { ...options, stabilize: undefined });
     await page!.locator('button').hover();
 
-    // A baseline held with the pointer off the page is not compared against a
-    // reading that kept it: the recipe is part of the key.
-    expect((await observe(page!, subject, info('none'), options)).verdict).toBe('incomparable');
+    // A baseline held with the pointer off the page, against a reading that kept
+    // it: the hover shows, and the recipe that moved is named as its cause.
+    const hovered = await observe(page!, subject, info('none'), options);
+    expect(hovered.verdict).toBe('changed');
+    expect(hovered.signals?.moved?.some((field) => field.startsWith('stabilization'))).toBe(true);
 
     await observe(page!, subject, info('all'), options);
     await page!.mouse.move(-1, -1);

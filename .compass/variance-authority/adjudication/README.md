@@ -80,9 +80,8 @@ component regressed.
 #### What I need from it
 
 An image of a **render document** produced under a stated identity, at a stated
-scale, so that a change mask can be taken over two images that are comparable by
-construction; and the identity itself, so a mismatch is reported as
-`incomparable` rather than compared anyway.
+scale, so that a change mask can be taken over the two images; and the identity
+itself, so a mismatch is compared and carried as the cause of whatever moved.
 
 #### What would make me leave
 

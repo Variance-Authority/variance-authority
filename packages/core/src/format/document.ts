@@ -255,8 +255,8 @@ export interface RenderIdentity {
    * The gap itself is acceptable; a *difference* in it between two runs is not,
    * because the images then differ for a reason that is not the code and the
    * report blames whichever component sits under the pixels. Folding it in here
-   * makes that comparison `incomparable` instead, by the same mechanism that
-   * refuses a cross-machine one.
+   * names that gap as the cause of the change instead, by the same mechanism
+   * that names a moved machine.
    *
    * Optional only because a renderer may predate the field. Absent means the
    * renderer did not record what it did, which is emphatically not the same as

@@ -144,6 +144,19 @@ describe('the durable mode', () => {
     expect(found?.comparable).toBe(false);
   });
 
+  it('moves a baseline along its line on put, and keeps every other line', async () => {
+    const store = createDurableStore(root);
+    const upgraded = { ...MAC, engine: 'chromium@132.0.0' };
+    await store.put({ subject: 's' }, rasterOf(MAC, 'v1:old', 'T0xE'));
+    await store.put({ subject: 's' }, rasterOf(RUNNER, 'v1:ci', 'UlVO'));
+    await store.put({ subject: 's' }, rasterOf(upgraded, 'v1:new', 'TkVX'));
+
+    expect(await readdir(join(root, partition(MAC))).catch(() => [])).toEqual([]);
+    expect((await store.find({ subject: 's' }, RUNNER))?.raster.bytes).toBe('UlVO');
+    const next = await store.find({ subject: 's' }, { ...MAC, engine: 'chromium@140.0.0' });
+    expect(next?.raster.bytes).toBe('TkVX');
+  });
+
   it('separates baselines by label, so one subject can hold several', async () => {
     const store = createDurableStore(root);
     await store.put({ subject: 's', label: 'wide' }, rasterOf(MAC, 'v1:a', 'QQ=='));
@@ -441,7 +454,7 @@ describe('the record location', () => {
     }
   });
 
-  it('scans the record root for siblings, so a pixel-less baseline is still incomparable', async () => {
+  it('scans the record root for siblings, so a pixel-less baseline still names the machine that wrote it', async () => {
     // The sibling scan is the only thing that says "another machine has this"
     // rather than "nobody has". Scanning the images would answer the second for
     // every subject that has none.

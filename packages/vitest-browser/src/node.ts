@@ -7,7 +7,6 @@ import {
 } from '@variance-authority/observe';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import type { BaselineKey, RasterStore, Renderer } from '@variance-authority/raster';
-import { bulkSkips } from '@variance-authority/report';
 import { cacheRootFor } from '@variance-authority/sense/cache-root';
 import {
   createDurableStore,
@@ -44,9 +43,8 @@ export interface VarianceNodeOptions {
    * Whether this run may promote a candidate to a baseline.
    *
    * Absent reads Vitest's own `--update`, which is the flag a person already
-   * types for the snapshots in the same suite. That is a sweep, so it skips the
-   * `incomparable` subjects `variance accept --all` skips: another machine's
-   * image, and a re-painted recipe whose document moved. Set it to `false` to
+   * types for the snapshots in the same suite, and it adopts what `variance
+   * accept --all` adopts: every candidate that changed. Set it to `false` to
    * hold baselines out of `--update`, and to `true` for a job whose whole
    * purpose is to write them, which adopts every candidate it painted.
    */
@@ -108,13 +106,12 @@ export function varianceCommands(options: VarianceNodeOptions = {}): VarianceCom
       // band it is; until then an observation from this surface carries the
       // other bands and says nothing about that one.
 
-      // `--update` is a sweep over every selected test, so it skips what
-      // `variance accept --all` skips. A run declared `accept: true` is a job
-      // whose purpose is writing baselines, and adopts whatever it painted.
-      const accepting =
-        options.accept === true ||
-        (options.accept === undefined && updating(context) && !bulkSkips(observation));
-      if (accepting && observation.verdict !== 'unchanged') {
+      // `--update` sweeps every selected test as `variance accept --all` does.
+      const accepting = options.accept === true || (options.accept === undefined && updating(context));
+      // An unchanged subject under a moved identity is re-stamped, so the move
+      // is named once rather than on every later run.
+      const restamp = observation.verdict === 'unchanged' && observation.signals?.identity !== undefined;
+      if (accepting && (observation.verdict !== 'unchanged' || restamp)) {
         await promote(store, painter, artifact, key);
       }
 
