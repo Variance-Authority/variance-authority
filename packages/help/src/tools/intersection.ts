@@ -67,14 +67,24 @@ function limitArg(input: Readonly<Record<string, unknown>>): number {
 const evidenceOf = (lines: readonly number[]): string =>
   lines.length === 0 ? 'the file' : `${lines.length === 1 ? 'line' : 'lines'} ${lines.join(', ')}`;
 
+/**
+ * The questions as said, before `run` validates them: what a host reads ahead
+ * of asking, where a malformed question is left for `run` to refuse.
+ */
+function saidQuestions(input: Readonly<Record<string, unknown>>): readonly Question[] {
+  const said = input['questions'];
+  if (!Array.isArray(said)) return [];
+  return said.flatMap((one: unknown) => {
+    if (typeof one !== 'object' || one === null) return [];
+    const { question, input: given } = one as Record<string, unknown>;
+    if (typeof question !== 'string') return [];
+    return [{ question, input: typeof given === 'object' && given !== null ? (given as Record<string, unknown>) : {} }];
+  });
+}
+
 /** Whether a question among those crossed reads every file's names, which a host reads with the tree. */
 export function namesWanted(input: Readonly<Record<string, unknown>>): boolean {
-  const said = input['questions'];
-  return Array.isArray(said) && said.some((one: unknown) => {
-    if (typeof one !== 'object' || one === null) return false;
-    const { question, input: given } = one as Record<string, unknown>;
-    return question === 'discover' && typeof given === 'object' && given !== null && readsNames(given as Record<string, unknown>);
-  });
+  return saidQuestions(input).some(({ question, input: given }) => question === 'discover' && readsNames(given));
 }
 
 /**
@@ -116,15 +126,9 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
       additionalProperties: false,
     },
 
-    wants: (input) => {
-      const said = input['questions'];
-      return Array.isArray(said) && said.some((one: unknown) => {
-        if (typeof one !== 'object' || one === null) return false;
-        const { question, input: given } = one as Record<string, unknown>;
-        const operand = operands.find((candidate) => verbOf(candidate) === question);
-        return operand?.wants?.((given ?? {}) as Record<string, unknown>) === true;
-      });
-    },
+    wants: (input) =>
+      saidQuestions(input).some(({ question, input: given }) =>
+        operands.find((candidate) => verbOf(candidate) === question)?.wants?.(given) === true),
 
     run: (subject, input, invocation?: ToolInvocation<Subject>) => {
       const questions = questionsOf(input);
