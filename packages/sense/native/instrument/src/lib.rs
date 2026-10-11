@@ -26,6 +26,7 @@
 
 mod cadence;
 mod cadence_map;
+mod crossing;
 mod cut;
 mod dialect;
 /// The digest every stored text is named by; [`module_id`] is the one a
@@ -54,8 +55,8 @@ impl Mode {
     /// `instrumentationId()` in `src/instrument/index.ts` answers the same.
     pub const fn instrumentation(self) -> &'static str {
         match self {
-            Mode::Presence => "sense:instrument/presence-v5",
-            Mode::Entries => "sense:instrument/entries-v2",
+            Mode::Presence => "sense:instrument/presence-v6",
+            Mode::Entries => "sense:instrument/entries-v3",
         }
     }
 }
@@ -128,7 +129,7 @@ pub mod native {
 
     /// How many regions with source of their own a parsed program is cut into
     /// under `presence`.
-    pub fn source_regions(program: &Program, typescript: bool) -> u32 {
+    pub fn source_regions<'a>(program: &'a Program<'a>, typescript: bool) -> u32 {
         let walker = crate::cut::walk(program, typescript, false);
         walker.blocks.iter().filter(|block| block.end > block.start).count() as u32
     }
@@ -146,13 +147,78 @@ mod tests {
         assert!(out.code.starts_with("import a from './a';\nvar __vaK"));
         assert!(out.code.contains(".r(\"src/f.js@00\",5);"));
         assert_eq!(out.regions, 5);
-        assert_eq!(out.instrumentation, "sense:instrument/presence-v5");
+        assert_eq!(out.instrumentation, "sense:instrument/presence-v6");
     }
 
     #[test]
     fn entries_cuts_only_the_module_and_its_functions() {
         let source = "export function f(x) { if (x) return 1; return 0 }\n";
         assert_eq!(instrument(source, "f.js", "f", Mode::Entries).map(|out| out.regions), Some(2));
+    }
+
+    #[test]
+    fn a_function_handed_to_a_page_crosses_without_probes_and_its_caller_keeps_them() {
+        let source = "function probe() { if (document.hidden) return 0; return 1 }\nexport function f(page) {\n  if (!page) return;\n  return page.evaluate(() => { if (window.x) return 2; return probe() }) ?? page.evaluate(probe);\n}\n";
+        let out = instrument(source, "f.ts", "f", Mode::Presence).expect("it parses");
+        assert!(out.code.contains("function probe() { if (document.hidden) return 0; return 1 }"));
+        assert!(out.code.contains("() => { if (window.x) return 2; return probe() }"));
+        // The module, `f`, and both branches of `if (!page)` and what follows it.
+        assert_eq!(out.regions, 5);
+        let entries = instrument(source, "f.ts", "f", Mode::Entries).expect("it parses");
+        assert_eq!(entries.regions, 2);
+    }
+
+    #[test]
+    fn a_declaration_handed_to_a_page_is_entered_with_the_function_that_declares_it() {
+        let source = "export function f(page, x) {\n  page.evaluate(probe);\n  if (x) return;\n  function probe() { return 1 }\n}\n";
+        let out = cut::cut(source, "f.ts", false).expect("it parses");
+        assert!(out.code.contains("function probe() { return 1 }"));
+        let entry = out.blocks.iter().position(|block| block.name == "f").expect("f has a region");
+        let probe = out.blocks.iter().position(|block| block.name == "f/probe").expect("the declaration has a region");
+        assert_eq!(out.blocks[probe].owner, Some(entry as u32));
+        // Probed where `f`'s statements start, ahead of the return that skips its text.
+        assert!(out.code.contains(&format!("__va({probe});page.evaluate(probe);")));
+        // The entries walk has no region the text could sit in but `f`'s own.
+        let entries = cut::cut(source, "f.ts", true).expect("it parses");
+        assert_eq!(entries.blocks.len(), 2);
+    }
+
+    #[test]
+    fn a_declaration_in_one_case_is_entered_with_the_switch_that_holds_every_case() {
+        let source = "export function f(page, x) {\n  switch (x) {\n    case 1: return page.evaluate(probe);\n    default: function probe() { return 1 }\n  }\n}\n";
+        let out = cut::cut(source, "f.ts", false).expect("it parses");
+        assert!(out.code.contains("function probe() { return 1 }"));
+        let entry = out.blocks.iter().position(|block| block.name == "f").expect("f has a region");
+        let probe = out.blocks.iter().position(|block| block.name == "f/probe").expect("the declaration has a region");
+        assert_eq!(out.blocks[probe].owner, Some(entry as u32));
+        // Probed as the switch is reached, before any case is chosen.
+        assert!(out.code.contains(&format!("switch (__va({probe}),x)")));
+        // Ahead of an `await` the discriminant opens with, outside what it resumes with.
+        let source = "outer: switch (await page.kind) {\n  case 1: page.evaluate(probe); break outer;\n  default: function probe() { return 1 }\n}\n";
+        let out = cut::cut(source, "f.ts", false).expect("it parses");
+        let probe = out.blocks.iter().position(|block| block.name == "probe").expect("the declaration has a region");
+        assert!(out.code.contains(&format!("outer: switch (__va({probe}),__vaR(await page.kind")));
+    }
+
+    #[test]
+    fn a_module_probes_its_crossing_declaration_after_its_imports_and_ahead_of_an_await() {
+        let source = "import { page } from './page';\nawait page.evaluate(probe);\nif (page.closed) throw 0;\nexport function probe() { return 1 }\n";
+        let out = cut::cut(source, "f.ts", false).expect("it parses");
+        let probe = out.blocks.iter().position(|block| block.name == "probe").expect("the declaration has a region");
+        assert_eq!(out.blocks[probe].owner, Some(0));
+        let at = out.code.find(&format!("__va({probe});__vaR(await page.evaluate(probe)")).expect("probed ahead of the await");
+        assert!(out.code.find("import { page }").expect("the import stays") < at);
+    }
+
+    #[test]
+    fn an_anonymous_crossing_function_keeps_its_number_so_the_next_one_keeps_its_name() {
+        let names = |source: &str| -> Vec<String> {
+            cut::cut(source, "f.ts", false).expect("it parses").blocks.into_iter().map(|block| block.name).collect()
+        };
+        let plain = names("page.other((() => 1) as () => number);\n[() => 2];\n");
+        assert_eq!(plain, ["", "anon#0", "anon#1"]);
+        let crossing = names("page.evaluate((() => 1) as () => number);\n[() => 2];\n");
+        assert_eq!(crossing, ["", "anon#1"]);
     }
 
     #[test]
