@@ -174,19 +174,12 @@ function twoBuilds(commit: string | undefined, first: string, second: string): T
  * address, and this is the shape where the address does not tell the two rows
  * apart: region `n` is entered by `entered[n]`.
  */
-function namesakes(
-  commit: string | undefined,
-  entered: readonly (readonly string[])[],
-): TestCoverage {
+function namesakes(commit: string | undefined, entered: readonly (readonly string[])[]): TestCoverage {
   return {
     version: 3,
     instrumentation: 'fixture-instrumentation',
     ...(commit === undefined ? {} : { commit }),
-    tests: [...new Set(entered.flat())].sort().map((file) => ({
-      file,
-      complete: true,
-      preconditions: [{ name: file, digest: 'source:test' }],
-    })),
+    tests: [...new Set(entered.flat())].sort().map((file) => ({ file, complete: true, preconditions: [{ name: file, digest: 'source:test' }] })),
     modules: [{
       file: 'src/decide.ts',
       sourceDigest: 'source:src/decide.ts',
@@ -194,17 +187,24 @@ function namesakes(
       blocks: [
         root('block:src/decide.ts', entered[0] ?? []),
         { ...entry('block:src/decide.ts-arg0', entered[1] ?? []), name: 'decide/map.arg0' },
-        {
-          ...entry('block:src/decide.ts-arg0-namesake', entered[2] ?? []),
-          ordinal: 2,
-          name: 'decide/map.arg0',
-          startLine: 5,
-          endLine: 7,
-        },
+        { ...entry('block:src/decide.ts-arg0-namesake', entered[2] ?? []), ordinal: 2, name: 'decide/map.arg0', startLine: 5, endLine: 7 },
       ],
     }],
   };
 }
+
+/** Alpha entered the first namesake and beta the second. */
+const APART = [['test/alpha.test.ts', 'test/beta.test.ts'], ['test/alpha.test.ts'], ['test/beta.test.ts']];
+
+/** `coverage` recorded over an edited text, its namesakes' bodies `bodies` in order. */
+function reread(coverage: TestCoverage, bodies: readonly string[]): TestCoverage {
+  const [module] = coverage.modules;
+  const blocks = module!.blocks.map((block, at) => (at === 0 ? block : { ...block, digest: bodies[at - 1]! }));
+  return { ...coverage, modules: [{ ...module!, sourceDigest: 'source:src/decide.ts-edited', blocks }] };
+}
+
+/** The first namesake of {@link APART} taken out and a third written behind the second, so beta's body stands first. */
+const MOVED = reread(namesakes(LOCAL, [['test/gamma.test.ts'], [], []]), ['block:src/decide.ts-arg0-namesake', 'block:src/decide.ts-arg0-behind']);
 
 const WIDE = ['src/alpha.ts', 'src/decide.ts', 'src/zeta.ts'];
 
@@ -313,23 +313,16 @@ const CASES: Readonly<Record<string, Case>> = {
     },
   },
   'a module whose two regions are one address, re-recorded': {
-    previous: namesakes(BASELINE, [
-      ['test/alpha.test.ts', 'test/beta.test.ts'],
-      ['test/alpha.test.ts'],
-      ['test/beta.test.ts'],
-    ]),
+    previous: namesakes(BASELINE, APART),
     current: namesakes(LOCAL, [['test/gamma.test.ts'], [], []]),
   },
   'a module whose two regions are one address, re-recorded over another text': {
-    previous: namesakes(BASELINE, [
-      ['test/alpha.test.ts', 'test/beta.test.ts'],
-      ['test/alpha.test.ts'],
-      ['test/beta.test.ts'],
-    ]),
-    current: (() => {
-      const recorded = namesakes(LOCAL, [['test/gamma.test.ts'], [], []]);
-      return { ...recorded, modules: [{ ...recorded.modules[0]!, sourceDigest: 'source:src/decide.ts-edited' }] };
-    })(),
+    previous: namesakes(BASELINE, APART),
+    current: reread(namesakes(LOCAL, [['test/gamma.test.ts'], [], []]), ['block:src/decide.ts-arg0', 'block:src/decide.ts-arg0-namesake']),
+  },
+  'a module whose two regions are one address, re-recorded after they moved': {
+    previous: namesakes(BASELINE, APART),
+    current: MOVED,
   },
   'a carried test whose regions are gone': {
     previous: at(BASELINE, 'test/alpha.test.ts'),
@@ -424,6 +417,18 @@ describe('layerTestCoverage', () => {
       expect(layerTestCoverage(bytes, current, onDisk, readings).equals(expected)).toBe(true);
     });
   }
+
+  it('carries a namesake\'s crossings to the region its body moved to', () => {
+    // Beta's body stands first, and the new one behind takes the crossings
+    // around it; by order, alpha's crossings would land on beta's body.
+    const layered = decodeTestCoverage(layerTestCoverage(encodeTestCoverage(namesakes(BASELINE, APART)), MOVED));
+
+    expect(layered.modules[0]!.blocks.map((block) => block.testFiles)).toEqual([
+      ['test/alpha.test.ts', 'test/beta.test.ts', 'test/gamma.test.ts'],
+      ['test/beta.test.ts'],
+      ['test/alpha.test.ts', 'test/beta.test.ts'],
+    ]);
+  });
 
   it('keeps a carried test whole over another build of the text it ran', () => {
     // The layer is what CI writes with: a one-file shard that loaded the
