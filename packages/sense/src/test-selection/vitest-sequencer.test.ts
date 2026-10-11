@@ -260,3 +260,98 @@ describe('a configuration handed a selection', () => {
     expect(await configured({ test: {} }, false)).toBeTypeOf('function');
   });
 });
+
+describe('the sequencer under `sequence.shuffle`', () => {
+  const files = ['a.test.ts', 'b.test.ts', 'c.test.ts', 'd.test.ts'];
+  const shuffling = () => selectingSequencer(undefined, { root, configRoot: process.cwd(), say: () => {} });
+
+  it('picks a seed when none was given, on the config the workers are handed, and shuffles by it', async () => {
+    const config = { root, sequence: { shuffle: true } as { shuffle: boolean; seed?: number } };
+    const before = Date.now();
+    const sequencer = new (shuffling())(context(config));
+
+    expect(config.sequence.seed).toBeGreaterThanOrEqual(before);
+    const again = new (shuffling())(context({ root, sequence: { shuffle: true, seed: config.sequence.seed! } }));
+    expect(names(await sequencer.sort(files.map(spec)))).toEqual(names(await again.sort(files.map(spec))));
+  });
+
+  // The orders `@vitest/utils`' `shuffle` gives these four files.
+  it.each([
+    [1, ['b.test.ts', 'a.test.ts', 'd.test.ts', 'c.test.ts']],
+    [2, ['c.test.ts', 'b.test.ts', 'a.test.ts', 'd.test.ts']],
+  ])('keeps seed %i when given, and orders the files as Vitest does with it', async (seed, order) => {
+    const config = { root, sequence: { shuffle: true, seed } };
+
+    expect(names(await new (shuffling())(context(config)).sort(files.map(spec)))).toEqual(order);
+    expect(config.sequence.seed).toBe(seed);
+  });
+
+  it('picks no seed when the project names its own sequencer, as Vitest leaves that to its own', () => {
+    const config: SequencerContext['config'] = { root, sequence: { shuffle: true } };
+    new (selectingSequencer(Reversing, { root, configRoot: root, say: () => {} }))(context(config));
+
+    expect(config.sequence?.seed).toBeUndefined();
+  });
+});
+
+describe('the banner of a shuffled run', () => {
+  /** Vitest's banner as each major opens it: an empty line, the `RUN` line, then what follows it. */
+  class Logger {
+    readonly lines: string[] = [];
+    log(...args: unknown[]): void {
+      this.lines.push(args.join(' '));
+    }
+    printBanner(): void {
+      this.log();
+      this.log(' RUN  v0 /checkout');
+      this.log('      API started at http://localhost:51204/');
+      this.log();
+    }
+  }
+  interface Hooked {
+    readonly config: { readonly sequence: { readonly sequencer?: unknown; readonly shuffle: boolean; seed?: number } };
+    readonly logger: Logger;
+  }
+  const seam = async (shuffle: boolean) => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-seed-banner-'));
+    try {
+      const config = withTestSelection({ root: directory }, { root: directory, coverageFile: resolve(directory, 'coverage.bin') });
+      const vitest: Hooked = { config: { sequence: { ...config.test?.sequence, shuffle } }, logger: new Logger() };
+      const [first] = config.test!.reporters as unknown as [{ onInit: (ctx: Hooked) => void }];
+      const plugin = (config.plugins as unknown as { name: string; configureVitest?: (context: { vitest: Hooked }) => void }[])
+        .find((one) => one.name === 'variance-authority:test-selection');
+      return { vitest, onInit: () => first.onInit(vitest), configureVitest: () => plugin?.configureVitest?.({ vitest }) };
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  };
+
+  it('names the seed it picked on the line after `RUN`, where Vitest names its own', async () => {
+    const { vitest, onInit } = await seam(true);
+    onInit();
+    vitest.logger.printBanner();
+
+    const seed = vitest.config.sequence.seed;
+    expect(seed).toBeTypeOf('number');
+    expect(vitest.logger.lines).toEqual(['', ' RUN  v0 /checkout', `      Running tests with seed "${seed}"`, '      API started at http://localhost:51204/', '']);
+    expect(Object.hasOwn(vitest.logger, 'log')).toBe(false);
+  });
+
+  it('names it once when both the reporter and the plugin hook the banner', async () => {
+    const { vitest, onInit, configureVitest } = await seam(true);
+    configureVitest();
+    onInit();
+    vitest.logger.printBanner();
+
+    expect(vitest.logger.lines.filter((line) => line.includes('Running tests with seed'))).toHaveLength(1);
+  });
+
+  it('leaves the banner as it is when files are not shuffled', async () => {
+    const { vitest, onInit } = await seam(false);
+    onInit();
+    vitest.logger.printBanner();
+
+    expect(vitest.logger.lines).toEqual(['', ' RUN  v0 /checkout', '      API started at http://localhost:51204/', '']);
+    expect(vitest.config.sequence.seed).toBeUndefined();
+  });
+});

@@ -241,7 +241,7 @@ describe('coverage generations', () => {
       }>)[0]!;
       const reporter = (configured.test!.reporters as unknown as Array<{
         onFinished(files: readonly []): Promise<void>;
-      }>)[1]!;
+      }>).at(-1)!;
 
       expect(plugin.transform.handler('const =', resolve(root, 'broken.ts'))).toBeNull();
       await reporter.onFinished([]);
@@ -269,7 +269,7 @@ describe('coverage generations', () => {
       const configured = withTestSelection({}, { root, coverageFile, include: () => false });
       const reporter = (configured.test!.reporters as unknown as Array<{
         onFinished(files: readonly unknown[]): Promise<void>;
-      }>)[1]!;
+      }>).at(-1)!;
 
       await reporter.onFinished([{ filepath: testFile, tasks: [] }]);
 
@@ -293,7 +293,7 @@ describe('coverage generations', () => {
       const configured = withTestSelection({}, { root, coverageFile, include: () => false });
       const reporter = (configured.test!.reporters as unknown as Array<{
         onFinished(files: readonly []): Promise<void>;
-      }>)[1]!;
+      }>).at(-1)!;
 
       await reporter.onFinished([]);
 
@@ -314,7 +314,7 @@ describe('coverage generations', () => {
       }>)[0]!;
       const reporter = (configured.test!.reporters as unknown as Array<{
         onFinished(files: readonly []): Promise<void>;
-      }>)[1]!;
+      }>).at(-1)!;
 
       const placed = plugin.transform.handler('export function f(x) { if (x) { return 1; } return 2; }', resolve(root, 'f.ts'));
       await reporter.onFinished([]);

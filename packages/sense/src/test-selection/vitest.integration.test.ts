@@ -36,7 +36,7 @@ afterEach(async () => {
 });
 
 describe('the Vitest integration', () => {
-  it('adds one product plugin, setup file, and reporter to an ordinary configuration', () => {
+  it('adds one product plugin and setup file to an ordinary configuration, and a reporter on each side of its own', () => {
     // A root of its own, because constructing the configuration writes this
     // seam's shims under it — and this one never runs, so nothing settles to
     // take them off again.
@@ -44,7 +44,7 @@ describe('the Vitest integration', () => {
 
     expect(configured.plugins).toHaveLength(1);
     expect(configured.test?.setupFiles).toHaveLength(1);
-    expect(configured.test?.reporters).toHaveLength(2);
+    expect(configured.test?.reporters).toHaveLength(3);
   });
 
   it('runs under the default include, which leaves the seam\'s own setup module alone', async () => {

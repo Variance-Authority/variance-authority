@@ -39,6 +39,10 @@ import { selectedLines, type SuiteSelection, type SuiteTimes } from './suite-sel
 
 /** Marks a sequencer that already selects, so a second wrap is the first one. */
 const SELECTING = Symbol.for('variance-authority:selecting-sequencer');
+/** On a selecting sequencer: the seed a run under it shuffles files with, or `undefined` when it shuffles none. */
+const SEED = Symbol.for('variance-authority:selecting-seed');
+/** Marks a logger whose banner already names the seed, so a second hook is the first one. */
+const BANNER = Symbol.for('variance-authority:seed-banner');
 
 /** The part of Vitest's context a sequencer is constructed with that this one reads. */
 export interface SequencerContext {
@@ -49,8 +53,17 @@ export interface SequencerContext {
     readonly sequence?: { readonly shuffle?: unknown; seed?: number };
   };
   readonly state?: { readonly getPaths?: () => readonly string[] };
-  /** Where Vitest prints its banner. */
-  readonly logger?: { readonly log: (...args: unknown[]) => void };
+}
+
+/** The part of Vitest's own context its banner reads: what a reporter's `onInit` and a plugin's `configureVitest` are handed. */
+export interface BannerContext {
+  readonly config: { readonly sequence?: { readonly sequencer?: unknown; readonly shuffle?: unknown; seed?: number } };
+  readonly logger?: BannerLogger;
+}
+
+interface BannerLogger {
+  log(...args: unknown[]): void;
+  printBanner?(): void;
 }
 
 /** A test file as Vitest 2 hands it to a sequencer: `moduleId`, and the tuple it replaced. */
@@ -110,25 +123,26 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
   let timed: Promise<SuiteTimes> | undefined;
   let said = false;
   let placed = false;
-  let seeded = false;
 
   class Selecting implements Sequencer {
     static readonly [SELECTING] = true;
     readonly #ctx: SequencerContext;
     #inner: Promise<Sequencer> | undefined;
 
+    /**
+     * What Vitest does for its own `RandomSequencer` only: a seed when none was
+     * given, on the config its workers are handed. Asked by the banner, which
+     * prints before any sequencer is made, and by each sequencer.
+     */
+    static [SEED](ctx: SequencerContext): number | undefined {
+      if (own !== undefined || ctx.config.sequence === undefined || !filesShuffled(options.shuffle, ctx)) return undefined;
+      return ctx.config.sequence.seed ??= Date.now();
+    }
+
     constructor(ctx: SequencerContext) {
       this.#ctx = ctx;
       options.sharded?.(shardAsked(ctx.config.shard) !== undefined);
-      if (own === undefined && !seeded && ctx.config.sequence !== undefined && filesShuffled(options.shuffle, ctx)) {
-        // What Vitest does for its own `RandomSequencer` only: a seed when none
-        // was given, on the config its workers are handed, and the banner's line.
-        ctx.config.sequence.seed ??= Date.now();
-        const line = `      Running tests with seed "${ctx.config.sequence.seed}"`;
-        if (ctx.logger === undefined) say(line);
-        else ctx.logger.log(line);
-        seeded = true;
-      }
+      Selecting[SEED](ctx);
     }
 
     async shard<T extends Spec>(files: T[]): Promise<T[]> {
@@ -177,6 +191,47 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
     }
   }
   return Selecting;
+}
+
+/**
+ * Has Vitest's banner name the seed a selecting sequencer shuffles files with,
+ * where it names its own `RandomSequencer`'s.
+ *
+ * Vitest prints that line from its banner only, and only reporters that print
+ * the banner call it: `--reporter=json` with no `outputFile` writes its report
+ * to stdout, and a line there breaks whoever parses it. The banner checks
+ * `sequence.sequencer === RandomSequencer`, which a wrapping sequencer never
+ * is, so the line is added to the banner itself rather than printed beside it.
+ * Vitest 2, 3 and 4 each print an empty line and then the `RUN` line first,
+ * and the seed line next.
+ *
+ * Handed Vitest's context before any reporter prints the banner: by a reporter
+ * ahead of the others in `onInit`, and by a plugin's `configureVitest` from
+ * Vitest 3.1, which a command-line `--reporter` does not replace.
+ */
+export function seedInBanner(vitest: BannerContext): void {
+  const logger = vitest.logger as (BannerLogger & { [BANNER]?: true }) | undefined;
+  if (logger?.printBanner === undefined || logger[BANNER] === true) return;
+  logger[BANNER] = true;
+  const printBanner = logger.printBanner;
+  logger.printBanner = function (this: BannerLogger): void {
+    const sequencer = vitest.config.sequence?.sequencer as { [SEED]?: (ctx: SequencerContext) => number | undefined } | undefined;
+    const seed = sequencer?.[SEED]?.(vitest);
+    if (seed === undefined) return printBanner.call(this);
+    const log = this.log;
+    const owned = Object.hasOwn(this, 'log');
+    let lines = 0;
+    this.log = (...args: unknown[]) => {
+      log.apply(this, args);
+      if (++lines === 2) log.call(this, `      Running tests with seed "${seed}"`);
+    };
+    try {
+      printBanner.call(this);
+    } finally {
+      if (owned) this.log = log;
+      else delete (this as Partial<BannerLogger>).log;
+    }
+  };
 }
 
 /** `config.shard` as Vitest resolves `--shard k/n`, or `undefined` when no shard was asked for. */

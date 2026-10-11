@@ -29,7 +29,7 @@ function seam(root: string, cases = false): Seam {
   );
   return {
     plugin: (configured.plugins as unknown as Seam['plugin'][])[0]!,
-    reporter: (configured.test!.reporters as unknown as Seam['reporter'][])[1]!,
+    reporter: (configured.test!.reporters as unknown as Seam['reporter'][]).at(-1)!,
     setup: (configured.test!.setupFiles as string[])[0]!,
     runner: configured.test!.runner as string | undefined,
   };

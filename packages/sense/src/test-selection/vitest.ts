@@ -19,7 +19,7 @@ import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import type { SuiteSelection } from './suite-selection.js';
 import { selectionFrom, timesFrom } from './selection-environment.js';
-import { selectingSequencer, type SequencerClass } from './vitest-sequencer.js';
+import { seedInBanner, selectingSequencer, type BannerContext, type SequencerClass } from './vitest-sequencer.js';
 
 export interface TestSelectionOptions {
   /**
@@ -113,6 +113,8 @@ interface VitePlugin extends ConfigPlugin {
   };
   readonly closeBundle: () => Promise<void>;
   readonly watchChange: (id: string) => void;
+  /** Vitest 3.1 and on call it with the run's context; Vitest 2 and 3.0 never do. */
+  readonly configureVitest: (context: { readonly vitest: BannerContext }) => void;
 }
 
 /**
@@ -163,7 +165,9 @@ export function withTestSelection(
   const selection = options.selection ?? selectionFrom(process.env, { root, from: configRoot, ...suite });
   const settle = foldRun(run, { coverageFile, shims: [setupId, runnerId] });
   const reporter = selectionReporter(run, settle);
-  const reporters = config.test?.reporters === undefined ? ['default'] : array(config.test.reporters);
+  // Ahead of the project's reporters, so the banner the first of them prints
+  // names the seed of a shuffled run, as Vitest's own does.
+  const reporters = [{ onInit: seedInBanner }, ...(config.test?.reporters === undefined ? ['default'] : array(config.test.reporters))];
 
   // A configuration that names projects describes the run rather than a suite:
   // nothing is transformed under it, and it is the only place a reporter is
@@ -355,6 +359,11 @@ function selectionPlugin(
       }
     },
     configResolved: declareConfig(run, declared, [setupId, runnerId]),
+    // Vitest 3.1 and on, before any reporter starts: a command-line
+    // `--reporter` leaves plugins in place, so the banner still names the seed.
+    configureVitest({ vitest }) {
+      seedInBanner(vitest);
+    },
     // A file changed on disk, so its reading describes text the disk no longer
     // holds, and a rerun transforms it again only if a test still loads it.
     // So does every reading named after it: a build's regions sit on the lines

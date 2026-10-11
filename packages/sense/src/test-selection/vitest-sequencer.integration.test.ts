@@ -19,24 +19,32 @@ afterEach(async () => {
 
 /** The files a run passed, in the order they started; one at a time, so that order is the sequencer's. */
 async function started(config: string, ...flags: string[]): Promise<string[]> {
-  return (await run(config, ...flags)).files;
+  const directory = await scratch();
+  const report = resolve(directory, 'report.json');
+  await run(directory, config, '--reporter=json', `--outputFile=${report}`, ...flags);
+  const { testResults } = JSON.parse(await readFile(report, 'utf8')) as Report;
+  expect(testResults.map((file) => file.status)).toEqual(testResults.map(() => 'passed'));
+  return testResults.toSorted((a, b) => a.startTime - b.startTime).map((file) => basename(file.name));
 }
 
-/** A run's files in the order they started, and what it wrote to stdout. */
-async function run(config: string, ...flags: string[]): Promise<{ files: string[]; stdout: string }> {
-  const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-sequencer-'));
-  temporary.push(directory);
-  const report = resolve(directory, 'report.json');
+/** What a run wrote to stdout, one file at a time, under the reporters `flags` leave it. */
+async function run(directory: string, config: string, ...flags: string[]): Promise<string> {
   const { stdout } = await execute(
     process.execPath,
-    [vitest, 'run', '--config', resolve(fixture, config), '--no-file-parallelism', '--reporter=json', `--outputFile=${report}`, ...flags],
+    [vitest, 'run', '--config', resolve(fixture, config), '--no-file-parallelism', ...flags],
     { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: resolve(directory, 'coverage.bin'), VARIANCE_AUTHORITY_CACHE: directory } },
   );
-  const { testResults } = JSON.parse(await readFile(report, 'utf8')) as {
-    testResults: { name: string; status: string; startTime: number }[];
-  };
-  expect(testResults.map((file) => file.status)).toEqual(testResults.map(() => 'passed'));
-  return { files: testResults.toSorted((a, b) => a.startTime - b.startTime).map((file) => basename(file.name)), stdout };
+  return stdout;
+}
+
+async function scratch(): Promise<string> {
+  const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-sequencer-'));
+  temporary.push(directory);
+  return directory;
+}
+
+interface Report {
+  readonly testResults: readonly { readonly name: string; readonly status: string; readonly startTime: number }[];
 }
 
 describe('the selecting sequencer under `sequence.shuffle`', () => {
@@ -50,12 +58,23 @@ describe('the selecting sequencer under `sequence.shuffle`', () => {
     expect(await started('vitest.default.config.ts', ...flags)).toEqual(own);
   }, 60_000);
 
-  it('names the seed it shuffled with when none was given, and that seed runs the files in the same order', async () => {
-    const first = await run('vitest.default.config.ts', '--sequence.shuffle');
-    const seed = /Running tests with seed "(\d+)"/.exec(first.stdout)?.[1];
+  it('names the seed it shuffled with in the banner, where Vitest names its own, and that seed runs the files in the same order', async () => {
+    const lines = (await run(await scratch(), 'vitest.default.config.ts', '--sequence.shuffle')).split('\n');
+    const banner = lines.findIndex((line) => line.includes(' RUN '));
+    const seed = /^ {6}Running tests with seed "(\d+)"$/.exec(lines[banner + 1] ?? '')?.[1];
     expect(seed).toBeDefined();
+    // The default reporter names each file as it finishes, and one runs at a time.
+    const order = lines.flatMap((line) => /✓ test\/(\S+)/.exec(line)?.[1] ?? []);
 
-    expect(await started('vitest.default.config.ts', '--sequence.shuffle', `--sequence.seed=${seed}`)).toEqual(first.files);
+    expect(await started('vitest.default.config.ts', '--sequence.shuffle', `--sequence.seed=${seed}`)).toEqual(order);
+  }, 60_000);
+
+  // A reporter that prints no banner prints no seed, as Vitest's own do: the
+  // JSON reporter with no `outputFile` writes its report to stdout.
+  it('leaves stdout to a reporter that prints no banner', async () => {
+    const stdout = await run(await scratch(), 'vitest.default.config.ts', '--sequence.shuffle', '--reporter=json');
+
+    expect((JSON.parse(stdout) as Report).testResults).toHaveLength(4);
   }, 60_000);
 
   it('runs every file when only the tests in each are shuffled', async () => {

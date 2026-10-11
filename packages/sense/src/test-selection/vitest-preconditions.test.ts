@@ -49,7 +49,7 @@ function seam(config: UserConfig): Seam {
   const configured = withTestSelection(config, { root, coverageFile, include: () => false });
   const reporter = (configured.test!.reporters as unknown as Array<{
     onFinished(files: readonly unknown[]): Promise<void>;
-  }>)[1]!;
+  }>).at(-1)!;
   return {
     plugin: (configured.plugins as unknown as Seam['plugin'][]).at(-1)!,
     finish: async () => {
