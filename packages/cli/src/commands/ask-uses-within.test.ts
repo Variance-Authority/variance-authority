@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
@@ -72,6 +72,7 @@ describe('variance ask over the imports of a name within its own package', () =>
   it('does not list a re-export in another package as a use, and keeps a type-only one as a type use', async () => {
     checkout({
       'apps/app/src/relay.ts': "export { greet } from '@acme/lib';\n",
+      'apps/app/src/relayed.ts': "import { greet } from './relay.js';\nexport const relayed = greet('relay');\n",
       'apps/app/src/typed.ts': "export { type greet as Greet } from '@acme/lib';\n",
       'apps/app/src/star.ts': "export * from '@acme/lib';\n",
     });
@@ -80,6 +81,7 @@ describe('variance ask over the imports of a name within its own package', () =>
     const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app$/m);
+    expect(out).toMatch(/^apps\/app\/src\/relayed\.ts:1 — @acme\/app$/m);
     expect(out).toMatch(/^apps\/app\/src\/typed\.ts:1 — @acme\/app \(type only\)$/m);
     expect(out).not.toMatch(/relay\.ts|star\.ts/);
   });
@@ -129,6 +131,30 @@ describe('variance ask over the imports of a name within its own package', () =>
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app$/m);
     expect(out).toMatch(/^Imports that do not name a package path are not listed: the source index at .* did not read: .*; run `variance index`\.$/m);
     expect(out).not.toContain(UNCOUNTED_LINE);
+  });
+
+  it('answers `symbol` for an unpublished name when the source index does not read, and says why it cannot count who imports it', async () => {
+    const root = checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    writeFileSync(sourceIndexPath(root), 'not a source index');
+
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'roundTax']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
+    expect(out).toMatch(/^Who imports it is read from the source index, and the source index at .* did not read: .*; run `variance index`\.$/m);
+  });
+
+  it('answers `symbol` for an unpublished name when no source index is published, and says so', async () => {
+    const root = checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    rmSync(sourceIndexPath(root));
+
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'roundTax']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
+    expect(out).toMatch(/^Who imports it is read from the source index, and no source index is published; run `variance index`\.$/m);
   });
 
   it('counts the imports of an unpublished name through a barrel once, under the file that declares it', async () => {

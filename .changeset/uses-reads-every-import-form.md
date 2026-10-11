@@ -30,7 +30,9 @@ still lists the imports from other packages and says why the rest were not
 read; it no longer fails. `symbol` names both halves of what `uses` lists. For a
 name a file exports and no entry publishes, `symbol` counts an import through a
 barrel once, under the file that declares it, and no longer shows the barrel as
-a second export.
+a second export. When the source index is missing or does not read, `symbol`
+answers such a name and says why it could not read who imports it, instead of
+failing.
 
 TypeScript's `import x = require('m')` holds the module whole, like
 `import * as x`. The module reader now records `x.name` and `x['name']` after
