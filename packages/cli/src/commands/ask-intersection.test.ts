@@ -74,6 +74,11 @@ describe('ask intersection over a checkout', () => {
     expect(text).toContain('src/store/selectors.ts — 1: line 1 · 2: line 1');
   });
 
+  it.skipIf(!RG)('keeps every line a grep matched in one file', async () => {
+    const text = await ask('grep --query selectBalance --from src/Wallet.ts', 'discover --path ^src/Wallet');
+    expect(text).toContain('src/Wallet.ts — 1: lines 1, 2 · 2: the file');
+  });
+
   it('takes `--limit` for itself', async () => {
     const text = await askSource({ question: 'intersection', reports: ['discover --path ^src/', 'discover --path selectors'], limit: 1 });
     expect(text).toContain('2 files in all of them.');
