@@ -120,6 +120,18 @@ describe('variance ask over the imports of a name within its own package', () =>
     expect(both.out).toMatch(/^apps\/app\/src\/subpath\.ts:1 — @acme\/app$/m);
   });
 
+  it('answers plainly when the source index reads and nothing imports a published name', async () => {
+    checkout({ 'apps/app/src/hello.ts': 'export const hello = 1;\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out, err } = await run(['ask', 'uses', '--name', 'greet']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out.split('\n')).toContain(
+      '`greet` is published and nothing in this workspace imports it; a read through an `export * as` namespace and a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.',
+    );
+  });
+
   it('keeps the imports by package path of a published name when the source index does not read, and says why the rest are not listed', async () => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
