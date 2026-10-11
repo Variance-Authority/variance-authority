@@ -121,6 +121,17 @@ describe('intersection of whole sets', () => {
     expect(text).not.toContain('src/state/user.ts');
   });
 
+  it('keeps a file by its path alone, with no line to show for it', () => {
+    const text = ask({ from: 'src/Wallet.tsx', path: '^src/store/' });
+    expect(text).toContain('1 file with a path matching /^src/store/');
+    expect(text).toContain('1 file in all of them');
+    expect(text).toContain('src/store/selectors.ts');
+  });
+
+  it('asks its host for the tree whatever it was given, since every set is read from it', () => {
+    expect(intersection.wants?.({ declares: 'x' })).toBe(true);
+  });
+
   it('says so when nothing is in all of them', () => {
     expect(ask({ ...CONTEXTS, path: '^src/old/' })).toContain('No file is in all of them.');
   });
