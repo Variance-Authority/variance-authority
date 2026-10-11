@@ -41,7 +41,7 @@ export interface WhereCondition {
 
 /** A question about one piece of source. */
 export interface CoveringAt extends CoveringSource {
-  /** The source file the question is about, as the index spells it. */
+  /** The source file the question is about, named from the repository root. */
   readonly file: string;
   /** `--line <n>`: one line of it. Alternative to `--function`. */
   readonly line?: number;

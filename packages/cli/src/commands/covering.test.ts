@@ -150,7 +150,7 @@ describe('asking which tests entered a line', () => {
  *
  * A fixture diff would exercise the join and prove nothing about the part that
  * breaks: `--since` is a ref, and turning a ref into hunks in the coordinates
- * the index spells files in goes through `git` twice and a merge base once.
+ * the index names files in goes through `git` twice and a merge base once.
  * Every failure of that is silent — the wrong coordinate answers about a file
  * nobody changed, and a list of test names is the same shape either way.
  */
