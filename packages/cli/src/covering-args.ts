@@ -1,4 +1,5 @@
-import { isAbsolute, relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
+import { checkoutPath } from '@variance-authority/sense';
 import { distanceRange } from '@variance-authority/sense/test-selection';
 import { noPositionals, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
@@ -173,13 +174,10 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
     );
   }
 
-  // The record names files from the root. An absolute path, as an editor
-  // copies it, is the same file named from `/`; a relative one is already
-  // named from the root, and no other spelling is tried.
   const source = executionAnd(flags);
   return {
     ...source,
-    file: isAbsolute(file) ? relative(source.root, file) : file,
+    file: fromRoot(file, source.root),
     ...(line === undefined ? {} : { line }),
     ...(functionName === undefined ? {} : { function: functionName }),
     ...(atDistance === undefined ? {} : { atDistance }),
@@ -187,6 +185,20 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
     ...(flags.present.has('--hops') ? { hops: true as const } : {}),
     ...(text === undefined ? {} : { text }),
   };
+}
+
+/**
+ * `--file` as the record names it: from the root, with `/` between segments.
+ *
+ * A relative path is read from the root and an absolute one, as an editor
+ * copies it, from `/`; `./` and `..` are collapsed. That is the same path in
+ * another syntax. Nothing is matched by name, so a path that leaves the root is
+ * refused rather than climbed out of.
+ */
+function fromRoot(file: string, root: string): string {
+  const asked = checkoutPath(root, file);
+  if ('outside' in asked) throw new OperatorError(`\`--file\`: ${asked.outside}`);
+  return asked.path;
 }
 
 /**

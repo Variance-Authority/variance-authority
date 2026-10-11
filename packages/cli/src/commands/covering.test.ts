@@ -104,7 +104,7 @@ describe('asking which tests entered a line', () => {
       .rejects.toThrow(/no readable per-case execution index/);
   });
 
-  it.each(['/abs/src/total.ts', 'lib/total.ts', 'total.ts'])(
+  it.each(['apps/shop/src/total.ts', 'lib/total.ts', 'total.ts'])(
     'refuses `%s`, a path the record does not hold, and names no other path',
     async (file) => {
       const execution = await indexFile();
@@ -121,6 +121,14 @@ describe('asking which tests entered a line', () => {
 
     expect(parse(['--file', join(root, 'src/total.ts'), '--root', root])).toMatchObject({ file: 'src/total.ts' });
     expect(parse(['--file', 'src/total.ts', '--root', root])).toMatchObject({ file: 'src/total.ts' });
+  });
+
+  it.each(['./src/total.ts', 'src/./total.ts', 'lib/../src/total.ts'])('reads `%s` as `src/total.ts`, the same path', (file) => {
+    expect(parse(['--file', file, '--root', join(tmpdir(), 'checkout')])).toMatchObject({ file: 'src/total.ts' });
+  });
+
+  it.each(['/elsewhere/src/total.ts', '../src/total.ts'])('refuses `%s`, a path outside the root', (file) => {
+    expect(() => parse(['--file', file, '--root', join(tmpdir(), 'checkout')])).toThrow(/is outside the checkout/);
   });
 
   it('separates a line nothing recorded from a line nothing covered', async () => {

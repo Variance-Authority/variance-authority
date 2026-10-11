@@ -48,7 +48,8 @@ yet. Suites that never loaded the file are named together on the last line,
 `Not loaded by <suite> (<kind>): …`: no answer from them, which is not *no test
 covers it*. When no suite answers, each block says why in full, with the record
 it read, since a wrong path is then the likely cause. The record names files
-from the repository root; `--file` takes that path, or an absolute one. A
+from the repository root; `--file` takes that path, or an absolute one inside
+the root. A
 refusal names the asked path and no other: a recorded path that shares its name,
 or ends in it, is a different file. The `--cases` refusal for a test file the
 index holds no case of reads the same. `--format refs` answers the same way.
