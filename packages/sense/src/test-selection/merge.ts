@@ -23,7 +23,7 @@ import {
   reusableBlock,
   withoutRetired,
 } from './merge-carry.js';
-import { addressed, sameNumbering } from './region-address.js';
+import { pairedRegions } from './region-address.js';
 
 /** One shard's snapshot and where it was read from, so a refusal can name both sides. */
 export interface CoverageShard {
@@ -272,7 +272,6 @@ export function mergeCoverage(
   const stale = new Set<string>();
   const modules = current.modules.map((module): CoverageModule => {
     const old = claim(module);
-    const at = new Map(addressed(module.blocks));
     const surviving = new Map<CoverageBlock, CoverageBlock>();
     // Half of an address is the seat a region took among its siblings, so two
     // cuts that filled a counter differently do not name the same regions by
@@ -280,15 +279,18 @@ export function mergeCoverage(
     // the recorded one takes the address the recorded one had, over text it
     // never covered, and the kinds match because a branch replaced a branch, so
     // every row finds somewhere to go and nothing is demoted for the slide.
-    // Across a module that renumbered nothing is carried: every previous row
-    // reads as unmatched, which demotes the tests on it. Same text is the same
-    // numbering, so the seats are counted only where the digests differ.
-    const placeable = old !== undefined &&
-      (old.sourceDigest === module.sourceDigest || sameNumbering(old.blocks, module.blocks));
-    for (const [address, before] of addressed(old?.blocks ?? [])) {
-      const block = at.get(address);
-      if (placeable && block !== undefined && module.instrumented && old!.instrumented &&
-        reusableBlock(block, before)) {
+    // Across a module that renumbered nothing is carried, and across an edit
+    // nothing is carried onto twins: every such previous row reads as
+    // unmatched, which demotes the tests on it. Same text is the same
+    // numbering and the same order of twins — {@link pairedRegions}.
+    const onto = new Map<CoverageBlock, CoverageBlock>();
+    if (old !== undefined) {
+      const from = pairedRegions(old.blocks, module.blocks, old.sourceDigest === module.sourceDigest);
+      for (const [at, block] of module.blocks.entries()) if (from[at]! >= 0) onto.set(old.blocks[from[at]!]!, block);
+    }
+    for (const before of old?.blocks ?? []) {
+      const block = onto.get(before);
+      if (block !== undefined && module.instrumented && old!.instrumented && reusableBlock(block, before)) {
         surviving.set(block, before);
         if (editedRegion(
           { sourceDigest: module.sourceDigest, digest: block.digest },

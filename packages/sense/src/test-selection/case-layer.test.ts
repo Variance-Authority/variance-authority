@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { layerCaseIndex, type CaseRunFiles } from './case-layer.js';
+import { layerCaseIndex } from './case-layer.js';
 import type { CasePrecondition } from './case-precondition-column.js';
 import { caseMotion } from './case-motion.js';
 import { coverageChange } from './coverage-count.js';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
-import { NO_OWNER } from './format-layout.js';
 import { encodeSetExecutionIndex, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import { repinnedCases } from './milestone-repin.js';
+import { linesOf, nestedAt, ran } from './__fixtures__/case-index.js';
 
 /** A region, the cases that called it by id, and whether it ran at load. */
 type Region = readonly [name: string, callers: readonly string[], loaded?: boolean, kind?: string];
@@ -54,9 +54,6 @@ function read(bytes: Uint8Array): { cases: string[]; regions: Record<string, Rec
   };
 }
 
-function ran(files: readonly string[], finished: readonly string[] = files, absent: readonly string[] = []): CaseRunFiles {
-  return { ran: new Set(files), finished: new Set(finished), present: (file) => !absent.includes(file) };
-}
 
 const suite = index(
   ['a.test.ts > one', 'a.test.ts > two', 'b.test.ts > three'],
@@ -226,8 +223,8 @@ describe('layerCaseIndex', () => {
   });
 });
 
-/** A region at one line, the cases that called it, and its name when it is not the callback's. */
-type Cut = readonly [line: number, callers: readonly string[], name?: string];
+/** A region at one line, the cases that called it, and its name. */
+type Cut = readonly [line: number, callers: readonly string[], name: string];
 
 /** One module cut at the lines given, each region a one-line callback its callers entered. */
 function cutAt(cases: readonly string[], file: string, regions: readonly Cut[]): Buffer {
@@ -237,8 +234,8 @@ function cutAt(cases: readonly string[], file: string, regions: readonly Cut[]):
   const at = new Map(cases.map((id, position) => [id, position]));
   const module: SetExecutionModule = {
     file,
-    // `lines.map(...)` callbacks of one function: one name, one path, told apart by occurrence.
-    blocks: regions.map(([line, , name = 'warningBlocks/map.arg0']) => ({
+    // Callbacks of one function, each at `entry`; two of one name are told apart by occurrence.
+    blocks: regions.map(([line, , name]) => ({
       kind: 'function', name, path: 'entry', startLine: line, endLine: line, source: true,
     })),
     called: Uint32Array.from(regions, ([, callers]) => sets.intern(callers.map((id) => at.get(id)!))),
@@ -252,8 +249,12 @@ describe('a module the index holds at an older text than the snapshot', () => {
   // The index cut `blocks.ts` before a line was written above the function;
   // the snapshot re-cut its rows to the text after, and the run recorded that
   // same text, so every region stands one line lower than the index says.
-  const held = cutAt([one], 'src/blocks.ts', [[414, []], [415, [one]], [416, []]]);
-  const fresh = cutAt([one], 'src/blocks.ts', [[415, []], [416, [one]], [417, []]]);
+  // Each callback is an argument to a callee of its own, so each address picks
+  // out one region; twins across two texts pair with nothing, as the siblings
+  // below pin.
+  const [opens, warns, closes] = ['warningBlocks/filter.arg0', 'warningBlocks/map.arg0', 'warningBlocks/reduce.arg0'];
+  const held = cutAt([one], 'src/blocks.ts', [[414, [], opens], [415, [one], warns], [416, [], closes]]);
+  const fresh = cutAt([one], 'src/blocks.ts', [[415, [], opens], [416, [one], warns], [417, [], closes]]);
   const same = { ...ran(['blocks.test.ts']), sameText: () => true };
 
   it('cuts the before layer at the lines the run recorded, so a line written above the region moves no case', () => {
@@ -277,7 +278,7 @@ describe('a module the index holds at an older text than the snapshot', () => {
   });
 
   it('leaves out a region the recorded cut has no address for, since no line of the newer text holds it', () => {
-    const gone = cutAt([one], 'src/blocks.ts', [[414, []], [415, [one]], [416, []], [418, [one], 'warningBlocks/removed']]);
+    const gone = cutAt([one], 'src/blocks.ts', [[414, [], opens], [415, [one], warns], [416, [], closes], [418, [one], 'warningBlocks/removed']]);
 
     expect(linesOf(layerCaseIndex(gone, fresh, same).before)).toEqual([415, 416, 417]);
   });
@@ -337,7 +338,7 @@ describe('a module the index holds at an older text than the snapshot', () => {
   });
 
   it('names nothing unlined when the index already stands at the lines the run recorded', () => {
-    const extra = cutAt([one], 'src/blocks.ts', [[415, []], [416, [one]], [417, []], [418, [one], 'warningBlocks/build-only']]);
+    const extra = cutAt([one], 'src/blocks.ts', [[415, [], opens], [416, [one], warns], [417, [], closes], [418, [one], 'warningBlocks/build-only']]);
 
     const { before, unlined } = layerCaseIndex(extra, fresh, same);
 
@@ -345,37 +346,6 @@ describe('a module the index holds at an older text than the snapshot', () => {
     expect(linesOf(before)).toEqual([415, 416, 417, 418]);
   });
 });
-
-/** The lines a layer's one module stands its regions on. */
-function linesOf(layer: Uint8Array | undefined): number[] {
-  return decodeExecutionIndex(layer!).modules[0]!.blocks.map((block) => block.startLine);
-}
-
-/** A region with its lines: kind, name, first and last line, the cases that called it, and whether it ran while the module loaded. */
-type Nested = readonly [kind: string, name: string, lines: readonly [number, number], callers: readonly string[], loaded?: boolean];
-
-/**
- * One module cut into regions that nest, as a function's resumptions sit in its
- * continuation. A region's owner is the one whose path its own extends by one
- * step, the region around it the cut recorded; the outermost has none.
- */
-function nestedAt(cases: readonly string[], file: string, regions: readonly Nested[]): Buffer {
-  const tests = cases.map((id) => ({ id, file: id.split(' > ')[0]!, name: id.split(' > ')[1]! }));
-  const sets = new CrossingSets(tests.length);
-  sets.intern([]);
-  const at = new Map(cases.map((id, position) => [id, position]));
-  const named = new Map(regions.map(([, name], position) => [name, position]));
-  const ownerOf = (name: string): number =>
-    name === '' ? NO_OWNER : named.get(name.includes('/') ? name.slice(0, name.lastIndexOf('/')) : '')!;
-  const module: SetExecutionModule = {
-    file,
-    blocks: regions.map(([kind, name, [startLine, endLine]]) => ({ kind, name, path: name, startLine, endLine, source: true })),
-    called: Uint32Array.from(regions, ([, , , callers]) => sets.intern(callers.map((id) => at.get(id)!))),
-    loaded: Uint8Array.from(regions, ([, , , , loaded]) => (loaded ? 1 : 0)),
-    owner: Uint32Array.from(regions, ([, name]) => ownerOf(name)),
-  };
-  return encodeSetExecutionIndex({ tests, modules: [module], sets: sets.pool() });
-}
 
 describe('a module the run cut into more regions than the index holds', () => {
   const [observe, parity, run] = ['observe.test.ts > reads', 'parity.test.ts > agrees', 'run.test.ts > runs'];

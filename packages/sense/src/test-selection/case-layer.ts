@@ -5,7 +5,7 @@ import { LaidLines } from './case-layer-lines.js';
 import { HeldIndex, writeLaid, type CarriedModule, type LaidModule, type LaidTest } from './held-case-index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { heldAround } from './region-around.js';
-import { landing, relined, strayed } from './region-landing.js';
+import { cutAlike, landing, relined, strayed } from './region-landing.js';
 import type { ExecutionTest } from './reverse.js';
 import { EMPTY, Translation } from './set-translation.js';
 
@@ -97,9 +97,10 @@ export interface CaseLayers {
  *
  * A module this run recorded is read at the regions it recorded now, and the
  * carried cases land on them by address — the region's name and structural
- * path, told apart by occurrence — and kind, the rule the snapshot carries its
- * rows by. A region the text no longer has drops its carried cases rather than
- * guessing a place for them. A region the index never held takes the cases of
+ * path, told apart by occurrence over one text and left unpaired across an edit
+ * — and kind, the rule the snapshot carries its rows by (`pairedRegions`). A
+ * region the text no longer has drops its carried cases rather than guessing a
+ * place for them. A region the index never held takes the cases of
  * the nearest region around it that some landed on, as a row born in a re-cut
  * takes the crossings around it ({@link carriedFrom}). A module this run did
  * not record keeps the regions it was recorded with, as it did before any
@@ -148,10 +149,10 @@ export function layerCaseIndex(
       continue;
     }
     const before = row === undefined ? undefined : held.module(row);
-    // A name that says same text over lines an older text numbered apart is
-    // the snapshot's, not the index's: those cases land where the numbering agrees.
+    // A name that says same text over lines an older text put elsewhere is the
+    // snapshot's, not the index's: those cases land as across an edit.
     const file = recorded.file;
-    const same = files.sameText?.(file) === true && before !== undefined && relined(before, recorded) !== undefined;
+    const same = files.sameText?.(file) === true && before !== undefined && cutAlike(before, recorded);
     const lands = before === undefined ? undefined : carriedFrom(recorded.owner, landing(recorded, before, same));
     const called = new Uint32Array(recorded.blocks.length);
     const loaded = new Uint8Array(recorded.blocks.length);

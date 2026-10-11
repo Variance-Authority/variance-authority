@@ -320,6 +320,17 @@ const CASES: Readonly<Record<string, Case>> = {
     ]),
     current: twins(LOCAL, [['test/gamma.test.ts'], [], []]),
   },
+  'a module whose two regions are one address, re-recorded over another text': {
+    previous: twins(BASELINE, [
+      ['test/alpha.test.ts', 'test/beta.test.ts'],
+      ['test/alpha.test.ts'],
+      ['test/beta.test.ts'],
+    ]),
+    current: (() => {
+      const recorded = twins(LOCAL, [['test/gamma.test.ts'], [], []]);
+      return { ...recorded, modules: [{ ...recorded.modules[0]!, sourceDigest: 'source:src/decide.ts-edited' }] };
+    })(),
+  },
   'a carried test whose regions are gone': {
     previous: at(BASELINE, 'test/alpha.test.ts'),
     current: {

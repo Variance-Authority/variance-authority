@@ -99,16 +99,17 @@ describe('carrying crossings onto repeated addresses', () => {
     expect(merged.tests.every((test) => test.complete)).toBe(true);
   });
 
-  it('re-cuts two regions at one address onto the regions their crossings name', () => {
+  it('re-cuts two regions at one address onto the crossings of the component around them', () => {
     // The same pair of effects in a module this run never loaded, over text that
     // moved: the rows are cut out of the text standing now and each crossing is
-    // carried onto the region with its address. One address, two regions, so
-    // carrying by the address alone hands both previous rows to the first effect
-    // and beta ends up recorded against both bodies while alpha is recorded
-    // against neither. Nothing reports it: alpha still holds the module and the
-    // component entry, so it is not a mislaid test, and a diff inside the first
-    // effect skips the test that entered it. Both are demoted for the line the
-    // module gained, which neither ran; the placement is what this pins.
+    // carried onto the region with its address. One address, two regions, and
+    // across an edit occurrence does not say which is which, so neither effect
+    // carries the crossing of the one at its occurrence: each is born, and takes
+    // the crossings of the component around it, which holds every test that
+    // entered either. Carrying by the address alone handed both previous rows
+    // to the first effect, and a diff inside it skipped alpha, the test that
+    // entered it. Both are demoted for the line the module gained, which
+    // neither ran.
     const merged = mergeCoverage(
       widget(BASELINE, WIDGET, [BOTH, BOTH, ['test/alpha.test.ts'], ['test/beta.test.ts']]),
       {
@@ -125,24 +126,82 @@ describe('carrying crossings onto repeated addresses', () => {
       new Map([['src/widget.js', `const scale = 2;\n\n${WIDGET}`]]),
     );
 
-    expect(effects(merged)).toEqual([['test/alpha.test.ts'], ['test/beta.test.ts']]);
+    expect(effects(merged)).toEqual([BOTH, BOTH]);
     expect(merged.modules[0]?.blocks.map((block) => block.startLine)).toEqual([1, 3, 4, 8]);
     expect(merged.tests.filter((test) => !test.complete).map((test) => test.file)).toEqual(BOTH);
   });
 
-  it('demotes a carried test whose region was edited under a run that did not observe it', () => {
+  it('demotes the tests that entered either of two regions at one address when the run recorded an edit to one', () => {
     // Gamma renders the component over an edit to the first effect's body and
-    // fires neither effect. Alpha's crossing is carried onto the edited body,
-    // and the rows now hold the edited text, so no later diff shows alpha the
-    // edit: it is demoted. Beta's body is the text it ran over, and it stays.
+    // fires neither effect. Across the edit, occurrence does not say which
+    // recorded effect either body is, so neither is carried onto: alpha's
+    // crossing and beta's both go unmatched, and the rows now hold the edited
+    // text, so no later diff shows either test the edit. Both are demoted, and
+    // each effect takes the component's crossings until a run enters it.
     const edited = WIDGET.replace('open(props.a);', 'open(props.a + 1);');
     const merged = mergeCoverage(
       widget(BASELINE, WIDGET, [BOTH, BOTH, ['test/alpha.test.ts'], ['test/beta.test.ts']]),
       widget(LOCAL, edited, [['test/gamma.test.ts'], ['test/gamma.test.ts'], [], []]),
     );
 
-    expect(effects(merged)).toEqual([['test/alpha.test.ts'], ['test/beta.test.ts']]);
-    expect(merged.tests.filter((test) => !test.complete).map((test) => test.file)).toEqual(['test/alpha.test.ts']);
+    expect(effects(merged)).toEqual([BOTH, BOTH]);
+    expect(merged.tests.filter((test) => !test.complete).map((test) => test.file)).toEqual(BOTH);
+  });
+});
+
+/**
+ * {@link WIDGET} with its first effect taken out and a third written behind
+ * the second. The component still holds two effects at the lines the two
+ * recorded ones stood at, so nothing in either cut tells this text from one
+ * where both bodies were edited where they stand.
+ */
+const SHIFTED = `export function Widget(props) {
+  useEffect(() => {
+    close(props.b);
+  }, [props.b]);
+
+  useEffect(() => {
+    reset(props.c);
+  }, [props.c]);
+
+  return props.a;
+}
+`;
+
+/** A run that recorded gamma and loaded no module: every module it holds is carried. */
+const ELSEWHERE: TestCoverage = {
+  version: 3,
+  instrumentation: INSTRUMENTATION_ID,
+  commit: LOCAL,
+  tests: [{
+    file: 'test/gamma.test.ts',
+    complete: true,
+    preconditions: [{ name: 'test/gamma.test.ts', digest: 'source:test' }],
+  }],
+  modules: [],
+};
+
+describe('siblings told apart only by occurrence, one taken out in front and one written behind', () => {
+  // The record holds alpha inside the first effect and beta inside the second.
+  // Paired by occurrence, the first effect of the new text — beta's body —
+  // takes alpha's crossing, and the effect written behind takes beta's: a diff
+  // of `close` is answered with alpha and beta is skipped. Over another text,
+  // occurrence is the one thing the two cuts say about which twin is which, so
+  // neither effect carries a crossing of its own: each takes the component's,
+  // the tests that entered either.
+  const recorded = widget(BASELINE, WIDGET, [BOTH, BOTH, ['test/alpha.test.ts'], ['test/beta.test.ts']]);
+
+  it('re-cuts neither effect onto the crossing of the one at its occurrence', () => {
+    const merged = mergeCoverage(recorded, ELSEWHERE, new Map([['src/widget.js', SHIFTED]]));
+
+    expect(effects(merged)).toEqual([BOTH, BOTH]);
+  });
+
+  it('places neither effect\'s crossing on a re-recorded twin, and demotes the tests that entered them', () => {
+    const merged = mergeCoverage(recorded, widget(LOCAL, SHIFTED, [['test/gamma.test.ts'], ['test/gamma.test.ts'], [], []]));
+
+    expect(effects(merged)).toEqual([BOTH, BOTH]);
+    expect(merged.tests.filter((test) => !test.complete).map((test) => test.file)).toEqual(BOTH);
   });
 });
 

@@ -19,7 +19,7 @@ import { instrumentModeOf } from '../instrument/index.js';
 import type { CoverageBlock, CoverageModule } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { sourceCut } from './coverage-rows.js';
-import { addressed, sameNumbering } from './region-address.js';
+import { pairedAcrossEdit, sameNumbering } from './region-address.js';
 import { heldAround } from './region-around.js';
 
 /**
@@ -159,7 +159,9 @@ export function crossingsAround(
  * it was recorded, and the index is about to move to where this run stands. So
  * the regions are read out of the current text and every crossing is carried
  * onto the region with its address, which leaves the evidence about the parts
- * nobody edited in coordinates the next diff will be in. A region the text has
+ * nobody edited in coordinates the next diff will be in. Twins, regions told
+ * apart only by occurrence, are carried onto nothing ({@link pairedAcrossEdit}):
+ * across an edit, occurrence does not say which is which. A region the text has
  * now and the rows never had takes the crossings of the region around it, by
  * {@link crossingsAround} — the alternative is a row saying nobody entered
  * lines nobody has measured.
@@ -219,7 +221,7 @@ export function recutRows(
   if (fresh === undefined) return 'mislaid';
   const rows = fresh.rows;
   if (!sameNumbering(module.blocks, rows)) return 'mislaid';
-  const before = new Map(addressed(module.blocks));
+  const from = pairedAcrossEdit(module.blocks, rows);
   // Rows by ordinal as they are decided, which is what a gained region reads its
   // enclosing region's crossings out of. `owner` is the ordinal of the region
   // around this one and the walk that numbered them opened it first, so the row
@@ -230,19 +232,18 @@ export function recutRows(
     file: module.file,
     sourceDigest: fresh.sourceDigest,
     instrumented: true,
-    blocks: addressed(rows)
-      .map(([address, row]) => {
-        const previous = before.get(address);
-        const around = row.owner === undefined ? undefined : cut.get(row.owner);
-        const decided =
-          previous !== undefined && reusableBlock(row, previous)
-            ? crossedBlock(row, previous.testFiles, previous.loadedBy ?? [])
-            : around === undefined
-              ? row
-              : crossedBlock(row, around.testFiles, around.loadedBy ?? []);
-        cut.set(row.ordinal, decided);
-        return decided;
-      }),
+    blocks: rows.map((row, at) => {
+      const previous = from[at]! < 0 ? undefined : module.blocks[from[at]!];
+      const around = row.owner === undefined ? undefined : cut.get(row.owner);
+      const decided =
+        previous !== undefined && reusableBlock(row, previous)
+          ? crossedBlock(row, previous.testFiles, previous.loadedBy ?? [])
+          : around === undefined
+            ? row
+            : crossedBlock(row, around.testFiles, around.loadedBy ?? []);
+      cut.set(row.ordinal, decided);
+      return decided;
+    }),
   };
 }
 
@@ -273,10 +274,10 @@ export function owedByRecut(
   after: CoverageModule,
   reaches: (kind: string) => boolean,
 ): readonly string[] {
-  const previous = new Map(addressed(before.blocks));
+  const from = pairedAcrossEdit(before.blocks, after.blocks);
   const owed = new Set<string>();
-  for (const [address, row] of addressed(after.blocks)) {
-    const was = previous.get(address);
+  for (const [at, row] of after.blocks.entries()) {
+    const was = from[at]! < 0 ? undefined : before.blocks[from[at]!];
     const unmoved = was !== undefined && reusableBlock(row, was) && !editedRegion(
       { sourceDigest: after.sourceDigest, digest: row.digest },
       { sourceDigest: before.sourceDigest, digest: was.digest },

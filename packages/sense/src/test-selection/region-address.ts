@@ -10,9 +10,12 @@
 import type { CoverageBlock } from './index.js';
 
 /** Name path and structural path together: where a region is in the module's tree. */
-export function addressOf(block: CoverageBlock): string {
+export function addressOf(block: Addressed): string {
   return `${block.name}\0${block.path}`;
 }
+
+/** What an address is read off: a region's name path and structural path. */
+type Addressed = Pick<CoverageBlock, 'name' | 'path'>;
 
 /**
  * The same address told apart from the ones before it in the module: which
@@ -31,10 +34,12 @@ export function addressOf(block: CoverageBlock): string {
  * lines is skipped.
  *
  * So repeats are told apart by their occurrence number in the order the recipe
- * numbered the regions, which is the order both sides read them in. The n-th of
- * an address carries onto the n-th of it that is still there, and one that is
- * gone loses its crossings the way any deleted region does — through the
- * unmatched-row path that demotes the tests standing on it.
+ * numbered the regions, which is the order both sides read them in. Over one
+ * text the n-th of an address carries onto the n-th of it that is still there,
+ * and one that is gone loses its crossings the way any deleted region does —
+ * through the unmatched-row path that demotes the tests standing on it. Over
+ * two texts occurrence says nothing about which twin is which, and
+ * {@link pairedAcrossEdit} pairs none of them.
  */
 export function addressKey(address: string, seen: Map<string, number>): string {
   const nth = (seen.get(address) ?? 0) + 1;
@@ -42,12 +47,71 @@ export function addressKey(address: string, seen: Map<string, number>): string {
   return `${address}\0${nth}`;
 }
 
-/** A module's rows, each paired with the address its crossings carry by. */
-export function addressed(
-  blocks: readonly CoverageBlock[],
-): readonly (readonly [string, CoverageBlock])[] {
+/**
+ * For each region of `after`, the region of `before` its evidence carries
+ * from, or -1: every region at its address and occurrence over one text, and
+ * over two, nothing where the seats moved ({@link sameNumbering}) and
+ * {@link pairedAcrossEdit} where they did not.
+ */
+export function pairedRegions(before: readonly Addressed[], after: readonly Addressed[], sameText: boolean): Int32Array {
+  if (!sameText) {
+    return sameNumbering(before, after) ? pairedAcrossEdit(before, after) : new Int32Array(after.length).fill(-1);
+  }
   const seen = new Map<string, number>();
-  return blocks.map((block) => [addressKey(addressOf(block), seen), block] as const);
+  const heldAt = new Map(before.map((block, at) => [addressKey(addressOf(block), seen), at] as const));
+  seen.clear();
+  return Int32Array.from(after, (block) => heldAt.get(addressKey(addressOf(block), seen)) ?? -1);
+}
+
+/**
+ * For each region of `after`, the region of `before` it is, or -1, where the
+ * two cuts are of different texts.
+ *
+ * A region is paired by its address, and only where the address picks out one
+ * region in each cut. Twins — regions of one address, told apart only by
+ * occurrence — are paired with nothing: take the first of two out and write a
+ * third behind the second, and the cut holds two of the address again, the
+ * first over the second's body. Occurrence pairs the recorded first onto it,
+ * and the lines cannot object, because the text moved under them; the cut
+ * holds no text to compare. A region inside a twin is paired with nothing
+ * either, whatever its own address, since which twin holds it is the same
+ * question. Nor is a twin of one cut paired with the one region of its address
+ * in the other: which of the twins went, or which came, is unknown too.
+ *
+ * Nothing is lost by it. A region paired with nothing is born, and a born
+ * region takes the evidence of the nearest region around it that was paired,
+ * which every test that entered a twin entered too: the twin is charged the
+ * tests that entered any of its siblings rather than those of the one at its
+ * occurrence. Over one text, occurrence is the text's own order and pairs
+ * twins truly; only the readers that know the texts differ ask this.
+ *
+ * Seated regions are not twins here: `anon#1` and `if#0` are addresses of their
+ * own, and {@link sameNumbering} asks whether the seats still mean the same
+ * regions.
+ */
+export function pairedAcrossEdit(before: readonly Addressed[], after: readonly Addressed[]): Int32Array {
+  const twinned = new Set<string>();
+  const counted = (blocks: readonly Addressed[]): ReadonlyMap<string, number> => {
+    const counts = new Map<string, number>();
+    for (const block of blocks) {
+      const count = (counts.get(addressOf(block)) ?? 0) + 1;
+      counts.set(addressOf(block), count);
+      if (count > 1) twinned.add(block.name);
+    }
+    return counts;
+  };
+  counted(after);
+  const held = counted(before);
+  const inTwin = (name: string): boolean => {
+    if (twinned.has(name)) return true;
+    for (let at = name.lastIndexOf('/'); at > 0; at = name.lastIndexOf('/', at - 1)) {
+      if (twinned.has(name.slice(0, at))) return true;
+    }
+    return false;
+  };
+  const heldAt = new Map<string, number>();
+  for (const [at, block] of before.entries()) if (held.get(addressOf(block)) === 1) heldAt.set(addressOf(block), at);
+  return Int32Array.from(after, (block) => (inTwin(block.name) ? -1 : heldAt.get(addressOf(block)) ?? -1));
 }
 
 /** A numbered step in an address: `if#0`, `for#12`, `anon#3`, never a `#private` member. */

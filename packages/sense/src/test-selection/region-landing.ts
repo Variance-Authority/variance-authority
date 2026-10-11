@@ -9,7 +9,7 @@
 
 import type { SetExecutionModule } from './execution-set-format.js';
 import { NO_OWNER } from './format-layout.js';
-import { addressKey, sameNumbering } from './region-address.js';
+import { addressKey, addressOf, pairedRegions, sameNumbering } from './region-address.js';
 
 /**
  * `held` at the lines `recorded` stands its regions on, when the two are named
@@ -20,23 +20,25 @@ import { addressKey, sameNumbering } from './region-address.js';
  * line agrees, `held` was cut at the text it is named at and comes back as it
  * was, whatever regions one cut holds and the other lacks. When a line does
  * not, `held` was cut at an older text, and its regions take the recorded
- * lines only where the two texts numbered alike ({@link sameNumbering}), the
- * rule the snapshot re-cut its rows to the newer text by. Then a held region
- * the recorded cut has no address for is left out: no line of the newer text
- * holds it, and kept at a line of the older one it would pair with whatever
- * region stands there now. A kept region's owner is the nearest region around
- * it that is kept too, so a region born under one still takes its cases.
+ * lines by the rule the snapshot re-cut its rows to the newer text by
+ * ({@link pairedRegions} across texts): only where the two texts numbered
+ * alike, and never for twins, regions told apart only by occurrence, or for
+ * what is inside one. Then a held region the recorded cut has no pair for is
+ * left out: no line of the newer text is known to hold it, and kept at a line
+ * of the older one it would pair with whatever region stands there now. A kept
+ * region's owner is the nearest region around it that is kept too, so a region
+ * born under one still takes its cases.
  */
-// FIXME: regions told apart only by occurrence carry no seat for
-// `sameNumbering` to compare, so a sibling taken out in front of them and
-// another written behind keep their count and re-line each one onto its
-// neighbour without a signal — the limit the snapshot's
-// re-cut has. The index carrying the text each module was recorded from would
-// let a reader leave such a module uncompared instead.
+// FIXME: an index cut at an older text whose regions all stand at the lines
+// the newer one put them is read as cut at the newer text, so twins rewritten
+// in place — the first over the second's body, a third over the first's line
+// count — still pair by occurrence. The index holds no text to tell; carrying
+// the digest each module was recorded from would let a reader pair them as
+// `mergeCoverage` does.
 export function relined(held: SetExecutionModule, recorded: SetExecutionModule): SetExecutionModule | undefined {
   if (cutAlike(held, recorded)) return held;
   if (!sameNumbering(held.blocks, recorded.blocks)) return undefined;
-  const to = landedOn(held, recorded);
+  const to = landedOn(held, recorded, false);
   const kept = [...to.keys()].sort((left, right) => left - right);
   return {
     file: held.file,
@@ -58,7 +60,7 @@ export function relined(held: SetExecutionModule, recorded: SetExecutionModule):
  * address are alike.
  */
 export function cutAlike(held: Cut, recorded: Cut): boolean {
-  for (const [from, block] of landedOn(held, recorded)) {
+  for (const [from, block] of landedOn(held, recorded, true)) {
     if (held.blocks[from]!.startLine !== recorded.blocks[block]!.startLine) return false;
     if (held.blocks[from]!.endLine !== recorded.blocks[block]!.endLine) return false;
   }
@@ -67,13 +69,13 @@ export function cutAlike(held: Cut, recorded: Cut): boolean {
 
 /** Whether some region of `held` lands on one of `recorded`: the two cuts hold an address in common. */
 export function sharesRegion(held: Cut, recorded: Cut): boolean {
-  return landedOn(held, recorded).size > 0;
+  return landedOn(held, recorded, true).size > 0;
 }
 
-/** Each held region a recorded one lands on, by {@link landing} over one text, and the recorded one. */
-function landedOn(held: Cut, recorded: Cut): Map<number, number> {
+/** Each held region a recorded one lands on, by {@link landing}, and the recorded one. */
+function landedOn(held: Cut, recorded: Cut, sameText: boolean): Map<number, number> {
   const to = new Map<number, number>();
-  for (const [block, from] of landing(recorded, held, true).entries()) if (from >= 0) to.set(from, block);
+  for (const [block, from] of landing(recorded, held, sameText).entries()) if (from >= 0) to.set(from, block);
   return to;
 }
 
@@ -90,10 +92,11 @@ function keptOwners(owner: Uint32Array, kept: readonly number[]): Uint32Array {
 /**
  * For each region recorded now, the held region its cases carry from, or -1.
  *
- * An address is half a seat among siblings: a function written in front of an
- * anonymous one takes the seat it held. Where the two cuts filled a counter
- * differently over different text, an address names another region, and every
- * region is -1. Over the same text the seats are the text's: a run that read a
+ * Over different texts the regions pair as the snapshot's rows do
+ * ({@link pairedRegions}): none where the two cuts filled a counter
+ * differently, since an address is half a seat among siblings, and none among
+ * twins, since occurrence does not say which is which once the text moved.
+ * Over the same text the seats are the text's: a run that read a
  * file through its source and its build keeps only the regions both cut alike,
  * so one cut can lack a region the other holds. A seat it lacks among regions
  * told apart only by occurrence moves every later sibling down one, so where
@@ -120,13 +123,16 @@ const landed = [
 ] as const;
 
 function landingOf(recorded: Cut, before: Cut, sameText: boolean): Int32Array {
-  if (!sameText && !sameNumbering(before.blocks, recorded.blocks)) return new Int32Array(recorded.blocks.length).fill(-1);
+  if (!sameText) {
+    const from = pairedRegions(before.blocks, recorded.blocks, false);
+    return from.map((at, block) => (at >= 0 && before.blocks[at]!.kind === recorded.blocks[block]!.kind ? at : -1));
+  }
   const [heldCount, recordedCount] = [addressCounts(before.blocks), addressCounts(recorded.blocks)];
   const seen = new Map<string, number>();
-  // Lines are a seat only over one text; two callbacks on one line still part by order.
+  // Two callbacks on one line still part by order.
   const keyOf = (block: Region): string => {
-    const key = address(block);
-    const byOrder = !sameText || heldCount.get(key) === recordedCount.get(key);
+    const key = addressOf(block);
+    const byOrder = heldCount.get(key) === recordedCount.get(key);
     return addressKey(byOrder ? key : `${key}\0@${block.startLine}-${block.endLine}`, seen);
   };
   const heldAt = new Map<string, number>();
@@ -146,13 +152,9 @@ export interface Cut {
   readonly blocks: readonly Region[];
 }
 
-function address(block: Region): string {
-  return `${block.name}\0${block.path}`;
-}
-
 function addressCounts(blocks: readonly Region[]): Map<string, number> {
   const counts = new Map<string, number>();
-  for (const block of blocks) counts.set(address(block), (counts.get(address(block)) ?? 0) + 1);
+  for (const block of blocks) counts.set(addressOf(block), (counts.get(addressOf(block)) ?? 0) + 1);
   return counts;
 }
 
@@ -165,5 +167,5 @@ export function strayed(held: SetExecutionModule, recorded: SetExecutionModule):
   const matched = new Set(landing(recorded, held, true));
   const [heldCount, recordedCount] = [addressCounts(held.blocks), addressCounts(recorded.blocks)];
   return held.blocks.some((block, at) =>
-    !matched.has(at) && recordedCount.has(address(block)) && heldCount.get(address(block)) !== recordedCount.get(address(block)));
+    !matched.has(at) && recordedCount.has(addressOf(block)) && heldCount.get(addressOf(block)) !== recordedCount.get(addressOf(block)));
 }

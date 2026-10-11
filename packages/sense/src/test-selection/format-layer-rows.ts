@@ -15,7 +15,7 @@ import {
   reusableBlock,
   withoutRetired,
 } from './merge-carry.js';
-import { addressKey, addressed, sameNumbering } from './region-address.js';
+import { pairedRegions } from './region-address.js';
 import type { CoverageBlock, CoverageModule, CoverageTest, TestCoverage } from './index.js';
 import { editReaches, type EditReadings } from './edit-readings.js';
 
@@ -188,23 +188,24 @@ export function layeredRows(input: {
   const stale = new Set<string>();
   const rerecorded = current.modules.map((module): CoverageModule => {
     const at = claim(module);
-    const byAddress = new Map(addressed(module.blocks));
     const surviving = new Map<CoverageBlock, Carried>();
     if (at !== undefined) {
       const instrumented = moduleInstrumented[at] === 1;
-      // An address is half a seat among siblings, so a cut that filled a
-      // counter differently names other regions by the same addresses, and
-      // nothing is carried across it — as in `mergeCoverage`. Same text is
-      // the same numbering, so the rows are read only where it moved.
-      const placeable = view.string(moduleSource[at]!) === module.sourceDigest ||
-        sameNumbering(moduleAt(at).blocks, module.blocks);
-      const seen = new Map<string, number>();
-      for (let before = moduleBlocks[at]!; before < moduleBlocks[at + 1]!; before += 1) {
-        const address = `${view.string(blockName[before]!)}\0${view.string(blockPath[before]!)}`;
-        const key = addressKey(address, seen);
-        const block = byAddress.get(key);
+      // A region carries from the previous one `pairedRegions` names, as in
+      // `mergeCoverage`: none across a counter filled differently, nor onto
+      // twins across an edit. Only the addresses are read off the columns.
+      const first = moduleBlocks[at]!;
+      const addresses = [];
+      for (let before = first; before < moduleBlocks[at + 1]!; before += 1) {
+        addresses.push({ name: view.string(blockName[before]!), path: view.string(blockPath[before]!) });
+      }
+      const from = pairedRegions(addresses, module.blocks, view.string(moduleSource[at]!) === module.sourceDigest);
+      const onto = new Map<number, CoverageBlock>();
+      for (const [position, block] of module.blocks.entries()) if (from[position]! >= 0) onto.set(first + from[position]!, block);
+      for (let before = first; before < moduleBlocks[at + 1]!; before += 1) {
+        const block = onto.get(before);
         if (
-          placeable && block !== undefined && module.instrumented && instrumented &&
+          block !== undefined && module.instrumented && instrumented &&
           reusableBlock(block, { kind: BLOCK_KINDS[blockKind[before]!]! })
         ) {
           const files: string[] = [];
