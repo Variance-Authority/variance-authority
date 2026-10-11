@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { readNamedTree } from '@variance-authority/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { askSource, type SourceRequest } from './ask.js';
@@ -77,6 +78,11 @@ describe('ask intersection over a checkout', () => {
     expect(text).toContain('2 files in all of them');
     expect(text).toContain('src/store/selectors.ts');
     expect(text).not.toContain('src/old/selectors.ts');
+  });
+
+  it('reads the names only for a question with a set read off them', async () => {
+    expect((await readNamedTree(root, { from: ['src/Wallet.ts'], path: '^src/store/' })).names).toBeUndefined();
+    expect((await readNamedTree(root, { declares: '^selectBalance$' })).names?.get('src/old/selectors.ts')?.declared).toEqual([{ name: 'selectBalance', line: 1 }]);
   });
 
   it('finds a declaration the file does not export, which is where a context is made', async () => {
