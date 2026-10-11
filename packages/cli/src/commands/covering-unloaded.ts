@@ -42,10 +42,10 @@ export function unloadedFile(file: string, from: string, files: readonly string[
  * The sentence that points from `file` to the recorded paths of the same file.
  *
  * A recorded path is a spelling of the asked one only when it is this file
- * under another root. One that shares no more than the file name is another
- * file, or this one before it moved, and is named as only sharing it: called a
- * spelling, it sends the reader to ask about a file they did not mean, and to
- * read the record as stale when it is not. A bare name asked has no directory
+ * under another root. One that shares no more than the file name may be another
+ * file, this one before it moved, or this one recorded by its bare name, and is
+ * named as only sharing it: called a spelling, it sends the reader to ask about
+ * a file they did not mean, and to read the record as stale when it is not. A bare name asked has no directory
  * to differ in, so the recorded files of that name are only listed.
  */
 export function spelling(file: string, files: Iterable<string>): string {
@@ -64,7 +64,7 @@ export function spelling(file: string, files: Iterable<string>): string {
 /** Recorded paths that end in `file`, or that it ends in, at a shared directory. */
 function rooted(file: string, files: readonly string[]): string[] {
   // A shared directory makes it the same file under another root; a bare name,
-  // asked or recorded, is any file of that name.
+  // asked or recorded, has no directory to share, so it never matches here.
   const shorter = (one: string, other: string): boolean => one.includes('/') && other.endsWith(`/${one}`);
   return files.filter((candidate) => shorter(file, candidate) || shorter(candidate, file)).sort();
 }

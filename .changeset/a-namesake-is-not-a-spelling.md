@@ -10,7 +10,8 @@ root. It used to point at any recorded file with the same name, so
 `packages/core/src/format/stabilize.ts` was answered with "The record spells it
 `packages/dom/src/stabilize.ts`", a different module, which reads as a stale
 record. The sentence now names a recorded path as the spelling only when it is
-in `spelled`: one of the two paths ends in the other with a directory in common.
-When there is none, one that shares only the file name is named as sharing it,
-and a bare file name asked lists the recorded files of that name. The same holds
-for a `--cases` test file the index holds no case of.
+in the JSON refusal's `spelled` list: one of the two paths ends in the other
+with a directory in common. When there is none, one that shares only the file
+name is named as sharing it, and a bare file name asked lists the recorded files
+of that name. The same holds for a `--cases` test file the index holds no case
+of.
