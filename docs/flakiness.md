@@ -719,13 +719,10 @@ is gone the moment the process exits. Both runners accept a seed back, and both
 report the one they used — Jest prints it under `--randomize`, which is the same
 thing as `--showSeed`.
 
-A run that [selects tests](coverage-test-selection.md) shuffles the same way.
-The selection removes files before the runner orders them, so a seed gives the
-files it kept the order the runner gives those files alone, and the runner
-prints the seed where it always does: Jest in its summary, Vitest in its banner
-on the line after `RUN`. On Vitest 2 and 3.0, a `--reporter` on the command line
-replaces the reporter that adds the seed to the banner, so the seed is printed
-on stderr instead, on a line that starts with `variance-authority:`.
+Under [test selection](coverage-test-selection.md) on Vitest 2 and 3.0, a
+`--reporter` you name on the command line leaves the seed out of Vitest's
+banner. The run prints it on stderr instead, on a line that starts with
+`variance-authority:`.
 
 Jest's `--randomize` needs the default `jest-circus` runner, and shuffles within
 each `describe` block rather than across the file.
