@@ -94,7 +94,7 @@ negatives show is needed.
 
 **5. The addon is a journey participant in-process.** A Vitest case that calls a
 napi-rs function writes one row that names both sides: the JavaScript regions
-through `presence-v5` and the Rust regions through the counters, cut at the same
+through the presence probes and the Rust regions through the counters, cut at the same
 test boundary. A Rust service (axum, tonic) takes the journey id from `baggage`
 or the OpenTelemetry trace id carried by `tracing`, and runs in a lane.
 

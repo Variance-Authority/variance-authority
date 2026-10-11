@@ -58,6 +58,7 @@ function build(subjects: readonly SubjectView[] = SUBJECTS): BuildDetail {
     composition: null,
     causes: [],
     variations: [],
+    sameImage: [],
     reach: null,
     journeys: null,
     previous: null,

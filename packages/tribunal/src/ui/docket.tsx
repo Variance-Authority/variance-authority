@@ -38,6 +38,7 @@ import { OriginsPanel } from './origins.js';
 import { SubjectRail, queueOf } from './rail.js';
 import type { Order, Route, Task } from './route.js';
 import { RunPage } from './run.js';
+import { SameImageNote, Siblings } from './same-image.js';
 import { needsReview } from './settled.js';
 import { Go, Stalled, Topbar, Waiting, messageOf, type Loaded } from './shell.js';
 import { SubjectPanel } from './subject.js';
@@ -116,10 +117,17 @@ function Build({
   readonly build: BuildDetail;
   readonly route: BuildRoute;
   readonly go: (route: Route) => void;
-  readonly reload: () => void;
+  readonly reload: () => Promise<void>;
 }): ReactElement {
   const crossing = useCrossing(client, build);
   const concerns = useConcernTally(client, build.build);
+  // A decision can open a concern — approving an image an earlier build
+  // rejected does — so both reads follow it. The panel holds its buttons until
+  // the build is back, since until then it holds the baseline version it read.
+  const decided = (): Promise<void> => {
+    concerns.refresh();
+    return reload();
+  };
   const order: Order = (route.page === 'build' ? route.order : undefined) ?? 'story';
 
   const { origins } = originsOf(build);
@@ -239,12 +247,15 @@ function Build({
               client={client}
               reviewer={reviewer}
               build={build.build}
+              ran={build.at}
               subject={subject}
+              siblings={<Siblings client={client} build={build} subject={subject.subject} go={go} />}
               {...(anchor === undefined ? {} : { anchor, far: distanceFrom(build, anchor) })}
               sourced={build.causes.some((cause) => cause.file !== undefined)}
+              go={go}
               place={place}
               onGo={(next) => go(toSubject(next, task))}
-              onDecided={reload}
+              onDecided={decided}
               onConcerned={concerns.refresh}
             />
           ) : open !== undefined ? (
@@ -256,7 +267,7 @@ function Build({
               crossing={crossing}
               changes={new Set(origins.map((each) => each.component))}
               go={go}
-              onDecided={reload}
+              onDecided={decided}
             />
           ) : (
             <Opening build={build} crossing={crossing} route={route} go={go} />
@@ -363,6 +374,7 @@ function Opening({
           </p>
         )}
 
+        <SameImageNote build={build} go={go} />
         <Since crossing={crossing} />
         <Impact build={build} crossing={crossing} />
 

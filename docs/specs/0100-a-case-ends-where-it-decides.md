@@ -21,7 +21,9 @@ per-region case count it uses to set structure apart.
 **Narrows:** [ADR-0056](../context/adr/0056-a-journey-is-the-places-visited.md)
 decision 1 — a journey records the places a case visited and never their order —
 for the test-runner seams only, by
-[ADR-0088](../context/adr/0088-a-case-records-the-test-line-that-reached-each-region.md).
+[ADR-0088](../context/adr/0088-a-case-records-the-test-line-that-reached-each-region.md),
+and for a custom runner and a Playwright spec by
+[ADR-0089](../context/adr/0089-a-page-case-records-the-statement-its-drain-followed.md).
 
 ## Purpose
 
@@ -192,6 +194,13 @@ readers walk every case.
    first, as an order to read them in rather than a pick. A record written
    without cuts reads as *lines not recorded*, never as every region charged
    to one line.
+   A runner of the user's own cuts the same way: `startRecording` takes
+   `cadence`, `registerRecording` cuts the observed test file and
+   `cutTestFile` serves a runner with its own transform. A Playwright spec has
+   no log in its realm to measure, so `withTestSelection` compiles each spec
+   with an awaited cut, and the `context` fixture drains every frame of every
+   page before each statement: what a drain finds is charged to the statement
+   before it (ADR-0089).
 
 ## Acceptance
 

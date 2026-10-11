@@ -42,7 +42,7 @@ const TAIL: &str = concat!(
 ///
 /// A Rust string holds no lone surrogate, so the one escape `JSON.stringify`
 /// has that this does not is never needed.
-fn json_string(out: &mut String, value: &str) {
+pub(crate) fn json_string(out: &mut String, value: &str) {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     out.push('"');
     for character in value.chars() {

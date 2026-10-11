@@ -174,4 +174,16 @@ export const LATER_MIGRATIONS: readonly (readonly string[])[] = [
      END`,
     `UPDATE schema_version SET version = 19`,
   ],
+  // 19 → 20: the axis a named variation steps along.
+  [
+    // JSON `{axis, position, from, to}`, the report's `step` as written. One
+    // column rather than four because the four are one claim — a coordinate — and
+    // a row with an axis and no values would be a coordinate nobody could place.
+    //
+    // Null is *no name format read this pair*: a declared pair, a prefix pair,
+    // or a build pushed before the field existed. The page draws those as pairs
+    // and never on a grid, which is what absent is for.
+    `ALTER TABLE build_variations ADD COLUMN step TEXT`,
+    `UPDATE schema_version SET version = 20`,
+  ],
 ];

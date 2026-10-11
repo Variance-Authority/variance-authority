@@ -254,6 +254,13 @@ export interface Rect {
   readonly height: number;
 }
 
+/** The area two rects share; zero when they only touch or do not meet. */
+export function intersectionArea(a: Rect, b: Rect): number {
+  const width = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+  const height = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+  return width > 0 && height > 0 ? width * height : 0;
+}
+
 export interface Diagnostic {
   readonly severity: 'warn' | 'error';
   readonly code: string;

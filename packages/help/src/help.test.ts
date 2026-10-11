@@ -208,8 +208,10 @@ describe('where the repository already writes a name', () => {
     );
   });
 
-  it('answers plainly when a published name is imported by nothing', () => {
-    expect(call('docs_uses', { name: 'Span' })).toContain('nothing in this workspace imports it');
+  it('answers plainly when no other package imports a published name, and says the imports within its own were not read', () => {
+    expect(call('docs_uses', { name: 'Span' })).toBe(
+      '`Span` is published and no other package imports it; the imports within its own package are read from the source index, and this host named no checkout to read the source index of.',
+    );
   });
 
   it('refuses an unknown name by pointing at the question that finds one', () => {

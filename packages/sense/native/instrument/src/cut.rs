@@ -155,8 +155,8 @@ impl Utf16 {
 }
 
 /// The walk over a program another parse made, from its module region down.
-pub(crate) fn walk(program: &Program, typescript: bool, entries: bool) -> Walker {
-    let mut walker = Walker::new(entries);
+pub(crate) fn walk<'a>(program: &'a Program<'a>, typescript: bool, entries: bool) -> Walker {
+    let mut walker = Walker::new(entries, crate::crossing::crossing(program));
     let start = if typescript { typescript_start(program) } else { program.span.start };
     walker.open(Kind::Module, "module", start, program.span.end, None);
     walker.list(&program.body, "", 0);
@@ -263,7 +263,7 @@ fn prologue_end(program: &Program) -> u32 {
     at
 }
 
-fn is_prologue(statement: &Statement) -> bool {
+pub(crate) fn is_prologue(statement: &Statement) -> bool {
     match statement {
         Statement::ImportDeclaration(_)
         | Statement::ExportAllDeclaration(_)

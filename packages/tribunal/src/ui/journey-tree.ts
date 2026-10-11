@@ -35,7 +35,8 @@
  * story, and the rest leave it above and below.
  */
 
-import type { JourneyCell, JourneyColumn, JourneyFamily, JourneyRow } from './journeys.js';
+import type { FamilyColumn } from '../family.js';
+import type { JourneyCell, JourneyFamily, JourneyRow } from './journeys.js';
 
 /** One place the family parted, and every region that parted it there. */
 export interface Fork {
@@ -47,7 +48,7 @@ export interface Fork {
 
 export interface Branch {
   /** The stories on it, in column order. */
-  readonly stories: readonly JourneyColumn[];
+  readonly stories: readonly FamilyColumn[];
   /** The fork it left at, or `-1` for the trunk. */
   readonly from: number;
   /** Of the fork's dividing rows, the ones its stories entered; none on the trunk. */
@@ -70,7 +71,7 @@ export interface Tree {
 }
 
 interface Bundle {
-  readonly stories: readonly JourneyColumn[];
+  readonly stories: readonly FamilyColumn[];
   /** Index into `rows` of the fork it left at, or `-1`. */
   readonly from: number;
   readonly entered: readonly JourneyRow[];
@@ -82,22 +83,22 @@ interface Bundle {
 class Grower {
   /** Forks found so far, keyed by the index of their first dividing row. */
   readonly marks = new Map<number, { readonly rows: readonly JourneyRow[]; readonly alike: Set<number> }>();
-  private readonly index: ReadonlyMap<JourneyColumn, number>;
+  private readonly index: ReadonlyMap<FamilyColumn, number>;
 
   constructor(
-    private readonly columns: readonly JourneyColumn[],
+    private readonly columns: readonly FamilyColumn[],
     private readonly rows: readonly JourneyRow[],
   ) {
     this.index = new Map(columns.map((column, at) => [column, at]));
   }
 
-  private answer(row: number, story: JourneyColumn): JourneyCell {
+  private answer(row: number, story: FamilyColumn): JourneyCell {
     return this.rows[row]?.cells[this.index.get(story) ?? -1] ?? 'absent';
   }
 
   /** The stories grouped by what they answered across `at`, in the order the first of each appears. */
-  private groups(stories: readonly JourneyColumn[], at: readonly number[]): readonly (readonly JourneyColumn[])[] {
-    const groups = new Map<string, JourneyColumn[]>();
+  private groups(stories: readonly FamilyColumn[], at: readonly number[]): readonly (readonly FamilyColumn[])[] {
+    const groups = new Map<string, FamilyColumn[]>();
     for (const story of stories) {
       const key = at.map((row) => this.answer(row, story)).join(' ');
       groups.set(key, [...(groups.get(key) ?? []), story]);
@@ -121,7 +122,7 @@ class Grower {
   }
 
   /** Split at the first row after `consumed` that divides the bundle, and recurse. */
-  grow(stories: readonly JourneyColumn[], consumed: ReadonlySet<number>, from: number, entered: readonly JourneyRow[]): Bundle {
+  grow(stories: readonly FamilyColumn[], consumed: ReadonlySet<number>, from: number, entered: readonly JourneyRow[]): Bundle {
     for (let at = 0; at < this.rows.length; at++) {
       if (consumed.has(at)) continue;
       const decision = this.decision(at);
@@ -153,7 +154,7 @@ class Grower {
           group,
           taken,
           key,
-          decision.filter((row) => this.answer(row, group[0] as JourneyColumn) === 'entered').map((row) => this.rows[row] as JourneyRow),
+          decision.filter((row) => this.answer(row, group[0] as FamilyColumn) === 'entered').map((row) => this.rows[row] as JourneyRow),
         ),
       );
       return { stories, from, entered, key, children: centred(children, stories[0]) };
@@ -163,8 +164,8 @@ class Grower {
 }
 
 /** The child holding the trunk's story in the middle, so the rest fork both ways. */
-function centred(children: readonly Bundle[], trunk: JourneyColumn | undefined): readonly Bundle[] {
-  const index = children.findIndex((child) => child.stories.includes(trunk as JourneyColumn));
+function centred(children: readonly Bundle[], trunk: FamilyColumn | undefined): readonly Bundle[] {
+  const index = children.findIndex((child) => child.stories.includes(trunk as FamilyColumn));
   if (index < 0) return children;
   const main = children[index] as Bundle;
   const rest = children.filter((_, i) => i !== index);
@@ -181,7 +182,7 @@ function place(
   bundle: Bundle,
   order: ReadonlyMap<number, number>,
   shown: number,
-  trunk: JourneyColumn | undefined,
+  trunk: FamilyColumn | undefined,
   next: { y: number },
 ): { readonly branch: Branch; readonly y: number } {
   const main = trunk !== undefined && bundle.stories.includes(trunk);
@@ -192,7 +193,7 @@ function place(
     return { branch: { stories: bundle.stories, from, entered: bundle.entered, at: shown, main, y, branches: [] }, y };
   }
   const placed = bundle.children.map((child) => place(child, order, shown, trunk, next));
-  const own = placed.find(({ branch }) => branch.stories.includes(bundle.stories[0] as JourneyColumn));
+  const own = placed.find(({ branch }) => branch.stories.includes(bundle.stories[0] as FamilyColumn));
   const y = (own ?? placed[0])?.y ?? 0;
   const branches = placed.map(({ branch }) => branch);
   return { branch: { stories: bundle.stories, from, entered: bundle.entered, at, main, y, branches }, y };

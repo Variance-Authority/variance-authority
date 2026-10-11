@@ -23,10 +23,29 @@
  * Playwright folds once — so it is added once, at the top.
  */
 
+import { realpathSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { ExecutionRecording } from './execution.js';
 
 /** The reporter entry, by the specifier a configuration names it with. */
 export const SELECTION_REPORTER = '@variance-authority/playwright-test/reporter';
+
+/** The Babel plugin that cuts each spec, by the path Playwright `require`s it from. */
+const CADENCE_PLUGIN = fileURLToPath(new URL('./cadence-babel.cjs', import.meta.url));
+
+/**
+ * The compiled sense package the plugin requires, as a glob Playwright's
+ * transpiler leaves alone. Playwright compiles every file outside
+ * `node_modules` it `require`s as CommonJS, and sense is ES modules: linked
+ * into a workspace, its real path is outside `node_modules`, and the plugin
+ * would not load.
+ */
+const SENSE_DIST = `**/${dirname(dirname(realpathSync(createRequire(import.meta.url).resolve('@variance-authority/sense/instrument'))))
+  .split(sep)
+  .join('/')
+  .replace(/^\//u, '')}/**`;
 
 /** The subset of a Playwright configuration this reads and rewrites. */
 export interface PlaywrightSelectionConfig {
@@ -43,7 +62,9 @@ export interface PlaywrightSelectionConfig {
  * Everything the configuration already had stays, its own reporters included
  * and in their order; a configuration with none keeps Playwright's default by
  * naming it, because a `reporter` array of one entry replaces the default
- * rather than adding to it.
+ * rather than adding to it. Its own `babelPlugins` stay too, and the plugin
+ * that cuts each spec statement by statement goes after them, unless
+ * `cadence` is `false`.
  *
  * The suite still has to be built with `testSelectionProbes()` from
  * `@variance-authority/sense/journal` — this wires the runner, not the page —
@@ -60,8 +81,16 @@ export function withTestSelection<Config extends PlaywrightSelectionConfig>(
       : typeof config.reporter === 'string'
         ? [config.reporter]
         : [...config.reporter];
+  const compile = config['@playwright/test'] as { readonly babelPlugins?: readonly unknown[] } | undefined;
+  const build = config['build'] as { readonly external?: readonly string[] } | undefined;
   return {
     ...config,
+    ...(recording.cadence === false
+      ? {}
+      : {
+          '@playwright/test': { ...compile, babelPlugins: [...(compile?.babelPlugins ?? []), [CADENCE_PLUGIN]] },
+          build: { ...build, external: [...(build?.external ?? []), SENSE_DIST] },
+        }),
     use: { ...config.use, varianceExecution: recording },
     ...(config.projects === undefined
       ? {}

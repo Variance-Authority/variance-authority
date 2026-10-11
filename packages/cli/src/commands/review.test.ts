@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   caseSectionsAt,
   commitRunsFile,
@@ -19,7 +19,7 @@ import { flagsFor, synopsisFor } from '../usage.js';
 import { probedModule } from './mainline-fixture.js';
 import { review } from './review.js';
 import { formatReview, REVIEW_MARKER } from './review-text.js';
-import { AFTER, DISCOUNTS, ROUNDS, block, changed, git } from './review-fixture.js';
+import { AFTER, DISCOUNTS, ROUNDS, block, changed, git, roundedBy } from './review-fixture.js';
 
 function parse(argv: readonly string[]) {
   return parseReviewArgs(readFlags(argv, 'review', flagsFor('review'), synopsisFor('review')));
@@ -27,8 +27,6 @@ function parse(argv: readonly string[]) {
 
 describe('a review of what a change did, after the run that recorded it', () => {
   const cwd = process.cwd();
-  // A review reads the pull request it runs for from CI's event, so these tests run as if outside CI.
-  beforeEach(() => vi.stubEnv('GITHUB_ACTIONS', ''));
   afterEach(() => {
     process.chdir(cwd);
     vi.unstubAllEnvs();
@@ -41,6 +39,35 @@ describe('a review of what a change did, after the run that recorded it', () => 
 
     expect(regions(await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--root', root])))).toEqual(['applyDiscount', 'round']);
     expect(regions(await review(parse(['--since', first, '--against', against, '--root', root])))).toEqual(['applyDiscount', 'round']);
+  });
+
+  it('reads the changed regions from every declared suite when coverage is requested', async () => {
+    const { root, first, against } = await changed({ suites: ['unit', 'browser'] });
+    await roundedBy(root, first, 'browser');
+    const round = (answer: Awaited<ReturnType<typeof review>>) =>
+      answer.files.find((file) => file.file === 'src/total.ts')?.regions?.find((region) => region.name === 'round');
+
+    const joined = round(await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--coverage', '--root', root])));
+    expect(joined).toMatchObject({ reach: 'near', cases: 1, tests: ['test/total.test.ts'] });
+    expect(joined?.called.map((test) => test.id)).toEqual([ROUNDS.id]);
+    expect(round(await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--root', root])))?.cases).toBe(0);
+  });
+
+  it('takes no region from a suite that ran the changed file as other text', async () => {
+    const { root, first, against } = await changed({ suites: ['unit', 'browser'] });
+    await roundedBy(root, first, 'browser', `${AFTER}\n`);
+    const answer = await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--coverage', '--root', root]));
+
+    expect(answer.files.find((file) => file.file === 'src/total.ts')?.regions?.map(({ name, cases }) => [name, cases])).toEqual([['applyDiscount', 1], ['round', 0]]);
+  });
+
+  it('says the named suite has not run the change, though another suite ran it and answers for its regions', async () => {
+    const { root, first, against } = await changed({ suites: ['unit', 'browser'], text: `${AFTER}\n` });
+    await roundedBy(root, first, 'browser');
+    const answer = await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--coverage', '--root', root]));
+
+    expect(answer.record).toBe('before');
+    expect(answer.files.find((file) => file.file === 'src/total.ts')?.regions?.map(({ name, cases }) => [name, cases])).toEqual([['applyDiscount', 0], ['round', 1]]);
   });
 
   it('refuses to pick one of several declared suites for the reader', async () => {

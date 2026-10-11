@@ -1,0 +1,201 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { sourceIndexPath } from '@variance-authority/sense';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { EXIT_CLEAN } from '../exit.js';
+import { checkout, run } from './ask-packages-fixture.js';
+
+/**
+ * `variance ask uses` and `ask symbol` over the imports of a name within its
+ * own package. The Help value records the imports that cross a package, so
+ * these are read off the source index: each import that resolved to the file
+ * declaring the name, or to a file that passes it on with `export … from`,
+ * which is followed under the name it passes and is not itself a use.
+ */
+
+const cwd = process.cwd();
+
+beforeEach(() => {
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-within-cache-'));
+});
+
+afterEach(() => {
+  process.chdir(cwd);
+  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+});
+
+const UNCOUNTED_LINE = 'A read through an `export * as` namespace and a call through a qualified path are not counted.';
+
+describe('variance ask over the imports of a name within its own package', () => {
+  it('answers `uses` for a published name with the imports within its own package as well as across one', async () => {
+    // One of several names a list takes. A re-export passes the name on and is
+    // no use; an import of what it passes on is, under the name it passes. A
+    // file that re-exports the name and imports it too is listed for the
+    // import, and a same-named export of another file is another name.
+    checkout({
+      'packages/lib/src/greet.ts': "export const hello = 'hello';\nexport function greet(name: string): string {\n  return name;\n}\n",
+      'packages/lib/src/greeting.ts': "import { hello, greet } from './greet.js';\nexport const greeting = greet(hello);\n",
+      'packages/lib/src/both.ts': "export { greet } from './greet.js';\nimport { greet } from './greet.js';\nexport const both = greet('both');\n",
+      'packages/lib/src/barrelled.ts': "import { greet } from './index.js';\nexport const barrelled = greet('barrel');\n",
+      'packages/lib/src/alias.ts': "export { greet as salute } from './greet.js';\n",
+      'packages/lib/src/saluted.ts': "import { salute } from './alias.js';\nexport const saluted = salute('alias');\n",
+      'packages/lib/src/other.ts': 'export const greet = 1;\n',
+      'packages/lib/src/unrelated.ts': "import { greet } from './other.js';\nexport const unrelated = greet;\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('`greet` is imported in 5 places.');
+    expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/greeting\.ts:1 — @acme\/lib$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/both\.ts:2 — @acme\/lib$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/barrelled\.ts:1 — @acme\/lib$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/saluted\.ts:1 — @acme\/lib \(as salute\)$/m);
+    expect(out).not.toMatch(/both\.ts:1|index\.ts|alias\.ts|unrelated\.ts/);
+    expect(out).toContain(`\n\n${UNCOUNTED_LINE}`);
+  });
+
+  it('lists the imports within its package of a name an entry publishes under another name than its declaration', async () => {
+    checkout({
+      'packages/lib/src/index.ts': "export { greet } from './greet.js';\nexport { greet as salute } from './greet.js';\n",
+      'packages/lib/src/inner.ts': "import { salute } from './index.js';\nexport const inner = salute('inner');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'salute']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^packages\/lib\/src\/inner\.ts:1 — @acme\/lib$/m);
+  });
+
+  it('does not list a re-export in another package as a use, and keeps a type-only one as a type use', async () => {
+    checkout({
+      'apps/app/src/relay.ts': "export { greet } from '@acme/lib';\n",
+      'apps/app/src/relayed.ts': "import { greet } from './relay.js';\nexport const relayed = greet('relay');\n",
+      'apps/app/src/typed.ts': "export { type greet as Greet } from '@acme/lib';\n",
+      'apps/app/src/star.ts': "export * from '@acme/lib';\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app$/m);
+    expect(out).toMatch(/^apps\/app\/src\/relayed\.ts:1 — @acme\/app$/m);
+    expect(out).toMatch(/^apps\/app\/src\/typed\.ts:1 — @acme\/app \(type only\)$/m);
+    expect(out).not.toMatch(/relay\.ts|star\.ts/);
+  });
+
+  it('does not follow a type-only re-export, and lists the type it takes where it is written', async () => {
+    checkout({
+      'packages/lib/src/greet.ts': "export const other = 1;\nexport function greet(name: string): string {\n  return name;\n}\n",
+      'packages/lib/src/typed.ts': "export { type greet, other } from './greet.js';\n",
+      'packages/lib/src/typeuse.ts': "import { other, greet } from './typed.js';\nexport type Typeuse = typeof greet | typeof other;\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^packages\/lib\/src\/typed\.ts:1 — @acme\/lib \(type only\)$/m);
+    expect(out).not.toContain('typeuse.ts');
+  });
+
+  it('leaves an import through another specifier of the package to that specifier when `--package` names one', async () => {
+    checkout({
+      'packages/duo/package.json': JSON.stringify({ name: '@acme/duo', exports: { '.': './src/index.ts', './hi': './src/hi.ts' } }),
+      'packages/duo/src/index.ts': "export { hi } from './hi.js';\n",
+      'packages/duo/src/hi.ts': 'export const hi = (name: string): string => name;\n',
+      'apps/app/src/door.ts': "import { hi } from '@acme/duo';\nexport const door = hi('door');\n",
+      'apps/app/src/subpath.ts': "import { hi } from '@acme/duo/hi';\nexport const subpath = hi('subpath');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'hi', '--package', '@acme/duo/hi']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^apps\/app\/src\/subpath\.ts:1 — @acme\/app$/m);
+    expect(out).not.toContain('door.ts');
+
+    const both = await run(['ask', 'uses', '--name', 'hi', '--package', '@acme/duo']);
+    expect(both.out).toMatch(/^apps\/app\/src\/door\.ts:1 — @acme\/app$/m);
+    expect(both.out).toMatch(/^apps\/app\/src\/subpath\.ts:1 — @acme\/app$/m);
+  });
+
+  it('answers plainly when the source index reads and nothing imports a published name', async () => {
+    checkout({ 'apps/app/src/hello.ts': 'export const hello = 1;\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out, err } = await run(['ask', 'uses', '--name', 'greet']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out.split('\n')).toContain(
+      '`greet` is published and nothing in this workspace imports it; a read through an `export * as` namespace and a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.',
+    );
+  });
+
+  it('keeps the imports by package path of a published name when the source index does not read, and says why the rest are not listed', async () => {
+    const root = checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    writeFileSync(sourceIndexPath(root), 'not a source index');
+
+    const { code, out, err } = await run(['ask', 'uses', '--name', 'greet']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app$/m);
+    expect(out).toMatch(/^Imports that do not name a package path are not listed: the source index at .* did not read: .*; run `variance index`\.$/m);
+    expect(out).not.toContain(UNCOUNTED_LINE);
+  });
+
+  it('answers `symbol` for an unpublished name when the source index does not read, and says why it cannot count who imports it', async () => {
+    const root = checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    writeFileSync(sourceIndexPath(root), 'not a source index');
+
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'roundTax']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
+    expect(out).toMatch(/^Who imports it is read from the source index, and the source index at .* did not read: .*; run `variance index`\.$/m);
+  });
+
+  it('answers `symbol` for an unpublished name when no source index is published, and says so', async () => {
+    const root = checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    rmSync(sourceIndexPath(root));
+
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'roundTax']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
+    expect(out).toMatch(/^Who imports it is read from the source index, and no source index is published; run `variance index`\.$/m);
+  });
+
+  it('counts the imports of an unpublished name through a barrel once, under the file that declares it', async () => {
+    checkout({
+      'packages/lib/src/internal/index.ts': "export { roundTax } from './math.js';\n",
+      'packages/lib/src/internal/rounded.ts': "import { roundTax } from './index.js';\nexport const rounded = roundTax(2);\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
+    expect(out).toMatch(/Imported in 1 place\b/);
+    expect(out).not.toContain('packages/lib/src/internal/index.ts');
+    expect(out.match(/^roundTax$/gm)).toHaveLength(1);
+  });
+
+  it('counts a published name read off `import x = require()` in another package, in `uses` and in `symbol`', async () => {
+    checkout({
+      'apps/app/src/hello.ts': 'export const hello = 1;\n',
+      'apps/app/src/required.cts': "import lib = require('@acme/lib');\nexport const required = lib.greet('cjs');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const uses = await run(['ask', 'uses', '--name', 'greet']);
+    expect(uses.code).toBe(EXIT_CLEAN);
+    expect(uses.out).toMatch(/^apps\/app\/src\/required\.cts:2 — @acme\/app \(namespace, line 1\)$/m);
+
+    const symbol = await run(['ask', 'symbol', '--name', 'greet']);
+    expect(symbol.out).toContain('used by 1 package: @acme/app');
+  });
+});

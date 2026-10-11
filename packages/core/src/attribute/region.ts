@@ -1,4 +1,4 @@
-import type { Rect } from '../format/capture.js';
+import { intersectionArea, type Rect } from '../format/capture.js';
 import { locate } from './locate.js';
 import type { DiffRegion } from './mask.js';
 import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
@@ -309,10 +309,4 @@ function collectBoxes(root: SemanticNode): readonly SemanticNode[] {
   walk(root);
 
   return out;
-}
-
-function intersectionArea(a: Rect, b: Rect): number {
-  const width = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
-  const height = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
-  return width > 0 && height > 0 ? width * height : 0;
 }

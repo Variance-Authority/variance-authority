@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FiberTag, type Fiber } from './fiber.js';
+import { currentFiber, FiberTag, type Fiber } from './fiber.js';
 import {
   componentFiberPath,
   fiberParentChain,
@@ -88,5 +88,15 @@ describe('bounded Fiber traversal', () => {
       line: 12,
       column: 4,
     });
+  });
+});
+
+describe('a fiber in no tree', () => {
+  it('resolves to nothing, as a deleted one does while an update queued before its unmount still names it', () => {
+    // React detaches a deleted subtree from its parent once the commit is done,
+    // so a walk up from inside it ends on a component rather than a `HostRoot`.
+    const deleted = fiber('Ticker');
+    link(fiber('Page'), deleted);
+    expect(currentFiber(deleted)).toBeNull();
   });
 });

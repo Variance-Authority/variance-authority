@@ -26,6 +26,7 @@ use oxc_span::GetSpan;
 
 use crate::cadence_map::mappings;
 use crate::dialect::dialect;
+use crate::header::json_string;
 
 /// A cut test file, with the `mappings` of its source map and the shifts they
 /// were made from: `cadence_map.rs`.
@@ -46,20 +47,26 @@ const DECLARATION: &str =
 
 /// The test file with a cut before each statement of its test and hook bodies,
 /// or nothing when it does not parse or holds no such body.
-pub fn cadence(source: &str, file: &str) -> Option<Cadence> {
+///
+/// `awaited` is for a runner whose collector is not in the test's realm, as
+/// Playwright's page is not: a statement of an async body awaits its cut, so
+/// the collector can drain what the statement before it reached before this
+/// one runs, and the cut names `file`, so a body declared in another file is
+/// told apart. A body that cannot wait is cut as it is without it.
+pub fn cadence(source: &str, file: &str, awaited: bool) -> Option<Cadence> {
     let allocator = Allocator::new();
     let source_type = dialect(file).unwrap_or_default();
     let parsed = Parser::new(&allocator, source, source_type).parse();
     if parsed.panicked || !parsed.diagnostics.is_empty() {
         return None;
     }
-    let mut cuts = Cuts { lines: Lines::new(source), edits: Vec::new() };
+    let mut cuts = Cuts { lines: Lines::new(source), edits: Vec::new(), awaited, waits: false };
     cuts.visit_program(&parsed.program);
     if cuts.edits.is_empty() {
         return None;
     }
     let last = parsed.program.body.last().map_or(0, |statement| statement.span().end);
-    cuts.edits.push((last, DECLARATION.to_string()));
+    cuts.edits.push((last, declaration(file, awaited)));
     // Stable, so a concise body's closing parenthesis keeps its place.
     cuts.edits.sort_by_key(|(at, _)| *at);
     let mut code = String::with_capacity(source.len() + cuts.edits.iter().map(|(_, text)| text.len()).sum::<usize>());
@@ -74,29 +81,50 @@ pub fn cadence(source: &str, file: &str) -> Option<Cadence> {
     Some(Cadence { code, mappings, shifts })
 }
 
+/// `__vaC`, which hands the collector the line, and with `awaited` the file. An
+/// awaited cut waits only on what a collector returned, kept on `__vaC.w`, so a
+/// body in a realm with no recording takes no turn it did not take as written.
+fn declaration(file: &str, awaited: bool) -> String {
+    if !awaited {
+        return DECLARATION.to_string();
+    }
+    let mut named = String::new();
+    json_string(&mut named, file);
+    format!(";function __vaC(l){{var r=globalThis.__VA__;__vaC.w=r!=null&&typeof r.c===\"function\"?r.c(l,{named}):void 0;return __vaC.w!=null}}")
+}
+
 struct Cuts {
     lines: Lines,
     edits: Vec<(u32, String)>,
+    awaited: bool,
+    /// Whether the body being cut can wait on its cuts.
+    waits: bool,
 }
 
 impl Cuts {
     fn cut(&mut self, at: u32) {
         let line = self.lines.at(at);
-        self.edits.push((at, format!("__vaC({line});")));
+        let wait = if self.waits { "&&await __vaC.w" } else { "" };
+        self.edits.push((at, format!("__vaC({line}){wait};")));
     }
 
     fn body(&mut self, function: &Argument) {
         match function {
-            Argument::ArrowFunctionExpression(arrow) => match arrow.body.as_function_body() {
-                Some(body) => self.statements(&body.statements),
-                None => {
-                    let span = arrow.body.span();
-                    let line = self.lines.at(span.start);
-                    self.edits.push((span.start, format!("(__vaC({line}),")));
-                    self.edits.push((span.end, ")".to_string()));
+            Argument::ArrowFunctionExpression(arrow) => {
+                self.waits = self.awaited && arrow.r#async;
+                match arrow.body.as_function_body() {
+                    Some(body) => self.statements(&body.statements),
+                    None => {
+                        let span = arrow.body.span();
+                        let line = self.lines.at(span.start);
+                        let wait = if self.waits { "&&await __vaC.w" } else { "" };
+                        self.edits.push((span.start, format!("(__vaC({line}){wait},")));
+                        self.edits.push((span.end, ")".to_string()));
+                    }
                 }
-            },
+            }
             Argument::FunctionExpression(function) => {
+                self.waits = self.awaited && function.r#async && !function.generator;
                 if let Some(body) = &function.body {
                     self.statements(&body.statements);
                 }
@@ -159,7 +187,8 @@ impl Cuts {
 
 impl<'a> Visit<'a> for Cuts {
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
-        if !BODIES.contains(&root_name(&it.callee).unwrap_or("")) {
+        // Playwright's `test.describe(…)` starts from `test` and holds tests.
+        if !BODIES.contains(&root_name(&it.callee).unwrap_or("")) || has_member(&it.callee, "describe") {
             return walk::walk_call_expression(self, it);
         }
         self.visit_expression(&it.callee);
@@ -182,6 +211,18 @@ fn root_name<'b>(callee: &'b Expression) -> Option<&'b str> {
         Expression::TaggedTemplateExpression(it) => root_name(&it.tag),
         Expression::ParenthesizedExpression(it) => root_name(&it.expression),
         _ => None,
+    }
+}
+
+/// Whether a callee chain reads `name` off something: `describe` in `test.describe.only`.
+fn has_member(callee: &Expression, name: &str) -> bool {
+    match callee {
+        Expression::StaticMemberExpression(it) => it.property.name == name || has_member(&it.object, name),
+        Expression::ComputedMemberExpression(it) => has_member(&it.object, name),
+        Expression::CallExpression(it) => has_member(&it.callee, name),
+        Expression::TaggedTemplateExpression(it) => has_member(&it.tag, name),
+        Expression::ParenthesizedExpression(it) => has_member(&it.expression, name),
+        _ => false,
     }
 }
 
@@ -216,7 +257,7 @@ mod tests {
     use super::*;
 
     fn cut(source: &str) -> String {
-        cadence(source, "a.test.ts").expect("it parses and has a test").code
+        cadence(source, "a.test.ts", false).expect("it parses and has a test").code
     }
 
     #[test]
@@ -286,19 +327,48 @@ mod tests {
 
     #[test]
     fn a_file_with_no_test_body_or_no_parse_is_left_alone() {
-        assert!(cadence("export const a = 1;\n", "a.test.ts").is_none());
-        assert!(cadence("it('t', () => {", "a.test.ts").is_none());
+        assert!(cadence("export const a = 1;\n", "a.test.ts", false).is_none());
+        assert!(cadence("it('t', () => {", "a.test.ts", false).is_none());
     }
 
     #[test]
     fn jsx_in_a_test_parses_by_extension() {
-        let out = cadence("it('t', () => {\n  render(<A />);\n});\n", "a.test.tsx").expect("tsx parses").code;
+        let out = cadence("it('t', () => {\n  render(<A />);\n});\n", "a.test.tsx", false).expect("tsx parses").code;
         assert!(out.contains("__vaC(2);render(<A />);"), "{out}");
     }
 
     #[test]
+    fn a_describe_off_a_test_is_walked_not_cut() {
+        let out = cut("test.describe('d', () => {\n  test.beforeEach(async () => {\n    await reset();\n  });\n  test('t', async () => {\n    await run();\n  });\n  test.describe.serial('s', () => {\n    test('u', () => {\n      go();\n    });\n  });\n});\n");
+        assert!(!out.contains("__vaC(2)") && !out.contains("__vaC(5)") && !out.contains("__vaC(8)"), "a describe's own statements are not a test's: {out}");
+        assert!(out.contains("__vaC(3);await reset();"), "{out}");
+        assert!(out.contains("__vaC(6);await run();"), "{out}");
+        assert!(out.contains("__vaC(10);go();"), "{out}");
+    }
+
+    fn awaited(source: &str) -> String {
+        cadence(source, "/repo/e2e/a.spec.ts", true).expect("it parses and has a test").code
+    }
+
+    #[test]
+    fn an_awaited_cut_waits_in_an_async_body_and_names_its_file() {
+        let out = awaited("test('t', async ({ page }) => {\n  await page.goto('/');\n  check();\n});\ntest('s', () => {\n  go();\n});\ntest('c', async () => page.click());\n");
+        assert!(out.contains("  __vaC(2)&&await __vaC.w;await page.goto('/');\n  __vaC(3)&&await __vaC.w;check();\n"), "{out}");
+        assert!(out.contains("  __vaC(6);go();"), "a body that cannot wait is cut as it was: {out}");
+        assert!(out.contains("async () => (__vaC(8)&&await __vaC.w,page.click())"), "{out}");
+        assert!(out.contains("r.c(l,\"/repo/e2e/a.spec.ts\")"), "{out}");
+        assert_eq!(out.lines().count(), 8);
+    }
+
+    #[test]
+    fn an_awaited_cut_escapes_its_file_as_a_string() {
+        let out = cadence("test('t', () => {\n  go();\n});\n", "C:\\e2e\\\"a\".spec.js", true).expect("it parses").code;
+        assert!(out.contains("r.c(l,\"C:\\\\e2e\\\\\\\"a\\\".spec.js\")"), "{out}");
+    }
+
+    #[test]
     fn jsx_in_a_javascript_test_parses() {
-        let out = cadence("it('t', () => {\n  render(<A />);\n});\n", "a.test.js").expect("js parses with jsx").code;
+        let out = cadence("it('t', () => {\n  render(<A />);\n});\n", "a.test.js", false).expect("js parses with jsx").code;
         assert!(out.contains("__vaC(2);render(<A />);"), "{out}");
     }
 }

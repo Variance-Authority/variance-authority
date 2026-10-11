@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CROSSES, PAGE_SIDE, claims, sourceStem } from './page-side.mjs';
+import { PAGE_SIDE, claims, sourceStem } from './page-side.mjs';
 import { ROOT, sourceFiles } from './workspaces.js';
 
 /**
@@ -10,23 +10,14 @@ import { ROOT, sourceFiles } from './workspaces.js';
  * `tools/page-side.mjs` names the modules `yarn test` must not instrument, and a
  * missing entry is already loud: the probe throws `ReferenceError` in a headless
  * page and the suite goes red. Nothing watches the other direction. An entry
- * that has stopped being true — the module renamed, the `evaluate` call gone —
- * costs that module its measurement in every run from then on, silently, and
- * `yarn test:since` narrows around a hole nobody can see.
+ * that has stopped being true — the module renamed or gone — costs that module
+ * its measurement in every run from then on, silently, and `yarn test:since`
+ * narrows around a hole nobody can see.
  *
- * So both ends are held here, and the reverse sweep is exact rather than
- * approximate: today every module outside a test file that hands a function to
- * another realm is claimed by the list, and this is what says so tomorrow.
+ * A module that hands its own function to a page is not listed, because the
+ * instrumenter finds that function from the call and leaves only it bare; so
+ * there is no call for this check to look for.
  */
-
-/**
- * The calls that send a function's source text somewhere it has no module scope.
- *
- * Playwright's four. A string argument crosses just as far and does not matter —
- * a string was never instrumented — so this over-matches on purpose and the
- * forward rule below is what makes that harmless.
- */
-const CROSSING = /\.(evaluate|evaluateHandle|addInitScript|exposeFunction)\(/;
 
 /** Never instrumented, so never able to lose a probe it was not given. */
 const TEST = /\.(test|spec|measure)\.[cm]?[jt]sx?$/;
@@ -36,10 +27,8 @@ const TEST = /\.(test|spec|measure)\.[cm]?[jt]sx?$/;
  *
  * A workspace's `src`, and nothing else under it. The `collector` and `scripts`
  * directories beside it hold production code the CLI loads in its own process,
- * and two of them hand functions to a page — but no probe is placed in them,
- * because the suite's `PRODUCT` pattern does not reach there. Sweeping wider
- * than the instrumenter would report modules that cannot break, and the day the
- * instrumenter widens this widens with it.
+ * and no probe is placed in them, because the suite's `PRODUCT` pattern does
+ * not reach there.
  */
 const modules = ['packages', 'examples', 'cases']
   .flatMap((group) => sourceFiles(join(ROOT, group)))
@@ -56,27 +45,6 @@ describe('every entry names a module that is there', () => {
       PAGE_SIDE.some((other: string) => other !== entry && claims(other, entry.replace(/\/$/, ''))),
     );
     expect(shadowed, 'already covered by a directory entry above them').toEqual([]);
-  });
-});
-
-describe('every entry still earns its place', () => {
-  it.each(CROSSES)('%s hands a function to another realm', (entry: string) => {
-    const sources = modules.filter((file) => claims(entry, sourceStem(ROOT, file)));
-    const crossing = sources.filter((file) => CROSSING.test(readFileSync(file, 'utf8')));
-    expect(
-      crossing.map((file) => relative(ROOT, file)),
-      `${entry} no longer calls evaluate, addInitScript or exposeFunction — instrument it again`,
-    ).not.toHaveLength(0);
-  });
-
-  it('and nothing that crosses is missing from the list', () => {
-    const uncovered = modules
-      .filter((file) => CROSSING.test(readFileSync(file, 'utf8')))
-      .map((file) => sourceStem(ROOT, file))
-      .filter((stem) => !PAGE_SIDE.some((entry: string) => claims(entry, stem)));
-    expect(uncovered, 'would throw ReferenceError inside a page the first time it is probed').toEqual(
-      [],
-    );
   });
 });
 

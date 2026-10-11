@@ -47,7 +47,7 @@
  */
 
 import { extname } from 'node:path';
-import { EDGE_KINDS, RUNTIME_EDGES, idOf, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { idOf, type NodeId, type Relations } from '@variance-authority/core/relate';
 import { native } from '../addon.js';
 import type { NativeModuleReaders, NativeScanner } from '../native.js';
 import { MODULE_EXTENSIONS } from '../read.js';
@@ -56,6 +56,7 @@ import type { LineRange } from './diff-lines.js';
 import { declaredEffects } from './effects.js';
 import { frameOf, type Frame } from './frame.js';
 import type { TestCoverageView } from './format-view.js';
+import { walkImporters } from './importer-walk.js';
 import { importedAsAsset, type ExecutionNarrowingOptions } from './importers.js';
 import { findModules, findTest } from './lookup.js';
 import { applied, hunksOf } from './patch.js';
@@ -116,10 +117,12 @@ export interface ReadingContext {
   readonly charge: (file: string, block: number, reason: SelectionReason) => void;
   /** Select one test file directly. */
   readonly pick: (test: number, reason: SelectionReason) => void;
+  /** Select every test that loaded a file with no row: the graph's walk over its importers names them. */
+  readonly whole: (file: string, reason: Extract<SelectionReason, { readonly kind: 'reader' }>) => void;
 }
 
 /** Where a changed value was read: the reason for one charge. */
-type Reader = (name: string, at: string, block?: number) => SelectionReason;
+type Reader = (name: string, at: string, block?: number) => Extract<SelectionReason, { readonly kind: 'reader' }>;
 
 /**
  * Read one changed file whose frame was proved, and charge what the verdict
@@ -269,8 +272,9 @@ function readsModules(scanner: NativeScanner | undefined): scanner is ModuleScan
 /**
  * Charge a changed value to its readers: in the declaring file, and one file
  * deep through every direct importer — further only where an importer hands
- * the value on. Returns the tests that loaded the declaring file through no
- * importer followed, when importers were followed from a file with a row.
+ * the value on, and back into the declaring file where an import brings it
+ * there. Returns the tests that loaded the declaring file through no importer
+ * followed, when importers were followed from a file with a row.
  */
 function readValues(
   context: ReadingContext,
@@ -307,22 +311,13 @@ function readValues(
     return undefined;
   }
 
+  // The declaring file, asked as an importer of its own names, speaks for no
+  // test: every test that loaded it crossed its rows, whatever edge it came by.
   const covered = new Set<number>();
-  const visited = new Set<NodeId>([id]);
-  let wave: Array<{ readonly id: NodeId; readonly moved: ReadonlyMap<string, string> }> = [{ id, moved }];
-  while (wave.length > 0) {
-    const next: typeof wave = [];
-    for (const step of wave) {
-      for (const importer of directImporters(relations, step.id)) {
-        const node = nodeAt(relations, importer);
-        if (node === undefined || node.kind !== 'file' || visited.has(importer)) continue;
-        visited.add(importer);
-        const passed = readImporter(context, node.name, step.moved, verdict.gone, reader, covered);
-        if (passed.size > 0) next.push({ id: importer, moved: passed });
-      }
-    }
-    wave = next;
-  }
+  const declaring = relations.names[id];
+  walkImporters(relations, id, moved, (importer, carried) =>
+    readImporter(context, importer, carried, verdict.gone, reader, importer === declaring ? new Set() : covered),
+  );
 
   // A test that loaded the declaring file through no importer the reading
   // followed reached it by an edge the graph does not hold. It is named, not
@@ -363,7 +358,6 @@ function readImporter(
     const rows = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
     if (rows.length > 0) rowsOf.set(name, rows);
   }
-  if (rowsOf.size === 0 && test === undefined) return readUnmeasured(importer, moved, options, coverage.commit);
   if (test !== undefined) covered.add(test);
   for (const rows of rowsOf.values()) {
     for (const module of rows) {
@@ -383,11 +377,13 @@ function readImporter(
   const found = text === undefined ? null : native()!.moduleReaders!(importer, text, [...moved.keys()], true);
 
   if (found === null) {
-    // Not proved, or not parsed: the importer as a whole is what can be said.
-    if (rowsOf.size === 0) context.pick(test!, reader(origin(first!), importer));
-    else chargeModule(context, importer, rowsOf, (at, block) => reader(origin(first!), at, block));
+    // Not proved, no text, or not parsed: the importer as a whole is what can be said.
+    if (rowsOf.size > 0) chargeModule(context, importer, rowsOf, (at, block) => reader(origin(first!), at, block));
+    else if (test === undefined) context.whole(importer, reader(origin(first!), importer));
+    else context.pick(test, reader(origin(first!), importer));
     return new Map();
   }
+  if (rowsOf.size === 0 && test === undefined) return readUnmeasured(found, moved);
 
   // An import of a name the declaring file no longer exports fails at load.
   const loads = [
@@ -411,22 +407,14 @@ function readImporter(
 }
 
 /**
- * An importer with no row and no test: nothing it runs can be charged, so a
- * read of a moved name anywhere in it moves every name it exports, and its
+ * An importer with no row and no test, read: nothing it runs can be charged, so
+ * a read of a moved name anywhere in it moves every name it exports, and its
  * own importers are asked in turn. One that reads none of them hands on only
- * what it re-exports. A text that cannot be had or parsed hands on nothing, and
- * the tests behind it are left to `unseen`.
+ * what it re-exports. One that could not be read is answered whole instead, by
+ * every test that loaded it, and hands on nothing: what imports it loads it.
  */
-function readUnmeasured(
-  importer: string,
-  moved: ReadonlyMap<string, string>,
-  options: ExecutionNarrowingOptions,
-  commit: TestCoverageView['commit'],
-): ReadonlyMap<string, string> {
-  const text = options.sourceAt?.(importer, commit);
-  const found = text === undefined ? null : native()!.moduleReaders!(importer, text, [...moved.keys()], true);
+function readUnmeasured(found: NativeModuleReaders, moved: ReadonlyMap<string, string>): ReadonlyMap<string, string> {
   const passed = new Map<string, string>();
-  if (found === null) return passed;
   const origin = (name: string): string => moved.get(name) ?? name;
   const read = found.reads[0]?.name ?? found.load[0] ?? (found.untraced ? [...moved.keys()][0] : undefined);
   if (read !== undefined) for (const name of found.interface) passed.set(name, origin(read));
@@ -484,16 +472,3 @@ function firstId(relations: Relations, names: readonly string[]): NodeId | undef
   }
   return undefined;
 }
-
-/** The files that load this one at runtime, one edge away: a type-only import loads nothing. */
-function directImporters(relations: Relations, id: NodeId): readonly NodeId[] {
-  const { offset, target, kind } = relations.dependents;
-  const importers: NodeId[] = [];
-  for (let edge = offset[id]!; edge < offset[id + 1]!; edge += 1) {
-    if (LOADS[kind[edge]!] === 1 && target[edge] !== id) importers.push(target[edge]!);
-  }
-  return importers;
-}
-
-const LOADS = new Uint8Array(EDGE_KINDS.length);
-for (const kind of RUNTIME_EDGES) LOADS[EDGE_KINDS.indexOf(kind)] = 1;

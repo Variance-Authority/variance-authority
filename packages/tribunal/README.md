@@ -258,7 +258,7 @@ be requested anonymously.
 | `POST /review/have` | ingest | given image digests, which of them this deployment already has, so a push uploads only the rest |
 | `GET /review/builds[?limit]` | review | recent builds |
 | `GET /review/builds/{id}` | review | one build: its subjects, their verdicts, their regions, the docket |
-| `POST /review/builds/{id}/subjects/{subject}/decision` | review | `{"decision":"approved"\|"rejected","by":"…","note":"…"}` |
+| `POST /review/builds/{id}/subjects/{subject}/decision` | review | `{"decision":"approved"\|"rejected","by":"…","note":"…","baselineVersion":"…"}`. 409 when an approval's baseline moved since `baselineVersion` where this build changed it too, below |
 | `GET /review/builds/{id}/subjects/{subject}/{before\|after\|diff}.png` | review | one image, immutable and cacheable |
 | `GET /review/changelog[?component&subject&since&limit]` | review or share | every approval, grouped by shape |
 | `GET /review/decisions[?build&subject&limit]` | review or share | every decision, newest first, reversals included: `{"decisions":[{"build","subject","decision","by","at","note"}]}`. Names `build`, `subject` or both; `limit` defaults to 200 and goes no higher |
@@ -365,6 +365,28 @@ drifts in nineteen runs out of twenty. Two numbers are drawn as missing rather
 than as zero: a flake rate is **absent** until a run has read every subject
 twice, and a coverage that was never stated is unknown rather than clean.
 
+A render you decide on, whose candidate is the same image an earlier build kept,
+says so in its Decision card. A candidate is stored under the SHA-256 of its
+bytes, so two builds that kept one key for a subject kept one picture. Only
+builds rendered by the same identity count: a baseline is kept per identity, so
+a decision made on another engine or platform says nothing about this one. The
+line names the earlier build, links to the subject there, and gives the decision
+made on it with who made it. **An image an earlier build rejected** is drawn as a
+rejection: it is a render you already rejected, not a new defect. You can still
+approve it, since accepting a known defect is how the change it blocks gets
+merged, and the approval then opens a concern titled with the build that
+rejected it, carrying who rejected it and their note, so the defect stays on record. The
+decision's answer carries the concern's id as `concern`. A second approval in
+the same build opens no second concern, and neither does an image whose latest
+earlier decision approved it. **An image
+approved before this build ran, on a render that still differs from its
+baseline**, is drawn as a warning, and the line says only that: the render may
+alternate, a change may have been reverted, or the baseline moved again. An
+approval made after this build ran replaced the very baseline this build was
+compared to, so it is named without the warning. Only builds this deployment
+still keeps are counted, so a build removed by `POST /review/sweep` is not named.
+A render that is `unchanged` or `ignored`, or kept no candidate, has no line.
+
 Every move on a subject sits in one bar under the picture, beside what it acts
 on: the subject, the component it names as the cause, its regions, and where it
 stands in the rail — *2 of 5*, or *not in the queue* for one opened by a link.
@@ -393,7 +415,9 @@ closes it without removing it. Its region is a place on the image of the build
 it was raised in, so it names a place nobody can see once that build is swept;
 the component it carries still says what was there, as `Button · 24×18 at
 154,85`. A concern and a decision never settle each other: approving does not resolve
-a concern, and resolving one approves nothing. The build's header counts the
+a concern, and resolving one approves nothing. One approval does open a concern:
+approving an image an earlier build rejected, which accepts a known defect and
+keeps it on record. The build's header counts the
 concerns its subjects carry, and says so when it could not read them rather than
 showing none.
 
@@ -423,6 +447,40 @@ that another covered, with the file and the lines. The count of subjects the
 journal covers is drawn even when nothing parted: no partings among five subjects
 is agreement, and among one it is nothing at all. A build with no journal draws
 no panel.
+
+The same page lists the run's **variations**: each subject read against the
+subject it varies from, with the pair that renders one image first. Each pair is
+drawn as its two pictures, parent first, at one scale and at their own pixel
+grid, and each picture links to its subject's page. A side shows its candidate
+when the run kept one and its baseline, labelled `baseline`, when the run kept
+only that. A side the run kept no image for, or never read, says which instead of
+drawing an empty frame, and one it never read has no page to link to. A variation
+whose parent the run did not observe draws the one picture it has. A capture
+too large for its tile even at quarter size, such as a full route, is drawn at a
+quarter and cropped to its top-left corner, and says so: smaller, the rows that
+survive are the sampler's choice.
+
+A family — a base and every subject that varies from it — that varies on exactly
+two axes, every link read by the configured name format, is drawn first as a
+grid, the base in the corner and one scale for the whole grid. The axis the
+format lists first runs down. The combination where both axes meet sits beside
+its two arms, and a combination nothing in the family is at says which two
+values it is missing. The pairs stay listed underneath with what each measured, without
+repeating their pictures.
+
+**Stories of one component that render the same image** are named on the
+docket, though no diff shows them: both are `new`, or both changed the same
+way, and neither is red. A story whose candidate is byte for byte its sibling's is an arm
+whose flag reaches no pixel, or one state under two names (`dark-narrow` and
+`narrow-dark`). The build already stores every candidate under the SHA-256 of
+its PNG, so the grouping reads the keys it holds and asks the run for nothing
+more. Stories are grouped only within their component, the part of the id
+before the first `--`; an id with no `--` is a component of one. Only stories
+whose candidate the build kept are compared. A story that settled on its
+baseline's digest kept none, so a pair is named only on a build where both are
+`new` or both changed, and a new arm beside a base that settled is not. A subject
+page lays its component's stories side by side and marks the ones that are one
+picture.
 
 The `Changelog` tab is the same evidence at project scale.
 
@@ -673,6 +731,33 @@ returned `'review'` would be a published approve button.
 that build's uploaded candidate the baseline, through the same `RasterStore` the
 next run reads. A subject whose candidate was never uploaded **cannot be
 approved**.
+
+**An approval is taken against the baseline you read, and read the way a merge
+reads code.** Each subject a build answers with carries `baselineVersion`: the
+document digest of the baseline an approval would replace, or `null` when there
+is none. Send it back with the decision. A baseline that moved since is not a
+conflict by itself: when every approval that moved it after this build ran
+changed regions none of this build's regions meets, the approval goes through.
+The service records nothing and answers 409 with
+`{"error":"…","read":…,"current":…,"clash":"…"}` only when they meet, when the
+baseline standing now was written by something that names no regions — a run's
+`/baseline/put` — when a region list on either side was cut short, when the
+baseline you read has since been deleted, or when there was no baseline as you
+read it, since then both sides added the whole image. An approval whose own
+image already stands goes through. The sentence names the two baselines and,
+when it is one, the build whose change met yours; `read` and `current` are the
+two document digests, `null` for none, and `clash` is why the two changes could
+not be told apart, as a clause. The version is the baseline standing when you
+read the build, not the one its run compared against, so it guards the time the
+page is open. The review pages send it, and on a 409 both the subject panel and
+the change page offer to reload what you were deciding.
+
+An approval that goes through over a moved baseline replaces it with this
+build's image, so the other build's change is not in the new baseline; the next
+run compares against it and shows that change again. A rejection promotes
+nothing and is never checked, and neither is a decision without
+`baselineVersion`. The check and the promotion are not one transaction: two
+decisions landing in the same instant can both pass.
 
 **A store failure is never a verdict.** Every D1 and R2 failure raises
 `RasterStoreError` instead of returning a value; `null` is reserved for *the

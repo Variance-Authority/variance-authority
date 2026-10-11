@@ -1,11 +1,14 @@
 //! The names a module reads off another module it holds as an object.
 //!
-//! A named import says which names it takes. A namespace import and an
-//! `import()` do not: the file holds the module whole, and the names it uses are
-//! member reads further down — `ns.x`, `(await import('m')).x`, `m.x` after
-//! `const m = await import('m')`, `const { x } = await import('m')`, and the
+//! A named import says which names it takes. A namespace import, TypeScript's
+//! `import m = require('m')` and an `import()` do not: the file holds the module
+//! whole, and the names it uses are member reads further down — `ns.x`,
+//! `(await import('m')).x`, `m.x` after `const m = await import('m')` or
+//! `import m = require('m')`, `const { x } = await import('m')`, and the
 //! callback of `import('m').then(…)`. Each of those is recorded against the
-//! request it reads through, by that request's index in the parse.
+//! request it reads through, by that request's index in the parse. An
+//! `import m = require()` holds from where it is written on, as the `const`
+//! TypeScript compiles it to does; a type-only one holds nothing.
 //!
 //! This is a listing of where a name is used, and nothing selects on it: a
 //! request's `bindings` stay what the statement wrote, so a namespace still
@@ -38,13 +41,14 @@ pub struct Member {
 /// The loads a module calls for, and the names it reads off what it holds.
 ///
 /// `requests` are the ones the module record states; a member read through an
-/// `import()` is indexed as if `loads.dynamic` were appended to them.
+/// `import()` is indexed as if `loads.dynamic` were appended to them, and one
+/// read through an `import m = require()` as if `loads.required` followed those.
 pub fn members_and_loads_in<'l>(program: &Program, lines: &'l Lines, requests: &[Request]) -> (Vec<Member>, Loads<'l>) {
     let mut holders = HashMap::new();
     for (index, request) in requests.iter().enumerate() {
         for binding in &request.bindings {
             if binding.imported == "*" && !binding.type_only {
-                holders.insert(binding.local.clone(), index as u32);
+                holders.insert(binding.local.clone(), Via::Indexed(index as u32));
             }
         }
     }
@@ -56,32 +60,56 @@ pub fn members_and_loads_in<'l>(program: &Program, lines: &'l Lines, requests: &
         found: BTreeSet::new(),
     };
     walker.visit_program(program);
-    (walker.found.into_iter().collect(), walker.loads)
+    // A required request's index is known only once the walk has met every `import()`.
+    let required = walker.stated + walker.loads.dynamic.len() as u32;
+    let members: BTreeSet<Member> = walker
+        .found
+        .into_iter()
+        .map(|(via, name, line)| Member { request: via.index(required), name, line })
+        .collect();
+    (members.into_iter().collect(), walker.loads)
+}
+
+/// The request a holder reads through: its index in the parse, or its index in
+/// `loads.required`, which the parse appends after every `import()`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Via {
+    Indexed(u32),
+    Required(u32),
+}
+
+impl Via {
+    fn index(self, required: u32) -> u32 {
+        match self {
+            Via::Indexed(index) => index,
+            Via::Required(index) => required + index,
+        }
+    }
 }
 
 struct Walker<'l> {
     lines: &'l Lines,
     /// A local name to the request it holds.
-    holders: HashMap<String, u32>,
+    holders: HashMap<String, Via>,
     /// How many requests the record states, which the `import()` ones follow.
     stated: u32,
     loads: Loads<'l>,
-    found: BTreeSet<Member>,
+    found: BTreeSet<(Via, String, u32)>,
 }
 
 impl Walker<'_> {
     /// The request an expression evaluates to, looking through parentheses and `await`.
-    fn held(&mut self, expression: &Expression) -> Option<u32> {
+    fn held(&mut self, expression: &Expression) -> Option<Via> {
         match expression.without_parentheses() {
             Expression::AwaitExpression(it) => self.held(&it.argument),
-            Expression::ImportExpression(it) => self.loads.import(it).map(|index| self.stated + index),
+            Expression::ImportExpression(it) => self.loads.import(it).map(|index| Via::Indexed(self.stated + index)),
             Expression::Identifier(it) => self.holders.get(it.name.as_str()).copied(),
             _ => None,
         }
     }
 
     /// What binding a pattern to `request` takes: a holder, or the names it destructures.
-    fn bind(&mut self, pattern: &BindingPattern, request: u32) {
+    fn bind(&mut self, pattern: &BindingPattern, request: Via) {
         match pattern {
             BindingPattern::BindingIdentifier(it) => {
                 self.holders.insert(it.name.to_string(), request);
@@ -98,8 +126,8 @@ impl Walker<'_> {
         }
     }
 
-    fn add(&mut self, request: u32, name: &str, at: u32) {
-        self.found.insert(Member { request, name: name.to_owned(), line: self.lines.at(at) });
+    fn add(&mut self, request: Via, name: &str, at: u32) {
+        self.found.insert((request, name.to_owned(), self.lines.at(at)));
     }
 }
 
@@ -140,7 +168,11 @@ impl<'a> Visit<'a> for Walker<'_> {
     }
 
     fn visit_ts_import_equals_declaration(&mut self, it: &TSImportEqualsDeclaration<'a>) {
-        self.loads.import_equals(it);
+        if let Some(index) = self.loads.import_equals(it) {
+            if !it.import_kind.is_type() {
+                self.holders.insert(it.id.name.to_string(), Via::Required(index));
+            }
+        }
         walk::walk_ts_import_equals_declaration(self, it);
     }
 

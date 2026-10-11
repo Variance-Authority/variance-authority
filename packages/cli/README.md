@@ -917,7 +917,12 @@ compares nothing for them.
 printed. The markdown starts with a hidden marker line, so a pipeline finds its
 own pull request comment and edits it instead of posting another.
 
-`--coverage` includes coverage for every declared suite in the same review.
+`--coverage` includes coverage for every declared suite in the same review,
+and reads the changed regions from every suite too. A suite answers for a
+changed file it ran as the tree holds it, so a region no unit case entered and
+an integration case ran is counted as run, by that case; each region is read
+from the suite that came nearest. Where no suite ran the file's current text,
+the suite named with `--suite` answers alone, as it does without `--coverage`.
 The comment leads with the changed-code finding, which test files ran, and the
 execution changes per suite. Percentages and source inventories
 are folded under **Coverage by suite**. Each suite keeps its own denominator

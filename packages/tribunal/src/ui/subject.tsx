@@ -12,13 +12,16 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import type { ConcernState } from '../concern-types.js';
 import type { Decision, SubjectView } from '../review-types.js';
 import { ActionBar, type Place } from './action-bar.js';
-import type { ReviewClient } from './client.js';
+import { BaselineMovedNotice, movedOf } from './baseline-moved.js';
+import type { MovedBaseline, ReviewClient } from './client.js';
 import { Concerns, type Asked } from './concerns.js';
 import type { Ruler } from './distance.js';
 import { Findings } from './findings.js';
 import { glanceOf, type Blamed, type Glance } from './glance.js';
 import { SubjectHistory } from './history.js';
 import { MovedHere } from './moved.js';
+import { Repeated } from './repeated.js';
+import type { Route } from './route.js';
 import { messageOf } from './shell.js';
 import { count, number, when } from './text.js';
 import { Viewer } from './viewer.js';
@@ -39,10 +42,13 @@ export function SubjectPanel({
   client,
   reviewer,
   build,
+  ran,
   subject,
+  siblings,
   anchor,
   far,
   sourced,
+  go,
   place,
   onGo,
   onDecided,
@@ -51,25 +57,41 @@ export function SubjectPanel({
   readonly client: ReviewClient;
   readonly reviewer: string;
   readonly build: string;
+  /** When that build ran. */
+  readonly ran: string;
   readonly subject: SubjectView;
+  /** The other stories of this subject's component, drawn by the build page, which holds them. */
+  readonly siblings?: ReactElement | null | undefined;
   /** The change this render is filed under, which distances are measured from. */
   readonly anchor?: string | undefined;
   /** How far each component here is from that change, when a diff was read. */
   readonly far?: Ruler | undefined;
   /** Whether the run resolved any source file — see {@link RegionTable}. */
   readonly sourced?: boolean | undefined;
+  /** Opens another page; the earlier builds named under the decision link through it. */
+  readonly go?: ((route: Route) => void) | undefined;
   /** Where this render sits in the rail's queue, for the bar's position and its keys. */
   readonly place?: Place | undefined;
   /** Open another render of this build; without it the bar offers no way along. */
   readonly onGo?: ((subject: string) => void) | undefined;
-  readonly onDecided: () => void;
+  /**
+   * Reads the build again; the panel takes no decision until it has. It reports
+   * its own failure and never rejects: a build that cannot be read again is the
+   * page's to say, with its own retry, and the panel it replaces goes with it.
+   */
+  readonly onDecided: () => void | Promise<void>;
   /** Told after a concern on this subject was raised or moved. */
   readonly onConcerned?: (() => void) | undefined;
 }): ReactElement {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  // What moved, when the service refused a decision because the baseline moved
+  // under it. Apart from `failed` because it is not a failure to retry: the page
+  // is out of date, and the remedy is to read the subject again.
+  const [moved, setMoved] = useState<MovedBaseline | null>(null);
   const [asked, setAsked] = useState<Asked | undefined>(undefined);
   const [writing, setWriting] = useState(false);
+  const [decisions, setDecisions] = useState(0);
   const page = useRef<HTMLDivElement>(null);
 
   const suspect = (state: ConcernState): void => setAsked((was) => ({ state, seq: (was?.seq ?? 0) + 1 }));
@@ -82,20 +104,37 @@ export function SubjectPanel({
   useEffect(() => {
     setBusy(false);
     setFailed(null);
+    setMoved(null);
     page.current?.scrollTo({ top: 0 });
   }, [subject.subject]);
 
   const decide = async (decision: Decision): Promise<void> => {
     setBusy(true);
     setFailed(null);
+    setMoved(null);
     try {
-      await client.decide(build, subject.subject, decision, reviewer);
-      onDecided();
+      await client.decide(build, subject.subject, decision, reviewer, undefined, subject.baselineVersion);
+      setDecisions((was) => was + 1);
+      await onDecided();
     } catch (error) {
       // Kept on the page rather than swallowed. A decision that silently did not
       // land is a reviewer who believes a baseline was promoted and a next run
       // that reports the same change again.
-      setFailed(messageOf(error));
+      const refused = movedOf(error);
+      if (refused === undefined) setFailed(messageOf(error));
+      else setMoved(refused);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Until the build answers again the page still holds the version it read, and
+  // a decision taken in between would send it and be refused a second time.
+  const reload = async (): Promise<void> => {
+    setMoved(null);
+    setBusy(true);
+    try {
+      await onDecided();
     } finally {
       setBusy(false);
     }
@@ -112,6 +151,7 @@ export function SubjectPanel({
           </header>
           <Glanced subject={subject} />
           <p className="va-said">{subject.because}</p>
+          {siblings}
 
           <Viewer client={client} build={build} subject={subject} sourced={sourced} />
         </div>
@@ -120,6 +160,7 @@ export function SubjectPanel({
       <aside className="va-aside va-scroll">
         <section className="va-card">
           <h2>Decision</h2>
+          <Repeated subject={subject} ran={ran} go={go} />
           {subject.decision === null ? null : (
             <p className="va-decision">
               {subject.decision.decision} by {subject.decision.by} · {when(subject.decision.at)}
@@ -128,6 +169,14 @@ export function SubjectPanel({
           )}
           {subject.decision === null && failed === null ? <p className="va-note">Undecided.</p> : null}
           {failed === null ? null : <p className="va-failure">{failed}</p>}
+          {moved === null ? null : (
+            <BaselineMovedNotice
+              moved={moved}
+              reload="Reload this subject"
+              busy={busy}
+              onReload={() => void reload()}
+            />
+          )}
           {subject.approvable ? null : (
             <p className="va-note">No candidate was uploaded for this subject, so it cannot be approved here.</p>
           )}
@@ -143,6 +192,7 @@ export function SubjectPanel({
             asked={asked}
             onWriting={setWriting}
             onChanged={onConcerned}
+            read={decisions}
           />
         </section>
 

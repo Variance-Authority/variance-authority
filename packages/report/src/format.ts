@@ -486,4 +486,4 @@ export type {
 } from './presentation-record.js';
 export type { ChurnRecord, DriftRecord, FlakinessRecord } from './history-records.js';
 export type { RegionRecord } from './region-record.js';
-export type { VariationRecord } from './variation.js';
+export type { VariationRecord, VariationStep } from './variation.js';

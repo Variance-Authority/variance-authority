@@ -117,6 +117,7 @@
  */
 
 import type { ModuleId } from '../instrument/index.js';
+import caseOwner from './case-owner.cjs';
 import journalFormat from './journal-format.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import { codeUnitOrder } from './instrumented-modules.js';
@@ -127,6 +128,8 @@ import { heardAcross, heardOf, type Said } from './case-precondition-column.js';
 import preconditions from './case-preconditions.cjs';
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
+import type { CaseLines } from './case-lines.js';
+import { linesAcross, linesOverIndex, type ReachedLines } from './reached-lines.js';
 
 /**
  * Where the worker half hands the case scope to the runner half.
@@ -151,9 +154,9 @@ export const AMBIENT = '';
  * and a test name cannot contain.
  *
  * Both writers of a case frame are CommonJS inside somebody else's sandbox, so
- * the pair lives beside the codec and is answered for here.
+ * the pair lives in `case-owner.cts` and is answered for here.
  */
-export const packCase = journalFormat.packCase;
+export const packCase = caseOwner.packCase;
 
 export interface UnpackedCase {
   readonly file: string;
@@ -167,7 +170,7 @@ export interface UnpackedCase {
   readonly stopped?: boolean;
 }
 
-export const unpackCase: (packed: string) => UnpackedCase = journalFormat.unpackCase;
+export const unpackCase: (packed: string) => UnpackedCase = caseOwner.unpackCase;
 
 /**
  * Case frames as one file, each behind its own length.
@@ -205,6 +208,11 @@ export interface CaseJournal {
     readonly hits: readonly number[];
     readonly shared: readonly number[];
   }[];
+  /**
+   * The test line that first reached each region the case entered, where its
+   * driver cut the test file (spec 0100); absent where it did not.
+   */
+  readonly lines?: readonly ReachedLines[];
 }
 
 /** Where a case is, and the runner's id for it: what a run tells two cases apart by. */
@@ -317,7 +325,7 @@ export function ownedExecutionIndexFrom(
   journals: readonly CaseJournal[],
   modules: ReadonlyMap<ModuleId, CapturedModule>,
   durations: CaseDurations = UNTIMED,
-): { readonly index: ExecutionIndex; readonly owners: readonly Uint32Array[] } {
+): { readonly index: ExecutionIndex; readonly owners: readonly Uint32Array[]; readonly lines?: readonly (CaseLines | undefined)[] } {
   const ambient = new Map<string, CaseJournal[]>();
   // A case is written when it settles, so work that outlived it arrives as a
   // second frame under the same coordinate: one case, joined here.
@@ -335,6 +343,7 @@ export function ownedExecutionIndexFrom(
       ...settledAcross(first.stopped, journal.stopped),
       ...timedAcross(first.duration, journal.duration),
       ...heardOf(heardAcross(first.said, journal.said)),
+      ...linesAcross(first.lines, journal.lines),
     });
   }
   const cases = [...byCase.values()];
@@ -387,6 +396,8 @@ export function ownedExecutionIndexFrom(
 
   const kept = rows
     .map(([id, module]) => ({
+      id,
+      ordinals: module.blocks.filter(isWritten).map((block) => block.ordinal),
       owner: keptOwners(module.blocks),
       module: {
         file: module.file,
@@ -408,7 +419,11 @@ export function ownedExecutionIndexFrom(
       },
     }))
     .sort((left, right) => codeUnitOrder(left.module.file, right.module.file));
-  return { index: { tests, modules: kept.map(({ module }) => module) }, owners: kept.map(({ owner }) => owner) };
+  const index = { tests, modules: kept.map(({ module }) => module) };
+  const owners = kept.map(({ owner }) => owner);
+  if (!ordered.some((journal) => journal.lines !== undefined)) return { index, owners };
+  const lined = kept.map(({ id, ordinals, module }) => ({ id, ordinals, blocks: module.blocks }));
+  return { index, owners, lines: linesOverIndex(ordered.map((journal) => journal.lines), lined) };
 }
 
 /**

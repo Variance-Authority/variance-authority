@@ -33,6 +33,7 @@ impl Walker {
         let owner = self.owner;
         let path = self.path.clone();
         let mut written = false;
+        let cased = self.cased(it);
 
         self.visit_expression(&it.discriminant);
 
@@ -50,6 +51,7 @@ impl Walker {
             if let Some(test) = &clause.test {
                 self.at(&path, owner, |w| w.visit_expression(test));
             }
+            self.cased = cased;
             self.list(&clause.consequent, &step, ordinal);
         }
 

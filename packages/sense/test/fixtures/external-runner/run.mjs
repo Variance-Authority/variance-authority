@@ -15,6 +15,8 @@ const files = ['test/alpha.case.mjs', 'test/beta.case.mjs'].map((file) => resolv
 const recording = startRecording({
   coverageFile: process.env['VARIANCE_AUTHORITY_COVERAGE'],
   preconditions: [resolve(here, 'run.mjs'), resolve(here, 'worker.mjs')],
+  // `--no-cadence` leaves each test file uncut, for the test that turns cuts off.
+  cadence: !process.argv.includes('--no-cadence'),
 });
 
 const finished = [];
