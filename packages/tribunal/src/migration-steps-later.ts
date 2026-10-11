@@ -176,9 +176,9 @@ export const LATER_MIGRATIONS: readonly (readonly string[])[] = [
   ],
   // 19 → 20: the axis a named variation steps along.
   [
-    // JSON `{axis, from, to}`, the report's `step` as written. One column rather
-    // than three because the three are one claim — a coordinate — and a row with
-    // an axis and no values would be a coordinate nobody could place.
+    // JSON `{axis, position, from, to}`, the report's `step` as written. One
+    // column rather than four because the four are one claim — a coordinate — and
+    // a row with an axis and no values would be a coordinate nobody could place.
     //
     // Null is *no name format read this pair*: a declared pair, a prefix pair,
     // or a build pushed before the field existed. The page draws those as pairs
