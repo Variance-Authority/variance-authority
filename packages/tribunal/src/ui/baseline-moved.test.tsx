@@ -312,6 +312,42 @@ describe('a decision about a baseline that moved, taken on the subject panel', (
     expect(button('Reject').disabled).toBe(false);
   });
 
+  it('holds the buttons on the build page until the build has been read back', async () => {
+    // The panel waits on what the page hands it; a page that starts the read
+    // and returns at once lets the second press through with the old version.
+    answer = () => new Response(JSON.stringify({ decision: 'approved' }), { status: 201 });
+    let reads = 0;
+    let readBack: (response: Response) => void = () => undefined;
+    const client = createReviewClient({
+      endpoint: '/api',
+      fetch: async (input, init) => {
+        const url = String(input);
+        if (url.endsWith('/decision')) return fetchThat(input, init);
+        if (!url.endsWith('/review/builds/ci-1')) return pending;
+        reads += 1;
+        if (reads === 1) return new Response(JSON.stringify(detailOf(subject())));
+        return new Promise<Response>((resolve) => (readBack = resolve));
+      },
+    });
+    await act(async () => {
+      root.render(
+        <BuildPage
+          client={client}
+          reviewer="marina"
+          route={{ page: 'subject', build: 'ci-1', subject: 'story:card' }}
+          go={() => undefined}
+        />,
+      );
+    });
+
+    await act(async () => button('Approve').click());
+    expect(reads).toBe(2);
+    expect(button('Reject').disabled).toBe(true);
+
+    await act(async () => readBack(new Response(JSON.stringify(detailOf(subject({ baselineVersion: CURRENT }))))));
+    expect(button('Reject').disabled).toBe(false);
+  });
+
   it('reads what moved from a refusal longer than the message quotes', async () => {
     answer = () =>
       new Response(JSON.stringify({ error: MOVED.padEnd(600, '.'), read: null, current: CURRENT }), { status: 409 });
