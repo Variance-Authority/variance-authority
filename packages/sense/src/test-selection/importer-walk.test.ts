@@ -38,19 +38,25 @@ describe('the walk against the arrows', () => {
     expect(walk(relations, 'a.ts', total, onward)).toEqual(['b.ts: total', 'c.ts: total', 'd.ts: total']);
   });
 
-  it('ends on a cycle, never asking the declaring file about its own names', () => {
+  it('asks the declaring file about its own names a cycle hands back, once, and ends', () => {
     const relations = relationsOf({ relations: [imports('b.ts', 'a.ts'), imports('a.ts', 'b.ts')] });
 
-    expect(walk(relations, 'a.ts', total, onward)).toEqual(['b.ts: total']);
+    expect(walk(relations, 'a.ts', total, onward)).toEqual(['b.ts: total', 'a.ts: total']);
   });
 
-  it('asks the declaring file about a name a cycle hands back to it, and only that name', () => {
+  it('asks the declaring file about every name a cycle hands back to it', () => {
     const relations = relationsOf({ relations: [imports('b.ts', 'a.ts'), imports('a.ts', 'b.ts')] });
 
     const asked = walk(relations, 'a.ts', total, (importer, moved) =>
       importer === 'b.ts' ? new Map([...moved, ['sum', 'total']]) : new Map());
 
-    expect(asked).toEqual(['b.ts: total', 'a.ts: sum']);
+    expect(asked).toEqual(['b.ts: total', 'a.ts: total, sum']);
+  });
+
+  it('asks a declaring file that imports itself about its own names, once, and ends', () => {
+    const relations = relationsOf({ relations: [imports('a.ts', 'a.ts'), imports('b.ts', 'a.ts')] });
+
+    expect(walk(relations, 'a.ts', total, onward)).toEqual(['a.ts: total', 'b.ts: total']);
   });
 
   it('stops behind an importer that hands nothing on', () => {
