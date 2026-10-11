@@ -52,6 +52,11 @@ reviewer reads first.
    `--update-snapshots` write an `unchanged` subject under a moved identity
    again under the run's own, so an upgrade is named once rather than on every
    later run. Its pixels did not move, so nothing unreviewed is adopted.
+6. **A write moves the baseline.** Writing a subject under one identity
+   retires its copy under every other, so a subject has one baseline of record.
+   Once siblings are compared, the order a lookup reads them in would otherwise
+   decide the verdict: after two upgrades, the older copy could be read first,
+   and a reversion to the old look would read `unchanged`.
 
 The partition by `identityDigest` stays. It keys the render cache, and a
 lookup still prefers its own partition. A sibling partition is no longer a
@@ -65,6 +70,10 @@ cause.
 - `accept --all` adopts a cross-identity change as it adopts any other change.
   The bulk-acceptance exception for a recipe-only re-baseline is gone with the
   verdict it was an exception to.
+- One durable store no longer holds a baseline per machine for a subject: an
+  accept on a laptop replaces the one CI wrote, and the next CI run names the
+  machine as the cause of what moved. Per-machine baselines belong in an
+  ephemeral store or behind a pinned renderer, as `variance doctor` says.
 - A container pinned in CI still matters: a baseline from a laptop compared
   with a Linux run is a wall of `changed`, now visible, with the platform named
   as its cause.

@@ -16,11 +16,12 @@ other mode, `ephemeral`, renders both sides inside a single run and keeps
 neither past it, so there is nothing to place. Everything below is about
 `durable`.
 
-Whether two images may be compared at all is decided by the **identity
-digest** — a hash of the renderer, browser engine, platform, device scale
-factor and fonts that produced the image, written into paths as the
-`v1-6c1f…` segment you will see throughout this page. Storage has no say in
-it. What placement decides is **who has the bytes when the next run starts**,
+Whether a difference between two images is the code's is decided by the
+**identity digest** — a hash of the renderer, browser engine, platform, device
+scale factor and fonts that produced the image, written into paths as the
+`v1-6c1f…` segment you will see throughout this page. Two images under different
+identities are still compared, and the identity that moved is named as the
+cause. Storage has no say in it. What placement decides is **who has the bytes when the next run starts**,
 and what that costs.
 
 There are three answers and no default. Set `baselines.kind` explicitly.
@@ -122,9 +123,10 @@ src/ui/Button/v1-6c1f…/primary.json
 ```
 
 The identity directory stays in the path. An image painted under a different
-renderer, engine, platform, scale factor or font stack lands in its own
-partition, so upgrading a runner image does not put the new pixels up against
-the old ones.
+renderer, engine, platform, scale factor or font stack is compared with the old
+one, and the field that moved is named as the cause, so upgrading a runner image
+shows every diff it makes. Accepting it moves the baseline into the new
+identity's directory.
 
 ### How a subject finds its directory
 

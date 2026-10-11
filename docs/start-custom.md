@@ -331,7 +331,7 @@ against this file's directory rather than the working directory.
 | `baselines.kind` | `directory` — files you commit. `lfs` — the same files through the Git LFS filter. `remote` — an endpoint and a token, with nothing in the repository. No default; see [baseline placement](placement.md). |
 | `fonts` | Fonts this machine is asserted to have, each as `family/weight/style/hash` — a bare family name is refused. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. `[]` asserts nothing, which is correct for the example (it declares `system-ui` and no web fonts) and wrong for a subject with a web font: two machines with different cuts of Inter would then produce the same identity, compare, and report the difference as a regression. |
 | `report` | Where `run` writes and where `report` and `accept` read. Defaults to `.variance/report.json`. Candidate images land beside it. |
-| `browser` | Which engine paints: `chromium` (default), `firefox`, or `webkit`. It is part of the key baselines are stored under, so switching it moves every subject into a partition where nothing is approved yet. |
+| `browser` | Which engine paints: `chromium` (default), `firefox`, or `webkit`. It is part of the identity baselines are stored under, so switching it compares every subject against the other engine's image, with the engine named as the cause, until you accept. |
 
 `profile: "jsdom"` costs you one thing, and the run prints that on every line of
 output: jsdom has no layout engine, so a changed region can be located in the
@@ -357,10 +357,11 @@ rather than the directory, and git still descends:
 ```
 
 Inside that root, images are filed under the identity of the machine that
-painted them — `v1-297753c4…/receipt%2Fempty.png` — and a run only compares
-against its own partition. So baselines approved on your laptop are not the ones
-CI compares against: a Linux runner finds none under its identity and reports
-every subject `new`. Paint in one place that both use, which in practice means
+painted them — `v1-297753c4…/receipt%2Fempty.png`. A run compares against its
+own partition first and otherwise against whichever identity painted the subject,
+naming the machine as the cause. So baselines approved on your laptop are
+compared with a Linux runner's pixels, and the platform's font and antialiasing
+differences come back as changes. Paint in one place that both use, which in practice means
 running `variance run` inside the same container image locally and in CI.
 `variance doctor` is the readback: it lists each identity in the root and prints
 whether this machine's is one of them.

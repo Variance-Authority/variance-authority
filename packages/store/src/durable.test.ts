@@ -144,6 +144,17 @@ describe('the durable mode', () => {
     expect(found?.comparable).toBe(false);
   });
 
+  it('moves a baseline on put, so a later lookup never reads a superseded identity', async () => {
+    const store = createDurableStore(root);
+    await store.put({ subject: 's' }, rasterOf(RUNNER, 'v1:old', 'T0xE'));
+    await store.put({ subject: 'kept' }, rasterOf(RUNNER));
+    await store.put({ subject: 's' }, rasterOf(MAC, 'v1:new', 'TkVX'));
+
+    const found = await store.find({ subject: 's' }, { ...MAC, engine: 'chromium@140.0.0' });
+    expect(found?.raster.bytes).toBe('TkVX');
+    expect((await readdir(join(root, partition(RUNNER)))).sort()).toEqual(['kept.json', 'kept.png']);
+  });
+
   it('separates baselines by label, so one subject can hold several', async () => {
     const store = createDurableStore(root);
     await store.put({ subject: 's', label: 'wide' }, rasterOf(MAC, 'v1:a', 'QQ=='));

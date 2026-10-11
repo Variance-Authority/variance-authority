@@ -95,7 +95,8 @@ refused, rather than one of the two being quietly ignored.
 
 A liveness check, and the fingerprint the run will compare against — `identity`
 is the machine-and-software description of whatever painted an image, and two
-images stored under different identities are never diffed against each other:
+images stored under different identities are compared with the moved fields
+named as the cause:
 
 ```bash
 curl http://renderer.internal:7777/identity

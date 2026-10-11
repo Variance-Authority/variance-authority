@@ -160,7 +160,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
     },
 
     async put(key, raster): Promise<void> {
-      const [written, legacy] = partitionsOf(identityDigest(raster.identity));
+      const [written] = partitionsOf(identityDigest(raster.identity));
       const places = placesFor(key, written);
       await mkdir(dirname(places.record), { recursive: true });
       // No image for a subject that has none. The sidecar alone is the whole
@@ -177,7 +177,10 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
         `${JSON.stringify({ ...raster, bytes: undefined }, null, 2)}\n`,
         'utf8',
       );
-      await retire(placesFor(key, legacy));
+      // A put moves the baseline: a copy left elsewhere would be compared later.
+      for (const other of await identities(holderFor(key))) {
+        if (other !== written) await retire(placesFor(key, other));
+      }
     },
 
     /**
@@ -284,11 +287,10 @@ interface Places {
  * a subject another machine has already recorded, which is the exact sentence
  * this scan exists to prevent.
  *
- * A root that does not exist is a legitimate empty answer — the first run on a
- * fresh checkout creates it on `put`. A root that exists and cannot be listed is
- * not: the sibling scan is the only thing that compares a wrong-machine run
- * against a baseline, with the machine as its cause, instead of `new`, so a directory this process was refused would
- * otherwise quietly downgrade that sentence into the one that re-records.
+ * A root that does not exist is a legitimate empty answer: the first run on a
+ * fresh checkout creates it on `put`. A root that exists and cannot be listed
+ * throws, because this scan alone compares a wrong-machine run against a
+ * baseline instead of calling the subject `new` and re-recording it.
  */
 async function identities(holder: string): Promise<readonly string[]> {
   const entries = await orAbsent(() => readdir(holder, { withFileTypes: true }), holder);
@@ -306,10 +308,7 @@ async function identities(holder: string): Promise<readonly string[]> {
  * identity: a subject held under both would otherwise blame the machine for a
  * neighbour's image while this machine's baseline sat one directory over.
  */
-async function* searched(
-  holder: string,
-  mine: Digest,
-): AsyncGenerator<{ partition: string; comparable: boolean }> {
+async function* searched(holder: string, mine: Digest): AsyncGenerator<{ partition: string; comparable: boolean }> {
   const [written, legacy] = partitionsOf(mine);
   yield { partition: written, comparable: true };
   const scanned = await identities(holder);
@@ -320,8 +319,8 @@ async function* searched(
 }
 
 /**
- * Remove the raw-digest pair `put` just superseded, and its directories once empty:
- * an accept moves a baseline rather than leaving a second copy for the fallback.
+ * Remove a pair `put` just superseded, and its directories once empty: an
+ * accept moves a baseline rather than leaving a second copy for the fallback.
  */
 async function retire(places: Places): Promise<void> {
   await rm(`${places.image}.png`, { force: true });
