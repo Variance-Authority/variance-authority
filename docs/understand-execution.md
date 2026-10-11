@@ -32,7 +32,7 @@ Three stories can mount the same component from the same file and still have run
 different code. `variance journeys` is the reading that distinguishes them:
 
 ```bash
-npx variance journeys --file CartCard
+npx variance journeys --file app/src/components/CartCard.tsx
 ```
 
 ```

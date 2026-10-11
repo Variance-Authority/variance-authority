@@ -105,7 +105,7 @@ head is declared. Nothing above runs.
 ## Where two subjects parted
 
 ```bash
-variance journeys --file CartCard
+variance journeys --file app/src/components/CartCard.tsx
 ```
 
 ```

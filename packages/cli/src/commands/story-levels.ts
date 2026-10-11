@@ -21,7 +21,7 @@
  * test's own nor one `--in` named are one line naming the package, its steps
  * and the declarations they were at. A step back in any other package ends the
  * line, so a callback into the application stays on the route. Nothing is
- * dropped: the line names what it holds, and `--in <package>` opens it.
+ * dropped: the line names what it holds, and `--package <name>` opens it.
  */
 
 import type { Place } from '@variance-authority/sense/story';

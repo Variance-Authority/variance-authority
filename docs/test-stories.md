@@ -83,7 +83,7 @@ CLI](../packages/cli/README.md) prints that, step by step:
 
 ```bash
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last item"
-variance story --name "removes the last item"
+variance story --name "cart > removes the last item"
 ```
 
 In the output, `✗` is a branch the test never took, and `×2` is how many times
@@ -258,7 +258,7 @@ its file, record each setup twice under its own label, then compare the labels:
 ```bash
 VARIANCE_AUTHORITY_STORY=alone yarn vitest run src/cart.test.ts -t "removes the last item"
 VARIANCE_AUTHORITY_STORY=file yarn vitest run src/cart.test.ts
-variance story --name "removes the last item" --compare alone,file
+variance story --name "cart > removes the last item" --compare alone,file
 ```
 
 `before the test`, at the top of each story, shows the code the runner ran right before the
@@ -360,20 +360,21 @@ part you want:
 story  src/checkout.test.ts > checkout > pays with a saved card
   goes through 14 files in 116 steps
   drawn by declarations: by every step it would be 11712 characters, and a story is kept under 5000;
-  narrow it with --in <package or file> or --around <step>, or read every step with --whole
+  narrow it with --in <file>, --package <name> or --around <step>, or read every step with --whole
 ```
 
 Then you ask for the part you need, and that part opens at the finest level
 that fits:
 
 ```bash
-variance story --name "pays with a saved card" --in price.ts   # the steps through one file or package
-variance story --name "pays with a saved card" --around 40     # three steps either side of step 40
-variance story --name "pays with a saved card" --whole         # every step, however long
+variance story --name "checkout > pays with a saved card" --in src/price.ts      # the steps through one file
+variance story --name "checkout > pays with a saved card" --package @acme/ui  # the steps through one package
+variance story --name "checkout > pays with a saved card" --around 40         # three steps either side of step 40
+variance story --name "checkout > pays with a saved card" --whole             # every step, however long
 ```
 
 When steps inside another workspace package, such as your design system, are
-shown as one line, that line names the package, and `--in` opens it.
+shown as one line, that line names the package, and `--package` opens it.
 
 ## What the code prints
 

@@ -23,6 +23,7 @@
  * narrowing the run is the runner's own flag.
  */
 
+import { checkoutPath } from '@variance-authority/sense';
 import {
   listStories,
   readRoute,
@@ -39,7 +40,7 @@ import type { ParsedStory, StoryZoom } from '../story-args.js';
 import { BUDGET, drawings, pick, type Drawing, type FileSteps, type PackageVisits, type Through } from './story-levels.js';
 import { compareStory, formatComparison, labelled } from './story-compare.js';
 import { armTree } from './story-tree.js';
-import { inFile, numbered, window, type FileVisits, type Gap, type Line } from './story-view.js';
+import { numbered, through, window, type FileVisits, type Gap, type Line } from './story-view.js';
 
 /** One route and how much of it to read, two sides of a case compared, or the stories to choose from when the flags name more than one case. */
 export type StoryAnswer =
@@ -56,6 +57,8 @@ export type StoryAnswer =
 
 /** The story the flags name, read as a route; every candidate when they name several. */
 export function story(parsed: ParsedStory): StoryAnswer {
+  const file = parsed.file === undefined ? undefined : inCheckout(parsed.root, parsed.file);
+  const zoom = parsed.zoom !== undefined && 'in' in parsed.zoom ? { in: inCheckout(parsed.root, parsed.zoom.in) } : parsed.zoom;
   const all = listStories(parsed.root);
   if (all.length === 0) {
     throw new OperatorError(
@@ -64,13 +67,13 @@ export function story(parsed: ParsedStory): StoryAnswer {
   }
   const matching = all.filter(
     (entry) =>
-      (parsed.file === undefined || entry.file.includes(parsed.file))
-      && (parsed.name === undefined || entry.name.includes(parsed.name))
+      (file === undefined || entry.file === file)
+      && (parsed.name === undefined || entry.name === parsed.name)
       && (parsed.label === undefined || labelled(entry) === parsed.label),
   );
   if (matching.length === 0) {
     const asked = [parsed.file && `--file ${parsed.file}`, parsed.name && `--name ${parsed.name}`, parsed.label && `--label ${parsed.label}`].filter(Boolean);
-    throw new OperatorError(`no story matches ${asked.join(' and ')}; ${all.length} ${all.length === 1 ? 'is' : 'are'} written here`);
+    throw new OperatorError(`no story is written for ${asked.join(' and ')}; ${all.length} ${all.length === 1 ? 'is' : 'are'} written here`);
   }
   // Readings are listed newest first within a case, so a case's first is its newest.
   const cases = new Set(matching.map((entry) => `${entry.file}\0${entry.name}`));
@@ -88,14 +91,21 @@ export function story(parsed: ParsedStory): StoryAnswer {
     ...(newest.label === undefined ? {} : { label: newest.label }),
     ...(newest.written === undefined ? {} : { written: newest.written }),
   };
-  return { route, packages, reading, ...(parsed.zoom === undefined ? {} : { zoom: parsed.zoom }) };
+  return { route, packages, reading, ...(zoom === undefined ? {} : { zoom }) };
+}
+
+/** A file argument, spelled as the stories spell their files; one outside the checkout is refused as one. */
+function inCheckout(root: string, asked: string): string {
+  const path = checkoutPath(root, asked);
+  if ('outside' in path) throw new OperatorError(path.outside);
+  return path.path;
 }
 
 /** The part of the route a zoom asks for, and the packages it opens. */
 interface Part {
   readonly lines: readonly (Line | Gap)[];
   readonly open: ReadonlySet<string>;
-  /** What `--in` asked for, to say so when the case goes through none of it. */
+  /** What `--in` or `--package` asked for, to say so when the case goes through none of it. */
   readonly asked?: string;
   /** Which steps the part keeps, said above them, so a step outside what was asked is not read as a filter ignored. */
   readonly kept?: string;
@@ -104,18 +114,19 @@ interface Part {
 function partOf(lines: readonly Line[], zoom: StoryZoom | undefined, packageOf: (file: string) => string | undefined, own: string | undefined): Part {
   const open = new Set(own === undefined ? [] : [own]);
   if (zoom === undefined || 'whole' in zoom) return { lines, open };
-  if ('in' in zoom) {
-    const chosen = inFile(zoom.in, packageOf);
+  if ('in' in zoom || 'package' in zoom) {
+    const inside = 'in' in zoom ? (file: string) => file === zoom.in : (file: string) => packageOf(file) === zoom.package;
+    const chosen = through(inside);
     for (const line of lines) {
       if (!chosen(line)) continue;
       const files = 'loaded' in line.stop! ? line.stop.loaded : [line.stop!.place.file];
       for (const file of files) {
         const home = packageOf(file);
-        if (home !== undefined && (home === zoom.in || file.includes(zoom.in))) open.add(home);
+        if (home !== undefined && inside(file)) open.add(home);
       }
     }
-    const asked = `package or file matching \`${zoom.in}\``;
-    return { lines: window(lines, chosen, 1), open, asked, kept: `the steps through the ${asked}, and the step either side of each run of them` };
+    const asked = 'in' in zoom ? `the file \`${zoom.in}\`` : `the package \`${zoom.package}\``;
+    return { lines: window(lines, chosen, 1), open, asked, kept: `the steps through ${asked}, and the step either side of each run of them` };
   }
   const steps = lines.filter((line) => line.step !== undefined).length;
   if (zoom.around > steps) throw new OperatorError(`--around ${zoom.around} is past the end: this route has ${steps} steps`);
@@ -155,17 +166,17 @@ export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): strin
   }
   const text = header(route, steps, answer.reading);
   if (steps === 0) text.push('', '  the test ran no instrumented code');
-  else if (part.lines.length === 0) text.push('', `  the test goes through no ${part.asked ?? 'such step'}`);
+  else if (part.lines.length === 0) text.push('', `  the test does not go through ${part.asked ?? 'such a step'}`);
   else {
     if (finer !== undefined) {
       text.push(
         `  drawn by ${reading.level}: by ${finer.level} it would be ${finer.characters} characters, and a story is kept under ${BUDGET};`,
-        '  narrow it with --in <package or file> or --around <step>, or read every step with --whole',
+        '  narrow it with --in <file>, --package <name> or --around <step>, or read every step with --whole',
       );
     }
     if (part.kept !== undefined) text.push(`  ${part.kept}`);
     if (reading.level === 'steps') {
-      text.push(`  passed through ${listed(reading.passed)}, one line for each series of steps in a row there; open one with --in <package>`);
+      text.push(`  passed through ${listed(reading.passed)}, one line for each series of steps in a row there; open one with --package <name>`);
     }
     if (reading.level === 'declarations') {
       text.push('  key  step   the test going into a function or coming back to it; 39×6 is step 39, repeated 6 times');

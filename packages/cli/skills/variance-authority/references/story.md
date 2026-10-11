@@ -25,14 +25,14 @@ question open:
   branch the test is named for.
 - **A test fails on some runs and passes on others.** Record it until it has
   both passed and thrown, twice each if you can, then ask
-  `story --name <text> --compare outcome`. Do not diff two routes yourself:
+  `story --name <name> --compare outcome`. Do not diff two routes yourself:
   async code runs in a different order on every run, so most of what differs is
   not the cause. The comparison lists only what every run on one side did and
   no run on the other did.
 - **A test passes alone and fails with its file**, or fails alone and passes
   with it. Record it alone with `-t` under `VARIANCE_AUTHORITY_STORY=alone`,
   then with its whole file under `VARIANCE_AUTHORITY_STORY=file`, twice each,
-  and ask `story --name <text> --compare alone,file`.
+  and ask `story --name <name> --compare alone,file`.
 
 Never record:
 
@@ -74,13 +74,16 @@ variable before you quote its story.
 Then read it:
 
 ```bash
-variance story --name "removes the last item"
-variance story --file src/cart.test.ts --name "removes" --format json
+variance story --name "cart > removes the last item"
+variance story --file src/cart.test.ts --format json
 ```
 
-`--file` and `--name` match text the test file path and the test name contain.
-When they match several tests, the answer lists them with their visit counts
-and readings and prints no route; narrow the text and ask again. `--root
+`--file` is the test file's path in the checkout, and `--name` is the test's
+whole name as the runner reports it, its `describe` blocks and its own name
+joined with ` > `. Neither is matched as text: a path or a name no story was
+written for is answered as that. When `--file` alone names a file with several
+recorded tests, the answer lists them with their visit counts and readings and
+prints no route; add the `--name` of the one you want. `--root
 <path>` reads the stories of the checkout at that path.
 
 The answer fits a page. It is drawn at the finest level that fits in 5,000
@@ -110,16 +113,16 @@ A long one opens coarser, and the header prints how to go finer:
 
 ```text
   drawn by declarations: by every step it would be 11712 characters, and a story is kept under 5000;
-  narrow it with --in <package or file> or --around <step>, or read every step with --whole
+  narrow it with --in <file>, --package <name> or --around <step>, or read every step with --whole
 ```
 
 Narrow to the part you need, and the level is picked again inside it:
 
 ```bash
-variance story --name "removes the last item" --in price.ts   # the steps through these files, one either side
-variance story --name "removes the last item" --in @acme/ui   # the steps through a package, opened
-variance story --name "removes the last item" --around 6      # three steps either side of step 6
-variance story --name "removes the last item" --whole         # every step, however long
+variance story --name "cart > removes the last item" --in src/price.ts      # the steps through this file, one either side
+variance story --name "cart > removes the last item" --package @acme/ui  # the steps through a package, opened
+variance story --name "cart > removes the last item" --around 6          # three steps either side of step 6
+variance story --name "cart > removes the last item" --whole             # every step, however long
 ```
 
 The answer prints a key for its marks. What the key leaves out:

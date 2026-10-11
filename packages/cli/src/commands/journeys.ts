@@ -124,7 +124,7 @@ export interface LandedJourneys {
 
 export interface JourneysInput extends JourneyReading {
   readonly pool: JourneyPool;
-  /** `--file <text>`: only modules whose recorded path contains this, case-insensitively. */
+  /** `--file <path>`: only the module at this path, spelled from the checkout as the record spells it. */
   readonly file?: string;
   /** `--limit <n>`: how many modules to name. */
   readonly limit?: number;
@@ -177,7 +177,7 @@ export function journeysOf(input: JourneysInput): Journeys {
     };
   }
 
-  const matching = recorded.found.filter((divergence) => matches(divergence.file, input.file));
+  const matching = recorded.found.filter((divergence) => input.file === undefined || divergence.file === input.file);
   const limit = input.limit ?? MAX_MODULES;
   const modules = matching.slice(0, limit).map(shownModule);
   const elided = matching.length - modules.length;
@@ -188,11 +188,6 @@ export function journeysOf(input: JourneysInput): Journeys {
     pool: poolSentence(input.pool, recorded),
     notes: notesFor(input, recorded, matching.length, elided),
   };
-}
-
-/** Whether a module's path survives `--file`. */
-function matches(file: string, filter: string | undefined): boolean {
-  return filter === undefined || file.toLowerCase().includes(filter.toLowerCase());
 }
 
 function shownModule(divergence: JourneyParting): ShownModule {
@@ -281,8 +276,8 @@ function notesFor(
 
   if (input.file !== undefined && found === 0 && recorded.found.length > 0) {
     notes.push(
-      `${many(recorded.found.length, 'module')} parted and none of them matches ` +
-        `--file ${input.file}`,
+      `${many(recorded.found.length, 'module')} parted, and ${input.file}, the path --file named, ` +
+        'is not one of them',
     );
   }
 

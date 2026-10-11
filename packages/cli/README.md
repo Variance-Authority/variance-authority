@@ -156,12 +156,12 @@ variance review  [--since <ref>] [--against <record>] [--suite <name>] [--covera
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]
-variance story   [--file <text>] [--name <text>] [--label <label>] [--in <package or file> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]
+variance story   [--file <path>] [--name <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev|instant>]
-variance journeys [--config <path> | --suite <name>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
+variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>]
@@ -1359,7 +1359,7 @@ modules each subject crossed while it was painted, and two subjects that render
 one module and cover different regions of it have parted:
 
 ```bash
-variance journeys --file CartCard
+variance journeys --file app/src/components/CartCard.tsx
 ```
 
 ```
@@ -1375,8 +1375,8 @@ note: recorded at 4f2a1c9d0b73
 ```
 
 `parted` is the finding; `unentered` is its weaker sibling — a region with source
-of its own that nobody in the pool covered at all. `--file` narrows to modules
-whose path contains a string, `--limit` caps how many modules are named, and
+of its own that nobody in the pool covered at all. `--file` narrows to the one
+module at that path in the checkout, `--limit` caps how many modules are named, and
 what a cap left out is counted, not dropped.
 
 It exits `0` whatever it finds. Every suite with two stories per component has
