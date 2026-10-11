@@ -252,24 +252,18 @@ function enteredBy(module: ExecutionIndex['modules'][number], mine: ReadonlySet<
   return entered;
 }
 
-/** How many test files a refusal names. */
+/** How many cases a refusal names. */
 const AVAILABLE_SHOWN = 5;
 
 /**
- * `file`, when the record holds a test file by that name. A refusal shows a few
- * of the names it does hold, so the reader sees how the record spells them.
+ * `file`, when the record holds a test file by that name. A refusal names no
+ * other path: two paths are two files, so none the record holds is the one asked.
  */
 function testFileOf(coverage: TestCoverage, file: string): string {
-  const files = [...new Set(coverage.tests.map((test) => test.file))].sort(compare);
-  if (files.includes(file)) return file;
-  const shown = files.slice(0, AVAILABLE_SHOWN).map((recorded) => `  ${recorded}`);
-  throw new Error([
-    `The record holds no test file \`${file}\`.`,
-    `It records ${files.length} test file(s)${files.length === 0 ? '.' : ', of which:'}`,
-    ...shown,
-    ...(files.length > shown.length ? [`  and ${files.length - shown.length} more.`] : []),
-    'Name a test file by its repository-relative path, as the record spells it.',
-  ].join('\n'));
+  if (coverage.tests.some((test) => test.file === file)) return file;
+  throw new Error(
+    `The record holds no test file \`${file}\`. It names each test file by its path from the repository root, with \`/\`.`,
+  );
 }
 
 function compare(left: string, right: string): number {

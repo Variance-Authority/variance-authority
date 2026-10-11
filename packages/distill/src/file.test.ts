@@ -172,13 +172,9 @@ describe('distillFile', () => {
     expect(distillFile({ file: FILE, execution: EXECUTION, coverage }).file).toBe(FILE);
   });
 
-  it('refuses a path no recorded test file has, showing how the record spells the ones it holds', () => {
-    expect(() => distillFile({ file: 'missing', execution: EXECUTION, coverage: COVERAGE })).toThrow([
-      'The record holds no test file `missing`.',
-      'It records 2 test file(s), of which:',
-      '  test/dialog.test.tsx',
-      '  test/other.test.ts',
-      'Name a test file by its repository-relative path, as the record spells it.',
-    ].join('\n'));
+  it('refuses a path no recorded test file has, and names no other path', () => {
+    expect(() => distillFile({ file: 'missing', execution: EXECUTION, coverage: COVERAGE })).toThrow(
+      'The record holds no test file `missing`. It names each test file by its path from the repository root, with `/`.',
+    );
   });
 });
