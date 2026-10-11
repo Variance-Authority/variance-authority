@@ -128,6 +128,20 @@ describe('the crossing seats a subject on both axes or on neither', () => {
     expect(crossing.unreachedStill).toBe(0);
   });
 
+  it('says on the page why a new subject sits on neither axis', () => {
+    const markup = renderToStaticMarkup(
+      <ReachPanel
+        client={CLIENT}
+        build={build(
+          [subject({ subject: 'fresh', verdict: 'new' })],
+          reach({ subjects: { fresh: { reached: true, through: ['app/src/ds/tokens.css'], because: 'reached' } } }),
+        )}
+      />,
+    );
+
+    expect(markup).toContain('1 subject was new or moved only inside an excluded region');
+  });
+
   it('keeps a subject nothing rendered out of the quadrant that says it did not move', () => {
     // A narrowed run never opens what the diff cannot reach. Counting those as
     // *untouched, and still* claims a comparison for subjects no browser loaded,

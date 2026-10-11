@@ -225,3 +225,29 @@ describe('reading a coverage list off disk', () => {
     }
   });
 });
+
+describe('explaining a change by what moved between its two images', () => {
+  const changed = (subject: string, signals?: ObservationRecord['signals']): RunReport => ({
+    ...COMPLETE,
+    observations: [
+      { subject, verdict: 'changed', because: '40 pixel(s) differ', changedPixels: 40, regions: [], ...(signals === undefined ? {} : { signals }) },
+    ],
+  });
+
+  it('sends a change painted under one identity straight to its regions', () => {
+    const text = call(changed('story:card'), 'variance_explain_verdict', { subject: 'story:card' });
+
+    expect(text).toBe('story:card was compared and changed. Call variance_describe for the regions.');
+  });
+
+  it("names this tool's recipe, not the machine, when only the recipe moved", () => {
+    const text = call(
+      changed('story:card', { identity: 'recipe', moved: ['stabilization abc → def'] }),
+      'variance_explain_verdict',
+      { subject: 'story:card' },
+    );
+
+    expect(text).toContain("this tool's recipe moved: stabilization abc → def");
+    expect(text).not.toContain('the machine moved');
+  });
+});
