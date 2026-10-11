@@ -314,8 +314,9 @@ function Trails({ reach }: { readonly reach: ReachView }): ReactElement | null {
  *
  * Two different silences, kept as two. A subject whose baseline carries no
  * component list is one this surface cannot answer for; a new subject, or one
- * that moved only inside an excluded region, is one where the question does not apply. Printing a single number for
- * both would invite the reader to fix the wrong thing.
+ * that moved only where an ignore or a sensitivity let it, is one where the
+ * question does not apply. Printing a single number for both would invite the
+ * reader to fix the wrong thing.
  */
 function Unplaced({ crossing }: { readonly crossing: Crossing }): ReactElement | null {
   if (crossing.unplaced + crossing.uncrossed === 0) return null;
@@ -332,8 +333,8 @@ function Unplaced({ crossing }: { readonly crossing: Crossing }): ReactElement |
       {crossing.uncrossed === 0 ? null : (
         <>
           {count(crossing.uncrossed, 'subject')}{' '}
-          {crossing.uncrossed === 1 ? 'was' : 'were'} new or moved only inside an excluded region, so
-          there is no moved-or-still to cross.
+          {crossing.uncrossed === 1 ? 'was' : 'were'} new or moved only where an ignore or a
+          sensitivity let it, so there is no moved-or-still to cross.
         </>
       )}
     </p>

@@ -5,7 +5,7 @@
 ## Responsibility
 
 Names every input that can reach a pixel, as one value, so that a comparison
-across two of them is refused instead of taken.
+across two of them names what moved as the cause of what it finds.
 
 ## Bounded context
 

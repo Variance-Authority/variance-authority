@@ -139,7 +139,7 @@ describe('the crossing seats a subject on both axes or on neither', () => {
       />,
     );
 
-    expect(markup).toContain('1 subject was new or moved only inside an excluded region');
+    expect(markup).toContain('1 subject was new or moved only where an ignore or a sensitivity let it');
   });
 
   it('keeps a subject nothing rendered out of the quadrant that says it did not move', () => {

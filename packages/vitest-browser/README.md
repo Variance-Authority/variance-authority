@@ -262,14 +262,14 @@ There are four verdicts, and `assertUnchanged` throws on all three that are not
 | `unchanged` | the two images were compared and no pixels differ |
 | `changed` | pixels differ; `regions` names what drew them, and the reason names a moved identity first |
 | `new` | no baseline exists for this subject. Not a pass and not a failure |
-| `ignored` | pixels differ and every one of them fell inside something you excluded |
+| `ignored` | pixels differ and every one of them fell inside something you excluded, or within a sensitivity you set |
 
 The observation reports these fields:
 
 | field | what it gives you |
 |---|---|
 | `subject` | the subject id this observation is about |
-| `verdict` | one of the five above |
+| `verdict` | one of the four above |
 | `because` | one sentence saying what happened and why it has that verdict |
 | `message` | the whole formatted failure, regions included — what `assertUnchanged` throws |
 | `regions` | changed regions, each with its component, the element it landed in, `file:line`, box, pixel count and fingerprint where it has one |
