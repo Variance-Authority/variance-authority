@@ -71,15 +71,9 @@ export function editsBetween(
   };
 }
 
-/** The edit from `before` to `after`, read as the readers read a diff; `undefined` when git could not diff the two. */
-function editBetween(before: string, after: string): Edit | undefined {
-  let body: string;
-  try {
-    body = diffTexts(before, after);
-  } catch {
-    return undefined;
-  }
-  return { hunks: hunksOf(body) };
+/** The edit from `before` to `after`, read as the readers read a diff. */
+function editBetween(before: string, after: string): Edit {
+  return { hunks: hunksOf(diffTexts(before, after)) };
 }
 
 function hashingTo(text: string | undefined, digest: string): string | undefined {
