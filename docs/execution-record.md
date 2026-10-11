@@ -372,7 +372,11 @@ or a body written twice under one address, pairs with nothing. Its crossings
 are dropped, the tests on it that the run did not observe are demoted to
 incomplete, and the region in the new text takes the crossings of the region
 around it. Regions inside one that pairs with nothing pair with nothing too.
-Over the same text these regions pair by order, because the order is the
+When a landing re-cuts a module's rows to the new text without a run
+re-recording it, an edit inside one of two such bodies makes the edited body
+new, so it takes the component's crossings, and the tests on the other body are
+demoted with it; a run that re-records the module demotes only the tests on the
+edited body. Over the same text these regions pair by order, because the order is the
 text's.
 
 **Numbered seats must agree.** Regions without a name of their own take a number
