@@ -7,7 +7,7 @@ export type ReviewFormat = 'text' | 'markdown' | 'json' | 'handover';
 
 export interface ParsedReview {
   readonly command: 'review';
-  /** Include every declared suite’s coverage, each compared with its own base. */
+  /** Include every declared suite’s coverage, each compared with its own base, and read the changed regions from every suite. */
   readonly coverage?: true;
   /** Where the change starts. Absent: where the recording stood before the runs at this commit. */
   readonly since?: string;
