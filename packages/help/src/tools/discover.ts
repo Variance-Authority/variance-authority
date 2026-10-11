@@ -248,7 +248,9 @@ function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names:
  * second read of every file for its declarations.
  */
 export function readsNames(input: Readonly<Record<string, unknown>>): boolean {
-  return ['imports', 'exceptImports', 'declares', 'exceptDeclares'].some((key) => input[key] !== undefined);
+  // Read as `operandsOf` reads them, so a set said empty costs no names.
+  return ['imports', 'exceptImports'].some((key) => listArg(input, key).length > 0) ||
+    ['declares', 'exceptDeclares'].some((key) => textArg(input, key) !== undefined);
 }
 
 /**

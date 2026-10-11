@@ -168,6 +168,10 @@ describe('discover crosses whole sets', () => {
     for (const key of ['declares', 'exceptDeclares']) expect(readsNames({ [key]: 'x' })).toBe(true);
   });
 
+  it('reads no names for a name set said empty, which names no set', () => {
+    expect(readsNames({ from: ['src/TopNav.tsx'], imports: [], exceptImports: [''], declares: '', exceptDeclares: '  ' })).toBe(false);
+  });
+
   it('says so when nothing is in all of them', () => {
     expect(ask({ ...CONTEXTS, path: '^src/old/' })).toContain('No file is in all of them.');
   });
