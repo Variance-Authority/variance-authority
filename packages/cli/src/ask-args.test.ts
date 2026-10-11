@@ -21,3 +21,32 @@ describe('source refresh input', () => {
     });
   });
 });
+
+describe('the sets an intersection crosses', () => {
+  it('reads each by its own flag, and its `--except-` twin beside it', () => {
+    const flags = readFlags(
+      [
+        'intersection', '--from', 'src/TopNav.tsx', '--imports', 'react#createContext', '--declares', 'theme|user',
+        '--path', 'src/', '--text', 'dark', '--except-from', 'a.ts', '--except-to', 'b.ts',
+        '--except-imports', 'c', '--except-declares', 'd', '--except-path', 'e',
+      ],
+      'ask',
+      flagsFor('ask'),
+      synopsisFor('ask'),
+    );
+
+    expect(parseAskArgs(flags, resolve('variance.config.json'))).toMatchObject({
+      question: 'intersection',
+      from: 'src/TopNav.tsx',
+      imports: 'react#createContext',
+      declares: 'theme|user',
+      path: 'src/',
+      text: 'dark',
+      exceptFrom: 'a.ts',
+      exceptTo: 'b.ts',
+      exceptImports: 'c',
+      exceptDeclares: 'd',
+      exceptPath: 'e',
+    });
+  });
+});

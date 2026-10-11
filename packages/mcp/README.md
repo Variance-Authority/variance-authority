@@ -338,6 +338,7 @@ read the tree itself and hand it to a call:
 | `root` | the repository. Every coordinate comes back relative to it |
 | `dirs` | where to start walking, relative to the root. The whole repository by default, because a start point may name any path in it and a narrower walk answers *not found* about a file that is plainly there |
 | `index` | the persistent scan index, as above |
+| `names` | called once the walk ends, with what each file declares and what it imports, by name, read off the same parse. Without it no names are kept |
 
 The walk happens once per session and only when a call needs it: most
 questions do not name a path, and a repository is not a thing to read before

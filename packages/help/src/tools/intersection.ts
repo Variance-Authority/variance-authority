@@ -1,3 +1,4 @@
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { SourceNames, Tool, Tree } from '@variance-authority/mcp/tools';
 import { entryPoints, pathsOf, refusalFor, startPointArg } from '@variance-authority/mcp/tools';
 import { ripgrep } from './ripgrep.js';
@@ -48,7 +49,6 @@ interface Operand {
 
 const counted = (count: number): string => `${count} ${count === 1 ? 'file' : 'files'}`;
 const imports = (count: number): string => `${count} ${count === 1 ? 'import' : 'imports'}`;
-const byCodeUnit = (left: string, right: string): number => (left < right ? -1 : left > right ? 1 : 0);
 const none = (): readonly string[] => [];
 
 /** One or several values, said as a string or an array. */
@@ -178,6 +178,10 @@ function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names:
   return { kept: read(''), out: read('except') };
 }
 
+/**
+ * Typed over nothing, like `grep`: the tree and the names arrive on the
+ * invocation, and the text is ripgrep's.
+ */
 export const intersection: Tool<unknown> = {
   name: 'docs_intersection',
   description:
@@ -231,7 +235,7 @@ export const intersection: Tool<unknown> = {
     const reaches = kept.filter((operand) => operand.distance !== undefined);
     const distanceOf = (file: string): number =>
       Math.min(...reaches.map((operand) => operand.distance!.get(file) ?? Number.POSITIVE_INFINITY), Number.POSITIVE_INFINITY);
-    answer.sort((left, right) => distanceOf(left) - distanceOf(right) || byCodeUnit(left, right));
+    answer.sort((left, right) => distanceOf(left) - distanceOf(right) || codeUnitOrder(left, right));
 
     const header = [...kept.map((operand) => operand.header), ...out.map((operand) => `${operand.header}, taken out`)];
 

@@ -40,6 +40,7 @@ export interface ImportedName {
   readonly through?: string;
 }
 
+/** One file's names: what it declares itself, and what it imports. */
 export interface FileNames {
   readonly declared: readonly DeclaredName[];
   readonly imported: readonly ImportedName[];
