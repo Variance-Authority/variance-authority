@@ -25,7 +25,7 @@ import { ingestBuild } from './review-ingest.js';
 import { createConcernStore } from './concerns.js';
 import { UNREPEATED, acceptanceTitle, rejectionAccepted, repeatsFrom, repeatsStatement } from './repeats.js';
 import { sameImage } from './same-image.js';
-import { sweepProject } from './review-sweep.js';
+import { sweepProject, type SweepReport } from './review-sweep.js';
 import { ReviewError, instant, optionalText, text, type Row } from './review-rows.js';
 import type {
   BuildDetail,
@@ -33,7 +33,6 @@ import type {
   Decided,
   ReviewOptions,
   ReviewStore,
-  SweepReport,
 } from './review-types.js';
 import { have as heldObjects } from './objects.js';
 import { promote } from './review-write.js';
@@ -102,8 +101,8 @@ export type {
   ReviewOptions,
   ReviewStore,
   SubjectView,
-  SweepReport,
 } from './review-types.js';
+export type { SweepReport } from './review-sweep.js';
 export { ReviewError } from './review-rows.js';
 export { createConcernStore, type ConcernStore } from './concerns.js';
 export type {

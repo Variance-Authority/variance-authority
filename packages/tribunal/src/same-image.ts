@@ -18,7 +18,21 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { VariationRecord } from '@variance-authority/report';
 import { columnsOf, familyOf, type FamilyMember } from './family.js';
-import type { SameImage } from './review-types.js';
+
+/**
+ * Two or more stories of one component that rendered one image.
+ *
+ * Not a `VariationRecord` with `identical: true`. That one compares a pair the
+ * run linked, by declaration or by name, over the semantic tree; this compares
+ * every story of a component, linked or not, over the bytes. `dark-narrow` and
+ * `narrow-dark` are one render under two names and no link joins them.
+ */
+export interface SameImage {
+  /** The component, as the id names it: `story:cart-card` of `story:cart-card--item`. */
+  readonly family: string;
+  /** The subjects, in the family's lattice order. Always two or more. */
+  readonly subjects: readonly string[];
+}
 
 /** One subject and the key its candidate is stored under; no key, no candidate. */
 export interface Candidate {
