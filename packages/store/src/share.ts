@@ -341,7 +341,15 @@ async function place(path: string, bytes: Uint8Array, ready?: () => Promise<bool
   placed += 1;
   const staged = `${path}.${process.pid.toString(36)}${Date.now().toString(36)}-${placed.toString(36)}.part`;
   await writeFile(staged, bytes);
-  if (ready !== undefined && !(await ready())) {
+  let go: boolean;
+  try {
+    go = ready === undefined || (await ready());
+  } catch (error) {
+    // Kept quiet: the write answers what `ready` said, not what the cleanup did.
+    await rm(staged, { force: true }).catch(() => undefined);
+    throw error;
+  }
+  if (!go) {
     await rm(staged, { force: true });
     return false;
   }

@@ -19,4 +19,5 @@ not let a writer claim or remove, and a lock whose age it will not tell, now
 answer as `refused` (or `unreachable`) at once, with what the file system said,
 instead of retrying without a pause or waiting the lock out as if it were held.
 A writer that gives its lock up because the file system refused to freshen it
-answers the same way, instead of reporting that the line moved.
+answers the same way, instead of reporting that the line moved, and leaves no
+staged manifest behind.

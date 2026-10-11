@@ -192,7 +192,7 @@ describe('a line lock and its holder', () => {
     await expect(real.stat(lock), "a lock its holder cannot vouch for may be another writer's").resolves.toBeDefined();
   });
 
-  it('answers a stamp the file system refused as refused, once the lock is no longer vouched for', async () => {
+  it('answers a stamp the file system refused as refused, once the lock is no longer vouched for, and leaves no staged manifest behind', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
     const cell = createDirectoryLineCell(root);
     vi.mocked(utimes).mockImplementation((async (path: string) => {
@@ -208,6 +208,7 @@ describe('a line lock and its holder', () => {
     const blobs = new Map([['entries/a', ascii('a')]]);
     const stored = await cell.store(MAIN, { manifest: ascii('{"format":1,"entries":[]}'), blobs });
     expect(stored).toEqual({ kind: 'refused', detail: expect.stringContaining('EACCES') });
+    expect((await readdir(join(root, 'mainline', 'main'))).filter((name) => name.startsWith('manifest.json'))).toEqual([]);
   });
 
   it('writes no manifest and removes nothing, when its lock is gone at its next stamp', async () => {
