@@ -42,6 +42,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
+import { followRowsIn } from './case-cuts.js';
 import { layCases, type FreshCases, type ModuleTexts } from './case-landing.js';
 import { casesRecordedOver, recordOfCases, withCaseSections } from './case-record.js';
 import { askCoverageFile } from './coverage-file.js';
@@ -143,10 +144,12 @@ export type RecordedTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
  *
  * `cases` is the run's own case index, laid over the cases the record holds
  * (`case-landing.ts`) and written with the coverage, in the same write. A run
- * that kept no cases carries the record's as they were. A run that instrumented
- * no module lands its cases and nothing else ({@link landUncovered}), except a
- * file it could not finish measuring: probes that fired where nothing could
- * place them leave the file incomplete, which selects it, and that row lands.
+ * that kept no cases carries the record's. Either way a held module the run did
+ * not record is laid onto the cut its rows were landed at (`case-cuts.ts`). A
+ * run that instrumented no module lands its cases and nothing else
+ * ({@link landUncovered}), except a file it could not finish measuring: probes
+ * that fired where nothing could place them leave the file incomplete, which
+ * selects it, and that row lands.
  *
  * The caller holds the index lock: the base read here, the write after it and
  * the record of both are one read-modify-write, so two processes finishing
@@ -173,11 +176,15 @@ export async function landRun(
   const previous = casesRecordedOver(coverageFile);
   // The run's modules are named with the text each was cut from, so a module
   // re-cut over the text the index already holds lands its cases as its rows do.
+  const texts = cases === undefined && previous.index === undefined ? undefined : recordedTexts(coverageFile);
   const laid = cases === undefined
     ? previous
-    : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules }, cases.eyes, recordedTexts(coverageFile), before?.commit);
+    : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules }, cases.eyes, texts, before?.commit);
   const coverage = await layeredCoverage(coverageFile, current, root, cacheRoot);
-  const bytes = Object.values(laid).every((part) => part === undefined) ? coverage : withCaseSections(coverage, laid);
+  // The rows of a module this run did not record may have been re-cut to the
+  // text on disk; the cases held for it are laid onto the same cut.
+  const followed = laid.index === undefined ? laid : followRowsIn(laid, openTestCoverage(coverage), texts);
+  const bytes = Object.values(followed).every((part) => part === undefined) ? coverage : withCaseSections(coverage, followed);
   await writeCoverageBytes(coverageFile, bytes);
   // The snapshot's rows are coordinates in the texts on disk now, and the
   // commit it names holds none of the edited ones. Kept after the write, so a

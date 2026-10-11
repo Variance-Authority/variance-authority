@@ -930,7 +930,11 @@ run did not observe keeps its row, unless no region it crossed survives in the
 new table or a region it crossed has a new digest, in which case it is demoted
 to incomplete and re-runs on its next selection. An unobserved module whose text on disk changed has its rows
 re-cut over that text, one parse per such module, and only a module whose text
-cannot be parsed demotes every test that crossed it. Both sides are indexed
+cannot be parsed demotes every test that crossed it. The cases the index holds
+of a module whose rows moved are laid onto the same cut by address and kind,
+so the index answers at the lines the rows hold. A module
+none of whose cases lands there leaves the index, and the file graph answers
+for it. Both sides are indexed
 before the walk — modules by path, blocks by their address, name path and
 structural path together — so the cost is O(M_prev + M_cur) plus
 O(B_prev + B_cur) for each matched module, and the file is sorted on the way

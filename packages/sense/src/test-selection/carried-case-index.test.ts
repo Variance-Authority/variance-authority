@@ -1,0 +1,184 @@
+import { execFile } from 'node:child_process';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
+import { promisify } from 'node:util';
+import { describe, expect, it } from 'vitest';
+import { INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
+import { caseSectionsAt } from './case-record.js';
+import { landRun } from './commit-runs.js';
+import { coverageBlock } from './coverage-rows.js';
+import { CrossingSets } from './crossing-sets.js';
+import { decodeExecutionIndex } from './execution-format.js';
+import { NO_OWNER } from './format-layout.js';
+import { encodeSetExecutionIndex } from './execution-set-format.js';
+import { coveringTests } from './reverse.js';
+import { readTestCoverage, testCoverageFile, type CoverageModule, type TestCoverage } from './index.js';
+
+/**
+ * A record whose case index holds a module, landed again by a run that did not
+ * record that module while its text moved on disk. The snapshot re-cuts the
+ * carried module's rows to the text on disk; these read whether the case index
+ * beside them stands at the same lines, by asking it the question `variance
+ * covering --line` asks.
+ */
+
+const FILE = 'src/math.ts';
+const OTHER = 'src/other.ts';
+const ONE = 'test/one.test.ts';
+const TWO = 'test/two.test.ts';
+const THREE = 'test/three.test.ts';
+
+/** The line of each region that says which test runs it. */
+const RUNS: Record<string, string> = { 'n + 1': ONE, 'n * 2': TWO };
+
+const TEXT = 'export function a(n) {\n  return n + 1;\n}\n\nexport function b(n) {\n  return n * 2;\n}\n';
+// Two lines written above the rest: every region keeps its address, two lines down.
+const MOVED = `// one\n// two\n${TEXT}`;
+// Callbacks told apart by their seat alone, and a third written in front of them
+// with two lines above: the counter hands out another set of seats, so no
+// address carries the rows onto the text on disk.
+const SEATED = 'export default [\n  (n) => {\n    return n + 1;\n  },\n  (n) => {\n    return n * 2;\n  },\n];\n';
+const RESEATED = '// one\n// two\nexport default [\n  (n) => {\n    return n - 1;\n  },\n  (n) => {\n    return n + 1;\n  },\n  (n) => {\n    return n * 2;\n  },\n];\n';
+const OTHER_TEXT = 'export const other = 1;\n';
+
+type Row = Omit<CoverageModule['blocks'][number], 'testFiles'>;
+
+/** The regions of `text`, each with the tests of `tests` that ran it. */
+function regionsOf(file: string, text: string, tests: readonly string[]): readonly { readonly block: Row; readonly ran: readonly string[] }[] {
+  const lines = text.split('\n');
+  return instrument(text, file, file)!.blocks.map((block) => {
+    const { testFiles: _testFiles, ...row } = coverageBlock(text, block);
+    if (row.kind === 'module') return { block: row, ran: tests };
+    const body = lines.slice(row.startLine - 1, row.endLine).join('\n');
+    const runner = Object.entries(RUNS).find(([marker]) => body.includes(marker))?.[1];
+    return { block: row, ran: runner !== undefined && tests.includes(runner) ? [runner] : [] };
+  });
+}
+
+function recording(file: string, text: string, tests: readonly string[], commit: string): TestCoverage {
+  return {
+    version: 3,
+    instrumentation: INSTRUMENTATION_ID,
+    commit,
+    tests: tests.map((test) => ({ file: test, complete: true, preconditions: [{ name: test, digest: `source:${test}` }] })),
+    modules: [{
+      file,
+      sourceDigest: instrument(text, file, file)!.sourceDigest,
+      instrumented: true,
+      blocks: regionsOf(file, text, tests).map(({ block, ran }) => ({ ...block, testFiles: [...ran] })),
+    }],
+  };
+}
+
+const caseOf = (file: string): string => `${file} > runs`;
+
+/** The run's own case index: one case per test file, calling the regions of `file` its test ran. */
+function casesOf(file: string, text: string, tests: readonly string[]): Uint8Array {
+  const regions = regionsOf(file, text, tests);
+  const sets = new CrossingSets(tests.length);
+  sets.intern([]);
+  return encodeSetExecutionIndex({
+    tests: tests.map((test) => ({ id: caseOf(test), file: test, name: 'runs' })),
+    modules: [{
+      file,
+      blocks: regions.map(({ block }) => ({
+        kind: block.kind, name: block.name, path: block.path, startLine: block.startLine, endLine: block.endLine, source: block.source,
+      })),
+      called: Uint32Array.from(regions, ({ ran }) => sets.intern(ran.map((test) => tests.indexOf(test)))),
+      loaded: new Uint8Array(regions.length),
+      owner: Uint32Array.from(regions, ({ block }) =>
+        (block.owner === undefined ? NO_OWNER : regions.findIndex((region) => region.block.ordinal === block.owner))),
+    }],
+    sets: sets.pool(),
+  });
+}
+
+/** The line of `text` that holds `marker`, counted from one. */
+const lineOf = (text: string, marker: string): number => text.split('\n').findIndex((line) => line.includes(marker)) + 1;
+
+interface Landed {
+  /** The cases `covering --line` names at each marker's line of the text on disk. */
+  readonly covering: Record<string, readonly string[]>;
+  /** The lines the rows and the case index hold each of `FILE`'s functions at. */
+  readonly rows: readonly string[];
+  readonly index: readonly string[] | undefined;
+}
+
+/**
+ * The mainline's record over `text`, then `FILE` rewritten to `moved` and a run
+ * of `THREE` landed over `OTHER` alone, keeping its cases when `keeps` says so.
+ */
+async function landOver(text: string, moved: string, keeps: boolean): Promise<Landed> {
+  const scratch = await realpath(await mkdtemp(resolve(tmpdir(), 'variance-carried-index-')));
+  const root = resolve(scratch, 'repository');
+  const cacheRoot = resolve(scratch, 'cache');
+  try {
+    await mkdir(resolve(root, 'src'), { recursive: true });
+    await mkdir(resolve(root, 'test'), { recursive: true });
+    for (const test of [ONE, TWO, THREE]) await writeFile(resolve(root, test), '', 'utf8');
+    await writeFile(resolve(root, FILE), text, 'utf8');
+    await writeFile(resolve(root, OTHER), OTHER_TEXT, 'utf8');
+    const git = async (...args: string[]): Promise<string> =>
+      (await promisify(execFile)('git', args, { cwd: root })).stdout.trim();
+    await git('init', '--quiet');
+    await git('config', 'user.email', 'fixture@example.invalid');
+    await git('config', 'user.name', 'Fixture');
+    await git('add', '--all');
+    await git('commit', '--quiet', '--message', 'the mainline');
+    const commit = await git('rev-parse', 'HEAD');
+    const coverageFile = testCoverageFile(root, { cacheRoot });
+    const whole = (file: string) => ({ file, complete: true });
+
+    await landRun(coverageFile, recording(FILE, text, [ONE, TWO], commit), root, cacheRoot, {
+      fresh: casesOf(FILE, text, [ONE, TWO]),
+      run: { tests: [whole(ONE), whole(TWO)], commit },
+    });
+    await writeFile(resolve(root, FILE), moved, 'utf8');
+    await landRun(coverageFile, recording(OTHER, OTHER_TEXT, [THREE], commit), root, cacheRoot, keeps
+      ? { fresh: casesOf(OTHER, OTHER_TEXT, [THREE]), run: { tests: [whole(THREE)], commit } }
+      : undefined);
+
+    const rows = (await readTestCoverage(coverageFile)).modules.find((module) => module.file === FILE)!;
+    const index = decodeExecutionIndex(caseSectionsAt(coverageFile).index!);
+    const held = index.modules.find((module) => module.file === FILE);
+    const functions = (blocks: readonly { readonly kind: string; readonly name: string; readonly startLine?: number; readonly endLine?: number }[]) =>
+      blocks.filter((block) => block.kind === 'function').map((block) => `${block.name} ${block.startLine}-${block.endLine}`);
+    return {
+      covering: Object.fromEntries(Object.keys(RUNS).map((marker) => [
+        marker,
+        coveringTests(index, { file: FILE, line: lineOf(moved, marker) }).map((test) => test.id).sort(),
+      ])),
+      rows: functions(rows.blocks),
+      index: held === undefined ? undefined : functions(held.blocks),
+    };
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+}
+
+describe('a case index carried over a module whose text moved on disk', () => {
+  it('stands at the lines the rows were re-cut to, when the run kept no cases', async () => {
+    const landed = await landOver(TEXT, MOVED, false);
+
+    expect(landed.rows).toEqual(['a 3-5', 'b 7-9']);
+    expect(landed.covering).toEqual({ 'n + 1': [caseOf(ONE)], 'n * 2': [caseOf(TWO)] });
+    expect(landed.index).toEqual(landed.rows);
+  });
+
+  it('stands at the lines the rows were re-cut to, when the run kept cases of another module', async () => {
+    const landed = await landOver(TEXT, MOVED, true);
+
+    expect(landed.index).toEqual(landed.rows);
+    expect(landed.covering).toEqual({ 'n + 1': [caseOf(ONE)], 'n * 2': [caseOf(TWO)] });
+  });
+
+  it('stays at the lines the rows stayed at, where no address carries the rows onto the text on disk', async () => {
+    // The rows keep the text they were recorded over, and a reader that checks
+    // it against the tree charges the module whole; the index stays beside them.
+    const landed = await landOver(SEATED, RESEATED, false);
+
+    expect(landed.rows).toEqual(['anon#0 2-4', 'anon#1 5-7']);
+    expect(landed.index).toEqual(landed.rows);
+  });
+});

@@ -17,7 +17,7 @@ import {
   caseIds,
   caseKey,
   inCaseOrder,
-  keptOwners,
+  indexCut,
   settledAcross,
   unpackCase,
   unpackFrames,
@@ -413,17 +413,9 @@ export async function foldCaseRun(
     for (const [at, block] of module.blocks.entries()) if (isWritten(block)) kept.push(from + at);
     encodedModules.push({
       file: module.file,
-      blocks: module.blocks.filter(isWritten).map((block) => ({
-        kind: block.kind,
-        name: block.name,
-        path: block.path,
-        startLine: block.startLine,
-        endLine: block.endLine,
-        source: block.source,
-      })),
+      ...indexCut(module.blocks),
       called: Uint32Array.from(kept, (block) => calledSets[block]!),
       loaded: Uint8Array.from(kept, (block) => loaded[block]!),
-      owner: keptOwners(module.blocks),
     });
   }
   return {
