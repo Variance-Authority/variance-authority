@@ -1780,9 +1780,20 @@ records nothing would look like a run in which nothing ran.
 
 If a module cannot be parsed, `instrument` returns `undefined`. Check for that
 before reading `result.blocks`: a missing result and an empty block list are
-different facts, and only the caller can keep them apart. A function stringified
-into a browser, worker, or other realm loses the generated runtime declarations
-and throws at its first probe.
+different facts, and only the caller can keep them apart.
+
+A function stringified into a browser, worker, or other realm loses the
+generated runtime declarations and throws at its first probe. The transform
+leaves one kind bare: the function a module passes to Playwright's or
+Puppeteer's `evaluate`, `evaluateAll`, `evaluateHandle`, `evaluateOnNewDocument`,
+`addInitScript`, `waitForFunction`, `$eval` or `$$eval`, matched by method name
+on any receiver. It finds the function when you write it at the call, or name a
+function declaration, or a variable never reassigned, of the same module.
+That function gets no probes and no region of its own; an edit inside it is
+charged to the region around it, which is the module's when it is declared at
+the top level. A function you import and pass, take as a parameter, or build
+with `new Function` is not found, so leave the module that writes it
+uninstrumented: out of the seam's `include`, or not passed to `instrument`.
 
 The third argument is the id the probes report, and defaults to the file. When
 the journals go to `recordExecution`, pass `moduleId(file, sourceText)` from

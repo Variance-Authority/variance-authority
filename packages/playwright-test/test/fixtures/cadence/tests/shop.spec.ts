@@ -21,7 +21,7 @@ globalThis.__variance_authority_execution__ = {
   drain: () => {
     const hits = [...entered];
     entered.clear();
-    return { instrumentation: 'sense:instrument/presence-v5', modules: [{ id: '${SHOP}', hits, shared: [] }] };
+    return { instrumentation: 'sense:instrument/presence-v6', modules: [{ id: '${SHOP}', hits, shared: [] }] };
   },
 };
 </script>

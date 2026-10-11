@@ -14,55 +14,30 @@ import { relative, resolve } from 'node:path';
  * was tried and rejected: the page continues, its evidence is silently
  * discarded, and a runner misconfiguration hides behind a green suite
  * ([journal 0027](../docs/context/journal/0027-what-instrumentation-costs.md)).
- * The loud failure is the design, so the only correct response is to not
- * instrument a module whose functions leave the process.
+ *
+ * A module that hands its own function to a page is not on this list. The
+ * instrumenter reads the call — `evaluate`, `addInitScript`, `waitForFunction`,
+ * `$eval` and the rest — finds the function it sends, written at the call or
+ * declared in the same module, and places no probe inside it; the rest of the
+ * module is probed as any other. What it cannot read from a module's own text
+ * is a function written somewhere else and sent from here, and that module is
+ * the one named below.
  *
  * ## How this list stays honest
  *
- * Completeness is not statically decidable — a function can be handed to
- * `evaluate` by a module that did not write it — and it does not need to be,
+ * Completeness is not statically decidable, and it does not need to be,
  * because the suite itself is the check. Miss one and `yarn test` fails loudly
  * at the first probe, which is exactly the failure the product chose to keep.
  *
  * `tools/page-side.check.ts` holds the other end, which is the direction nothing
  * else watches: an entry that has stopped being true costs a module its
  * measurement, silently and for as long as nobody looks. So every entry must
- * name a module that is there, and every entry in {@link CROSSES} must still
- * contain the call that put it there.
+ * name a module that is there, once.
  *
  * Written as extensionless repository-relative stems, because the same module
  * arrives at the runner twice — once as the `src` its own package's tests
- * import, once as the `dist` every other package resolves through. The groups
- * below are the reasons, and each one is checked differently because each one is
- * a different kind of claim.
+ * import, once as the `dist` every other package resolves through.
  */
-/**
- * Hands an inline function to `evaluate`, `evaluateHandle`, `addInitScript` or
- * `exposeFunction`. The function is written at the call site, so the call site
- * is the module that carries the probe it cannot take with it.
- */
-export const CROSSES = [
-  'cases/incumbent-case/src/replacement-arm',
-  'packages/core/src/format/stabilize',
-  'packages/eyes/src/playwright',
-  'packages/playwright/src/acquire',
-  'packages/playwright/src/capture',
-  'packages/playwright/src/declarations',
-  'packages/playwright/src/harness',
-  'packages/playwright/src/modules',
-  'packages/playwright/src/renderer',
-  'packages/playwright-test/src/acquire',
-  'packages/playwright-test/src/direct',
-  'packages/playwright-test/src/events',
-  'packages/playwright-test/src/fixture',
-  'packages/playwright-test/src/in-place',
-  'packages/presentation/src/playwright',
-  'packages/route-collector/src/world',
-  'packages/sense/src/test-selection/drain',
-  'packages/storybook/src/finish-wait',
-  'packages/storybook/src/preview',
-];
-
 /**
  * Written to be serialized: the page half of an adapter, alone in its module
  * because it may close over nothing and import nothing but types.
@@ -101,7 +76,7 @@ export const RUNTIME = [
   'packages/sense/src/test-selection/vitest',
 ];
 
-export const PAGE_SIDE = [...CROSSES, ...SERIALIZED, ...RUNTIME];
+export const PAGE_SIDE = [...SERIALIZED, ...RUNTIME];
 
 /**
  * A transformed module named the way this list names it.

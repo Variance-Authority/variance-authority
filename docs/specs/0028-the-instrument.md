@@ -82,7 +82,11 @@ crossing uses a transport before its coverage joins its test file.
   `page.evaluate(fn)`, `new Function(fn.toString())` and a worker built from a
   stringified closure all ship text into somewhere the module scope does not
   exist. The generated declarations are required, so the first foreign probe
-  throws instead of silently dropping coverage data.
+  throws instead of silently dropping coverage data. A function the module
+  itself hands to a serializing call — Playwright's and Puppeteer's `evaluate`
+  family, `addInitScript`, `waitForFunction`, `$eval`, `$$eval` — written at
+  the call or bound in the module, is found from the call and gets no region,
+  so its text belongs to the enclosing region and carries no probe across.
 - A bare `if` whose `else` is synthesized must not rebind a dangling `else`
   further out.
 
@@ -169,11 +173,11 @@ region whose arrival does not follow from the region above because an arm may
 have returned.
 
 **Identity.** `INSTRUMENTATION_ID` at `packages/sense/src/instrument/index.ts`
-is `sense:instrument/presence-v5`. Every module record, journal, account and
+is `sense:instrument/presence-v6`. Every module record, journal, account and
 coverage file names it, and every reader refuses one that names another. A
 change to where probes go or what a block means mints a new id. The `entries`
 mode — the module and each function, nothing between — is a second recipe
-under `sense:instrument/entries-v2`, and `instrumentationId(mode)` names the
+under `sense:instrument/entries-v3`, and `instrumentationId(mode)` names the
 recipe a seam was asked for.
 
 **Cost.** One parse and one walk, O(module length). Instrumenting is done per

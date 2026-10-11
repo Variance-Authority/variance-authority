@@ -26,6 +26,7 @@
 
 mod cadence;
 mod cadence_map;
+mod crossing;
 mod cut;
 mod dialect;
 /// The digest every stored text is named by; [`module_id`] is the one a
@@ -54,8 +55,8 @@ impl Mode {
     /// `instrumentationId()` in `src/instrument/index.ts` answers the same.
     pub const fn instrumentation(self) -> &'static str {
         match self {
-            Mode::Presence => "sense:instrument/presence-v5",
-            Mode::Entries => "sense:instrument/entries-v2",
+            Mode::Presence => "sense:instrument/presence-v6",
+            Mode::Entries => "sense:instrument/entries-v3",
         }
     }
 }
@@ -128,7 +129,7 @@ pub mod native {
 
     /// How many regions with source of their own a parsed program is cut into
     /// under `presence`.
-    pub fn source_regions(program: &Program, typescript: bool) -> u32 {
+    pub fn source_regions<'a>(program: &'a Program<'a>, typescript: bool) -> u32 {
         let walker = crate::cut::walk(program, typescript, false);
         walker.blocks.iter().filter(|block| block.end > block.start).count() as u32
     }
@@ -146,13 +147,36 @@ mod tests {
         assert!(out.code.starts_with("import a from './a';\nvar __vaK"));
         assert!(out.code.contains(".r(\"src/f.js@00\",5);"));
         assert_eq!(out.regions, 5);
-        assert_eq!(out.instrumentation, "sense:instrument/presence-v5");
+        assert_eq!(out.instrumentation, "sense:instrument/presence-v6");
     }
 
     #[test]
     fn entries_cuts_only_the_module_and_its_functions() {
         let source = "export function f(x) { if (x) return 1; return 0 }\n";
         assert_eq!(instrument(source, "f.js", "f", Mode::Entries).map(|out| out.regions), Some(2));
+    }
+
+    #[test]
+    fn a_function_handed_to_a_page_crosses_without_probes_and_its_caller_keeps_them() {
+        let source = "function probe() { if (document.hidden) return 0; return 1 }\nexport function f(page) {\n  if (!page) return;\n  return page.evaluate(() => { if (window.x) return 2; return probe() }) ?? page.evaluate(probe);\n}\n";
+        let out = instrument(source, "f.ts", "f", Mode::Presence).expect("it parses");
+        assert!(out.code.contains("function probe() { if (document.hidden) return 0; return 1 }"));
+        assert!(out.code.contains("() => { if (window.x) return 2; return probe() }"));
+        // The module, `f`, and both branches of `if (!page)` and what follows it.
+        assert_eq!(out.regions, 5);
+        let entries = instrument(source, "f.ts", "f", Mode::Entries).expect("it parses");
+        assert_eq!(entries.regions, 2);
+    }
+
+    #[test]
+    fn an_anonymous_crossing_function_keeps_its_number_so_the_next_one_keeps_its_name() {
+        let names = |source: &str| -> Vec<String> {
+            cut::cut(source, "f.ts", false).expect("it parses").blocks.into_iter().map(|block| block.name).collect()
+        };
+        let plain = names("page.other((() => 1) as () => number);\n[() => 2];\n");
+        assert_eq!(plain, ["", "anon#0", "anon#1"]);
+        let crossing = names("page.evaluate((() => 1) as () => number);\n[() => 2];\n");
+        assert_eq!(crossing, ["", "anon#1"]);
     }
 
     #[test]

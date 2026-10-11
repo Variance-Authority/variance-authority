@@ -116,7 +116,7 @@ describe('snapshotCaseOf', () => {
 
       // Reading what a case holds leaves it in place for the row.
       const drained = {
-        evaluate: async () => ({ instrumentation: 'sense:instrument/presence-v5', modules: [{ id: moduleId('price.js', source), hits: [0], shared: [] }] }),
+        evaluate: async () => ({ instrumentation: 'sense:instrument/presence-v6', modules: [{ id: moduleId('price.js', source), hits: [0], shared: [] }] }),
       } as unknown as Page;
       await recorder.note(drained, owner, { name: 'mocked > pays', id: 'one' });
       recorder.mark(owner, true, { name: 'mocked > pays', id: 'one' });
