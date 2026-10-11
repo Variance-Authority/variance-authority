@@ -125,7 +125,7 @@ export const symbol: Tool<Help> = {
     const shown =
       written === 0
         ? []
-        : [`\ndocs_uses names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this, and the imports within its own package, nearest to a file you name first.`];
+        : [`\ndocs_uses names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.`];
 
     return [block(first[0], first[1], first[2]), ...also, ...shown].join('\n');
   },
@@ -185,20 +185,25 @@ function declaration(help: Help, name: string, site: PathSite): { readonly at: s
 /**
  * One name a file exports and no entry publishes: where each export is written,
  * the line itself when the checkout is at hand, and how many imports the source
- * index resolved to that file. Exports that share a name are told apart, each
- * with the imports of its own file.
+ * index resolved to that file, or to a file that passes the name on from it.
+ * Exports that share a name are told apart, each with the imports of its own
+ * file. A file that passes on another one's export is not told apart: its
+ * imports are counted with the export it passes on, once.
  */
 function exportedOnly(name: string, exported: readonly Named[], root: string | undefined): string {
-  return exported
-    .map((held) => {
-      const imports = root === undefined ? undefined : importsOf(root, [held.at], name);
-      return [
+  const read = exported.map((held) => [held, importsOf(root, [held.at], name)] as const);
+  const passing = new Set(read.flatMap(([, within]) => ('through' in within ? within.through : [])));
+  // Files that pass the name on to each other and declare it nowhere else are all shown.
+  const declaring = read.filter(([held]) => !passing.has(held.at));
+  return (declaring.length > 0 ? declaring : read)
+    .map(([held, within]) =>
+      [
         name,
         `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
         ...(root === undefined ? [] : lineOf(root, held)),
-        ...(imports === undefined ? [] : [importedIn(imports.length)]),
-      ].join('\n');
-    })
+        ...('uses' in within ? [importedIn(within.uses.length)] : root === undefined ? [] : [`Who imports it is read from the source index, and ${within.unread}.`]),
+      ].join('\n'),
+    )
     .join('\n\n');
 }
 

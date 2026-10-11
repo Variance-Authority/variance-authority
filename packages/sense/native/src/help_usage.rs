@@ -14,7 +14,7 @@ use rayon::prelude::*;
 
 use crate::compact::Layer;
 use crate::orient_map_read::beside;
-use crate::package_graph::{fold, join_parses, At, Crossing};
+use crate::package_graph::{fold, join_parses, passed_on, At, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 
 #[napi(object)]
@@ -230,35 +230,52 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: 
     out
 }
 
+/// Who imports one name out of a set of files, and which files pass it on.
+#[napi(object)]
+pub struct Importers {
+    /// Every use, ordered by the importing file in code units, then by line.
+    pub uses: Vec<NameUse>,
+    /// Every file that passes the name on with `export … from`, under the name
+    /// it exports, in code-unit order; none of the files asked about.
+    pub through: Vec<String>,
+}
+
 /// Every import, by any file on the chain, of `name` out of one of `files`:
 /// the bindings and member reads that take it through a request the index
-/// resolved to one of them, ordered by the importing file in code units, then
-/// by line. A relative import is read like one between packages, which `usage`
-/// does not record. Each use's `key` is the specifier as written.
+/// resolved to one of them. A relative import is read like one between
+/// packages, which `usage` does not record. Each use's `key` is the specifier
+/// as written, and its `name` the name it takes, which a re-export can rename.
 ///
-/// An `export { name } from` passes the name on and is no use. The file that
-/// writes it is followed instead, under the name it exports, so an import
-/// through a barrel is listed and the barrel is not.
-pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &str) -> Vec<NameUse> {
+/// What an `export … from` passes on is `passed_on`'s answer, the one the
+/// package graph reads: that is no use, and the file that writes it is
+/// followed instead under the name it exports, so an import through a barrel
+/// is listed and the barrel is not. A bare `export *` passes on every name but
+/// `default`. A type-only re-export passes nothing on and is listed where it
+/// is written. Each file is followed once per name, so a cycle of re-exports
+/// ends.
+pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &str) -> Importers {
     let folded = fold(layers);
     let mut seen: HashSet<(String, String)> = files.iter().map(|file| (file.clone(), name.to_owned())).collect();
     let mut wanted: HashMap<String, HashSet<String>> = HashMap::new();
     for file in files {
         wanted.entry(file.clone()).or_default().insert(name.to_owned());
     }
-    let mut found = Vec::new();
+    let (mut found, mut through) = (Vec::new(), HashSet::new());
     while !wanted.is_empty() {
         let (uses, passed) = importers_of(root, layers, &folded, &wanted);
         found.extend(uses);
         wanted = HashMap::new();
         for (file, exported) in passed {
             if seen.insert((file.clone(), exported.clone())) {
+                through.insert(file.clone());
                 wanted.entry(file).or_default().insert(exported);
             }
         }
     }
     found.sort_by(|a, b| crate::order::code_unit(&a.at, &b.at).then(a.line.cmp(&b.line)));
-    found
+    let mut through: Vec<String> = through.into_iter().filter(|file| !files.contains(file)).collect();
+    through.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
+    Importers { uses: found, through }
 }
 
 /// One step of `importers`: the uses of each wanted name out of its file, and
@@ -302,16 +319,29 @@ fn importers_of(
             let kind = kind_of(crossing.file);
             for request in parses.requests.range(row) {
                 let Some(names) = resolved[request - first].and_then(|path| wanted.get(path)) else { continue };
-                if text.text(parses.request_kind.at(request)) == "reexports" {
-                    for binding in parses.request_bindings.range(request) {
-                        if names.contains(text.text(parses.binding_imported.at(binding))) {
-                            passed.push((crossing.file.to_owned(), text.text(parses.binding_local.at(binding)).to_owned()));
-                        }
-                    }
+                let written = text.text(parses.request_value.at(request));
+                let uses = taken(&layers[layer], row, request, written, by, crossing.file, kind).into_iter().filter(|taken| names.contains(&taken.name));
+                if text.text(parses.request_kind.at(request)) != "reexports" {
+                    found.extend(uses);
                     continue;
                 }
-                let written = text.text(parses.request_value.at(request));
-                found.extend(taken(&layers[layer], row, request, written, by, crossing.file, kind).into_iter().filter(|taken| names.contains(&taken.name)));
+                let every = || names.iter().filter(|name| *name != "default").map(|name| (crossing.file.to_owned(), name.clone()));
+                match passed_on(&layers[layer], row, request) {
+                    // An export list the parse never recorded reads as the whole module.
+                    None => passed.extend(every()),
+                    Some(listed) => {
+                        for (imported, exported) in listed {
+                            match exported {
+                                None if imported == "*" => passed.extend(every()),
+                                // `export * as ns` passes a namespace: the name is a member read off it.
+                                Some(_) if imported == "*" => {}
+                                Some(exported) if names.contains(imported) => passed.push((crossing.file.to_owned(), exported.to_owned())),
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                found.extend(uses.filter(|taken| taken.r#type));
             }
             (found, passed)
         })
@@ -323,3 +353,7 @@ fn importers_of(
     }
     (found, passed)
 }
+
+#[cfg(test)]
+#[path = "help_usage_tests.rs"]
+mod tests;
