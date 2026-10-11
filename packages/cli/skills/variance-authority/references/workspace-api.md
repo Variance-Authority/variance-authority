@@ -161,7 +161,12 @@ publishes is answered too: the file and line that export it, the line as the
 checkout holds it, and how many imports the source index resolved to that file,
 within its package as well as across. Two files that export one name are told
 apart, each with its own count, and an installed name it matches, which a file
-that passes it on exports without declaring, is said after it. Only a name nothing exports is refused.
+that passes it on exports without declaring, is said after it. A name nothing exports is refused.
+
+`--package` with the path of one file in a package, such as
+`@acme/lib/src/internal/math`, names the file an import of that specifier
+resolved to. When nothing in the workspace imports the specifier, the file it
+names is not known, and the name is refused with that reason.
 
 `symbol` prints what a name is and how to call it. For why it exists and what it
 connects to, read [what is written about a name](written-about-a-name.md).

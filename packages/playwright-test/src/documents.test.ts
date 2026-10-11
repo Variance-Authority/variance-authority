@@ -30,7 +30,7 @@ function recorderHeld(): ExecutionRecorder & { readonly marked: boolean[] } {
   } as unknown as ExecutionRecorder & { readonly marked: boolean[] };
 }
 
-const testInfo = { file: SPEC, titlePath: ['', 'shop.spec.ts', 'buys'], project: { name: '' }, testId: 't1' } as unknown as TestInfo;
+const testInfo = { file: SPEC, titlePath: ['shop.spec.ts', 'buys'], project: { name: '' }, testId: 't1' } as unknown as TestInfo;
 
 afterEach(() => {
   vi.useRealTimers();

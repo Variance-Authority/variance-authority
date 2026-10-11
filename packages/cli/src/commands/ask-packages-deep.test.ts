@@ -150,12 +150,22 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(uses.out).toMatch(/^`roundTax` is imported in 1 place, and no entry publishes it; it is exported at packages\/\w+\/src\/\S+:\d+ and 1 more\.$/m);
   });
 
-  it('answers `symbol` and `uses` asked with the specifier of one file from the export in that file alone', async () => {
+  const TAXES = 'export const roundTax = (amount: number): number => amount;\nexport const rate = 1;\n';
+
+  it('answers `symbol` and `uses` asked with the specifier of one file from the export in the file its imports resolved to', async () => {
     checkout({
-      'packages/lib/src/other.ts': 'export const roundTax = (amount: number): number => amount;\n',
+      'packages/lib/src/other.ts': TAXES,
       // A directory beside a file of the same name: the file is what the specifier resolves to.
-      'packages/lib/src/other/index.ts': 'export const roundTax = (amount: number): number => amount;\n',
-      'packages/lib/src/tax/index.ts': 'export const roundTax = (amount: number): number => amount;\n',
+      'packages/lib/src/other/index.ts': TAXES,
+      'packages/lib/src/tax/index.ts': TAXES,
+      // Each specifier imported for another name, so what it resolved to is recorded.
+      'apps/app/src/taxed.ts': [
+        "import { rate } from '@acme/lib/src/other';",
+        "import { rate as js } from '@acme/lib/src/other.js';",
+        "import { rate as directory } from '@acme/lib/src/tax';",
+        'export const taxed = rate + js + directory;',
+        '',
+      ].join('\n'),
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
@@ -176,6 +186,21 @@ describe('variance ask over a private app that reaches into another package', ()
     const imported = await run(['ask', 'symbol', '--name', 'roundTax', '--package', '@acme/lib/src/internal/math']);
     expect(imported.out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
     expect(imported.out).not.toContain('packages/lib/src/other.ts');
+  });
+
+  it('refuses `symbol` and `uses` asked with the specifier of one file nothing imports, and says the file is not known', async () => {
+    // Which file a specifier names is the resolver's answer for one importer,
+    // and with none there is no answer: `src/other` is not `src/other.ts` for
+    // ending like it.
+    checkout({ 'packages/lib/src/other.ts': 'export const roundTax = (amount: number): number => amount;\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    for (const verb of ['symbol', 'uses']) {
+      const { code, out, err } = await run(['ask', verb, '--name', 'roundTax', '--package', '@acme/lib/src/other']);
+      expect(code).toBe(EXIT_OPERATOR);
+      expect(out).not.toContain('packages/lib/src/other.ts');
+      expect(err).toContain('nothing in this workspace imports `@acme/lib/src/other`, so the file it names is not known');
+    }
   });
 
   it('leaves out the line of an unpublished export the checkout has since rewritten', async () => {

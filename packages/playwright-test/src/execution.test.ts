@@ -86,7 +86,7 @@ async function ended(
     file: resolve(root, owner),
     status,
     project: { name: 'chromium' },
-    titlePath: ['chromium', owner, 'the one test'],
+    titlePath: [owner, 'the one test'],
     testId: `${owner}-1`,
     ...(duration === undefined ? {} : { duration }),
   } as unknown as TestInfo);
@@ -445,7 +445,7 @@ describe('a worker that is one of several', () => {
   it('names a test by where it is declared, not by the runner position for it', () => {
     expect(
       testOf({
-        titlePath: ['chromium', 'tests/checkout.spec.ts', 'checkout', 'pays with a saved card'],
+        titlePath: ['tests/checkout.spec.ts', 'checkout', 'pays with a saved card'],
         project: { name: 'chromium' },
         file: resolve(process.cwd(), 'tests/checkout.spec.ts'),
         testId: 'abc123',
@@ -453,10 +453,24 @@ describe('a worker that is one of several', () => {
     ).toEqual({ name: 'checkout > pays with a saved card', id: 'abc123', project: 'chromium' });
   });
 
+  it('names a test by the position of its titles, whatever they spell', () => {
+    // A project that runs one spec, named after it, and a describe that names
+    // the file too: Playwright's `titlePath` is the file, then the describes,
+    // then the title, and none of them is dropped for resembling another.
+    expect(
+      testOf({
+        titlePath: ['checkout.spec.ts', 'checkout.spec.ts', 'pays'],
+        project: { name: 'checkout.spec.ts' },
+        file: resolve(process.cwd(), 'checkout.spec.ts'),
+        testId: 'abc123',
+      } as unknown as TestInfo),
+    ).toEqual({ name: 'checkout.spec.ts > pays', id: 'abc123', project: 'checkout.spec.ts' });
+  });
+
   it('names no project for a test of the unnamed one', () => {
     expect(
       testOf({
-        titlePath: ['', 'tests/checkout.spec.ts', 'pays'],
+        titlePath: ['tests/checkout.spec.ts', 'pays'],
         project: { name: '' },
         file: resolve(process.cwd(), 'tests/checkout.spec.ts'),
         testId: 'abc123',

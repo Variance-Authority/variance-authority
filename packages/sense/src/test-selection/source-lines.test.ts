@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
-import { sourceLines, type ExtentOf } from './source-lines.js';
+import { recordedFrame, sourceLines, type ExtentOf } from './source-lines.js';
 import { captureModule } from './captured-modules.js';
 import { coverageBlock, coverageModule } from './coverage-rows.js';
 import { encodeTestCoverage } from './format.js';
@@ -25,7 +25,7 @@ import type { CoverageBlock, TestCoverage } from './index.js';
 // The map for a transform that dropped one blank line: four generated lines
 // standing for original lines 1, 3, 4 and 5.
 const DROPPED_BLANK = {
-  sources: ['app/src/a.ts'],
+  sources: ['a.ts'],
   mappings: 'AAAA;AAEA;AACA;AACA',
 };
 
@@ -65,7 +65,7 @@ describe('reading a block back to where it was written', () => {
     const withPrologue = `var __name = (t) => t;\n${TRANSFORMED}`;
     const extentOf = sourceLines(
       withPrologue,
-      { sources: ['app/src/a.ts'], mappings: `;${DROPPED_BLANK.mappings}` },
+      { sources: ['a.ts'], mappings: `;${DROPPED_BLANK.mappings}` },
       '/repo/app/src/a.ts',
     );
     const prologue = withPrologue.indexOf('\n') - 1;
@@ -92,7 +92,7 @@ describe('reading a block back to where it was written', () => {
     const lineOf = lineIn(
       sourceLines(
         TRANSFORMED,
-        { sources: ['app/src/other.ts', 'app/src/a.ts'], mappings: 'AAAA;ACEA' },
+        { sources: ['other.ts', 'a.ts'], mappings: 'AAAA;ACEA' },
         '/repo/app/src/a.ts',
       ),
     );
@@ -108,7 +108,7 @@ describe('reading a block back to where it was written', () => {
   it('leaves a region on its carried line when nothing inside it was written there', () => {
     const extentOf = sourceLines(
       CARRIED,
-      { sources: ['app/src/a.ts'], mappings: 'AAAA;AAAA,KACK' },
+      { sources: ['a.ts'], mappings: 'AAAA;AAAA,KACK' },
       '/repo/app/src/a.ts',
     );
 
@@ -122,7 +122,7 @@ describe('reading a block back to where it was written', () => {
     // line's own, not one carried over.
     const extentOf = sourceLines(
       CARRIED,
-      { sources: ['app/src/a.ts'], mappings: 'AAAA,C;AAAA,EACA' },
+      { sources: ['a.ts'], mappings: 'AAAA,C;AAAA,EACA' },
       '/repo/app/src/a.ts',
     );
 
@@ -133,7 +133,7 @@ describe('reading a block back to where it was written', () => {
     // An unmapped `if (a) x();` between the origin and the line that repeats it.
     const extentOf = sourceLines(
       `\n${CARRIED}`,
-      { sources: ['app/src/a.ts'], mappings: 'AAAA;;AAAA,EACA' },
+      { sources: ['a.ts'], mappings: 'AAAA;;AAAA,EACA' },
       '/repo/app/src/a.ts',
     );
     const shifted = (column: number): number => onCarried(column) + 1;
@@ -145,7 +145,7 @@ describe('reading a block back to where it was written', () => {
     // A segment of `other.ts` between the carried one and `if (b)`.
     const extentOf = sourceLines(
       CARRIED,
-      { sources: ['app/src/other.ts', 'app/src/a.ts'], mappings: 'ACAA;AAAA,CDAA,ICCK' },
+      { sources: ['other.ts', 'a.ts'], mappings: 'ACAA;AAAA,CDAA,ICCK' },
       '/repo/app/src/a.ts',
     );
 
@@ -164,7 +164,7 @@ describe('reading a block back to where it was written', () => {
     // Generated line 1 came from original line 3, and lines 2-4 from 1-3.
     const extentOf = sourceLines(
       hoisted,
-      { sources: ['app/src/a.tsx'], mappings: 'AAEA;AAFA;AACA;AACA' },
+      { sources: ['a.tsx'], mappings: 'AAEA;AAFA;AACA;AACA' },
       '/repo/app/src/a.tsx',
     );
     const lineOf = lineIn(extentOf);
@@ -184,6 +184,66 @@ describe('reading a block back to where it was written', () => {
 
     expect(row.startLine).toBe(2);
     expect(row.endLine).toBe(3);
+  });
+});
+
+/**
+ * Which entry of a map's `sources` is the file. A source is a path relative to
+ * the map, behind `sourceRoot`, and it is the file when it resolves to it: a
+ * source whose path merely ends the same way is another file.
+ */
+describe('the source a map names as the file', () => {
+  const FILE = '/repo/app/src/a.ts';
+
+  it('gives no lines when no source resolves to the file, though one ends like it', () => {
+    // Beside `/repo/app/src/a.ts`, `app/src/a.ts` is `/repo/app/src/app/src/a.ts`.
+    const extentOf = sourceLines(TRANSFORMED, { sources: ['app/src/a.ts'], mappings: DROPPED_BLANK.mappings }, FILE);
+
+    expect(lineIn(extentOf)(TRANSFORMED.indexOf('const f'))).toBeUndefined();
+  });
+
+  it('gives no lines when the map names only another file', () => {
+    const extentOf = sourceLines(TRANSFORMED, { sources: ['other.ts'], mappings: DROPPED_BLANK.mappings }, FILE);
+
+    expect(lineIn(extentOf)(TRANSFORMED.indexOf('const f'))).toBeUndefined();
+  });
+
+  it('resolves each source beside the transformed text, where its map is', () => {
+    // From `dist/a.js`, `src/a.ts` is `dist/src/a.ts`; only `../src/a.ts` is the file.
+    const extentOf = sourceLines(
+      TRANSFORMED,
+      { sources: ['src/a.ts', '../src/a.ts'], mappings: 'AAAA;ACEA' },
+      FILE,
+      '/repo/app/dist/a.js',
+    );
+    const lineOf = lineIn(extentOf);
+
+    expect(lineOf(TRANSFORMED.indexOf('const a'))).toBeUndefined();
+    expect(lineOf(TRANSFORMED.indexOf('const f'))).toBe(3);
+  });
+
+  it('resolves a source behind the map’s `sourceRoot`', () => {
+    const extentOf = sourceLines(
+      TRANSFORMED,
+      { sourceRoot: '../src/', sources: ['a.ts'], mappings: DROPPED_BLANK.mappings },
+      FILE,
+      '/repo/app/dist/a.js',
+    );
+
+    expect(lineIn(extentOf)(TRANSFORMED.indexOf('const f'))).toBe(3);
+  });
+
+  it('frames a text whose map names other files as that text, under the host’s name', () => {
+    const frame = recordedFrame(
+      TRANSFORMED,
+      { sources: ['../lib/x.ts', '../lib/y.ts'], mappings: 'AAAA;ACEA' },
+      FILE,
+      () => ORIGINAL,
+    );
+
+    expect(frame.file).toBe(FILE);
+    expect(frame.sourceDigest).toBe(digestString(TRANSFORMED));
+    expect(lineIn(frame.extentOf)(TRANSFORMED.indexOf('const f'))).toBe(2);
   });
 });
 

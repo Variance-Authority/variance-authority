@@ -34,27 +34,13 @@ export function exportsNamed(help: Help, name: string, within: string | undefine
 
 /**
  * Whether `within`, a specifier past `held`'s package name, names `held`'s file:
- * the file its imports resolved to, or, when nothing imports it, the file its
- * path spells, with or without an extension, and its `index` only when no file
- * of that name exports it, as a resolver tries the file first.
+ * whether an import of exactly `within` resolved to it. Which file a specifier
+ * names is the resolver's answer for an importer, so a specifier nothing
+ * imports names no file.
  */
 function fileOf(help: Help, held: Named, within: string): boolean {
   if (!within.startsWith(`${held.by}/`)) return false;
-  const resolved = importsByPath(help, within).flatMap(([deep]) => (deep.specifier === within && deep.to !== undefined ? [deep.to] : []));
-  if (resolved.length > 0) return resolved.includes(held.at);
-  const spelled = bare(within.slice(held.by.length + 1));
-  const file = bare(held.at);
-  const spells = (at: string): boolean => bare(at).endsWith(`/${spelled}`);
-  if (spells(held.at)) return true;
-  return (
-    file.endsWith(`/${spelled}/index`) &&
-    !help.exported.some((other) => other.name === held.name && other.by === held.by && spells(other.at))
-  );
-}
-
-/** A path without its script extension. */
-function bare(path: string): string {
-  return path.replace(/\.[cm]?[jt]sx?$/, '');
+  return importsByPath(help, within).some(([deep]) => deep.specifier === within && deep.to === held.at);
 }
 
 /** `at:line`, and how many more exports there are past the first. */

@@ -41,7 +41,7 @@ async function ran(
   await declared[0]({ varianceRecorder: recorder }, body, {
     project: { name: 'chromium' },
     file: resolve(root, 'tests/checkout.spec.ts'),
-    titlePath: ['chromium', 'tests/checkout.spec.ts', 'checkout', 'pays'],
+    titlePath: ['tests/checkout.spec.ts', 'checkout', 'pays'],
     testId: 'runner-id-1',
     retry: 0,
     status: 'passed',
