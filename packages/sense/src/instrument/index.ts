@@ -124,8 +124,9 @@
  * see: the argument of `evaluate`, `addInitScript`, `waitForFunction`, `$eval`
  * and the rest of Playwright's and Puppeteer's serializing calls, written at the
  * call or bound in the module to a function, by a declaration or a variable,
- * that is never reassigned. It gets
- * no region and no probe, and its text belongs to the region around it. A
+ * that is never reassigned. It gets no probe, and its text belongs to the
+ * region around it — except a declaration written after a branch that can
+ * leave, which exists from its block's start and gets a region probed there. A
  * function written in another module and sent from this one is not visible
  * here, and the module that wrote it stays uninstrumented.
  */

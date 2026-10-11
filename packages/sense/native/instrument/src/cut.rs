@@ -263,7 +263,7 @@ fn prologue_end(program: &Program) -> u32 {
     at
 }
 
-fn is_prologue(statement: &Statement) -> bool {
+pub(crate) fn is_prologue(statement: &Statement) -> bool {
     match statement {
         Statement::ImportDeclaration(_)
         | Statement::ExportAllDeclaration(_)

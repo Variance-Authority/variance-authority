@@ -85,8 +85,11 @@ crossing uses a transport before its coverage joins its test file.
   throws instead of silently dropping coverage data. A function the module
   itself hands to a serializing call — Playwright's and Puppeteer's `evaluate`
   family, `addInitScript`, `waitForFunction`, `$eval`, `$$eval` — written at
-  the call or bound in the module, is found from the call and gets no region,
-  so its text belongs to the enclosing region and carries no probe across.
+  the call or bound in the module, is found from the call and gets no probe,
+  so its text belongs to the enclosing region and carries no probe across. A
+  declaration exists from its block's start, so one written after a branch
+  that can leave opens a region probed there instead of joining the
+  continuation its text sits in.
 - A bare `if` whose `else` is synthesized must not rebind a dangling `else`
   further out.
 

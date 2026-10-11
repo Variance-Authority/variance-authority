@@ -6,7 +6,8 @@
 //! throws at the first one. So the walk places nothing inside a function this
 //! finds, and keeps probing the rest of the module: the text of a crossing
 //! function belongs to the region around it, the way any other expression's
-//! text does.
+//! text does, or, for a declaration after a branch, to the block it is hoisted
+//! to (`walk.rs`).
 //!
 //! What crosses is decided by the call, not by the function. [`CROSSINGS`]
 //! names each method that serializes an argument and which argument it is,
@@ -178,6 +179,12 @@ mod tests {
     fn a_function_named_at_the_call_crosses_where_it_is_declared() {
         let source = "function probe(x) { return x }\nconst read = () => 1;\nexport function f(page) {\n  page.evaluate(probe);\n  return page.addInitScript(read);\n}\n";
         assert_eq!(crossing_text(source), ["function probe(x) { return x }", "() => 1"]);
+    }
+
+    #[test]
+    fn a_function_declared_after_the_call_that_names_it_crosses() {
+        let source = "export function f(page) {\n  return page.evaluate(probe);\n}\nfunction probe() { return 1 }\n";
+        assert_eq!(crossing_text(source), ["function probe() { return 1 }"]);
     }
 
     #[test]

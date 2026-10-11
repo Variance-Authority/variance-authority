@@ -13,3 +13,13 @@ export function count(page) {
 export function label(text) {
   return `[${text}]`;
 }
+
+export function size(page, early) {
+  const items = page.evaluate(countAll);
+  if (early) return items;
+  return items * 2;
+
+  function countAll() {
+    return document.items.length;
+  }
+}

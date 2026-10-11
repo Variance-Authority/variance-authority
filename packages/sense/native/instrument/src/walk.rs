@@ -50,6 +50,14 @@
 //! and opens no region, so its text is the enclosing region's and carries no
 //! probe into a realm that has no `__va`.
 //!
+//! A declaration is the exception to the enclosing region. It is hoisted: it
+//! exists from the moment its block is entered, and can be handed over before
+//! a branch that leaves, so its text, written after that branch, is in a
+//! continuation the test that left never reached. Such a declaration opens the
+//! region it would have as a function, owned by the region its block is
+//! entered with and probed where the block's statements start, ahead of
+//! anything that can leave. Nothing is placed in its text.
+//!
 //! ## Offsets
 //!
 //! Offsets are UTF-8 bytes throughout. Every offset is a node boundary, so the
@@ -66,6 +74,8 @@ use oxc_syntax::scope::ScopeFlags;
 
 #[path = "walk_decisions.rs"]
 mod decisions;
+#[path = "walk_hoisted.rs"]
+mod hoisted;
 #[path = "walk_names.rs"]
 mod names;
 #[path = "walk_params.rs"]
@@ -131,6 +141,8 @@ pub struct Walker {
     path: String,
     owner: u32,
     hint: Option<String>,
+    /// The crossing declaration the statement being walked is, when its text sits in a continuation.
+    declared: Option<hoisted::Declared>,
 }
 
 impl Walker {
@@ -145,6 +157,7 @@ impl Walker {
             path: String::new(),
             owner: 0,
             hint: None,
+            declared: None,
         }
     }
 
@@ -180,9 +193,14 @@ impl Walker {
     }
 
     pub fn list(&mut self, statements: &[Statement], path: &str, owner: u32) {
+        let slot = self.slot(statements);
         let mut current = owner;
         for (index, statement) in statements.iter().enumerate() {
+            if let (Some(slot), Some(span), true) = (slot, self.declaration(statement), current != owner) {
+                self.declared = Some(hoisted::Declared { span, owner, slot });
+            }
             let decision = self.at(path, current, |w| w.statement(statement));
+            self.declared = None;
             let (Some(label), Some(next)) = (decision, statements.get(index + 1)) else {
                 continue;
             };
@@ -257,24 +275,28 @@ impl Walker {
     /// that parameter, by the rewrite `walk_params.rs` describes, because a
     /// call that throws while binding has arrived.
     ///
-    /// A function whose text leaves this realm opens nothing and holds nothing:
-    /// its text, nested functions and all, is the enclosing region's. It still
+    /// A function whose text leaves this realm holds nothing: its text, nested
+    /// functions and all, is the enclosing region's, unless it is a declaration
+    /// in a continuation, which opens a region with nothing in it. It still
     /// takes its name, so every other function keeps the address it would have.
     fn entered(&mut self, span: Span, own: Option<String>, params: &FormalParameters, body: Body, arrow: bool) {
         let hint = self.hint.take();
         self.named(own.or(hint));
-        if self.crossing.contains(&(span.start, span.end)) {
-            self.scopes.pop();
-            return;
-        }
-        let owner = self.owner;
-
         let end = match body {
             // A TypeScript overload signature or an `abstract` method has no body at all.
             Body::None => None,
             Body::Block(body) => Some(body.span.end),
             Body::Expression(expression) => Some(expression.span().end),
         };
+        if self.crossing.contains(&(span.start, span.end)) {
+            if let (Some(declared), Some(end)) = (self.declared.take_if(|it| it.span == (span.start, span.end)), end) {
+                self.hoisted(declared, params.span.start, end);
+            }
+            self.scopes.pop();
+            return;
+        }
+        let owner = self.owner;
+
         let Some(end) = end else {
             self.at("", owner, |w| w.visit_formal_parameters(params));
             self.scopes.pop();

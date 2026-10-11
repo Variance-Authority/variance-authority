@@ -169,6 +169,31 @@ mod tests {
     }
 
     #[test]
+    fn a_declaration_handed_to_a_page_is_entered_with_the_function_that_declares_it() {
+        let source = "export function f(page, x) {\n  page.evaluate(probe);\n  if (x) return;\n  function probe() { return 1 }\n}\n";
+        let out = cut::cut(source, "f.ts", false).expect("it parses");
+        assert!(out.code.contains("function probe() { return 1 }"));
+        let entry = out.blocks.iter().position(|block| block.name == "f").expect("f has a region");
+        let probe = out.blocks.iter().position(|block| block.name == "f/probe").expect("the declaration has a region");
+        assert_eq!(out.blocks[probe].owner, Some(entry as u32));
+        // Probed where `f`'s statements start, ahead of the return that skips its text.
+        assert!(out.code.contains(&format!("__va({probe});page.evaluate(probe);")));
+        // The entries walk has no region the text could sit in but `f`'s own.
+        let entries = cut::cut(source, "f.ts", true).expect("it parses");
+        assert_eq!(entries.blocks.len(), 2);
+    }
+
+    #[test]
+    fn a_module_probes_its_crossing_declaration_after_its_imports_and_ahead_of_an_await() {
+        let source = "import { page } from './page';\nawait page.evaluate(probe);\nif (page.closed) throw 0;\nexport function probe() { return 1 }\n";
+        let out = cut::cut(source, "f.ts", false).expect("it parses");
+        let probe = out.blocks.iter().position(|block| block.name == "probe").expect("the declaration has a region");
+        assert_eq!(out.blocks[probe].owner, Some(0));
+        let at = out.code.find(&format!("__va({probe});__vaR(await page.evaluate(probe)")).expect("probed ahead of the await");
+        assert!(out.code.find("import { page }").expect("the import stays") < at);
+    }
+
+    #[test]
     fn an_anonymous_crossing_function_keeps_its_number_so_the_next_one_keeps_its_name() {
         let names = |source: &str| -> Vec<String> {
             cut::cut(source, "f.ts", false).expect("it parses").blocks.into_iter().map(|block| block.name).collect()

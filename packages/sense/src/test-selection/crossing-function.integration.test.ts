@@ -21,6 +21,12 @@ import { selectTestFiles } from './index.js';
  * the region around it: an edit inside the inline arrow reaches the test that
  * entered `title`, and an edit inside `countItems`, which is declared at the
  * top level, reaches every test that loaded the module.
+ *
+ * A declaration is hoisted: `countAll` exists from the moment `size` is
+ * entered, and `size` hands it over before the early return its only test
+ * takes. Its text sits after that return, where the test never arrives, so an
+ * edit inside it reaches the test only when it is charged to the entry of the
+ * function that declares it.
  */
 
 const execute = promisify(execFile);
@@ -64,12 +70,22 @@ describe('a function handed to a page', () => {
     const coverage = decodeTestCoverage(await readFile(coverageFile));
     const regions = coverage.modules.find((module) => module.file === reader)
       ?.blocks.map((block) => [block.kind, block.name, block.testFiles]);
-    const all = [named('test/count.test.js'), named('test/label.test.js'), named('test/title.test.js')];
+    const all = [
+      named('test/count.test.js'),
+      named('test/label.test.js'),
+      named('test/size.test.js'),
+      named('test/title.test.js'),
+    ];
     expect(regions).toEqual([
       ['module', '', all],
       ['function', 'title', [named('test/title.test.js')]],
       ['function', 'count', [named('test/count.test.js')]],
       ['function', 'label', [named('test/label.test.js')]],
+      ['function', 'size', [named('test/size.test.js')]],
+      ['branch', 'size', [named('test/size.test.js')]],
+      ['branch', 'size', []],
+      ['continuation', 'size', []],
+      ['function', 'size/countAll', [named('test/size.test.js')]],
     ]);
 
     const inline = edited(2, '  return page.evaluate(() => document.title);', '  return page.evaluate(() => document.title.trim());');
@@ -81,5 +97,8 @@ describe('a function handed to a page', () => {
       '  return document.items.filter((item) => item === skipped).length;',
     );
     await expect(selectTestFiles(coverageFile, byName)).resolves.toEqual(all);
+
+    const hoisted = edited(23, '    return document.items.length;', '    return document.items.length - 1;');
+    await expect(selectTestFiles(coverageFile, hoisted)).resolves.toEqual([named('test/size.test.js')]);
   }, 20_000);
 });
