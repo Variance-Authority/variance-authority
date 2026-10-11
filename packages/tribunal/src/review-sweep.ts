@@ -194,12 +194,14 @@ export async function sweepProject(
  * decision against it — and deliberately not a call to `summarize`, which reads
  * eight tables to answer a question the sweep asks once per expired build.
  */
+// `incomparable` is a row written before ADR-0090: a pair nobody diffed, so it
+// pends until decided.
 async function pending(db: D1Like, project: string, build: string): Promise<number> {
   const row = await db
     .prepare(
       `SELECT COUNT(*) AS n FROM build_subjects s
         WHERE s.project = ? AND s.build = ?
-          AND s.verdict IN ('changed', 'new')
+          AND s.verdict IN ('changed', 'new', 'incomparable')
           AND NOT EXISTS (
                 SELECT 1 FROM decisions d
                  WHERE d.project = s.project AND d.build = s.build AND d.subject = s.subject)`,

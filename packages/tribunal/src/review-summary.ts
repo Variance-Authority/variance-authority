@@ -95,10 +95,11 @@ export function summaryStatements(
     // `pending` in SQL rather than by subtraction, because the two lists are not
     // complements: a subject can carry a decision and a verdict nothing pends
     // on, and counting those out of the needing list is what this does.
+    // `incomparable` is a row written before ADR-0090, a pair nobody diffed.
     bind(
       `SELECT s.build AS build, COUNT(*) AS n FROM build_subjects s
         WHERE s.project = ? AND ${scope.where('s')}
-          AND s.verdict IN ('changed', 'new')
+          AND s.verdict IN ('changed', 'new', 'incomparable')
           AND NOT EXISTS (
                 SELECT 1 FROM decisions d
                  WHERE d.project = s.project AND d.build = s.build AND d.subject = s.subject)

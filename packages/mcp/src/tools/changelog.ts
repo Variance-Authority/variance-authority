@@ -99,12 +99,12 @@ export const changelog: Tool = {
     const promotable: string[] = [];
     const refused: { readonly subject: string; readonly because: string }[] = [...chosen.refused];
     let alreadyBaseline = 0;
-    let restamped = 0;
+    const restamped: string[] = [];
 
     for (const observation of chosen.targets) {
       const promotion = promotionOf(observation);
       // Unchanged under a moved identity: written again, approved by nobody.
-      if (promotion.kind === 'promotable' && observation.verdict === 'unchanged') restamped += 1;
+      if (promotion.kind === 'promotable' && observation.verdict === 'unchanged') restamped.push(observation.subject);
       else if (promotion.kind === 'promotable') promotable.push(observation.subject);
       else if (promotion.kind === 'already-baseline') alreadyBaseline += 1;
       else refused.push({ subject: observation.subject, because: promotion.because });
@@ -129,7 +129,7 @@ export const changelog: Tool = {
         ...(alreadyBaseline > 0
           ? ['', `${String(alreadyBaseline)} subject(s) already are the baseline.`]
           : []),
-        ...restampLine(restamped),
+        ...restampLine(restamped.length),
       ].join('\n');
     }
 
@@ -141,7 +141,8 @@ export const changelog: Tool = {
       '',
       ...changelogBody(record),
       '',
-      `  ${command(selection, shape, promotable)}`,
+      // A named accept writes only what it names, so the re-stamps are named too.
+      `  ${command(selection, shape, [...promotable, ...restamped])}`,
       ...(unshaped.length > 0
         ? [
             '',
@@ -156,7 +157,7 @@ export const changelog: Tool = {
       ...(alreadyBaseline > 0
         ? ['', `${String(alreadyBaseline)} subject(s) already are the baseline and record nothing.`]
         : []),
-      ...restampLine(restamped),
+      ...restampLine(restamped.length),
     ].join('\n');
   },
 };

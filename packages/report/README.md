@@ -114,8 +114,10 @@ not in `settles`.
 
 `promotionOf(observation)` is the same rule as a function, for a caller that has
 to answer what accepting a subject would do without promoting it. A subject
-painted under another identity is a change like any other: `--all` adopts it,
-and its `because` names what moved.
+painted under another identity whose pixels changed is a change like any other:
+`--all` adopts it, and its `because` names what moved. One whose pixels did not
+change is promotable too, and accepting it re-stamps the image under the run's
+identity without recording a change.
 
 ## The shape
 

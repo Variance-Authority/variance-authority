@@ -251,3 +251,25 @@ describe('explaining a change by what moved between its two images', () => {
     expect(text).not.toContain('the machine moved');
   });
 });
+
+describe('previewing an accept by name across an upgrade', () => {
+  it('names the re-stamped subjects in the command, so running it does what the preview said', () => {
+    const signals = { identity: 'machine' as const, moved: ['engine chromium@131.0.0 → chromium@132.0.0'] };
+    const images = { after: 'story/after.png', record: 'story/record.json' };
+    const text = call(
+      {
+        ...COMPLETE,
+        run: { id: '4242', commit: 'abc123' },
+        observations: [
+          { subject: 'story:moved', verdict: 'changed', because: '40 pixel(s) differ', changedPixels: 40, regions: [], signals, images },
+          { subject: 'story:still', verdict: 'unchanged', because: 'no pixels differ', changedPixels: 0, regions: [], signals, images },
+        ],
+      },
+      'variance_changelog',
+      { subjects: ['story:moved', 'story:still'] },
+    );
+
+    expect(text).toContain('1 subject(s) did not change and are re-stamped');
+    expect(text).toContain('variance accept "story:moved" "story:still"');
+  });
+});

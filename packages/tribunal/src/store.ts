@@ -338,11 +338,10 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
  * sentence — it is the one that compares against that image and names the
  * machine as the cause, instead of a silent re-record.
  *
- * Where the directory store scans siblings in whatever order `readdir` returns,
- * this takes the most recently written. Both satisfy the contract; only one of
- * them gives the same answer twice when three machines have written the subject,
- * and a cause that names a different machine on each run is a cause nobody can
- * act on.
+ * This takes the most recently written, and the lowest identity digest between
+ * two written in one millisecond, so three machines that have written the
+ * subject get the same answer twice. A cause that names a different machine on
+ * each run is a cause nobody can act on.
  */
 async function locate(
   db: D1Like,
@@ -361,7 +360,7 @@ async function locate(
                   components, finding_marks, object_key, identity_digest
              FROM baselines
             WHERE project = ? AND subject = ? AND label = ?
-            ORDER BY (identity_digest = ?) DESC, at_ms DESC
+            ORDER BY (identity_digest = ?) DESC, at_ms DESC, identity_digest
             LIMIT 1`,
         )
         .bind(project, key.subject, label, mine)
