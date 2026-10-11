@@ -65,12 +65,12 @@ export function exportedAt(exported: readonly Named[]): string {
 }
 
 /**
- * Every import of `name` out of a file in `exported`, read off the source index
- * of `root`; `undefined` when no index is published.
+ * Every import of `name` out of one of `files`, or out of a file that passes it
+ * on from one, read off the source index of `root`; `undefined` when no index
+ * is published.
  */
-export function importsOf(root: string, exported: readonly Named[], name: string): readonly Use[] | undefined {
-  const found = importersOf(root, [...new Set(exported.map((held) => held.at))], name);
-  return found?.map(useOf);
+export function importsOf(root: string, files: readonly string[], name: string): readonly Use[] | undefined {
+  return importersOf(root, files, name)?.map(useOf);
 }
 
 /** Why the source index cannot say who imports an export. */

@@ -7,7 +7,7 @@
 
 // compass: variance-authority.reach.relations
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use napi_derive::napi;
 use rayon::prelude::*;
@@ -232,49 +232,94 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: 
 
 /// Every import, by any file on the chain, of `name` out of one of `files`:
 /// the bindings and member reads that take it through a request the index
-/// resolved to one of them, in code-unit order of the importing file. A
-/// relative import is read like one between packages, which `usage` does not
-/// record. Each use's `key` is the specifier as written.
+/// resolved to one of them, ordered by the importing file in code units, then
+/// by line. A relative import is read like one between packages, which `usage`
+/// does not record. Each use's `key` is the specifier as written.
+///
+/// An `export { name } from` passes the name on and is no use. The file that
+/// writes it is followed instead, under the name it exports, so an import
+/// through a barrel is listed and the barrel is not.
 pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &str) -> Vec<NameUse> {
-    let wanted: HashSet<&str> = files.iter().map(String::as_str).collect();
+    let folded = fold(layers);
+    let mut seen: HashSet<(String, String)> = files.iter().map(|file| (file.clone(), name.to_owned())).collect();
+    let mut wanted: HashMap<String, HashSet<String>> = HashMap::new();
+    for file in files {
+        wanted.entry(file.clone()).or_default().insert(name.to_owned());
+    }
+    let mut found = Vec::new();
+    while !wanted.is_empty() {
+        let (uses, passed) = importers_of(root, layers, &folded, &wanted);
+        found.extend(uses);
+        wanted = HashMap::new();
+        for (file, exported) in passed {
+            if seen.insert((file.clone(), exported.clone())) {
+                wanted.entry(file).or_default().insert(exported);
+            }
+        }
+    }
+    found.sort_by(|a, b| crate::order::code_unit(&a.at, &b.at).then(a.line.cmp(&b.line)));
+    found
+}
+
+/// One step of `importers`: the uses of each wanted name out of its file, and
+/// each `(file, name)` a re-export passes one of them on as.
+fn importers_of(
+    root: &str,
+    layers: &[Layer],
+    folded: &HashMap<&str, At>,
+    wanted: &HashMap<String, HashSet<String>>,
+) -> (Vec<NameUse>, Vec<(String, String)>) {
     let lands = |at: At| {
         let (stored, records) = (&layers[at.0].stored, &layers[at.0].records);
         records.targets_present[at.1] == 1
-            && records.targets.range(at.1).any(|target| stored.optional(records.target_path.at(target)).is_some_and(|path| wanted.contains(path)))
+            && records.targets.range(at.1).any(|target| stored.optional(records.target_path.at(target)).is_some_and(|path| wanted.contains_key(path)))
     };
-    let mut crossings: Vec<Crossing> = fold(layers)
-        .into_iter()
-        .filter(|&(_, at)| lands(at))
-        .map(|(file, at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
+    let mut crossings: Vec<Crossing> = folded
+        .iter()
+        .filter(|&(_, &at)| lands(at))
+        .map(|(&file, &at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
         .collect();
     crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
     join_parses(layers, &mut crossings);
     let paths = beside(root, crossings.iter().map(|crossing| crossing.file));
     let owners = owners(root, &paths);
-    let parts: Vec<Vec<NameUse>> = crossings
+    let parts: Vec<(Vec<NameUse>, Vec<(String, String)>)> = crossings
         .par_iter()
         .map(|crossing| {
-            let Some((layer, row)) = crossing.parse else { return Vec::new() };
+            let (mut found, mut passed) = (Vec::new(), Vec::new());
+            let Some((layer, row)) = crossing.parse else { return (found, passed) };
             let (stored, records) = (&layers[crossing.at.0].stored, &layers[crossing.at.0].records);
             let resolved: Vec<Option<&str>> =
                 records.targets.range(crossing.at.1).map(|target| stored.optional(records.target_path.at(target))).collect();
             let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
             // A record whose targets do not line up with the parse's requests answers none of them.
-            if resolved.len() != parses.requests.range(row).len() { return Vec::new(); }
+            if resolved.len() != parses.requests.range(row).len() { return (found, passed); }
             let first = parses.requests.at(row) as usize;
             let by = match owners.files.get(crossing.file) {
                 Some(&(owner, _)) if owner != NO_OWNER => owners.packages[owner as usize].name.as_str(),
                 _ => "",
             };
             let kind = kind_of(crossing.file);
-            let mut found = Vec::new();
             for request in parses.requests.range(row) {
-                if !resolved[request - first].is_some_and(|path| wanted.contains(path)) { continue; }
+                let Some(names) = resolved[request - first].and_then(|path| wanted.get(path)) else { continue };
+                if text.text(parses.request_kind.at(request)) == "reexports" {
+                    for binding in parses.request_bindings.range(request) {
+                        if names.contains(text.text(parses.binding_imported.at(binding))) {
+                            passed.push((crossing.file.to_owned(), text.text(parses.binding_local.at(binding)).to_owned()));
+                        }
+                    }
+                    continue;
+                }
                 let written = text.text(parses.request_value.at(request));
-                found.extend(taken(&layers[layer], row, request, written, by, crossing.file, kind).into_iter().filter(|taken| taken.name == name));
+                found.extend(taken(&layers[layer], row, request, written, by, crossing.file, kind).into_iter().filter(|taken| names.contains(&taken.name)));
             }
-            found
+            (found, passed)
         })
         .collect();
-    parts.into_iter().flatten().collect()
+    let (mut found, mut passed) = (Vec::new(), Vec::new());
+    for (uses, passes) in parts {
+        found.extend(uses);
+        passed.extend(passes);
+    }
+    (found, passed)
 }

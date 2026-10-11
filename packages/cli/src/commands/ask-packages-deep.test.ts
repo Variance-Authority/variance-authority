@@ -169,6 +169,9 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(symbol.code).toBe(EXIT_CLEAN);
     expect(symbol.out).toContain("import { greet } from '@acme/lib';");
     expect(symbol.out).toContain('declared at packages/lib/src/greet.ts:1');
+    expect(symbol.out).toContain(
+      'docs_uses names the 1 place another package imports this, and the imports within its own package, nearest to a file you name first.',
+    );
 
     const uses = await run(['ask', 'uses', '--name', 'greet']);
     expect(uses.code).toBe(EXIT_CLEAN);
@@ -176,19 +179,31 @@ describe('variance ask over a private app that reaches into another package', ()
   });
 
   it('answers `uses` for a published name with the imports within its own package as well as across one', async () => {
-    // One of several names a list takes, and the barrel that passes it on is not a use.
+    // One of several names a list takes. A re-export passes the name on and is
+    // no use; an import of what it passes on is, under the name it passes. A
+    // file that re-exports the name and imports it too is listed for the
+    // import, and a same-named export of another file is another name.
     checkout({
       'packages/lib/src/greet.ts': "export const hello = 'hello';\nexport function greet(name: string): string {\n  return name;\n}\n",
       'packages/lib/src/greeting.ts': "import { hello, greet } from './greet.js';\nexport const greeting = greet(hello);\n",
+      'packages/lib/src/both.ts': "export { greet } from './greet.js';\nimport { greet } from './greet.js';\nexport const both = greet('both');\n",
+      'packages/lib/src/barrelled.ts': "import { greet } from './index.js';\nexport const barrelled = greet('barrel');\n",
+      'packages/lib/src/alias.ts': "export { greet as salute } from './greet.js';\n",
+      'packages/lib/src/saluted.ts': "import { salute } from './alias.js';\nexport const saluted = salute('alias');\n",
+      'packages/lib/src/other.ts': 'export const greet = 1;\n',
+      'packages/lib/src/unrelated.ts': "import { greet } from './other.js';\nexport const unrelated = greet;\n",
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`greet` is imported in 2 places.');
-    expect(out).not.toContain('packages/lib/src/index.ts');
+    expect(out).toContain('`greet` is imported in 5 places.');
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app$/m);
     expect(out).toMatch(/^packages\/lib\/src\/greeting\.ts:1 — @acme\/lib$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/both\.ts:2 — @acme\/lib$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/barrelled\.ts:1 — @acme\/lib$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/saluted\.ts:1 — @acme\/lib$/m);
+    expect(out).not.toMatch(/both\.ts:1|index\.ts|alias\.ts|unrelated\.ts/);
   });
 
   it('counts a published name read off `import x = require()` in another package, in `uses` and in `symbol`', async () => {

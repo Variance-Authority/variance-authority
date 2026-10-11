@@ -49,11 +49,11 @@ import { UNCOUNTED, exportedAt, exportsNamed, importsOf, indexMissing, indexUnre
  *
  * ## An import within the package is a site
  *
- * The Help value records the imports that cross a package. Every import within
- * the package that exports the name — published or not — is read off the
- * source index: an import that resolved to a file of that package exporting
- * it. A name a file exports and no entry publishes is answered from there
- * alone.
+ * The Help value records the imports that cross a package. The rest are read
+ * off the source index: every import that resolved to the file declaring the
+ * name, or to a file that passes it on with `export … from`, which is followed
+ * under the name it exports and is not itself a use. A name a file exports and
+ * no entry publishes is answered from there alone.
  */
 
 /** A site, and how it names the module it imports when that is a file path. */
@@ -172,15 +172,14 @@ export const uses: Tool<Help> = {
       .map((site) => ({ ...site.taken, how: how(site) }));
     const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
     if (found.length === 0 && byPath.length === 0 && exported.length === 0) throw new Error(unfound(help, name, wanted));
-    // The Help value holds the imports that cross a package; the ones within the
-    // publishing package are read off the source index, from every file of it
-    // that exports the name — the declaration and each file that passes it on.
-    const owners = new Set(found.map(([published]) => published.name));
-    const local = found.length === 0 ? exported : exportsNamed(help, name, undefined).filter((held) => owners.has(held.by));
+    // The Help value holds the imports that cross a package; the rest are read
+    // off the source index, out of the file that declares the name. The index
+    // follows each `export … from` that passes it on, so an import through a
+    // barrel is listed and the barrel is not, and a same-named export of
+    // another file is not this name.
+    const local = found.length === 0 ? [...new Set(exported.map((held) => held.at))] : [...declared];
     const root = invocation?.root;
-    // A file that exports the name itself passes it on: it is a door, not a use.
-    const doors = new Set(local.map((held) => held.at));
-    const within = local.length === 0 || root === undefined ? undefined : importsOf(root, local, name)?.filter((use) => !doors.has(use.at));
+    const within = local.length === 0 || root === undefined ? undefined : importsOf(root, local, name);
     if (exported.length > 0 && within === undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, root));
 
     const sites = sitesOf(found, byPath, within ?? []);

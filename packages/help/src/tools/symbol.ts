@@ -125,7 +125,7 @@ export const symbol: Tool<Help> = {
     const shown =
       written === 0
         ? []
-        : [`\ndocs_uses names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this, and the imports within its own, nearest to a file you name first.`];
+        : [`\ndocs_uses names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this, and the imports within its own package, nearest to a file you name first.`];
 
     return [block(first[0], first[1], first[2]), ...also, ...shown].join('\n');
   },
@@ -191,7 +191,7 @@ function declaration(help: Help, name: string, site: PathSite): { readonly at: s
 function exportedOnly(name: string, exported: readonly Named[], root: string | undefined): string {
   return exported
     .map((held) => {
-      const imports = root === undefined ? undefined : importsOf(root, [held], name);
+      const imports = root === undefined ? undefined : importsOf(root, [held.at], name);
       return [
         name,
         `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,

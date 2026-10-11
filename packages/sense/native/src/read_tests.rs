@@ -149,14 +149,16 @@ fn a_member_is_read_through_a_namespace_and_every_import_call_holder() {
 #[test]
 fn a_member_is_read_through_an_import_equals_require() {
     // TypeScript's `import x = require('m')` holds the module whole, as a
-    // namespace import does; its request follows the stated ones and every
-    // `import()`, so `./later`'s read names the index past it.
+    // namespace import does, from its own line on, as the `const` it compiles
+    // to does; a type-only one holds nothing. Its request follows the stated
+    // ones and every `import()`, so `./later`'s read names the index past it.
     let source = concat!(
+        "whole.early;\n",
         "import whole = require('./whole');\n",
         "import type typed = require('./typed');\n",
         "whole.a;\n",
         "whole['b'];\n",
-        "let t: typed.T;\n",
+        "typed.x;\n",
         "const later = await import('./later');\n",
         "later.c;\n",
     );
