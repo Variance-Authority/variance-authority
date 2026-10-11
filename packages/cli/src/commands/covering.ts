@@ -237,7 +237,7 @@ async function ask(
   const file = request.file;
   const { index, files, before } = await readIndex(from, new Map([[file, []]]));
   const module = index.modules.find((candidate) => candidate.file === file);
-  if (module === undefined) throw unloadedFile(file, from, files);
+  if (module === undefined) throw unloadedFile(file, from, files.length);
 
   const near = await nearbyWitnesses(request as CoveringAt);
   const placement = await placementFor(request, from);

@@ -83,6 +83,9 @@ changed paths it does not hold.
 
 - `packages/core/src/relate/graph.ts` — node and edge kinds, interning, the
   compressed-sparse-row adjacency and its materialized transpose
+- `packages/core/src/relate/carried.ts` — `carried`, the one walk against the
+  arrows: the worklist, each file entered once per name, cycles, and the whole
+  file for a step with no answer; every other walk passes it a step
 - `packages/core/src/relate/reach.ts` — `dependentsOf`, `dependenciesOf`,
   `trailOf`; breadth-first from every seed at once, so the recorded parent lies
   on a shortest path and the printed explanation is the shortest true one

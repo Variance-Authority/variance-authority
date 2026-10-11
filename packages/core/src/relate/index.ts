@@ -38,6 +38,18 @@ export {
 
 export { beyondReach, type BeyondReach, type InstallMoved } from './beyond.js';
 
+export {
+  NOTHING,
+  WHOLE,
+  carried,
+  type CarriedOptions,
+  type CarriedStep,
+  type Carry,
+  type Held,
+  type Reached,
+  type Whole,
+} from './carried.js';
+
 export { dominatorsOf } from './dominate.js';
 
 export { type EdgeUse, type Uses } from './narrow.js';

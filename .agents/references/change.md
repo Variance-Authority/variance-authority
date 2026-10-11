@@ -130,6 +130,14 @@ the site, CLI output and error messages. Read it before writing any of them.
   and we never fix an edge case behind their back. Across a boundary we ride what
   others already carry rather than patching around it or inventing a protocol
   nobody forwards. The user sees what we did, where, and why.
+- **A path is the file.** A path is a file's name relative to the checkout,
+  and two different paths are two different files, entirely and always. Nothing matches a path by its name, a shared suffix or
+  "the same file under another root", and nothing offers the user a path they
+  did not give as the one they meant: a guess at what they meant is magic. The
+  one mapping between paths is built output to its source
+  ([ADR-0080](../../docs/context/adr/0080-built-output-is-read-as-its-source.md)),
+  declared by the configuration that owns it. A path the record does not hold is
+  not held, and the answer says exactly that.
 - **Stop only what you started.** A server you start gets a fixed port and is
   stopped by its pid or by that port (`lsof -tiTCP:<port> -sTCP:LISTEN`), never
   by `pkill -f` or `killall`. Other projects' servers run on the same machine.

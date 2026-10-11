@@ -778,8 +778,9 @@ laptop has.
   `/` part. `root` resolves against the config file's directory.
 - **A publish locks the line** with a `.lock` directory and waits up to 5 s for
   another writer's lock. A wait that ends without the lock is a conflict: it
-  uses one of the 8 attempts, and the publish reads the line again. A lock
-  older than 60 s is taken over, and 8 waits take 40 s, so behind a dead
+  uses one of the 8 attempts, and the publish reads the line again. A writer
+  keeps its lock fresh while it writes; a lock left unrefreshed for 60 s is a
+  dead writer's and is taken over, and 8 waits take 40 s, so behind a dead
   writer's lock less than 20 s old a publish ends with *the line moved under 8
   writes in a row*. Every file is written as a `.part` file and renamed into
   place.

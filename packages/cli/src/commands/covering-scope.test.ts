@@ -14,6 +14,7 @@ const INDEX = {
   tests: [
     { id: 'total.test.ts > discounts', file: 'total.test.ts', name: 'discounts' },
     { id: 'flow.test.tsx > checks out', file: 'flow.test.tsx', name: 'checks out' },
+    { id: 'e2e/cart.test.ts > empties', file: 'e2e/cart.test.ts', name: 'empties' },
   ],
   modules: [{
     file: 'src/total.ts',
@@ -70,12 +71,17 @@ describe('a test read alone', () => {
     expect(answer.scope).toEqual({ cases: 'flow.test.tsx', tests: ['flow.test.tsx > checks out'] });
   });
 
-  it('refuses a test file the index holds no case of, and points at the spelling it does', async () => {
-    const execution = await recorded();
+  it.each(['app/e2e/cart.test.ts', 'e2e/flow.test.tsx'])(
+    'refuses `%s`, a test file the index holds no case of, and names no other path',
+    async (cases) => {
+      const execution = await recorded();
 
-    await expect(covering(parse(['--file', 'src/total.ts', '--cases', 'e2e/flow.test.tsx', '--execution', execution])))
-      .rejects.toThrow(/names no test file.*`flow.test.tsx`/);
-  });
+      const asked = covering(parse(['--file', 'src/total.ts', '--cases', cases, '--execution', execution]));
+
+      await expect(asked).rejects.toThrow(/names no test file the index holds a case of\.$/);
+      await expect(asked).rejects.not.toThrow(/`(e2e\/cart|flow)\.test\.tsx?`/);
+    },
+  );
 
   it('refuses `last` when no run named itself in the record', async () => {
     const execution = await recorded();

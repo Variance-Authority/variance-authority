@@ -144,7 +144,7 @@ const PLACEHOLDER: Readonly<Record<string, string>> = {
   test: '<id>',
   state: '<state>',
   build: '<id>',
-  file: '<text>',
+  file: '<path>',
   files: '<path>[,...]',
   name: '<name>',
   package: '<name>',

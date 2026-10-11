@@ -32,7 +32,7 @@ export interface DistillInput {
    * a file with one case.
    */
   readonly test?: string;
-  /** A part of the path of the file that declares the case, which narrows `test`. */
+  /** The repository-relative path of the file that declares the case, which narrows `test`. */
   readonly file?: string;
   /** The record's case index: the cases, and the regions each one crossed. */
   readonly execution: ExecutionIndex;
