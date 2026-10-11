@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { SourceNames } from './names.js';
 import { readTree } from './tree.js';
 
@@ -16,6 +16,19 @@ import { readTree } from './tree.js';
  *
  * Ten thousand files is where the scan hands the tree to the graph.
  */
+
+// What each scan read again for its declarations, recorded on the way through.
+const reread = vi.hoisted(() => [] as string[][]);
+vi.mock('@variance-authority/sense', async (original) => {
+  const sense = await original<typeof import('@variance-authority/sense')>();
+  return {
+    ...sense,
+    enrichSources: (...args: Parameters<typeof sense.enrichSources>) => {
+      reread.push(args[1].map((subject) => subject.file));
+      return sense.enrichSources(...args);
+    },
+  };
+});
 
 let root: string;
 
@@ -54,7 +67,15 @@ describe('readTree over a checkout the graph reads', () => {
     const index = sourceIndexPath(root);
     rmSync(index, { force: true });
     await updateSourceIndex(root, { index });
+    reread.length = 0;
     expect((await drawn(index))?.get('src/theme.ts')?.declared).toContainEqual({ name: 'ThemeContext', line: 1 });
+    expect(reread.flat()).toContain('src/theme.ts');
+  }, 120_000);
+
+  it('keeps in the index what it read again, so the next question reads nothing twice', async () => {
+    const index = sourceIndexPath(root);
+    reread.length = 0;
     expect((await drawn(index))?.get('src/theme.ts')?.declared).toContainEqual({ name: 'ThemeContext', line: 1 });
+    expect(reread.flat()).toEqual([]);
   }, 120_000);
 });

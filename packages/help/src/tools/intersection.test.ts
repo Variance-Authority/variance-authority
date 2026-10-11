@@ -133,6 +133,22 @@ describe('intersection of whole sets', () => {
     expect(text).not.toContain('src/state/user.ts');
   });
 
+  it('takes out what a path reaches, what reaches it, what imports a name and what declares one', () => {
+    const reached = ask({ ...CONTEXTS, exceptFrom: 'src/nav/Menu.tsx' });
+    expect(reached).toContain('1 file in all of them');
+    expect(reached).not.toContain('src/state/user.ts');
+
+    expect(ask({ from: 'src/TopNav.tsx', exceptTo: 'src/nav/Menu.tsx' })).toContain('4 files in all of them');
+
+    const imported = ask({ from: 'src/TopNav.tsx', exceptImports: 'react#createContext' });
+    expect(imported).toContain('3 files in all of them');
+    expect(imported).not.toContain('src/state/theme.ts');
+
+    const declared = ask({ from: 'src/TopNav.tsx', imports: 'react#createContext', exceptDeclares: '^Theme' });
+    expect(declared).toContain('2 files in all of them');
+    expect(declared).not.toContain('src/state/theme.ts');
+  });
+
   it('keeps a file by its path alone, with no line to show for it', () => {
     const text = ask({ from: 'src/Wallet.tsx', path: '^src/store/' });
     expect(text).toContain('1 file with a path matching /^src/store/');

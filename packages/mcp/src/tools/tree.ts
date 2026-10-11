@@ -322,6 +322,9 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
     // A file read again into the index is saved with its declarations, so the
     // next question is served them. One that could not be read again is left
     // out of the names, which counts it as unread rather than declaring nothing.
+    // FIXME: the first question on a checkout the graph read parses every file a
+    // second time, though only the files the other sets kept need declarations;
+    // unmeasured past ten thousand files.
     const harvested = await scanner.enrichSources(options.root, subjects, source?.cache ?? scanner.memoryParseCache());
     for (const [file, parsed] of harvested) names.set(file, namesOf(parsed, unharvested.get(file)!));
   }
