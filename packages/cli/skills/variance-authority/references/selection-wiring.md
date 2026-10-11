@@ -111,6 +111,19 @@ produces a green report over work nothing checked, and silently. Expect these:
   that setup imports, does not narrow either, and neither does a package the
   harness rests on. A `jsdom` bump that changes a Jest environment a config
   names is one trail, and no file in the repository spells the word.
+- A module a probe cannot sit in does not narrow below the test files that
+  loaded it. A module whose functions a test hands to `page.evaluate` is one:
+  the function runs in the page, and its first probe throws there. Name it in
+  the integration's `unprobed` option (a predicate in Vitest and Rstest, globs
+  in Jest). It then runs with a mark at the end of its text and no probe, so
+  the record holds no line of it, a change to it selects every test file that
+  loaded it, and `variance covering --file` names those files. Left out of
+  `unprobed`, it fails the run where the probe lands.
+- A module a test builds into a bundle and injects into a page is loaded by no
+  test file, so no mark reaches it. Declare the bundle's entry point in the
+  `before` of the suite that injects it: a change to any file below that entry
+  then selects the whole suite. With no entry, the change is answered by the
+  import graph, which does not see the injection.
 
 When an integration reports that it kept the whole suite, read the path it
 names. That is a wiring fact about the project, and usually a fixable one.
