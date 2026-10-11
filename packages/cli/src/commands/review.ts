@@ -38,7 +38,7 @@ import { OperatorError } from '../exit.js';
 import { landingRecord, recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
 import { motionAgainst, motionOfRuns, runsWrote, type CoveringMotion } from './covering-motion.js';
-import { readExecutionIndex, recordedExecutionFile, replacedCases } from './execution-input.js';
+import { readExecutionFor, readExecutionIndex, recordedExecutionFile, replacedCases } from './execution-input.js';
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
 import { reviewedCommit } from './review-head.js';
@@ -282,9 +282,10 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const from = await recordedExecutionFile(root, request.suite, recorded.file);
   const now = inTreeLines(changedLines(backward), root, readings);
   const removed = removedText(forward);
-  const suiteRegions = await recordedRegions(from, now, relations, root, removed);
+  const { index: changedCases } = await readExecutionFor(from, now);
+  const suiteRegions = await recordedRegions(from, changedCases, now, relations, root, removed);
   const covered = request.coverage === true
-    ? await everySuiteRegions(root, { ...(recorded.declared === undefined ? {} : { suite: recorded.declared.name }), record: from }, suiteRegions, now, relations, removed)
+    ? await everySuiteRegions(root, { ...(recorded.declared === undefined ? {} : { suite: recorded.declared.name }), record: from, index: changedCases }, suiteRegions, now, relations, removed)
     : suiteRegions;
   const full = await readExecutionIndex(from);
   const held = await baseIndex(against, from, request.against === undefined && against !== undefined ? mainline : undefined);
@@ -325,7 +326,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   // The named suite's freshness: a module another suite recorded says nothing about whether this one ran.
   const measured = [...suiteRegions].filter(([, answer]) => answer.recorded).map(([file]) => file);
   // A change with no recorded module ran nothing yet.
-  const record = measured.length > 0 && (await ranAsTree(recorded.file, root, measured)).size === measured.length ? 'ran' : 'before';
+  const record = measured.length > 0 && (await ranAsTree(recorded.file, root, measured, changedCases)).size === measured.length ? 'ran' : 'before';
   const head = await reviewedCommit(point.repository);
   return {
     ...(head === undefined ? {} : { head }),

@@ -20,11 +20,13 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
   askCoverageFile,
+  casesCutApart,
   coveringChange,
   coveringTestsInFile,
   distanceToSource,
   hunksOf,
   type CoveringRegion,
+  type ExecutionIndex,
   type LineRange,
   type SourceTestRange,
 } from '@variance-authority/sense/test-selection';
@@ -32,7 +34,6 @@ import { digestString } from '@variance-authority/core/format';
 import type { Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder as order } from '@variance-authority/core/segment';
 import { regionState } from './covering-frame.js';
-import { readExecutionFor } from './execution-input.js';
 import type { Reach, ReviewRegion } from './review.js';
 
 /** The test files near a changed module, and those whose distance to it was not measured. */
@@ -207,18 +208,18 @@ export interface RecordedRegions {
 
 /**
  * Each changed file's regions as one record names them. `now` is the tree's
- * changed lines in the record's names, and `record` the coverage record whose
- * case index the cases are read from and whose tests the distances are
- * measured for.
+ * changed lines in the record's names, `record` the coverage record whose
+ * tests the distances are measured for, and `index` the case index read from
+ * it for `now`, which the cases are read from.
  */
 export async function recordedRegions(
   record: string,
+  index: ExecutionIndex,
   now: ReadonlyMap<string, readonly LineRange[]>,
   relations: Relations,
   root: string,
   removed: Removed,
 ): Promise<ReadonlyMap<string, RecordedRegions>> {
-  const { index } = await readExecutionFor(record, now);
   const covered = coveringChange(index, now, { relations });
   const near = await nearTests(record, covered.filter((file) => file.recorded).map((file) => file.file), relations);
   const answers = new Map<string, RecordedRegions>();
@@ -233,21 +234,26 @@ export async function recordedRegions(
 }
 
 /**
- * The files the record ran as the tree holds them: the digest it took of each
- * module's text, against the text on disk. A file it holds no module for, or
- * that cannot be read, is not one.
+ * The files the record ran as the tree holds them: the digest its snapshot
+ * took of each module's text, against the text on disk. A file it holds no
+ * module for, or that cannot be read, is not one, and neither is one `index`,
+ * the case index read from the record, cut at other text than the snapshot: the
+ * index names no text of its own, and a run that kept no case moves the
+ * snapshot on without it.
  */
-export async function ranAsTree(coverageFile: string, root: string, files: readonly string[]): Promise<ReadonlySet<string>> {
+export async function ranAsTree(coverageFile: string, root: string, files: readonly string[], index: ExecutionIndex): Promise<ReadonlySet<string>> {
   if (files.length === 0) return new Set();
   const recorded = await askCoverageFile(coverageFile, (coverage) => {
     const path = coverage.modulePath.all();
     const source = coverage.moduleSource.all();
     return new Map(Array.from(path, (held, module) => [coverage.string(held), coverage.string(source[module]!)]));
   });
+  const asked = new Set(files);
+  const apart = casesCutApart(coverageFile, index.modules.filter((module) => asked.has(module.file)));
   const ran = new Set<string>();
   for (const file of files) {
     const text = await readFile(resolve(root, file), 'utf8').catch(() => undefined);
-    if (text !== undefined && recorded.get(file) === digestString(text)) ran.add(file);
+    if (text !== undefined && recorded.get(file) === digestString(text) && !apart.has(file)) ran.add(file);
   }
   return ran;
 }

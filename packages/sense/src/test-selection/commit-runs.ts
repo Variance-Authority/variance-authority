@@ -173,6 +173,11 @@ export async function landRun(
   const previous = casesRecordedOver(coverageFile);
   // The run's modules are named with the text each was cut from, so a module
   // re-cut over the text the index already holds lands its cases as its rows do.
+  // FIXME: a run that kept no case carries the index as it was while
+  // `layeredCoverage` re-cuts the snapshot to the text on disk, so the two
+  // name one module at two texts, and the record says which of neither.
+  // `review` reads around it (`casesCutApart`); the index naming the text
+  // each module was cut from would let it re-line or retire them here.
   const laid = cases === undefined
     ? previous
     : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules }, cases.eyes, recordedTexts(coverageFile), before?.commit);
