@@ -31,13 +31,16 @@ import { addressKey, addressOf, pairedRegions, sameNumbering } from './region-ad
  */
 // FIXME: namesakes in a case index pair by nothing across an edit, so their
 // cases are dropped and each namesake takes the cases around it, where the rows
-// of the same module pair them by body. The index records no digest, and the
-// rows the snapshot holds for the module are not read where a run lands, nor
-// always cut at the text the index was. An index cut at an older text whose
-// regions all stand at the lines the newer one put them is read as cut at the
-// newer text, so namesakes rewritten in place still pair by occurrence there.
-// Carrying each region's digest in the index would pair both as `mergeCoverage`
-// does.
+// of the same module pair them by body. The index records no digest. A landing
+// lays a module no run re-recorded onto the rows the snapshot re-cut it to
+// (`case-cuts.ts`), but reads those rows as lines and addresses, without the
+// digests that paired them, and a run that re-records a module reads none of
+// its rows. An index cut at an older text whose regions all stand at the lines
+// the newer one put them is read as cut at the newer text, so namesakes swapped
+// or rewritten in place still pair by occurrence there, and `case-cuts.ts`
+// leaves such a module as it stands (the `it.todo` in
+// `case-layer-namesakes.test.ts`). Carrying each region's digest in the index
+// would pair both as `mergeCoverage` does.
 export function relined(held: SetExecutionModule, recorded: SetExecutionModule): SetExecutionModule | undefined {
   if (cutAlike(held, recorded)) return held;
   if (!sameNumbering(held.blocks, recorded.blocks)) return undefined;

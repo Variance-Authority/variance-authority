@@ -55,4 +55,13 @@ describe('siblings told apart only by occurrence, one taken out in front and one
     expect(effects(merged)).toEqual([[alpha, beta], [alpha, beta]]);
     expect(linesOf(before)).toEqual([1, 2]);
   });
+
+  // The run's cut holds the effects at lines 2-4 and 6-8, and the snapshot
+  // names the index at the text the run recorded. The index was cut at an
+  // older text whose two effects were the same length and swapped, or whose
+  // first was taken out with one as long written behind the second, so every
+  // region stands where the newer text put one and the cut reads as alike.
+  // Paired by occurrence, alpha lands on beta's body (FIXME in
+  // `region-landing.ts`).
+  it.todo('carries neither effect\'s cases onto the one at its occurrence when an older text put both effects at the lines the recorded one does');
 });
