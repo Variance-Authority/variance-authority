@@ -33,6 +33,18 @@ function indexed(file: string, lines: { readonly applyDiscount: readonly [number
   };
 }
 
+/** `of` with the region named `name` written by a transform with no line of its own. */
+function placeless(of: TestCoverage['modules'][number], name: string): TestCoverage['modules'][number] {
+  return {
+    ...of,
+    blocks: of.blocks.map((block) => {
+      if (block.name !== name) return block;
+      const { startLine: _startLine, endLine: _endLine, ...rest } = block;
+      return rest;
+    }),
+  };
+}
+
 const BASE = { applyDiscount: [1, 3], round: [5, 7] } as const;
 const LEAD = { applyDiscount: [2, 4], round: [6, 8] } as const;
 
@@ -45,12 +57,16 @@ describe('a case index read beside the snapshot it was recorded with', () => {
     instrumentation: 'fixture',
     commit: 'a'.repeat(40),
     tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
-    modules: [module('src/moved.ts', LEAD), module('src/still.ts', LEAD)],
+    modules: [module('src/moved.ts', LEAD), module('src/still.ts', LEAD), placeless(module('src/written.ts', LEAD), 'applyDiscount')],
   }));
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
   it('names a file whose index stands at the lines of the text before', () => {
     expect([...casesCutApart(record, [indexed('src/moved.ts', BASE), indexed('src/still.ts', LEAD)])]).toEqual(['src/moved.ts']);
+  });
+
+  it('does not name a file only by a region the snapshot holds no line for', () => {
+    expect(casesCutApart(record, [indexed('src/written.ts', { applyDiscount: BASE.applyDiscount, round: LEAD.round })]).size).toBe(0);
   });
 
   it('does not name a file the snapshot holds no row for', () => {
