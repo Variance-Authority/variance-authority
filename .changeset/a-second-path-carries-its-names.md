@@ -13,7 +13,8 @@ as `ceiling`, a change to `LIMIT` never asked `gauge.ts` about `ceiling`, and a
 test calling the function that returns it was left out. Now a file reached again
 is asked about the names that path carries and no earlier one did. Each file is
 still read at most once per name, so the walk costs what it did when every path
-carries the same name.
+carries the same name, plus one read of the declaring file when an import brings
+its value back to it.
 
 The declaring file is now one of the files asked. A file that read its own value
 through an import, such as `self.LIMIT` after `import * as self from './limits'`,

@@ -26,6 +26,10 @@ export type Carried = ReadonlyMap<string, string>;
  * is asked once per importer, since a reader matches an imported name whatever
  * module it came from, and the names asked of a file only grow: the walk ends,
  * and visits each importer at most once per distinct name that reaches it.
+ *
+ * Every direct importer is asked, whatever names it binds: a caller that counts
+ * the tests behind the importers it was shown as explained relies on seeing
+ * every edge into `id`.
  */
 export function walkImporters(
   relations: Relations,

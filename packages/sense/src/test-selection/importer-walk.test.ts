@@ -59,6 +59,17 @@ describe('the walk against the arrows', () => {
     expect(walk(relations, 'a.ts', total, onward)).toEqual(['a.ts: total', 'b.ts: total']);
   });
 
+  it('asks an importer that imports itself about the new names it hands on, once, and ends', () => {
+    const relations = relationsOf({
+      relations: [imports('b.ts', 'a.ts'), imports('b.ts', 'b.ts'), imports('c.ts', 'b.ts')],
+    });
+
+    const asked = walk(relations, 'a.ts', total, (importer, moved) =>
+      importer === 'b.ts' ? new Map([...moved, ['sum', 'total']]) : moved);
+
+    expect(asked).toEqual(['b.ts: total', 'b.ts: sum', 'c.ts: total, sum']);
+  });
+
   it('stops behind an importer that hands nothing on', () => {
     const relations = relationsOf({ relations: [imports('b.ts', 'a.ts'), imports('c.ts', 'b.ts')] });
 
