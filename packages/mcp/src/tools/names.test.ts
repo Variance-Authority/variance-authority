@@ -78,6 +78,7 @@ describe('readTree draws the names with the tree when asked', () => {
     write('src/theme.ts', "import { createContext } from 'react';\nexport const ThemeContext = createContext(0);\n");
     write('src/passed.ts', "import { ThemeContext } from './theme';\nexport default ThemeContext;\nexport { ThemeContext as Renamed };\n");
     write('src/made.ts', 'export default function make() {}\n');
+    write('src/spaced.ts', "import * as theme from './theme';\nexport { theme };\n");
   });
 
   afterAll(() => rmSync(root, { recursive: true, force: true }));
@@ -96,5 +97,6 @@ describe('readTree draws the names with the tree when asked', () => {
     await readTree({ root, names: (names) => { drawn = names; } });
     expect(drawn?.get('src/passed.ts')?.declared).toEqual([]);
     expect(drawn?.get('src/made.ts')?.declared).toEqual([{ name: 'make', line: 1 }]);
+    expect(drawn?.get('src/spaced.ts')?.declared).toEqual([]);
   });
 });
