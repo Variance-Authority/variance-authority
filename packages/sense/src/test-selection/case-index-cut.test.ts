@@ -57,7 +57,7 @@ describe('a case index read beside the snapshot it was recorded with', () => {
     instrumentation: 'fixture',
     commit: 'a'.repeat(40),
     tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
-    modules: [module('src/moved.ts', LEAD), module('src/still.ts', LEAD), placeless(module('src/written.ts', LEAD), 'applyDiscount')],
+    modules: [module('src/moved.ts', LEAD), module('src/still.ts', LEAD), placeless(module('src/written.ts', LEAD), 'applyDiscount'), module('src/renamed.ts', LEAD)],
   }));
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -67,6 +67,16 @@ describe('a case index read beside the snapshot it was recorded with', () => {
 
   it('does not name a file only by a region the snapshot holds no line for', () => {
     expect(casesCutApart(record, [indexed('src/written.ts', { applyDiscount: BASE.applyDiscount, round: LEAD.round })]).size).toBe(0);
+  });
+
+  it('names a file whose index holds regions and shares none with the snapshot', () => {
+    const before = indexed('src/renamed.ts', BASE);
+    const renamed = { file: before.file, blocks: before.blocks.map((block) => ({ ...block, name: `${block.name}Before`, path: `${block.path}Before` })) };
+    expect([...casesCutApart(record, [renamed])]).toEqual(['src/renamed.ts']);
+  });
+
+  it('does not name a file whose index holds no region', () => {
+    expect(casesCutApart(record, [{ file: 'src/renamed.ts', blocks: [] }]).size).toBe(0);
   });
 
   it('does not name a file the snapshot holds no row for', () => {

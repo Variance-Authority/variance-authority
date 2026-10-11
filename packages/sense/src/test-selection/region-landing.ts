@@ -65,6 +65,11 @@ export function cutAlike(held: Cut, recorded: Cut): boolean {
   return true;
 }
 
+/** Whether some region of `held` lands on one of `recorded`: the two cuts hold an address in common. */
+export function sharesRegion(held: Cut, recorded: Cut): boolean {
+  return landedOn(held, recorded).size > 0;
+}
+
 /** Each held region a recorded one lands on, by {@link landing} over one text, and the recorded one. */
 function landedOn(held: Cut, recorded: Cut): Map<number, number> {
   const to = new Map<number, number>();
