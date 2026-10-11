@@ -10,17 +10,21 @@
  * door.
  */
 
-/** The door: how Playwright's client runs a call it does not report. */
+/**
+ * The door: how Playwright's client runs a call it does not report. Clients
+ * before the options object took a bare `isInternal` flag in its place, which
+ * the object, being truthy, also sets; only the installed version is run.
+ */
 interface WrapsApiCalls {
   readonly _wrapApiCall: <Result>(call: () => Promise<Result>, options: { readonly internal: boolean }) => Promise<Result>;
 }
 
 /**
- * Run `call` as one of Playwright's internal calls on `page`, so every call it
- * makes on the page joins it unreported. A page that is not Playwright's — a
- * test's stand-in — runs it as it is.
+ * Run `call` as one of Playwright's internal calls on `target`, a page or a
+ * frame, so every call it makes there joins it unreported. A target that is not
+ * Playwright's — a test's stand-in — runs it as it is.
  */
-export function quietly<Result>(page: object, call: () => Promise<Result>): Promise<Result> {
-  const client = page as Partial<WrapsApiCalls>;
+export function quietly<Result>(target: object, call: () => Promise<Result>): Promise<Result> {
+  const client = target as Partial<WrapsApiCalls>;
   return typeof client._wrapApiCall === 'function' ? client._wrapApiCall(call, { internal: true }) : call();
 }

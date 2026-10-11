@@ -16,8 +16,8 @@ CommonJS. Over a probed Storybook build the lines add 2.4% to the record, and
 the duration stays inside its run-to-run spread. Draining before each statement
 also reads a document before a `goto` replaces it, so a case's crossings now
 include what that document reached. A drain, the teardown's included, no longer
-shows as an `Evaluate` step in the report, the trace or the inspector. Pass
-`cadence: false` to compile specs as
-Playwright would and write no lines. `@variance-authority/sense/instrument`
+shows as an `Evaluate` step in the report, the trace or the inspector.
+`ExecutionRecorder.note` takes the optional `line` a drain followed. Pass
+`cadence: false` to compile specs as Playwright would and write no lines. `@variance-authority/sense/instrument`
 exports `cadence` and `columnBehindCut`, the cut and its column map, for a
 transform that cuts test files itself.
