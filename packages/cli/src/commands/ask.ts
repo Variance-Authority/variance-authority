@@ -1,10 +1,8 @@
-import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import type { RunReport } from '@variance-authority/report';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
 import { crossingOf, type Crossing } from '../ask-args.js';
-import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, questionFor, questionOf, refuseWords, type Question } from './asking.js';
@@ -13,6 +11,7 @@ import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
 import { readTree, type CostsSubject, type Reviewed, type ReviewTool, type Tree } from '@variance-authority/mcp/tools';
+import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
 import { grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
@@ -81,14 +80,7 @@ export { costsSubject } from './ask-costs.js';
  * answer here exits `0`; the run's verdict stays where it was decided.
  */
 
-/**
- * Where the subject of the previous answer is kept, beside the report it is about.
- *
- * In the report's directory rather than a cache of this tool's own, because it is
- * a fact about *that artifact* and it should disappear with it. It is derived and
- * disposable: deleting it costs the next `diff` its comparison and nothing else.
- */
-export const ASKED = 'asked.json';
+export { ASKED } from './ask-previous.js';
 
 export interface AskRequest extends Crossing {
   /** The question. Absent asks for the list of them, which is the MCP handshake. */
@@ -463,41 +455,4 @@ function flagged(request: Flagged): Readonly<Record<string, unknown>> {
     offset: request.offset,
     ...crossingOf(request),
   };
-}
-
-/**
- * The subject of the previous answer, or nothing.
- *
- * Unreadable is the same as absent here, and only here. It is a derived file in
- * the run's own output directory, not evidence: the state it holds was written
- * by this command and can be reproduced by asking again, so refusing to answer
- * because a cache is malformed would withhold the report over the one file in
- * this system that nobody has to keep.
- */
-async function recorded(path: string): Promise<RunReport | undefined> {
-  try {
-    return JSON.parse(await readFile(path, 'utf8')) as RunReport;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * Record what this answer was read from, or say that it could not be.
- *
- * Loud rather than best-effort. A silent failure here does not spoil this
- * answer; it spoils the *next* `diff`, which would then report that nothing has
- * changed since a run it never saw — and that answer arrives with nothing
- * attached to say it was built on a write that did not happen.
- */
-async function record(path: string, report: RunReport): Promise<void> {
-  try {
-    await writeFile(path, `${JSON.stringify(report)}\n`, 'utf8');
-  } catch (error) {
-    throw new OperatorError(
-      `the answer could not be recorded to \`${path}\`: ${messageOf(error)}. Each answer ` +
-        'replaces the state `ask diff` compares against, so leaving it unwritten would let a ' +
-        'later diff answer from a run nobody read.',
-    );
-  }
 }
