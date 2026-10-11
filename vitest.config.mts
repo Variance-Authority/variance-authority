@@ -71,8 +71,10 @@ const TEST = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
  * Everything the runner transforms, minus the modules that cannot hold a probe.
  *
  * The subtraction is `tools/page-side.mjs`, which explains itself and names its
- * own check. Nothing is subtracted quietly: every entry there is a module whose
- * functions leave this process, and the list exists because the alternative —
+ * own check. Nothing is subtracted quietly: every entry there is a module that
+ * is sent to a page whole, or the probe runtime itself — a module that sends
+ * only its own functions keeps its probes outside them — and the list exists
+ * because the alternative —
  * a probe that tolerates its own absence — was tried and rejected.
  */
 const source = (file: string) => (PRODUCT.test(file) || BUILT.test(file)) && MODULE.test(file) && !TEST.test(file);

@@ -75,7 +75,15 @@ never an empty region list: only the caller can keep those apart, and it widens
 to the whole module. A probe stays in its instrumented realm — source
 re-evaluated elsewhere has lost the generated declarations and throws at its
 first probe, which makes an incomplete configuration visible rather than
-silently dropping evidence.
+silently dropping evidence. The exception is the one a module's own text
+declares: a function it hands to a page through a serializing call, written at
+the call or bound in the module, is found from the call and left without a
+probe, so its text belongs to the enclosing region and the rest of the module
+keeps its probes. A declaration is hoisted, so one written after a branch that
+can leave, or under any case of a `switch`, opens a region probed where its
+block is entered, and its text is charged to every test that entered the block.
+A function written in another module and sent from this one cannot be seen from
+either text, and stays the configuration's to exclude.
 
 A module the integration's `unprobed` option names (a predicate in Vitest and
 Rstest, globs in Jest) is not probed at all. It runs with a mark at the end of
@@ -92,6 +100,8 @@ its own probes handed back with none in it, carry the same mark.
   addon's columns read back as regions
 - `packages/sense/native/instrument/src/walk.rs` — the descent that applies the
   arrival rule, region identity, and where a module header may be inserted
+- `packages/sense/native/instrument/src/crossing.rs` — the functions a module
+  hands to another realm as text, found from the calls that send them
 - `packages/sense/native/instrument/src/lib.rs` — the instrumenter crate a Rust
   pipeline links from `node_modules`: `instrument`, `module_id` and `recipe`
 - `packages/sense/native/instrument/src/header.rs` — the one author of the

@@ -711,7 +711,9 @@ below is one stage of that call.
    declared file, or an importer that starts or stops loading one, is `load`,
    and its reading lists the declared files in `effects`. A test that crossed the
    changed module through no importer the graph holds is listed in `unseen` and
-   charged nothing. `load` charges the lines as step 4 does. Under `bodies`
+   charged nothing. An importer whose text cannot be read charges its module,
+   or, with no row, every test step 6's walk finds behind it. `load` charges
+   the lines as step 4 does. Under `bodies`
    or `values`, text inserted in a gap no region spans charges nothing. A file
    without `sourceAt`, whose hunks do not apply to the recorded text, whose
    text does not parse, or on a machine without the scanner's native addon is
@@ -822,7 +824,7 @@ and `shared` the subset of `hits` whose counter had the `EVALUATING` bit set.
 already above zero in the snapshot the setup file took before the file's first
 test: regions covered as a consequence of loading. Presence only: the counts
 never leave the process. The ordinals index the recipe the build instrumented
-under — `sense:instrument/presence-v5`, or `sense:instrument/entries-v2` when
+under — `sense:instrument/presence-v6`, or `sense:instrument/entries-v3` when
 the seam was asked for `mode: 'entries'`, which numbers the module and each
 function and nothing between — and every reader refuses a journal or
 snapshot cut under the other.
@@ -878,7 +880,7 @@ covered under that id. [`journeys.md`](journeys.md) is their page. The type
 ```json
 {
   "version": 1,
-  "instrumentation": "sense:instrument/presence-v5",
+  "instrumentation": "sense:instrument/presence-v6",
   "head": "api",
   "scope": "journey",
   "lost": 0,

@@ -67,7 +67,7 @@ import java.util.TreeSet;
 public final class Coverage {
   private static final int FORMAT = 8;
   private static final int MODEL = 3;
-  private static final String INSTRUMENTATION = "sense:instrument/entries-v2";
+  private static final String INSTRUMENTATION = "sense:instrument/entries-v3";
   private static final int NO_OWNER = 0xffffffff;
   private static final int KIND_MODULE = 0;
   private static final int KIND_FUNCTION = 1;
