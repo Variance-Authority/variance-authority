@@ -389,6 +389,27 @@ pub(crate) fn join_parses(layers: &[Layer], crossings: &mut [Crossing]) {
     }
 }
 
+/// What the republishing request `request` of the parse at `row` passes on:
+/// each `(imported, exported)`, `imported` being `*` for a star and `exported`
+/// absent for a bare `export *`. It is read from the parse's exports, not the
+/// request's bindings, for the reason `uses.ts` gives, and a type-only export
+/// passes nothing on. `None` when the parse never recorded its export list,
+/// which reads as the whole module.
+pub(crate) fn passed_on<'a>(layer: &'a Layer<'a>, row: usize, request: usize) -> Option<Vec<(&'a str, Option<&'a str>)>> {
+    let (text, parses) = (&layer.stored, &layer.parses);
+    if parses.exports_present[row] != 1 {
+        return None;
+    }
+    let value = text.text(parses.request_value.at(request));
+    let passed = parses
+        .exports
+        .range(row)
+        .filter(|&export| parses.export_type[export] != 1 && text.optional(parses.export_from.at(export)) == Some(value))
+        .map(|export| (text.optional(parses.export_imported.at(export)).unwrap_or("*"), text.optional(parses.export_exported.at(export))))
+        .collect();
+    Some(passed)
+}
+
 /// The names one crossing record takes across a package line, once each per
 /// other package; `None` when its parse is not there or does not line up with
 /// its targets, which `usesByTarget` refuses in the same way.
@@ -411,18 +432,9 @@ fn units<'a>(layers: &'a [Layer<'a>], owners: &Owners, parties: &Parties, crossi
         }
         let mut names: Vec<&str> = Vec::new();
         if text.text(parses.request_kind.at(request)) == "reexports" {
-            // What a republishing request passes on is in the parse's exports,
-            // not its bindings, for the reason `uses.ts` gives.
-            // An export list the parse never recorded reads as the whole module.
-            if parses.exports_present[parse_row] != 1 {
-                names.push("*");
-            }
-            let value = text.text(parses.request_value.at(request));
-            let listed = if parses.exports_present[parse_row] == 1 { parses.exports.range(parse_row) } else { 0..0 };
-            for export in listed {
-                if parses.export_type[export] != 1 && text.optional(parses.export_from.at(export)) == Some(value) {
-                    names.push(text.optional(parses.export_imported.at(export)).unwrap_or("*"));
-                }
+            match passed_on(&layers[parse_layer], parse_row, request) {
+                Some(passed) => names.extend(passed.into_iter().map(|(imported, _)| imported)),
+                None => names.push("*"),
             }
         } else {
             for binding in parses.request_bindings.range(request) {

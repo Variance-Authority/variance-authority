@@ -69,10 +69,12 @@ impl<'l> Loads<'l> {
         }
     }
 
-    pub(crate) fn import_equals(&mut self, it: &TSImportEqualsDeclaration) {
-        if let TSModuleReference::ExternalModuleReference(reference) = &it.module_reference {
-            self.required.push(self.request(&reference.expression.value, Kind::Imports, reference.span.start));
-        }
+    /// The index in `required` of the request this declaration makes, and none
+    /// when it aliases a namespace rather than requiring a module.
+    pub(crate) fn import_equals(&mut self, it: &TSImportEqualsDeclaration) -> Option<u32> {
+        let TSModuleReference::ExternalModuleReference(reference) = &it.module_reference else { return None };
+        self.required.push(self.request(&reference.expression.value, Kind::Imports, reference.span.start));
+        Some(self.required.len() as u32 - 1)
     }
 
     fn request(&self, value: &str, kind: Kind, at: u32) -> Request {
