@@ -4,7 +4,7 @@ import { declaredSuites } from '@variance-authority/sense/test-selection';
 import type { ParsedReview } from '../review-args.js';
 import { review, type Reach, type Review, type ReviewRegion } from './review.js';
 import { functionOf, uncovered } from './review-scope.js';
-import { eachSuite, type MissedSuite } from './review-suites.js';
+import { eachSuite, nearestOfEach, NEAREST, type MissedSuite } from './review-suites.js';
 import { FRESH_MARK, MARK, REACH_WORD } from './review-text.js';
 
 /** The line a pull request body's handover starts at: a re-run replaces everything up to {@link HANDOVER_END}. */
@@ -41,8 +41,6 @@ export async function handover(request: ParsedReview): Promise<readonly Handover
   return eachSuite(request.root, read);
 }
 
-/** Nearest first in what a reviewer should open: nothing reached it, then new and not run yet, then reached only from afar. */
-const ORDER: readonly (Reach | 'fresh')[] = ['hole', 'unwalked', 'unknown', 'fresh', 'loaded', 'unplaced', 'far', 'near'];
 /** The same distances, counted. */
 const COUNTED: Readonly<Record<Reach, string>> = {
   ...REACH_WORD, unplaced: 'at a distance not measured', loaded: 'run only while their module loaded',
@@ -74,7 +72,7 @@ interface Crumb {
  */
 export function formatHandover(sections: readonly HandoverSection[]): string {
   const read = sections.filter((section): section is Extract<HandoverSection, { review: Review }> => 'review' in section);
-  const crumbs = byFunction(nearestOfEach(read.flatMap(({ suite, review: answer }) => answer.files.flatMap((file) => (file.regions ?? []).map((region) => ({
+  const crumbs = byFunction(withoutTopLevel(read.flatMap(({ suite, review: answer }) => answer.files.flatMap((file) => (file.regions ?? []).map((region) => ({
     file: file.file, region, ...(suite === undefined ? {} : { suite }), ran: answer.record === 'ran',
     fresh: answer.record === 'before' && region.edit === 'new' && region.cases === 0,
   }))))));
@@ -132,24 +130,9 @@ function gapOf(part: Part): string {
   return part.ran ? 'with code no case ran' : 'with code the record holds no case for';
 }
 
-/**
- * Each changed region once, answered for by the suite whose cases came nearest.
- * A file a suite ran on the change read is answered by the runs on the change
- * alone: a record from before the change places the edit by its old lines,
- * counts what the edit moved as written, and its cases reached the old code.
- */
-function nearestOfEach(parts: readonly Part[]): Part[] {
-  const keyOf = (part: Part) => `${part.file}\0${part.region.startLine}\0${part.region.endLine}\0${part.region.name}`;
-  const ran = new Set(parts.filter((part) => part.ran).map((part) => part.file));
-  const nearest = new Map<string, Part>();
-  for (const part of parts) {
-    const key = keyOf(part);
-    if (!part.ran && ran.has(part.file)) continue;
-    const held = nearest.get(key);
-    if (held === undefined || rank(part) > rank(held) || (rank(part) === rank(held) && part.region.cases > held.region.cases)) nearest.set(key, part);
-  }
-  // A module's own top level runs on any import: a near or loading one says nothing about the change.
-  return [...nearest.values()].filter(({ region }) => !(region.kind === 'module' && (region.reach === 'near' || region.reach === 'loaded')));
+/** Each changed region once, by {@link nearestOfEach}, without a module's own top level, which runs on any import: a near or loading one says nothing about the change. */
+function withoutTopLevel(parts: readonly Part[]): Part[] {
+  return nearestOfEach(parts, rank).filter(({ region }) => !(region.kind === 'module' && (region.reach === 'near' || region.reach === 'loaded')));
 }
 
 /** A function's branches and closures on one line: the icon is its worst part, the test file its nearest reached one. */
@@ -185,7 +168,7 @@ function isReached(part: Part): boolean {
 }
 
 function rank(part: Part): number {
-  return ORDER.indexOf(part.fresh ? 'fresh' : part.region.reach);
+  return NEAREST.indexOf(part.fresh ? 'fresh' : part.region.reach);
 }
 
 function origin(read: readonly { readonly suite?: string; readonly review: Review }[]): string {

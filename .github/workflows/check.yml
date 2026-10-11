@@ -711,7 +711,9 @@ jobs:
       # taken, the cases replaced are that push's, and the mainline's are named
       # with `--against` instead.
       #
-      # The changed-code review reads the unit slice; coverage is carried for
+      # The changed regions are read from every declared suite, so a region only
+      # an integration case ran is not listed as run by no case; the runs, the
+      # base and the freshness are the unit slice's. Coverage is carried for
       # every declared suite, each with its own denominator and baseline.
       #
       # The source index is published first. Under CI a reader refuses to build
