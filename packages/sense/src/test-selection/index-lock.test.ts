@@ -118,17 +118,34 @@ describe('who may grow the index', () => {
     });
 
     await holding;
-    const next = withIndexLock(file, async () => {
-      order.push('second in');
-    });
-    // Long enough for a merge that was not excluded to have run. The two are
-    // separate calls over one file, which is the shape two runners finishing at
-    // once make — and the second is not inside the first.
-    await new Promise((wake) => setTimeout(wake, 100));
-    expect(order).toEqual(['first in']);
+    const nextTurn = setTimeout;
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    variancePrecondition({ clock: 'faked' });
+    try {
+      const next = withIndexLock(file, async () => {
+        order.push('second in');
+      });
+      // The second waits for its next poll once it has found the lock taken and
+      // judged its age, which is where a merge that was not excluded would have
+      // run instead. The two are separate calls over one file, which is the
+      // shape two runners finishing at once make — and the second is not inside
+      // the first.
+      const began = Date.now();
+      while (vi.getTimerCount() === 0 && Date.now() - began < REAL_CAP_MS) {
+        await new Promise<void>((wake) => nextTurn(wake, 0));
+      }
+      expect(order).toEqual(['first in']);
 
-    finish();
-    await Promise.all([held, next]);
+      // The first lets go before the second looks again, so the second's next
+      // attempt takes the lock and never finds it gone between the attempt and
+      // the look at its age, which a real clock leaves to scheduling.
+      finish();
+      await held;
+      await vi.advanceTimersToNextTimerAsync();
+      await next;
+    } finally {
+      vi.useRealTimers();
+    }
     expect(order).toEqual(['first in', 'first out', 'second in']);
   });
 

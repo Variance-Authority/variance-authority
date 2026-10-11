@@ -20,6 +20,14 @@ describe('the commit a review read', () => {
     return { root, commit: git(root, ['rev-parse', 'HEAD']) };
   }
 
+  it('reads no CI run of its own under test, so a review a test makes reads the same commit on a push as on a pull request', async () => {
+    const { root, commit } = await repository();
+    process.chdir(root);
+
+    expect(Object.keys(process.env).filter((name) => name.startsWith('GITHUB_'))).toEqual([]);
+    expect(await reviewedCommit(root)).toEqual({ commit, parents: [] });
+  });
+
   it('calls the tree dirty when it holds a file git does not track, which the review reads as part of the change', async () => {
     const { root, commit } = await repository();
     process.chdir(root);

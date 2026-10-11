@@ -96,7 +96,7 @@ const shared = defineConfig({
     // test takes is its own and no other test's or developer's index waits on
     // it, or it on them. The file says why a turn made the recording depend on
     // scheduling.
-    setupFiles: ['tools/temporary-per-test.ts', 'tools/no-selection-in-tests.ts'],
+    setupFiles: ['tools/temporary-per-test.ts', 'tools/no-selection-in-tests.ts', 'tools/no-ci-run-in-tests.ts'],
   },
   esbuild: {
     jsx: 'automatic',
