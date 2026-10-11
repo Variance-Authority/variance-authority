@@ -30,13 +30,45 @@ export interface CutTestFile {
  * as it was without one. The walk is the instrumenter crate's
  * [`cadence.rs`](../../native/instrument/src/cadence.rs), and the collector's
  * side is [`probe-cuts.cts`](probe-cuts.cts).
+ *
+ * `awaited` is for a runner whose collector is outside the test's realm, as a
+ * Playwright page is: each statement of an async body awaits what
+ * `__VA__.c(line, file)` returns, so the collector can drain what the
+ * statement before it reached first, and `file` tells a body declared in
+ * another file apart. A body that is not async is cut as it is without it.
  */
-export function cadence(source: string, file: string): CutTestFile | undefined {
-  const cut = instrumenter().cadence(source, file);
+export function cadence(source: string, file: string, options: { readonly awaited?: boolean } = {}): CutTestFile | undefined {
+  const cut = instrumenter().cadence(source, file, options.awaited === true);
   if (cut === null) return undefined;
   return {
     code: cut.code,
     map: { version: 3, sources: [file], names: [], mappings: cut.mappings },
     shifts: cut.shifts,
+  };
+}
+
+/**
+ * The column of the written file that a cut text's column was at, by zero-based
+ * line, from the `[line, column, length]` shifts {@link cadence} returned. A
+ * column inside an inserted call names the place it was inserted at; lines
+ * never move.
+ */
+export function columnBehindCut(shifts: readonly number[]): (line: number, column: number) => number {
+  const lines = new Map<number, (readonly [column: number, length: number])[]>();
+  for (let at = 0; at + 2 < shifts.length; at += 3) {
+    const line = shifts[at]!;
+    const row = lines.get(line) ?? [];
+    row.push([shifts[at + 1]!, shifts[at + 2]!]);
+    lines.set(line, row);
+  }
+  return (line, column) => {
+    let inserted = 0;
+    for (const [at, length] of lines.get(line) ?? []) {
+      const start = at + inserted;
+      if (column < start) break;
+      if (column < start + length) return at;
+      inserted += length;
+    }
+    return column - inserted;
   };
 }

@@ -482,7 +482,10 @@ That covers a story running inside Storybook's `#storybook-preview-iframe` and a
 second tab opened with `context.newPage()`. A document the test replaced is
 gone by then: a second `goto`, a `reload()`, a frame the application removed,
 or a page that closed or crashed. What it executed after its last read is lost,
-so the spec is recorded as incomplete and the next selection runs it.
+so the spec is recorded as incomplete and the next selection runs it. A spec
+[cut statement by statement](#record-which-spec-line-reached-each-region) is
+also read before each statement, so what is lost is only what the document did
+during the statement that replaced it.
 `pushState` and hash changes keep the same document and lose nothing. A context
 the spec creates for itself with `browser.newContext()` is not read: open pages
 from the test's own `context`, or hand one to `createVariance`.
@@ -548,6 +551,7 @@ to an array of one.
 | `coverageFile` | The coverage index this run merges into. A relative path is read from `root`. | The repository-keyed file in the cache. |
 | `mode` | The probe recipe, matching the `mode` given to `testSelectionProbes()`. | `presence` |
 | `preconditions` | Files whose contents are a precondition of every observation this run records. | None. |
+| `cadence` | Whether each spec is cut statement by statement, so a case records which of its lines reached each region. Read by `withTestSelection`. | `true` |
 
 `mode` has to be the same answer everywhere one coverage index is written:
 a snapshot names the recipe its ordinals were cut by, and a merge discards a
@@ -562,6 +566,58 @@ Selection does not read it: a spec file is the smallest thing
 Playwright can be asked to run, and the file-level record already names that.
 What a declared head executed is joined to the test that sent the request, so a
 branch that only ever ran in a service still names its test.
+
+### Record which spec line reached each region
+
+A case's crossings name the regions its test reached, not the statement that
+reached each one. Under `withTestSelection` every case also records, for each
+region, the line of the spec whose statement first reached it: the
+[lines Sense records](../sense/README.md#record-which-test-line-reached-a-region)
+under every other runner, read by the same answers.
+
+`withTestSelection` adds a Babel plugin to the `babelPlugins` Playwright
+compiles every spec with. The plugin puts an awaited call in front of each
+statement of an async test or hook body, and the call drains every frame of
+every page the test opened before the statement runs. What a drain finds is
+charged to the statement before it, and what the teardown drain finds to the
+last one. The page runs on its own clock, so a region it enters while a later
+statement runs is charged to that later statement: a request `click` started
+and the page answered during the next `expect` lands on the `expect`. A body
+declared in another file, such as a page object's method, is not waited on, and
+what it reached is charged to the spec statement that called it. A hook's
+statement is recorded as the case's own line. Lines keep their numbers and
+Babel's map names the file as you wrote it, so an inline aria snapshot lands
+where you wrote it.
+
+Each statement waits at most a second for its drain. One held up longer by the
+page, as an open `alert` holds every evaluation until the test answers it, lets
+the statement go on, and from there the case's regions are recorded without a
+line. Its crossings are recorded either way, unless the page still holds the
+drain when the test ends: the teardown drain would wait on it too, so it is
+skipped and the case is recorded incomplete, which the next selection runs. A
+drain is not a step, so the report, the trace and the inspector show none of
+them, and a wait shows in the trace only as a gap of up to a second before the
+statement.
+
+The plugin requires Sense's compiled `dist/`, and Playwright compiles every
+file outside `node_modules` it loads as CommonJS, which a workspace-linked
+Sense is not. So `withTestSelection` also adds that directory to
+`build.external`, after any globs your configuration already lists there.
+
+Over a probed Storybook build, seven specs across two workers, the lines add
+224 bytes to a 9,296-byte record, 2.4%, and over seven runs the suite took
+2.22–2.32 s with the cut and 2.25–2.36 s without it. On a synthetic suite of 40
+tests of 20 statements each, every click entering five of 88 regions, they add
+4.7 KB to a record of 24.8 KB without them, 18.9%: that record holds nothing
+but lines-dense cases, so the share is the high end. Over three runs with one
+worker, it took 18.6–18.7 s with the cut and 18.7–19.9 s without it.
+
+Because a document is drained before the statement that replaces it, what it
+reached is in the case's crossings; with `cadence: false` only the teardown
+drain reads the page, and a document a `goto` replaced is gone by then.
+
+Pass `cadence: false` to compile your specs as Playwright would and write no
+lines.
 
 ### Keep what each test looked at
 

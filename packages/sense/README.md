@@ -829,8 +829,9 @@ process.exitCode = failed ? 1 : 0;
 Each function has one place in your runner:
 
 - **`startRecording` goes in the process that starts the run.** It takes
-  `root`, `suite`, `coverageFile`, `preconditions`, `mode` and
-  `continuations`, with the meanings they have on the Vitest seam. Name your
+  `root`, `suite`, `coverageFile`, `preconditions`, `mode`,
+  `continuations` and `cadence`, with the meanings they have on the Vitest
+  seam. Name your
   runner's own files and configuration in `preconditions`: nothing loads them
   through a transform, so nothing else records that a test's outcome depends
   on them. The call sets `VARIANCE_AUTHORITY_RECORDING`, which every child
@@ -848,10 +849,14 @@ Each function has one place in your runner:
   newer. `include` narrows which files count as product source; the default
   is JavaScript and TypeScript inside the checkout, without test files,
   dependencies or built output.
+  It also cuts the test file being observed, statement by statement, so each
+  case records [which of its lines reached each region](#record-which-test-line-reached-a-region).
 - **`instrumentModule` replaces it if your runner already transforms
   source.** Call it last, on the JavaScript about to run, with the `map` from
   the file on disk when an earlier step moved lines. Records then name the
-  lines you edited, not the lines the transform emitted.
+  lines you edited, not the lines the transform emitted. Run each test file
+  through `cutTestFile` the same way: it leaves every line where it was and
+  carries an inline map for the columns it moved.
 - **`observeTestFile` goes around each test file,** in the process that runs
   it, before that process loads the file. Run each case through
   `observer.case(name, body)`, where `name` is the declaration path, such as
@@ -2083,11 +2088,14 @@ changed; selecting test files over every region there is reads the snapshot.
 ### Record which test line reached a region
 
 A case's crossings name the regions it reached, not the statement of the test
-that reached each one. Under the Vitest, Jest and Rstest seams every case also
-records, for each region it crossed, the line of the test statement that first
-reached it, and whether that statement was the case's own or a hook's. Those
-lines are the test's cadence: what each of its statements added to what the
-case reached.
+that reached each one. Under the Vitest, Jest and Rstest seams, and under
+[a runner of your own](#record-a-runner-this-package-has-no-seam-for), every
+case also records, for each region it crossed, the line of the test statement
+that first reached it, and whether that statement was the case's own or a
+hook's. Those lines are the test's cadence: what each of its statements added
+to what the case reached. Under Playwright, `withTestSelection` from
+[`@variance-authority/playwright-test`](../playwright-test/README.md#record-which-spec-line-reached-each-region)
+records the same lines for what a spec's page reached.
 
 The seam's transform puts a call in front of every statement of a test or hook
 body in a test file. It goes into nested blocks but not into nested functions,
@@ -2103,7 +2111,8 @@ charged to the last statement before its first entry:
 | an import or top-level code, before any statement ran | line 0, flagged as a hook's |
 
 The transform finds a body by the registrar it is handed to: `it`, `test`,
-their `.each`, `.only` and `.skip`, and the four hooks. A body handed over by
+their `.each`, `.only` and `.skip`, and the four hooks, inside `describe` and
+Playwright's `test.describe`. A body handed over by
 name, one a registrar from `test.extend` or a renamed import takes, and one a
 helper outside the test file writes, such as a shared conformance suite, run
 uncut, and their cases record no lines. So does every case a record written

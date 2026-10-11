@@ -387,7 +387,7 @@ export async function recordExecution(
     owned === undefined
       ? undefined
       : {
-          fresh: encodeOwnedSetExecutionIndex(owned.index, owned.owners),
+          fresh: encodeOwnedSetExecutionIndex(owned.index, owned.owners, owned.lines),
           run: { tests, ...(commit === undefined ? {} : { commit }) },
           ...(eyes === undefined ? {} : { eyes }),
         };

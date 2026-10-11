@@ -135,7 +135,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * bodies, the `mappings` back to `source` and the `[line, column, length]`
    * shifts they were made from, or `null`: `native/instrument/src/cadence.rs`.
    */
-  cadence(source: string, file: string): { code: string; mappings: string; shifts: number[] } | null;
+  cadence(source: string, file: string, awaited?: boolean): { code: string; mappings: string; shifts: number[] } | null;
   gitTree(root: string): NativeGitTree | null;
   /**
    * The alias table the `tsconfig` and `jsconfig` files among `paths` declare,

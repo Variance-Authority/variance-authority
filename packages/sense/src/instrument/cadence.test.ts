@@ -164,6 +164,58 @@ describe('a cut test charges each region to the line that first reached it', () 
   });
 });
 
+describe('an awaited cut, for a collector outside the test realm', () => {
+  it('waits on what the collector returns before each statement of an async body, and names its file', async () => {
+    const test = cadence(
+      "test('t', async () => {\n  step(1);\n  await later();\n  step(3);\n});\n",
+      '/repo/e2e/a.spec.ts',
+      { awaited: true },
+    );
+    const said: string[] = [];
+    let body: Promise<void> | undefined;
+    const context = createContext({
+      __VA__: {
+        c: (line: number, file: string) => {
+          said.push(`cut ${line} ${file}`);
+          return Promise.resolve().then(() => said.push(`drained ${line}`));
+        },
+      },
+      test: (_: string, run: () => Promise<void>) => {
+        body = run();
+      },
+      step: (line: number) => said.push(`step ${line}`),
+      later: () => Promise.resolve(),
+    });
+    runInContext(test!.code, context, { filename: '/repo/e2e/a.spec.ts' });
+    await body;
+    expect(said).toEqual([
+      'cut 2 /repo/e2e/a.spec.ts', 'drained 2', 'step 1',
+      'cut 3 /repo/e2e/a.spec.ts', 'drained 3',
+      'cut 4 /repo/e2e/a.spec.ts', 'drained 4', 'step 3',
+    ]);
+  });
+
+  it('waits on nothing where no collector answers, so the body keeps its own turns', async () => {
+    const test = cadence(
+      "test('t', async () => {\n  queueMicrotask(() => step('queued'));\n  step(3);\n});\n",
+      '/repo/e2e/a.spec.ts',
+      { awaited: true },
+    );
+    const said: string[] = [];
+    let body: Promise<void> | undefined;
+    const context = createContext({
+      queueMicrotask,
+      test: (_: string, run: () => Promise<void>) => {
+        body = run();
+      },
+      step: (what: string | number) => said.push(`step ${what}`),
+    });
+    runInContext(test!.code, context, { filename: '/repo/e2e/a.spec.ts' });
+    await body;
+    expect(said).toEqual(['step 3', 'step queued']);
+  });
+});
+
 describe('a test body registered under another name', () => {
   it.todo('is cut when `test.extend` made the registrar — needs the cut to follow a binding from `test.extend` back to `BODIES`');
   it.todo('is cut when the registrar was imported under another name — needs the cut to read the import specifier that bound the local name');
