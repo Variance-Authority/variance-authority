@@ -10,7 +10,7 @@ test name held the text you typed, so `--file a.test.ts` also kept
 step whose file held its text, and `variance journeys --file` kept a module
 whose path ended with, or whose name held, the text in any case. Each now
 names one thing. `--file` and `--in` are a path in the checkout, read as
-the `journey-map` tool reads one, and a path outside the checkout is refused
+`variance covering --file` and `variance distill --file` read one, and a path outside the checkout is refused
 as one. `--name` is the test's whole name as the runner reports it, its
 `describe` blocks and its own name joined with ` > `. When nothing is that
 path or name, the answer says so.

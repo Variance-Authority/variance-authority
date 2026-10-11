@@ -23,7 +23,6 @@
  * narrowing the run is the runner's own flag.
  */
 
-import { checkoutPath } from '@variance-authority/sense';
 import {
   listStories,
   readRoute,
@@ -34,6 +33,7 @@ import {
   type StoryEntry,
   type Untaken,
 } from '@variance-authority/sense/story';
+import { checkoutFile } from '../checkout-file.js';
 import { OperatorError } from '../exit.js';
 import { packageName, packageOf } from '../package-home.js';
 import type { ParsedStory, StoryZoom } from '../story-args.js';
@@ -57,8 +57,8 @@ export type StoryAnswer =
 
 /** The story the flags name, read as a route; every candidate when they name several. */
 export function story(parsed: ParsedStory): StoryAnswer {
-  const file = parsed.file === undefined ? undefined : inCheckout(parsed.root, parsed.file);
-  const zoom = parsed.zoom !== undefined && 'in' in parsed.zoom ? { in: inCheckout(parsed.root, parsed.zoom.in) } : parsed.zoom;
+  const file = parsed.file === undefined ? undefined : checkoutFile(parsed.root, parsed.file);
+  const zoom = parsed.zoom !== undefined && 'in' in parsed.zoom ? { in: checkoutFile(parsed.root, parsed.zoom.in) } : parsed.zoom;
   const all = listStories(parsed.root);
   if (all.length === 0) {
     throw new OperatorError(
@@ -92,13 +92,6 @@ export function story(parsed: ParsedStory): StoryAnswer {
     ...(newest.written === undefined ? {} : { written: newest.written }),
   };
   return { route, packages, reading, ...(zoom === undefined ? {} : { zoom }) };
-}
-
-/** A file argument, spelled as the stories spell their files; one outside the checkout is refused as one. */
-function inCheckout(root: string, asked: string): string {
-  const path = checkoutPath(root, asked);
-  if ('outside' in path) throw new OperatorError(path.outside);
-  return path.path;
 }
 
 /** The part of the route a zoom asks for, and the packages it opens. */

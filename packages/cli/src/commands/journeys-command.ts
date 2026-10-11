@@ -1,11 +1,11 @@
-import { checkoutPath } from '@variance-authority/sense';
 import {
   formatJourneys,
   formatLanding,
   journeysOf,
   type JourneyPool,
 } from './journeys.js';
-import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
+import { checkoutFile } from '../checkout-file.js';
+import { EXIT_CLEAN, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
 import { landJourneys } from './land.js';
 import { recordedJourneys } from './resources.js';
@@ -43,8 +43,7 @@ export interface JourneysRequest {
  * a filter over an answer somebody else's subjects had already shaped.
  */
 export async function journeysOutput(request: JourneysRequest): Promise<string> {
-  const file = request.file === undefined ? undefined : checkoutPath(request.cwd, request.file);
-  if (file !== undefined && 'outside' in file) throw new OperatorError(file.outside);
+  const file = request.file === undefined ? undefined : checkoutFile(request.cwd, request.file);
   // Shards land on this checkout's own layer; with none to land, the reading
   // is of the nearest layer that holds a record.
   const landed =
@@ -64,7 +63,7 @@ export async function journeysOutput(request: JourneysRequest): Promise<string> 
     journeysOf({
       ...(await recordedJourneys(request.cwd, named, record)),
       pool,
-      ...(file !== undefined ? { file: file.path } : {}),
+      ...(file !== undefined ? { file } : {}),
       ...(request.limit !== undefined ? { limit: request.limit } : {}),
     }),
   );
