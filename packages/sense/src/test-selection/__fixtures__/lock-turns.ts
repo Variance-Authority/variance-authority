@@ -5,10 +5,10 @@
  * failed sometimes looks at the lock's age just after the holder let go, and
  * finds it gone. A case that enters that branch on some runs and not on others
  * reads as motion on every review. Here every writer finds the lock held and
- * waits for its next poll before any of them is let in, and the polls are fired
- * one at a time, each only once the writer before it has finished. So every
- * writer takes the same path on every run: refused once, the lock's age read,
- * one poll, then in.
+ * waits for its next poll before any of them is let in, and the polls fall due
+ * at distinct moments and are fired one at a time, each only once the writer
+ * before it has finished. So every writer takes the same path on every run:
+ * refused once, the lock's age read, one poll, then in.
  */
 import { expect, vi } from 'vitest';
 import { withIndexLock } from '../index-lock.js';
@@ -58,12 +58,17 @@ export async function inTurn<T>(file: string, writers: readonly (() => Promise<T
   variancePrecondition({ clock: 'faked' });
   try {
     const pending = new Map<number, Promise<T>>();
-    const results = writers.map((write, index) => {
+    const results: Promise<T>[] = [];
+    for (const [index, write] of writers.entries()) {
       const running = write();
       pending.set(index, running.finally(() => pending.delete(index)));
-      return running;
-    });
-    await untilPolling(writers.length, nextTurn);
+      results.push(running);
+      // Vitest fires every timer due at the moment it advances to, so each
+      // writer's poll falls due a millisecond after the one before it, and
+      // advancing to the next timer lets in one writer alone.
+      await untilPolling(index + 1, nextTurn);
+      vi.advanceTimersByTime(1);
+    }
     release();
     await held;
     const began = Date.now();
