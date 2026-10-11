@@ -44,6 +44,15 @@ describe('the walk against the arrows', () => {
     expect(walk(relations, 'a.ts', total, onward)).toEqual(['b.ts: total']);
   });
 
+  it('asks the declaring file about a name a cycle hands back to it, and only that name', () => {
+    const relations = relationsOf({ relations: [imports('b.ts', 'a.ts'), imports('a.ts', 'b.ts')] });
+
+    const asked = walk(relations, 'a.ts', total, (importer, moved) =>
+      importer === 'b.ts' ? new Map([...moved, ['sum', 'total']]) : new Map());
+
+    expect(asked).toEqual(['b.ts: total', 'a.ts: sum']);
+  });
+
   it('stops behind an importer that hands nothing on', () => {
     const relations = relationsOf({ relations: [imports('b.ts', 'a.ts'), imports('c.ts', 'b.ts')] });
 
