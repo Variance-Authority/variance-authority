@@ -140,10 +140,11 @@ From the command line, in the checkout that ran the test, naming the case and
 the file that declares it:
 
 ```bash
-variance distill --file test/checkout.spec.ts --test submits
+variance distill --file test/checkout.spec.ts --test 'checkout > submits'
 ```
 
-`--test` takes the case's id, its exact title, or a part of the title.
+`--test` takes the case's id, or its whole title, its `describe` blocks and its
+name joined with ` > `.
 `--file` takes the test file's path, relative to the checkout or absolute, and
 names that file alone. When more than one case fits,
 the command prints their ids and stops, and you pass one of them to `--test`.

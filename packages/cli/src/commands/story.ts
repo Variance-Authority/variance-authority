@@ -73,7 +73,7 @@ export function story(parsed: ParsedStory): StoryAnswer {
   );
   if (matching.length === 0) {
     const asked = [parsed.file && `--file ${parsed.file}`, parsed.name && `--name ${parsed.name}`, parsed.label && `--label ${parsed.label}`].filter(Boolean);
-    throw new OperatorError(`no story is written for ${asked.join(' and ')}; ${all.length} ${all.length === 1 ? 'is' : 'are'} written here`);
+    throw new OperatorError(`no story is written for ${asked.join(' and ')}; ${all.length} ${all.length === 1 ? 'is' : 'are'} written here, and \`variance story\` alone lists them`);
   }
   // Readings are listed newest first within a case, so a case's first is its newest.
   const cases = new Set(matching.map((entry) => `${entry.file}\0${entry.name}`));

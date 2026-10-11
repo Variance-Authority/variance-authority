@@ -1,8 +1,9 @@
 ---
-'@variance-authority/cli': patch
+'@variance-authority/cli': minor
+'@variance-authority/distill': minor
 ---
 
-`variance story` and `variance journeys` read a file and a name exactly
+`variance story`, `variance journeys` and `variance distill` read a file and a name exactly
 
 `variance story --file` and `--name` kept every story whose test file path or
 test name held the text you typed, so `--file a.test.ts` also kept
@@ -13,7 +14,13 @@ names one thing. `--file` and `--in` are a path in the checkout, read as
 `variance covering --file` and `variance distill --file` read one, and a path outside the checkout is refused
 as one. `--name` is the test's whole name as the runner reports it, its
 `describe` blocks and its own name joined with ` > `. When nothing is that
-path or name, the answer says so.
+path or name, the answer says so, and `variance story` alone lists the stories
+that are written.
+
+`variance distill --test` took a case's id, its whole title, or any part of
+the title in any case, so `--test submits` read `checkout > submits` when it
+was the only title holding the word. It now takes the id or the whole title,
+`--test 'checkout > submits'`, and a part of either is answered as no case.
 
 The steps through one workspace package, which `--in @acme/ui` used to open by
 matching the package name as text, are now `variance story --package @acme/ui`.

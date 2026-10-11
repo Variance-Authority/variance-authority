@@ -1,7 +1,7 @@
 // compass: variance-authority/runtime/attention
 import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 
-/** What names one case: its id, title or a part of the title, its file's repository-relative path, or both. */
+/** What names one case: its id or whole title, its file's repository-relative path, or both. */
 export interface CaseQuestion {
   readonly test?: string;
   readonly file?: string;
@@ -18,9 +18,9 @@ export interface CaseQuestion {
 const AVAILABLE_SHOWN = 5;
 
 /**
- * The index of the one case the question names: by id, then by exact title,
- * then by a part of the title, each among the cases of the test file `file`
- * names. A recorded path that contains `file` or ends in it is another file.
+ * The index of the one case the question names: by id, else by whole title,
+ * each among the cases of the test file `file` names. A title that holds
+ * `test`, and a recorded path that holds `file` or ends in it, name other cases.
  */
 export function caseOf(input: CaseQuestion): number {
   const { test: asked, file } = input;
@@ -40,10 +40,7 @@ function named<Found extends { readonly test: { readonly id: string; readonly na
   asked: string,
 ): readonly Found[] {
   const byId = tests.find(({ test }) => test.id === asked);
-  if (byId !== undefined) return [byId];
-  const exact = tests.filter(({ test }) => test.name === asked);
-  if (exact.length === 1) return exact;
-  return tests.filter(({ test }) => test.name.toLowerCase().includes(asked.toLowerCase()));
+  return byId === undefined ? tests.filter(({ test }) => test.name === asked) : [byId];
 }
 
 /** The question as a reader typed it, for a refusal to repeat. */
@@ -69,6 +66,6 @@ function unresolved(index: ExecutionIndex, asked: string): string {
     `It records ${total} case id(s), of which:`,
     ...shown,
     ...(total > shown.length ? [`  and ${total - shown.length} more.`] : []),
-    'Name a case by its id, `<repository-relative file> > <describe path and name>`, by its title, or by a part of the title one case has.',
+    'Name a case by its id, `<repository-relative file> > <describe path and name>`, or by its whole title, `<describe path and name>`.',
   ].join('\n');
 }

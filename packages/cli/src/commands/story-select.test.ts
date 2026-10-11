@@ -42,7 +42,7 @@ describe('the story a file and a name select', () => {
 
   it('is the case with the name asked, never a case whose name holds it', () => {
     expect(fileOf(ask({ name: 'a > adds' }))).toBe('a.test.ts');
-    expect(() => ask({ name: 'adds' })).toThrow('no story is written for --name adds; 2 are written here');
+    expect(() => ask({ name: 'adds' })).toThrow('no story is written for --name adds; 2 are written here, and `variance story` alone lists them');
     expect(() => ask({ file: 'A.test.ts' })).toThrow('no story is written for --file A.test.ts; 2 are written here');
   });
 

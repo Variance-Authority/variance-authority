@@ -38,7 +38,7 @@ import { relationsFor } from './source-graph.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
 
 export interface DistillOptions {
-  /** The case's id, its exact title, or a part of the title. */
+  /** The case's id, or its whole title. */
   readonly test?: string;
   /**
    * The test file's path, from `root` or from the file system's root, which

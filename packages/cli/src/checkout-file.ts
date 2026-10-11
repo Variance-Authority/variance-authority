@@ -7,9 +7,11 @@ import { OperatorError } from './exit.js';
  *
  * A path names one file or directory: nothing is matched by suffix, name or
  * text, so a path no row holds is answered as that by the command reading it.
+ * `flag`, when given, opens the refusal, for a command that takes more than one
+ * path.
  */
-export function checkoutFile(root: string, asked: string): string {
+export function checkoutFile(root: string, asked: string, flag?: string): string {
   const path = checkoutPath(root, asked);
-  if ('outside' in path) throw new OperatorError(path.outside);
+  if ('outside' in path) throw new OperatorError(flag === undefined ? path.outside : `\`${flag}\`: ${path.outside}`);
   return path.path;
 }

@@ -322,12 +322,12 @@ opportunities, because missing attention is not an empty addressed surface.
 Name the case by the file that declares it and its title:
 
 ```bash
-variance distill --file test/checkout.spec.ts --test submits
+variance distill --file test/checkout.spec.ts --test 'checkout > submits'
 ```
 
 `--file` takes the test file's path, relative to the checkout or absolute, and
 names that file alone. `--test` takes the case's
-`id`, its exact title, or a part of the title, compared without case. Either
+`id` or its whole title, its `describe` blocks and its name joined with ` > `. Either
 flag may be given alone. When more than one case fits, the command prints up to
 five of their ids and stops; pass one of them to `--test`. A case Playwright
 retried prints every attempt's journal, numbered from 1.
