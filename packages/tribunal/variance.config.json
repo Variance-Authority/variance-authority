@@ -1,0 +1,15 @@
+{
+  "$schema": "../cli/schema/variance.config.schema.json",
+  "project": "tribunal",
+  "profile": "chromium",
+  "viewport": { "width": 1280, "height": 800, "deviceScaleFactor": 1, "colorScheme": "dark" },
+  "retention": "durable",
+  "subjects": {
+    "kind": "storybook",
+    "index": "storybook-static/index.json",
+    "collector": "stories/collector.mjs"
+  },
+  "baselines": { "kind": "directory", "root": ".variance/baselines", "carry": "actions-cache" },
+  "report": { "path": ".variance/run.json" },
+  "images": ".variance/images"
+}

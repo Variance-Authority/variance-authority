@@ -9,10 +9,12 @@ name: variance
 # It is also **the only thing in this repository that observes a subject**. Until
 # it did, every step here was skipped behind a check for a `variance.config.json`
 # that was never written: three workflows shaped like a gate, none of which had
-# ever launched a browser. The subject is `cases/storybook-case` — twelve stories
-# and a Storybook this job builds — which is a fixture and not this project's own
-# interface. That is the gap it closes and the gap it does not:
-# [`site/`](../../site) still has no subject of any kind.
+# ever launched a browser. Two subjects, one job each. `variance` observes
+# `cases/storybook-case`, twelve stories that are a fixture. `tribunal` observes
+# this project's own interface: the review surface's Storybook, its pages and
+# components drawn over builds the project recorded through itself. A redesign
+# of that page once landed without one image moving, because nothing
+# photographed it. [`site/`](../../site) still has no subject of any kind.
 #
 # ## Where the baselines come from, since nothing here is committed
 #
@@ -392,6 +394,78 @@ jobs:
           # a dotted directory, and this action skips hidden files by default —
           # so the upload would succeed and the reviewer would download a zip
           # with nothing in it.
+          include-hidden-files: true
+          if-no-files-found: warn
+
+  # The review surface's own Storybook (`packages/tribunal/stories`), over
+  # builds `stories/record.mjs` pushed through a real tribunal. A second check
+  # rather than a second config in the job above, because each verdict is its
+  # own decision: a change to the review page is accepted or not on its own
+  # terms, not in the same breath as the case's buttons.
+  #
+  # The same accept rules as above, asked about this check by name
+  # (`VARIANCE_CHECK`), and its own cache entry, keyed by the config's
+  # `project`. It is always `cache`: the config says `carry: actions-cache`
+  # whatever `VARIANCE_REVIEW` says. No comment and no image ref, because both
+  # are one per pull request and the job above holds them; the report page is
+  # in this check's summary instead.
+  tribunal:
+    if: >-
+      github.event.action != 'closed' &&
+      (github.event.action != 'labeled' ||
+      github.event.label.name == 'variance: accept')
+
+    concurrency:
+      group: variance-tribunal-${{ github.ref }}
+      cancel-in-progress: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      options: --ipc=host
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: decide whether this run accepts
+        id: accept
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VARIANCE_ACCEPT_LABEL: 'variance: accept'
+          VARIANCE_CHECK: tribunal
+          VARIANCE_DISPATCH_ACCEPT: ${{ inputs.accept }}
+          VARIANCE_REVIEW: cache
+        run: node .github/scripts/variance-accept.mjs
+
+      - shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - uses: ./.github/actions/build
+
+      - name: build the Storybook this run observes
+        shell: bash
+        run: yarn workspace @variance-authority/tribunal build-storybook
+
+      - id: variance
+        uses: ./.github/actions/variance
+        with:
+          config: packages/tribunal/variance.config.json
+          profile: chromium
+          command: node packages/cli/dist/bin.js
+          comment: 'false'
+          intent: ${{ steps.accept.outputs.intent }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          accept: ${{ steps.accept.outputs.promote == 'true' }}
+          report-page: 'true'
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tribunal-files
+          path: |
+            ${{ steps.variance.outputs.report }}
+            ${{ steps.variance.outputs.images }}
           include-hidden-files: true
           if-no-files-found: warn
 
