@@ -2,7 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-08-25
-**Amended by:** [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) — accessibility evidence on one side only is `changed`, with the missing side named in `because`, and trees from different engines are compared; a legacy baseline is `changed`, not incomparable
+**Amended by:** [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) — accessibility evidence on one side only is `changed`, with the missing side named in `because`, and trees from different engines are compared; a legacy baseline is `changed`, not `incomparable`
 **Extends:** ADR-0002 (observation profiles), ADR-0007 (portals belong to the
 component boundary), ADR-0027 (baseline sidecars carry attribution), ADR-0044
 (capture material and rendering placement are independent)
