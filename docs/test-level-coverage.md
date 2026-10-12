@@ -141,6 +141,60 @@ region **recorded but covered by nobody** is a different statement from a line
 in no recorded region at all: the first is a hole, the second is a coordinate
 the recording never measured.
 
+## Which test statement first ran a region
+
+Knowing which test ran a function leaves another question: which statement of
+that test ran it? **Cadence records the line of the test statement that first
+ran each region**.
+The recorder inserts recording calls between the statements of your tests and
+hooks; you keep writing the test as you do today.
+
+For this test body, suppose `priceCart` and `submitOrder` are recorded functions:
+
+```ts
+it('submits an order', () => {
+  const total = priceCart(cart);
+  submitOrder(cart, total);
+  expect(priceCart(cart)).toBe(total);
+});
+```
+
+The first calls record this attribution, with lines counted from the example's
+first line:
+
+| Recorded region | First test statement that ran it |
+| --- | --- |
+| `priceCart` | line 2, `const total = priceCart(cart)` |
+| `submitOrder` | line 3, `submitOrder(cart, total)` |
+
+The call on line 4 runs `priceCart` again. Its region stays attributed to line
+2: cadence records the first statement, not every visit. Under the Node
+runners, a hook's work is marked as a hook's, so you can separate setup from
+the case's own actions.
+When the case itself also runs a region a hook ran, the case's statement takes
+precedence.
+
+This recording is on by default under Vitest, Jest, Rstest and Playwright;
+a custom runner can record it too. The [runner
+reference](../packages/sense/README.md#record-which-test-line-reached-a-region)
+explains setup, which test bodies it can transform and `cadence: false`.
+Playwright records which spec statement ran each region of the page. It
+records hook statements as the case's own lines, so those lines do not
+separate hook work from the case's body. Its
+[runner reference](../packages/playwright-test/README.md#record-which-spec-line-reached-each-region)
+explains recording across navigation. A case recorded without statement lines
+has no attribution to read; it is not a case whose statements ran nothing.
+
+Use those lines to connect the regions in [coverage
+composition](own-fewer-tests.md#connect-the-regions-to-test-statements) to the
+actions of a flow test. To read every visit in order, including repeats, record
+a [test story](test-stories.md#why-the-journey-has-no-order).
+Statement attribution is what this run observed: asynchronous work can be
+attributed to a different statement on another run. It does not prove which
+assertion checks the region, and [test
+selection](coverage-test-selection.md) reads the covered regions, not their
+statement lines.
+
 ## You have seen this relation before
 
 If you have used [Wallaby.js](https://wallabyjs.com/) you have already watched

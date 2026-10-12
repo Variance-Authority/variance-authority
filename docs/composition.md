@@ -7,6 +7,10 @@ the forty as one change. Composition is the other axis — **many subjects, one
 revision, joined on the components they share** — and there is no baseline
 anywhere in it.
 
+For **coverage composition** — what one test adds beyond its smaller tests —
+read [Ask what one test is made of](own-fewer-tests.md#ask-what-one-test-is-made-of).
+This page compares rendered subjects by their shared components.
+
 > A visual-regression example is a component built from components. The example
 > *is* a component, at a boundary; the same component appears again, with the
 > same or different props, inside larger examples.

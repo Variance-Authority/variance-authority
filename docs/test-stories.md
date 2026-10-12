@@ -6,6 +6,11 @@ how many times each loop ran, and the lines the code printed. Every run already
 records which code each test ran. A story adds the order, the counts and the
 printed lines, and you read it from top to bottom.
 
+If you need the test statement that first ran a region,
+[cadence](test-level-coverage.md#which-test-statement-first-ran-a-region)
+records that on ordinary runs. Record a story when you need what happened next
+or how often it repeated.
+
 ## What you already know, and what you do not
 
 With [Sense](../packages/sense/README.md) set up for your runner, every run
@@ -272,13 +277,28 @@ edit changed, not to explain a test that fails on some runs.
 The journey and the story answer different questions, so a run keeps them
 differently:
 
+| You need to know | What to read |
+| --- | --- |
+| Which code a case ran | Its journey, the set of regions it covered |
+| Which test statement first ran each region | Its cadence, the statement lines recorded with those regions |
+| In what order the code ran, including repeats | Its story, recorded when you ask for one |
+
+The recorder adds calls between test and hook statements to record cadence.
+It keeps one first statement per region, not every visit. Node runners mark
+hook work separately; Playwright records hook statements as case lines.
+A story step is a visit to source code, so one
+test statement can produce many steps. [Coverage
+composition](own-fewer-tests.md#connect-the-regions-to-test-statements) compares
+tests by their region sets; a story shows the order a case ran those regions in.
+
 - **The journey is kept for every test, on every run.** Test selection and
   `variance covering` need it for every test. Two runs that ran the same code
   in a different order have one journey, so the order async code happens to
   run in does not change which tests [test
   selection](coverage-test-selection.md#what-the-record-keeps) runs. The
-  record also keeps the test line that first reached each region, and async
-  code can move that line between runs; selection does not read it.
+  record also keeps cadence where the runner recorded statement lines.
+  Asynchronous work can be attributed to a different statement on another run;
+  selection does not read those lines.
 - **The story is written only when you ask**, for the tests you name. Keeping
   the order adds work to every function the test runs, and a story for every
   test. Setting `VARIANCE_AUTHORITY_STORY` does not change the journeys: the
