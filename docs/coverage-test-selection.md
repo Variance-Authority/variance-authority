@@ -202,7 +202,7 @@ at all. The further
 a test is from a module, the more often it loads the module and never calls it,
 because execution took another branch before it got there. In TanStack Query,
 149 of 188 test files load `query.ts`, and the median region in it is run by
-29 of them. The import graph counts all 149. The [execution record](execution-record.md) counts the tests
+29 of them. Rerunning every file that loads it selects all 149. The [execution record](execution-record.md) counts the tests
 that ran the changed region: the function, branch arm or loop body the edit is
 in.
 

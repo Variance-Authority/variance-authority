@@ -422,8 +422,8 @@ under the identity of the renderer that painted it. Images approved in a hosted
 service come with neither, so the store has nothing to file them under. Their
 pixels are still comparable: `observeRasters` compares any two images, and when
 they come from different painters it names the painter that changed as the cause
-of whatever it finds. A different machine or browser explains a difference. It
-is a reason to align the setup, not a reason to leave the image out.
+of whatever it finds. A different machine or browser is a reason to align the
+setup, not a reason to leave the image out.
 
 So your first run reports `new` on every subject, and that is the adoption moment
 rather than a failure: nothing has been compared yet. Open the report, check the

@@ -729,7 +729,7 @@ below is one stage of that call.
    charged nothing. An importer whose text cannot be read charges its module,
    or, with no row, every test step 6's walk finds behind it. A `load` the
    parser gave charges the lines as step 4 does, and a line outside every
-   function lands in the module's own region, which every test that loaded the
+   function is in the module's own region, which every test that loaded the
    file ran; a `load` that `sideEffects` declared charges the module. Under
    `bodies`
    or `values`, text inserted in a gap no region spans charges nothing. A file
