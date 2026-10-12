@@ -1,5 +1,282 @@
 # @variance-authority/help
 
+## 0.15.0
+
+### Minor Changes
+
+- 86bd9f5: `variance ask stack`, and `docs_stack` on the MCP server, list the agent
+  skills an installed package ships. A skill is a `skills/<name>/SKILL.md` beside the package's
+  `package.json`, the layout TanStack Intent set for npm. Each is listed under
+  its package with its name, the file to read and the first sentence of the
+  description in its front matter. Nothing is installed or copied: your agent reads the file from
+  `node_modules`, at the version you installed. A `SKILL.md` deeper inside a
+  package is not listed.
+
+  The dependency lexicon moves to version 9 and records each package's skills.
+  A lexicon written before this release still answers, and `stack` says that
+  skills were not read until `variance index` refreshes it.
+- 14aefbf: Ask what one test, or one story, checks that the narrower ones inside it do
+  not.
+
+  - `variance ask test-composition --file <test> --name <words>`, and
+    `docs_test_composition`, read one recorded test as the smaller tests whose
+    regions sit inside its own, the larger tests holding it, and the regions no
+    smaller test entered: modules only it enters, and paths through a smaller
+    test's module only it takes.
+  - `variance_composition {subject}` closes with the same reading for a story:
+    the smaller stories inside it, the larger ones holding it, and what no
+    smaller story renders — components only it mounts, and components a smaller
+    story renders another way. The run carries it per subject in the report's
+    structure section; `piecesOf` in `@variance-authority/core/attribute`
+    computes it.
+  - A component mounted by more than half the suite's subjects is structure. A
+    subject that mounts a component many times now counts once, where every
+    mount used to count: a chip story is an example of the chip again when the
+    pages around it mount chips many times over.
+- 63091f7: `variance ask intersection` answers the files every one of two or more questions answers
+
+  Each operand is a whole question, typed in quotes the way it would be asked
+  alone — `variance ask intersection 'symbol --name selectBalance' 'discover
+  --from src/Wallet.tsx'` — and any question whose answer is a set of files can
+  be one: `symbol`, `uses`, `search`, `grep`, `discover`. Each is read whole,
+  never capped, so a file past the first fifty of either question still meets.
+  The answer counts each question's files, then lists the files in all of them,
+  each with the lines that put it in each question. `variance-authority-help
+  intersection` and `docs_intersection` answer the same, the tool taking its
+  questions as `{question, input}` objects.
+- 1fd0cf7: `variance ask packages` (`docs_packages`) counts and lists no import site: one
+  row per published specifier, one per package that declares no entry with how
+  many of its names and files other packages import by path, under the heading
+  "N packages that declare no entry are imported by path", and per package the
+  number of imports from other packages that reach past a published entrypoint.
+  It ends with the `variance ask entrypoint --package <name>` questions behind
+  those counts.
+
+  `variance ask entrypoint --package <name>` (`docs_entrypoint`) asked by a
+  package's name now also counts the imports that reach past its entry, or, for a
+  package that declares no entry, the imports of its files by path, one row per
+  file: its specifier, how many names are taken from it and how many files import
+  it, the most imported first. Asked by one of those specifiers, it counts the
+  imports written as it per name, each name with how many files import it, where
+  it listed every import with the importer's file and line, and names `uses` on
+  the first name for its sites. Under a package that
+  declares no entry, a specifier's count is of distinct names taken in distinct
+  files, where every import of a name was counted again: fifty files importing
+  one name read "50 names" and now read "1 name". Asked by the name of a package
+  whose `exports` opens only subpaths, it lists the specifiers the package opens
+  where it used to refuse with "does not open `.`". `--subpath .` answers exactly
+  as the package name alone, where it left out the imports past the entry, or
+  refused for a package that opens only subpaths.
+
+  An import into a published package whose declared entry leads to no source
+  file, such as a `main` naming a build output the checkout does not hold, is
+  kept, where every one was dropped and `variance ask entrypoint` said no other
+  package imports it. An import that names a declared entry is counted as an
+  import of an entry this reading could not follow to a source file, not as one
+  reaching past the entry; only an import past every declared entry reaches past
+  it. `variance ask packages` counts those packages and their imports,
+  `variance ask entrypoint` counts them, and `uses` and `symbol` answer for the
+  names taken from them. `landing` says where one import between packages
+  lands: opened by an entry, at a declared entry the reading could not follow,
+  past every declared entry, or by path into a package that declares none.
+  `Help` and `Usage` carry the imports of an entry the reading could not follow as
+  `unfollowed`, and `gatheringUsage` is the one place a `Usage` is gathered.
+
+  `variance ask entrypoint` on a package that declares no entry says it has "no
+  `exports`, `main`, `types` or `typings`", where it left out `typings`, the
+  fourth key read for an entry, and says so of one no other package imports too,
+  where it said that package "opens no entry". A manifest that writes
+  `"exports": null` is read as one that writes no `exports`, as Node reads it: its
+  `main` opens the bare name, and without a `main`, `types` or `typings` it
+  declares no entry. `Offering` and `Documented` carry whether a
+  manifest declares an entry as `entry`, read from the whole manifest whichever
+  keys `declared` records.
+
+  On a repository whose packages declare no entry, `variance ask packages` went
+  from 200,330 lines in 29.9 to 45.9 seconds to 1,339 lines in half a second,
+  `variance ask entrypoint --package @kbn/core` went from 23,463 lines to 13, and
+  `variance ask entrypoint --package @kbn/core/server` answers in 241 lines, one
+  per name.
+
+  Breaking:
+
+  - `variance ask entrypoint --package <name>` (`docs_entrypoint`) counts the
+    imports past a package's entry, or of its files by path, one row per file, and
+    asked by one of those specifiers counts its imports per name. It printed
+    every import with the importer's file and line; `variance ask uses --name
+    <name> --package <specifier>` lists those for one name.
+  - `readUnentered` and `publishes` are removed from
+    `@variance-authority/package/help`. `readImportTargets` reads the published
+    packages, the ones that declare no entry and the specifiers each published
+    manifest declares, in one pass.
+  - `readHelp` from `@variance-authority/sense` takes those three as its third
+    argument, `{ published, unentered, declared }`, where it took the packages
+    that declare no entry; the native `read_help` it calls takes `published` and
+    `declared` as two more arguments.
+  - `Offering` and `Documented` carry `entry`, and `Help` and `Usage` carry
+    `unfollowed`: a value built by hand adds them.
+- 42599cc: `variance ask discover` answers the files in every one of several sets
+
+  Each set is read whole, with no cap: what a path reaches (`--from`) or what
+  reaches it (`--to`), who imports a name (`--imports module#name`, through the
+  barrels that pass it on when the module is a file, as `ask uses` reads it), who
+  declares a name matching a pattern (`--declares`), and a path pattern (`--path`). Each
+  has an `--except-` twin that takes its files out, and `--text` runs ripgrep over
+  the files the other sets kept. The answer lists the files nearest the paths
+  first, each with the line that put it in each set.
+
+  `readTree` hands each file's declared and imported names to a `names` callback
+  during the same scan, read off the parse it already made; a file whose parse
+  holds no declarations, as on a checkout large enough for the addon to read
+  whole, is read again for them, and the source index keeps what that read
+  found. `readNamedTree` takes the question and reads names only for an operand
+  that needs them. Over MCP,
+  `docs_discover` answers `from`, `to`, `path` and a name imported out of a
+  repository file, and refuses `declares` and any other `imports`, because the
+  reading an MCP host serves holds no names.
+- 4fe70b5: `variance ask symbol` and `ask uses` answer a name a file exports and no entry publishes
+
+  They used to refuse it. `symbol` gives the file and line that export it, the
+  line as the checkout holds it, and how many imports resolved to that file, one
+  count per file when several export the name. An installed name it matches is
+  said after it, since a file that passes an installed binding on exports it.
+  `uses` lists each of those imports, within the package as well as from another
+  one, read from the source index; an import through an `export *` file and a
+  call through a qualified path are not counted. A name nothing exports is still refused.
+  `@variance-authority/sense` adds `importersOf`, every import of a name out of
+  given files that the source index resolved.
+
+### Patch Changes
+
+- 8c9ce5f: `variance ask symbol` answers an installed name from its declaration first. A
+  package whose main entry declares the name is no longer also reported through
+  its other entry points that declare nothing: `ask symbol --name config
+  --package dotenv` prints `dotenv · config [function]` and its signature, without
+  the `dotenv/config` and `dotenv/lib/*` entries and their README passages above
+  it. A package that declares nothing still points to its README, now after any
+  declared match. Its entry points are listed one per line, with the README path
+  and passage printed once below them instead of once per entry point.
+  Only entry points of the same installed copy are left out: a second copy of the
+  same version, in another workspace, that declares nothing still points to its
+  README.
+- 6b1583e: A path names one file, and a path that ends like it is another file
+
+  Four places related two names by how they end or what they spell, and each is
+  now exact.
+
+  A built module's lines are read back through its map only from the source that
+  resolves to the file, as the Source Map specification resolves one: behind
+  `sourceRoot`, beside the map. A source that ends like the file but resolves
+  elsewhere, such as `src/a.ts` in a map beside `dist/a.js`, is another file and
+  its segments are not read. A map with no source that resolves to the file used
+  to have every segment read as the file's lines; the module is now recorded as
+  the text that was handed over, under its own name.
+
+  `variance ask symbol` and `ask uses` with `--package` naming one file of a
+  package, such as `@acme/lib/src/internal/math`, answer from the file an import
+  of that specifier resolved to. When nothing imports it, the file it names is
+  not known, and the name is refused with that reason, rather than answered from
+  a file whose path ends like the specifier.
+
+  A Playwright test's name, in its recorded coordinate and in the vantage
+  listing, is its `titlePath` after the file, the first entry. A describe that
+  spells the file, its leaf name or the project is no longer dropped from the
+  name.
+- 5eca879: A module's `require` calls are read from the code. A `require('...')` written
+  in a comment, a string or a template's text is no longer a request, so a
+  comment such as `// require('...')` no longer adds a third-party package named
+  `...`. `` require(`./plain`) `` and `` import(`./plain`) `` are read like their
+  quoted forms, and `import('a' + 'b')` is a load this cannot read rather than a
+  request for `a' + 'b`. `module.require('x')` is a request for `x`, and another
+  object's `require` method is not. `import x = require('y')` is read as a
+  request for `y`.
+
+  A declaration package's `export =` is read from the code as well, so an
+  `export = name` inside a comment publishes nothing, and `export=Name` or
+  `export = Name` without a semicolon publishes its namespace. An `export =`
+  inside a `declare module "x" { … }` body names a namespace or an
+  `import x = require('y')` from that body or from the top of the file.
+
+  The source index format moves to version 17, so an index written before this
+  release is rebuilt once instead of keeping the requests it read from comments.
+  The dependency lexicon moves to version 8: an older lexicon still answers
+  questions, and the next `variance index` rewrites it in full instead of
+  carrying its entries forward.
+- b75761a: `ask journey-map` and `ask slowest-tests` name only the path you asked about when nothing holds it
+
+  When a path was in neither the recording nor the files git lists,
+  `journey-map` and `slowest-tests` offered another recorded path as the one you
+  meant: one a typo away, or the recorded files that share its file name, so
+  `src/test-selection/since.ts` was answered with `src/commands/since.ts`, a
+  different file. Two paths are two files, so the refusal now names the asked
+  path, says it read the recording and the files git lists, and that both name
+  each file from the repository root, and names no other path. The same holds for
+  `docs_journey_map` and `docs_slowest_tests` over MCP.
+- ef496ad: READMEs name what the program does
+
+  The package READMEs, and the `@variance-authority/vantage` and
+  `@variance-authority/playwright-test` descriptions, no longer write a test, a
+  record or a run as something that says, asks or knows. Each sentence names what
+  the program does: a command prints, a record holds a field, a test runs or
+  covers. Where a value is filled in from configuration or a default rather than
+  recorded, the README says so. Four renamed headings change their anchors:
+  `help`'s "Where the declaration is undocumented", `playwright`'s "Where a
+  component is declared, read from the engine", `storybook`'s "What a pass sends
+  the preview" and `sense`'s "Correct what a file's text declares it imports".
+- 4fe70b5: `variance ask search` finds a name from the words it is written in
+
+  A query of several words matches a name when each word matches one of the
+  words the name is written in, split at a change of case or between a letter and
+  a digit, so `kept reading` finds `keptReading` and `parse http response` finds
+  `parseHTTPResponse`. A search index written before this is encoded again on
+  the next read.
+- 8187fb1: `didYouMean` and `nearest` are exported from `@variance-authority/core` and no
+  longer from `@variance-authority/mcp/tools`. Import them from
+  `@variance-authority/core`. A mistyped command or flag is refused, with the
+  nearest right one, without loading the MCP server's tools.
+- 9d92cef: `uses` lists every import of a published name, inside its own package, through a barrel and through `import x = require()`
+
+  `variance ask uses` answered a published name only from the imports that cross
+  a package. An import within the publishing package, such as
+  `import { a, b } from './execution.js'`, was not listed, and a name only its
+  own package imports read as "nothing in this workspace imports it". The
+  imports within the package are now read from the source index, as they already
+  were for a name no entry publishes: every import of the file that declares the
+  name.
+
+  An `export … from` passes the name on and is not a use. The file that writes it
+  is followed under the name it exports, so an import through a barrel is listed
+  and the barrel is not, in another package as well as in its own. This includes a bare `export *`, which passes on every
+  name but `default`. An import of a renamed re-export ends `(as <name>)`, and a name an entry
+  publishes under another name than its declaration is read from that entry. A
+  type-only re-export, `export { type name } from`, passes nothing on and is
+  listed as a type use where it is written. A read through an `export * as`
+  namespace, and a call through a qualified path, are not counted, and every
+  answer that read the source index ends by saying so. A same-named export of
+  another file is not counted. With `--package` naming one subpath specifier, an
+  import through another specifier of the same package is left to that one.
+
+  When the source index is missing, or does not read, `uses` for a published name
+  still lists the imports from other packages and says why the rest were not
+  read; it no longer fails. `symbol` names both halves of what `uses` lists. For a
+  name a file exports and no entry publishes, `symbol` counts an import through a
+  barrel once, under the file that declares it, and no longer shows the barrel as
+  a second export. When the source index is missing or does not read, `symbol`
+  answers such a name and says why it could not read who imports it, instead of
+  failing.
+
+  TypeScript's `import x = require('m')` holds the module whole, like
+  `import * as x`. The module reader now records `x.name` and `x['name']` after
+  it as reads of `name` through that request. `uses` lists each one marked
+  `(namespace, line N)`, and `symbol` counts the package. A type-only
+  `import type x = require()` holds nothing. The source index format moves to
+  version 19, so the first `variance index` after upgrading reads every file
+  again.
+
+  `@variance-authority/sense`'s `importersOf` returns `{ uses, through }`: each
+  use carries the name it takes, and `through` names the files that pass the
+  name on.
+
 ## 0.14.0
 
 ### Patch Changes
