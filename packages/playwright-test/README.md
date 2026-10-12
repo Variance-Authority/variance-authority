@@ -595,10 +595,10 @@ last one. The page runs on its own clock, so a region it enters while a later
 statement runs is charged to that later statement: a request `click` started
 and the page answered during the next `expect` lands on the `expect`. A body
 declared in another file, such as a page object's method, is not waited on, and
-what it reached is charged to the spec statement that called it. A hook's
-statement is recorded as the case's own line. Lines keep their numbers and
-Babel's map names the file as you wrote it, so an inline aria snapshot lands
-where you wrote it.
+what it reached is charged to the spec statement that called it. A statement
+in `beforeEach` or `afterEach` is recorded as the case's own line. Lines keep
+their numbers and Babel's map names the file as you wrote it, so an inline
+aria snapshot lands where you wrote it.
 
 Each statement waits at most a second for its drain. One held up longer by the
 page, as an open `alert` holds every evaluation until the test answers it, lets

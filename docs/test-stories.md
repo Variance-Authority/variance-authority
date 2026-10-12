@@ -285,7 +285,8 @@ differently:
 
 The recorder adds calls between test and hook statements to record cadence.
 It keeps one first statement per region, not every visit. Node runners mark
-hook work separately; Playwright records hook statements as case lines.
+hook work separately; Playwright records `beforeEach` and `afterEach`
+statements as case lines.
 A story step is a visit to source code, so one
 test statement can produce many steps. [Coverage
 composition](own-fewer-tests.md#connect-the-regions-to-test-statements) compares

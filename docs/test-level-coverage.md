@@ -179,8 +179,8 @@ a custom runner can record it too. The [runner
 reference](../packages/sense/README.md#record-which-test-line-reached-a-region)
 explains setup, which test bodies it can transform and `cadence: false`.
 Playwright records which spec statement ran each region of the page. It
-records hook statements as the case's own lines, so those lines do not
-separate hook work from the case's body. Its
+records `beforeEach` and `afterEach` statements as the case's own lines, so
+those lines do not separate hook work from the case's body. Its
 [runner reference](../packages/playwright-test/README.md#record-which-spec-line-reached-each-region)
 explains recording across navigation. A case recorded without statement lines
 has no attribution to read; it is not a case whose statements ran nothing.

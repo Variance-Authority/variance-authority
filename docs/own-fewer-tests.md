@@ -153,7 +153,8 @@ What no piece ran splits in two:
 records which statement of the flow test first ran each region. It connects a
 region in the composition answer to the test action that first ran it: pricing
 the cart, applying a coupon, or submitting the order. Node runners mark a
-hook's work separately; Playwright records hook statements as case lines.
+hook's work separately; Playwright records `beforeEach` and `afterEach`
+statements as case lines.
 
 Composition compares the regions each test ran. Its footprint, pieces and own
 layer depend on those sets; the statement lines add attribution to the
