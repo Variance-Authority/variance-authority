@@ -7,7 +7,15 @@ cross-identity baseline is `incomparable`, and
 [ADR-0012](0012-observability-and-the-damage-boundary.md) §4's sentence that a
 baseline stabilised one way and a run stabilised another are `incomparable`;
 [ADR-0088](0088-a-page-is-read-as-nobody-is-using-it.md)'s readings under another
-clock, instant, timezone or locale, which it calls `incomparable`
+clock, instant, timezone or locale, which it calls `incomparable`; and the
+sentences that restate the refusal:
+[ADR-0016](0016-where-a-baseline-is-kept-decides-nothing.md)'s summary of
+ADR-0011, [ADR-0019](0019-one-comment-that-leads-with-causes.md)'s pinned
+container, [ADR-0021](0021-approval-promotes-an-image-that-already-exists.md)'s
+sidecar, [ADR-0026](0026-ignored-is-not-unchanged.md)'s baseline from another
+machine, [ADR-0049](0049-browser-accessibility-is-an-independent-retained-signal.md)'s
+one-sided and cross-engine accessibility evidence, and
+[ADR-0077](0077-the-config-says-where-an-artifact-lives.md)'s store partition
 **Relates to:** [`packages/raster/src/settle.ts`](../../../packages/raster/src/settle.ts),
 [`packages/observe/src/observe.ts`](../../../packages/observe/src/observe.ts),
 [`packages/raster/src/renderer.ts`](../../../packages/raster/src/renderer.ts)

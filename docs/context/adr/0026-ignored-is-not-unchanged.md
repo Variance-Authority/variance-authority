@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-08-05
+**Amended by:** [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) — a baseline from another machine is compared, with the identity named as the cause, and reports `changed` or `unchanged`; `unobserved` stands
 **Extends:** ADR-0002 (observation profiles), ADR-0008 (per-profile expectations)
 **Discharges:** spec 0024 (an ignore is a declaration, not a blind spot)
 
