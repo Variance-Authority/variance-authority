@@ -102,8 +102,8 @@ The baseline directory now holds the image and its metadata, under a key for
 the renderer identity:
 
 ```
-v1:09e74320ec70c26d7a5e40add47c455f/cart%2Fempty.png
-v1:09e74320ec70c26d7a5e40add47c455f/cart%2Fempty.json
+v1-09e74320ec70c26d7a5e40add47c455f/cart%2Fempty.png
+v1-09e74320ec70c26d7a5e40add47c455f/cart%2Fempty.json
 ```
 
 The image the run painted from the document is in `renders/` in the checkout's

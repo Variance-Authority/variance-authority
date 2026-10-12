@@ -5,8 +5,8 @@ executed the code you changed, according to a recording of an earlier run.
 [Variance Authority](README.md) records that relation on the suite you already
 run, for no more than 8% of its run time, and parses each changed file as it was
 recorded and as your diff leaves it before it selects a test. On an unmodified
-Zod checkout, a one-line edit selects 6 test files, 8 runs in all, where the
-import graph selects 131.
+Zod checkout, a one-line edit selects 6 test files, 8 runs in all, where
+rerunning every file that loads the changed module selects 197.
 
 This page compares that approach with other selectors: what each one records,
 where each one widens, and what each one costs to run on every change.
@@ -190,7 +190,7 @@ behaviour, so the tests of a module cover different, overlapping branches of
 it, and none of them runs all of it. A change to one branch is charged only to
 the tests that took that branch. Seen from one test file, the same rule applies:
 the file is charged with changes to the branches it ran, not with every change
-to every module it loads. In Zod, 131 test files load `locales/ru.ts`, 2 of
+to every module it loads. In Zod, 197 test files load `locales/ru.ts`, 2 of
 them call `getRussianPlural`, and 1 runs the branch the example edit
 changes.
 
@@ -240,9 +240,9 @@ recorded on every run, so it describes an older commit.
 **What grain does a change charge?** A selector that decides by package or by
 file inherits the way modules load. Zod has 202 test files, and 196 of them
 import the code they test through one barrel. Change one line in
-`locales/ru.ts` and the package graph selects 201 files. The import graph
-selects 131, the files that load `ru.ts`. A record of which functions or regions
-ran shows that 2 of those 131 ran the function you changed.
+`locales/ru.ts` and the package graph selects 201 files. Rerunning every file
+that loads `ru.ts` selects 197. A record of which functions or regions ran shows
+that 2 of those 197 ran the function you changed.
 
 **What does an edit to a module's top level mean?** A line outside any function
 runs as the module loads, so by its lines alone it is charged to every test
@@ -339,7 +339,7 @@ emptied. It compares the two results side by side:
 | Whole, with comments, types and formatting removed | `none` | Nothing |
 | With bodies emptied, and every top-level value is the same | `bodies` | The regions around the changed lines |
 | With bodies emptied, but some top-level values differ | `values` | Those regions, and every function that reads a changed value, in this file and in the files that import it directly |
-| In neither form | `load` | Every test that loaded the file |
+| In neither form | `load` | The regions around the changed lines, as step 4 maps them. A line outside every function is in the module's own region, which every test that loaded the file ran |
 
 This edit is inside a function body, so the emptied texts are equal and nothing
 at the top level changed. The run prints one line for the file:
@@ -351,9 +351,9 @@ read packages/zod/src/v4/locales/ru.ts: bodies — the changed regions are charg
 **4. Lines become regions.** Line 14 is the first line of the `if` arm (lines
 14–16), inside `getRussianPlural` (lines 5–23). The arm is charged. The function
 is charged too, because the condition on line 14 runs in the function before
-the arm starts. The module's own region, lines 1–188, is not charged, because
+the arm starts. The module's own region, lines 3–188, is not charged, because
 the verdict records that loading the module does the same thing as before. That
-region is the one all 131 files ran, just by loading `ru.ts`.
+region is the one all 197 files ran, just by loading `ru.ts`.
 
 **5. Regions become test files.** The record lists, for each region, the test
 files that ran it. Two ran `getRussianPlural`, and one of them ran the arm, so
@@ -454,9 +454,9 @@ unmodified fork with one commit of setup:
 |---|---|---|
 | Test files | 202 | 188 |
 | One-line edit, package graph | 201 files | 168 files, from `nx affected` |
-| One-line edit, test files that load the changed module | 131 files | 149 files |
-| One-line edit, the record | 6 files in 8 runs, 1.6 s instead of 8.1 s | 10 files, 4.4 s instead of 12.7 s |
-| Test file runs skipped over sixty commits | at least 51% | at least 79% |
+| One-line edit, test files that load the changed module | 197 files | 149 files |
+| One-line edit, the record | 6 files in 8 runs, 1.5 s instead of 8.2 s | 10 files, 4.4 s instead of 12.7 s |
+| Test file runs skipped over sixty commits | 57% | 93% |
 | Recording cost, at most | 1.02× | 1.08× |
 
 ```mermaid
@@ -467,10 +467,10 @@ config:
 ---
 xychart-beta horizontal
   accTitle: Test files one one-line edit selects, by what reads the change
-  x-axis ["Zod, package graph", "Zod, import graph", "Zod, record", "Query, nx affected", "Query, import graph", "Query, record"]
+  x-axis ["Zod, package graph", "Zod, files that load it", "Zod, record", "Query, nx affected", "Query, files that load it", "Query, record"]
   y-axis "test files selected" 0 --> 210
   bar [0, 0, 6, 0, 0, 10]
-  bar [201, 131, 0, 168, 149, 0]
+  bar [201, 197, 0, 168, 149, 0]
   bar [0, 0, 0, 0, 0, 0]
   bar [0, 0, 0, 0, 0, 0]
 ```
