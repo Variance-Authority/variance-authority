@@ -82,6 +82,8 @@ describe('the pages and the API never contend for a path', () => {
     '/cache/find',
     '/cache/put',
     '/ui/review.js',
+    '/ui/fonts/fonts.css',
+    '/ui/fonts/inter.woff2',
   ];
 
   it.each(API)('leaves %s to the router', (path) => {

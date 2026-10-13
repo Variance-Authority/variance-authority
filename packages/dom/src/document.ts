@@ -14,6 +14,7 @@ import { deviceProbe, type ConditionEnvironment } from './media.js';
 import { attributesOf, elements } from './dom-list.js';
 import { formState } from './form-state.js';
 import { splitPseudoElement } from './selector-parts.js';
+import { facesUsedBy, type IndexedFace } from './font-faces.js';
 
 /**
  * Acquisition — phase one: a live DOM becomes something you can send somewhere.
@@ -112,6 +113,17 @@ export function acquireDocument(root: Element, options: AcquireOptions): RenderD
 
   try {
     const { css, bindings } = applicableCss(root, index);
+    const faces = facesUsedBy(root, index.faces);
+    const unreadable = [...new Set(faces.filter((face) => !face.readable).map((face) => face.family))];
+    if (unreadable.length > 0) {
+      diagnostics.push({
+        severity: 'warn',
+        code: 'unreadable-font-face',
+        message:
+          `the subject is set in ${unreadable.map((family) => `"${family}"`).join(', ')}, and this ` +
+          'host dropped the file its @font-face names; the render paints a fallback in its place',
+      });
+    }
     const frame = frameOf(root);
     settleStamps(stamped);
     // What a form holds now lives in properties `outerHTML` does not read; a
@@ -136,7 +148,7 @@ export function acquireDocument(root: Element, options: AcquireOptions): RenderD
       subject: options.subject,
       html,
       frame,
-      css,
+      css: withFaces(css, faces.filter((face) => face.readable)),
       viewport: options.viewport,
       inherited:
         options.inherited ??
@@ -310,6 +322,19 @@ function applicableCss(
   );
 
   return { css: text.length > 0 ? [text.join('\n')] : [], bindings };
+}
+
+/**
+ * The pruned sheet with the faces its subject is set in ahead of it.
+ *
+ * Ahead because a face is declared before anything is set in it in every sheet
+ * that works, and in the one sheet the render has, order among faces is the
+ * only order that decides anything: of two faces for one family and weight, the
+ * later wins.
+ */
+function withFaces(css: readonly string[], faces: readonly IndexedFace[]): readonly string[] {
+  if (faces.length === 0) return css;
+  return [[...faces.map((face) => face.text), ...css].join('\n')];
 }
 
 /** One (element, rule) pair that held in the live page and must hold in the render. */

@@ -59,8 +59,8 @@ export function hostChosenFonts(
       chosenHere &&
       node.children.some((child) => child.tag === '#text' && (child.text ?? '').trim() !== '')
     ) {
-      const leading = family.split(',')[0]!.trim().replace(/^["']|["']$/g, '').toLowerCase();
-      if (GENERICS.has(leading)) {
+      const leading = familiesIn(family)[0];
+      if (leading !== undefined && GENERICS.has(leading)) {
         first ??= leading;
         count += 1;
       }
@@ -72,4 +72,19 @@ export function hostChosenFonts(
   visit(root);
 
   return first === undefined ? undefined : { family: first, more: count - 1 };
+}
+
+/**
+ * `"Brand Sans", Inter, monospace` → `['brand sans', 'inter', 'monospace']`.
+ *
+ * Split on the commas outside quotes, unquoted, and lower-cased, because family
+ * names match without regard to ASCII case.
+ */
+export function familiesIn(value: string): readonly string[] {
+  const families: string[] = [];
+  for (const match of value.matchAll(/\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^,]+))\s*(?:,|$)/g)) {
+    const family = (match[1] ?? match[2] ?? match[3] ?? '').replace(/\\(.)/g, '$1').trim().toLowerCase();
+    if (family !== '') families.push(family.replace(/\s+/g, ' '));
+  }
+  return families;
 }

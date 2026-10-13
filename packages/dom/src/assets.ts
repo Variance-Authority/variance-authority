@@ -1,6 +1,9 @@
 import { pageOrigin, withoutOrigin } from '@variance-authority/core/format';
-import { GENERATED_BOXES } from './generated-box.js';
-import { detectProfile } from './profile.js';
+import { authoredSheets, isGroupingRule } from './css-index.js';
+import { urlsIn } from './css-url.js';
+import { items } from './dom-list.js';
+import { faceOf, familiesPaintedWith, isFontFaceRule } from './font-faces.js';
+import { paintedStyles } from './painted-styles.js';
 
 /**
  * Which external files a subject's own subtree asks for.
@@ -60,13 +63,6 @@ const URL_PROPERTIES: readonly string[] = [
  */
 export function referencedAssets(root: Element): readonly string[] {
   const document = root.ownerDocument;
-  const view = document.defaultView;
-  // A generated box can paint a file the element's own styles do not name. It
-  // is asked only of a host with a layout engine: `getComputedStyle(element,
-  // '::before')` is unimplemented under jsdom, where it costs a virtual-console
-  // error per element rather than an answer. The profile probe asks *can this
-  // host resolve a pseudo-element's style*, not *is this jsdom*.
-  const pseudo = view === null || !detectProfile(view).layout ? [] : GENERATED_BOXES;
   const found = new Set<string>();
 
   const add = (value: string | null | undefined): void => {
@@ -87,23 +83,18 @@ export function referencedAssets(root: Element): readonly string[] {
     found.add(resolved);
   };
 
-  for (const element of [root, ...root.querySelectorAll('*')]) {
-    addAttributes(element, add);
-    if (view === null) continue;
+  for (const element of [root, ...root.querySelectorAll('*')]) addAttributes(element, add);
 
-    for (const selector of [null, ...pseudo]) {
-      const style = view.getComputedStyle(element, selector);
-      // A suite that stubs `getComputedStyle` -- to drive a layout it cannot
-      // otherwise produce -- hands back a plain object with the two properties
-      // the component under test reads. There is no computed style to scan,
-      // and there is nothing to fail about: whatever it would have named, the
-      // stub has already removed from the page.
-      if (typeof style?.getPropertyValue !== 'function') continue;
-      for (const property of URL_PROPERTIES) {
-        for (const url of urlsIn(style.getPropertyValue(property))) add(url);
-      }
+  const styles = paintedStyles(root);
+  for (const style of styles) {
+    for (const property of URL_PROPERTIES) {
+      for (const url of urlsIn(style.getPropertyValue(property))) add(url);
     }
   }
+
+  // A face's file is named by a rule no element matches, so no computed value
+  // above carries it; the subtree asks for it by setting text in the face.
+  for (const source of faceSources(familiesPaintedWith(styles), document)) add(source);
 
   return [...found].sort();
 }
@@ -156,23 +147,43 @@ function srcsetCandidates(value: string | null): readonly string[] {
 }
 
 /**
- * The URLs inside a computed style value.
+ * The files of every face named in `families`, conditions or not.
  *
- * Computed values are normalized by the engine, so quoting is predictable — but
- * only in a real engine. Under jsdom a declared value comes back as written,
- * which is why both quoted forms and the bare one are handled: the same function
- * has to work in the cheap tier, where most of this project's tests run.
+ * A face under an `@media` that does not hold here is counted anyway, because the key is asked
+ * of the live page with no environment to erase a condition against: a key
+ * naming a file the render will not fetch costs a render nobody needed, and
+ * one missing a file the render paints with is a false `unchanged`.
+ *
+ * A walk of its own rather than the index's, because the index is built per
+ * environment and erases what does not hold in it.
  */
-function urlsIn(value: string): readonly string[] {
-  if (value === '' || !value.includes('url(')) return [];
+function faceSources(families: ReadonlySet<string>, document: Document): readonly string[] {
+  if (families.size === 0) return [];
+  const sources: string[] = [];
 
-  const urls: string[] = [];
-  for (const match of value.matchAll(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s]*))\s*\)/g)) {
-    const url = match[1] ?? match[2] ?? match[3] ?? '';
-    if (url !== '') urls.push(url);
+  const walk = (rules: CSSRuleList, base: string): void => {
+    for (const rule of items(rules)) {
+      if (isFontFaceRule(rule)) {
+        const face = faceOf(rule, base, document);
+        if (face !== null && families.has(face.family)) sources.push(...face.sources);
+      } else if (isGroupingRule(rule)) {
+        walk(rule.cssRules, base);
+      }
+    }
+  };
+
+  for (const sheet of authoredSheets(document)) {
+    let rules: CSSRuleList;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      // Cross-origin. The index reports it; nothing in it can be read here.
+      continue;
+    }
+    walk(rules, sheet.href ?? document.baseURI);
   }
 
-  return urls;
+  return sources;
 }
 
 /**

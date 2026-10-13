@@ -3581,11 +3581,13 @@
         "./testing": {
           "types": "./dist/testing.d.ts",
           "default": "./dist/testing.js"
-        }
+        },
+        "./fonts.css": "./fonts/fonts.css"
       },
       "files": [
         "dist",
         "!dist/**/*.d.ts.map",
+        "fonts",
         "mark.svg",
         "migrations",
         "wrangler.jsonc"

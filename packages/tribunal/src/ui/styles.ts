@@ -37,8 +37,10 @@
  * The palette is `docs/visual-guidelines.md` — deep, panel, ivory, quiet, warm,
  * variance orange, signal green — spent here on a surface that also has to say
  * *unknown* and *refused*, which brand assets never do. The font tokens name
- * Inter and JetBrains Mono first and fall back to the system stacks: this sheet is
- * handed over as text, so it can ask for a face and must not require one.
+ * Inter and JetBrains Mono first, and the package ships both in
+ * [`fonts/fonts.css`](../../fonts/fonts.css): this sheet is handed over as text
+ * and a text cannot carry a file, so a host links that sheet beside it. The
+ * system stacks behind them are for a host that has not linked it yet.
  */
 import { ACTION_STYLES } from './styles-actions.js';
 import { CONCERN_STYLES } from './styles-concerns.js';

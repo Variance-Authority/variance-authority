@@ -661,6 +661,7 @@ when the bind is loopback.
 
 ```tsx
 // app/variance/page.tsx — excerpt: `whoIsThis` is your session lookup
+import '@variance-authority/tribunal/fonts.css';
 import { ReviewApp, REVIEW_STYLES, createReviewClient } from '@variance-authority/tribunal/ui';
 
 declare function whoIsThis(): Promise<string>;
@@ -706,6 +707,12 @@ export const { GET, POST, PUT, HEAD } = createTribunalRoutes(worker, {
   tokens: { ingest: env.VARIANCE_INGEST_TOKEN, review: env.VARIANCE_REVIEW_TOKEN },
 });
 ```
+
+`REVIEW_STYLES` is text, and text cannot carry a font file, so the faces it is
+set in — Inter and JetBrains Mono, under the SIL Open Font License beside them —
+ship as `@variance-authority/tribunal/fonts.css`, whose `url()`s your bundler
+resolves next to the sheet. Leave the import out and the surface falls back to
+the system sans and monospace stacks.
 
 `createReviewClient` takes `endpoint` — where the Worker is mounted — and an
 optional `token` for a caller supplying the review token directly. Omit `token`
