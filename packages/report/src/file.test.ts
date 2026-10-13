@@ -90,6 +90,16 @@ describe('presentation evidence in a run-report file', () => {
       effects: [],
     } as never)), 'utf8');
     await expect(readRunReport(path)).rejects.toThrow('names a missing side but claims compared evidence');
+
+    await writeFile(path, JSON.stringify(reportOf({ verdict: 'changed', because: 42 } as never)), 'utf8');
+    await expect(readRunReport(path)).rejects.toThrow('.because is not a string');
+
+    await writeFile(path, JSON.stringify(reportOf({
+      verdict: 'changed',
+      because: 'the baseline supplied no presentation reading',
+      after: 42,
+    } as never)), 'utf8');
+    await expect(readRunReport(path)).rejects.toThrow('has a presentation digest that is not a string');
   });
 
   it('refuses the incomparable verdict ADR-0090 removed', async () => {
