@@ -8,6 +8,7 @@ import DocsPage from "./DocsPage";
 export default function DocumentationIndex({ index }: { readonly index: Index }) {
   return (
     <DocsPage
+      contentKind="index"
       current={index.href}
       title={index.label}
       description={index.description}

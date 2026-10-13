@@ -47,17 +47,39 @@ describe('documentation entry paths', () => {
     ]));
   });
 
-  it('does not present the whole catalogue beside an article or the home', () => {
-    const local = navigation.navigationContext('/docs/test-an-edit');
-    expect(local?.items.map(({ href }) => href)).toEqual(expect.arrayContaining([
-      '/docs/test-an-edit', '/docs/changes-before-and-beyond',
+  it('exposes complete sections on indexes and their articles', () => {
+    for (const path of ['/docs/theory', '/docs/tests', '/docs/reasoning']) {
+      const context = navigation.navigationContext(path)!;
+      expect(context.href).toBe('/docs/theory');
+      expect(context.sections.flatMap(({ items }) => items.map(({ href }) => href))).toEqual(
+        navigation.documentationIndex('/docs/theory')!.sections.flatMap(({ items }) => items.map(({ href }) => href)),
+      );
+    }
+    const questions = navigation.navigationContext('/docs')!;
+    expect(questions.sections.flatMap(({ items }) => items.map(({ href }) => href))).toEqual(expect.arrayContaining([
+      '/docs/test-an-edit', '/docs/flakiness', '/docs/orientation',
     ]));
-    expect(local?.items.some(({ href }) => href === '/docs/flakiness')).toBe(false);
-    expect(navigation.navigationContext('/docs')).toBeUndefined();
-    expect(navigation.navigationContext('/docs/theory')).toBeUndefined();
-    expect(navigation.navigationContext('/reference/packages/core')?.items.some(({ href }) => href === '/reference/packages')).toBe(true);
+    const reference = navigation.navigationContext('/reference/packages/core')!;
+    expect(reference.href).toBe('/docs/reference');
+    expect(reference.sections.flatMap(({ items }) => items.map(({ href }) => href))).toContain('/docs/framework-reference');
     for (const path of ['/docs', '/docs/theory', '/docs/all']) {
       expect(navigation.navigationNeighbors(path)).toEqual({});
+    }
+  });
+
+  it('retains a selected section for a cross-listed page and declines an unrelated one', () => {
+    expect(navigation.navigationContext('/docs/changes-before-and-beyond', '/docs/theory')?.href).toBe('/docs/theory');
+    expect(navigation.navigationContext('/docs/changes-before-and-beyond')?.href).toBe('/docs');
+    expect(navigation.navigationContext('/docs/test-an-edit', '/docs/theory')?.href).toBe('/docs');
+  });
+
+  it('gives every published page a complete top-level context', () => {
+    for (const item of navigation.NAVIGATION_ITEMS) {
+      const context = navigation.navigationContext(item.href);
+      expect(context, item.href).toBeDefined();
+      if (!item.unlisted) {
+        expect(context?.sections.flatMap(({ items }) => items.map(({ href }) => href)), item.href).toContain(item.href);
+      }
     }
   });
 
