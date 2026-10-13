@@ -5,12 +5,15 @@ import { PNG } from 'pngjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CaptureArtifact } from '@variance-authority/core';
 import {
+  CHROMIUM_PROFILE,
   digestFileName,
   documentDigest,
+  environmentKey,
   identityDigest,
   type Raster,
   type RenderDocument,
   type RenderIdentity,
+  type SemanticSnapshot,
 } from '@variance-authority/core/format';
 import type { Renderer } from '@variance-authority/raster';
 import { createDurableStore } from '@variance-authority/store/durable';
@@ -91,6 +94,29 @@ function artifactFor(subject: string, html = '<div data-va-path="0">Save</div>')
   };
 }
 
+/** The tree a collector read for a subject: one box, enough to be kept. */
+const SNAPSHOT: SemanticSnapshot = {
+  formatVersion: 1,
+  subject: { id: 'k', kind: 'fixture' },
+  profile: CHROMIUM_PROFILE,
+  environment: environmentKey({
+    profile: 'chromium',
+    engine: 'chromium',
+    ruleset: 'r',
+    allowlist: 'a',
+    viewport: { width: 8, height: 8, deviceScaleFactor: 1, colorScheme: 'light' },
+    fonts: [],
+    conditions: {},
+    assets: {},
+  }),
+  renderHash: 'v1:r',
+  structureHash: 'v1:s',
+  styleHash: 'v1:t',
+  root: { path: '0', tag: 'div', attributes: {}, style: {}, rect: { x: 0, y: 0, width: 8, height: 8 }, children: [] },
+  styleProvenance: [],
+  diagnostics: [],
+};
+
 /** What Vitest hands a command when the run was started with `--update`. */
 const UPDATING = { project: { vitest: { config: { snapshotOptions: { updateSnapshot: 'all' } } } } };
 
@@ -140,6 +166,23 @@ describe('the command the browser half calls', () => {
 
     await commands.varianceObserve(UPDATING, { artifact: artifactFor('c') });
     expect(await store.find({ subject: 'c' }, renderer.identity)).not.toBeNull();
+  });
+
+  it('re-stamps an unchanged baseline that kept no snapshot on `--update`, so it keeps this one', async () => {
+    // Written by a run that collected no tree, or before sidecars kept one.
+    await varianceCommands({ store: createDurableStore(root), renderer: fakeRenderer(), accept: true }).varianceObserve(
+      undefined,
+      { artifact: artifactFor('k') },
+    );
+    const store = createDurableStore(root);
+    const renderer = fakeRenderer();
+
+    const observed = await varianceCommands({ store, renderer }).varianceObserve(UPDATING, {
+      artifact: { ...artifactFor('k'), snapshot: SNAPSHOT },
+    });
+
+    expect(observed.verdict).toBe('unchanged');
+    expect((await store.find({ subject: 'k' }, renderer.identity))?.raster.snapshot).toEqual(expect.any(String));
   });
 
   describe('a baseline painted under another identity', () => {

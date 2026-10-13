@@ -381,6 +381,17 @@ function readDescribed(payload: unknown, endpoint: string): Described | null {
     throw malformed(endpoint, BASELINE_DESCRIBE_PATH, '`pictured` missing or not a boolean');
   }
 
+  // Refused for the same reason: `true` settles one that kept none for good.
+  if (typeof described.keepsSnapshot !== 'boolean') {
+    throw malformed(
+      endpoint,
+      BASELINE_DESCRIBE_PATH,
+      '`keepsSnapshot` missing or not a boolean, which a server older than this client does not send ' +
+        '(tribunal before API 6, or `serveRasterStore` from an earlier `@variance-authority/remote`): ' +
+        'upgrade the server first',
+    );
+  }
+
   // Refused rather than defaulted to `[]`, and this is the one field here where
   // that distinction changes a verdict. A settled subject reports `unchanged`;
   // if the baseline was painted without a declared font, it must say so in the
@@ -430,6 +441,7 @@ function readDescribed(payload: unknown, endpoint: string): Described | null {
     comparable: described.comparable,
     storedUnder,
     pictured: described.pictured,
+    keepsSnapshot: described.keepsSnapshot,
     missingFonts,
     ...(accessibilitySidecar?.accessibility === undefined
       ? {}

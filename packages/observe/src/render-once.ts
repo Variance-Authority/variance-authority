@@ -86,16 +86,24 @@ export async function renderOnce(
  * failure arriving one layer down.
  *
  * So the rule is unconditional: the hashes on a raster are the ones this run
- * computed, or there are none.
+ * computed, or there are none. A packed snapshot is removed on the same ground
+ * and never stamped: it is the tree a baseline keeps, written by whoever stores
+ * one, and a before side rendered here is joined against the tree it carries.
  */
 function withEvidence(
   raster: Raster,
   components: readonly ComponentHash[] | undefined,
   accessibility: AccessibilitySnapshot | undefined,
 ): Raster {
-  const { components: staleComponents, accessibility: staleAccessibility, ...pixels } = raster;
+  const {
+    components: staleComponents,
+    accessibility: staleAccessibility,
+    snapshot: staleSnapshot,
+    ...pixels
+  } = raster;
   void staleComponents;
   void staleAccessibility;
+  void staleSnapshot;
   return {
     ...pixels,
     ...(components === undefined ? {} : { components }),

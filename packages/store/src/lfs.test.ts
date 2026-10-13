@@ -269,6 +269,7 @@ describe('a clone without git-lfs', () => {
       documentDigest: 'v1:doc',
       comparable: true,
       pictured: true,
+      keepsSnapshot: false,
       storedUnder: MAC,
       missingFonts: [],
     });

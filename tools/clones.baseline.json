@@ -127,6 +127,13 @@
   },
   {
     "files": [
+      "packages/core/src/format/shape.ts",
+      "packages/unit-test/src/shape.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
       "packages/core/src/rules/normalize/alias.ts",
       "packages/session/src/reads.ts"
     ],

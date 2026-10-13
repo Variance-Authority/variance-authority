@@ -64,6 +64,8 @@ function regions(before: Awaited<ReturnType<typeof read>>, after: Awaited<Return
     attributeRegions(isolateRegions(comparison.mask).regions, after.snapshot, {
       scale: VIEWPORT.deviceScaleFactor,
       origin: after.origin,
+      before: before.snapshot,
+      beforeOrigin: before.origin,
     }),
     causes,
   );

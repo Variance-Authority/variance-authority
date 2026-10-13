@@ -160,6 +160,22 @@ describe('what may become a baseline', () => {
     void images;
     expect(promotionOf(imageless).kind).toBe('already-baseline');
   });
+
+  it('re-stamps an unchanged subject whose baseline kept no snapshot, so it records one', () => {
+    // Nothing was joined, so no sentence complained; the first change after it
+    // would be attributed against one render, and the baseline would never say
+    // where its nodes were.
+    const unrecorded: ObservationRecord = {
+      subject: 'story:a',
+      verdict: 'unchanged',
+      because: 'no pixels differ',
+      changedPixels: 0,
+      regions: [],
+      images: { after: 'images/story%3Aa.after.png' },
+      signals: { document: 'unchanged', snapshot: 'unrecorded' },
+    };
+    expect(promotionOf(unrecorded)).toEqual({ kind: 'promotable', from: 'images/story%3Aa.after.png' });
+  });
 });
 
 describe('which subjects one shape can settle', () => {

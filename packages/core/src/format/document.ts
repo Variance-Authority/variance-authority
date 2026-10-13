@@ -2,6 +2,7 @@ import type { Diagnostic, SubjectRef } from './capture.js';
 import type { Viewport } from './environment.js';
 import { digestValue, type Digest } from './hash.js';
 import { pageOrigin, withoutOrigin } from './origin.js';
+import type { PackedSnapshot } from './packed.js';
 import type { ComponentHash } from './snapshot.js';
 
 /**
@@ -371,6 +372,28 @@ export interface Raster {
    * defect in the suite as newly introduced on the first run after an upgrade.
    */
   readonly findingMarks?: readonly string[];
+
+  /**
+   * The semantic snapshot of the document that painted this, packed.
+   *
+   * The region join needs to know where each element was in the render the
+   * pixels are compared against. A changed region is the union of what left and
+   * what arrived, and a stored baseline is an image: without its own tree, a
+   * control replaced by a larger element changes pixels outside every box this
+   * render has, and the join names the row around it. With it, the join pairs
+   * the two renders' nodes with the matcher the semantic diff reads, so a
+   * region and a delta agree about which element a node was.
+   *
+   * Packed (see {@link PackedSnapshot}) because the tree is an order of
+   * magnitude larger than the component hashes, and it rides in every sidecar.
+   * Every store and transport carries the text as it is, and only the run that
+   * decides unpacks it.
+   *
+   * **Absent means not recorded.** A baseline written before this existed, or
+   * from a collector that supplied no snapshot, has none, and a verdict whose
+   * regions were joined without it says so.
+   */
+  readonly snapshot?: PackedSnapshot;
 }
 
 /**

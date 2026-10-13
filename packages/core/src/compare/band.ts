@@ -70,6 +70,7 @@ export type DeltaKind =
   | 'node-added'
   | 'node-removed'
   | 'node-moved'
+  | 'tag-changed'
   | 'role-changed'
   | 'name-changed'
   | 'description-changed'
@@ -99,10 +100,14 @@ export type DeltaKind =
  * there is no rect evidence at all, and the style change stands alone — which is
  * why JSDOM can decide the token band but only part of geometry.
  *
+ * A style delta on a pair across two tags, `retagged`, is `geometry`, with the
+ * `tag-changed` it follows, because the structure a `token` delta says held did
+ * not.
+ *
  * Policy may promote or demote from here per project, subject, region, or
  * component (spec §5). This function is the default, not the answer.
  */
-export function bandOf(kind: DeltaKind): Band {
+export function bandOf(kind: DeltaKind, { retagged = false }: { readonly retagged?: boolean } = {}): Band {
   switch (kind) {
     case 'role-changed':
     case 'name-changed':
@@ -114,12 +119,13 @@ export function bandOf(kind: DeltaKind): Band {
     case 'node-added':
     case 'node-removed':
     case 'node-moved':
+    case 'tag-changed':
     case 'attribute-changed':
     case 'rect-changed':
       return 'geometry';
     case 'style-changed':
     case 'token-changed':
-      return 'token';
+      return retagged ? 'geometry' : 'token';
     case 'raster-residue':
       return 'texture';
   }

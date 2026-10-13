@@ -101,7 +101,7 @@ and no other:
 
 | `verdict` | What it means |
 | --- | --- |
-| `unchanged` | The stored baseline and the new capture were compared, and nothing differs. |
+| `unchanged` | The stored baseline and the new capture were compared, and nothing differs beyond the default policy's tolerance: antialiasing, and a colour change of up to 1%. |
 | `changed` | Pixels moved. The report names the region, the component and the `file:line`. |
 | `new` | The subject was captured and no approved baseline exists. |
 | `ignored` | Pixels moved, and every one of them fell inside a subtree your `ignore` rules excluded. Green, and a separate word from `unchanged`, so a report can be asked how much of its green was earned and how much was declared. |

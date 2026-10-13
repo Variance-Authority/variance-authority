@@ -259,7 +259,7 @@ There are four verdicts, and `assertUnchanged` throws on all three that are not
 
 | verdict | what it means |
 |---|---|
-| `unchanged` | the two images were compared and no pixels differ |
+| `unchanged` | the two images were compared and no pixels differ beyond the default policy's tolerance: antialiasing, and a colour change of up to 1%. The reason counts any pixels it forgave |
 | `changed` | pixels differ; `regions` names what drew them, and the reason names a moved identity first |
 | `new` | no baseline exists for this subject. Not a pass and not a failure |
 | `ignored` | pixels differ and every one of them fell inside something you excluded, or within a sensitivity you set |

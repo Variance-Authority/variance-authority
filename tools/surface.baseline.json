@@ -253,6 +253,8 @@
         "NodePath": "type",
         "ObservationProfile": "interface",
         "OwnerFrame": "interface",
+        "PACKED_SNAPSHOT_HEADER": "const",
+        "PackedSnapshot": "type",
         "PageRegion": "interface",
         "Pictured": "type",
         "ProfileId": "type",
@@ -314,7 +316,11 @@
         "identityDigest": "function",
         "intersectionArea": "function",
         "interventionById": "function",
+        "isRenderDocument": "function",
+        "isSemanticSnapshot": "function",
+        "isSubjectRef": "function",
         "jsxSourceOf": "function",
+        "keepsSnapshot": "function",
         "keyedByPosition": "function",
         "mergeDiagnostics": "function",
         "occupiesPixels": "function",
@@ -684,6 +690,7 @@
         "progress": "function",
         "record": "function",
         "relaxes": "function",
+        "restamps": "function",
         "severityOf": "function",
         "shapeOfDelta": "function",
         "startTrail": "function",
@@ -1448,7 +1455,9 @@
         "observeCaptureAgainstBaseline": "function",
         "observePair": "function",
         "observeRasters": "function",
-        "summarizeObservation": "function"
+        "packSnapshot": "function",
+        "summarizeObservation": "function",
+        "unpackSnapshot": "function"
       }
     }
   },

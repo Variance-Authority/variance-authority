@@ -1,7 +1,7 @@
 import { boundaries as componentBoundaries, UNATTRIBUTED } from '../attribute/boundary.js';
 import type { Digest } from '../format/hash.js';
 import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
-import { BANDS, bandOf, type Band } from './band.js';
+import { BANDS, type Band } from './band.js';
 import { compareTrees, matchTrees, type Delta } from './diff/index.js';
 import { cascadeInputs, declaredIn } from './cascade.js';
 import { compareHoldings } from './holding-diff.js';
@@ -369,8 +369,10 @@ function boundaryNodes(root: SemanticNode): readonly SemanticNode[] {
  *
  * The fallback is not a nicety, it is the case the whole module exists for. A
  * component that took the other branch returns a `<span>` where it returned a
- * `<p>`, and no host-level matcher pairs those: the tag is the thing that
- * changed, and every identity key ends in it. Reporting the boundary as present
+ * `<p>`, and the host-level matcher pairs those only when the snapshot recorded
+ * that component as the author of both and it replaced exactly one element under
+ * one parent (`match.ts`). Otherwise the tag is the thing that changed, and every
+ * identity key that names neither an alias nor a role ends in it. Reporting the boundary as present
  * on one side only would throw away the props and the hook cells at exactly the
  * moment they are the answer — `Summary` did not appear, it *chose differently*,
  * and the evidence for that is sitting in a holding nobody joined.
@@ -452,7 +454,7 @@ function attribute(drafts: readonly Draft[], deltas: readonly Delta[]): void {
 
 /** Apply the precedence in {@link PartingRung} and freeze the row. */
 function settle(draft: Draft, place: PartingPlace): PartedBoundary {
-  const bands = BANDS.filter((band) => draft.owned.some((delta) => bandOf(delta.kind) === band));
+  const bands = BANDS.filter((band) => draft.owned.some((delta) => delta.band === band));
 
   const moved = [
     ...new Set(draft.owned.map((delta) => delta.property).filter((name) => name !== undefined)),

@@ -122,6 +122,7 @@ describe('the wire is the one the clients already speak', () => {
         comparable: true,
         storedUnder: IDENTITY,
         pictured: true,
+        keepsSnapshot: false,
         missingFonts: [],
       },
     });

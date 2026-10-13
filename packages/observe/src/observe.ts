@@ -104,6 +104,16 @@ export interface Observation {
       readonly before?: AccessibilitySnapshot;
       readonly after?: AccessibilitySnapshot;
     };
+    /**
+     * `unrecorded` when this run collected a snapshot and the stored baseline
+     * it was compared against kept none that unpacks, whatever the verdict.
+     * Never set against an image the caller handed in, which nothing stores. A changed
+     * region is joined against that side's nodes, so an accepting run re-stamps
+     * an unchanged baseline that carries this, as it re-stamps one painted under
+     * another identity: left alone, the first change after it is joined against
+     * one render.
+     */
+    readonly snapshot?: 'unrecorded';
   };
 
   /**
@@ -312,7 +322,7 @@ export async function observeRasters(
   options: CompareInputs = {},
 ): Promise<Observation> {
   return withCause(
-    await decideRasters(subject, before, after, false, options),
+    await decideRasters(subject, before, after, false, options, 'image'),
     identityCause(before.identity, after.identity, {
       stored: 'the before image',
       current: 'the after image',
@@ -344,6 +354,7 @@ export async function observePair(
     right.raster,
     left.rendered || right.rendered,
     options,
+    'image',
   );
 }
 
@@ -396,7 +407,14 @@ export async function observeAgainstBaseline(
   }
 
   return withCause(
-    await decideRasters(document.subject.id, found.raster, fresh.raster, fresh.rendered, options),
+    await decideRasters(
+      document.subject.id,
+      found.raster,
+      fresh.raster,
+      fresh.rendered,
+      options,
+      'baseline',
+    ),
     identityCause(found.storedUnder, identity),
     documentMoved(found.raster, fresh.raster),
   );

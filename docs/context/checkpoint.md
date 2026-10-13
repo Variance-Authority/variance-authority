@@ -356,11 +356,14 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   benign by construction — every uncertainty widens — which is why it shipped at
   this evidence level, and the number that matters, *how much of a real suite it
   actually skips*, is unmeasured.
-- **A tag change is a replacement.** `matchKey` never pairs an element whose tag
-  moved, so `<div>` → `<section aria-label>` reports a removal and an addition
-  rather than a `role-changed`, and the `a11y` band does not carry it.
-  `as-region/card` declares `geometry` for that reason with the limit attached.
-  Pairing across a tag change needs a similarity heuristic nothing here has.
+- **A tag change without a shared role and name is paired only by its author.**
+  `matchKey` pairs two tags only under a declared alias or one role and name;
+  otherwise `matchTrees` pairs them when exactly one element left and one arrived
+  under one matched parent with the same `createdBy`. Either way the pair reports
+  `tag-changed`. So `<div>` → `<section aria-label>` is a `role-changed` in the
+  `a11y` band, and `as-region/card` declares that. Two replacements by one author
+  under one parent, two that each carry an alias or a role and name, or an
+  element whose author was not recorded, still report a removal and an addition.
 
 ---
 

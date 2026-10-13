@@ -112,14 +112,17 @@ to group the changed pixels into rectangles.
 
 | constant | `id` | `threshold` | `includeAA` | counts |
 | --- | --- | --- | --- | --- |
-| `DEFAULT_POLICY` | `default` | `0.1` | `false` | pixels past 10% YIQ colour distance, with antialiasing detected and forgiven |
+| `DEFAULT_POLICY` | `default` | `0.01` | `false` | pixels past 1% YIQ colour distance, with antialiasing detected and forgiven |
 | `STRICT_POLICY` | `strict` | `0` | `true` | any channel difference at all, antialiasing included |
 
-`DEFAULT_POLICY` is the forgiving one. It is also what `pixelmatch` runs at out
-of the box, which is what Playwright's `toHaveScreenshot` and jest-image-snapshot
-report — so a number under `default` is comparable with a number from those
-tools. Both policies are measured by default so that "zero pixels changed" can be
-told apart from "zero pixels changed after antialiasing was forgiven".
+`DEFAULT_POLICY` is the forgiving one. `pixelmatch` runs at `threshold: 0.1` out
+of the box, and Playwright 1.62's `toHaveScreenshot` at `0.2`. At `0.1`, a border
+colour changed from `#2f3437` to `#3a4043` counts as no change, so the default
+here is `0.01`. That still forgives the one-level difference per channel that a
+browser can paint when it renders the same story twice. To compare a number with
+one from another tool, count a policy at that tool's threshold beside these two.
+Both policies are measured by default so that "zero pixels changed" can be told
+apart from "zero pixels changed after forgiveness".
 
 A `DiffPolicy` is a plain object with those three fields, so define your own.
 This is an excerpt — `before` and `after` are the buffers from the sample above:
@@ -127,7 +130,7 @@ This is an excerpt — `before` and `after` are the buffers from the sample abov
 ```ts
 import type { DiffPolicy } from '@variance-authority/raster';
 
-const NEAR_EXACT: DiffPolicy = { id: 'near-exact', threshold: 0.02, includeAA: false };
+const NEAR_EXACT: DiffPolicy = { id: 'near-exact', threshold: 0.005, includeAA: false };
 
 const comparison = comparePngs(before, after, {
   policies: [NEAR_EXACT],

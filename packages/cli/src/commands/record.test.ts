@@ -105,19 +105,22 @@ describe('recordOf', () => {
     expect(record.because).toContain('unreadable-stylesheet');
   });
 
-  it('states the pixels the default policy forgave when the verdict is `unchanged`', () => {
-    // "Zero pixels changed" after antialiasing forgiveness is a different claim
-    // from "the images are identical", and quoting only the forgiving policy is
-    // the most common way to lie with a pixel measurement.
+  it('carries the observation’s sentence about forgiven pixels without adding a second', () => {
+    // The observation names what the default policy forgave, because it is the
+    // one that knows which policy that was. A clause appended here named
+    // antialiasing alone, beside pixels a colour threshold had forgiven.
+    const because =
+      'no pixels differ beyond the tolerance of the default policy, which forgave 37 pixels ' +
+      'as antialiasing or as a colour change of at most 1%';
     const unchanged: Observation = {
       ...base,
       verdict: 'unchanged',
-      because: 'no pixels differ',
+      because,
       comparison: { ...base.comparison!, changed: { default: 0, strict: 37 } },
       regions: [],
     };
 
-    expect(recordOf(unchanged).because).toContain('37 pixels differ with antialiasing counted');
+    expect(recordOf(unchanged).because).toBe(because);
   });
 
   it('never turns a nearest node into an attribution', () => {

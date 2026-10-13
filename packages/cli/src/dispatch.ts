@@ -360,6 +360,7 @@ export async function dispatch(
           commit: identity.commit,
           ...(parsed.branch !== undefined ? { branch: parsed.branch } : {}),
           ...(config.share !== undefined ? { share: config.share } : {}),
+          ...(config.baselines !== undefined ? { baselines: config.baselines } : {}),
           onProgress: ticker.on,
         });
       } finally {

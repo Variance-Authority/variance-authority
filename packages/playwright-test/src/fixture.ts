@@ -15,6 +15,7 @@ import type { SemanticSnapshot, SubjectRef } from '@variance-authority/core/form
 import {
   observeAgainstBaseline,
   observeCaptureAgainstBaseline,
+  packSnapshot,
 } from '@variance-authority/observe';
 import { createDeclarationReader, type DeclarationReader } from '@variance-authority/playwright';
 import { settle, type BaselineKey, type RasterStore, type Renderer } from '@variance-authority/raster';
@@ -406,6 +407,7 @@ async function observeAcquired(
       await store.put(key, {
         ...candidate,
         components: hashComponents(heldSnapshot),
+        snapshot: packSnapshot(heldSnapshot),
         accessibility: held.accessibility,
       });
       return accepted(observation);
@@ -421,6 +423,7 @@ async function observeAcquired(
     described,
     identity,
     accessibility,
+    snapshot,
   );
 
   if (settlement.kind === 'settled') {

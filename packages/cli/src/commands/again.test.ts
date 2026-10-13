@@ -6,6 +6,7 @@ import {
   type RenderDocument,
   type SemanticSnapshot,
 } from '@variance-authority/core/format';
+import { packSnapshot } from '@variance-authority/observe';
 import type { Found } from '@variance-authority/raster';
 import { EXIT_CLEAN, EXIT_REVIEW, exitFor } from '../exit.js';
 import type { Collected, Collector, Plan } from './run.js';
@@ -98,6 +99,18 @@ describe('a subject that does not read the same way twice', () => {
    */
   function baselineOf(id: string): Found {
     return whiteBaselineOf(documentFor(id));
+  }
+
+  /**
+   * A baseline equal to the reading taken at `at`, which settles on its digest.
+   *
+   * It keeps the snapshot of that reading, as a baseline an accepting run wrote
+   * does. One that kept none is rendered so a run can record one, and these
+   * tests are about the subject that never reaches a comparison.
+   */
+  function settlingBaselineOf(id: string, at: string): Found {
+    const found = whiteBaselineOf(reading(id, at));
+    return { ...found, raster: { ...found.raster, snapshot: packSnapshot(snapshotOf(id, at)) } };
   }
 
   /**
@@ -315,7 +328,7 @@ describe('a subject that does not read the same way twice', () => {
     // it at all — and it would have flaked on the next commit that touched
     // anything near it. One run earlier, for one collection.
     const collector = ticking(['fixture:a'], { snapshots: true });
-    const store = storeAnswering(whiteBaselineOf(reading('fixture:a', '12:00')));
+    const store = storeAnswering(settlingBaselineOf('fixture:a', '12:00'));
 
     const { report } = await runWith(configOf(), collector, store, {
       renderer: painter(),
@@ -385,7 +398,7 @@ describe('a subject that does not read the same way twice', () => {
     // A baseline the first reading settles against, so the *only* thing in
     // question is the instability. A `changed` verdict would exit 1 on its own
     // and the assertion below would pass without the boundary existing.
-    const store = storeAnswering(whiteBaselineOf(reading('route/home', '12:00')));
+    const store = storeAnswering(settlingBaselineOf('route/home', '12:00'));
 
     const { report } = await runWith(config, collector, store, {
       renderer: painter(),
@@ -419,7 +432,7 @@ describe('a subject that does not read the same way twice', () => {
       ],
     });
 
-    const store = storeAnswering(whiteBaselineOf(reading('route/checkout', '12:00')));
+    const store = storeAnswering(settlingBaselineOf('route/checkout', '12:00'));
 
     const { report } = await runWith(config, collector, store, {
       renderer: painter(),

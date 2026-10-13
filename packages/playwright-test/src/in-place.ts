@@ -10,10 +10,10 @@
 
 import type { Locator, Page } from '@playwright/test';
 import { digestValue, documentDigest } from '@variance-authority/core/format';
-import type { AttributedRegion } from '@variance-authority/core/attribute';
+import { hashComponents, type AttributedRegion } from '@variance-authority/core/attribute';
 import type { PageRegion, Raster, RenderIdentity, SemanticSnapshot } from '@variance-authority/core/format';
 import { normalize } from '@variance-authority/core/rules';
-import { observeRasters } from '@variance-authority/observe';
+import { observeRasters, packSnapshot } from '@variance-authority/observe';
 import { suspenseRefusal } from '@variance-authority/react';
 import { acquireFrom, unwatchFrom, watchFrom } from './acquire.js';
 import { driftBetween, listDrift, listMutated } from './drift.js';
@@ -104,8 +104,16 @@ export async function stableRaster(
   }
 
   const first = rasters[0]!;
+  // Every shot is of this one snapshot, so its hashes and its tree are both
+  // sides', and the join has both renders' boxes to hand.
+  const evidence = { components: hashComponents(snapshot), snapshot: packSnapshot(snapshot) };
   for (const next of rasters.slice(1)) {
-    const agreement = await observeRasters(document.subject.id, first, next, { snapshot });
+    const agreement = await observeRasters(
+      document.subject.id,
+      { ...first, ...evidence },
+      { ...next, ...evidence },
+      { snapshot },
+    );
     if (agreement.verdict !== 'unchanged') {
       throw new Error(
         `in-place capture for ${document.subject.id} is unstable: ${agreement.because}` +

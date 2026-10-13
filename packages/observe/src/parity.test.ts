@@ -276,6 +276,7 @@ describe('switching where baselines are kept', () => {
         comparable: true,
         storedUnder: MAC,
         pictured: true,
+        keepsSnapshot: false,
         missingFonts: [],
       },
       theirs: {
@@ -283,6 +284,7 @@ describe('switching where baselines are kept', () => {
         comparable: false,
         storedUnder: RUNNER,
         pictured: true,
+        keepsSnapshot: false,
         missingFonts: [],
       },
       neither: null,

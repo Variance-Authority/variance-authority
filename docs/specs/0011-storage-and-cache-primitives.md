@@ -62,11 +62,12 @@ What makes this a primitive rather than a pile of heuristics is that its contrac
 is checkable, and the check is already computed on every comparison:
 
 > A reduction rule is admissible only if, across the corpus, every subject renders
-> **strict-identical** before and after — `STRICT_POLICY packages/raster/src/policy.ts:39`,
+> **strict-identical** before and after — `STRICT_POLICY packages/raster/src/policy.ts:53`,
 > which is `{ threshold: 0, includeAA: true }`.
 
-Not "within threshold". `unchanged` under the default policy forgives 10% per
-channel and antialiasing entirely, and forgiveness is not transitive: eleven
+Not "within threshold". `unchanged` under the default policy forgives a colour
+change of up to 1% in `pixelmatch`'s YIQ metric and antialiasing entirely, and
+forgiveness is not transitive: eleven
 admissible-looking rules each moving a subject slightly compose into a reduction
 that paints a different picture, and the digest says nothing moved. Strict equality
 is transitive, so rules compose indefinitely.

@@ -26,8 +26,22 @@ export interface DiffPolicy {
   readonly includeAA: boolean;
 }
 
-/** What a VR tool ships with, and therefore what "a pixel differ says" means. */
-export const DEFAULT_POLICY: DiffPolicy = { id: 'default', threshold: 0.1, includeAA: false };
+/**
+ * The policy a verdict is decided under: antialiasing forgiven, and a colour
+ * change of at most 1% of the largest difference `pixelmatch`'s YIQ metric
+ * measures. Black to white is 97% of that.
+ *
+ * Not `pixelmatch`'s own `0.1`. That forgives a pixel up to a tenth of that
+ * largest difference, and tribunal's border token changing from #2f3437 to
+ * #3a4043 is under half of that: every border on the page repainted and 183
+ * stories reported `unchanged`. Not `0` either. A page reused across subjects
+ * repaints a remounted story up to one level per channel away, which is never
+ * more than 0.4% of it, and `0` would turn the wobble into findings.
+ * ADR-0026 holds the measurements, which were taken on one darwin/arm64
+ * machine: another platform's wobble is unmeasured, and a finding there is the
+ * measurement.
+ */
+export const DEFAULT_POLICY: DiffPolicy = { id: 'default', threshold: 0.01, includeAA: false };
 
 /**
  * Any channel difference at all, antialiasing included.
