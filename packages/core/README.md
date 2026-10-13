@@ -187,7 +187,7 @@ are five, loudest first:
 | band | what changed | example delta kinds |
 |---|---|---|
 | `a11y` | a role, accessible name, description or ARIA state | `role-changed`, `name-changed`, `state-changed` |
-| `geometry` | boxes appeared, vanished, moved or resized | `node-added`, `node-moved`, `rect-changed`, `attribute-changed` |
+| `geometry` | boxes appeared, vanished, moved, resized or were replaced | `node-added`, `node-moved`, `tag-changed`, `rect-changed`, `attribute-changed` |
 | `token` | style values changed while structure stayed the same | `style-changed`, `token-changed` |
 | `content` | text changed and nothing else did | `text-changed` |
 | `texture` | sub-semantic rendering variance | `raster-residue` |

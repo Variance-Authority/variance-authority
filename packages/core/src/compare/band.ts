@@ -70,6 +70,7 @@ export type DeltaKind =
   | 'node-added'
   | 'node-removed'
   | 'node-moved'
+  | 'tag-changed'
   | 'role-changed'
   | 'name-changed'
   | 'description-changed'
@@ -114,6 +115,7 @@ export function bandOf(kind: DeltaKind): Band {
     case 'node-added':
     case 'node-removed':
     case 'node-moved':
+    case 'tag-changed':
     case 'attribute-changed':
     case 'rect-changed':
       return 'geometry';
