@@ -57,6 +57,15 @@ describe('the assets a subtree references', () => {
     ]);
   });
 
+  it('reads a data: candidate as one URL, though it holds a comma', () => {
+    // A URL in a srcset is a run of non-whitespace, so the comma inside a
+    // `data:` URL is part of it. Read as a separator, it left `iVBORw0` behind
+    // to resolve as a file next to the page, which no page asked for.
+    const root = subtree('<img srcset="data:image/png;base64,iVBORw0 1x, a@2x.png 2x">');
+
+    expect(referencedAssets(root)).toEqual(['https://shop.example/story/a@2x.png']);
+  });
+
   it('still reads attributes when the suite replaced getComputedStyle', () => {
     // A layout test stubs `getComputedStyle` to return the two properties the
     // component reads and nothing else. That removes computed styles from the

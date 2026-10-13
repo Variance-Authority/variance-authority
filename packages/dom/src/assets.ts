@@ -152,18 +152,54 @@ function addAttributes(element: Element, add: (value: string | null) => void): v
   for (const attribute of fileAttributes(element)) {
     const value = element.getAttributeNS(attribute.namespace, attribute.name);
     if (!attribute.candidates) add(value);
-    else for (const candidate of srcsetCandidates(value)) add(candidate);
+    else for (const candidate of srcsetCandidates(value ?? '')) add(candidate.url);
   }
 }
 
-/** `a.png 1x, b.png 2x` → `['a.png', 'b.png']`. Descriptors are not URLs. */
-function srcsetCandidates(value: string | null): readonly string[] {
-  if (value === null) return [];
+/** One candidate in a `srcset`: its URL, and the descriptor offered with it. */
+export interface SrcsetCandidate {
+  readonly url: string;
+  /** `2x`, `640w`, or empty. */
+  readonly descriptor: string;
+}
 
-  return value
-    .split(',')
-    .map((candidate) => candidate.trim().split(/\s+/)[0] ?? '')
-    .filter((candidate) => candidate !== '');
+/**
+ * `a.png 1x, b.png 2x` → each URL with its descriptor, by HTML's rule.
+ *
+ * A URL is a run of non-whitespace, so the comma inside a `data:` URL is part of
+ * it: splitting on every comma cut such a URL in two, and the second half
+ * resolved as a file next to the page. A comma ends a candidate only after its
+ * URL, or trailing it.
+ */
+export function srcsetCandidates(value: string): readonly SrcsetCandidate[] {
+  const candidates: SrcsetCandidate[] = [];
+  let position = 0;
+
+  while (position < value.length) {
+    while (position < value.length && /[\s,]/.test(value[position]!)) position += 1;
+    if (position >= value.length) break;
+
+    const start = position;
+    while (position < value.length && !/\s/.test(value[position]!)) position += 1;
+    const written = value.slice(start, position);
+    const url = written.replace(/,+$/, '');
+    if (url !== written) {
+      candidates.push({ url, descriptor: '' });
+      continue;
+    }
+
+    // A descriptor runs to the next comma outside parentheses.
+    const after = position;
+    let depth = 0;
+    while (position < value.length && (value[position] !== ',' || depth > 0)) {
+      if (value[position] === '(') depth += 1;
+      else if (value[position] === ')') depth = Math.max(0, depth - 1);
+      position += 1;
+    }
+    candidates.push({ url, descriptor: value.slice(after, position).trim() });
+  }
+
+  return candidates;
 }
 
 /**

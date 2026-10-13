@@ -82,6 +82,20 @@ const PAGES: Readonly<Record<string, string>> = {
   )}</body></html>`,
   "/held": held(),
   "/candidate": held("", "img.srcset = url + ' 1x';"),
+  // A data: URL holds a comma; the candidate after it is still the object URL.
+  "/mixed": held(
+    "",
+    `img.srcset = 'data:image/png;base64,${SQUARE} 1x, ' + url + ' 2x';`,
+  ),
+  "/vector": holding(
+    `<main id="app"><svg width="60" height="40"><image width="60" height="40"></image><image class="old" width="60" height="40"></image></svg></main>`,
+    `document.querySelector('image').setAttribute('href', url);
+      document.querySelector('.old').setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url);`,
+  ),
+  "/poster": holding(
+    `<main id="app"><video width="60" height="40"></video></main>`,
+    "document.querySelector('video').poster = url;",
+  ),
   // Shown, and then let go: the page still paints the square, and nothing can
   // read its bytes any more.
   "/revoked": held(
@@ -119,6 +133,9 @@ const ROUTES: Readonly<Record<string, string>> = {
   "object/held": "/held",
   "object/held-again": "/held?again",
   "object/candidate": "/candidate",
+  "object/mixed": "/mixed",
+  "object/vector": "/vector",
+  "object/poster": "/poster",
   "object/revoked": "/revoked",
   "object/bare": "/bare",
   "object/tiled": "/tiled",
@@ -240,6 +257,21 @@ chromium_("an image a page made from bytes it held", () => {
     expect(html("candidate")).not.toContain("blob:");
     expect(html("candidate")).toContain(`srcset="data:image/png;base64,${SQUARE} 1x"`);
     expect(bytes("candidate")).toBe(bytes("inline"));
+  });
+
+  it("carries the candidate after a data: one, whose comma is part of its URL", () => {
+    expect(html("mixed")).not.toContain("blob:");
+    expect(html("mixed")).toContain(
+      `srcset="data:image/png;base64,${SQUARE} 1x, data:image/png;base64,${SQUARE} 2x"`,
+    );
+  });
+
+  it("carries an SVG image's href, in either namespace, and a video's poster", () => {
+    for (const id of ["vector", "poster"]) {
+      expect(html(id)).not.toContain("blob:");
+      expect(html(id)).toContain(`data:image/png;base64,${SQUARE}`);
+    }
+    expect(html("vector")).toContain(`xlink:href="data:image/png;base64,${SQUARE}"`);
   });
 
   it("fails a subject whose object URL no longer reads, rather than painting it broken", () => {

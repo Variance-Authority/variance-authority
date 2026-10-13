@@ -16,6 +16,9 @@ attribute that names a file (`src`, every `srcset` candidate, `poster`, `href`
 on SVG's `<image>` and `<use>`) or in a `url()` of an element's `style`, a rule
 the subject is painted with, or a value it inherits, and writes its bytes into
 the document as a `data:` URL. An object URL
-that can no longer be read, because it was revoked after the image loaded, keeps
-its URL and is reported as an `unreadable-object-url` error, which holds the run
-open.
+that cannot be read, such as one revoked after the image loaded, keeps its URL
+and is reported as an `unreadable-object-url` error, which holds the run open.
+
+A `srcset` is now read by HTML's rule, where a URL is a run of non-whitespace.
+Splitting on every comma cut a `data:` candidate in two, and `referencedAssets`
+listed the second half as a file next to the page.

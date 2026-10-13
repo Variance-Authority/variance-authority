@@ -1,5 +1,5 @@
 import type { Diagnostic } from '@variance-authority/core/format';
-import { fileAttributes } from './assets.js';
+import { fileAttributes, srcsetCandidates } from './assets.js';
 import { URL_TOKEN } from './css-url.js';
 
 /**
@@ -73,7 +73,7 @@ export function objectUrls(view: Window | null, pathAttribute: string): ObjectUr
       severity: 'error',
       code: 'unreadable-object-url',
       message:
-        `${place} names memory in the page that this host could no longer read, so the ` +
+        `${place} names memory in the page that this host could not read, so the ` +
         'render paints it broken where the page shows it; keep the URL until the subject ' +
         'has been acquired',
       ...(nodePath !== undefined ? { nodePath } : {}),
@@ -99,8 +99,11 @@ export function objectUrls(view: Window | null, pathAttribute: string): ObjectUr
     for (const attribute of fileAttributes(element)) {
       const value = element.getAttributeNS(attribute.namespace, attribute.name);
       if (value === null || !/blob:/i.test(value)) continue;
-      const written = (attribute.candidates ? candidatesOf(value) : [{ url: value.trim(), rest: '' }])
-        .map(({ url, rest }) => carried(url, `<${tag} ${attribute.name}="${url}">`, nodePath) + rest)
+      const written = (attribute.candidates ? srcsetCandidates(value) : [{ url: value.trim(), descriptor: '' }])
+        .map(({ url, descriptor }) => {
+          const data = carried(url, `<${tag} ${attribute.name}="${url}">`, nodePath);
+          return descriptor === '' ? data : `${data} ${descriptor}`;
+        })
         .join(', ');
       if (written !== value) edits.push({ name: attribute.name, namespace: attribute.namespace, value: written });
     }
@@ -127,20 +130,6 @@ export function objectUrls(view: Window | null, pathAttribute: string): ObjectUr
     inCss,
     diagnostics,
   };
-}
-
-/** `a.png 1x, blob:… 2x` → each URL with what follows it. Descriptors are not URLs. */
-function candidatesOf(value: string): readonly { readonly url: string; readonly rest: string }[] {
-  return value
-    .split(',')
-    .map((candidate) => candidate.trim())
-    .filter((candidate) => candidate !== '')
-    .map((candidate) => {
-      const space = candidate.search(/\s/);
-      return space === -1
-        ? { url: candidate, rest: '' }
-        : { url: candidate.slice(0, space), rest: candidate.slice(space) };
-    });
 }
 
 /** The bytes behind an object URL, as a `data:` URL of the type the blob was given. */
