@@ -16,14 +16,15 @@ import {
 import type { Renderer } from '@variance-authority/raster';
 import { createDurableStore } from '@variance-authority/store/durable';
 import { observeAgainstBaseline, observeRasters } from './observe.js';
+import { packSnapshot } from './packed.js';
 
 /**
  * A control replaced by a larger element, decided against a stored baseline.
  *
  * The region a replacement changes is the union of what left and what
- * arrived, so only the baseline's boxes can hold it. They ride on its component
- * hashes; a baseline written before those carried boxes cannot, and the verdict
- * says so rather than joining against one render in silence.
+ * arrived, so only the baseline's own tree can say where the control was. It
+ * rides in the sidecar, packed; a baseline written before it did has none, and
+ * the verdict says so rather than joining against one render in silence.
  *
  * The baseline goes through a durable store, so what is decided is what the
  * sidecar kept rather than the object this file built.
@@ -69,7 +70,7 @@ const TOGGLE = { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Tog
 const LEFT = { x: 14, y: 12, width: 12, height: 12 };
 const ARRIVED = { x: 8, y: 10, width: 14, height: 14 };
 
-function snapshotWith(toggle: typeof LEFT): SemanticSnapshot {
+function snapshotWith(toggle: typeof LEFT, control: Partial<SemanticNode> = {}): SemanticSnapshot {
   const child: SemanticNode = {
     path: '0/0',
     tag: 'div',
@@ -78,6 +79,7 @@ function snapshotWith(toggle: typeof LEFT): SemanticSnapshot {
     rect: toggle,
     children: [],
     provenance: TOGGLE,
+    ...control,
   };
   return {
     formatVersion: 1,
@@ -108,7 +110,7 @@ function snapshotWith(toggle: typeof LEFT): SemanticSnapshot {
   };
 }
 
-const BEFORE = snapshotWith(LEFT);
+const BEFORE = snapshotWith(LEFT, { tag: 'input', role: 'checkbox', name: 'Done' });
 const AFTER = snapshotWith(ARRIVED);
 
 const DOCUMENT: RenderDocument = {
@@ -161,41 +163,56 @@ async function againstBaseline(baseline: Raster): ReturnType<typeof observeAgain
   });
 }
 
-describe('a stored baseline and the boxes it kept', () => {
-  it('names the replaced control when the baseline kept its box', async () => {
+describe('a stored baseline and the snapshot it kept', () => {
+  it('names the replaced control when the baseline kept its snapshot', async () => {
+    const observation = await againstBaseline({
+      ...raster(BEFORE_IMAGE, 'v1:before'),
+      components: hashComponents(BEFORE),
+      snapshot: packSnapshot(BEFORE),
+    });
+
+    expect(observation.verdict).toBe('changed');
+    expect(observation.regions.length).toBeGreaterThan(0);
+    expect(observation.regions.every((region) => region.component === 'Toggle')).toBe(true);
+    expect(observation.because).not.toContain('records no snapshot');
+  });
+
+  it('says the baseline kept no snapshot, and how to record one', async () => {
+    // A baseline written before sidecars kept the tree. The change is still
+    // attributed, against this render's boxes alone, and the sentence says so
+    // rather than leaving the row it names to look like the answer.
     const observation = await againstBaseline({
       ...raster(BEFORE_IMAGE, 'v1:before'),
       components: hashComponents(BEFORE),
     });
 
     expect(observation.verdict).toBe('changed');
-    expect(observation.regions.length).toBeGreaterThan(0);
-    expect(observation.regions.every((region) => region.component === 'Toggle')).toBe(true);
-    expect(observation.because).not.toContain('node boxes');
-  });
-
-  it('says the baseline kept no boxes, and how to record them', async () => {
-    // A baseline written before component hashes carried boxes. The change is
-    // still attributed, against this render's boxes alone, and the sentence
-    // says so rather than leaving the row it names to look like the answer.
-    const observation = await againstBaseline(raster(BEFORE_IMAGE, 'v1:before'));
-
-    expect(observation.verdict).toBe('changed');
     expect(observation.regions.map((region) => region.component)).toContain('Row');
     expect(observation.because).toMatch(
-      /; the baseline records no node boxes, so regions were joined against this render's boxes alone: accept it again to record them$/,
+      /; the baseline records no snapshot of its nodes, so regions were joined against this render's boxes alone: accept it again to record them$/,
     );
   });
 
-  it('says the same of hashes that carry no boxes', async () => {
-    const unboxed = hashComponents(BEFORE).map(({ boxes: _boxes, ...entry }) => entry);
-    const observation = await againstBaseline({ ...raster(BEFORE_IMAGE, 'v1:before'), components: unboxed });
+  it('says the same of a snapshot that will not unpack', async () => {
+    const observation = await againstBaseline({ ...raster(BEFORE_IMAGE, 'v1:before'), snapshot: 'not gzip' });
 
-    expect(observation.because).toContain('the baseline records no node boxes');
+    expect(observation.because).toContain('the baseline records no snapshot of its nodes');
   });
 });
 
 describe('two images handed in', () => {
+  it('joins against the before image when it carries its snapshot', async () => {
+    const observation = await observeRasters(
+      's',
+      { ...raster(BEFORE_IMAGE, 'v1:before'), snapshot: packSnapshot(BEFORE) },
+      raster(AFTER_IMAGE, 'v1:after'),
+      { snapshot: AFTER },
+    );
+
+    expect(observation.regions.every((region) => region.component === 'Toggle')).toBe(true);
+    expect(observation.because).not.toContain('records no snapshot');
+  });
+
   it('names the image, which no accept can rewrite', async () => {
     const observation = await observeRasters(
       's',
@@ -205,14 +222,14 @@ describe('two images handed in', () => {
     );
 
     expect(observation.because).toMatch(
-      /; the before image records no node boxes, so regions were joined against the after image's boxes alone$/,
+      /; the before image records no snapshot of its nodes, so regions were joined against the after image's boxes alone$/,
     );
   });
 
-  it('says nothing of boxes when there was no snapshot to join against', async () => {
+  it('says nothing of the join when there was no snapshot to join against', async () => {
     const observation = await observeRasters('s', raster(BEFORE_IMAGE, 'v1:before'), raster(AFTER_IMAGE, 'v1:after'));
 
     expect(observation.verdict).toBe('changed');
-    expect(observation.because).not.toContain('node boxes');
+    expect(observation.because).not.toContain('records no snapshot');
   });
 });

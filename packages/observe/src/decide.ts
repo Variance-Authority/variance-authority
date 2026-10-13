@@ -12,7 +12,8 @@ import { absorbsEntirely, relaxes, fingerprintOfMask } from '@variance-authority
 import type { SemanticSnapshot } from '@variance-authority/core/format';
 import { compareRasters } from '@variance-authority/png';
 import { attributionOf } from './attribution.js';
-import { count, describeChange, forgiveness, recordsBoxes, unboxed, type BeforeSide } from './because.js';
+import { count, describeChange, forgiveness, unjoined, type BeforeSide } from './because.js';
+import { unpackSnapshot } from './packed.js';
 import { frameDiagnostics } from './frame.js';
 import type { CompareInputs, IgnoredPixels, Observation } from './observe.js';
 
@@ -280,12 +281,13 @@ export async function decide(
 
   // Every surviving region carries its own fingerprint, so writing a shape-scoped
   // ignore is copying a digest out of the report rather than deriving one.
+  const left = unpackSnapshot(before.snapshot);
   const regions = (
     options.snapshot === undefined
       ? []
       : attributeRegions(isolation.regions, options.snapshot, {
           scale: after.identity.deviceScaleFactor,
-          before: before.components,
+          before: left,
         })
   ).map((attributed) => {
     const fingerprint = prints.get(attributed.region);
@@ -298,7 +300,7 @@ export async function decide(
     because:
       describeChange(comparison, isolation, regions, outstanding) +
       (absorbed > 0 ? `, with ${absorbed}px absorbed by an ignore` : '') +
-      (regions.length > 0 && !recordsBoxes(before) ? unboxed(beforeIs) : ''),
+      (regions.length > 0 && left === undefined ? unjoined(beforeIs) : ''),
     comparison,
     isolation,
     regions,

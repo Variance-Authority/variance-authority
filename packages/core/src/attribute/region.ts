@@ -1,8 +1,8 @@
 import { intersectionArea, type Rect } from '../format/capture.js';
 import { locate } from './locate.js';
-import { boundaries, UNATTRIBUTED } from './boundary.js';
+import { matchTrees } from '../compare/diff/match.js';
 import type { DiffRegion } from './mask.js';
-import type { ComponentHash, NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
+import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 import type { SourceLocation } from '../format/provenance.js';
 
 /**
@@ -144,16 +144,16 @@ export interface AttributionOptions {
   readonly containment?: number;
 
   /**
-   * The component hashes of the revision the pixels are compared against,
-   * whose `boxes` say where each instance's root sat.
+   * The snapshot of the render the pixels are compared against.
    *
-   * Required, and `undefined` is an answer: it says the other revision is not
-   * known. A changed region is the union of what left and what arrived, so an
-   * instance's root is joined against its box in this render and its box in
-   * that one. Without them a control replaced by a larger element changes
-   * pixels outside either box alone, and the join names the row it sits in.
+   * Required, and `undefined` is an answer: it says the other render is not
+   * known. A changed region is the union of what left and what arrived, so each
+   * node is joined against its box in this render and the box of the node the
+   * differ's matcher pairs it with in that one. Without it a control replaced
+   * by a larger element changes pixels outside either box alone, and the join
+   * names the row it sits in.
    */
-  readonly before: readonly ComponentHash[] | undefined;
+  readonly before: SemanticSnapshot | undefined;
 }
 
 const DEFAULT_CONTAINMENT = 0.9;
@@ -170,11 +170,11 @@ export function attributeRegions(
   snapshot: SemanticSnapshot,
   options: AttributionOptions,
 ): readonly AttributedRegion[] {
-  const kept = keptBoxes(snapshot, options.before ?? []);
-  const boxed = collectBoxes(snapshot.root).map((node) => ({
-    node,
-    rect: [node.rect!, ...(kept.get(node.path) ?? [])].reduce(union),
-  }));
+  const left = keptBoxes(options.before, snapshot);
+  const boxed = collectBoxes(snapshot.root).map((node) => {
+    const before = left.get(node);
+    return { node, rect: before === undefined ? node.rect! : union(node.rect!, before) };
+  });
   const origin = options.origin ?? snapshot.root.rect ?? { x: 0, y: 0 };
   const containment = options.containment ?? DEFAULT_CONTAINMENT;
 
@@ -316,37 +316,18 @@ function describe(
 }
 
 /**
- * The boxes the other revision recorded for each instance root in this one,
- * by the root's path.
+ * The box each node in `after` had in `before`, by the node.
  *
- * Instances pair by document order, the order `hashComponents` records them
- * in, and only when both revisions count the same number: an instance added
- * or removed shifts every one after it, and `grewBetween` refuses the same
- * pairing for the same reason. A path is not the key across revisions because
- * it is a position, and a sibling inserted ahead renumbers the node.
- * `(unattributed)` collects unrelated nodes under one name, so its instances
- * pair with nothing.
+ * Paired by `matchTrees`, the matcher the semantic diff reads, so a region and
+ * a delta never disagree about which element a node was. A path is not the key
+ * across renders because it is a position, and a sibling inserted ahead
+ * renumbers the node. A box with no area paints nothing, so it widens nothing.
  */
-function keptBoxes(
-  snapshot: SemanticSnapshot,
-  before: readonly ComponentHash[],
-): ReadonlyMap<NodePath, readonly Rect[]> {
-  const recorded = new Map(before.map((entry) => [entry.component, entry.boxes] as const));
-  const found = boundaries(snapshot.root);
-  const counts = new Map<string, number>();
-  for (const boundary of found) counts.set(boundary.component, (counts.get(boundary.component) ?? 0) + 1);
-
-  const kept = new Map<NodePath, Rect[]>();
-  const seen = new Map<string, number>();
-  for (const boundary of found) {
-    const index = seen.get(boundary.component) ?? 0;
-    seen.set(boundary.component, index + 1);
-    const boxes = recorded.get(boundary.component);
-    if (boundary.component === UNATTRIBUTED || boxes === undefined) continue;
-    if (boxes.length !== counts.get(boundary.component)) continue;
-    const box = boxes[index];
-    if (box === null || box === undefined || box.width * box.height === 0) continue;
-    kept.set(boundary.node.path, [...(kept.get(boundary.node.path) ?? []), box]);
+function keptBoxes(before: SemanticSnapshot | undefined, after: SemanticSnapshot): ReadonlyMap<SemanticNode, Rect> {
+  const kept = new Map<SemanticNode, Rect>();
+  if (before === undefined) return kept;
+  for (const [left, arrived] of matchTrees(before.root, after.root).pairs) {
+    if (left.rect !== undefined && left.rect.width * left.rect.height > 0) kept.set(arrived, left.rect);
   }
   return kept;
 }

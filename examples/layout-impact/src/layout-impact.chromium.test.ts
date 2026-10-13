@@ -6,7 +6,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   attributeRegions,
   formatSource,
-  hashComponents,
   isolateRegions,
   mergeSourceIndexes,
   rankRegions,
@@ -65,7 +64,7 @@ function regions(before: Awaited<ReturnType<typeof read>>, after: Awaited<Return
     attributeRegions(isolateRegions(comparison.mask).regions, after.snapshot, {
       scale: VIEWPORT.deviceScaleFactor,
       origin: after.origin,
-      before: hashComponents(before.snapshot),
+      before: before.snapshot,
     }),
     causes,
   );

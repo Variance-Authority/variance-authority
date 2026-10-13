@@ -115,4 +115,5 @@ export type {
   RenderIdentity,
   Raster,
   Pictured,
+  PackedSnapshot,
 } from './document.js';

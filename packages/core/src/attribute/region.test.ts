@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { hashComponents } from './component-hash.js';
 import { attributeRegions, rankRegions } from './region.js';
 import type { SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 
@@ -244,25 +243,24 @@ describe('two boxes of exactly the same size', () => {
  */
 describe('a region that spans what left and what arrived', () => {
   const ROW = { x: 25, y: 217.5, width: 1230, height: 22.5 };
+  const row = { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Row' };
   const toggle = { provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Toggle' } };
+  const checkbox = (path: string, x = 29, by = toggle) =>
+    node(path, { x, y: 220.75, width: 16, height: 16 }, { tag: 'input', role: 'checkbox', name: 'Done', ...by });
+  const badge = { provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Badge' } };
 
-  const BEFORE = snapshotOf(
-    node('0', ROW, {
-      provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Row' },
-      children: [node('0/0', { x: 29, y: 220.75, width: 16, height: 16 }, { tag: 'input', ...toggle })],
-    }),
-  );
+  const BEFORE = snapshotOf(node('0', ROW, { provenance: row, children: [checkbox('0/0')] }));
   const AFTER = snapshotOf(
     node('0', ROW, {
-      provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Row' },
+      provenance: row,
       children: [node('0/0', { x: 25, y: 219.75, width: 18, height: 18 }, toggle)],
     }),
   );
   const REGION = { x: 0, y: 2.5, width: 20, height: 18, pixels: 92, density: 0.26 };
   const AT = { scale: 1, origin: { x: 25, y: 217.5 } };
 
-  it('names the component whose box moved, joined against both renders', () => {
-    const [attributed] = attributeRegions([REGION], AFTER, { ...AT, before: hashComponents(BEFORE) });
+  it('names the component whose element was replaced, joined against both renders', () => {
+    const [attributed] = attributeRegions([REGION], AFTER, { ...AT, before: BEFORE });
 
     expect(attributed!.path).toBe('0/0');
     expect(attributed!.component).toBe('Toggle');
@@ -276,21 +274,19 @@ describe('a region that spans what left and what arrived', () => {
     expect(attributed!.component).toBe('Row');
   });
 
-  it('pairs an instance whose path a sibling ahead of it renumbered', () => {
-    // A path is a position. The instance is the same one: the first `Toggle`.
+  it('pairs a node whose path a sibling ahead of it renumbered', () => {
+    // A path is a position. The node is the same one, and the matcher says so.
     const shifted = snapshotOf(
       node('0', ROW, {
-        provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Row' },
+        provenance: row,
         children: [
-          node('0/0', { x: 600, y: 220.75, width: 40, height: 16 }, {
-            provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Badge' },
-          }),
+          node('0/0', { x: 600, y: 220.75, width: 40, height: 16 }, badge),
           node('0/1', { x: 25, y: 219.75, width: 18, height: 18 }, toggle),
         ],
       }),
     );
 
-    const [attributed] = attributeRegions([REGION], shifted, { ...AT, before: hashComponents(BEFORE) });
+    const [attributed] = attributeRegions([REGION], shifted, { ...AT, before: BEFORE });
 
     expect(attributed!.path).toBe('0/1');
     expect(attributed!.component).toBe('Toggle');
@@ -299,36 +295,21 @@ describe('a region that spans what left and what arrived', () => {
   it('does not join a box another component left at the same place', () => {
     // The checkbox was `Badge`'s. Nothing of `Toggle` left, so its box is this
     // render's alone.
-    const other = snapshotOf(
-      node('0', ROW, {
-        provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Row' },
-        children: [
-          node('0/0', { x: 29, y: 220.75, width: 16, height: 16 }, {
-            provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Badge' },
-          }),
-        ],
-      }),
-    );
+    const other = snapshotOf(node('0', ROW, { provenance: row, children: [checkbox('0/0', 29, badge)] }));
 
-    const [attributed] = attributeRegions([REGION], AFTER, { ...AT, before: hashComponents(other) });
+    const [attributed] = attributeRegions([REGION], AFTER, { ...AT, before: other });
 
     expect(attributed!.component).toBe('Row');
   });
 
-  it('does not pair instances when the count changed', () => {
-    // Two toggles before and one after: which of the two this one was is not
-    // something document order can say once an instance went missing.
+  it('does not join either of two elements its author replaced with one', () => {
+    // Two checkboxes left and one `div` arrived: which of the two it replaced
+    // is not something the record of who wrote them can say.
     const two = snapshotOf(
-      node('0', ROW, {
-        provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Row' },
-        children: [
-          node('0/0', { x: 29, y: 220.75, width: 16, height: 16 }, { tag: 'input', ...toggle }),
-          node('0/1', { x: 600, y: 220.75, width: 16, height: 16 }, { tag: 'input', ...toggle }),
-        ],
-      }),
+      node('0', ROW, { provenance: row, children: [checkbox('0/0'), checkbox('0/1', 600)] }),
     );
 
-    const [attributed] = attributeRegions([REGION], AFTER, { ...AT, before: hashComponents(two) });
+    const [attributed] = attributeRegions([REGION], AFTER, { ...AT, before: two });
 
     expect(attributed!.component).toBe('Row');
   });

@@ -1,0 +1,13 @@
+---
+'@variance-authority/core': minor
+---
+
+The differ pairs the one element its author replaced, and says what it became
+
+When, under one matched parent, exactly one element left and exactly one
+arrived, and the same component's `createdBy` wrote both, `matchTrees` pairs
+them. The pair is compared like any other and leads with a new `tag-changed`
+delta, in the geometry band and counted as structural, followed by whatever else
+differs: role, name, state, attributes, styles and box. Before, the same change
+was a `node-removed` and a `node-added`. Two or more replaced by one author under
+one parent stay unpaired, because either could be either.

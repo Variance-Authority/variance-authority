@@ -130,8 +130,8 @@ export async function ingestBuild(
               diff_key, candidate_document_digest, candidate_width, candidate_height,
               candidate_missing_fonts, candidate_accessibility,
               candidate_identity, candidate_components, candidate_finding_marks,
-              baseline_width, baseline_height)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              candidate_snapshot, baseline_width, baseline_height)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           project,
@@ -179,6 +179,7 @@ export async function ingestBuild(
           // this document declared no components and this render was clean.
           after?.components === undefined ? null : JSON.stringify(after.components),
           after?.findingMarks === undefined ? null : JSON.stringify(after.findingMarks),
+          after?.snapshot ?? null,
           // Null when the push could not read the baseline's header. Not the
           // candidate's numbers: a guess here is a width change made invisible.
           before?.width ?? null,

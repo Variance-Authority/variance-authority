@@ -8,7 +8,7 @@ import {
   type RenderDocument,
   type SemanticSnapshot,
 } from '@variance-authority/core/format';
-import type { Observation } from '@variance-authority/observe';
+import { packSnapshot, type Observation } from '@variance-authority/observe';
 import { decode, diffImage } from '@variance-authority/png';
 import type { BaselineKey, RasterStore, Renderer } from '@variance-authority/raster';
 import type { ObservationRecord } from '@variance-authority/report';
@@ -71,13 +71,16 @@ export async function images(
   const cached = await candidateRaster(deps.store, document, renderer);
   if (cached === null) return {};
 
-  // The hashes are attached here rather than read back out of the cache. They
-  // describe the snapshot this run collected, and the cache is keyed by the
-  // document — so a cache hit is the right *image* and says nothing about whose
-  // components it was written beside (ADR-0027, and `withComponents`).
+  // The hashes and the packed tree are attached here rather than read back out
+  // of the cache. They describe the snapshot this run collected, and the cache
+  // is keyed by the document — so a cache hit is the right *image* and says
+  // nothing about whose components it was written beside (ADR-0027, and
+  // `withComponents`).
   const raster: Raster = {
     ...cached,
-    ...(snapshot === undefined ? {} : { components: hashComponents(snapshot) }),
+    ...(snapshot === undefined
+      ? {}
+      : { components: hashComponents(snapshot), snapshot: packSnapshot(snapshot) }),
     // Written on the candidate, which is the file `accept` promotes. That is the
     // whole path by which a defect found today becomes a defect the next run can
     // call standing: nothing inspects a baseline, because a baseline is a PNG.

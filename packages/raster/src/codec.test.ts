@@ -121,3 +121,28 @@ describe('the declared values a sidecar carries', () => {
     expect(read?.components?.[0] && 'values' in read.components[0]).toBe(false);
   });
 });
+
+describe('the snapshot a sidecar carries', () => {
+  it('reads back the packed snapshot a run recorded, as it was written', () => {
+    // Packed by the run that took it and unpacked by the one that decides with
+    // it. Every store between them carries the text and never reads inside it.
+    const read = sidecarFrom({ ...(sidecar([BUTTON]) as object), snapshot: 'H4sIAAAAAAAAA6uuBQBDv6ajAgAAAA==' });
+
+    expect(read?.snapshot).toBe('H4sIAAAAAAAAA6uuBQBDv6ajAgAAAA==');
+  });
+
+  it('drops a snapshot that is not packed text rather than refusing the baseline', () => {
+    // It decides which boxes a region is joined against, not a verdict.
+    const read = sidecarFrom({ ...(sidecar([BUTTON]) as object), snapshot: { formatVersion: 1 } });
+
+    expect(read?.documentDigest).toBe('v1:d');
+    expect(read !== null && 'snapshot' in read).toBe(false);
+  });
+
+  it('leaves a baseline written before snapshots were kept without one', () => {
+    variancePrecondition({ record: 'older' });
+    const read = sidecarFrom(sidecar([BUTTON]));
+
+    expect(read !== null && 'snapshot' in read).toBe(false);
+  });
+});

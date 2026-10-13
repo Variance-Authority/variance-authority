@@ -97,23 +97,25 @@ checkbox with a styled div changes a 20×18 region. 71% of it lies inside the ol
 input's box and 88.75% inside the new div's, so neither box contains it and the
 region falls to the row around both.
 
-So `before`, which the caller must state, is the component hashes of the
-revision the pixels are compared against. Each hash keeps the box of every
-instance root it counted, in document order, and each instance root in this
-snapshot is joined against the union of its own box and the box the matching
-instance kept. Instances are matched by their position in that order, never by
-path: a path is a place in the tree, and a sibling inserted ahead renumbers it.
-They are matched only when both revisions count the same number of instances,
-because one added or removed shifts every instance after it.
-`(unattributed)` collects unrelated nodes under one name, so its instances are
-never matched.
+So `before`, which the caller must state, is the snapshot of the revision the
+pixels are compared against. Each node in this snapshot is joined against the
+union of its own box and the box its counterpart had there. Which node is its
+counterpart is the differ's answer, not a second one: the matcher that pairs
+nodes for `diffSnapshots` pairs them here. It pairs by content and identity first, so a
+path that a sibling inserted ahead renumbered still pairs. An element whose
+author rendered a different one in its place pairs too, when it is the only one
+that author replaced under that parent. Two replaced together stay unpaired,
+because either could be either, and a box another component left at the same
+place is never joined.
+
+A stored baseline keeps that snapshot as `snapshot`, gzipped and in base64. On
+todomvc's populated list the tree is 163,032 bytes of JSON and 8,211 packed.
 
 `undefined` is an answer, and the observation says what it cost. A baseline
-recorded before component hashes kept boxes is joined against this render's
-boxes alone, and a changed verdict adds that the baseline records no node
-boxes, and that accepting it again records them. Two images handed in directly
-get the same sentence, without the remedy: no accept rewrites a file somebody
-passed in.
+accepted before it kept a snapshot is joined against this render's boxes alone,
+and a changed verdict adds that the baseline records no snapshot of its nodes,
+and that accepting it again records one. Two images handed in directly get the
+same sentence, without the remedy: no accept rewrites a file somebody passed in.
 
 ### When nothing contains it
 

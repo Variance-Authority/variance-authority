@@ -1,5 +1,4 @@
 import type { AttributedRegion, Isolation } from '@variance-authority/core/attribute';
-import type { Raster } from '@variance-authority/core/format';
 import {
   DEFAULT_POLICY,
   STRICT_POLICY,
@@ -20,32 +19,22 @@ import type { CompareInputs } from './observe.js';
 export type BeforeSide = 'baseline' | 'image';
 
 /**
- * Whether the before side says where its components sat.
- *
- * The boxes ride on its component hashes. A baseline written before they
- * existed, or by a collector that supplied no snapshot, has none.
- */
-export function recordsBoxes(before: Raster): boolean {
-  return before.components?.some((entry) => entry.boxes !== undefined) === true;
-}
-
-/**
  * The clause a changed sentence carries when its regions were joined against
  * one side's boxes alone.
  *
  * A changed region is the union of what left and what arrived, and a record
- * without boxes cannot say where anything was. The regions are still
+ * without its snapshot cannot say where anything was. The regions are still
  * attributed, against this render's boxes, and a control replaced by a larger
  * element is then named by the row it sits in. Absent is not empty: the
- * sentence says the boxes are unknown rather than joining as though nothing
- * had been there.
+ * sentence says the before side's nodes are unknown rather than joining as
+ * though nothing had been there.
  */
-export function unboxed(beforeIs: BeforeSide): string {
+export function unjoined(beforeIs: BeforeSide): string {
   return beforeIs === 'baseline'
-    ? '; the baseline records no node boxes, so regions were joined against this ' +
-        "render's boxes alone: accept it again to record them"
-    : '; the before image records no node boxes, so regions were joined against ' +
-        "the after image's boxes alone";
+    ? '; the baseline records no snapshot of its nodes, so regions were joined against ' +
+        "this render's boxes alone: accept it again to record them"
+    : '; the before image records no snapshot of its nodes, so regions were joined ' +
+        "against the after image's boxes alone";
 }
 
 /**

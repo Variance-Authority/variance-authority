@@ -327,7 +327,7 @@ describe('saying where a push has got to', () => {
 
 describe('the sidecar a promotion will be made from', () => {
   /**
-   * The three fields a push used to read past.
+   * The fields a push used to read past.
    *
    * Each of them is written by the run beside the PNG, survives the local
    * durable store, and is read by a *later* run off whatever baseline this
@@ -344,6 +344,7 @@ describe('the sidecar a promotion will be made from', () => {
     missingFonts: ['Inter'],
     components: [{ component: 'Card', instances: 1, structure: 's', semantics: 'm', text: 't', style: 'y' }],
     findingMarks: ['a control inside another control'],
+    snapshot: 'H4sIAAAAAAAAA6tWKkktLlGyUlAqzy/KSVGqBQBNnvU3EgAAAA==',
   });
 
   async function sentCandidate(sidecar: string): Promise<Record<string, unknown> | undefined> {
@@ -382,6 +383,12 @@ describe('the sidecar a promotion will be made from', () => {
     expect(after?.['findingMarks']).toEqual(['a control inside another control']);
   });
 
+  it('carries the snapshot the region join reads, as it was packed', async () => {
+    expect((await sentCandidate(FULL))?.['snapshot']).toBe(
+      'H4sIAAAAAAAAA6tWKkktLlGyUlAqzy/KSVGqBQBNnvU3EgAAAA==',
+    );
+  });
+
   it('leaves absent fields absent rather than sending an empty answer', async () => {
     // `[]` is a claim: this render was read and had nothing. A sidecar that
     // never carried the field made no claim, and `promote` writes whatever
@@ -391,6 +398,7 @@ describe('the sidecar a promotion will be made from', () => {
 
     expect(after).not.toHaveProperty('components');
     expect(after).not.toHaveProperty('findingMarks');
+    expect(after).not.toHaveProperty('snapshot');
   });
 
   it('withholds a candidate whose sidecar never said which fonts were missing', async () => {

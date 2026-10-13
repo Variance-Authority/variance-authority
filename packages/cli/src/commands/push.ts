@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import type {
   AccessibilitySnapshot,
   ComponentHash,
+  PackedSnapshot,
   RenderIdentity,
 } from '@variance-authority/core/format';
 import { pngSize } from '@variance-authority/png';
@@ -231,6 +232,7 @@ interface Sidecar {
   readonly accessibility?: AccessibilitySnapshot;
   readonly components?: readonly ComponentHash[];
   readonly findingMarks?: readonly string[];
+  readonly snapshot?: PackedSnapshot;
 }
 
 export async function push(options: PushOptions): Promise<PushResult> {
@@ -461,6 +463,7 @@ async function candidate(
         ...(sidecar.accessibility !== undefined ? { accessibility: sidecar.accessibility } : {}),
         ...(sidecar.components !== undefined ? { components: sidecar.components } : {}),
         ...(sidecar.findingMarks !== undefined ? { findingMarks: sidecar.findingMarks } : {}),
+        ...(sidecar.snapshot !== undefined ? { snapshot: sidecar.snapshot } : {}),
       },
     },
   };

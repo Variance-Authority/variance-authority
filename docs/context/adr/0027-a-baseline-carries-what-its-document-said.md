@@ -118,12 +118,12 @@ those two layouts. It happens to be exact on that story and will not be on a
 centred one. See the checkpoint's open links; the fix is in acquisition, not here,
 and it re-bases every stored image.
 
-## Amended 2026-10-13 — the region join reads the baseline's boxes
+## Amended 2026-10-13 — a baseline carries its snapshot as well
 
-The hashes this ADR carries kept each instance's box from 2026-08-31, for
-`grewBetween`. The region join did not read them. `attributeRegions` joined a
-changed region against one snapshot's boxes, and a pixel comparison has two
-sides.
+The Decision above carried the hashes rather than the document because ranking
+needed nothing more, and said the tree would add "no additional answer". The
+region join is that answer. `attributeRegions` joined a changed region against
+one snapshot's boxes, and a pixel comparison has two sides.
 
 The default threshold moving from `0.1` to `0.01` (ADR-0026) showed the gap on
 todomvc's broken toggle, which replaces a 16×16 checkbox with an 18×18 div two
@@ -134,34 +134,78 @@ arrived. Both are under the 0.9 containment, so the region named `Stack`, the
 row around both. At `0.1` it named `Toggle` only because half the edit was
 forgiven.
 
-**Every instance root is joined against the union of its own box and the box the
-baseline kept for it.** `AttributionOptions.before` is the component hashes of
-the revision the pixels are compared against. It is required, and `undefined`
-is an answer. Instances are matched by their position in document order, the
-order `hashComponents` records them in, and only when both revisions count the
-same number of instances. This is `grewBetween`'s rule, for its reason: an
-instance added or removed shifts every instance after it. A path is never the
-key, because a sibling inserted ahead renumbers it. `(unattributed)` is never
-matched, for the reason given above. Every path goes through this one join:
-`decide` passes `before.components`, whether the before side came from a store
-or was handed in.
+**Each node is joined against the union of its own box and its counterpart's in
+the baseline, and the differ's matcher says which node is its counterpart.**
+`AttributionOptions.before` is the snapshot of the revision the pixels are
+compared against. It is required, and `undefined` is an answer. `matchTrees`
+already pairs nodes by content and identity, so a path renumbered by a sibling
+inserted ahead still pairs. It now pairs one more case: under one matched
+parent, exactly one element left and exactly one arrived, and the same
+component's `createdBy` wrote both. That rests on recorded authorship, not on a
+spelling. Two such pairs under one parent stay unpaired, because either could be
+either. The pair is diffed like any other and leads with a `tag-changed` delta
+(geometry, structural), so a replacement never reads as a small edit: on the
+broken toggle the docket's `Toggle` root moves from 6 geometry deltas (three
+removed, three added) to 97 across geometry, a11y and token, and its band from
+`geometry` to `a11y`, because the checkbox role is gone. No reader took a
+removed node and an added one as a signal of their own. The docket counts
+`tag-changed` as structural, as it counts both of those, and `parting` files a
+delta under the boundary that owns its path, which for a pair under one matched
+parent is the same boundary.
 
-**No record format changes.** The boxes were already in every sidecar, in the
-render cache's and in tribunal's `components` column. A second copy beside the
-component hashes would be a second answer to the same question.
+The hashes could not carry this. They keep one box per instance root, and the
+replaced element is not an instance root; nothing in them is a node the matcher
+can pair.
 
-**A baseline without boxes says so.** A baseline written before 2026-08-31, or
-one with no component hashes at all, is joined against the changed render's
-boxes alone. The changed verdict's sentence then ends `the baseline records no
-node boxes, so regions were joined against this render's boxes alone: accept it
-again to record them`. When the before side is an image handed in, the sentence
-names the image, and gives no remedy, because no accept rewrites it. Without
-the clause, the row the region fell to would read as the answer.
+**The snapshot rides in the sidecar, packed.** `Raster.snapshot` is gzipped JSON
+in base64, a `PackedSnapshot`. Measured with every baseline written by this
+change:
 
-**What is still not closed.** `observePair` renders two documents and is given
-one snapshot, the after side's, so its before side never has boxes, and every
-changed verdict it attributes carries the clause. That is true, and it stays
-until the mode is given the second snapshot the open work above already asks
-for. The in-place Playwright
-path shoots both images from one snapshot and passes that snapshot's hashes as
-both sides, which is exact.
+| | tree as JSON | packed | component hashes |
+| --- | --- | --- | --- |
+| todomvc, populated list | 163,032 B | 8,211 B | 11,402 B |
+| `cases/storybook-case`, 13 baselines | 372,612 B | 49,528 B (3,220–5,392 B each) | 52,328 B |
+
+On the Storybook case the packed tree adds 54% to sidecars that were 91,647 B
+without it. Nothing the matcher reads was trimmed. Every store carries the field
+as text and never opens it: the durable store and the render cache through
+`sidecarFrom`, the remote store the same way, and tribunal in a `snapshot`
+column on `baselines` and a `candidate_snapshot` column on `build_subjects`
+(schema 21), so an approval promotes it. `describe` does not return it: a
+subject that settles on its document digest builds no comparison and joins
+nothing.
+
+*Why the ends live in `observe`.* `packSnapshot` and `unpackSnapshot` are there,
+not in `raster`. Packing needs `node:zlib`. `raster` is portable, and tribunal's
+Worker runs without `nodejs_compat`, so neither may import it. Every producer of
+a baseline (the Playwright fixture and its promotion, the Vitest browser
+provider, the CLI's image sidecars) and the one consumer, `decide`, already
+depend on `observe`.
+
+*Why this is not the compatibility surface the Decision feared.* No store parses
+the tree, so no store refuses a sidecar over it. `unpackSnapshot` checks the
+format version and the root's shape, and a snapshot it cannot read is treated as
+not recorded, exactly like a missing one.
+
+**A baseline without a snapshot says so.** One accepted before this field is
+joined against the changed render's boxes alone, and the changed verdict's
+sentence ends `the baseline records no snapshot of its nodes, so regions were
+joined against this render's boxes alone: accept it again to record them`. When
+the before side is an image handed in, the sentence names the image and gives
+no remedy, because no accept rewrites it. Without the clause, the row the region
+fell to would read as the answer.
+
+**What is still not closed.**
+
+- `observePair` renders two documents and is given one snapshot, the after
+  side's. Its before side never has a snapshot, so every changed verdict it
+  attributes carries the clause until the mode is given the second snapshot the
+  open work above already asks for.
+- A node that left with nothing paired to it adds no box. A region over the
+  place it vacated falls to the parent around it, which did change its output.
+- The packed bytes are deterministic for one zlib, not across zlib versions. No
+  digest covers them, so a re-accept on another machine can only rewrite the
+  field, never move a verdict.
+
+The in-place Playwright path shoots both images from one snapshot and passes
+that snapshot as both sides, which is exact.

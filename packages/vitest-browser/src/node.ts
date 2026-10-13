@@ -3,6 +3,7 @@ import { documentDigest } from '@variance-authority/core/format';
 import type { CaptureArtifact } from '@variance-authority/core';
 import {
   observeCaptureAgainstBaseline,
+  packSnapshot,
   summarizeObservation,
 } from '@variance-authority/observe';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
@@ -232,6 +233,8 @@ async function promote(
   // every later run against it would rank regions by area.
   await store.put(key, {
     ...candidate,
-    ...(artifact.snapshot === undefined ? {} : { components: hashComponents(artifact.snapshot) }),
+    ...(artifact.snapshot === undefined
+      ? {}
+      : { components: hashComponents(artifact.snapshot), snapshot: packSnapshot(artifact.snapshot) }),
   });
 }

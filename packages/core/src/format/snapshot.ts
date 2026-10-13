@@ -280,10 +280,6 @@ export interface ComponentHash {
    * pushed the page down, and only the second explains why the subject is a
    * different height. Four numbers per instance close it.
    *
-   * The region join reads them too: a stored baseline's boxes are where the
-   * pixels it is compared against were painted, and a change that replaces an
-   * element paints over both its old box and its new one.
-   *
    * Absent for a baseline written before this existed and for a profile with no
    * layout — the same absence, and both mean *nobody measured*, never *it did
    * not move*. A `null` entry is a boundary the browser laid out nothing for,

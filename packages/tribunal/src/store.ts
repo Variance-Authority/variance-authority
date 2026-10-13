@@ -136,6 +136,11 @@ interface SidecarRow {
    */
   readonly components?: string | null;
   readonly finding_marks?: string | null;
+  /**
+   * The packed snapshot, stored as it arrived: `Raster.snapshot` is already
+   * text, and this side neither unpacks nor reads it. Null is *not recorded*.
+   */
+  readonly snapshot?: string | null;
 }
 
 export function createBucketStore(options: BucketStoreOptions): RasterStore {
@@ -219,8 +224,8 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
               `INSERT INTO baselines
                  (project, identity_digest, subject, label, identity, document_digest,
                   width, height, missing_fonts, accessibility, components, finding_marks,
-                  object_key, at, at_ms)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  snapshot, object_key, at, at_ms)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT (project, identity_digest, subject, label) DO UPDATE SET
                  identity = excluded.identity,
                  document_digest = excluded.document_digest,
@@ -230,6 +235,7 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
                  accessibility = excluded.accessibility,
                  components = excluded.components,
                  finding_marks = excluded.finding_marks,
+                 snapshot = excluded.snapshot,
                  object_key = excluded.object_key,
                  at = excluded.at,
                  at_ms = excluded.at_ms`,
@@ -252,6 +258,7 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
               // document and left it ranking by area.
               raster.components === undefined ? null : JSON.stringify(raster.components),
               raster.findingMarks === undefined ? null : JSON.stringify(raster.findingMarks),
+              raster.snapshot ?? null,
               objectKey,
               at,
               Date.parse(at),
@@ -357,7 +364,7 @@ async function locate(
       db
         .prepare(
           `SELECT identity, document_digest, width, height, missing_fonts, accessibility,
-                  components, finding_marks, object_key, identity_digest
+                  components, finding_marks, snapshot, object_key, identity_digest
              FROM baselines
             WHERE project = ? AND subject = ? AND label = ?
             ORDER BY (identity_digest = ?) DESC, at_ms DESC, identity_digest
@@ -438,6 +445,7 @@ function parse(row: SidecarRow, where: string): Omit<Raster, 'bytes'> {
     ...(accessibility === undefined ? {} : { accessibility }),
     ...(components === undefined ? {} : { components }),
     ...(findingMarks === undefined ? {} : { findingMarks }),
+    ...(row.snapshot == null ? {} : { snapshot: row.snapshot }),
   });
 
   if (sidecar === null) {

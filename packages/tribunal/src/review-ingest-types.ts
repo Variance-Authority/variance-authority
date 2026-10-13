@@ -1,4 +1,9 @@
-import type { AccessibilitySnapshot, ComponentHash, RenderIdentity } from '@variance-authority/core/format';
+import type {
+  AccessibilitySnapshot,
+  ComponentHash,
+  PackedSnapshot,
+  RenderIdentity,
+} from '@variance-authority/core/format';
 import type { RunReport } from '@variance-authority/report';
 
 /**
@@ -76,6 +81,11 @@ export interface SubjectImages {
      */
     readonly components?: readonly ComponentHash[];
     readonly findingMarks?: readonly string[];
+    /**
+     * The document's nodes, packed, which a later run joins a changed region
+     * against. Carried as text and never unpacked here.
+     */
+    readonly snapshot?: PackedSnapshot;
   };
   /**
    * The baseline this run compared against, with its own dimensions when they

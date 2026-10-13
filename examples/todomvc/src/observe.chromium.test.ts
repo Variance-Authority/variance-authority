@@ -18,7 +18,7 @@ import { diffSnapshots } from '@variance-authority/core/compare';
 import type { Raster, RenderIdentity, SemanticSnapshot } from '@variance-authority/core/format';
 import { buildDocket } from '@variance-authority/core/judge';
 import { normalize } from '@variance-authority/core/rules';
-import { observeCaptureAgainstBaseline, type Observation } from '@variance-authority/observe';
+import { observeCaptureAgainstBaseline, packSnapshot, type Observation } from '@variance-authority/observe';
 import { comparePngs } from '@variance-authority/png';
 import { REPORTS, handle } from '@variance-authority/mcp/protocol';
 import type { RunReport } from '@variance-authority/report';
@@ -101,10 +101,10 @@ let regions: readonly RankedRegion[] = [];
 let causes: readonly string[] = [];
 let changedPixels = 0;
 let regionCount = 0;
-/** The same edit, decided against a stored baseline that kept its boxes. */
+/** The same edit, decided against a stored baseline that kept its snapshot. */
 let stored: Observation | undefined;
-/** And against one written before component hashes carried boxes. */
-let unboxed: Observation | undefined;
+/** And against one that kept none. */
+let unjoined: Observation | undefined;
 
 async function mount(subject: string, variant: string): Promise<void> {
   await harness!.page.evaluate(
@@ -171,19 +171,19 @@ beforeAll(async () => {
   const isolation = isolateRegions(comparison.mask);
   regionCount = isolation.regions.length;
 
-  // Joined against the render the pixels were compared *to*, with the boxes
-  // the baseline held beside it. Replacing the checkbox moves pixels out of
+  // Joined against the render the pixels were compared *to*, with the tree
+  // the baseline was painted from. Replacing the checkbox moves pixels out of
   // the old input and into the new div, and neither box holds both.
   regions = rankRegions(
     attributeRegions(isolation.regions, mutated, {
       scale: VIEWPORT.deviceScaleFactor,
       origin: mutatedOrigin,
-      before: hashComponents(snapshot),
+      before: snapshot,
     }),
     causes,
   );
 
-  ({ stored, unboxed } = await throughStoredBaseline(snapshot, mutated));
+  ({ stored, unjoined } = await throughStoredBaseline(snapshot, mutated));
 }, 120_000);
 
 /**
@@ -196,7 +196,7 @@ beforeAll(async () => {
 async function throughStoredBaseline(
   baseline: SemanticSnapshot,
   mutated: SemanticSnapshot,
-): Promise<{ stored: Observation; unboxed: Observation }> {
+): Promise<{ stored: Observation; unjoined: Observation }> {
   const identity: RenderIdentity = {
     renderer: 'playwright-chromium',
     engine: harness!.engine,
@@ -231,8 +231,12 @@ async function throughStoredBaseline(
   };
 
   return {
-    stored: await decideAgainst({ ...before, components: hashComponents(baseline) }),
-    unboxed: await decideAgainst(before),
+    stored: await decideAgainst({
+      ...before,
+      components: hashComponents(baseline),
+      snapshot: packSnapshot(baseline),
+    }),
+    unjoined: await decideAgainst({ ...before, components: hashComponents(baseline) }),
   };
 }
 
@@ -288,19 +292,19 @@ chromium_('reading a pixel diff further than a number', () => {
     expect([...named]).toContain('Toggle');
   });
 
-  it('names it through a stored baseline that kept its boxes', () => {
+  it('names it through a stored baseline that kept its snapshot', () => {
     expect(stored!.verdict).toBe('changed');
     expect(stored!.regions.map((region) => region.component)).toContain('Toggle');
-    expect(stored!.because).not.toContain('node boxes');
+    expect(stored!.because).not.toContain('records no snapshot');
   });
 
-  it('says so when the stored baseline kept no boxes', () => {
-    // A record accepted before component hashes rode beside it. The change is
+  it('says so when the stored baseline kept no snapshot', () => {
+    // A record accepted before sidecars kept the tree. The change is
     // still reported; the sentence says which render the regions were joined
     // against and how to make the baseline answer for its own.
-    expect(unboxed!.verdict).toBe('changed');
-    expect(unboxed!.because).toContain(
-      "the baseline records no node boxes, so regions were joined against this render's boxes alone: accept it again to record them",
+    expect(unjoined!.verdict).toBe('changed');
+    expect(unjoined!.because).toContain(
+      "the baseline records no snapshot of its nodes, so regions were joined against this render's boxes alone: accept it again to record them",
     );
   });
 

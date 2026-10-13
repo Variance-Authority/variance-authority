@@ -120,6 +120,17 @@ describe('the durable mode', () => {
     );
   });
 
+  it('round-trips the snapshot a baseline keeps, and the render cache keeps it too', async () => {
+    // Opaque to the store: what packed it and what unpacks it live elsewhere.
+    const snapshot = 'H4sIAAAAAAAAA6tWKkktLlGyUlAqzy/KSVGqBQBNnvU3EgAAAA==';
+    const store = createDurableStore(root);
+    await store.put({ subject: 'toggle' }, { ...rasterOf(MAC), snapshot });
+    await store.renderCache.put({ ...rasterOf(MAC, 'v1:painted'), snapshot });
+
+    expect((await store.find({ subject: 'toggle' }, MAC))?.raster.snapshot).toBe(snapshot);
+    expect((await store.renderCache.get('v1:painted', MAC))?.snapshot).toBe(snapshot);
+  });
+
   it('finds another machine`s baseline and refuses to call it comparable', async () => {
     // The whole rule. Returning `null` here would report "new subject", and
     // "we have never seen this" is a different and far less useful sentence
