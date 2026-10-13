@@ -11,9 +11,8 @@ import { Viewer } from './viewer.js';
  *
  * A build that kept no mask has it computed in the page from the two captures,
  * and that can fail: a capture the service will not serve, or one the browser
- * will not decode. The static render in `viewer.test.tsx` sees only the first
- * frame, where the mask is still being made. This mounts the viewer and lets the
- * computation finish, because the failure arrives after the first frame.
+ * will not decode. The failure arrives after the first frame, so this mounts the
+ * viewer and lets the computation finish.
  */
 
 let host: HTMLDivElement;
@@ -55,11 +54,8 @@ describe('a difference mask the page could not compute', () => {
       fetch: (async () => new Response('gone', { status: 404 })) as typeof globalThis.fetch,
     });
     act(() => root.render(<Viewer client={refusing} build="ci-1" subject={SUBJECT} />));
-
-    const pill = [...host.querySelectorAll('button')].find((each) => each.textContent === 'difference');
-    if (pill === undefined) throw new Error('no difference mode is offered');
     await act(async () => {
-      pill.click();
+      press('difference');
       await new Promise((settle) => setTimeout(settle, 0));
     });
 
@@ -68,7 +64,7 @@ describe('a difference mask the page could not compute', () => {
     expect(host.textContent).toContain('answered 404');
   });
 
-  it('is said in place of the stage, with no region ringed over the sentence', async () => {
+  it('is said outside the stage, with no region ringed over the sentence', async () => {
     // The rings are placed on the mask's pixels. With no mask they are drawn
     // over whatever stands in for it, and they cover the reason.
     const refusing = createReviewClient({
@@ -82,11 +78,11 @@ describe('a difference mask the page could not compute', () => {
     });
 
     expect(host.textContent).toContain('This page could not compute the difference mask');
-    expect(host.querySelector('.va-plate')).toBeNull();
+    expect(host.querySelector('.va-loupe')?.textContent).not.toContain('could not compute');
     expect(host.querySelector('.va-regions')).toBeNull();
   });
 
-  it('is said in place of the stage while it is being made, too', () => {
+  it('is said outside the stage while it is being made, too', () => {
     const waiting = createReviewClient({
       endpoint: '/api',
       fetch: (() => new Promise<Response>(() => undefined)) as typeof globalThis.fetch,
@@ -95,8 +91,26 @@ describe('a difference mask the page could not compute', () => {
     act(() => press('difference'));
 
     expect(host.textContent).toContain('Working out the difference');
-    expect(host.querySelector('.va-plate')).toBeNull();
+    expect(host.querySelector('.va-loupe')?.textContent).not.toContain('Working out');
     expect(host.querySelector('.va-regions')).toBeNull();
+  });
+
+  it('keeps the stage where the reviewer left it while the mask is made', () => {
+    // A reviewer zoomed and scrolled to a region, then asked for the mask. A
+    // stage taken down and put back for the wait comes back at the origin, and
+    // the region they were reading is gone from the pane.
+    const waiting = createReviewClient({
+      endpoint: '/api',
+      fetch: (() => new Promise<Response>(() => undefined)) as typeof globalThis.fetch,
+    });
+    act(() => root.render(<Viewer client={waiting} build="ci-1" subject={RINGED} />));
+    const stage = host.querySelector('.va-loupe');
+    const plate = host.querySelector('.va-plate');
+    act(() => press('difference'));
+
+    expect(stage).not.toBeNull();
+    expect(host.querySelector('.va-loupe')).toBe(stage);
+    expect(host.querySelector('.va-plate')).toBe(plate);
   });
 });
 

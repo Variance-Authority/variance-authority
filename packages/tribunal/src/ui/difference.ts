@@ -74,8 +74,10 @@ export type Difference =
 /**
  * The difference mask, computed if the build did not keep one.
  *
- * `undefined` while `wanted` is false, and for a subject with nothing to compare:
- * nothing is decoded for a mode nobody opened. The object URL is revoked when the
+ * A mask the build kept is made from the start, wanted or not: it is a URL, and
+ * nothing is fetched until an image asks for it. Otherwise `undefined` while
+ * `wanted` is false, and for a subject with nothing to compare: nothing is
+ * decoded for a mode nobody opened. The object URL is revoked when the
  * subject changes or the component unmounts; two full-page captures is real
  * memory and leaving it to the collector means holding every subject a reviewer
  * walked past.

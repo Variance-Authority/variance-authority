@@ -187,6 +187,19 @@ export function Viewer({
             ? { maxWidth: `${String(box.width)}px` }
             : { width: `${String(box.width * zoom)}px` }),
         };
+  /**
+   * What stands in for a mask the page has not got. The regions are rings on the
+   * mask's pixels, so with no mask the plate holds neither: rings over nothing
+   * read as a finding, and over a sentence they cover it. The plate itself stays,
+   * at the capture's size, so a reviewer who zoomed and scrolled to a region and
+   * then asked for the mask is still at that region when it arrives.
+   */
+  const waiting =
+    mode !== 'difference' || difference?.state === 'made'
+      ? undefined
+      : difference?.state === 'failed'
+        ? `This page could not compute the difference mask: ${difference.reason}`
+        : 'Working out the difference…';
   const boxes =
     mode === 'side-by-side' ? null : (
       <RegionOverlay subject={subject} box={box} focus={focus} onFocus={setFocus} />
@@ -258,6 +271,7 @@ export function Viewer({
         </div>
       </div>
 
+      {waiting === undefined ? null : <p className="va-note">{waiting}</p>}
       {mode === 'side-by-side' ? (
         <div className="va-side-by-side">
           <figure>
@@ -269,17 +283,6 @@ export function Viewer({
             <Raster src={url('after')} alt={`${subject.subject} candidate`} size={size} />
           </figure>
         </div>
-      ) : mode === 'difference' && difference?.state !== 'made' ? (
-        // No mask yet, so no plate: the regions are rings on the mask's pixels,
-        // and drawn over a sentence instead they cover it. Never `undefined`
-        // here: the mode is offered only when there is a difference to show.
-        <p className="va-note">
-          {difference?.state === 'failed' ? (
-            <>This page could not compute the difference mask: {difference.reason}</>
-          ) : (
-            <>Working out the difference&hellip;</>
-          )}
-        </p>
       ) : (
         <div className="va-loupe" ref={stage}>
           <div className={box === undefined ? 'va-plate' : 'va-plate va-boxed'} style={plate}>
@@ -294,10 +297,12 @@ export function Viewer({
                 onChange={(event) => setSeam(Number(event.target.value))}
               />
             ) : null}
-            {mode === 'difference' && difference?.state === 'made' ? (
+            {mode === 'difference' ? (
               // Already in the union's coordinates: the mask is what the
               // comparison drew, on the box it padded both captures to.
-              <Raster src={difference.url} alt={`${subject.subject} difference mask`} />
+              difference?.state === 'made' ? (
+                <Raster src={difference.url} alt={`${subject.subject} difference mask`} />
+              ) : null
             ) : (
               <>
                 {subject.has.before ? (
@@ -316,7 +321,7 @@ export function Viewer({
                 />
               </>
             )}
-            {boxes}
+            {waiting === undefined ? boxes : null}
             {mode === 'wipe' ? (
               <span className="va-seam-line" aria-hidden="true" style={{ left: `${String(seam)}%` }} />
             ) : null}
