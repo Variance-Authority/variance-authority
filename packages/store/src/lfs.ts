@@ -91,8 +91,8 @@ export interface LfsStoreOptions extends DurableStoreOptions {
    * depth, and `**\/__baselines__/*\/*-*.png` for
    * `{dir}/__baselines__/{file}/{name}-{engine}`. Under a root that is the
    * repository itself the first also takes any other PNG with a `-` in its
-   * name, which is why a template that names its own directory is the one to
-   * use there. Images only: the `.json` sidecars beside each
+   * name, so the CLI's config refuses that pair unless the template names a
+   * directory of its own (`BaselinePathTemplate.anchored`) or this is set. Images only: the `.json` sidecars beside each
    * image are small, readable, and the only thing that says which machine wrote
    * a baseline, so putting them through LFS would make the reviewable half of the
    * artifact unreviewable in exchange for nothing.

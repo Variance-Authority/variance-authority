@@ -394,7 +394,7 @@
       "type": "string",
       "minLength": 1,
       "default": "{title}/{name}-{engine}",
-      "description": "Where each baseline is written under `root`, without an extension. `{title}` and `{name}` are the story's title and name, or a test's describe titles and its own title; `{file}` is the file that declares the subject and `{dir}` its directory; `{id}` is the subject id; `{engine}` is the browser engine. `{dir}/__baselines__/{file}/{name}-{engine}` keeps each image beside the code it depicts. A template names `{name}` or `{id}`. Without `{engine}`, every engine writes one file. Two subjects that render one path stop the run, which names both."
+      "description": "Where each baseline is written under `root`, without an extension. `{title}` and `{name}` are the story's title and name, or a test's describe titles and its own title; `{file}` is the file that declares the subject and `{dir}` its directory; `{id}` is the subject id; `{engine}` is the browser engine. `{dir}/__baselines__/{file}/{name}-{engine}` keeps each image beside the code it depicts. A template names `{name}` or `{id}`. Without `{engine}`, every engine writes one file. `{project}` is refused here: it is the Playwright fixture's. Two subjects that render one path stop the run, which names both."
     },
 
     "share": {

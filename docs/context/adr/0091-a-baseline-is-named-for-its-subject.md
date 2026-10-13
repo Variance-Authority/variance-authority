@@ -9,7 +9,8 @@ cache and is read from the record);
 partition is preserved by delegation (the delegation stays, and what is
 delegated is now the template);
 [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) §6 (a line is one
-engine family, not one engine family on one platform at one scale)
+engine family, not one engine family on one platform at one scale; §6 is
+rewritten to say so)
 **Discharges:** [spec 0011](../../specs/0011-storage-and-cache-primitives.md)
 item 2
 **Relates to:** [`packages/store/src/path-template.ts`](../../../packages/store/src/path-template.ts),
@@ -53,24 +54,33 @@ renders what the subject is; the record says what painted it.**
 1. **`baselines.path` is a template.** Tokens: `{dir}` and `{file}` (the file
    that declares the subject, from the repository root), `{title}` (the story
    title or the test's `describe` path), `{name}` (the story or test name),
-   `{id}` (the whole subject id) and `{engine}` (the declared engine family).
+   `{id}` (the whole subject id), `{project}` (the Playwright project's name)
+   and `{engine}` (the family of the identity's engine).
    `{dir}` and `{title}` spread to directories and stand alone in a segment.
    The default is `{title}/{name}-{engine}`; collocation is
    `{dir}/__baselines__/{file}/{name}-{engine}`. A label is spelled
    `name__label`. A template without `{name}` or `{id}` is refused at parse,
    because two subjects of one title could not be told apart.
-2. **No digest in a committed path.** At most the engine family, which the
-   operator declared. Platform, scale factor, fonts and recipe are in the
+2. **No digest in a committed path.** At most the engine family, read from the
+   identity's engine, and a project name the operator chose. Platform, scale factor, fonts and recipe are in the
    record, and a mismatch is read and compared under ADR-0090 with the field
    named as the cause.
 3. **A collision stops the run, naming both subjects and both spellings.**
    Paths are claimed case-folded, at `expect` before anything is observed and on
-   every lookup and write. Nothing is renumbered: a suffix decided by plan order
-   hands an approved image to the other subject when the order changes.
+   every lookup and write. The record names the key it was placed for
+   (`placedFor`: subject, label, project), so a store that never saw the other
+   key — a shard, a Playwright worker, a later run — refuses on reading or
+   writing the path too; a record from before has none and is not checked. The
+   error names the token that tells the two apart, `{project}` when only the
+   projects differ, and for a subject that is the other renamed, deleting the
+   pair. Nothing is renumbered: a suffix decided by plan order hands an
+   approved image to the other subject when the order changes.
 4. **`{file}` and `{dir}` are checked, never cleaned.** A cleaned path names a
    file that does not exist. An absolute path, `..`, `.` or an empty segment is
    refused, and so is a subject no file declares under a template that needs
-   one. Every other token is cleaned to letters, digits, `.`, `_` and `-`.
+   one, and a subject no project observed under `{project}`. The CLI's config
+   refuses `{project}` outright: none of its sources has projects. Every other
+   token is cleaned to letters, digits, `.`, `_` and `-`.
 5. **The identity-directory layout is read, compared and moved.** A lookup that
    misses the template's path reads the old pairs, nearest identity first, and
    reports `relocated {from, to}`; the verdict is unchanged or changed, never
@@ -95,16 +105,24 @@ renders what the subject is; the record says what painted it.**
   no longer holds. The advice it already gave — one pinned painter for laptop
   and CI — is now the only arrangement that does not alternate.
 - **Two Playwright projects that differ only in scale factor, colour scheme or
-  viewport share one baseline.** They need distinct subject ids, as colour
-  scheme and viewport already did.
-- **A template edit or a file rename is a re-record.** The old file reads `new`
-  for the subject and is reported unplanned. This is spec 0011 §5's co-location
-  cost, now true of `{title}` and `{name}` as well as `{dir}`.
+  viewport render one path.** Colour scheme and viewport were never in the
+  identity, so those projects already shared a directory and overwrote each
+  other unnoticed. Scale factor was, and is now in the record only. Either way
+  the run now stops naming both projects, and `{project}` files them apart.
+- **A template edit or a rename is a re-record.** The subject reads `new` and
+  the old file is reported unplanned. This is spec 0011 §5's co-location cost,
+  now true of `{title}` and `{name}` as well as `{dir}`. A rename that keeps the
+  path and changes the id is refused by the record, and the message says to
+  delete the pair and accept.
+- **A `/` in a title is a directory.** A `describe` title that contains one
+  splits under `{title}`, as a story title does.
 - **`unplanned` walks the root.** Under a root of `.` that is the repository,
   pruned of `node_modules` and dot-directories.
-- **The LFS pattern is the template's glob.** `*-*.png` for the default, which
-  under a repository root also takes unrelated hyphenated PNGs;
-  `**/__baselines__/*/*-*.png` for collocation.
+- **The LFS pattern is the template's glob.** `*-*.png` for the default and
+  `**/__baselines__/*/*-*.png` for collocation. A glob with no literal
+  directory at a root of `.` would take every hyphenated PNG in the
+  repository, so the config refuses it and names `__baselines__`, a root of
+  its own, or an explicit `baselines.pattern`.
 - **`packages/observe/src/parity.test.ts` runs a collocated durable store**
   beside the four backends, and asserts the one answer ADR-0016 requires.
 

@@ -92,22 +92,42 @@ appends the label to the name after `__`.
 | `{id}` | the whole subject id, as one file name |
 | `{file}` | the name of the file that declares the subject, such as `Button.stories.tsx` |
 | `{dir}` | the directory of that file, from the repository root |
-| `{engine}` | the browser engine's declared name: `chromium`, `firefox` or `webkit` |
+| `{engine}` | the browser engine's family: `chromium`, `firefox` or `webkit` |
+| `{project}` | the Playwright project that ran the test, by its `name` |
 
 A character a file name cannot carry is written `-`, so `checkout › empty cart`
-is `checkout/empty-cart`. `{file}` and `{dir}` name files that exist, so they are
-checked rather than cleaned.
+is `checkout/empty-cart`. A `/` inside a title starts a directory, in a
+`describe` title as in a story title, so `describe('cart/checkout')` files its
+tests under `cart/checkout/`. `{file}` and `{dir}` name files that exist, so
+they are checked rather than cleaned.
+
+The path is made of names, so a name that changes moves the baseline. Rename a
+story, a test, a `describe` block or a file under `{dir}` or `{file}`, or edit
+the template, and the next run finds nothing at the new path: the subject is
+`new`, and the run notes the file at the old path as a baseline it did not
+plan. Accepting writes the new file; you delete the old one in the same pull
+request.
 
 Without `{engine}`, every engine writes the one file. With it, Chromium and
 WebKit keep a baseline each. Nothing finer is in the path: two machines that
-both paint Chromium write the same file, and the record says which one did.
+both paint Chromium write the same file, the record says which one did, and the
+last one to accept is the baseline the other compares against.
 
 Two subjects that render one path stop the run before anything is compared, and
-the message names both subjects and the template. A store never numbers its way
-around it, because a suffix that depends on which subject was planned first
-gives your approved image to the other subject when the order changes. Two
-paths that differ only in case are the same path, because a checkout on macOS or
-Windows writes them as one file.
+the message names both subjects and the template. The `.json` record names the
+subject it was accepted for, so this holds across runs too: a shard, a worker
+or a later run that renders an accepted path for another subject stops on it. A
+store never numbers its way around it, because a suffix that depends on which
+subject was planned first gives your approved image to the other subject when
+the order changes. Two paths that differ only in case are the same path,
+because a checkout on macOS or Windows writes them as one file.
+
+Two Playwright projects run one test as one subject. When they differ only in a
+device scale factor, a colour scheme or a viewport, they paint two images for
+one path, and the run stops naming both projects. Put `{project}` into the
+fixture's `varianceBaselinePath`, such as `{project}/{title}/{name}-{engine}`,
+and each project keeps its own. Only the fixture takes `{project}`: the CLI and
+the Vitest plugin have no projects to fill it with, and refuse it.
 
 ### A parallel folder
 
@@ -173,7 +193,11 @@ is what keeps the PNG bytes out of the git history.
 
 `createLfsStore` writes its own `.gitattributes` in the root, with a pattern made
 from the template, so only files the template can name go through LFS. Under
-this template that is `**/__baselines__/*/*-*.png`.
+this template that is `**/__baselines__/*/*-*.png`. The default template's
+pattern is `*-*.png`, which at a root of `.` would also take every hyphenated
+icon, fixture and screenshot in the repository, so the config refuses that
+pair. Give the template a directory of its own, such as `__baselines__`, give
+the baselines a root of their own, or set `baselines.pattern` yourself.
 
 ## Somewhere else entirely
 

@@ -245,22 +245,29 @@ template's tokens:
 | `{file}` | the name of the file that declares the subject. |
 | `{dir}` | that file's directory, as directories. |
 | `{engine}` | the engine family: `chromium`, `firefox`, `webkit`. |
+| `{project}` | the key's `project` — a Playwright project's `name`. |
 
-`{title}`, `{name}`, `{id}` and `{engine}` are written with letters, digits,
+`{title}`, `{name}`, `{id}`, `{project}` and `{engine}` are written with letters, digits,
 `.`, `_` and `-`; anything else becomes `-`. `{file}` and `{dir}` are the
 declaring file's path as it is, and one that is absolute or holds a `..` is
 refused rather than cleaned. A template must name `{name}` or `{id}`, may not end in a run of
 directories, and may not leave `root`. `{file}` and `{dir}` need a key that
-names its file; a subject without one is refused with its id.
+names its file, and `{project}` one that names its project; a subject without
+one is refused with its id.
 
 The path names the engine and nothing finer. The rest of the identity —
 platform, device scale factor, fonts — is in the `.json` beside the image, and a
 machine that differs on any of it reads the baseline as `comparable: false`
 rather than another machine's directory as its own. Two machines painting one
-engine therefore share one file, and only one of them can compare against it.
+engine therefore share one file, the last to accept writes it, and only that
+one compares against it.
 
 Two keys that render one path, ignoring case because a macOS or Windows checkout
-does, are refused with both subjects named. Nothing is renumbered.
+does, are refused with both subjects named. Nothing is renumbered. The `.json`
+names the key it was written for (`placedFor`: subject, label, project), so a
+store that never saw the other key — another shard, another Playwright worker,
+a later run — refuses on reading or writing that path too, and names the token
+that would tell them apart: `{project}` when only the projects differ.
 
 A root written by an earlier release keeps each machine's images in a
 directory named for a hash of its identity. Those are still read: a lookup

@@ -4,6 +4,7 @@ import {
   type Raster,
   type RenderIdentity,
 } from '@variance-authority/core/format';
+import type { BaselineKey } from './key.js';
 
 /**
  * Retention — the two modes, and the honest difference between them.
@@ -66,38 +67,6 @@ export const REFUSAL =
   'This is an operator error, not a verdict: reporting it as a missing baseline would ' +
   'record whatever is on screen and overwrite the baseline this run was meant to compare ' +
   'against';
-
-export interface BaselineKey {
-  readonly subject: string;
-  /** Distinguishes several images of one subject, e.g. a viewport or a state. */
-  readonly label?: string;
-
-  /**
-   * The file that declares this subject, relative to the repository, in posix
-   * spelling: `src/ui/Button.stories.tsx`, a Playwright spec, a test file.
-   *
-   * A subject id is a namespaced identifier and is not a path: a story is
-   * `story:components-button--primary`, and the file declaring it is known to
-   * the artifact that produced the plan and to nothing downstream. Carried here
-   * so a store can place the image beside the code it is an image of, and
-   * name it after that code, without making the id path-shaped.
-   *
-   * Absent when no file declares the subject. Only placement reads this, `title`
-   * and `name`: two placements of one subject are one subject, which is what [ADR-0016](../../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)
-   * says about every other storage decision.
-   */
-  readonly file?: string;
-
-  /**
-   * Where the subject sits in its file's own hierarchy, `/`-separated: a
-   * story's title (`Components/Button`), a test's describe chain. Absent when
-   * the collector knows none, and a store then reads it from the id.
-   */
-  readonly title?: string;
-
-  /** The subject's own name under its title: a story's name, a test's title. */
-  readonly name?: string;
-}
 
 /**
  * A baseline read from where a store's previous layout kept it.

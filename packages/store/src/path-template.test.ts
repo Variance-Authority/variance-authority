@@ -141,6 +141,36 @@ describe('a template the operator writes', () => {
     expect(parseBaselinePath('{title}/{name}-{engine}').glob).toBe('**/*-*');
     expect(parseBaselinePath('{dir}/__baselines__/{file}/{name}-{engine}').glob).toBe('**/__baselines__/*/*-*');
   });
+
+  // A glob with a directory of its own takes nothing but baselines, wherever
+  // its root is; one without takes every image its pattern happens to spell.
+  it.each([
+    ['{title}/{name}-{engine}', false],
+    ['{dir}/{file}/{name}-{engine}', false],
+    ['{dir}/__baselines__/{file}/{name}-{engine}', true],
+    ['shots/{title}/{name}', true],
+  ])('says whether %j names a directory of its own', (template, anchored) => {
+    expect(parseBaselinePath(template).anchored).toBe(anchored);
+  });
+
+  it('files each Playwright project apart under {project}', async () => {
+    const store = createDurableStore(root, { path: '{project}/{title}/{name}-{engine}' });
+    await store.put({ ...PRIMARY, project: 'desktop' }, rasterOf(MAC));
+    await store.put({ ...PRIMARY, project: 'mobile' }, rasterOf(MAC));
+
+    expect(await tree()).toEqual([
+      'desktop/Components/Button/Primary-chromium.json',
+      'desktop/Components/Button/Primary-chromium.png',
+      'mobile/Components/Button/Primary-chromium.json',
+      'mobile/Components/Button/Primary-chromium.png',
+    ]);
+  });
+
+  it('refuses {project} for a subject no project observed, naming the subject', async () => {
+    const store = createDurableStore(root, { path: '{project}/{name}' });
+
+    await expect(store.put(PRIMARY, rasterOf(MAC))).rejects.toThrow(/story:components-button--primary.*\{project\}/s);
+  });
 });
 
 describe('two subjects on one path', () => {
@@ -161,6 +191,33 @@ describe('two subjects on one path', () => {
     const store = createDurableStore(root);
 
     expect(() => store.expect?.([PRIMARY, twin])).toThrow(/Components\/Button\/Primary-\{engine\} under/);
+  });
+
+  // A shard, a skipped subject and a Playwright worker each hold a store of
+  // their own, so the claim one of them holds in memory is not the other's.
+  // The record beside the image says whose baseline it is.
+  it('refuses a path a store elsewhere accepted for another subject, by its record', async () => {
+    await createDurableStore(root).put(PRIMARY, rasterOf(MAC));
+    const elsewhere = createDurableStore(root);
+
+    await expect(elsewhere.find(twin, MAC)).rejects.toThrow(
+      /"story:components-button--primary".*"story:components-button--primary-2"/s,
+    );
+    await expect(createDurableStore(root).put(twin, rasterOf(MAC))).rejects.toThrow(RasterStoreError);
+    // The refused write left the first subject's baseline as it was.
+    expect((await createDurableStore(root).find(PRIMARY, MAC))?.comparable).toBe(true);
+  });
+
+  it('refuses a second Playwright project on one path, and names {project}', async () => {
+    // Two projects that differ only in scale factor, colour scheme or viewport
+    // run one test as one subject. Without {project} they would take turns
+    // overwriting one file, each reading the other's image as its baseline.
+    await createDurableStore(root).put({ ...PRIMARY, project: 'desktop' }, rasterOf(MAC));
+    const mobile = createDurableStore(root);
+
+    await expect(mobile.find({ ...PRIMARY, project: 'mobile' }, { ...MAC, deviceScaleFactor: 2 })).rejects.toThrow(
+      /"desktop".*"mobile".*\{project\}/s,
+    );
   });
 
   it('folds case, because a checkout on macOS does, and names both spellings', async () => {

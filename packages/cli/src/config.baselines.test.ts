@@ -64,6 +64,39 @@ describe('where baselines live', () => {
     expect(error.message).toContain('{dir}');
   });
 
+  it('refuses an LFS pattern that would track images that are not baselines, and names the fix', () => {
+    // Under a root of `.` the default template's pattern is `*-*.png`, which
+    // also takes every hyphenated screenshot, icon and fixture in the
+    // repository into LFS. A directory segment of its own anchors it.
+    const error = attempt(withField('baselines', { kind: 'lfs', root: '.' }));
+
+    expect(error.field).toBe('baselines.path');
+    expect(error.message).toContain('__baselines__');
+  });
+
+  it('takes an LFS root of `.` once the pattern is the operator\'s own', () => {
+    const config = parseConfig(withField('baselines', { kind: 'lfs', root: '.', pattern: 'shots/**/*.png' }), OPTIONS);
+
+    expect(config.baselines).toEqual({ kind: 'lfs', root: '/repo', pattern: 'shots/**/*.png' });
+  });
+
+  it('takes the default template under an LFS root of its own', () => {
+    expect(parseConfig(withField('baselines', { kind: 'lfs', root: 'baselines' }), OPTIONS).baselines).toEqual({
+      kind: 'lfs',
+      root: '/repo/baselines',
+    });
+  });
+
+  it('refuses {project}, which no subject this config collects carries', () => {
+    // Projects are Playwright's, and Playwright reads its own path from the
+    // fixture options: every baseline written through this config would have
+    // nothing to fill the token with.
+    const error = attempt(withField('baselines', { kind: 'directory', root: 'b', path: '{project}/{title}/{name}' }));
+
+    expect(error.field).toBe('baselines.path');
+    expect(error.message).toContain('{project}');
+  });
+
   it('refuses the `layout` it replaced, and names `path`', () => {
     const error = attempt(withField('baselines', { kind: 'directory', root: 'b', layout: 'beside' }));
 

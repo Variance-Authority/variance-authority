@@ -13,7 +13,6 @@ import {
 } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import {
-  RasterStoreError,
   neverFails,
   type BaselineKey,
   type Described,
@@ -22,11 +21,12 @@ import {
   type Relocated,
 } from '@variance-authority/raster';
 import { orAbsent } from './absent.js';
+import { claim, placedForOf, refuseOccupied, type Claims } from './claims.js';
 import { held } from './held.js';
 import { legacyHolders, partitionsOf } from './legacy.js';
 import { familyOf, identities, nearness } from './line.js';
-import { readRaster, readSidecar, retire, type Places } from './pair.js';
-import { DEFAULT_BASELINE_PATH, parseBaselinePath, sanitized, type BaselinePathTemplate } from './path-template.js';
+import { readRaster, readSidecar, retire, type Places, type Read } from './pair.js';
+import { DEFAULT_BASELINE_PATH, parseBaselinePath, sanitized } from './path-template.js';
 
 /**
  * Re-exported so a config parser can refuse a template at load time, before a
@@ -65,7 +65,7 @@ export {
 export interface DurableStoreOptions {
   /**
    * Where each baseline goes under the root: a template of `{dir}`, `{file}`,
-   * `{title}`, `{name}`, `{id}` and `{engine}`, without an extension.
+   * `{title}`, `{name}`, `{id}`, `{project}` and `{engine}`, without an extension.
    * {@link DEFAULT_BASELINE_PATH} when unset. See `path-template.ts`.
    */
   readonly path?: string;
@@ -112,6 +112,8 @@ interface Candidate {
   readonly relocated?: Relocated;
   /** Set when the pair is another engine's file, as its name spells the engine. */
   readonly engine?: string;
+  /** Set on the path this key renders to, whose record must name this key. */
+  readonly own?: string;
 }
 
 export function createDurableStore(root: string, options: DurableStoreOptions = {}): RasterStore {
@@ -120,9 +122,9 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
   const template = parseBaselinePath(options.path ?? DEFAULT_BASELINE_PATH);
   const at = (path: string): Places => ({ image: join(root, path), record: join(recordRoot, path) });
 
-  // Every path this store has answered for, case-folded because a checkout on
-  // macOS or Windows folds it, against the key it answered for.
-  const claims = new Map<string, Claim>();
+  // Every path this store has answered for, against the key it answered for.
+  // The record beside each image is the claim no single store sees whole.
+  const claims: Claims = new Map();
   const placed = (key: BaselineKey, identity: RenderIdentity): string => {
     const path = template.render(key, familyOf(identity.engine));
     claim(claims, key, path, template);
@@ -174,7 +176,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
    */
   async function* candidates(key: BaselineKey, mine: RenderIdentity): AsyncGenerator<Candidate> {
     const path = placed(key, mine);
-    yield { places: at(path) };
+    yield { places: at(path), own: path };
     const old = await legacy(key, mine);
     for (const pair of old) if (pair.moves) yield { places: at(pair.path), relocated: { from: pair.path, to: path } };
     yield* await otherEngines(key, mine);
@@ -184,11 +186,16 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
   async function lookup<T extends { readonly identity: RenderIdentity }>(
     key: BaselineKey,
     mine: RenderIdentity,
-    read: (places: Places) => Promise<T | null>,
+    read: (places: Places) => Promise<Read<T> | null>,
   ): Promise<{ stored: T; comparable: boolean; relocated?: Relocated } | null> {
     for await (const candidate of candidates(key, mine)) {
-      const stored = await read(candidate.places);
-      if (stored === null) continue;
+      const found = await read(candidate.places);
+      if (found === null) continue;
+      const { placedFor, ...rest } = found;
+      const stored = rest as unknown as T;
+      // Only this key's own path. The old layout's pairs are filed by the
+      // subject id, and another engine's file is told apart by its engine below.
+      if (candidate.own !== undefined) refuseOccupied(placedFor, key, candidate.own, template);
       // `Primary-dark-chromium` fits `Primary-*` too; the record says whose it is.
       if (candidate.engine !== undefined && sanitized(familyOf(stored.identity.engine)) !== candidate.engine) continue;
       return {
@@ -236,7 +243,10 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
     },
 
     async put(key, raster): Promise<void> {
-      const places = at(placed(key, raster.identity));
+      const path = placed(key, raster.identity);
+      const places = at(path);
+      // Before anything is written: a refused accept leaves the tree as it was.
+      refuseOccupied((await readSidecar(places).catch(() => null))?.placedFor, key, path, template);
       await mkdir(dirname(places.record), { recursive: true });
       // No image for a subject that has none: the sidecar alone is the whole
       // baseline, and an image left from an earlier accept would contradict it.
@@ -245,7 +255,8 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
         await mkdir(dirname(places.image), { recursive: true });
         await writeFile(`${places.image}.png`, Buffer.from(raster.bytes, 'base64'));
       }
-      await writeFile(`${places.record}.json`, `${JSON.stringify({ ...raster, bytes: undefined }, null, 2)}\n`, 'utf8');
+      const record = { ...raster, bytes: undefined, placedFor: placedForOf(key) };
+      await writeFile(`${places.record}.json`, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
       // Written first, then the old copy removed, so a write that dies between
       // the two leaves a baseline twice rather than nowhere. The pull request
       // shows the pair moving, which is what the upgrade did.
@@ -255,7 +266,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
     expect(keys): void {
       // One engine for all, because a run has one: two keys refused here
       // collide under every engine.
-      const seen = new Map<string, Claim>();
+      const seen: Claims = new Map();
       for (const key of keys) claim(seen, key, template.render(key, null), template);
     },
 
@@ -297,39 +308,6 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
     }),
   };
 }
-
-/**
- * Hold `path` for `key`, or refuse it by name when another key holds it.
- *
- * Case-folded, because a checkout on macOS or Windows folds it. Never
- * renumbered: a suffix decided by which subject asked first is a path that
- * changes when the plan's order does, and then the baseline a reviewer approved
- * belongs to the other subject.
- */
-interface Claim {
-  readonly key: BaselineKey;
-  readonly path: string;
-}
-
-function claim(claims: Map<string, Claim>, key: BaselineKey, path: string, template: BaselinePathTemplate): void {
-  const folded = path.normalize('NFC').toLowerCase();
-  const holder = claims.get(folded);
-  if (holder === undefined) {
-    claims.set(folded, { key, path });
-    return;
-  }
-  if (holder.key.subject === key.subject && holder.key.label === key.label) return;
-  const named = (k: BaselineKey): string => `${JSON.stringify(k.subject)}${k.label === undefined ? '' : ` (${k.label})`}`;
-  // Both spellings, because two paths that differ only in case are one file
-  // on the checkout that folds them, and the reader is looking at the other.
-  const at = holder.path === path ? path : `${holder.path} and ${path}`;
-  throw new RasterStoreError(
-    `subjects ${named(holder.key)} and ${named(key)} both place their baseline at ${at} under ` +
-      `baselines.path ${JSON.stringify(template.source)}, and one file cannot hold two baselines. ` +
-      'Rename one of them, or put a token that tells them apart into baselines.path: {file}, {title} or {id}.',
-  );
-}
-
 
 /**
  * Mark an entry as wanted, so the sweep can tell live keys from dead ones.

@@ -5,6 +5,7 @@ import { dirname } from 'node:path';
 import type { Raster } from '@variance-authority/core/format';
 import { REFUSAL, RasterStoreError, messageOf, sidecarFrom } from '@variance-authority/raster';
 import { orAbsent } from './absent.js';
+import { placedForIn, type PlacedFor } from './claims.js';
 
 /**
  * One baseline on disk: an image and the record of what painted it, read and
@@ -28,6 +29,13 @@ export interface Places {
   /** The `.json`'s path, without the extension. */
   readonly record: string;
 }
+
+/**
+ * A record as read, with who it was placed for beside it rather than inside:
+ * `placedFor` says where a file-backed store filed the baseline, and nothing
+ * downstream of the store reads it.
+ */
+export type Read<T> = T & { readonly placedFor?: PlacedFor };
 
 /**
  * Remove a pair `put` just superseded, and its directories once empty: an
@@ -69,7 +77,7 @@ export async function retire(places: Places): Promise<void> {
  * `RenderCache` and not in a judgement made here. This still throws; the cache
  * wrapper reads the throw as a miss, and the baseline path does not.
  */
-export async function readRaster(places: Places): Promise<Raster | null> {
+export async function readRaster(places: Places): Promise<Read<Raster> | null> {
   const [sidecar, bytes] = await Promise.all([
     orAbsent(() => readFile(`${places.record}.json`, 'utf8'), `${places.record}.json`),
     orAbsent(() => readFile(`${places.image}.png`), `${places.image}.png`),
@@ -101,7 +109,7 @@ export async function readRaster(places: Places): Promise<Raster | null> {
  * verdict would then depend on which question the caller asked. A stat is a
  * directory read; it is the existence check without the megabyte.
  */
-export async function readSidecar(places: Places): Promise<Omit<Raster, 'bytes'> | null> {
+export async function readSidecar(places: Places): Promise<Read<Omit<Raster, 'bytes'>> | null> {
   const [sidecar, image] = await Promise.all([
     orAbsent(() => readFile(`${places.record}.json`, 'utf8'), `${places.record}.json`),
     orAbsent(() => stat(`${places.image}.png`), `${places.image}.png`),
@@ -172,7 +180,7 @@ function halfAPair(places: Places, sidecarSurvived: boolean): RasterStoreError {
  * becomes a digest taken over nothing: two invented answers where the honest one
  * is that the file cannot be read.
  */
-function parseSidecar(text: string, path: string): Omit<Raster, 'bytes'> {
+function parseSidecar(text: string, path: string): Read<Omit<Raster, 'bytes'>> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text) as unknown;
@@ -191,5 +199,6 @@ function parseSidecar(text: string, path: string): Omit<Raster, 'bytes'> {
         `document digest and the identity that painted it. ${REFUSAL}.`,
     );
   }
-  return sidecar;
+  const placedFor = placedForIn(parsed);
+  return placedFor === undefined ? sidecar : { ...sidecar, placedFor };
 }

@@ -27,12 +27,13 @@ stays text, so the half of the artifact a person can review stays reviewable.
 The path is the operator's, and it is the reviewer's interface: a committed
 baseline is reviewed as a file in a pull request, so its path names the subject
 and nothing a person cannot check. A template renders it from the key — the
-file that declares the subject, its title, its name, its id — and from the
-declared engine name, never from a digest. The default files a subject under its
+file that declares the subject, its title, its name, its id, the Playwright
+project that observed it — and from the engine's family, never from a digest. The default files a subject under its
 title in one parallel tree; a template that starts at the declaring file's
 directory puts the image beside the code, in the same review, the same move and
 the same delete. Renderer identity lives in the sidecar, so two machines on one
-engine write one file and the lookup tells them apart by reading the record.
+engine write one file, the last accept is the baseline, and the other machine's
+comparison names the identity field that moved as its cause.
 
 Where the root is a tracked path, images go through a large-file filter and the
 sidecars do not. The bytes stay ordinary files — a checked-out tree
@@ -69,7 +70,9 @@ wrong-engine run says what it *did* find.
 
 Two subjects that render one path are a collision, and a collision stops the
 run naming both subjects — on the keys a run declares before it observes, and
-again on every lookup and write. Nothing is renumbered, because a renumbered path is a name that
+again on every lookup and write. The sidecar names the key it was placed for,
+so the refusal reaches a shard, a worker or a later run that never saw the
+other key, and it names the token that tells the two apart. Nothing is renumbered, because a renumbered path is a name that
 depends on plan order. The comparison folds case, since a case-insensitive
 checkout would merge the two files.
 
@@ -94,8 +97,9 @@ subject against it would be comparing a subject against a text file.
 
 ## Implementation coordinates
 
-`packages/store/src/durable.ts` — `createDurableStore`, the lookup order and the
-collision claim; `packages/store/src/path-template.ts` — `parseBaselinePath`,
+`packages/store/src/durable.ts` — `createDurableStore` and the lookup order;
+`packages/store/src/claims.ts` — the collision claim, in one store and through
+the sidecar's `placedFor`; `packages/store/src/path-template.ts` — `parseBaselinePath`,
 `DEFAULT_BASELINE_PATH`, and the token rules; `packages/store/src/legacy.ts` —
 `legacyHolders`, where an identity-directory baseline is read from;
 `packages/store/src/pair.ts` — reading and retiring an image and its sidecar;

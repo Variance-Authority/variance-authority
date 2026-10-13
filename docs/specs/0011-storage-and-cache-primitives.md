@@ -179,7 +179,7 @@ They have opposite loss semantics, and one interface can only encode one of them
 - **Losing a baseline is fatal.** `null` means "looked, nothing there", which
   becomes `new`, which re-records whatever is on screen, which destroys the
   baseline this run existed to compare against. So every failure must throw —
-  `RasterStoreError packages/raster/src/store.ts:54` and the `REFUSAL` beside it.
+  `RasterStoreError packages/raster/src/store.ts:55` and the `REFUSAL` beside it.
 - **Losing a cache costs a render.** `null` is the correct answer to every
   failure, including a failure to reach the network.
 
@@ -361,7 +361,9 @@ better argument for deploying the service than storage capacity ever was.
 
 Three backends ship (ADR-0016), and the file-backed two place a baseline by
 `baselines.path`, a template rendered from the key: `{dir}` and `{file}` (the
-file that declares the subject), `{title}`, `{name}`, `{id}` and `{engine}`.
+file that declares the subject), `{title}`, `{name}`, `{id}`, `{project}` (a
+Playwright project's name, which only the fixture's template takes) and
+`{engine}`.
 The default, `{title}/{name}-{engine}`, is a parallel tree; collocation is
 `{dir}/__baselines__/{file}/{name}-{engine}` under a root of `.`. A key carries
 its file, title and name, because a story id is a namespaced identifier and
@@ -378,7 +380,7 @@ and double the files a second machine accepted. The record beside the image
 says what painted it, and the path names only what a reviewer can check against
 the change ([ADR-0091](../context/adr/0091-a-baseline-is-named-for-its-subject.md)).
 The price is one file per engine family: two painters of one engine alternate
-on it, which is why one pinned painter is the advice.
+on it, the last accept wins, and one pinned painter is the advice.
 
 The template is also where an operator's tree is expressed, so the third
 placement this section used to ask for — a Java-style parallel test tree, a
@@ -401,7 +403,8 @@ the cost of every failure a metadata scheme can have. A template may move where 
 subject's file goes. It may not collapse N files into one, and two subjects that
 render one path stop the run naming both rather than being renumbered, because a
 number decided by plan order hands an approved image to the other subject when
-the order changes.
+the order changes. The record names the subject it was placed for, so the
+refusal reaches across shards, workers and runs, and not only within one store.
 
 **The reviewable half deserves the same conflict rule as the image half, for as
 long as it is in the tree.** LFS tracks `*.png` with `-text`, so a baseline image

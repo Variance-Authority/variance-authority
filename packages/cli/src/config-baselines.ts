@@ -1,4 +1,4 @@
-import { parseBaselinePath } from '@variance-authority/store/durable';
+import { DEFAULT_BASELINE_PATH, parseBaselinePath, type BaselinePathTemplate } from '@variance-authority/store/durable';
 import { baselineCarrierOf } from './config-placement.js';
 import {
   fail,
@@ -102,10 +102,25 @@ export function parseBaselines(value: unknown, options: ParseOptions): Baselines
     const pattern = optionalText(source, 'pattern', options, 'baselines.pattern');
     const path = parsePath(source['path'], options);
     const records = parseRecords(source['records'], options);
+    const root = resolveFrom(options.baseDir, nonEmpty(source, 'root', options, 'baselines.root'));
+    if (pattern === undefined && root === resolveFrom(options.baseDir, '.') && !parseBaselinePath(path ?? DEFAULT_BASELINE_PATH).anchored) {
+      // The `.gitattributes` entry is the template's glob, and a glob with no
+      // directory of its own, at the top of the repository, routes every image
+      // its file-name pattern happens to fit into LFS: `*-*.png` takes each
+      // hyphenated icon, fixture and screenshot that is not a baseline.
+      fail(
+        'baselines.path',
+        `${quote(path ?? DEFAULT_BASELINE_PATH)} names no directory of its own, so under a root of "." its ` +
+          'LFS pattern would track every image in the repository whose name it fits, not only baselines. ' +
+          'Give it one, e.g. "{dir}/__baselines__/{file}/{name}-{engine}" or "__baselines__/{title}/{name}-{engine}"; ' +
+          'or give baselines a root of their own; or set baselines.pattern yourself',
+        options,
+      );
+    }
 
     return {
       kind: 'lfs',
-      root: resolveFrom(options.baseDir, nonEmpty(source, 'root', options, 'baselines.root')),
+      root,
       ...(pattern !== undefined ? { pattern } : {}),
       ...(path !== undefined ? { path } : {}),
       ...(records !== undefined ? { records } : {}),
@@ -156,13 +171,19 @@ function parsePath(value: unknown, options: ParseOptions): string | undefined {
   if (typeof value !== 'string') {
     fail('baselines.path', `must be a path template, not ${quote(value)}`, options);
   }
+  let template: BaselinePathTemplate | undefined;
   try {
-    parseBaselinePath(value as string);
+    template = parseBaselinePath(value as string);
   } catch (error) {
     // The store names the field itself, for a caller that builds one in code;
     // here the field is already the first thing the message says.
     const said = error instanceof Error ? error.message : String(error);
     fail('baselines.path', said.replace(/^baselines\.path /, ''), options);
+  }
+  if (template?.hasProject === true) {
+    // Projects are Playwright's, and Playwright reads its path from the
+    // fixture's own options: no subject this config collects carries one.
+    fail('baselines.path', `${quote(value)} places by {project}, and no suite this config runs has projects`, options);
   }
   return value as string;
 }

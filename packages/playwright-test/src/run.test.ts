@@ -52,6 +52,14 @@ describe('runOf', () => {
   it('records no owner when the runner built no spec file', () => {
     expect(runOf(testInfo({ file: undefined } as Partial<TestInfo>))).not.toHaveProperty('owner');
   });
+
+  it('reads the project by its name, and an unnamed one as none', () => {
+    const named = { project: { name: 'mobile', use: {} } } as Partial<TestInfo>;
+    const unnamed = { project: { name: '', use: {} } } as Partial<TestInfo>;
+
+    expect(runOf(testInfo(named)).projectName).toBe('mobile');
+    expect(runOf(testInfo(unnamed))).not.toHaveProperty('projectName');
+  });
 });
 
 describe('baselineKeyOf', () => {
@@ -68,6 +76,13 @@ describe('baselineKeyOf', () => {
     expect(parseBaselinePath('{dir}/__baselines__/{file}/{title}/{name}-{engine}').render(key, 'chromium')).toBe(
       'test/__baselines__/checkout.spec.ts/checkout/shows-an-empty-cart-chromium',
     );
+  });
+
+  it('carries the project, so two projects can be filed apart', () => {
+    const run = runOf(testInfo({ project: { name: 'mobile', use: { deviceScaleFactor: 2 } } } as Partial<TestInfo>));
+
+    expect(baselineKeyOf(run, run.id!)).toMatchObject({ subject: 'checkout/shows an empty cart', project: 'mobile' });
+    expect(baselineKeyOf(run, 'cart/empty', { named: true })).toMatchObject({ project: 'mobile' });
   });
 
   it('keeps a slash inside one title as one segment', () => {
@@ -92,6 +107,12 @@ describe('baselineKeyOf', () => {
 describe('asRun', () => {
   it('passes a descriptor through untouched', () => {
     const run: VarianceRun = { id: 'cart', accepting: true, deviceScaleFactor: 1 };
+
+    expect(asRun(run)).toBe(run);
+  });
+
+  it('passes a descriptor that names its project through untouched', () => {
+    const run: VarianceRun = { id: 'cart', projectName: 'mobile', accepting: true };
 
     expect(asRun(run)).toBe(run);
   });

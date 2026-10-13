@@ -23,7 +23,7 @@ import { RasterStoreError, type BaselineKey } from '@variance-authority/raster';
 /** The template a store places by when the operator wrote none. */
 export const DEFAULT_BASELINE_PATH = '{title}/{name}-{engine}';
 
-const TOKENS = ['dir', 'file', 'title', 'name', 'id', 'engine'] as const;
+const TOKENS = ['dir', 'file', 'title', 'name', 'id', 'project', 'engine'] as const;
 type Token = (typeof TOKENS)[number];
 
 /** Tokens that render to any number of directories, and so stand alone in a segment. */
@@ -46,6 +46,15 @@ export interface BaselinePathTemplate {
   readonly source: string;
   /** Whether the engine is part of the path, so two engines keep two files. */
   readonly hasEngine: boolean;
+  /** Whether it places by `{project}`, which only a runner with projects can fill. */
+  readonly hasProject: boolean;
+  /**
+   * Whether a directory of the path is spelled out in the template, like
+   * `__baselines__`, so that its glob takes baselines and nothing else. Without
+   * one, the default template's `.gitattributes` pattern is `*-*.png`, which under a root shared
+   * with the code also takes every hyphenated image in the repository.
+   */
+  readonly anchored: boolean;
   /**
    * A glob matching every path this template can render, `{dir}` and `{title}`
    * as `**` and every other token as `*`: what a git pathspec, a
@@ -109,6 +118,8 @@ export function parseBaselinePath(source: string): BaselinePathTemplate {
   return {
     source,
     hasEngine,
+    hasProject: tokens.includes('project'),
+    anchored: segments.slice(0, -1).some((segment) => segment.every((part) => 'literal' in part)),
     glob: globOf(segments),
     render: (key, engine) => render(key, engine).join('/').replace(OPEN, '{engine}'),
     engines(key) {
@@ -201,6 +212,8 @@ function value(token: Token, key: BaselineKey, engine: string | null, labelled: 
       return named(key, 'name', key.name ?? idSegments(key.subject).at(-1) ?? '', label);
     case 'id':
       return named(key, 'id', key.subject, label);
+    case 'project':
+      return project(key);
     case 'engine':
       return engine === null ? OPEN : sanitized(engine);
     default:
@@ -239,6 +252,18 @@ function declared(key: BaselineKey): string {
     );
   }
   return file;
+}
+
+/** The project that observed the subject: absent is not a project named nothing. */
+function project(key: BaselineKey): string {
+  const spelled = key.project === undefined ? '' : sanitized(key.project);
+  if (spelled === '') {
+    throw new RasterStoreError(
+      `subject ${JSON.stringify(key.subject)} names no project that observed it, and baselines.path ` +
+        'places by {project}. Name every Playwright project, or use a template without {project} for this suite.',
+    );
+  }
+  return spelled;
 }
 
 function idSegments(subject: string): readonly string[] {

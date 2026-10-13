@@ -58,6 +58,17 @@ export interface VarianceRun {
   readonly titlePath?: readonly string[];
 
   /**
+   * The Playwright project that ran the test, by its `name`.
+   *
+   * Two projects run one test as one subject, and when they differ only in
+   * what a baseline's identity does not hold — a colour scheme, a viewport,
+   * a scale factor — they paint two images for one path. `{project}` in the
+   * baseline path files them apart. Absent for an unnamed project. Not
+   * `project`, which is how {@link asRun} tells a `TestInfo` from this.
+   */
+  readonly projectName?: string;
+
+  /**
    * Whether this run may promote a candidate to a baseline.
    *
    * Under Playwright's runner this is `--update-snapshots=all|changed` and
@@ -76,11 +87,13 @@ export function runOf(testInfo: TestInfo): VarianceRun {
   const scheme = testInfo.project.use.colorScheme;
   const flag = testInfo.config.updateSnapshots;
   const baseURL = testInfo.project.use.baseURL;
+  const projectName = testInfo.project.name;
   return {
     id: testInfo.titlePath.slice(1).join('/'),
     colorScheme: scheme === 'dark' ? 'dark' : 'light',
     deviceScaleFactor: testInfo.project.use.deviceScaleFactor ?? 1,
     ...(baseURL === undefined ? {} : { baseURL }),
+    ...(typeof projectName === 'string' && projectName !== '' ? { projectName } : {}),
     // Absent on a `TestInfo` the runner did not build — which is exactly the
     // shape a caller outside Playwright's runner hands over, and a run with no
     // spec file simply records no execution against one.
@@ -144,6 +157,7 @@ export function baselineKeyOf(
 ): BaselineKey {
   return testBaselineKey(subject, {
     ...(run.owner === undefined ? {} : { file: run.owner }),
+    ...(run.projectName === undefined ? {} : { project: run.projectName }),
     ...(options.named === true || run.titlePath === undefined ? {} : { titles: run.titlePath }),
   });
 }

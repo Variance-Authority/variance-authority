@@ -103,7 +103,10 @@ The path is a template, `{title}/{name}-{engine}` by default. Set
 `varianceBaselinePath` in `use` to change it — for instance to
 `{dir}/__baselines__/{file}/{title}/{name}-{engine}`, with `varianceBaselines`
 at the repository root, to keep each image beside the spec that took it.
-[Where baselines live](placement.md) lists the tokens.
+Projects that differ only in a scale factor, a colour scheme or a viewport
+paint one path, and the run stops naming both; put `{project}` into the
+template to file them apart. [Where baselines live](placement.md) lists the
+tokens.
 
 **Renderer identity** is what the `.json` records: the renderer and its engine
 build, the OS and architecture, the device scale factor, the

@@ -665,7 +665,7 @@ message reads *preconditions unmeasured* rather than *no preconditions recorded*
 | Fixture | Purpose | Default |
 | --- | --- | --- |
 | `varianceBaselines` | Directory of durable baselines. | `.variance/baselines` |
-| `varianceBaselinePath` | Where each baseline goes under `varianceBaselines`, as a template. `{title}` is the `describe` titles, `{name}` the test's title or the `subjectId` after its last `/`, `{file}` and `{dir}` the spec file. `createVariance` and `observe` take the same template as `baselinePath`. | `{title}/{name}-{engine}` |
+| `varianceBaselinePath` | Where each baseline goes under `varianceBaselines`, as a template. `{title}` is the `describe` titles, `{name}` the test's title or the `subjectId` after its last `/`, `{file}` and `{dir}` the spec file, `{project}` the Playwright project's `name`. `createVariance` and `observe` take the same template as `baselinePath`. | `{title}/{name}-{engine}` |
 | `varianceRenderer` | Renderer this test's page is painted by. | The worker's renderer for the timezone and locale the page runs in, from `varianceRenderers`. |
 | `varianceRenderers` | Renderers one Playwright worker holds, one per timezone and locale its pages ran in. | Playwright renderers launched on first use and closed by the fixture. |
 | `timezoneId` | Playwright's own option, the timezone the test's page opens in. | `UTC` when neither your config nor `test.use` sets one, rather than your machine's, so your laptop and CI read a page under one key. A value you set is used as it is. Playwright Test already opens the page in `en-US` when you set no `locale`. The default reaches every test that uses these fixtures, including one that never calls `variance`, so its own date assertions read `UTC`. |
