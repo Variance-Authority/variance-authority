@@ -28,6 +28,11 @@ import {
  * from script, the way a page that computed it would. A page with no image
  * bytes at all is the control: a renderer that painted every image broken
  * would paint the first two alike and fail it.
+ *
+ * A style names a file too, so the same square is also a tile's background:
+ * written in the tile's own `style`, in a rule a sheet holds, and in the
+ * `style` of a box the subject sits in, which the document carries as frame,
+ * and in a custom property set on the root, which it carries as inherited.
  */
 
 const BROWSER_AVAILABLE = ((): boolean => {
@@ -51,15 +56,23 @@ const SQUARE =
 const image = (src = ""): string =>
   `<main id="app"><img alt="square" width="60" height="40"${src}></main>`;
 
-/** The square, handed to the image through an object URL made from its bytes. */
-function held(after = "", assign = "img.src = url;"): string {
-  return `<!doctype html><html><body>${image()}<script>
+const tile = (style = ""): string =>
+  `<main id="app"><div class="tile" style="width:60px;height:40px;background-size:100% 100%${style}"></div></main>`;
+
+/** `markup`, and a script that makes an object URL of the square and runs `assign`. */
+function holding(markup: string, assign: string): string {
+  return `<!doctype html><html><head></head><body>${markup}<script>
       const bytes = Uint8Array.from(atob('${SQUARE}'), (c) => c.charCodeAt(0));
       const url = URL.createObjectURL(new Blob([bytes], { type: 'image/png' }));
-      const img = document.querySelector('img');
-      ${after}
       ${assign}
     </script></body></html>`;
+}
+
+/** The square, handed to the image through an object URL made from its bytes. */
+function held(after = "", assign = "img.src = url;"): string {
+  return holding(image(), `const img = document.querySelector('img');
+      ${after}
+      ${assign}`);
 }
 
 const PAGES: Readonly<Record<string, string>> = {
@@ -74,6 +87,29 @@ const PAGES: Readonly<Record<string, string>> = {
   "/revoked": held(
     `img.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });`,
   ),
+  "/bare": `<!doctype html><html><body>${tile()}</body></html>`,
+  "/tiled": `<!doctype html><html><body>${tile(
+    `;background-image:url(data:image/png;base64,${SQUARE})`,
+  )}</body></html>`,
+  "/tiled-held": holding(
+    tile(),
+    "document.querySelector('.tile').style.backgroundImage = 'url(' + url + ')';",
+  ),
+  "/sheet": `<!doctype html><html><head><style>.tile{background-image:url("data:image/png;base64,${SQUARE}")}</style></head><body>${tile()}</body></html>`,
+  "/sheet-held": holding(
+    tile(),
+    `const sheet = document.createElement('style');
+      sheet.textContent = '.tile{background-image:url("' + url + '")}';
+      document.head.append(sheet);`,
+  ),
+  "/seeded-held": holding(
+    `<style>.tile{background-image:var(--tile)}</style>${tile()}`,
+    "document.documentElement.style.setProperty('--tile', 'url(' + url + ')');",
+  ),
+  "/framed-held": holding(
+    `<section>${image(` src="data:image/png;base64,${SQUARE}"`)}</section>`,
+    "document.querySelector('section').style.backgroundImage = 'url(' + url + ')';",
+  ),
 };
 
 /** Two subjects on `/held`, the second with a query so the page is loaded again. */
@@ -84,6 +120,13 @@ const ROUTES: Readonly<Record<string, string>> = {
   "object/held-again": "/held?again",
   "object/candidate": "/candidate",
   "object/revoked": "/revoked",
+  "object/bare": "/bare",
+  "object/tiled": "/tiled",
+  "object/tiled-held": "/tiled-held",
+  "object/sheet": "/sheet",
+  "object/sheet-held": "/sheet-held",
+  "object/seeded-held": "/seeded-held",
+  "object/framed-held": "/framed-held",
 };
 
 const PLAN: Plan = {
@@ -165,6 +208,10 @@ function html(id: string): string | undefined {
   return read.get(`object/${id}`)?.document.html;
 }
 
+function css(id: string): string | undefined {
+  return read.get(`object/${id}`)?.document.css.join("\n");
+}
+
 function bytes(id: string): string | undefined {
   return painted.get(`object/${id}`)?.bytes;
 }
@@ -203,5 +250,35 @@ chromium_("an image a page made from bytes it held", () => {
         code: "unreadable-object-url",
       }),
     );
+  });
+});
+
+chromium_("a style that names an image a page made", () => {
+  it("paints a background written into the markup, so the comparisons below can fail", () => {
+    expect(bytes("tiled")).toBeDefined();
+    expect(bytes("tiled")).not.toBe(bytes("bare"));
+  });
+
+  it("paints the background an element's own style named through an object URL", () => {
+    expect(html("tiled-held")).not.toContain("blob:");
+    expect(bytes("tiled-held")).toBe(bytes("tiled"));
+  });
+
+  it("paints the background a rule named through an object URL", () => {
+    expect(css("sheet-held")).not.toContain("blob:");
+    expect(css("sheet-held")).toContain(`data:image/png;base64,${SQUARE}`);
+    expect(bytes("sheet-held")).toBe(bytes("sheet"));
+  });
+
+  it("paints the background a custom property on the root named through an object URL", () => {
+    const inherited = JSON.stringify(read.get("object/seeded-held")?.document.inherited);
+    expect(inherited).not.toContain("blob:");
+    expect(bytes("seeded-held")).toBe(bytes("sheet"));
+  });
+
+  it("carries the bytes a box around the subject named in its style", () => {
+    const frame = JSON.stringify(read.get("object/framed-held")?.document.frame);
+    expect(frame).not.toContain("blob:");
+    expect(frame).toContain(`data:image/png;base64,${SQUARE}`);
   });
 });

@@ -15,7 +15,7 @@ import { attributesOf, elements } from './dom-list.js';
 import { formState } from './form-state.js';
 import { splitPseudoElement } from './selector-parts.js';
 import { facesUsedBy, type IndexedFace } from './font-faces.js';
-import { carryObjectUrls } from './object-urls.js';
+import { objectUrls, type ObjectUrls } from './object-urls.js';
 
 /**
  * Acquisition — phase one: a live DOM becomes something you can send somewhere.
@@ -125,17 +125,30 @@ export function acquireDocument(root: Element, options: AcquireOptions): RenderD
           'host dropped the file its @font-face names; the render paints a fallback in its place',
       });
     }
-    const frame = frameOf(root);
+    // An image shown through an object URL lives in memory only this page can
+    // read, wherever the document names it: markup, frame, rules or inherited
+    // values. Each is carried as its bytes, or the deferred renderer paints a
+    // broken image.
+    const urls = objectUrls(view, PATH_ATTRIBUTE);
+    const frame = frameOf(root, urls);
     settleStamps(stamped);
-    // What a form holds now lives in properties `outerHTML` does not read, and
-    // an image shown through an object URL lives in memory only this page can
-    // read: both are written in here, on a copy, or the deferred renderer paints
-    // the form the server sent and a broken image.
-    const objectUrls = carryObjectUrls(root, PATH_ATTRIBUTE);
-    diagnostics.push(...objectUrls.diagnostics);
-    const html = formState(ownerDocument).serialize(root, objectUrls.edits);
+    // What a form holds now lives in properties `outerHTML` does not read: it is
+    // written in here, on a copy, with the object URLs, or the deferred renderer
+    // paints the form the server sent.
+    const html = formState(ownerDocument).serialize(root, urls.editsIn(root));
 
     diagnostics.push(...verify(ownerDocument, html, frame, bindings));
+
+    const sheets = withFaces(css, faces.filter((face) => face.readable)).map((sheet) =>
+      urls.inCss(sheet, 'a rule the subject is painted with'),
+    );
+    const inherited = Object.fromEntries(
+      Object.entries(
+        options.inherited ??
+          inheritedSeed(root, options.profile ?? detectProfile(view), view, index),
+      ).map(([property, value]) => [property, urls.inCss(value, `the inherited ${property}`)]),
+    );
+    diagnostics.push(...urls.diagnostics);
 
     if (options.fonts === undefined) {
       diagnostics.push({
@@ -152,11 +165,9 @@ export function acquireDocument(root: Element, options: AcquireOptions): RenderD
       subject: options.subject,
       html,
       frame,
-      css: withFaces(css, faces.filter((face) => face.readable)),
+      css: sheets,
       viewport: options.viewport,
-      inherited:
-        options.inherited ??
-        inheritedSeed(root, options.profile ?? detectProfile(view), view, index),
+      inherited,
       fonts: options.fonts ?? [],
       ...(options.assets ? { assets: options.assets } : {}),
       diagnostics,
@@ -364,14 +375,14 @@ function frameChain(root: Element): readonly Element[] {
 }
 
 /** Tags, ids, classes and attributes above the subject, outermost first. */
-function frameOf(root: Element): RenderDocument['frame'] {
+function frameOf(root: Element, urls: ObjectUrls): RenderDocument['frame'] {
   const ownerDocument = root.ownerDocument;
   const ancestors: FrameElement[] = [];
 
   for (let node = root.parentElement; node !== null; node = node.parentElement) {
     const tag = node.tagName.toLowerCase();
     if (tag === 'html' || tag === 'body') continue;
-    ancestors.unshift({ tag, attributes: attributesOf(node) });
+    ancestors.unshift({ tag, attributes: framed(node, urls) });
   }
 
   // Zero under a profile with no layout engine, and omitted rather than recorded
@@ -380,11 +391,20 @@ function frameOf(root: Element): RenderDocument['frame'] {
   const containerWidth = root.parentElement?.getBoundingClientRect().width ?? 0;
 
   return {
-    html: ownerDocument.documentElement ? attributesOf(ownerDocument.documentElement) : {},
-    body: ownerDocument.body ? attributesOf(ownerDocument.body) : {},
+    html: ownerDocument.documentElement ? framed(ownerDocument.documentElement, urls) : {},
+    body: ownerDocument.body ? framed(ownerDocument.body, urls) : {},
     ancestors,
     ...(containerWidth > 0 ? { containerWidth } : {}),
   };
+}
+
+/** `element`'s attributes, by qualified name, with each object URL in them carried. */
+function framed(element: Element, urls: ObjectUrls): Record<string, string> {
+  const attributes = attributesOf(element);
+  for (const edit of urls.editsOf(element)) {
+    attributes[element.getAttributeNodeNS(edit.namespace, edit.name)?.name ?? edit.name] = edit.value;
+  }
+  return attributes;
 }
 
 /**

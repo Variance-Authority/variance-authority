@@ -11,9 +11,11 @@ painted a broken image where the page showed a picture. The URL's uuid is new on
 every load, so one picture was also two documents, and a settled subject was
 painted again on every run.
 
-`acquireDocument` now reads each `blob:` URL in an attribute that names a file
-(`src`, every `srcset` candidate, `poster`, `href` on SVG's `<image>` and
-`<use>`) and writes its bytes into the document as a `data:` URL. An object URL
+`acquireDocument` now reads each `blob:` URL the document carries, in an
+attribute that names a file (`src`, every `srcset` candidate, `poster`, `href`
+on SVG's `<image>` and `<use>`) or in a `url()` of an element's `style`, a rule
+the subject is painted with, or a value it inherits, and writes its bytes into
+the document as a `data:` URL. An object URL
 that can no longer be read, because it was revoked after the image loaded, keeps
 its URL and is reported as an `unreadable-object-url` error, which holds the run
 open.

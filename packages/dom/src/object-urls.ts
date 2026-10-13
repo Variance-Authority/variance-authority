@@ -1,5 +1,6 @@
 import type { Diagnostic } from '@variance-authority/core/format';
 import { fileAttributes } from './assets.js';
+import { URL_TOKEN } from './css-url.js';
 
 /**
  * Images a page made from bytes it held, carried as those bytes.
@@ -13,9 +14,9 @@ import { fileAttributes } from './assets.js';
  * load, so one picture acquired twice was two documents, and `settle` never
  * found the baseline's digest again.
  *
- * So each object URL in an attribute that names a file is read here, in the
- * page that can still read it, and written into the document as a `data:` URL
- * of the same bytes. The document then holds what the image shows, and its
+ * So each object URL the document would carry is read here, in the page that
+ * can still read it, and written into the document as a `data:` URL of the
+ * same bytes. The document then holds what the image shows, and its
  * digest moves when the picture does and only then. `referencedAssets` leaves
  * `data:` out of the asset key for that reason: the bytes are in the document.
  *
@@ -37,63 +38,95 @@ export interface AttributeEdit {
   readonly value: string;
 }
 
-export interface CarriedObjectUrls {
-  /** The attribute edits that put each object URL's bytes in its place, by element. */
-  readonly edits: ReadonlyMap<Element, readonly AttributeEdit[]>;
+export interface ObjectUrls {
+  /** What `element` must write so none of its own attributes names an object URL. */
+  editsOf(element: Element): readonly AttributeEdit[];
+  /** The edits of every element in `root`'s subtree, `root` included, that needs one. */
+  editsIn(root: Element): ReadonlyMap<Element, readonly AttributeEdit[]>;
+  /** `css` with every `url()` that names an object URL naming its bytes; `place` says where it was read. */
+  inCss(css: string, place: string, nodePath?: string): string;
+  /** An `unreadable-object-url` error for each place an object URL could not be read. */
   readonly diagnostics: readonly Diagnostic[];
 }
 
 const OBJECT_URL = /^\s*blob:/i;
 
-/** Every object URL in `root`'s subtree, `root` included, read into a `data:` URL. */
-export function carryObjectUrls(root: Element, pathAttribute: string): CarriedObjectUrls {
-  const view = root.ownerDocument.defaultView;
+/**
+ * One reader per acquisition, so a URL named in markup, in a rule and in a
+ * custom property is read once.
+ *
+ * A style names a file as surely as `src` does, so the attributes that name a
+ * file, an element's `style`, the rules the subject is painted with and the
+ * values it inherits are all carried: a `background-image` set from script is
+ * the same broken picture in the render as an `<img>` was.
+ */
+export function objectUrls(view: Window | null, pathAttribute: string): ObjectUrls {
   const read = new Map<string, string | undefined>();
-  const bytesOf = (url: string): string | undefined => {
-    if (!read.has(url)) read.set(url, dataUrlOf(url, view));
-    return read.get(url);
-  };
-
-  const edits = new Map<Element, AttributeEdit[]>();
   const diagnostics: Diagnostic[] = [];
 
-  for (const element of [root, ...root.querySelectorAll('*')]) {
+  const carried = (url: string, place: string, nodePath: string | undefined): string => {
+    if (!OBJECT_URL.test(url)) return url;
+    if (!read.has(url)) read.set(url, dataUrlOf(url.trim(), view));
+    const data = read.get(url);
+    if (data !== undefined) return data;
+    diagnostics.push({
+      severity: 'error',
+      code: 'unreadable-object-url',
+      message:
+        `${place} names memory in the page that this host could no longer read, so the ` +
+        'render paints it broken where the page shows it; keep the URL until the subject ' +
+        'has been acquired',
+      ...(nodePath !== undefined ? { nodePath } : {}),
+    });
+    return url;
+  };
+
+  const inCss = (css: string, place: string, nodePath?: string): string => {
+    if (!/blob:/i.test(css)) return css;
+    return css.replace(URL_TOKEN, (token, double?: string, single?: string, bare?: string) => {
+      const url = double ?? single ?? bare ?? '';
+      if (!OBJECT_URL.test(url)) return token;
+      const data = carried(url, `url(${url}) in ${place}`, nodePath);
+      return data === url ? token : `url("${data}")`;
+    });
+  };
+
+  const editsOf = (element: Element): readonly AttributeEdit[] => {
+    const tag = element.tagName.toLowerCase();
+    const nodePath = element.getAttribute(pathAttribute) ?? undefined;
+    const edits: AttributeEdit[] = [];
+
     for (const attribute of fileAttributes(element)) {
       const value = element.getAttributeNS(attribute.namespace, attribute.name);
       if (value === null || !/blob:/i.test(value)) continue;
-
-      const unreadable: string[] = [];
-      const carried = (attribute.candidates ? candidatesOf(value) : [{ url: value.trim(), rest: '' }])
-        .map(({ url, rest }) => {
-          if (!OBJECT_URL.test(url)) return url + rest;
-          const data = bytesOf(url);
-          if (data === undefined) unreadable.push(url);
-          return (data ?? url) + rest;
-        })
+      const written = (attribute.candidates ? candidatesOf(value) : [{ url: value.trim(), rest: '' }])
+        .map(({ url, rest }) => carried(url, `<${tag} ${attribute.name}="${url}">`, nodePath) + rest)
         .join(', ');
-
-      for (const url of unreadable) {
-        const path = element.getAttribute(pathAttribute);
-        diagnostics.push({
-          severity: 'error',
-          code: 'unreadable-object-url',
-          message:
-            `<${element.tagName.toLowerCase()} ${attribute.name}="${url}"> names memory in the page ` +
-            'that this host could no longer read, so the render paints it broken where the page ' +
-            'shows it; keep the URL until the subject has been acquired',
-          ...(path !== null ? { nodePath: path } : {}),
-        });
-      }
-
-      if (carried !== value) {
-        const list = edits.get(element) ?? [];
-        list.push({ name: attribute.name, namespace: attribute.namespace, value: carried });
-        edits.set(element, list);
-      }
+      if (written !== value) edits.push({ name: attribute.name, namespace: attribute.namespace, value: written });
     }
-  }
 
-  return { edits, diagnostics };
+    const style = element.getAttribute('style');
+    if (style !== null) {
+      const written = inCss(style, `the style of <${tag}>`, nodePath);
+      if (written !== style) edits.push({ name: 'style', namespace: null, value: written });
+    }
+
+    return edits;
+  };
+
+  return {
+    editsOf,
+    editsIn(root) {
+      const edits = new Map<Element, readonly AttributeEdit[]>();
+      for (const element of [root, ...root.querySelectorAll('*')]) {
+        const own = editsOf(element);
+        if (own.length > 0) edits.set(element, own);
+      }
+      return edits;
+    },
+    inCss,
+    diagnostics,
+  };
 }
 
 /** `a.png 1x, blob:… 2x` → each URL with what follows it. Descriptors are not URLs. */
