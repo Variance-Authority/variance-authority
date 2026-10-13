@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { jobMinutes } from '../.github/scripts/outer-loop/drive.mjs';
 import { DOCKET_MARKER, FLOWS, NEEDS_REVIEW } from '../.github/scripts/outer-loop/flows.mjs';
 import { buildProblems, changeProblems, commitProblems } from '../.github/scripts/outer-loop/observe.mjs';
 import { fake, type Behaviour } from './outer-loop.fake.js';
@@ -51,6 +52,7 @@ async function outerLoop(
     OUTER_LOOP_FLOW: flow,
     OUTER_LOOP_TRIBUNAL: url,
     OUTER_LOOP_WAIT_SECONDS: '0.4',
+    OUTER_LOOP_BUDGET_SECONDS: '10',
     OUTER_LOOP_POLL_SECONDS: '0.1',
     VARIANCE_PUSH_TOKEN: 'push-token',
     VARIANCE_REVIEW_TOKEN: 'review-token',
@@ -115,6 +117,23 @@ describe('the outer loop against an example that breaks a promise', () => {
     expect(code).toBe(1);
     expect(out).toMatch(/timed out after 0\.4s: Variance-Authority\/example-static-site never completed `variance`/);
     expect(leftOpen(github)).toEqual({ pulls: [], branches: [] });
+  });
+
+  it("ends at the flow's budget even when each wait would allow more", async () => {
+    const { github, code, out } = await drive(
+      'lfs',
+      { silent: true },
+      { OUTER_LOOP_WAIT_SECONDS: '30', OUTER_LOOP_BUDGET_SECONDS: '0.4' },
+    );
+    expect(code).toBe(1);
+    expect(out).toMatch(/timed out after 0\.[0-4]s, at the end of the flow's budget: /);
+    expect(leftOpen(github)).toEqual({ pulls: [], branches: [] });
+  });
+
+  it('gives every job the minutes its flow can spend', async () => {
+    const workflow = await readFile(join(ROOT, '.github/workflows/outer-loop.yml'), 'utf8');
+    const minutes = Number(/timeout-minutes: (\d+)/.exec(workflow)?.[1]);
+    expect(minutes).toBe(Math.max(...Object.keys(FLOWS).map((name) => jobMinutes(name))));
   });
 
   it('names the push token when the accept commit gets no check', async () => {
@@ -183,6 +202,24 @@ describe('settling a flow', () => {
     expect(github.dispatches).toHaveLength(1);
     expect(existsSync(join(temp, 'outer-loop-tribunal.restore'))).toBe(false);
     expect(github.issues).toEqual([]);
+  });
+
+  it('files a scheduled run that was cancelled as a failure: nothing cancels it but its timeout', async () => {
+    const github = await fake('cache', {}, servers);
+    const dispatched = await outerLoop('settle', 'cache', github.url, {
+      OUTER_LOOP_OUTCOME: 'cancelled',
+      GITHUB_EVENT_NAME: 'workflow_dispatch',
+    });
+    expect(dispatched.code).toBe(0);
+    expect(github.issues).toEqual([]);
+
+    const scheduled = await outerLoop('settle', 'cache', github.url, {
+      OUTER_LOOP_OUTCOME: 'cancelled',
+      GITHUB_EVENT_NAME: 'schedule',
+    });
+    expect(scheduled.code).toBe(0);
+    expect(github.issues).toHaveLength(1);
+    expect(github.issues[0].body).toContain('cancelled before the flow finished, which is its timeout');
   });
 });
 

@@ -51,8 +51,10 @@ jobs:
       matrix:
         flow: ${{ fromJSON((inputs.flow == '' || inputs.flow == 'all') && '["cache","lfs","tribunal"]' || format('["{0}"]', inputs.flow)) }}
     runs-on: ubuntu-24.04
-    # The longest flow's waits, plus the restore of the tribunal's `main`.
-    timeout-minutes: 120
+    # The tribunal's budget (two 40-minute waits), its restore (one more) and
+    # ten minutes for requests: `jobMinutes` in the script, which a test holds
+    # this number to. A scheduled job that reaches it is filed as a failure.
+    timeout-minutes: 130
     steps:
       - uses: actions/checkout@v4
         with:

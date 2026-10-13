@@ -7,6 +7,9 @@
 
 const API_VERSION = '2022-11-28';
 
+/** How long one request may take before it is a failure. */
+const REQUEST_SECONDS = 60;
+
 /**
  * A failure the driver reports as it is: sentences, no stack. `status` is the
  * HTTP status when a request was refused, so a caller can tell a missing thing
@@ -36,9 +39,11 @@ export function client({ base, token, secret, github = true }) {
       : { accept: 'application/json' };
     if (token) headers.authorization = `Bearer ${token}`;
     if (body !== undefined) headers['content-type'] = 'application/json';
+    // A request that hangs is a failure like any other, not a wait.
     const response = await fetch(`${root}${path}`, {
       method,
       headers,
+      signal: AbortSignal.timeout(REQUEST_SECONDS * 1000),
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     if (!response.ok) {
@@ -62,17 +67,21 @@ export function client({ base, token, secret, github = true }) {
  * Asks `probe` until it returns something other than `undefined`, or the
  * deadline passes.
  *
- * Bounded and never retried: the deadline is the whole budget for one wait, and
- * a probe that throws ends the wait with its own failure. `waiting` is the
- * sentence the timeout says, naming what never happened.
+ * Bounded and never retried: `seconds` is the budget for one wait, `deadline`
+ * (an epoch millisecond) the end of the flow's whole budget, and whichever comes
+ * first ends the wait. A probe that throws ends the wait with its own failure.
+ * `waiting` is the sentence the timeout says, naming what never happened.
  */
-export async function until(probe, { seconds, every, waiting }) {
-  const deadline = Date.now() + seconds * 1000;
+export async function until(probe, { seconds, every, waiting, deadline = Infinity }) {
+  const started = Date.now();
+  const end = Math.min(started + seconds * 1000, deadline);
   for (;;) {
     const found = await probe();
     if (found !== undefined) return found;
-    if (Date.now() + every * 1000 > deadline) {
-      throw new Refusal(`timed out after ${seconds}s: ${waiting}`);
+    if (Date.now() + every * 1000 > end) {
+      const cut = end < started + seconds * 1000;
+      const given = cut ? Math.round((end - started) / 100) / 10 : seconds;
+      throw new Refusal(`timed out after ${given}s${cut ? ", at the end of the flow's budget" : ''}: ${waiting}`);
     }
     await new Promise((done) => setTimeout(done, every * 1000));
   }

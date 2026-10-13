@@ -301,8 +301,15 @@ this repository that are. The expectations live in
 `tools/outer-loop.check.ts` runs the script against a local GitHub that answers
 the way the examples do.
 
-A failing flow opens an issue labelled `outer-loop-e2e` here, or comments on the
-one already open, and the next run that passes closes it. To run it on demand,
+The examples pin a released action, so this reads a release, not `main`: it
+fails after a release reaches an example, or after an example changes, never on
+a pull request here.
+
+Every wait is bounded, and so is the flow as a whole, and the job's timeout is
+that budget plus the tribunal's restore. A failing flow opens an issue labelled
+`outer-loop-e2e` here, or comments on the one already open, and the next run
+that passes closes it. A scheduled job cancelled by its timeout counts as
+failing; a dispatched run somebody cancels files nothing. To run it on demand,
 for one flow or all three:
 
 ```bash
@@ -310,8 +317,8 @@ gh workflow run outer-loop.yml -f flow=tribunal
 ```
 
 It reaches the examples with the `VARIANCE_PUSH_TOKEN` secret, and the tribunal
-flow approves with `VARIANCE_REVIEW_TOKEN`. A run without either fails before it
-opens anything, naming the secret and what it has to be allowed.
+flow approves with `VARIANCE_REVIEW_TOKEN`. A flow without the secret it needs
+fails before it opens anything, naming the secret and what it has to be allowed.
 
 ## Two things none of these files does
 

@@ -42,7 +42,7 @@ export async function settle(name, outcome, env, log = console.log) {
 
   if (env.VARIANCE_PUSH_TOKEN) {
     const gh = client({ base: api, token: env.VARIANCE_PUSH_TOKEN, secret: 'VARIANCE_PUSH_TOKEN' });
-    await attempt(`sweeping ${flow.repository}`, () => sweep(gh, flow.repository, name, log));
+    await attempt(`sweeping ${flow.repository}`, () => sweep(gh, flow.repository, name, log, attempt));
     if (needsRestore(env, name)) {
       await attempt(`restoring ${flow.repository}`, () =>
         restore({ flow, repo: flow.repository, gh, env, name, log, wait: { seconds: 0, every: 0 } }, { waitFor: false }),
@@ -50,25 +50,34 @@ export async function settle(name, outcome, env, log = console.log) {
     }
   }
 
-  if (outcome === 'success' || outcome === 'failure') {
+  // Nobody cancels a scheduled run by hand, so a scheduled run that ended
+  // cancelled ran out of the job's time: that is the flow failing slowly, and
+  // it is filed like any other failure. A dispatched run cancelled is a person's
+  // decision, and files nothing.
+  const timedOut = outcome === 'cancelled' && env.GITHUB_EVENT_NAME === 'schedule';
+  if (outcome === 'success' || outcome === 'failure' || timedOut) {
     const gh = client({ base: api, token: env.GITHUB_TOKEN, secret: 'GITHUB_TOKEN' });
-    await attempt('reporting', () => report(gh, env, name, outcome, log));
+    await attempt('reporting', () => report(gh, env, name, timedOut ? 'cancelled' : outcome, log));
   }
   return problems;
 }
 
-/** Closes every pull request and deletes every branch a run of this flow opened. */
-async function sweep(gh, repo, name, log) {
+/** Closes every pull request and deletes every branch a run of this flow opened, each on its own. */
+async function sweep(gh, repo, name, log, attempt) {
   const prefix = branchPrefix(name);
   const pulls = await gh('GET', `/repos/${repo}/pulls?state=open&per_page=100`);
   for (const pull of pulls.filter((p) => p.head.ref.startsWith(prefix))) {
-    await gh('PATCH', `/repos/${repo}/pulls/${pull.number}`, { body: { state: 'closed' } });
-    log(`${name}: closed #${pull.number}, left open by an earlier step`);
+    await attempt(`closing #${pull.number}`, async () => {
+      await gh('PATCH', `/repos/${repo}/pulls/${pull.number}`, { body: { state: 'closed' } });
+      log(`${name}: closed #${pull.number}, left open by an earlier step`);
+    });
   }
   const refs = await gh('GET', `/repos/${repo}/git/matching-refs/heads/${prefix}`);
   for (const ref of refs) {
-    await gh('DELETE', `/repos/${repo}/git/${ref.ref}`);
-    log(`${name}: deleted ${ref.ref}, left by an earlier step`);
+    await attempt(`deleting ${ref.ref}`, async () => {
+      await gh('DELETE', `/repos/${repo}/git/${ref.ref}`);
+      log(`${name}: deleted ${ref.ref}, left by an earlier step`);
+    });
   }
 }
 
@@ -90,7 +99,11 @@ async function report(gh, env, name, outcome, log) {
   }
 
   const file = failureFile(env, name);
-  const said = existsSync(file) ? readFileSync(file, 'utf8').trim() : 'the run step wrote no failure; read its log';
+  const said = existsSync(file)
+    ? readFileSync(file, 'utf8').trim()
+    : outcome === 'cancelled'
+      ? "the scheduled job was cancelled before the flow finished, which is its timeout: a request or a wait outlasted the job's minutes; read its log"
+      : 'the run step wrote no failure; read its log';
   const body = `The ${name} review flow failed in ${runUrl}:\n\n\`\`\`\n${said}\n\`\`\`\n`;
   if (issue !== undefined) {
     await gh('POST', `/repos/${repo}/issues/${issue.number}/comments`, { body: { body } });

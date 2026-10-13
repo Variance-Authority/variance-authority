@@ -20,6 +20,20 @@ export function restoreMarker(env, name) {
   return join(env.RUNNER_TEMP ?? '.', `outer-loop-${name}.restore`);
 }
 
+/**
+ * The flow's whole budget, in waits: every wait is bounded by `minutes`, and all
+ * of them together by twice that, so the job's timeout is a sum somebody can
+ * check rather than five waits nobody added up. The tribunal's restore runs
+ * after the budget, inside one more wait of its own.
+ */
+export const BUDGET_WAITS = 2;
+
+/** The minutes a job needs for the flow `name`: its budget, its restore, and a margin for requests. */
+export function jobMinutes(name) {
+  const flow = FLOWS[name];
+  return BUDGET_WAITS * flow.minutes + (flow.restore === undefined ? 0 : flow.minutes) + 10;
+}
+
 /** The prefix every branch this flow opens starts with, so a later sweep finds them. */
 export function branchPrefix(name) {
   return `outer-loop/${name}/`;
@@ -64,10 +78,9 @@ export async function drive(name, env, log = console.log) {
   const repo = flow.repository;
   const api = env.GITHUB_API_URL ?? 'https://api.github.com';
   const gh = client({ base: api, token: env.VARIANCE_PUSH_TOKEN, secret: 'VARIANCE_PUSH_TOKEN' });
-  const wait = {
-    seconds: Number(env.OUTER_LOOP_WAIT_SECONDS) || flow.minutes * 60,
-    every: Number(env.OUTER_LOOP_POLL_SECONDS) || 15,
-  };
+  const seconds = Number(env.OUTER_LOOP_WAIT_SECONDS) || flow.minutes * 60;
+  const budget = Number(env.OUTER_LOOP_BUDGET_SECONDS) || BUDGET_WAITS * seconds;
+  const wait = { seconds, every: Number(env.OUTER_LOOP_POLL_SECONDS) || 15, deadline: Date.now() + budget * 1000 };
   const run = `${env.GITHUB_RUN_ID ?? 'local'}-${env.GITHUB_RUN_ATTEMPT ?? '1'}`;
   const runUrl = env.GITHUB_RUN_ID
     ? `${env.GITHUB_SERVER_URL ?? 'https://github.com'}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`
@@ -353,16 +366,19 @@ export async function restore(context, { waitFor = true } = {}) {
   const { workflow, inputs } = flow.restore;
   const runs = `/repos/${repo}/actions/workflows/${workflow}/runs?event=workflow_dispatch&branch=${base}&per_page=20`;
   const before = new Set((await gh('GET', runs)).workflow_runs.map((r) => r.id));
+  // Attempted once: the marker goes before the dispatch, so a dispatch that
+  // fails is reported by whoever attempted it and never sent a second time.
+  rmSync(restoreMarker(env, name), { force: true });
   await gh('POST', `/repos/${repo}/actions/workflows/${workflow}/dispatches`, {
     body: { ref: base, inputs },
     needs: `actions: write on ${repo}`,
   });
-  // Dispatched once: a second dispatch would be a retry.
-  rmSync(restoreMarker(env, name), { force: true });
   log(`${name}: dispatched ${workflow} on ${base} to give it back its own render`);
   if (!waitFor) return;
+  // After the flow's budget, so it has one wait of its own: starting and finishing share it.
+  const own = { ...wait, deadline: Date.now() + wait.seconds * 1000 };
   const started = await until(async () => (await gh('GET', runs)).workflow_runs.find((r) => !before.has(r.id)), {
-    ...wait,
+    ...own,
     waiting: `the ${workflow} dispatch on ${base} never started`,
   });
   const done = await until(
@@ -370,7 +386,7 @@ export async function restore(context, { waitFor = true } = {}) {
       const r = await gh('GET', `/repos/${repo}/actions/runs/${started.id}`);
       return r.status === 'completed' ? r : undefined;
     },
-    { ...wait, waiting: `${workflow} on ${base} (${started.html_url}) never finished` },
+    { ...own, waiting: `${workflow} on ${base} (${started.html_url}) never finished` },
   );
   if (done.conclusion !== 'success') {
     throw new Refusal(
