@@ -292,11 +292,16 @@ const unbased = ({ baseline: _baseline, ...rest }: SubjectView): SubjectView => 
   has: { before: false, after: true, diff: false },
 });
 
-const strip = (appearances: readonly Appearance[], play: Play, openable = true): Story => ({
+const strip = (
+  appearances: readonly Appearance[],
+  play: Play,
+  openable = true,
+  through: ReviewClient = client,
+): Story => ({
   parameters: { width: 760 },
   render: () => (
     <Look
-      client={client}
+      client={through}
       build={CHANGED}
       component={button.component}
       appearances={appearances}
@@ -316,6 +321,23 @@ export const LookNoBaselineKept = strip(
   onLayer('baseline'),
 );
 export const LookNotOpenable = strip(button.appearances, onLayer('this build'), false);
+// The strip opens on the difference, and every mask it computes is refused.
+export const LookDifferenceRefused = strip(
+  button.appearances,
+  async (context) => {
+    const root = context.canvasElement;
+    await when(root, 'every crop saying its mask could not be computed', () => {
+      const crops = [...root.querySelectorAll('.va-crop')];
+      return (
+        crops.length > 0 &&
+        crops.every((crop) => crop.textContent?.includes('could not be computed') ?? false)
+      );
+    });
+    await decoded(context);
+  },
+  true,
+  refusing,
+);
 
 const raster = (kind: 'before' | 'after'): Story => ({
   parameters: { width: 380 },
