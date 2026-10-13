@@ -257,7 +257,7 @@ describe('a region that spans what left and what arrived', () => {
     }),
   );
   const REGION = { x: 0, y: 2.5, width: 20, height: 18, pixels: 92, density: 0.26 };
-  const AT = { scale: 1, origin: { x: 25, y: 217.5 } };
+  const AT = { scale: 1, origin: { x: 25, y: 217.5 }, beforeOrigin: { x: 25, y: 217.5 } };
 
   it('names the component whose element was replaced, joined against both renders', () => {
     const [attributed] = attributeRegions([REGION], AFTER, { ...AT, before: BEFORE });
@@ -356,6 +356,15 @@ describe('a region that spans what left and what arrived', () => {
 
     expect(moved!.component).toBe('Toggle');
     expect(stayed!.component).toBe('Row');
+  });
+
+  it('takes this render’s corner only with the before image’s', () => {
+    // Two clipped shots share a corner only by the page's layout, so a caller
+    // that states one states both, and none is guessed from the other.
+    expect(() => attributeRegions([REGION], AFTER, { scale: 1, origin: AT.origin, before: BEFORE })).toThrow(
+      /`origin` is stated and `beforeOrigin` is not/,
+    );
+    expect(() => attributeRegions([REGION], AFTER, { scale: 1, origin: AT.origin, before: undefined })).not.toThrow();
   });
 
   it('weighs a node that moved by both of its places when a sibling is tighter', () => {

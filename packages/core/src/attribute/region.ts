@@ -163,10 +163,11 @@ export interface AttributionOptions {
   /**
    * Page-space CSS origin of the before image's top-left corner.
    *
-   * Defaults to `origin` when one is stated, so a full-page pair passes `{x: 0,
-   * y: 0}` once, and otherwise to `before`'s own root rect, as `origin` defaults
-   * to this render's. A caller that clips both shots to something other than
-   * the root reads each corner and states both.
+   * Defaults to `before`'s own root rect, as `origin` defaults to this
+   * render's. Required when `origin` is stated and `before` is a snapshot: two
+   * shots clipped to anything but the root share a corner only by the page's
+   * layout, and a corner guessed from the other image gives a plausible report
+   * about the wrong components. A full-page pair passes `{x: 0, y: 0}` for both.
    */
   readonly beforeOrigin?: { readonly x: number; readonly y: number };
 }
@@ -185,9 +186,15 @@ export function attributeRegions(
   snapshot: SemanticSnapshot,
   options: AttributionOptions,
 ): readonly AttributedRegion[] {
+  if (options.origin !== undefined && options.before !== undefined && options.beforeOrigin === undefined) {
+    throw new Error(
+      '`origin` is stated and `beforeOrigin` is not: state the corner of the before image too, ' +
+        'since two shots share one only when the page did not move between them',
+    );
+  }
   const origin = options.origin ?? snapshot.root.rect ?? { x: 0, y: 0 };
   // A box that left is placed by where it was in its image, not on the page.
-  const was = options.beforeOrigin ?? options.origin ?? options.before?.root.rect ?? origin;
+  const was = options.beforeOrigin ?? options.before?.root.rect ?? origin;
   const left = keptBoxes(options.before, snapshot, { x: origin.x - was.x, y: origin.y - was.y });
   const boxed = collectBoxes(snapshot.root).map((node) => {
     const before = left.get(node);
@@ -371,11 +378,14 @@ function covered(rect: Rect, [first, second]: readonly Rect[]): number {
 }
 
 /** The area the boxes cover together, counting what two of them share once. */
-function extent([first, second]: readonly Rect[]): number {
-  const one = first!.width * first!.height;
-  if (second === undefined) return one;
-  const both = overlap(first!, second);
-  return one + second.width * second.height - (both === undefined ? 0 : both.width * both.height);
+function extent(rects: readonly Rect[]): number {
+  const [first, second] = rects;
+  if (second === undefined) return first!.width * first!.height;
+  const x = Math.min(first!.x, second.x);
+  const y = Math.min(first!.y, second.y);
+  const width = Math.max(first!.x + first!.width, second.x + second.width) - x;
+  const height = Math.max(first!.y + first!.height, second.y + second.height) - y;
+  return covered({ x, y, width, height }, rects);
 }
 
 function overlap(a: Rect, b: Rect): Rect | undefined {

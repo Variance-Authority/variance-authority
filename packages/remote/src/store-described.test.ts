@@ -110,7 +110,7 @@ describe('a description that cannot be trusted', () => {
     });
 
     await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(
-      /`keepsSnapshot` missing or not a boolean, which a tribunal older than API 6 does not send: redeploy it/,
+      /`keepsSnapshot` missing or not a boolean, which a server older than this client does not send \(tribunal before API 6, or `serveRasterStore` from an earlier `@variance-authority\/remote`\): upgrade the server first/,
     );
   });
 

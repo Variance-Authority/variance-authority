@@ -227,11 +227,17 @@ function ownContentMoved(before: BandDigests, after: BandDigests): boolean {
  * and a boolean cannot serve a route-level test, whose entire request is *tell
  * me when the page stops assembling and never when it is repainted*.
  *
- * The mapping is exact and it is the same one `bandOf` applies to a delta, which
- * is the property that matters: a subject relaxed to `layout` must absorb the
+ * The mapping is the same one `bandOf` applies to a delta, but for the one case
+ * below, and that is the property that matters: a subject relaxed to `layout` must absorb the
  * same things whether the run held two documents or two sidecars. Two mappings
  * would be one drift away from a config key meaning different things on the two
  * paths, discovered as a regression somebody let through.
+ *
+ * One delta the digests cannot band as `bandOf` does: the style of an element
+ * its author replaced, which `bandOf` bands `geometry` with the tag change. Two
+ * hashes do not say the tag changed under the style, so the `style` digest still
+ * reads `token` beside it. The `structure` digest moves with the tag, so the
+ * loudest band is `geometry` on both paths.
  *
  * | digest | band | what it covers |
  * |---|---|---|

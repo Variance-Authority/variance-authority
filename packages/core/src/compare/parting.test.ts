@@ -31,6 +31,7 @@ function tree(options: {
   readonly cart?: Holding;
   readonly summary?: Holding;
   readonly authored?: boolean;
+  readonly styled?: boolean;
 }) {
   const { expanded } = options;
   return capture({
@@ -45,6 +46,7 @@ function tree(options: {
           text: expanded ? '3 items in your cart' : '3',
           owners: [{ name: 'Summary' }, { name: 'Cart' }],
           ...(options.authored ? { createdBy: 'Summary' } : {}),
+          ...(options.styled ? { computedStyle: { display: expanded ? 'block' : 'inline' } } : {}),
           holding: options.summary ?? { cells: [], props: [held('expanded', expanded)] },
         }),
       ],
@@ -99,6 +101,18 @@ describe('the rung a reading reaches', () => {
 
     expect(summary.rung).toBe('handed');
     expect(summary.inputs.map((input) => input.name)).toEqual(['expanded']);
+  });
+
+  it('bands the replaced element’s style with its tag change, as the diff does', () => {
+    // A `<p>` is `block` and a `<span>` is `inline`: the style is what the new
+    // element is, so the row says `geometry`, not that a value moved.
+    const summary = part(
+      tree({ expanded: false, authored: true, styled: true }),
+      tree({ expanded: true, authored: true, styled: true }),
+    ).boundaries!.find((entry) => entry.component === 'Summary')!;
+
+    expect(summary.moved).toContain('display');
+    expect(summary.bands).not.toContain('token');
   });
 
   it('speaks the origin and hangs its manifestations under it', () => {

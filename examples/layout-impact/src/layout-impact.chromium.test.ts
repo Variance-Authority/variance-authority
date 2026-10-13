@@ -65,6 +65,7 @@ function regions(before: Awaited<ReturnType<typeof read>>, after: Awaited<Return
       scale: VIEWPORT.deviceScaleFactor,
       origin: after.origin,
       before: before.snapshot,
+      beforeOrigin: before.origin,
     }),
     causes,
   );

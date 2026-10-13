@@ -381,14 +381,14 @@ function readDescribed(payload: unknown, endpoint: string): Described | null {
     throw malformed(endpoint, BASELINE_DESCRIBE_PATH, '`pictured` missing or not a boolean');
   }
 
-  // Refused for the same reason. `true` would settle every baseline that kept
-  // no snapshot for good, so none is ever re-stamped; `false` would render
-  // every subject across the wire on every run.
+  // Refused for the same reason: `true` settles one that kept none for good.
   if (typeof described.keepsSnapshot !== 'boolean') {
     throw malformed(
       endpoint,
       BASELINE_DESCRIBE_PATH,
-      '`keepsSnapshot` missing or not a boolean, which a tribunal older than API 6 does not send: redeploy it',
+      '`keepsSnapshot` missing or not a boolean, which a server older than this client does not send ' +
+        '(tribunal before API 6, or `serveRasterStore` from an earlier `@variance-authority/remote`): ' +
+        'upgrade the server first',
     );
   }
 

@@ -22,4 +22,6 @@ reported nothing for it.
 A `style-changed` or `token-changed` delta on a pair across two tags is banded
 `geometry`, with the `tag-changed` it follows, rather than `token`: the style is
 the new element's, and the structure a `token` delta says held did not. A
-`bands: ['token']` ignore rule no longer reads it.
+`bands: ['token']` ignore rule no longer reads it. `bandOf` owns the rule, as
+`bandOf(kind, { retagged })`, and a parting row's bands now read each delta's
+own band, so the row and the docket agree.

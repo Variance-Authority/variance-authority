@@ -137,8 +137,11 @@ export function matchTrees(baseline: SemanticNode, candidate: SemanticNode): Mat
     // leaves two nodes no key relates: they share no content, and one is a
     // named role where the other is a bare tag. What relates them is who wrote
     // them. Under one matched parent, one node left and one arrived, and the
-    // same component created both, so the second is what that component
-    // rendered instead of the first.
+    // same component created both, so the second is read as what that
+    // component rendered instead of the first. The record cannot tell that from
+    // an element dropped and an unrelated one drawn elsewhere in the row, and
+    // the pair's position is not asked: the deltas then say what the slot
+    // became and that it moved.
     //
     // Exactly one and one, or nothing. Two that left and two that arrived from
     // one author could pair either way, and choosing by position is the guess

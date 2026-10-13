@@ -43,9 +43,10 @@ export function compareNodes(
 ): void {
   const owners = after.provenance?.owners;
   const createdBy = after.provenance?.createdBy;
+  const retagged = before.tag !== after.tag;
   const base = (kind: DeltaKind) => ({
     kind,
-    band: bandOf(kind),
+    band: bandOf(kind, { retagged }),
     path: after.path,
     ...(owners ? { owners } : {}),
     ...(createdBy ? { createdBy } : {}),
@@ -55,17 +56,9 @@ export function compareNodes(
   // name, or as the one replacement its author recorded (see `match.ts`). The tag is said first: the
   // role, the attributes and the box that follow are what the new element is,
   // not edits to the old one.
-  const retagged = before.tag !== after.tag;
   if (retagged) {
     deltas.push({ ...base('tag-changed'), from: before.tag, to: after.tag });
   }
-  // A style delta is `token`: a value moved while structure held. Across two
-  // tags structure did not hold, and the style is the new element's, so it is
-  // banded with the change that made it one.
-  const styled = (kind: 'style-changed' | 'token-changed') => ({
-    ...base(kind),
-    ...(retagged ? { band: bandOf('tag-changed') } : {}),
-  });
 
   if (before.role !== after.role) {
     deltas.push({ ...base('role-changed'), from: before.role, to: after.role });
@@ -113,7 +106,7 @@ export function compareNodes(
     const impact = impactOf(property);
 
     const delta: Delta = {
-      ...styled('style-changed'),
+      ...base('style-changed'),
       property,
       from,
       to,
@@ -141,7 +134,7 @@ export function compareNodes(
     if (from === to) continue;
     if (before.style[property] !== after.style[property]) continue;
 
-    deltas.push({ ...styled('token-changed'), property, from, to });
+    deltas.push({ ...base('token-changed'), property, from, to });
   }
 
   if (hasLayout && !sameRect(before, after)) {

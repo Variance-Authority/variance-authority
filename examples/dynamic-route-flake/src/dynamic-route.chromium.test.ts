@@ -123,6 +123,7 @@ beforeAll(async () => {
       scale: VIEWPORT.deviceScaleFactor,
       origin: active.origin,
       before: baseline,
+      beforeOrigin: before.origin,
     }),
     activeCauses,
   );
@@ -134,6 +135,7 @@ beforeAll(async () => {
       scale: VIEWPORT.deviceScaleFactor,
       origin: again.origin,
       before: changed,
+      beforeOrigin: active.origin,
     }),
   );
 }, 120_000);

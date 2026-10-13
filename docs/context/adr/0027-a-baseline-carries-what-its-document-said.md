@@ -235,8 +235,10 @@ no snapshot settles as before, because it would have none to record.
 - A node that left with nothing paired to it adds no box. A region over the
   place it vacated falls to the parent around it, which did change its output.
 - tribunal promotes on approval, and approval is asked of a changed subject, so
-  an unchanged subject's baseline there gains its snapshot only when something
-  is next approved for it.
+  no approval records an unchanged subject's snapshot. An accepting run whose
+  `remote` store writes to tribunal (`baseline/put`) does; a project that moves
+  its baselines only by approval renders each such subject on every run until it
+  next changes and is approved.
 - Ignored subtrees are masked by their boxes in this render alone
   (`excludedBoxes` in `decide`). An ignored element that moved or shrank leaves
   pixels at its old box unmasked, and the baseline's snapshot now holds that
