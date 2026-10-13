@@ -4,7 +4,6 @@ import {
   excludedBoxes,
   isolateRegions,
   subtractRegions,
-  type AttributedRegion,
   type DiffRegion,
   type Isolation,
 } from '@variance-authority/core/attribute';
@@ -12,13 +11,8 @@ import { mergeDiagnostics, type Pictured, type Raster } from '@variance-authorit
 import { absorbsEntirely, relaxes, fingerprintOfMask } from '@variance-authority/core/judge';
 import type { SemanticSnapshot } from '@variance-authority/core/format';
 import { compareRasters } from '@variance-authority/png';
-import {
-  DEFAULT_POLICY,
-  STRICT_POLICY,
-  type DiffPolicy,
-  type RasterComparison,
-} from '@variance-authority/raster';
 import { attributionOf } from './attribution.js';
+import { count, describeChange, forgiveness, recordsBoxes, unboxed, type BeforeSide } from './because.js';
 import { frameDiagnostics } from './frame.js';
 import type { CompareInputs, IgnoredPixels, Observation } from './observe.js';
 
@@ -44,6 +38,10 @@ import type { CompareInputs, IgnoredPixels, Observation } from './observe.js';
  * a pair the caller has already established is comparable — which includes both
  * having been photographed. A subject with no pixels never arrives here, and
  * `unpictured.ts` is the entry point that decides which of the two this is.
+ *
+ * `beforeIs` says what the before side is, so a sentence about it can name it:
+ * a stored baseline, which accepting again rewrites, or an image the caller
+ * handed in.
  */
 export async function decide(
   subject: string,
@@ -51,6 +49,7 @@ export async function decide(
   after: Pictured,
   rendered: boolean,
   options: CompareInputs,
+  beforeIs: BeforeSide,
 ): Promise<Observation> {
   const comparison = await compareRasters(before, after, {
     ...options.compare,
@@ -286,6 +285,7 @@ export async function decide(
       ? []
       : attributeRegions(isolation.regions, options.snapshot, {
           scale: after.identity.deviceScaleFactor,
+          before: before.components,
         })
   ).map((attributed) => {
     const fingerprint = prints.get(attributed.region);
@@ -297,7 +297,8 @@ export async function decide(
     verdict: 'changed',
     because:
       describeChange(comparison, isolation, regions, outstanding) +
-      (absorbed > 0 ? `, with ${absorbed}px absorbed by an ignore` : ''),
+      (absorbed > 0 ? `, with ${absorbed}px absorbed by an ignore` : '') +
+      (regions.length > 0 && !recordsBoxes(before) ? unboxed(beforeIs) : ''),
     comparison,
     isolation,
     regions,
@@ -364,85 +365,6 @@ export function declaredIgnores(
   for (const site of sites) byRule[site.rule] = 0;
 
   return { pixels: 0, boxes: excludedBoxes(snapshot, { scale }).length, inert: 0, byRule };
-}
-
-/**
- * `1 pixel`, `8,818 pixels` — a quantity, rather than a template with the plural
- * left for the reader to apply.
- *
- * These sentences are the `because` a person reads on a review page beside the
- * render they are about, and `8818 pixel(s) differ across 2 region(s)` reads as
- * output rather than as a finding. Grouped, because six digits of pixels is not a
- * number anybody parses as a magnitude on sight.
- */
-function count(value: number, noun: string): string {
-  return `${value.toLocaleString('en-US')} ${noun}${value === 1 ? '' : 's'}`;
-}
-
-/**
- * The clause a green sentence owes for the pixels its policy did not count.
- *
- * Every green sentence carries it, the relaxed one included: `pixels differ`
- * there says nothing about how many, and the forgiven ones are still pixels the
- * strict policy saw.
- *
- * Empty when the strict policy found nothing more: then "no pixels differ" is
- * true of the images themselves. Otherwise it names the policy and what that
- * policy forgives, read off the policy rather than written out, so a threshold
- * that moves cannot leave the sentence describing the old one. Both reasons are
- * named whenever both apply, because one count cannot tell them apart.
- *
- * Counted over the whole comparison. `comparison.mask` is the isolation
- * policy's mask before any box is subtracted, and the strict policy counts
- * every pixel it does and more, so the difference is exact, and it includes
- * pixels forgiven inside an excluded box (ADR-0026).
- */
-function forgiveness(comparison: RasterComparison, options: CompareInputs): string {
-  const policy: DiffPolicy = options.compare?.isolateWith ?? DEFAULT_POLICY;
-  const strict = comparison.changed[STRICT_POLICY.id];
-  if (strict === undefined || policy.id === STRICT_POLICY.id) return '';
-  const forgiven = strict - comparison.mask.changed;
-  if (forgiven <= 0) return '';
-
-  const reasons = [
-    ...(!policy.includeAA && STRICT_POLICY.includeAA ? ['as antialiasing'] : []),
-    ...(policy.threshold > STRICT_POLICY.threshold
-      ? [`as a colour change of at most ${Number((policy.threshold * 100).toFixed(2))}%`]
-      : []),
-  ];
-  return (
-    ` beyond the tolerance of the ${policy.id} policy, which forgave ${count(forgiven, 'pixel')}` +
-    (reasons.length === 0 ? '' : ` ${reasons.join(' or ')}`)
-  );
-}
-
-function describeChange(
-  comparison: RasterComparison,
-  isolation: Isolation,
-  regions: readonly AttributedRegion[],
-  changed: number,
-): string {
-  const size = comparison.dimensionsChanged
-    ? `, and the subject resized from ${comparison.before.width}×${comparison.before.height} ` +
-      `to ${comparison.after.width}×${comparison.after.height}`
-    : '';
-
-  const named = [...new Set(regions.map((region) => region.component).filter(Boolean))];
-  const where =
-    named.length > 0
-      ? ` in ${named.slice(0, 3).join(', ')}${named.length > 3 ? ` (+${named.length - 3} more)` : ''}`
-      : '';
-
-  const capped =
-    isolation.truncated > 0
-      ? ` (+${count(isolation.truncated, 'smaller region')} not listed, ` +
-        `${isolation.truncatedPixels.toLocaleString('en-US')}px)`
-      : '';
-
-  return (
-    `${count(changed, 'pixel')} differ across ` +
-    `${count(isolation.regions.length, 'region')}${where}${size}${capped}`
-  );
 }
 
 /**

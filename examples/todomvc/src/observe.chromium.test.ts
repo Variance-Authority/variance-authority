@@ -8,20 +8,24 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   attributeRegions,
   formatSource,
+  hashComponents,
   isolateRegions,
   rankRegions,
   resolveSource,
   type RankedRegion,
 } from '@variance-authority/core/attribute';
 import { diffSnapshots } from '@variance-authority/core/compare';
-import type { SemanticSnapshot } from '@variance-authority/core/format';
+import type { Raster, RenderIdentity, SemanticSnapshot } from '@variance-authority/core/format';
 import { buildDocket } from '@variance-authority/core/judge';
 import { normalize } from '@variance-authority/core/rules';
+import { observeCaptureAgainstBaseline, type Observation } from '@variance-authority/observe';
 import { comparePngs } from '@variance-authority/png';
 import { REPORTS, handle } from '@variance-authority/mcp/protocol';
 import type { RunReport } from '@variance-authority/report';
 import { writeRunReport } from '@variance-authority/report/file';
 import { createHarness, type Harness } from '@variance-authority/playwright';
+import { createDurableStore } from '@variance-authority/store/durable';
+import { PNG } from 'pngjs';
 import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 import { BASELINE_VARIANT } from './pixel/protocol.js';
 import { buildSourceIndex } from './source-index.js';
@@ -97,6 +101,10 @@ let regions: readonly RankedRegion[] = [];
 let causes: readonly string[] = [];
 let changedPixels = 0;
 let regionCount = 0;
+/** The same edit, decided against a stored baseline that kept its boxes. */
+let stored: Observation | undefined;
+/** And against one written before component hashes carried boxes. */
+let unboxed: Observation | undefined;
 
 async function mount(subject: string, variant: string): Promise<void> {
   await harness!.page.evaluate(
@@ -142,7 +150,6 @@ beforeAll(async () => {
   // the pixels were taken from, or the join is against a different layout.
   await mount(STORY, BASELINE_VARIANT);
   const before = await shoot();
-  const origin = await clipOrigin();
 
   const snapshot: SemanticSnapshot = normalize(await harness.capture(STORY, BASELINE_VARIANT));
 
@@ -153,6 +160,7 @@ beforeAll(async () => {
   // sake: geometry can say where pixels are and cannot say which of them is the
   // cause, so the ordering has to come from the tier that has provenance.
   const mutated: SemanticSnapshot = normalize(await harness.capture(STORY, MUTATION));
+  const mutatedOrigin = await clipOrigin();
   causes = buildDocket([diffSnapshots(snapshot, mutated)]).entries.flatMap((entry) =>
     entry.components.filter((component) => component.role === 'root').map((c) => c.name),
   );
@@ -163,14 +171,81 @@ beforeAll(async () => {
   const isolation = isolateRegions(comparison.mask);
   regionCount = isolation.regions.length;
 
+  // Joined against the render the pixels were compared *to*, with the boxes
+  // the baseline held beside it. Replacing the checkbox moves pixels out of
+  // the old input and into the new div, and neither box holds both.
   regions = rankRegions(
-    attributeRegions(isolation.regions, snapshot, {
+    attributeRegions(isolation.regions, mutated, {
       scale: VIEWPORT.deviceScaleFactor,
-      origin,
+      origin: mutatedOrigin,
+      before: hashComponents(snapshot),
     }),
     causes,
   );
+
+  ({ stored, unboxed } = await throughStoredBaseline(snapshot, mutated));
 }, 120_000);
+
+/**
+ * The product path for the same edit: a baseline accepted into a store, and a
+ * later capture decided against it.
+ *
+ * Each side is shot clipped to its own snapshot's root, so the region join
+ * reads its origin from the snapshot as it does for every adapter.
+ */
+async function throughStoredBaseline(
+  baseline: SemanticSnapshot,
+  mutated: SemanticSnapshot,
+): Promise<{ stored: Observation; unboxed: Observation }> {
+  const identity: RenderIdentity = {
+    renderer: 'playwright-chromium',
+    engine: harness!.engine,
+    platform: `${process.platform}/${process.arch}`,
+    deviceScaleFactor: VIEWPORT.deviceScaleFactor,
+    fonts: ['system-ui/400/normal/todomvc'],
+  };
+
+  await mount(STORY, BASELINE_VARIANT);
+  const before = rasterOf(await shootRoot(baseline), identity, 'v1:baseline');
+  await mount(STORY, MUTATION);
+  const after = rasterOf(await shootRoot(mutated), identity, 'v1:mutated');
+
+  const decideAgainst = async (record: Raster): Promise<Observation> => {
+    const directory = await mkdtemp(join(tmpdir(), 'va-todomvc-store-'));
+    try {
+      const store = createDurableStore(directory);
+      await store.put({ subject: STORY }, record);
+      return await observeCaptureAgainstBaseline(
+        {
+          artifactVersion: 1,
+          subject: { id: STORY, kind: 'story' },
+          material: { kind: 'raster', raster: after },
+          snapshot: mutated,
+        },
+        { subject: STORY },
+        { store },
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  };
+
+  return {
+    stored: await decideAgainst({ ...before, components: hashComponents(baseline) }),
+    unboxed: await decideAgainst(before),
+  };
+}
+
+async function shootRoot(snapshot: SemanticSnapshot): Promise<Buffer> {
+  const rect = snapshot.root.rect;
+  if (rect === undefined) throw new Error(`${STORY} snapshot has no root box to shoot`);
+  return harness!.page.screenshot({ clip: rect });
+}
+
+function rasterOf(png: Buffer, identity: RenderIdentity, documentDigest: string): Raster {
+  const { width, height } = PNG.sync.read(png);
+  return { documentDigest, identity, width, height, bytes: png.toString('base64'), missingFonts: [] };
+}
 
 afterAll(async () => {
   await harness?.close();
@@ -213,11 +288,27 @@ chromium_('reading a pixel diff further than a number', () => {
     expect([...named]).toContain('Toggle');
   });
 
+  it('names it through a stored baseline that kept its boxes', () => {
+    expect(stored!.verdict).toBe('changed');
+    expect(stored!.regions.map((region) => region.component)).toContain('Toggle');
+    expect(stored!.because).not.toContain('node boxes');
+  });
+
+  it('says so when the stored baseline kept no boxes', () => {
+    // A record accepted before component hashes rode beside it. The change is
+    // still reported; the sentence says which render the regions were joined
+    // against and how to make the baseline answer for its own.
+    expect(unboxed!.verdict).toBe('changed');
+    expect(unboxed!.because).toContain(
+      "the baseline records no node boxes, so regions were joined against this render's boxes alone: accept it again to record them",
+    );
+  });
+
   it('ranks causes above collateral, which area alone does not', () => {
     // The finding this file exists to record.
     //
-    // Ranked by area the report reads Text (933px), Stack (511px), Toggle
-    // (86px). Every one of those attributions is correct — the pixels really
+    // Ranked by area the report reads Text (1055px), Stack (614px), Toggle
+    // (184px). Every one of those attributions is correct — the pixels really
     // are inside those nodes — and the ordering is still wrong, because area
     // measures *displacement*. Replacing the checkbox with a styled div moves
     // far more of what sits around it than of itself, so `Stack`, which merely
@@ -246,10 +337,13 @@ chromium_('reading a pixel diff further than a number', () => {
     expect([...causes].sort()).toEqual(['Text', 'Toggle']);
   });
 
-  it('says where each region is in landmarks a person would use', () => {
-    const located = regions.filter((region) => region.where !== undefined && region.where !== '');
-    expect(located.length).toBeGreaterThan(0);
-    expect(located[0]!.where).toMatch(/main|list|region|checkbox/);
+  it('reads where a region is from the render it was found in', () => {
+    // The landmark path is the changed render's, as the box is. This edit is
+    // the one that takes it away: the checkbox became a div with no role, and
+    // the story declares no landmark above the rows, so no region has a place
+    // a person would name. A `checkbox` here would be the baseline describing
+    // a control that is gone.
+    expect(regions.map((region) => region.where)).toEqual(regions.map(() => undefined));
   });
 
   it('resolves the named component to a file an editor can open', () => {

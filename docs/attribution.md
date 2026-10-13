@@ -89,6 +89,32 @@ innermost box — the one the browser painted on top, and the one somebody edite
 — so a report over a design system names the component and not the wrapper
 around it.
 
+### What left, and what arrived
+
+A pixel comparison has two sides, and a change that replaces an element paints
+over both: the old element's place and the new one's. Replacing todomvc's
+checkbox with a styled div changes a 20×18 region. 71% of it lies inside the old
+input's box and 88.75% inside the new div's, so neither box contains it and the
+region falls to the row around both.
+
+So `before`, which the caller must state, is the component hashes of the
+revision the pixels are compared against. Each hash keeps the box of every
+instance root it counted, in document order, and each instance root in this
+snapshot is joined against the union of its own box and the box the matching
+instance kept. Instances are matched by their position in that order, never by
+path: a path is a place in the tree, and a sibling inserted ahead renumbers it.
+They are matched only when both revisions count the same number of instances,
+because one added or removed shifts every instance after it.
+`(unattributed)` collects unrelated nodes under one name, so its instances are
+never matched.
+
+`undefined` is an answer, and the observation says what it cost. A baseline
+recorded before component hashes kept boxes is joined against this render's
+boxes alone, and a changed verdict adds that the baseline records no node
+boxes, and that accepting it again records them. Two images handed in directly
+get the same sentence, without the remedy: no accept rewrites a file somebody
+passed in.
+
 ### When nothing contains it
 
 A region no box contains is reported `unattributed`, and this is rarer than it
@@ -280,13 +306,13 @@ is reported instead.
 `rankRegions` exists because of a measurement. A **tier** is a level of
 observation: the structure-and-style reading of a document, which any DOM host
 produces, and the painted image, which only a browser can. Replacing a checkbox
-with a styled div on the todomvc corpus changes 1530 pixels in 5 regions, which
+with a styled div on the todomvc corpus changes 1853 pixels in 5 regions, which
 attribute geometrically and rank by area as:
 
 ```
-  933px  Text      <- changed, and reflowed
-  511px  Stack     <- only reflowed
-   86px  Toggle    <- the edit
+ 1055px  Text      <- changed, and reflowed
+  614px  Stack     <- only reflowed
+  184px  Toggle    <- the edit
 ```
 
 Every one of those attributions is correct — the pixels really are inside those

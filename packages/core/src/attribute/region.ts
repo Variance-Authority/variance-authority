@@ -1,7 +1,8 @@
 import { intersectionArea, type Rect } from '../format/capture.js';
 import { locate } from './locate.js';
+import { boundaries, UNATTRIBUTED } from './boundary.js';
 import type { DiffRegion } from './mask.js';
-import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
+import type { ComponentHash, NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 import type { SourceLocation } from '../format/provenance.js';
 
 /**
@@ -141,6 +142,18 @@ export interface AttributionOptions {
    * is named rather than buried.
    */
   readonly containment?: number;
+
+  /**
+   * The component hashes of the revision the pixels are compared against,
+   * whose `boxes` say where each instance's root sat.
+   *
+   * Required, and `undefined` is an answer: it says the other revision is not
+   * known. A changed region is the union of what left and what arrived, so an
+   * instance's root is joined against its box in this render and its box in
+   * that one. Without them a control replaced by a larger element changes
+   * pixels outside either box alone, and the join names the row it sits in.
+   */
+  readonly before: readonly ComponentHash[] | undefined;
 }
 
 const DEFAULT_CONTAINMENT = 0.9;
@@ -157,7 +170,11 @@ export function attributeRegions(
   snapshot: SemanticSnapshot,
   options: AttributionOptions,
 ): readonly AttributedRegion[] {
-  const boxed = collectBoxes(snapshot.root);
+  const kept = keptBoxes(snapshot, options.before ?? []);
+  const boxed = collectBoxes(snapshot.root).map((node) => ({
+    node,
+    rect: [node.rect!, ...(kept.get(node.path) ?? [])].reduce(union),
+  }));
   const origin = options.origin ?? snapshot.root.rect ?? { x: 0, y: 0 };
   const containment = options.containment ?? DEFAULT_CONTAINMENT;
 
@@ -170,11 +187,11 @@ export function attributeRegions(
     };
     const area = css.width * css.height;
 
-    let inside: SemanticNode | undefined;
-    let overlapping: SemanticNode | undefined;
+    let inside: { node: SemanticNode; rect: Rect } | undefined;
+    let overlapping: { node: SemanticNode; rect: Rect } | undefined;
 
-    for (const node of boxed) {
-      const rect = node.rect!;
+    for (const box of boxed) {
+      const rect = box.rect;
       const shared = intersectionArea(css, rect);
       if (shared <= 0) continue;
 
@@ -190,20 +207,20 @@ export function attributeRegions(
       // to its file. Ties go to the last box seen, which is the innermost, and is
       // also the one the browser painted on top.
       if (area > 0 && shared / area >= containment) {
-        if (inside === undefined || nodeArea <= inside.rect!.width * inside.rect!.height) inside = node;
+        if (inside === undefined || nodeArea <= inside.rect.width * inside.rect.height) inside = box;
       }
       // The same rule for `nearest`. It is orientation rather than attribution,
       // and a hint should point at the same node the join would have picked.
-      if (overlapping === undefined || nodeArea <= overlapping.rect!.width * overlapping.rect!.height) {
-        overlapping = node;
+      if (overlapping === undefined || nodeArea <= overlapping.rect.width * overlapping.rect.height) {
+        overlapping = box;
       }
     }
 
     if (inside !== undefined) {
       return {
         region,
-        path: inside.path,
-        ...describe(snapshot, inside),
+        path: inside.node.path,
+        ...describe(snapshot, inside.node),
         unattributed: false,
       };
     }
@@ -212,7 +229,7 @@ export function attributeRegions(
       region,
       unattributed: true,
       ...(overlapping !== undefined
-        ? { nearest: { path: overlapping.path, ...describe(snapshot, overlapping) } }
+        ? { nearest: { path: overlapping.node.path, ...describe(snapshot, overlapping.node) } }
         : {}),
     };
   });
@@ -231,13 +248,13 @@ export interface RankedRegion extends AttributedRegion {
  *
  * This function exists because of a measurement, and the measurement is the most
  * useful thing the raster tier has produced. Replacing a checkbox with a styled
- * div on the todomvc corpus changes 1530 pixels in 5 regions, which attribute
+ * div on the todomvc corpus changes 1853 pixels in 5 regions, which attribute
  * geometrically and rank by area as:
  *
  * ```
- *   933px  Text      <- changed, and reflowed
- *   511px  Stack     <- only reflowed
- *    86px  Toggle    <- the edit
+ *  1055px  Text      <- changed, and reflowed
+ *   614px  Stack     <- only reflowed
+ *   184px  Toggle    <- the edit
  * ```
  *
  * Every one of those attributions is correct. The pixels really are inside those
@@ -295,6 +312,53 @@ function describe(
     ...(owner !== undefined && owner !== component ? { owner } : {}),
     ...(where !== '' ? { where } : {}),
     ...(node.provenance?.source ? { source: node.provenance.source } : {}),
+  };
+}
+
+/**
+ * The boxes the other revision recorded for each instance root in this one,
+ * by the root's path.
+ *
+ * Instances pair by document order, the order `hashComponents` records them
+ * in, and only when both revisions count the same number: an instance added
+ * or removed shifts every one after it, and `grewBetween` refuses the same
+ * pairing for the same reason. A path is not the key across revisions because
+ * it is a position, and a sibling inserted ahead renumbers the node.
+ * `(unattributed)` collects unrelated nodes under one name, so its instances
+ * pair with nothing.
+ */
+function keptBoxes(
+  snapshot: SemanticSnapshot,
+  before: readonly ComponentHash[],
+): ReadonlyMap<NodePath, readonly Rect[]> {
+  const recorded = new Map(before.map((entry) => [entry.component, entry.boxes] as const));
+  const found = boundaries(snapshot.root);
+  const counts = new Map<string, number>();
+  for (const boundary of found) counts.set(boundary.component, (counts.get(boundary.component) ?? 0) + 1);
+
+  const kept = new Map<NodePath, Rect[]>();
+  const seen = new Map<string, number>();
+  for (const boundary of found) {
+    const index = seen.get(boundary.component) ?? 0;
+    seen.set(boundary.component, index + 1);
+    const boxes = recorded.get(boundary.component);
+    if (boundary.component === UNATTRIBUTED || boxes === undefined) continue;
+    if (boxes.length !== counts.get(boundary.component)) continue;
+    const box = boxes[index];
+    if (box === null || box === undefined || box.width * box.height === 0) continue;
+    kept.set(boundary.node.path, [...(kept.get(boundary.node.path) ?? []), box]);
+  }
+  return kept;
+}
+
+function union(a: Rect, b: Rect): Rect {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  return {
+    x,
+    y,
+    width: Math.max(a.x + a.width, b.x + b.width) - x,
+    height: Math.max(a.y + a.height, b.y + b.height) - y,
   };
 }
 

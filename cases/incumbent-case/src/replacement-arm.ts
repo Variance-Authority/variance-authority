@@ -3,6 +3,7 @@ import { join, relative } from 'node:path';
 import {
   attributeRegions,
   formatSource,
+  hashComponents,
   isolateRegions,
   mergeSourceIndexes,
   rankRegions,
@@ -163,6 +164,7 @@ export async function runOurArm(harness: Harness, options: ArmOptions): Promise<
           attributeRegions(isolateRegions(comparison.mask).regions, after.snapshot, {
             scale: options.scale,
             origin: after.origin,
+            before: hashComponents(baseline.snapshot),
           }),
           causes,
         )

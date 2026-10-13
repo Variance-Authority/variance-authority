@@ -135,6 +135,8 @@ beforeAll(async () => {
   const attributed = attributeRegions(isolateRegions(comparison.mask).regions, after, {
     scale: VIEWPORT.deviceScaleFactor,
     origin,
+    // Their baseline is a PNG: it says nothing about where any node was.
+    before: undefined,
   });
 
   named = [

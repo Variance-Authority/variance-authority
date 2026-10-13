@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { hashComponents } from './component-hash.js';
 import { attributeRegions, rankRegions } from './region.js';
 import type { SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 
@@ -75,7 +76,7 @@ describe('a region whose author and enclosure differ', () => {
   const REGION = { x: 10, y: 10, width: 20, height: 8, pixels: 160, density: 1 };
 
   it('reports the author as the component and the enclosure beside it', () => {
-    const [attributed] = attributeRegions([REGION], SLOTTED, { scale: 1, origin: { x: 0, y: 0 } });
+    const [attributed] = attributeRegions([REGION], SLOTTED, { scale: 1, origin: { x: 0, y: 0 }, before: undefined });
 
     expect(attributed!.component).toBe('Page');
     expect(attributed!.owner).toBe('Card');
@@ -86,7 +87,7 @@ describe('a region whose author and enclosure differ', () => {
     // (ADR-0007). A one-sided match finds nothing here and the ordering silently
     // falls back to area — the failure carrying hashes on the baseline was for.
     const [ranked] = rankRegions(
-      attributeRegions([REGION], SLOTTED, { scale: 1, origin: { x: 0, y: 0 } }),
+      attributeRegions([REGION], SLOTTED, { scale: 1, origin: { x: 0, y: 0 }, before: undefined }),
       ['Card'],
     );
 
@@ -95,7 +96,7 @@ describe('a region whose author and enclosure differ', () => {
 
   it('is a cause when the cause list names the author', () => {
     const [ranked] = rankRegions(
-      attributeRegions([REGION], SLOTTED, { scale: 1, origin: { x: 0, y: 0 } }),
+      attributeRegions([REGION], SLOTTED, { scale: 1, origin: { x: 0, y: 0 }, before: undefined }),
       ['Page'],
     );
 
@@ -105,7 +106,7 @@ describe('a region whose author and enclosure differ', () => {
   it('is not a cause when the list names neither', () => {
     // The control. Matching two namespaces must not become matching anything.
     const [ranked] = rankRegions(
-      attributeRegions([REGION], SLOTTED, { scale: 1, origin: { x: 0, y: 0 } }),
+      attributeRegions([REGION], SLOTTED, { scale: 1, origin: { x: 0, y: 0 }, before: undefined }),
       ['Sidebar'],
     );
 
@@ -116,7 +117,7 @@ describe('a region whose author and enclosure differ', () => {
     const [attributed] = attributeRegions(
       [{ x: 30, y: 25, width: 20, height: 10, pixels: 200, density: 1 }],
       TREE,
-      { scale: 1, origin: { x: 0, y: 0 } },
+      { scale: 1, origin: { x: 0, y: 0 }, before: undefined },
     );
 
     expect(attributed!.component).toBe('Toggle');
@@ -157,7 +158,7 @@ describe('two boxes of exactly the same size', () => {
     const [attributed] = attributeRegions(
       [{ x: 17, y: 17, width: 113, height: 48, pixels: 1356, density: 0.25 }],
       TIE,
-      { scale: 1 },
+      { scale: 1, before: undefined },
     );
 
     expect(attributed!.path).toBe('0/0/0');
@@ -171,7 +172,7 @@ describe('two boxes of exactly the same size', () => {
     const [attributed] = attributeRegions(
       [{ x: 0, y: 0, width: 140, height: 80, pixels: 11200, density: 1 }],
       TIE,
-      { scale: 1, origin: { x: 438.34, y: 343 } },
+      { scale: 1, origin: { x: 438.34, y: 343 }, before: undefined },
     );
 
     expect(attributed!.path).toBe('0');
@@ -184,7 +185,7 @@ describe('two boxes of exactly the same size', () => {
     const [attributed] = attributeRegions(
       [{ x: 100, y: 17, width: 113, height: 48, pixels: 1356, density: 0.25 }],
       TIE,
-      { scale: 1 },
+      { scale: 1, before: undefined },
     );
 
     expect(attributed!.unattributed).toBe(true);
@@ -223,11 +224,113 @@ describe('two boxes of exactly the same size', () => {
     const [attributed] = attributeRegions(
       [{ x: 10, y: 10, width: 20, height: 10, pixels: 200, density: 1 }],
       chain,
-      { scale: 1, origin: { x: 0, y: 0 } },
+      { scale: 1, origin: { x: 0, y: 0 }, before: undefined },
     );
 
     expect(attributed!.path).toBe('0/0/0/0');
     expect(attributed!.component).toBe('Chip');
+  });
+});
+
+/**
+ * A control replaced by a styled `div`, with todomvc's broken-toggle rects.
+ *
+ * The baseline's checkbox is 16×16 at (29, 220.75); the `div` that replaced it
+ * is 18×18 at (25, 219.75). What changed is the union of the two: paint left
+ * where the checkbox was and arrived where the div is. Measured at the default
+ * policy the region is 20×18 at (25, 220), and neither box alone holds 90% of
+ * it — 71% the checkbox's, 88.75% the div's — so a join against one render
+ * names the row.
+ */
+describe('a region that spans what left and what arrived', () => {
+  const ROW = { x: 25, y: 217.5, width: 1230, height: 22.5 };
+  const toggle = { provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Toggle' } };
+
+  const BEFORE = snapshotOf(
+    node('0', ROW, {
+      provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Row' },
+      children: [node('0/0', { x: 29, y: 220.75, width: 16, height: 16 }, { tag: 'input', ...toggle })],
+    }),
+  );
+  const AFTER = snapshotOf(
+    node('0', ROW, {
+      provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Row' },
+      children: [node('0/0', { x: 25, y: 219.75, width: 18, height: 18 }, toggle)],
+    }),
+  );
+  const REGION = { x: 0, y: 2.5, width: 20, height: 18, pixels: 92, density: 0.26 };
+  const AT = { scale: 1, origin: { x: 25, y: 217.5 } };
+
+  it('names the component whose box moved, joined against both renders', () => {
+    const [attributed] = attributeRegions([REGION], AFTER, { ...AT, before: hashComponents(BEFORE) });
+
+    expect(attributed!.path).toBe('0/0');
+    expect(attributed!.component).toBe('Toggle');
+  });
+
+  it('names the row when only this render is known', () => {
+    // The control. Without it the case above would pass for a region that
+    // either box alone contained.
+    const [attributed] = attributeRegions([REGION], AFTER, { ...AT, before: undefined });
+
+    expect(attributed!.component).toBe('Row');
+  });
+
+  it('pairs an instance whose path a sibling ahead of it renumbered', () => {
+    // A path is a position. The instance is the same one: the first `Toggle`.
+    const shifted = snapshotOf(
+      node('0', ROW, {
+        provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Row' },
+        children: [
+          node('0/0', { x: 600, y: 220.75, width: 40, height: 16 }, {
+            provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Badge' },
+          }),
+          node('0/1', { x: 25, y: 219.75, width: 18, height: 18 }, toggle),
+        ],
+      }),
+    );
+
+    const [attributed] = attributeRegions([REGION], shifted, { ...AT, before: hashComponents(BEFORE) });
+
+    expect(attributed!.path).toBe('0/1');
+    expect(attributed!.component).toBe('Toggle');
+  });
+
+  it('does not join a box another component left at the same place', () => {
+    // The checkbox was `Badge`'s. Nothing of `Toggle` left, so its box is this
+    // render's alone.
+    const other = snapshotOf(
+      node('0', ROW, {
+        provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Row' },
+        children: [
+          node('0/0', { x: 29, y: 220.75, width: 16, height: 16 }, {
+            provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Badge' },
+          }),
+        ],
+      }),
+    );
+
+    const [attributed] = attributeRegions([REGION], AFTER, { ...AT, before: hashComponents(other) });
+
+    expect(attributed!.component).toBe('Row');
+  });
+
+  it('does not pair instances when the count changed', () => {
+    // Two toggles before and one after: which of the two this one was is not
+    // something document order can say once an instance went missing.
+    const two = snapshotOf(
+      node('0', ROW, {
+        provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Row' },
+        children: [
+          node('0/0', { x: 29, y: 220.75, width: 16, height: 16 }, { tag: 'input', ...toggle }),
+          node('0/1', { x: 600, y: 220.75, width: 16, height: 16 }, { tag: 'input', ...toggle }),
+        ],
+      }),
+    );
+
+    const [attributed] = attributeRegions([REGION], AFTER, { ...AT, before: hashComponents(two) });
+
+    expect(attributed!.component).toBe('Row');
   });
 });
 
@@ -238,7 +341,7 @@ describe('attributing a region to the tree', () => {
     const [attributed] = attributeRegions(
       [{ x: 30, y: 25, width: 20, height: 10, pixels: 200, density: 1 }],
       TREE,
-      { scale: 1, origin: { x: 0, y: 0 } },
+      { scale: 1, origin: { x: 0, y: 0 }, before: undefined },
     );
 
     expect(attributed!.unattributed).toBe(false);
@@ -252,7 +355,7 @@ describe('attributing a region to the tree', () => {
     const [attributed] = attributeRegions(
       [{ x: 60, y: 50, width: 40, height: 20, pixels: 800, density: 1 }],
       TREE,
-      { scale: 2, origin: { x: 0, y: 0 } },
+      { scale: 2, origin: { x: 0, y: 0 }, before: undefined },
     );
 
     expect(attributed!.path).toBe('0/0/0');
@@ -266,7 +369,7 @@ describe('attributing a region to the tree', () => {
     const [attributed] = attributeRegions(
       [{ x: 0, y: 190, width: 400, height: 10, pixels: 4000, density: 1 }],
       TREE,
-      { scale: 1, origin: { x: 0, y: 0 } },
+      { scale: 1, origin: { x: 0, y: 0 }, before: undefined },
     );
 
     expect(attributed!.unattributed).toBe(false);
@@ -280,7 +383,7 @@ describe('attributing a region to the tree', () => {
     const [attributed] = attributeRegions(
       [{ x: 250, y: 20, width: 200, height: 40, pixels: 8000, density: 1 }],
       TREE,
-      { scale: 1, origin: { x: 100, y: 0 } },
+      { scale: 1, origin: { x: 100, y: 0 }, before: undefined },
     );
 
     expect(attributed!.unattributed).toBe(true);
@@ -292,7 +395,7 @@ describe('attributing a region to the tree', () => {
     const [attributed] = attributeRegions(
       [{ x: 30, y: 25, width: 20, height: 10, pixels: 200, density: 1 }],
       TREE,
-      { scale: 1, origin: { x: 0, y: 0 } },
+      { scale: 1, origin: { x: 0, y: 0 }, before: undefined },
     );
 
     expect(attributed!.where).toContain('main');
@@ -312,7 +415,7 @@ describe('attributing a region to the tree', () => {
     const [attributed] = attributeRegions(
       [{ x: 0, y: 0, width: 10, height: 10, pixels: 100, density: 1 }],
       flat,
-      { scale: 1, origin: { x: 0, y: 0 } },
+      { scale: 1, origin: { x: 0, y: 0 }, before: undefined },
     );
 
     expect(attributed!.unattributed).toBe(true);

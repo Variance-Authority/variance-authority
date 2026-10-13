@@ -117,3 +117,51 @@ subject. Every coordinate this ADR's ranking is attached to is converted between
 those two layouts. It happens to be exact on that story and will not be on a
 centred one. See the checkpoint's open links; the fix is in acquisition, not here,
 and it re-bases every stored image.
+
+## Amended 2026-10-13 — the region join reads the baseline's boxes
+
+The hashes this ADR carries kept each instance's box from 2026-08-31, for
+`grewBetween`. The region join did not read them. `attributeRegions` joined a
+changed region against one snapshot's boxes, and a pixel comparison has two
+sides.
+
+The default threshold moving from `0.1` to `0.01` (ADR-0026) showed the gap on
+todomvc's broken toggle, which replaces a 16×16 checkbox with an 18×18 div two
+pixels to its left. At `0.1` the threshold forgave the antialiased edge where
+the two overlap, and what was left fitted inside one box. At `0.01` the region
+is 20×18. 71% of it is inside the input that left and 88.75% inside the div that
+arrived. Both are under the 0.9 containment, so the region named `Stack`, the
+row around both. At `0.1` it named `Toggle` only because half the edit was
+forgiven.
+
+**Every instance root is joined against the union of its own box and the box the
+baseline kept for it.** `AttributionOptions.before` is the component hashes of
+the revision the pixels are compared against. It is required, and `undefined`
+is an answer. Instances are matched by their position in document order, the
+order `hashComponents` records them in, and only when both revisions count the
+same number of instances. This is `grewBetween`'s rule, for its reason: an
+instance added or removed shifts every instance after it. A path is never the
+key, because a sibling inserted ahead renumbers it. `(unattributed)` is never
+matched, for the reason given above. Every path goes through this one join:
+`decide` passes `before.components`, whether the before side came from a store
+or was handed in.
+
+**No record format changes.** The boxes were already in every sidecar, in the
+render cache's and in tribunal's `components` column. A second copy beside the
+component hashes would be a second answer to the same question.
+
+**A baseline without boxes says so.** A baseline written before 2026-08-31, or
+one with no component hashes at all, is joined against the changed render's
+boxes alone. The changed verdict's sentence then ends `the baseline records no
+node boxes, so regions were joined against this render's boxes alone: accept it
+again to record them`. When the before side is an image handed in, the sentence
+names the image, and gives no remedy, because no accept rewrites it. Without
+the clause, the row the region fell to would read as the answer.
+
+**What is still not closed.** `observePair` renders two documents and is given
+one snapshot, the after side's, so its before side never has boxes, and every
+changed verdict it attributes carries the clause. That is true, and it stays
+until the mode is given the second snapshot the open work above already asks
+for. The in-place Playwright
+path shoots both images from one snapshot and passes that snapshot's hashes as
+both sides, which is exact.

@@ -9,6 +9,7 @@ import {
   componentInstances,
   composeSubjects,
   formatSource,
+  hashComponents,
   isolateRegions,
   locateInstability,
   mergeSourceIndexes,
@@ -122,6 +123,7 @@ beforeAll(async () => {
     attributeRegions(isolateRegions(activeComparison.mask).regions, changed, {
       scale: VIEWPORT.deviceScaleFactor,
       origin: active.origin,
+      before: hashComponents(baseline),
     }),
     activeCauses,
   );
@@ -132,6 +134,7 @@ beforeAll(async () => {
     attributeRegions(isolateRegions(repeatComparison.mask).regions, repeat, {
       scale: VIEWPORT.deviceScaleFactor,
       origin: again.origin,
+      before: hashComponents(changed),
     }),
   );
 }, 120_000);

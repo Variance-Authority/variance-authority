@@ -97,7 +97,7 @@ export async function observeCaptureAgainstBaseline(
   }
 
   return withCause(
-    await decideRasters(artifact.subject.id, found.raster, candidate, false, inputs),
+    await decideRasters(artifact.subject.id, found.raster, candidate, false, inputs, 'baseline'),
     identityCause(found.storedUnder, candidate.identity),
     documentMoved(found.raster, candidate),
   );

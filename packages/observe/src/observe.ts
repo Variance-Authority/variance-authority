@@ -312,7 +312,7 @@ export async function observeRasters(
   options: CompareInputs = {},
 ): Promise<Observation> {
   return withCause(
-    await decideRasters(subject, before, after, false, options),
+    await decideRasters(subject, before, after, false, options, 'image'),
     identityCause(before.identity, after.identity, {
       stored: 'the before image',
       current: 'the after image',
@@ -344,6 +344,7 @@ export async function observePair(
     right.raster,
     left.rendered || right.rendered,
     options,
+    'image',
   );
 }
 
@@ -396,7 +397,14 @@ export async function observeAgainstBaseline(
   }
 
   return withCause(
-    await decideRasters(document.subject.id, found.raster, fresh.raster, fresh.rendered, options),
+    await decideRasters(
+      document.subject.id,
+      found.raster,
+      fresh.raster,
+      fresh.rendered,
+      options,
+      'baseline',
+    ),
     identityCause(found.storedUnder, identity),
     documentMoved(found.raster, fresh.raster),
   );

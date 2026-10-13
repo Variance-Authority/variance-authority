@@ -224,14 +224,17 @@ is the `mask` field of `comparePngs(before, after)` from
 ```ts
 import { normalize } from '@variance-authority/core/rules';
 import { diffSnapshots } from '@variance-authority/core/compare';
-import { attributeRegions, isolateRegions } from '@variance-authority/core/attribute';
+import { attributeRegions, hashComponents, isolateRegions } from '@variance-authority/core/attribute';
 
 const before = normalize(capture);
 const after = normalize(recapture);
 const diff = diffSnapshots(before, after);           // deltas and roots, no verdict
 
 const places = isolateRegions(mask, { cell: 8 });    // pixels → regions
-const named = attributeRegions(places.regions, after, { scale: 2 });
+const named = attributeRegions(places.regions, after, {
+  scale: 2,
+  before: hashComponents(before),                    // where the pixels it replaced were
+});
 ```
 
 `diffSnapshots` returns `identical`, the flat `deltas`, the `roots` a docket
@@ -244,6 +247,11 @@ runner.
 `scale` is device pixels per CSS pixel and it is required. Attribute a 2x
 screenshot at 1x and every region lands in the top-left quadrant with the wrong
 component named — a full, plausible, entirely wrong report.
+
+`before` is required too: the component hashes of the revision the pixels are
+compared against, or `undefined` when nobody kept them. A change that replaces an
+element paints over the old box and the new one, so each instance is joined
+against both. A stored baseline carries these hashes as its `components`.
 
 Rendered comparisons throw when the two subjects differ, or when their
 observation profiles differ.
