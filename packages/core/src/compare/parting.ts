@@ -372,7 +372,7 @@ function boundaryNodes(root: SemanticNode): readonly SemanticNode[] {
  * `<p>`, and the host-level matcher pairs those only when the snapshot recorded
  * that component as the author of both and it replaced exactly one element under
  * one parent (`match.ts`). Otherwise the tag is the thing that changed, and every
- * identity key that does not name a role ends in it. Reporting the boundary as present
+ * identity key that names neither an alias nor a role ends in it. Reporting the boundary as present
  * on one side only would throw away the props and the hook cells at exactly the
  * moment they are the answer — `Summary` did not appear, it *chose differently*,
  * and the evidence for that is sitting in a holding nobody joined.

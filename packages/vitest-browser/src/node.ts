@@ -1,10 +1,10 @@
 import { hashComponents } from '@variance-authority/core/attribute';
 import { documentDigest } from '@variance-authority/core/format';
+import { restamps } from '@variance-authority/core/judge';
 import type { CaptureArtifact } from '@variance-authority/core';
 import {
   observeCaptureAgainstBaseline,
   packSnapshot,
-  restamps,
   summarizeObservation,
 } from '@variance-authority/observe';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
@@ -113,7 +113,7 @@ export function varianceCommands(options: VarianceNodeOptions = {}): VarianceCom
       // An unchanged subject is re-stamped under a moved identity, so the move
       // is named once rather than on every later run, and when its baseline
       // kept no snapshot, so it keeps this run's.
-      if (accepting && (observation.verdict !== 'unchanged' || restamps(observation))) {
+      if (accepting && (observation.verdict !== 'unchanged' || restamps(observation.signals))) {
         await promote(store, painter, artifact, key);
       }
 

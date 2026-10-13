@@ -98,7 +98,10 @@ export async function decide(
     document: documentMoved ? ('changed' as const) : ('unchanged' as const),
     pixels: pixelsMoved ? ('changed' as const) : ('unchanged' as const),
     ...(accessibility === undefined ? {} : { accessibility }),
-    ...(options.snapshot !== undefined && left === undefined ? { snapshot: 'unrecorded' as const } : {}),
+    // A stored baseline only: an image handed in is nobody's to re-stamp.
+    ...(beforeIs === 'baseline' && options.snapshot !== undefined && left === undefined
+      ? { snapshot: 'unrecorded' as const }
+      : {}),
   };
 
   const byRule: Record<string, number> = {};

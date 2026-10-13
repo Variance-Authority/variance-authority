@@ -164,7 +164,7 @@ export const changelog: Tool = {
 
 function restampLine(restamped: number): readonly string[] {
   if (restamped === 0) return [];
-  return ['', `${String(restamped)} subject(s) did not change and are re-stamped under this run's identity; they record nothing.`];
+  return ['', `${String(restamped)} subject(s) did not change and are re-stamped; they record nothing.`];
 }
 
 /**

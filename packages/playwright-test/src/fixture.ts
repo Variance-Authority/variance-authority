@@ -423,6 +423,7 @@ async function observeAcquired(
     described,
     identity,
     accessibility,
+    snapshot,
   );
 
   if (settlement.kind === 'settled') {

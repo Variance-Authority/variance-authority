@@ -3,6 +3,7 @@ import {
   documentDigest,
   type RenderDocument,
   type RenderIdentity,
+  type SemanticSnapshot,
 } from '@variance-authority/core/format';
 import { settle } from './settle.js';
 import type { Described } from './store.js';
@@ -27,6 +28,9 @@ const IDENTITY: RenderIdentity = {
 };
 
 const OTHER_MACHINE: RenderIdentity = { ...IDENTITY, platform: 'darwin/arm64' };
+
+/** What this run collected, for the one rule that asks whether it has a tree to record. */
+const COLLECTED = { root: { path: '0', tag: 'div', attributes: {}, style: {}, children: [] } } as unknown as SemanticSnapshot;
 
 /** Built here rather than imported: this file may not depend on a composition. */
 function documentFor(id: string, html = '<div data-va-path="0">x</div>'): RenderDocument {
@@ -165,6 +169,68 @@ describe('settle', () => {
       kind: 'render',
       because: expect.stringContaining('no baseline'),
     });
+  });
+
+  it('renders a photographed baseline that kept no snapshot, so an accepting run records one', () => {
+    // The digest says no pixel can differ, but the baseline is worse than a fresh
+    // one: a changed region is joined against the nodes it kept, and it kept
+    // none. Settled, it would gain them only by accepting the change they were
+    // needed for — as a baseline painted under another identity would keep naming
+    // the move.
+    const found: Described = {
+      documentDigest: digest,
+      comparable: true,
+      storedUnder: IDENTITY,
+      pictured: true,
+      keepsSnapshot: false,
+      missingFonts: [],
+    };
+
+    expect(settle(digest, found, IDENTITY, undefined, COLLECTED)).toEqual({
+      kind: 'render',
+      because: expect.stringContaining('records no snapshot of its nodes'),
+    });
+  });
+
+  it('settles a baseline that kept no snapshot when this run has none to record either', () => {
+    // Rendered, it would render on every run and gain nothing: no run of this
+    // profile can write the tree it lacks.
+    const found: Described = {
+      documentDigest: digest,
+      comparable: true,
+      storedUnder: IDENTITY,
+      pictured: true,
+      keepsSnapshot: false,
+      missingFonts: [],
+    };
+
+    expect(settle(digest, found, IDENTITY).kind).toBe('settled');
+  });
+
+  it('settles a photographed baseline that kept its snapshot', () => {
+    const found: Described = {
+      documentDigest: digest,
+      comparable: true,
+      storedUnder: IDENTITY,
+      pictured: true,
+      keepsSnapshot: true,
+      missingFonts: [],
+    };
+
+    expect(settle(digest, found, IDENTITY, undefined, COLLECTED).kind).toBe('settled');
+  });
+
+  it('settles a baseline with no pixels whatever it kept, since no region is joined there', () => {
+    const found: Described = {
+      documentDigest: digest,
+      comparable: true,
+      storedUnder: IDENTITY,
+      pictured: false,
+      keepsSnapshot: false,
+      missingFonts: [],
+    };
+
+    expect(settle(digest, found, IDENTITY, undefined, COLLECTED).kind).toBe('settled');
   });
 
   it.todo(

@@ -78,8 +78,8 @@ describe('the rung a reading reaches', () => {
 
   it('pairs a boundary whose own tag changed, which the host matcher left unpaired', () => {
     // `Summary` returns a `<span>` where it returned a `<p>`. The fixture records
-    // no author, and every identity key in `match.ts` that does not name a role
-    // ends in the tag, so the pair is unreachable there — and it is the pair
+    // no author, and every identity key in `match.ts` that names neither an
+    // alias nor a role ends in the tag, so the pair is unreachable there — and it is the pair
     // carrying the prop that explains the branch.
     const summary = part(tree({ expanded: false }), tree({ expanded: true })).boundaries!.find(
       (entry) => entry.component === 'Summary',

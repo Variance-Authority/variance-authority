@@ -177,7 +177,28 @@ describe('accept', () => {
     // commit-message entry, and the count says what was written instead.
     expect(result.accepted).toEqual([]);
     expect(result.restamped).toBe(1);
-    expect(formatAcceptance(result)).toContain("1 re-stamped under this run's identity");
+    expect(formatAcceptance(result)).toContain('1 unchanged and re-stamped');
+  });
+
+  it('re-stamps an unchanged subject whose baseline kept no snapshot, so its nodes are recorded', async () => {
+    const { store, puts } = recordingStore();
+
+    const result = await accept({
+      report: reportOf([
+        observation({ verdict: 'unchanged', changedPixels: 0, signals: { document: 'unchanged', snapshot: 'unrecorded' } }),
+      ]),
+      reportDir: '/repo/out',
+      store,
+      subjects: [],
+      all: true,
+      read: async () => CANDIDATE,
+    });
+
+    expect(puts).toEqual([[{ subject: 'fixture:a' }, CANDIDATE]]);
+    expect(result.accepted).toEqual([]);
+    expect(result.restamped).toBe(1);
+    // Not "under this run's identity": nothing about the identity moved.
+    expect(formatAcceptance(result)).not.toContain('identity');
   });
 
   it('refuses a named subject that did not change, instead of silently doing nothing', async () => {

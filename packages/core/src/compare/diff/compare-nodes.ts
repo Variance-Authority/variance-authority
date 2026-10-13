@@ -51,8 +51,8 @@ export function compareNodes(
     ...(createdBy ? { createdBy } : {}),
   });
 
-  // Two tags pair under a declared alias, under one role and name, or as the one
-  // replacement its author recorded (see `match.ts`). The tag is said first: the
+  // Two tags pair as the two roots, under a declared alias, under one role and
+  // name, or as the one replacement its author recorded (see `match.ts`). The tag is said first: the
   // role, the attributes and the box that follow are what the new element is,
   // not edits to the old one.
   if (before.tag !== after.tag) {

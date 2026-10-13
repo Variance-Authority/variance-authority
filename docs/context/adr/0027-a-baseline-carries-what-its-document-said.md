@@ -173,9 +173,12 @@ without it. Nothing the matcher reads was trimmed. Every store carries the field
 as text and never opens it: the durable store and the render cache through
 `sidecarFrom`, the remote store the same way, and tribunal in a `snapshot`
 column on `baselines` and a `candidate_snapshot` column on `build_subjects`
-(schema 21), so an approval promotes it. `describe` does not return it: a
-subject that settles on its document digest builds no comparison and joins
-nothing.
+(schema 21), so an approval promotes it. `describe` does not return it, since
+a subject that settles on its document digest builds no comparison and joins
+nothing. It says only whether the baseline kept one, as `keepsSnapshot`,
+because that decides whether the subject may settle (below). The render cache
+holds pixels and keeps no tree: a cache hit carries this run's evidence or
+none, as it does for component hashes.
 
 *Why the ends live in `observe`.* `packSnapshot` and `unpackSnapshot` are there,
 not in `raster`. Packing needs `node:zlib`. `raster` is portable, and tribunal's
@@ -203,9 +206,20 @@ clause appears only on a changed verdict, and accepting that verdict accepts the
 change with it. An unchanged subject was never rewritten, so without the
 re-stamp a baseline would keep no snapshot until the change it was needed for.
 The observation marks such a subject `signals.snapshot: 'unrecorded'` whenever
-this run collected a snapshot and the baseline kept none that unpacks, and
-`restamps` adopts it beside one painted under another identity (ADR-0090):
-`--update-snapshots`, Vitest's `--update` and `variance accept` all ask it.
+this run collected a snapshot and the stored baseline kept none that unpacks.
+An image handed in is never marked, since nothing stores it. `restamps` in
+`@variance-authority/core/judge` adopts the mark beside an identity that moved
+(ADR-0090), and `--update-snapshots`, Vitest's `--update` and `variance accept`
+all ask it.
+
+A subject whose document has not moved settles on its digest and builds no
+observation, so nothing would mark it. `settle` therefore renders a pictured
+baseline whose `keepsSnapshot` is `false` when this run has a snapshot to
+record, as it renders one painted under another identity. The cost is one
+render for each such subject until one accepting run re-stamps it; a suite of
+baselines accepted before this field renders in full once. A baseline with no
+pixels still settles, because no region is joined there. A run that collects
+no snapshot settles as before, because it would have none to record.
 
 **What is still not closed.**
 

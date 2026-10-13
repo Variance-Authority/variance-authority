@@ -253,6 +253,7 @@
         "NodePath": "type",
         "ObservationProfile": "interface",
         "OwnerFrame": "interface",
+        "PackedSnapshot": "type",
         "PageRegion": "interface",
         "Pictured": "type",
         "ProfileId": "type",
@@ -684,6 +685,7 @@
         "progress": "function",
         "record": "function",
         "relaxes": "function",
+        "restamps": "function",
         "severityOf": "function",
         "shapeOfDelta": "function",
         "startTrail": "function",
@@ -1448,7 +1450,9 @@
         "observeCaptureAgainstBaseline": "function",
         "observePair": "function",
         "observeRasters": "function",
-        "summarizeObservation": "function"
+        "packSnapshot": "function",
+        "summarizeObservation": "function",
+        "unpackSnapshot": "function"
       }
     }
   },

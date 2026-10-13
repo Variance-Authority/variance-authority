@@ -30,8 +30,10 @@ export type BeforeSide = 'baseline' | 'image';
  * though nothing had been there.
  *
  * The remedy names a revision where the subject is unchanged because an
- * accepting run re-stamps an unchanged baseline that kept none (`restamps`).
- * Accepting this change records one too, and accepts the change with it.
+ * accepting run re-stamps an unchanged baseline that kept none (`restamps` in
+ * `@variance-authority/core/judge`), and a run renders one that settled on its
+ * digest so there is an observation to re-stamp (`settle`). Accepting this
+ * change records one too, and accepts the change with it.
  */
 export function unjoined(beforeIs: BeforeSide): string {
   return beforeIs === 'baseline'

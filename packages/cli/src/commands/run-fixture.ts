@@ -157,6 +157,7 @@ export function storeAnswering(found: Found | null | (() => never)): RasterStore
         comparable: baseline.comparable,
         storedUnder: baseline.storedUnder,
         pictured: pictured(baseline.raster),
+        keepsSnapshot: baseline.raster.snapshot !== undefined,
         missingFonts: baseline.raster.missingFonts,
         ...(baseline.raster.accessibility === undefined
           ? {}

@@ -148,7 +148,13 @@ export async function observeOne(
   // and say nothing. That is the drift `Renderer.identityFor` exists to prevent.
   const identity = renderer.identityFor(collected.document);
   const described = await deps.store.describe(key, identity);
-  const settlement = settle(documentDigest(collected.document), described, identity);
+  const settlement = settle(
+    documentDigest(collected.document),
+    described,
+    identity,
+    undefined,
+    collected.snapshot,
+  );
 
   if (settlement.kind === 'settled') {
     const missingFonts = settlement.missingFonts ?? [];

@@ -1,10 +1,13 @@
 ---
 '@variance-authority/cli': minor
 '@variance-authority/core': minor
+'@variance-authority/mcp': patch
 '@variance-authority/observe': minor
 '@variance-authority/playwright-test': minor
 '@variance-authority/raster': minor
+'@variance-authority/remote': minor
 '@variance-authority/report': minor
+'@variance-authority/store': minor
 '@variance-authority/tribunal': minor
 '@variance-authority/vitest-browser': minor
 ---
@@ -40,5 +43,19 @@ this subject is unchanged*. An accepting run — `--update-snapshots`, Vitest's
 `--update`, `variance accept` — now re-stamps an unchanged baseline that kept no
 snapshot, as it re-stamps one painted under another identity, and the
 observation marks it `signals.snapshot: 'unrecorded'`; `restamps` in
-`@variance-authority/observe` is the rule. Two images compared directly get the
-same clause, naming the before image, without the remedy.
+`@variance-authority/core/judge` is the one rule all three ask. Two images
+compared directly get the same clause, naming the before image, without the
+remedy, and are never marked.
+
+A subject whose document has not moved settles on its digest and builds no
+observation to mark, so `settle` now renders a pictured baseline that kept no
+snapshot when this run collected one, with the reason *the baseline records no
+snapshot of its nodes, so this run renders it for an accepting run to record
+one*. A suite of baselines accepted before this release renders in full until
+one accepting run. `Described.keepsSnapshot` is the new required field it reads:
+the durable, LFS and tribunal stores derive it from the sidecar, and the remote
+store refuses a description without it. `settle` takes this run's snapshot as a
+fifth argument. `variance accept` and the MCP changelog call these subjects
+*unchanged and re-stamped* rather than re-stamped under this run's identity,
+which was untrue of them. The render cache no longer hands on a snapshot an
+entry kept.

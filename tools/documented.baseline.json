@@ -168,12 +168,6 @@
     "packages": 3
   },
   {
-    "name": "NotObserved",
-    "kind": "interface",
-    "at": "packages/report/src/format.ts",
-    "packages": 3
-  },
-  {
     "name": "Observation",
     "kind": "interface",
     "at": "packages/history/src/observation.ts",

@@ -1,3 +1,4 @@
+import { restamps } from '@variance-authority/core/judge';
 import type { ObservationRecord } from './format.js';
 
 /**
@@ -73,8 +74,7 @@ export function promotionOf(observation: ObservationRecord): Promotion {
     // one whose baseline kept no snapshot: left alone, the first change after
     // it is joined against one render.
     const from = observation.images?.after ?? observation.images?.record;
-    const restamp = observation.signals?.identity !== undefined || observation.signals?.snapshot === 'unrecorded';
-    if (restamp && from !== undefined) {
+    if (restamps(observation.signals) && from !== undefined) {
       return { kind: 'promotable', from };
     }
     return {

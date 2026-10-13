@@ -1,6 +1,7 @@
 import type { ComponentBands } from '@variance-authority/core/attribute';
 import type { AccessibilitySnapshot, RenderIdentity } from '@variance-authority/core/format';
 import type { FindingRecord } from './finding-record.js';
+import type { NotObserved } from './not-observed.js';
 import type { RegionRecord } from './region-record.js';
 import type { CompositionReport } from './composition.js';
 import type { IgnoreLedger, SensitivityLedger } from './declarations.js';
@@ -226,25 +227,6 @@ export interface RunReport {
    * in `whole` agreeing everywhere, which is a finding about the suite.
    */
   readonly journeys?: JourneysReport;
-}
-
-/**
- * Why a subject is in the report without an observation.
- *
- * Three kinds, because they mean different things about whether anyone should
- * act. `excluded` is a decision the operator made and wrote down; `failed` is a
- * hole in coverage, and collapsing the two makes every exclusion permanently red
- * or a crash on subject 41 look chosen. `unreached` is neither: the run read the
- * diff against what each baseline records having rendered and concluded this
- * change cannot arrive. Calling that a decision reports one nobody made.
- */
-export type NotObservedKind = 'excluded' | 'failed' | 'unreached';
-
-export interface NotObserved {
-  readonly subject: string;
-  readonly kind: NotObservedKind;
-  /** One sentence, ready to print, naming what was not looked at and why. */
-  readonly because: string;
 }
 
 export interface ObservationRecord {
@@ -490,6 +472,7 @@ export interface ObservationRecord {
 // Re-exported so a reader importing the report's shape gets the shapes its
 // fields are made of, without having to know which file each one was argued in.
 export type { FindingRecord } from './finding-record.js';
+export type { NotObserved, NotObservedKind } from './not-observed.js';
 export type {
   PresentationEffectEvidence,
   PresentationEffectRecord,

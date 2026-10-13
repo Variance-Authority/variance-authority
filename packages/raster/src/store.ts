@@ -108,8 +108,8 @@ export interface Found {
  * A baseline's attributes without the baseline — what a lookup can say about a
  * stored image from its sidecar alone.
  *
- * Exactly the four fields that decide whether an image is needed at all, and
- * what may be said once it is not. There is no `raster` here and there must not
+ * Exactly the fields that decide whether an image is needed at all, and what
+ * may be said once it is not. There is no `raster` here and there must not
  * be one: the moment this type can carry bytes, a caller can be handed them by
  * accident and the saving disappears.
  */
@@ -155,6 +155,24 @@ export interface Described {
    * pixel-less subject in the suite as a photographed green.
    */
   readonly pictured: boolean;
+
+  /**
+   * Whether the baseline kept the snapshot of the nodes that painted it.
+   *
+   * Not the snapshot: a description carries no bytes, and the packed tree is
+   * the largest thing a sidecar holds. Only whether one is there, because that
+   * is what `settle` has to know. A baseline that kept none cannot have a
+   * changed region joined against its own nodes, and the run that records one
+   * is an accepting run that rendered; a subject that settled on its digest
+   * never reaches the rule that re-stamps it, so `settle` renders such a
+   * baseline when this run has a snapshot to record (ADR-0027).
+   *
+   * Required, never inferred, for the reason {@link Described.pictured} is.
+   * Defaulted to `true`, every baseline written before snapshots were kept
+   * would settle for good and never gain one; defaulted to `false`, every
+   * subject across a transport that dropped it would render on every run.
+   */
+  readonly keepsSnapshot: boolean;
 
   /** Browser accessibility evidence retained beside the image, when observed. */
   readonly accessibility?: AccessibilitySnapshot;

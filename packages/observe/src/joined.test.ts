@@ -270,4 +270,18 @@ describe('two images handed in', () => {
     expect(observation.verdict).toBe('changed');
     expect(observation.because).not.toContain('records no snapshot');
   });
+  it('does not mark an unchanged image as a baseline to re-stamp', async () => {
+    // Nothing is stored on this side, so nothing can be re-stamped: the mark
+    // would turn every unchanged pair into a promotion of a baseline that is not
+    // there.
+    const observation = await observeRasters(
+      's',
+      raster(AFTER_IMAGE, 'v1:before'),
+      raster(AFTER_IMAGE, 'v1:after'),
+      { snapshot: AFTER },
+    );
+
+    expect(observation.verdict).toBe('unchanged');
+    expect(observation.signals).not.toHaveProperty('snapshot');
+  });
 });

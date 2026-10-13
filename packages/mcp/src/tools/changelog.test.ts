@@ -97,7 +97,7 @@ describe('reading the record before writing it', () => {
 
     expect(answer).toContain('across 1 subject(s)');
     expect(answer).not.toContain('story:upgraded');
-    expect(answer).toContain("1 subject(s) did not change and are re-stamped under this run's identity");
+    expect(answer).toContain('1 subject(s) did not change and are re-stamped; they record nothing.');
   });
 
   it('answers in the lines the commit will carry, not a summary of them', () => {

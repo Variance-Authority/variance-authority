@@ -116,7 +116,9 @@ accepted before it kept a snapshot is joined against this render's boxes alone,
 and a changed verdict adds that the baseline records no snapshot of its nodes,
 and that an accepting run records one on a revision where the subject is
 unchanged. An accepting run re-stamps every unchanged baseline that kept none,
-so one accepting run on a clean revision records them all. Two images handed in
+so one accepting run on a clean revision records them all. Until it does, a
+run renders each such subject even when its document has not moved, rather
+than settling it on the digest, so there is an image to re-stamp. Two images handed in
 directly get the same sentence, without the remedy: no accept rewrites a file
 somebody passed in.
 

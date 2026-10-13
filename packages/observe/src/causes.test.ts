@@ -17,6 +17,8 @@ import {
   type Renderer,
 } from '@variance-authority/raster';
 import { observeAgainstBaseline } from './observe.js';
+import { packSnapshot } from './packed.js';
+import { renderOnce } from './render-once.js';
 
 /**
  * Cause-first ranking on the durable path (spec 0017).
@@ -342,6 +344,24 @@ describe('a warm render cache', () => {
     });
 
     expect(observation.causes).toBeUndefined();
+  });
+
+  it('does not hand on the snapshot an entry kept, which is no more this render’s than its hashes', async () => {
+    // A before side rendered through the cache is joined against the tree it
+    // carries. One kept from an earlier snapshot of the same bytes would join
+    // this run's regions against nodes that were renamed since.
+    const store = createEphemeralStore();
+    const document = documentFor('page');
+    await store.renderCache.put({
+      ...rasterOf(document, image(46), snapshotOf('4px', 30)),
+      identity: MACHINE,
+      snapshot: packSnapshot(snapshotOf('4px', 30)),
+    });
+
+    const { raster, rendered } = await renderOnce(rendererPainting(image(46)), store, document);
+
+    expect(rendered).toBe(false);
+    expect(raster).not.toHaveProperty('snapshot');
   });
 });
 

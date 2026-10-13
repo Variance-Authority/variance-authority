@@ -1,4 +1,5 @@
-import { restamps, type Observation } from '@variance-authority/observe';
+import { restamps } from '@variance-authority/core/judge';
+import type { Observation } from '@variance-authority/observe';
 import type { VarianceRun } from './run.js';
 
 /** Report the state after Playwright's explicit snapshot update promoted it. */
@@ -24,5 +25,5 @@ export function accepted(observation: Observation): Observation {
  */
 export function adopts(observation: Observation, run: VarianceRun): boolean {
   if (run.accepting !== true) return false;
-  return observation.verdict !== 'unchanged' || restamps(observation);
+  return observation.verdict !== 'unchanged' || restamps(observation.signals);
 }
