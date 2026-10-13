@@ -1,16 +1,24 @@
+import type { SubjectRef } from './capture.js';
+import type { RenderDocument } from './document.js';
 import type { SemanticSnapshot } from './snapshot.js';
 
 /**
- * Whether a value read back from a file or a store is a `SemanticSnapshot`.
+ * Whether a value read back from a file or a store is the format it claims.
  *
- * Every field the type declares is checked, and every node down to the leaves,
- * because the readers walk all of it: the matcher pairs every child, and a node
- * that is not one throws there instead of reading as a snapshot that is not
- * recorded. A capture file and a packed snapshot are the two places one is read
- * back, and both ask this.
+ * Read, not believed: a value parsed from JSON is `unknown` until one of these
+ * says otherwise, and each checks every field its type declares, so that there
+ * is one answer to what a snapshot, a document or a subject is. What a reader
+ * can re-derive, a digest against the bytes it names, is the reader's to check.
+ */
+
+/**
+ * Whether a value is a `SemanticSnapshot`, every node down to the leaves.
  *
- * Shape only. Whose snapshot it is, against the subject it was filed under, is
- * the reader's question; so is whether its digests are what its tree hashes to.
+ * The readers walk all of it: the matcher pairs every child, and a node that is
+ * not one throws there instead of reading as a snapshot that is not recorded.
+ * A capture file and a packed snapshot are the two places one is read back.
+ * Whose snapshot it is, against the subject it was filed under, is the
+ * reader's question.
  */
 export function isSemanticSnapshot(value: unknown): value is SemanticSnapshot {
   const snapshot = record(value);
@@ -20,7 +28,7 @@ export function isSemanticSnapshot(value: unknown): value is SemanticSnapshot {
   return (
     snapshot !== null &&
     snapshot.formatVersion === 1 &&
-    subjectShape(snapshot.subject) &&
+    isSubjectRef(snapshot.subject) &&
     profile !== null &&
     (profile.id === 'jsdom' || profile.id === 'chromium') &&
     ['ariaTree', 'declaredStyle', 'computedStyle', 'layout', 'raster'].every(
@@ -43,12 +51,64 @@ export function isSemanticSnapshot(value: unknown): value is SemanticSnapshot {
   );
 }
 
-function subjectShape(value: unknown): boolean {
+/**
+ * Whether a value is a `RenderDocument`, its resources' shape included.
+ *
+ * Shape only: that a resource's bytes are base64 and hash to its digest, and
+ * that a document is resource-closed, are what a reader that needs them checks.
+ */
+export function isRenderDocument(value: unknown): value is RenderDocument {
+  const document = record(value);
+  const frame = document === null ? null : record(document.frame);
+  const viewport = document === null ? null : record(document.viewport);
+  return (
+    document !== null &&
+    document.documentVersion === 1 &&
+    isSubjectRef(document.subject) &&
+    typeof document.html === 'string' &&
+    frame !== null &&
+    stringRecord(frame.html) &&
+    stringRecord(frame.body) &&
+    Array.isArray(frame.ancestors) &&
+    frame.ancestors.every(frameElementShape) &&
+    (frame.containerWidth === undefined || finiteNumber(frame.containerWidth)) &&
+    stringArray(document.css) &&
+    viewport !== null &&
+    finiteNumber(viewport.width) &&
+    finiteNumber(viewport.height) &&
+    finiteNumber(viewport.deviceScaleFactor) &&
+    (viewport.colorScheme === 'light' || viewport.colorScheme === 'dark') &&
+    stringRecord(document.inherited) &&
+    stringArray(document.fonts) &&
+    (document.assets === undefined || stringRecord(document.assets)) &&
+    optionalString(document.baseUrl) &&
+    (document.resources === undefined ||
+      (record(document.resources) !== null && Object.values(document.resources as object).every(resourceShape))) &&
+    diagnosticArray(document.diagnostics)
+  );
+}
+
+/** Whether a value is a `SubjectRef`: an id, one of the four kinds, and an optional title. */
+export function isSubjectRef(value: unknown): value is SubjectRef {
   const subject = record(value);
   return subject !== null &&
     typeof subject.id === 'string' &&
     ['story', 'route', 'fixture', 'value'].includes(String(subject.kind)) &&
     optionalString(subject.title);
+}
+
+function frameElementShape(value: unknown): boolean {
+  const element = record(value);
+  return element !== null && typeof element.tag === 'string' && stringRecord(element.attributes);
+}
+
+function resourceShape(value: unknown): boolean {
+  const resource = record(value);
+  return resource !== null &&
+    typeof resource.contentType === 'string' &&
+    typeof resource.bytes === 'string' &&
+    typeof resource.digest === 'string' &&
+    (resource.status === undefined || finiteNumber(resource.status));
 }
 
 function environmentInputsShape(value: unknown): boolean {
@@ -186,6 +246,9 @@ function diagnosticArray(value: unknown): boolean {
   });
 }
 
+// A plain object. `@variance-authority/unit-test`'s capture-file reader keeps
+// the same guard privately: it is re-typed in several packages and has no
+// exported owner, and exporting it from here would make it part of the format.
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)

@@ -105,7 +105,7 @@ export type {
   IgnoreSite,
   ComponentHash,
 } from './snapshot.js';
-export { isSemanticSnapshot } from './snapshot-shape.js';
+export { isRenderDocument, isSemanticSnapshot, isSubjectRef } from './shape.js';
 
 export { documentDigest, identityDigest, occupiesPixels, pictured, picture } from './document.js';
 export type {

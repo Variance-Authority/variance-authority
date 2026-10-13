@@ -71,8 +71,9 @@ refuses a description without it. A packed snapshot now opens with a `v1:`
 header naming its format version, `PACKED_SNAPSHOT_HEADER`, and a snapshot
 without it counts as not kept. `unpackSnapshot` reads one as not recorded
 unless every node in it is one, with `isSemanticSnapshot`, new in
-`@variance-authority/core/format`: the check `@variance-authority/unit-test`
-already made of a capture file's snapshot, which now asks it. Tribunal serves API 6, which describes a
+`@variance-authority/core/format` beside `isRenderDocument` and
+`isSubjectRef`: the checks `@variance-authority/unit-test` already made of a
+capture file's snapshot, document and subject, which it now asks. Tribunal serves API 6, which describes a
 baseline with `keepsSnapshot`; `variance push` against an older deployment names
 the refused descriptions when the project's `remote` baselines are stored there,
 and the remote store's refusal names tribunal before API 6 and a
