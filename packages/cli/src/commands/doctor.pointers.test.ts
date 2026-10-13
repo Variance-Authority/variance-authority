@@ -188,7 +188,7 @@ describe('machineProbes pointers', () => {
     expect(await machineProbes(lfsConfig()).pointers(root)).toEqual(['a/b/c/deep.png', 'shallow.png']);
   });
 
-  it('passes over a file it cannot read, and still names the pointer beside it', async () => {
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('passes over a file it cannot read, and still names the pointer beside it', async () => {
     // A file doctor cannot open is not one the run will refuse as a pointer, and
     // one unreadable file must not cost the operator the answer for the rest.
     const root = await rootWith({ 'locked.png': 'not a pointer', 'pointer.png': POINTER });
