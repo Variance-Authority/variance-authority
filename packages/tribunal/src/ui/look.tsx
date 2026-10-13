@@ -54,7 +54,7 @@ import { useCallback, useState, type CSSProperties, type ReactElement } from 're
 import type { RegionRecord } from '@variance-authority/report';
 import type { ReviewClient } from './client.js';
 import type { Appearance } from './grouping.js';
-import { hasDifference, useDifferenceUrl } from './difference.js';
+import { hasDifference, useDifference } from './difference.js';
 import { leadOf } from './lead.js';
 import { count, number } from './text.js';
 import { SMALLEST_SCALE, share, union, type Size } from './plate.js';
@@ -388,13 +388,17 @@ function Crop({
   // Only once the crop is mounting the mask and its window is near: the strip
   // opens on `diff`, and a crop nobody has scrolled to decodes nothing. See
   // [`difference.ts`](./difference.js).
-  const difference = useDifferenceUrl(client, build, subject, seen && mounted.has('diff'));
+  const difference = useDifference(client, build, subject, seen && mounted.has('diff'));
   const box = union(subject.size, subject.baseline);
 
   /** What this render can show at all, and where its bytes come from. */
   const shown = (layer: Layer): boolean => shows(subject, layer);
   const srcOf = (layer: Layer): string | undefined =>
-    layer === 'diff' ? difference : client.imageUrl(build, subject.subject, layer);
+    layer === 'diff'
+      ? difference?.state === 'ready'
+        ? difference.value
+        : undefined
+      : client.imageUrl(build, subject.subject, layer);
 
   if (box === undefined) {
     return (
@@ -411,6 +415,15 @@ function Crop({
     return (
       <span className="va-crop va-crop-unplaced" style={boxOf(WINDOW)}>
         <span className="va-note">No {SAY[showing]} was kept for this render.</span>
+      </span>
+    );
+  }
+
+  // The same for a mask the page set out to compute and could not.
+  if (showing === 'diff' && difference?.state === 'failed') {
+    return (
+      <span className="va-crop va-crop-unplaced" style={boxOf(WINDOW)}>
+        <span className="va-note">The difference could not be computed for this render.</span>
       </span>
     );
   }
