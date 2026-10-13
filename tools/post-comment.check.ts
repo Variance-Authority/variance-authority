@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -199,5 +199,28 @@ describe('post-comment', () => {
     expect(code).not.toBe(0);
     expect(out).toContain('--adopt-unkeyed');
     expect(pull.calls).toEqual([]);
+  });
+
+  it('is told whether to adopt by every workflow and action that runs it', async () => {
+    // The poster refuses to run without the answer, so a caller that leaves it
+    // out fails only on a pull request, on the step that was to tell the
+    // reviewer. Read as text: a command is the lines a trailing `\` joins.
+    const places = [
+      ...(await readdir(join(ROOT, '.github/workflows'))).filter((name) => name.endsWith('.yml')).map((name) => `.github/workflows/${name}`),
+      '.github/actions/variance/action.yml',
+    ];
+    const commands: string[] = [];
+    for (const place of places) {
+      const lines = (await readFile(join(ROOT, place), 'utf8')).split('\n');
+      for (const [index, line] of lines.entries()) {
+        if (!line.includes('post-comment.mjs') || line.trimStart().startsWith('#')) continue;
+        let command = line;
+        for (let next = index; lines[next]?.trimEnd().endsWith('\\'); next += 1) command += `\n${lines[next + 1]}`;
+        commands.push(`${place}: ${command.trim()}`);
+      }
+    }
+
+    expect(commands.length).toBeGreaterThanOrEqual(3);
+    expect(commands.filter((command) => !/--adopt-unkeyed (true|false|"\$[A-Z_]+")/u.test(command))).toEqual([]);
   });
 });
