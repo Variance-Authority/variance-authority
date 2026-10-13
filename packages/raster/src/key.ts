@@ -3,8 +3,10 @@
 /**
  * Which baseline a store is asked for, and what a file-backed store names it by.
  *
- * `subject` and `label` decide which baseline it is. The rest decide only where
- * a store that writes files puts it (`baselines.path`).
+ * `subject` and `label` decide which baseline it is, and so does `project` when
+ * the template places by `{project}`: two projects are then two baselines of
+ * one subject. The rest decide only where a store that writes files puts it
+ * (`baselines.path`).
  */
 export interface BaselineKey {
   readonly subject: string;
@@ -44,6 +46,8 @@ export interface BaselineKey {
    * differ only in what the identity does not hold — a colour scheme, a
    * viewport — paint two images of it. Carried so `{project}` can file them
    * apart, and so a store can tell a second project from a second machine.
+   * Under `{project}` it decides which baseline this is; without it, it
+   * decides nothing and two projects share one baseline.
    * Absent for a runner with no projects and for an unnamed one.
    */
   readonly project?: string;
@@ -59,8 +63,9 @@ export interface BaselineKey {
  * baseline's `name` and the rest its `title`, which is all a template needs to
  * write a path a reviewer reads as *this test*.
  *
- * The file, the titles and the project decide only where the baseline is
- * filed. The subject decides which baseline it is.
+ * The file and the titles decide only where the baseline is filed. The subject
+ * decides which baseline it is, with the project when the template places by
+ * `{project}`.
  */
 export function testBaselineKey(
   subject: string,

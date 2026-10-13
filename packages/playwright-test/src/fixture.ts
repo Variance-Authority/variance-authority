@@ -223,8 +223,9 @@ export const varianceFixtures: Fixtures<
   ],
 
   varianceStore: [
-    async ({ varianceBaselines, varianceBaselinePath }, use) => {
-      const { store, sweep } = checkoutStore(varianceBaselines, varianceBaselinePath);
+    async ({ varianceBaselines, varianceBaselinePath }, use, workerInfo) => {
+      const projects = workerInfo.config.projects.map((project) => project.name);
+      const { store, sweep } = checkoutStore(varianceBaselines, varianceBaselinePath, projects);
       await use(store);
       await sweep();
     },

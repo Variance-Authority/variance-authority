@@ -270,6 +270,14 @@ export function carryPlan(input: CarryInput): CarryPlan {
   };
 }
 
+/**
+ * An old layout's partition directory as a glob: `v1-<hex>` as it wrote it, or
+ * the raw `v1:<hex>` it wrote before that. The hex is spelled out, because a
+ * directory such as `api/v1-beta` only starts like one, and collocated, the
+ * root is the whole repository.
+ */
+const PARTITION = `v1[-:]${'[0-9a-f]'.repeat(32)}`;
+
 /** See {@link CarryPlan.baselinesPathspecs}. */
 function pathspecsOf(store: Exclude<NonNullable<Config['baselines']>, { kind: 'remote' }>): readonly string[] {
   const { glob } = parseBaselinePath(store.path ?? DEFAULT_BASELINE_PATH);
@@ -278,7 +286,7 @@ function pathspecsOf(store: Exclude<NonNullable<Config['baselines']>, { kind: 'r
   return [
     `:(glob)${join(store.root, `${glob}.png`)}`,
     `:(glob)${join(records, `${glob}.json`)}`,
-    ...roots.map((root) => `:(glob)${join(root, '**/v1-*/*')}`),
+    ...roots.map((root) => `:(glob)${join(root, `**/${PARTITION}/*`)}`),
     ...(store.kind === 'lfs' ? [`:(glob)${join(store.root, '.gitattributes')}`] : []),
   ];
 }

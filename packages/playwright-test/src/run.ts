@@ -142,8 +142,8 @@ export function subjectFromRun(run: VarianceRun): string {
  * The file and the titles are what a baseline's path is written from
  * (`baselines.path`), so a reviewer reading the pull request sees which test
  * painted each image, and a collocated template can put it beside the spec.
- * The subject alone still decides *which* baseline it is; the rest decide only
- * where it is filed.
+ * The subject decides *which* baseline it is, and so does the project when the
+ * template places by `{project}`; the rest decide only where it is filed.
  *
  * An observation the test named with `subjectId` carries the file and nothing
  * else. One test may name several, and each has to land on its own path: the

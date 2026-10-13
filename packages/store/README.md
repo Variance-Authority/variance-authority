@@ -271,15 +271,16 @@ that would tell them apart: `{project}` when only the projects differ.
 
 A root written by an earlier release keeps each machine's images in a
 directory named for a hash of its identity. Those are still read: a lookup
-falls back to them, reports `relocated` with the old and new paths, and `put`
+falls back to them, reports `relocated` with the old and new paths, and `put` from this machine's own identity or line
 writes the new path and removes the old pair, so the commit shows a rename.
 
-`createDurableStore(root, options)` takes three options, and `createLfsStore`
-passes all three through:
+`createDurableStore(root, options)` takes four options, and `createLfsStore`
+passes all four through:
 
 | option | default | what it decides |
 |---|---|---|
 | `path` | `{title}/{name}-{engine}` | where each baseline goes under `root`, as described above. `{dir}/__baselines__/{file}/{name}-{engine}` with `root` at the repository puts each image beside the code it depicts, so baselines arrive with the checkout. A renamed file, or a changed template, leaves the old baseline where it was: the subject reads `new` and the old pair is reported as unplanned. |
+| `projects` | none | the Playwright projects the config runs, for a template with `{project}`. A record accepted for a project not in the list is a renamed project's, and the first key that renders its path takes it over; a project still in the list keeps its path and the run stops. Unset, every record is held to the project that accepted it. |
 | `cacheRoot` | `root` | where the render cache goes; a durable store doubles as one, so entries are written under `root` unless this points elsewhere. |
 | `recordRoot` | `root` | where the `.json` sidecars go. A sidecar changes whenever the document does — a class name, a build id, a font that resolved elsewhere — so sidecars beside their images put a tracked diff on every edit, including the edits that moved no pixel. Point this at an ignored directory or a CI cache and `root` ends up with images and nothing else. |
 

@@ -111,7 +111,11 @@ export async function createVariance(
   const bundle = options.bundle ?? (await bundlePageAgent());
   const materialization = options.materialization ?? { kind: 'deferred' };
   const owned = options.store === undefined
-    ? checkoutStore(options.baselines ?? '.variance/baselines', options.baselinePath)
+    ? checkoutStore(
+        options.baselines ?? '.variance/baselines',
+        options.baselinePath,
+        projectsOf(within),
+      )
     : undefined;
   const store = options.store ?? owned!.store;
   const ownsRenderer = materialization.kind === 'deferred' && options.renderer === undefined;
@@ -176,6 +180,17 @@ export async function createVariance(
       await owned?.sweep();
     },
   };
+}
+
+/**
+ * The config's project names, when the runner built the `TestInfo`: a run
+ * descriptor carries none, and nor does a `TestInfo` assembled by hand outside
+ * the runner, which is a shape this entry point accepts.
+ */
+function projectsOf(within: TestInfo | VarianceRun): readonly string[] | undefined {
+  if (!('project' in within)) return undefined;
+  const projects = within.config.projects as readonly { readonly name: string }[] | undefined;
+  return projects?.map((project) => project.name);
 }
 
 /** Observe one locator without extending or replacing Playwright's test API. */

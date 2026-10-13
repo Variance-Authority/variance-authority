@@ -212,6 +212,8 @@ export function createRemoteStore(options: RemoteStoreOptions): RasterStore {
 }
 
 /** One string per `(subject, label)`, so a `Map` can answer what a lookup asks. */
+// FIXME: `key.project` is not in it, so two Playwright projects under
+// `{project}` read one prefetched description (parity.test.ts holds the todo).
 function keyOf(key: BaselineKey): string {
   return `${key.subject}\u0000${key.label ?? ''}`;
 }

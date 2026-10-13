@@ -74,6 +74,16 @@ describe('where baselines live', () => {
     expect(error.message).toContain('__baselines__');
   });
 
+  it('refuses a committed directory at the top of the repository whose path names no directory of its own', () => {
+    // The commit-back stages what the template's glob fits, and `*-*.png` at
+    // the top of the repository fits every hyphenated image that is not a
+    // baseline, as does a sweep of what nothing planned.
+    const error = attempt(withField('baselines', { kind: 'directory', root: '.' }));
+
+    expect(error.field).toBe('baselines.path');
+    expect(error.message).toContain('__baselines__');
+  });
+
   it('takes an LFS root of `.` once the pattern is the operator\'s own', () => {
     const config = parseConfig(withField('baselines', { kind: 'lfs', root: '.', pattern: 'shots/**/*.png' }), OPTIONS);
 
@@ -97,11 +107,14 @@ describe('where baselines live', () => {
     expect(error.message).toContain('{project}');
   });
 
-  it('refuses the `layout` it replaced, and names `path`', () => {
-    const error = attempt(withField('baselines', { kind: 'directory', root: 'b', layout: 'beside' }));
+  it('refuses the `layout` it replaced, and names the `path` that keeps each layout`s place', () => {
+    const beside = attempt(withField('baselines', { kind: 'directory', root: 'b', layout: 'beside' }));
+    expect(beside.field).toBe('baselines.layout');
+    expect(beside.message).toContain('"beside" is "path": "{dir}/__baselines__/{file}/{name}-{engine}"');
 
-    expect(error.field).toBe('baselines.layout');
-    expect(error.message).toContain('path');
+    const flat = attempt(withField('baselines', { kind: 'lfs', root: 'b', layout: 'flat' }));
+    expect(flat.field).toBe('baselines.layout');
+    expect(flat.message).toContain('"flat" is the default path, "{title}/{name}-{engine}"');
   });
 
   it('resolves a records directory against the config file, like the root beside it', () => {

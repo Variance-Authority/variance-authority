@@ -92,6 +92,8 @@ export function parseBaselines(value: unknown, options: ParseOptions): Baselines
     };
   }
 
+  refuseLayout(value, options);
+
   if (kind === 'lfs') {
     const source = object(
       value,
@@ -103,19 +105,11 @@ export function parseBaselines(value: unknown, options: ParseOptions): Baselines
     const path = parsePath(source['path'], options);
     const records = parseRecords(source['records'], options);
     const root = resolveFrom(options.baseDir, nonEmpty(source, 'root', options, 'baselines.root'));
-    if (pattern === undefined && root === resolveFrom(options.baseDir, '.') && !parseBaselinePath(path ?? DEFAULT_BASELINE_PATH).anchored) {
-      // The `.gitattributes` entry is the template's glob, and a glob with no
-      // directory of its own, at the top of the repository, routes every image
-      // its file-name pattern happens to fit into LFS: `*-*.png` takes each
-      // hyphenated icon, fixture and screenshot that is not a baseline.
-      fail(
-        'baselines.path',
-        `${quote(path ?? DEFAULT_BASELINE_PATH)} names no directory of its own, so under a root of "." its ` +
-          'LFS pattern would track every image in the repository whose name it fits, not only baselines. ' +
-          'Give it one, e.g. "{dir}/__baselines__/{file}/{name}-{engine}" or "__baselines__/{title}/{name}-{engine}"; ' +
-          'or give baselines a root of their own; or set baselines.pattern yourself',
-        options,
-      );
+    if (pattern === undefined) {
+      // The `.gitattributes` entry is the template's glob: unanchored at the
+      // top of the repository, LFS would take each hyphenated icon, fixture and
+      // screenshot that is not a baseline.
+      refuseUnanchored(root, path, 'its LFS pattern would track', '; or set baselines.pattern yourself', options);
     }
 
     return {
@@ -141,13 +135,57 @@ export function parseBaselines(value: unknown, options: ParseOptions): Baselines
       options,
     );
   }
+  const root = resolveFrom(options.baseDir, nonEmpty(source, 'root', options, 'baselines.root'));
+  // The commit-back stages what the template's glob fits, and a held-baseline
+  // sweep reads it: unanchored at the top of the repository, both take every
+  // image whose name happens to fit.
+  refuseUnanchored(root, path, 'a commit-back would stage', '', options);
   return {
     kind: 'directory',
-    root: resolveFrom(options.baseDir, nonEmpty(source, 'root', options, 'baselines.root')),
+    root,
     ...(path !== undefined ? { path } : {}),
     ...(records !== undefined ? { records } : {}),
     ...(carry !== undefined ? { carry } : {}),
   };
+}
+
+/**
+ * A template with no directory of its own, under a root that is the top of the
+ * repository: its glob fits images that are not baselines, and whatever reads
+ * the glob — LFS, a commit-back, a sweep — takes them too.
+ */
+function refuseUnanchored(
+  root: string,
+  path: string | undefined,
+  consequence: string,
+  remedy: string,
+  options: ParseOptions,
+): void {
+  if (root !== resolveFrom(options.baseDir, '.') || parseBaselinePath(path ?? DEFAULT_BASELINE_PATH).anchored) return;
+  fail(
+    'baselines.path',
+    `${quote(path ?? DEFAULT_BASELINE_PATH)} names no directory of its own, so under a root of "." ${consequence} ` +
+      'every image in the repository whose name it fits, not only baselines. ' +
+      'Give it one, e.g. "{dir}/__baselines__/{file}/{name}-{engine}" or "__baselines__/{title}/{name}-{engine}"; ' +
+      `or give baselines a root of their own${remedy}`,
+    options,
+  );
+}
+
+/**
+ * The `layout` key `path` replaced, refused with the `path` that keeps each
+ * layout's place, so the upgrade is a copy rather than a reading of the docs.
+ * Rename without aliases: the old key is not read, only named.
+ */
+function refuseLayout(value: unknown, options: ParseOptions): void {
+  if (typeof value !== 'object' || value === null || !('layout' in value)) return;
+  fail(
+    'baselines.layout',
+    'is replaced by baselines.path. "beside" is "path": "{dir}/__baselines__/{file}/{name}-{engine}"; ' +
+      `"flat" is the default path, "${DEFAULT_BASELINE_PATH}". A baseline already kept under either layout ` +
+      'is still found, and moves to the new path on its next accept',
+    options,
+  );
 }
 
 /**

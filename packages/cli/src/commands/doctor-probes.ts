@@ -8,7 +8,12 @@ import {
   type PageRegion,
   type RenderIdentity,
 } from '@variance-authority/core/format';
-import { DEFAULT_BASELINE_PATH, parseBaselinePath, type BaselinePathTemplate } from '@variance-authority/store/durable';
+import {
+  DEFAULT_BASELINE_PATH,
+  familyOf,
+  parseBaselinePath,
+  type BaselinePathTemplate,
+} from '@variance-authority/store/durable';
 import type { Renderer } from '@variance-authority/raster';
 import type { BrowserEngine, Config } from '../config.js';
 import { readCache, type CacheReading } from './doctor-cache.js';
@@ -266,9 +271,7 @@ async function collectPlaced(
     if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
     const identity = await recordedIdentity(join(directory, entry.name));
     if (identity === undefined) continue;
-    const at = identity.engine.indexOf('@');
-    const family = at === -1 ? identity.engine : identity.engine.slice(0, at);
-    if (!template.matches(path.slice(0, -'.json'.length), family)) continue;
+    if (!template.matches(path.slice(0, -'.json'.length), familyOf(identity.engine))) continue;
     const digest = identityDigest(identity);
     const sum = found.get(digest) ?? { baselines: 0, colonSpelled: 0 };
     sum.baselines += 1;

@@ -111,7 +111,11 @@ request.
 Without `{engine}`, every engine writes the one file. With it, Chromium and
 WebKit keep a baseline each. Nothing finer is in the path: two machines that
 both paint Chromium write the same file, the record says which one did, and the
-last one to accept is the baseline the other compares against.
+last one to accept is the baseline the other compares against. The other machine
+still reads unchanged or changed as its pixels say, with the field that differs
+named as the cause. When a laptop and CI take turns accepting, each accept
+rewrites the record even where no pixel moved; [the records](#the-records-if-the-diffs-are-the-problem)
+can live outside version control for that.
 
 Two subjects that render one path stop the run before anything is compared, and
 the message names both subjects and the template. The `.json` record names the
@@ -128,6 +132,11 @@ one path, and the run stops naming both projects. Put `{project}` into the
 fixture's `varianceBaselinePath`, such as `{project}/{title}/{name}-{engine}`,
 and each project keeps its own. Only the fixture takes `{project}`: the CLI and
 the Vitest plugin have no projects to fill it with, and refuse it.
+
+The record names the project too, and the fixture knows which projects the
+config still runs. Rename a project and the first run under the new name takes
+over the baseline the old name left, since nothing runs as the old name to
+claim it. A path still claimed by a project the config runs stops the run.
 
 ### A parallel folder
 
@@ -198,6 +207,10 @@ pattern is `*-*.png`, which at a root of `.` would also take every hyphenated
 icon, fixture and screenshot in the repository, so the config refuses that
 pair. Give the template a directory of its own, such as `__baselines__`, give
 the baselines a root of their own, or set `baselines.pattern` yourself.
+
+`directory` at a root of `.` is refused on the same template for the same
+reason: the action commits back what the glob names, and `*-*.png` from the
+repository root would stage every hyphenated image in it.
 
 ## Somewhere else entirely
 
@@ -449,11 +462,15 @@ files the old template wrote are listed as baselines no planned subject has.
 Renaming a story file or a `describe` block is the same move for the subjects in
 it, so commit the baseline's rename with the code's.
 
-A root written with a directory per renderer identity, such as
-`v1-6c1f…/primary.png`, is the one exception. A run still finds those
-baselines and compares against them, and reports each subject as moved, with
-both paths. `npx variance accept` writes the template's path and deletes the
-old pair, so the pull request shows each one as a rename.
+A root written before `baselines.path` existed is the one exception. A run
+still finds a baseline kept under a directory per renderer identity, such as
+`v1-6c1f…/primary.png`, whether that directory sat at the root or beside the
+declaring file, and compares against it, unchanged or changed as the pixels say, with the move from
+the old path to the new one named as the cause. `npx variance accept` writes the
+template's path and deletes the old pair, so the pull request shows each one as
+a rename. A config that still sets `baselines.layout` is refused with the path
+that comes closest: for `"beside"` that is
+`{dir}/__baselines__/{file}/{name}-{engine}`, and for `"flat"` the default.
 
 ---
 

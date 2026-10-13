@@ -85,22 +85,35 @@ export function claim(claims: Claims, key: BaselineKey, path: string, template: 
  * Refuse a path whose record says another subject's baseline is there.
  *
  * A record that names nobody was written before records did, and is not
- * checked: the in-memory claim is all it gets.
+ * checked: the in-memory claim is all it gets. Nor is one placed for a project
+ * the runner no longer has, when the caller says which it has: no run will
+ * place for that project again, so its record is a renamed project's baseline,
+ * and the project that took its place takes it over.
  */
 export function refuseOccupied(
   record: PlacedFor | undefined,
   key: BaselineKey,
   path: string,
   template: BaselinePathTemplate,
+  projects?: ReadonlySet<string>,
 ): void {
   const placed = placedForOf(key);
   if (record === undefined || same(record, placed)) return;
+  if (record.project !== undefined && projects !== undefined && !projects.has(record.project)) return;
   throw new RasterStoreError(
     `the baseline at ${path} was accepted for ${named(record)}, and ${named(placed)} places its ` +
       `baseline at the same path under baselines.path ${JSON.stringify(template.source)}; ` +
-      `one file cannot hold two baselines. ${remedy(record, placed)} If ${JSON.stringify(placed.subject)} ` +
-      `is ${JSON.stringify(record.subject)} renamed, delete ${path}.png and ${path}.json and accept again.`,
+      `one file cannot hold two baselines. ${remedy(record, placed)} ${renamed(record, placed, path)}`,
   );
+}
+
+/** The other way out: the record's holder is this key under its old name. */
+function renamed(record: PlacedFor, placed: PlacedFor, path: string): string {
+  const was =
+    record.subject !== placed.subject
+      ? `${JSON.stringify(placed.subject)} is ${JSON.stringify(record.subject)} renamed`
+      : `project ${JSON.stringify(placed.project ?? '')} is ${JSON.stringify(record.project ?? '')} renamed`;
+  return `If ${was}, delete ${path}.png and ${path}.json and accept again.`;
 }
 
 function named(placed: PlacedFor): string {

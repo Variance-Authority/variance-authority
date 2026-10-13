@@ -1,6 +1,6 @@
 // compass: variance-authority.retention
 
-import { mkdir, readdir, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { dirname, join, posix } from 'node:path';
 import {
   digestFileName,
@@ -13,6 +13,8 @@ import {
 } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import {
+  REFUSAL,
+  RasterStoreError,
   neverFails,
   type BaselineKey,
   type Described,
@@ -21,7 +23,7 @@ import {
   type Relocated,
 } from '@variance-authority/raster';
 import { orAbsent } from './absent.js';
-import { claim, placedForOf, refuseOccupied, type Claims } from './claims.js';
+import { claim, placedForIn, placedForOf, refuseOccupied, type Claims, type PlacedFor } from './claims.js';
 import { held } from './held.js';
 import { legacyHolders, partitionsOf } from './legacy.js';
 import { familyOf, identities, nearness } from './line.js';
@@ -33,6 +35,13 @@ import { DEFAULT_BASELINE_PATH, parseBaselinePath, sanitized } from './path-temp
  * store exists, with the same sentence the store would throw.
  */
 export { DEFAULT_BASELINE_PATH, parseBaselinePath, type BaselinePathTemplate } from './path-template.js';
+
+/**
+ * Re-exported because `{engine}` is spelled with it: a reader that matches a
+ * file to the template — doctor's count of placed baselines — asks the store
+ * which family an engine is rather than slicing the string a second way.
+ */
+export { familyOf } from './line.js';
 
 /**
  * Re-exported because the bound on the render cache is only meaningful to
@@ -103,6 +112,14 @@ export interface DurableStoreOptions {
    * know the root is tracked set it to {@link renderCacheIn}.
    */
   readonly cacheRoot?: string;
+
+  /**
+   * The runner's projects, by name, when it has them: a Playwright config's
+   * `projects`. A record placed for a project outside them is a renamed
+   * project's baseline, taken over rather than refused as a second claimant.
+   * Unset, every record that names another project is refused.
+   */
+  readonly projects?: readonly string[];
 }
 
 /** A pair a lookup may read, and what reading it would mean. */
@@ -120,6 +137,9 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
   const cacheRoot = options.cacheRoot ?? root;
   const recordRoot = options.recordRoot ?? root;
   const template = parseBaselinePath(options.path ?? DEFAULT_BASELINE_PATH);
+  const projects = options.projects === undefined ? undefined : new Set(options.projects);
+  const occupied = (record: PlacedFor | undefined, key: BaselineKey, path: string): void =>
+    refuseOccupied(record, key, path, template, projects);
   const at = (path: string): Places => ({ image: join(root, path), record: join(recordRoot, path) });
 
   // Every path this store has answered for, against the key it answered for.
@@ -132,9 +152,15 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
   };
 
   /**
-   * The old layout's pairs for this key, nearest identity first. Only the ones
-   * a write retires are reported as moved; the rest are another engine's, and
-   * stay where they are.
+   * The old layout's pairs for this key, nearest identity first. The ones this
+   * engine family's path now answers for are reported as moved; the rest are
+   * another engine's, and stay where they are.
+   *
+   * A write retires fewer: only the pairs on this machine's own line. A pair at
+   * another scale or on another platform may be the approved baseline of
+   * another Playwright project, or of the other machine, and that project's
+   * first run after the upgrade still reads it. Removing it on this accept
+   * would lose it before any record names who it was placed for.
    */
   const legacy = async (key: BaselineKey, mine: RenderIdentity) => {
     const pairs: { path: string; near: number }[] = [];
@@ -147,7 +173,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
     }
     return pairs
       .sort((a, b) => a.near - b.near)
-      .map((pair) => ({ path: pair.path, moves: !template.hasEngine || pair.near < 3 }));
+      .map((pair) => ({ path: pair.path, moves: !template.hasEngine || pair.near < 3, retires: pair.near <= 1 }));
   };
 
   /** Other engines' files at this key's path, when the path names the engine. */
@@ -183,6 +209,28 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
     for (const pair of old) if (!pair.moves) yield { places: at(pair.path) };
   }
 
+  /** Create a record nobody held, or refuse when another writer created it first. */
+  async function create(file: string, record: string, key: BaselineKey, path: string): Promise<void> {
+    try {
+      await writeFile(file, record, { encoding: 'utf8', flag: 'wx' });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      // Read raw: the other writer's image may not be there yet, and its
+      // record may be half written, which says nobody's name yet.
+      let theirs: unknown;
+      try {
+        theirs = JSON.parse(await readFile(file, 'utf8')) as unknown;
+      } catch (cause) {
+        throw new RasterStoreError(
+          `another writer created the baseline at ${path} while this one was accepting it for ` +
+            `subject ${JSON.stringify(key.subject)}. ${REFUSAL}.`,
+          { cause },
+        );
+      }
+      occupied(placedForIn(theirs), key, path);
+    }
+  }
+
   async function lookup<T extends { readonly identity: RenderIdentity }>(
     key: BaselineKey,
     mine: RenderIdentity,
@@ -195,7 +243,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
       const stored = rest as unknown as T;
       // Only this key's own path. The old layout's pairs are filed by the
       // subject id, and another engine's file is told apart by its engine below.
-      if (candidate.own !== undefined) refuseOccupied(placedFor, key, candidate.own, template);
+      if (candidate.own !== undefined) occupied(placedFor, key, candidate.own);
       // `Primary-dark-chromium` fits `Primary-*` too; the record says whose it is.
       if (candidate.engine !== undefined && sanitized(familyOf(stored.identity.engine)) !== candidate.engine) continue;
       return {
@@ -246,8 +294,14 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
       const path = placed(key, raster.identity);
       const places = at(path);
       // Before anything is written: a refused accept leaves the tree as it was.
-      refuseOccupied((await readSidecar(places).catch(() => null))?.placedFor, key, path, template);
+      const before = await readSidecar(places).catch(() => null);
+      occupied(before?.placedFor, key, path);
       await mkdir(dirname(places.record), { recursive: true });
+      const record = `${JSON.stringify({ ...raster, bytes: undefined, placedFor: placedForOf(key) }, null, 2)}\n`;
+      // A path nobody held is taken by creating its record, so of two workers
+      // that both read nothing there, the second is refused by name rather than
+      // overwriting the first.
+      if (before === null) await create(`${places.record}.json`, record, key, path);
       // No image for a subject that has none: the sidecar alone is the whole
       // baseline, and an image left from an earlier accept would contradict it.
       if (raster.bytes === undefined) await rm(`${places.image}.png`, { force: true });
@@ -255,12 +309,11 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
         await mkdir(dirname(places.image), { recursive: true });
         await writeFile(`${places.image}.png`, Buffer.from(raster.bytes, 'base64'));
       }
-      const record = { ...raster, bytes: undefined, placedFor: placedForOf(key) };
-      await writeFile(`${places.record}.json`, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
+      await writeFile(`${places.record}.json`, record, 'utf8');
       // Written first, then the old copy removed, so a write that dies between
       // the two leaves a baseline twice rather than nowhere. The pull request
       // shows the pair moving, which is what the upgrade did.
-      for (const pair of await legacy(key, raster.identity)) if (pair.moves) await retire(at(pair.path));
+      for (const pair of await legacy(key, raster.identity)) if (pair.retires) await retire(at(pair.path));
     },
 
     expect(keys): void {

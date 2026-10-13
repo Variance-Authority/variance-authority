@@ -538,9 +538,21 @@ runs:
         if [ -z "$VARIANCE_PATHSPECS" ]; then
           git add -- "$VARIANCE_BASELINES"
         else
-          mapfile -t pathspecs <<< "$VARIANCE_PATHSPECS"
-          git ls-files -z --cached --others --exclude-standard -- "${pathspecs[@]}" \
-            | git add -A --pathspec-from-file=- --pathspec-file-nul
+          # A read loop, not `mapfile`: a self-hosted macOS runner's bash is 3.2.
+          pathspecs=()
+          while IFS= read -r spec; do
+            if [ -n "$spec" ]; then pathspecs+=("$spec"); fi
+          done <<< "$VARIANCE_PATHSPECS"
+          listed="$(mktemp)"
+          if [ "${#pathspecs[@]}" -gt 0 ]; then
+            git ls-files -z --cached --others --exclude-standard -- "${pathspecs[@]}" > "$listed"
+          fi
+          # Only a list with something in it: `git add` given no pathspec at
+          # all stages the whole tree. Literal, because a listed file name is
+          # a name, and `Primary[1]` read as a pattern is another file.
+          if [ -s "$listed" ]; then
+            git --literal-pathspecs add -A --pathspec-from-file="$listed" --pathspec-file-nul
+          fi
         fi
 
         if git diff --cached --quiet; then

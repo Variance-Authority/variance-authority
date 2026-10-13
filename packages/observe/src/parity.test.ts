@@ -195,7 +195,10 @@ const IMPLEMENTATIONS: readonly { readonly name: string; open(): Promise<RasterS
     async open(): Promise<RasterStore> {
       const db = await createSqliteD1();
       databases.push(db);
-      return createBucketStore({ db, bucket: createMemoryR2(), project: 'parity' });
+      // A clock that moves between accepts, as one does between two runs: the
+      // last accept is told apart by when it was made.
+      let tick = Date.parse('2026-01-01T00:00:00Z');
+      return createBucketStore({ db, bucket: createMemoryR2(), project: 'parity', now: () => new Date((tick += 1000)) });
     },
   },
 ];
@@ -389,6 +392,40 @@ describe('switching where baselines are kept', () => {
       bucket: ['Inter'],
     });
   });
+
+  it('reads the last accept on this engine family when two machines both accept', async () => {
+    // A laptop accepts, then CI accepts the same subject. A file keeps one
+    // baseline per engine family, so the laptop now reads CI's, names the
+    // machine as the cause, and compares. A store that kept both and preferred
+    // the laptop's own would answer `unchanged` where the file answers with
+    // CI's image. Another engine's later accept is not this family's.
+    const WEBKIT: RenderIdentity = { ...MAC, renderer: 'playwright-webkit', engine: 'webkit@18.2' };
+    const answers: Record<string, unknown> = {};
+
+    for (const implementation of IMPLEMENTATIONS) {
+      const store = await implementation.open();
+      await store.put(at('s'), baseline(MAC));
+      await store.put(at('s'), baseline(RUNNER));
+      await store.put(at('s'), baseline(WEBKIT));
+
+      const found = await store.describe(at('s'), MAC);
+      answers[implementation.name] = { comparable: found?.comparable, storedUnder: found?.storedUnder };
+    }
+
+    const expected = { comparable: false, storedUnder: RUNNER };
+    expect(answers).toEqual({
+      durable: expected,
+      'durable, beside the code': expected,
+      'git-LFS': expected,
+      remote: expected,
+      bucket: expected,
+    });
+  });
+
+  // FIXME: the bucket store's rows and the remote store's keys carry no
+  // `project`, so two Playwright projects under `{project}` share one baseline
+  // there while a file store keeps two.
+  it.todo('two projects under {project} keep two baselines on every backend — needs `project` in the bucket row and the remote key');
 
   it('names the machine that wrote a baseline from another machine as the cause', async () => {
     // The verdict alone is not the deliverable. A wrong-machine run has to carry

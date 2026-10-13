@@ -333,6 +333,26 @@ describe('the render cache a directory store keeps', () => {
     await expect(readdir(byDocument(baselines))).rejects.toThrow();
   });
 
+  it('writes each baseline where `baselinePath` names it', async () => {
+    const baselines = join(root, 'baselines');
+    const commands = varianceCommands({
+      baselines,
+      baselinePath: '__baselines__/{title}/{name}-{engine}',
+      renderer: fakeRenderer(),
+      accept: true,
+    });
+
+    await commands.varianceObserve(undefined, {
+      artifact: artifactFor('Button > renders primary'),
+      titlePath: ['Button', 'renders primary'],
+    });
+
+    expect(await readdir(join(baselines, '__baselines__/Button'))).toEqual([
+      'renders-primary-fake.json',
+      'renders-primary-fake.png',
+    ]);
+  });
+
   it('bounds that cache when the run closes, the way `variance run` does', async () => {
     const stale = join(byDocument(join(cache, 'renders')), 'v1:stale');
     await mkdir(join(stale, '..'), { recursive: true });

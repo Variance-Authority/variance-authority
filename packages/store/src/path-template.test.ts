@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -218,6 +218,48 @@ describe('two subjects on one path', () => {
     await expect(mobile.find({ ...PRIMARY, project: 'mobile' }, { ...MAC, deviceScaleFactor: 2 })).rejects.toThrow(
       /"desktop".*"mobile".*\{project\}/s,
     );
+  });
+
+  it('takes over the baseline a renamed project left, and still refuses a project that runs', async () => {
+    // `mobile` was renamed `narrow`: no run will place for `mobile` again, so
+    // its record is stale, not a second claimant.
+    await createDurableStore(root).put({ ...PRIMARY, project: 'mobile' }, rasterOf(MAC));
+    const renamed = createDurableStore(root, { projects: ['desktop', 'narrow'] });
+
+    expect((await renamed.find({ ...PRIMARY, project: 'narrow' }, MAC))?.comparable).toBe(true);
+    await renamed.put({ ...PRIMARY, project: 'narrow' }, rasterOf(MAC));
+
+    const running = createDurableStore(root, { projects: ['desktop', 'narrow'] });
+    await expect(running.find({ ...PRIMARY, project: 'desktop' }, MAC)).rejects.toThrow(/"narrow".*"desktop"/s);
+  });
+
+  it('refuses the second of two workers that both write a path nobody held, and keeps the first', async () => {
+    // Neither read a record, so neither refused on reading: the write itself
+    // must be the claim, or the last one to finish overwrites the first.
+    const outcomes = await Promise.allSettled([
+      createDurableStore(root).put(PRIMARY, rasterOf(MAC, 'v1:a')),
+      createDurableStore(root).put(twin, rasterOf(MAC, 'v1:b')),
+    ]);
+
+    const refused = outcomes.filter((outcome) => outcome.status === 'rejected');
+    expect(refused).toHaveLength(1);
+    expect((refused[0] as PromiseRejectedResult).reason).toBeInstanceOf(RasterStoreError);
+    const winner = outcomes[0]!.status === 'fulfilled' ? PRIMARY : twin;
+    expect((await createDurableStore(root).find(winner, MAC))?.comparable).toBe(true);
+  });
+
+  it('does not check a record written before records named their subject', async () => {
+    // Such a record carries no claim to compare against; the store's own
+    // in-memory claim is all it gets, and the next accept stamps it.
+    const store = createDurableStore(root);
+    await store.put(PRIMARY, rasterOf(MAC));
+    const record = join(root, 'Components/Button/Primary-chromium.json');
+    const { placedFor: _, ...unnamed } = JSON.parse(await readFile(record, 'utf8')) as Record<string, unknown>;
+    await writeFile(record, JSON.stringify(unnamed));
+
+    expect((await createDurableStore(root).find(twin, MAC))?.comparable).toBe(true);
+    await createDurableStore(root).put(twin, rasterOf(MAC));
+    expect(JSON.parse(await readFile(record, 'utf8'))).toMatchObject({ placedFor: { subject: twin.subject } });
   });
 
   it('folds case, because a checkout on macOS does, and names both spellings', async () => {

@@ -157,7 +157,8 @@ export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore
 
   const placed = options.path === undefined ? {} : { path: options.path };
   const records = options.recordRoot === undefined ? {} : { recordRoot: options.recordRoot };
-  const baselines = createDurableStore(options.root, { ...placed, ...records });
+  const projects = options.projects === undefined ? {} : { projects: options.projects };
+  const baselines = createDurableStore(options.root, { ...placed, ...records, ...projects });
   // No `records` and no `path` for the cache: it is keyed by document digest
   // and names no subject, and its records are as regenerable as its images.
   const cache = options.cacheRoot === undefined ? baselines : createDurableStore(options.cacheRoot);

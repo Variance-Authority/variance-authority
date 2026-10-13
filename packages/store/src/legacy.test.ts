@@ -99,3 +99,20 @@ describe('a baseline the beside layout kept', () => {
     );
   });
 });
+
+describe('an accept on an upgraded repository', () => {
+  it('retires only its own line`s old pair: another scale is another project`s baseline', async () => {
+    const retina: RenderIdentity = { ...MAC, deviceScaleFactor: 2 };
+    const leaf = fileNameFor(PRIMARY.subject);
+    await legacyPair(root, leaf, rasterOf(MAC));
+    const kept = await legacyPair(root, leaf, rasterOf(retina));
+    const path = '{project}/{title}/{name}-{engine}';
+
+    await createDurableStore(root, { path }).put({ ...PRIMARY, project: 'desktop' }, rasterOf(MAC));
+
+    expect((await readdir(kept)).sort()).toEqual([`${leaf}.json`, `${leaf}.png`]);
+    const found = await createDurableStore(root, { path }).find({ ...PRIMARY, project: 'retina' }, retina);
+    expect(found?.comparable).toBe(true);
+    expect(found?.relocated?.to).toBe('retina/Components/Button/Primary-chromium');
+  });
+});

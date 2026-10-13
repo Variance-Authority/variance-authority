@@ -3410,6 +3410,7 @@
         "RenderCacheBound": "interface",
         "RenderCacheSwept": "interface",
         "createDurableStore": "function",
+        "familyOf": "function",
         "parseBaselinePath": "function",
         "renderCacheIn": "function",
         "sweepRenderCache": "function"

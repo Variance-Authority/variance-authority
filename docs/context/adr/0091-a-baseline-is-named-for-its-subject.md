@@ -70,7 +70,9 @@ renders what the subject is; the record says what painted it.**
    every lookup and write. The record names the key it was placed for
    (`placedFor`: subject, label, project), so a store that never saw the other
    key — a shard, a Playwright worker, a later run — refuses on reading or
-   writing the path too; a record from before has none and is not checked. The
+   writing the path too; a record from before has none and is not checked, and
+   a record whose project the config no longer runs is a renamed project's and
+   is taken over. The
    error names the token that tells the two apart, `{project}` when only the
    projects differ, and for a subject that is the other renamed, deleting the
    pair. Nothing is renumbered: a suffix decided by plan order hands an
@@ -86,7 +88,9 @@ renders what the subject is; the record says what painted it.**
    reports `relocated {from, to}`; the verdict is unchanged or changed, never
    `new`, and the move is in `because`. A write puts the pair at the template's
    path and then retires the old one, so the accepting pull request shows a
-   rename. A relocated subject is rendered rather than settled, because a
+   rename. Only a pair of the writer's own identity or line (ADR-0090) is
+   retired: a pair another machine painted is that machine's baseline until it
+   accepts. A relocated subject is rendered rather than settled, because a
    settled subject produces no observation for an accept to move.
 6. **The template is parsed once and delegated.** `createLfsStore` computes no
    path; its `.gitattributes` pattern and the commit-back pathspecs come from
@@ -103,7 +107,9 @@ renders what the subject is; the record says what painted it.**
   the same file, and the last accept wins; the other reads it as `changed` with
   the platform named. ADR-0090 §6's "a laptop and a Linux runner keep one each"
   no longer holds. The advice it already gave — one pinned painter for laptop
-  and CI — is now the only arrangement that does not alternate.
+  and CI — is now the only arrangement that does not alternate. Alternating
+  accepts rewrite the record each time, pixels moved or not; a `records` root
+  outside version control keeps that out of the diff.
 - **Two Playwright projects that differ only in scale factor, colour scheme or
   viewport render one path.** Colour scheme and viewport were never in the
   identity, so those projects already shared a directory and overwrote each
@@ -122,7 +128,9 @@ renders what the subject is; the record says what painted it.**
   `**/__baselines__/*/*-*.png` for collocation. A glob with no literal
   directory at a root of `.` would take every hyphenated PNG in the
   repository, so the config refuses it and names `__baselines__`, a root of
-  its own, or an explicit `baselines.pattern`.
+  its own, or an explicit `baselines.pattern`. `directory` at `.` is refused on
+  the same template, because the commit-back stages what the glob names. Every
+  existing LFS root gets a new `.gitattributes` line the next time a run opens it.
 - **`packages/observe/src/parity.test.ts` runs a collocated durable store**
   beside the four backends, and asserts the one answer ADR-0016 requires.
 
