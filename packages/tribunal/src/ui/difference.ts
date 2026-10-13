@@ -113,7 +113,7 @@ export function useDifference(
       setMade(undefined);
       if (url !== undefined) URL.revokeObjectURL(url);
     };
-  }, [client, build, subject.subject, key, computable]);
+  }, [client, build, subject.subject, computable]);
 
   if (stored !== undefined) return { state: 'ready', value: stored };
   if (!computable) return undefined;
