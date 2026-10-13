@@ -395,8 +395,8 @@ function Crop({
   const shown = (layer: Layer): boolean => shows(subject, layer);
   const srcOf = (layer: Layer): string | undefined =>
     layer === 'diff'
-      ? difference?.state === 'made'
-        ? difference.url
+      ? difference?.state === 'ready'
+        ? difference.value
         : undefined
       : client.imageUrl(build, subject.subject, layer);
 

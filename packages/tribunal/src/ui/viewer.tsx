@@ -196,10 +196,10 @@ export function Viewer({
    * when it arrives.
    */
   const waiting =
-    mode !== 'difference' || difference?.state === 'made'
+    mode !== 'difference' || difference?.state === 'ready'
       ? undefined
       : difference?.state === 'failed'
-        ? `This page could not compute the difference mask: ${difference.reason}`
+        ? `This page could not compute the difference mask: ${difference.why}`
         : 'Working out the difference…';
   const boxes =
     mode === 'side-by-side' ? null : (
@@ -301,8 +301,8 @@ export function Viewer({
             {mode === 'difference' ? (
               // Already in the union's coordinates: the mask is what the
               // comparison drew, on the box it padded both captures to.
-              difference?.state === 'made' ? (
-                <Raster src={difference.url} alt={`${subject.subject} difference mask`} />
+              difference?.state === 'ready' ? (
+                <Raster src={difference.value} alt={`${subject.subject} difference mask`} />
               ) : null
             ) : (
               <>

@@ -5,7 +5,8 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { diffImage } from '@variance-authority/png';
 import { createReviewClient } from './client.js';
-import { decodeBlob, differenceOf, hasDifference, useDifference, type Difference } from './difference.js';
+import { decodeBlob, differenceOf, hasDifference, useDifference } from './difference.js';
+import type { Loaded } from './shell.js';
 
 /**
  * The mask the reviewer sees, held to the mask the run measured.
@@ -183,7 +184,7 @@ describe('the mask, as the page holds it', () => {
     // test of that state is in `failed-mask.test.tsx`.
     const client = serving(BEFORE, AFTER);
     const subject = { subject: 'story:card', has: { before: true, after: true, diff: false } };
-    const held: (Difference | undefined)[] = [];
+    const held: (Loaded<string> | undefined)[] = [];
     const revoked: string[] = [];
     const url = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
     URL.createObjectURL = () => 'blob:made';
@@ -207,8 +208,8 @@ describe('the mask, as the page holds it', () => {
       URL.revokeObjectURL = url.revoke;
     }
 
-    expect(held[0]).toEqual({ state: 'making' });
-    expect(held.at(-1)).toEqual({ state: 'made', url: 'blob:made' });
+    expect(held[0]).toEqual({ state: 'loading' });
+    expect(held.at(-1)).toEqual({ state: 'ready', value: 'blob:made' });
     expect(revoked).toEqual(['blob:made']);
   });
 });
@@ -226,7 +227,7 @@ describe('the mask of one subject, read while showing another', () => {
           : await new Promise<Response>(() => undefined)) as typeof globalThis.fetch,
     });
     const has = { before: true, after: true, diff: false };
-    const held: (Difference | undefined)[] = [];
+    const held: (Loaded<string> | undefined)[] = [];
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
     function Probe({ subject }: { readonly subject: string }): null {
@@ -246,7 +247,7 @@ describe('the mask of one subject, read while showing another', () => {
     act(() => root.unmount());
 
     const after = held.slice(before).map((each) => each?.state);
-    expect(after[0]).toBe('making');
+    expect(after[0]).toBe('loading');
     expect(after).not.toContain('failed');
   });
 
@@ -263,7 +264,7 @@ describe('the mask of one subject, read while showing another', () => {
           : new Response('gone', { status: 404 })) as typeof globalThis.fetch,
     });
     const has = { before: true, after: true, diff: false };
-    const held: (Difference | undefined)[] = [];
+    const held: (Loaded<string> | undefined)[] = [];
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
     function Probe({ subject }: { readonly subject: string }): null {

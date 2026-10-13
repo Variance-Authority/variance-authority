@@ -296,12 +296,12 @@ const strip = (
   appearances: readonly Appearance[],
   play: Play,
   openable = true,
-  through: ReviewClient = client,
+  using: ReviewClient = client,
 ): Story => ({
   parameters: { width: 760 },
   render: () => (
     <Look
-      client={through}
+      client={using}
       build={CHANGED}
       component={button.component}
       appearances={appearances}

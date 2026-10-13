@@ -37,6 +37,7 @@
 import { useEffect, useState } from 'react';
 import { differencePixels, type DecodedImage, type PixelDifference } from '@variance-authority/png/mask';
 import type { ReviewClient } from './client.js';
+import { messageOf, type Loaded } from './shell.js';
 
 /** What this needs of a subject: its name, and what the build actually kept. */
 export interface Comparable {
@@ -60,21 +61,14 @@ export function hasDifference(subject: Comparable): boolean {
 }
 
 /**
- * The difference mask, or where its making stands.
+ * The difference mask's URL, computed if the build did not keep one.
  *
- * `making` and `failed` are separate states because they ask opposite things of
- * a reviewer: one is worth waiting for, and the other never arrives. `reason` is
- * the rejection's own message, such as which capture the service refused.
- */
-export type Difference =
-  | { readonly state: 'made'; readonly url: string }
-  | { readonly state: 'making' }
-  | { readonly state: 'failed'; readonly reason: string };
-
-/**
- * The difference mask, computed if the build did not keep one.
+ * Loading and failed are separate states because they ask opposite things of a
+ * reviewer: one is worth waiting for, and the other never arrives. A failure's
+ * `why` is the rejection's own message, such as which capture the service
+ * refused.
  *
- * A mask the build kept is made from the start, wanted or not: it is a URL, and
+ * A mask the build kept is ready from the start, wanted or not: it is a URL, and
  * nothing is fetched until an image asks for it. Otherwise `undefined` while
  * `wanted` is false, and for a subject with nothing to compare: nothing is
  * decoded for a mode nobody opened. The object URL is revoked when the
@@ -87,12 +81,12 @@ export function useDifference(
   build: string,
   subject: Comparable,
   wanted = true,
-): Difference | undefined {
+): Loaded<string> | undefined {
   const stored = subject.has.diff ? client.imageUrl(build, subject.subject, 'diff') : undefined;
   // Held with the subject it is for: the effect that clears it runs after the
   // frame that switched subject, and that frame would show the last one's state.
   const key = `${build}\u0000${subject.subject}`;
-  const [made, setMade] = useState<{ readonly key: string; readonly difference: Difference }>();
+  const [made, setMade] = useState<{ readonly key: string; readonly difference: Loaded<string> }>();
 
   const computable = stored === undefined && wanted && hasDifference(subject);
 
@@ -106,12 +100,11 @@ export function useDifference(
       (blob) => {
         if (dropped) return;
         url = URL.createObjectURL(blob);
-        setMade({ key, difference: { state: 'made', url } });
+        setMade({ key, difference: { state: 'ready', value: url } });
       },
       (error: unknown) => {
         if (dropped) return;
-        const reason = error instanceof Error ? error.message : String(error);
-        setMade({ key, difference: { state: 'failed', reason } });
+        setMade({ key, difference: { state: 'failed', why: messageOf(error) } });
       },
     );
 
@@ -122,9 +115,9 @@ export function useDifference(
     };
   }, [client, build, subject.subject, key, computable]);
 
-  if (stored !== undefined) return { state: 'made', url: stored };
+  if (stored !== undefined) return { state: 'ready', value: stored };
   if (!computable) return undefined;
-  return made?.key === key ? made.difference : { state: 'making' };
+  return made?.key === key ? made.difference : { state: 'loading' };
 }
 
 /** Both captures, decoded, differenced and encoded — the whole of the work. */
