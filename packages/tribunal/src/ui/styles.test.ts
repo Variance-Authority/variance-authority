@@ -60,6 +60,13 @@ describe('REVIEW_STYLES', () => {
     }
   });
 
+  it('parts the unattributed approvals from the changes only where both are drawn', () => {
+    // The rule is a divider. On the section itself it divided the page's heading
+    // from nothing whenever no shape grouped an approval.
+    expect(RULES.find((rule) => rule.selector === '.va-ungrouped')?.body ?? '').not.toContain('border-top');
+    expect(RULES.find((rule) => rule.selector === '.va-changes + .va-ungrouped')?.body).toContain('border-top');
+  });
+
   it('keeps the name of a comparison mode on one line, whatever it is called', () => {
     // The labels are set in small uppercase mono with letter spacing, so `side by
     // side` is three words the pill will break across three lines the moment the

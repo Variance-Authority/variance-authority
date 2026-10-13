@@ -152,11 +152,13 @@ export function ChangelogEntries({
 
   return (
     <>
-      <ol className="va-changes">
-        {log.changes.map((change) => (
-          <ChangeEntry key={change.fingerprint} change={change} />
-        ))}
-      </ol>
+      {log.changes.length === 0 ? null : (
+        <ol className="va-changes">
+          {log.changes.map((change) => (
+            <ChangeEntry key={change.fingerprint} change={change} />
+          ))}
+        </ol>
+      )}
 
       {log.ungrouped.length === 0 ? null : (
         <section className="va-ungrouped">

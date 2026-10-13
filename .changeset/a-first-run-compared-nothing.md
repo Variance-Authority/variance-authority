@@ -26,3 +26,5 @@ Smaller corrections on the same page:
   rail's rows and the change page's renders) are drawn in the page's ink, and
   every other link in its accent, never the browser's blue or visited purple.
 - The settled fold is no longer drawn in the build list's bold green.
+- A changelog whose approvals no shape grouped no longer opens on a divider
+  with nothing above it.

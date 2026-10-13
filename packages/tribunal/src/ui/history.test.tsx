@@ -181,6 +181,18 @@ describe('the changelog groups by shape and still counts what it could not group
     expect(markup).not.toContain('ephemeral');
   });
 
+  it('opens on the unattributed approvals when no shape grouped any, with no list above them', () => {
+    // An empty list of changes is not a section, and the rule that parts the two
+    // lists drew a line under nothing at the top of the page.
+    const markup = renderToStaticMarkup(<ChangelogEntries log={{ changes: [], ungrouped: log.ungrouped }} />);
+
+    expect(markup).toContain('1 approved without an attributed shape');
+    expect(markup).not.toContain('va-changes');
+    // With both lists, the section sits right after the list, where
+    // `.va-changes + .va-ungrouped` draws the divider.
+    expect(renderToStaticMarkup(<ChangelogEntries log={log} />)).toContain('</ol><section class="va-ungrouped">');
+  });
+
   it('says nothing has been approved rather than rendering an empty list', () => {
     const markup = renderToStaticMarkup(<ChangelogEntries log={{ changes: [], ungrouped: [] }} />);
 

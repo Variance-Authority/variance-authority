@@ -411,7 +411,8 @@ ${DOCKET_STYLES}
 .va-change-meta, .va-fingerprint { color: var(--va-ink-3); font-size: 0.82rem; }
 .va-fingerprint { border-top: 1px solid var(--va-line); margin-top: 0.65rem; padding-top: 0.55rem; }
 .va-change-subjects { color: var(--va-ink-2); columns: 3 14rem; font-size: 0.84rem; margin-top: 0.4rem; }
-.va-ungrouped { border-top: 1px solid var(--va-line-firm); margin-top: 1.75rem; padding-top: 1.25rem; }
+/* A divider between the two lists, so only where both are drawn. */
+.va-changes + .va-ungrouped { border-top: 1px solid var(--va-line-firm); margin-top: 1.75rem; padding-top: 1.25rem; }
 
 /* The three stability states are drawn as three, deliberately: unknown is not
    clean, and a rate nobody swept for is not a rate of zero. */
