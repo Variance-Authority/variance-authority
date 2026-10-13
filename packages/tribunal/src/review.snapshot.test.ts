@@ -85,8 +85,11 @@ describe('a push of an unchanged subject whose baseline kept no snapshot', () =>
   });
 
   it('reads the identity the candidate was painted under, as an approval does', async () => {
+    // The build names another identity than the candidate does, so only the
+    // candidate's reaches the baseline's row.
     await approved();
-    await review.ingest(withAfter('ci-1002', { snapshot: PUSHED, identity: IDENTITY }));
+    const pushed = withAfter('ci-1002', { snapshot: PUSHED, identity: IDENTITY });
+    await review.ingest({ ...pushed, report: { ...pushed.report, identity: { ...IDENTITY, deviceScaleFactor: 2 } } });
 
     expect((await standing()).found?.raster.snapshot).toBe(PUSHED);
   });
@@ -144,6 +147,15 @@ describe('a push of an unchanged subject whose baseline kept no snapshot', () =>
     await review.ingest(withAfter('ci-1002', { snapshot: PUSHED }));
 
     expect((await standing()).found?.raster.snapshot).toBe(KEPT);
+  });
+
+  it('records over text the baseline kept that this code cannot read', async () => {
+    // A baseline that kept text with no header keeps none: `settle` renders it
+    // for one to be recorded, so this push is the one that records it.
+    await approved('v0:older');
+    await review.ingest(withAfter('ci-1002', { snapshot: PUSHED }));
+
+    expect((await standing()).found?.raster.snapshot).toBe(PUSHED);
   });
 
   it('records nothing this code cannot read', async () => {

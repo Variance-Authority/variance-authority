@@ -222,8 +222,9 @@ A subject whose document has not moved settles on its digest and builds no
 observation, so nothing would mark it. `settle` therefore renders a pictured
 baseline whose `keepsSnapshot` is `false` when this run has a snapshot to
 record, as it renders one painted under another identity. The cost is one
-render for each such subject until one accepting run re-stamps it; a suite of
-baselines accepted before this field renders in full once. A baseline with no
+render for each such subject on every run until an accepting run re-stamps it,
+or under tribunal on one run, whose push records it (below): a suite of
+baselines accepted before this field renders in full until then. A baseline with no
 pixels still settles, because no region is joined there. A run that collects
 no snapshot settles as before, because it would have none to record.
 
@@ -265,8 +266,10 @@ recorded it.
 - A store other than tribunal records an unchanged subject's snapshot only on
   an accepting run. Until one, each such subject renders on every run.
 - tribunal stores a snapshot whose text carries the header but will not unpack,
-  by approval or on the push, as kept. Nothing replaces it, and the subject's
-  changed reason says its baseline records none.
+  by approval or on the push, as kept. No push or settle replaces it, only
+  approving the subject's next change. That change's reason says its baseline
+  records none, and names as the remedy an accepting run on a revision where the
+  subject is unchanged, which settles it on its digest and records nothing.
 - Ignored subtrees are masked by their boxes in this render alone
   (`excludedBoxes` in `decide`). An ignored element that moved or shrank leaves
   pixels at its old box unmasked, and the baseline's snapshot now holds that

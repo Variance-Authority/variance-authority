@@ -65,7 +65,7 @@ run until an accepting run re-stamps them. Tribunal records one on ingest
 instead: a pushed candidate's snapshot is written onto a baseline that has an
 image and kept none, when it was painted from the same document under the same
 identity, and never over one it kept, so such a subject renders once. The
-snapshot's runtime fields (`provenance`, `wiring`, `holding`,
+snapshot's runtime fields (`provenance` and its `createdBy`, `wiring`, `holding`,
 `styleProvenance`, `styleTokens`, `ignoredBy`) are then the recording run's: the
 first push, from a build on any branch, that drew that document, as they are the
 accepting run's on a re-stamp. `Described.keepsSnapshot`
