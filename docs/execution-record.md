@@ -727,8 +727,11 @@ below is one stage of that call.
    and its reading lists the declared files in `effects`. A test that crossed the
    changed module through no importer the graph holds is listed in `unseen` and
    charged nothing. An importer whose text cannot be read charges its module,
-   or, with no row, every test step 6's walk finds behind it. `load` charges
-   the lines as step 4 does. Under `bodies`
+   or, with no row, every test step 6's walk finds behind it. A `load` the
+   parser gave charges the lines as step 4 does, and a line outside every
+   function is in the module's own region, which every test that loaded the
+   file ran; a `load` that `sideEffects` declared charges the module. Under
+   `bodies`
    or `values`, text inserted in a gap no region spans charges nothing. A file
    without `sourceAt`, whose hunks do not apply to the recorded text, whose
    text does not parse, or on a machine without the scanner's native addon is

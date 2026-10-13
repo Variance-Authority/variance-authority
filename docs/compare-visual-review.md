@@ -416,12 +416,14 @@ sign-in, and no permission model — the adapter you mount it behind authenticat
 the person and attaches the capability to each request. A designer clicking
 approve is a deployment you configure, not a seat you buy.
 
-**Approved baselines from another tool do not transfer.** A baseline here is a
-PNG plus a sidecar of per-component, per-band hashes, filed under the identity of
-the renderer that painted it. Images approved in a hosted service come with
-neither. `observeRasters` will compare two foreign images that declare the same
-painter, and a foreign image against a locally rendered candidate names the
-two painters as the cause of every pixel that moved.
+**Approved baselines from another tool are not imported into the store.** A
+baseline here is a PNG plus a sidecar of per-component, per-band hashes, filed
+under the identity of the renderer that painted it. Images approved in a hosted
+service come with neither, so the store has nothing to file them under. Their
+pixels are still comparable: `observeRasters` compares any two images, and when
+they come from different painters it names the painter that changed as the cause
+of whatever it finds. A different machine or browser is a reason to align the
+setup, not a reason to leave the image out.
 
 So your first run reports `new` on every subject, and that is the adoption moment
 rather than a failure: nothing has been compared yet. Open the report, check the

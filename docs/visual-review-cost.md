@@ -109,14 +109,14 @@ config:
 ---
 xychart-beta horizontal
   accTitle: Test files one one-line edit selects, by what reads the change
-  x-axis ["Zod, package graph", "Zod, import graph", "Zod, record", "Query, nx affected", "Query, import graph", "Query, record"]
+  x-axis ["Zod, package graph", "Zod, files that load it", "Zod, record", "Query, nx affected", "Query, files that load it", "Query, record"]
   y-axis "test files selected" 0 --> 210
-  bar [201, 131, 6, 168, 149, 10]
+  bar [201, 197, 6, 168, 149, 10]
 ```
 
 Recording cost those suites at most 8% of their run time, where V8 coverage on
-the same suites costs 26% to 30%. Over sixty real commits, at least half of Zod's
-test file runs and nearly four in five of TanStack Query's were skipped. A unit
+the same suites costs 26% to 30%. Over sixty real commits, 57% of Zod's test file
+runs and 93% of TanStack Query's were skipped. A unit
 test is the cheap case: a visual state costs a navigation and a paint, so each
 one skipped saves more, and your first run with `--since` counts its own skips.
 

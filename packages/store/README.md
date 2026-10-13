@@ -82,8 +82,8 @@ console.log(root);
 Two files under the root, in a directory named by a hash of the identity:
 
 ```
-<root>/v1:d9e2d62e05a69046dc75e1a987837b31/components%2FButton%2Fprimary__wide.png
-<root>/v1:d9e2d62e05a69046dc75e1a987837b31/components%2FButton%2Fprimary__wide.json
+<root>/v1-d9e2d62e05a69046dc75e1a987837b31/components%2FButton%2Fprimary__wide.png
+<root>/v1-d9e2d62e05a69046dc75e1a987837b31/components%2FButton%2Fprimary__wide.json
 ```
 
 The sidecar, verbatim:
