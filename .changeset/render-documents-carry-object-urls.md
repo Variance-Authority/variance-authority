@@ -22,6 +22,9 @@ revoked after the image loaded, keeps its URL and is reported as an
 paints nothing, such as jsdom, it is a warning, since no page there showed the
 picture.
 
-A `srcset` is now read by HTML's rule, where a URL is a run of anything but ASCII whitespace.
+A `srcset` is now read by HTML's rule, where a URL is a run of anything but
+ASCII whitespace and a descriptor's parentheses close at the first `)`.
 Splitting on every comma cut a `data:` candidate in two, and `referencedAssets`
-listed the second half as a file next to the page.
+listed the second half as a file next to the page; a no-break space inside a
+URL, and a comma after a parenthesised descriptor, are now read as HTML reads
+them too, so the asset key of such a `srcset` changes.

@@ -1,7 +1,6 @@
 import type { Diagnostic } from '@variance-authority/core/format';
 import { fileAttributes, srcsetCandidates } from './assets.js';
 import { URL_TOKEN } from './css-url.js';
-import { detectProfile } from './profile.js';
 
 /**
  * Images a page made from bytes it held, carried as those bytes.
@@ -65,6 +64,13 @@ export interface ObjectUrls {
 const OBJECT_URL = /^\s*blob:/i;
 
 /**
+ * `type/subtype`, the media type a `data:` URL may be written with. A blob's
+ * type is any printable text the page gave it, and written as given it could
+ * close the `url("…")` or the `<style>` holding it; parameters are dropped.
+ */
+const MEDIA_TYPE = /^[\w!#$&^.+-]+\/[\w!#$&^.+-]+/;
+
+/**
  * One reader per acquisition, so a URL named in markup, in a rule and in a
  * custom property is read once.
  *
@@ -72,18 +78,19 @@ const OBJECT_URL = /^\s*blob:/i;
  * file, an element's `style`, the rules the subject is painted with and the
  * values it inherits are all carried: a `background-image` set from script is
  * the same broken picture in the render as an `<img>` was.
+ *
+ * `painted` is whether this host paints, as the acquisition's profile says; it
+ * decides whether an unreadable URL is an error or a warning.
  */
-export function objectUrls(view: Window | null, pathAttribute: string): ObjectUrls {
+export function objectUrls(view: Window | null, pathAttribute: string, painted: boolean): ObjectUrls {
   const read = new Map<string, string | undefined>();
   const diagnostics: Diagnostic[] = [];
-  let painted: boolean | undefined;
 
   const carried = (url: string, place: string, nodePath: string | undefined): string => {
     if (!OBJECT_URL.test(url)) return url;
     if (!read.has(url)) read.set(url, dataUrlOf(url.trim(), view));
     const data = read.get(url);
     if (data !== undefined) return data;
-    painted ??= detectProfile(view).layout;
     diagnostics.push({
       severity: painted ? 'error' : 'warn',
       code: 'unreadable-object-url',
@@ -171,7 +178,7 @@ function dataUrlOf(url: string, view: Window | null): string | undefined {
     request.send();
     if (request.status !== 200) return undefined;
     text = request.responseText;
-    type = request.getResponseHeader('content-type') ?? '';
+    type = MEDIA_TYPE.exec(request.getResponseHeader('content-type') ?? '')?.[0] ?? '';
   } catch {
     // A revoked URL fails the request outright; nothing here can read it.
     return undefined;

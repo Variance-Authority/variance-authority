@@ -91,6 +91,9 @@ export function acquireDocument(root: Element, options: AcquireOptions): RenderD
   const ownerDocument = root.ownerDocument;
   const view = ownerDocument.defaultView;
   const diagnostics: Diagnostic[] = [];
+  // Asked once, before the tree is stamped: the inherited seed and the
+  // severity of an unreadable object URL both read it.
+  const profile = options.profile ?? detectProfile(view);
 
   // The flattened CSS is what a deferred renderer paints, so it asks the engine
   // about the pointing device for the same reason the capture does.
@@ -129,7 +132,7 @@ export function acquireDocument(root: Element, options: AcquireOptions): RenderD
     // read, wherever the document names it: markup, frame, rules or inherited
     // values. Each is carried as its bytes, or the deferred renderer paints a
     // broken image.
-    const urls = objectUrls(view, PATH_ATTRIBUTE);
+    const urls = objectUrls(view, PATH_ATTRIBUTE, profile.layout);
     const frame = frameOf(root, urls);
     settleStamps(stamped);
     // What a form holds now lives in properties `outerHTML` does not read: it is
@@ -144,8 +147,7 @@ export function acquireDocument(root: Element, options: AcquireOptions): RenderD
     );
     const inherited = Object.fromEntries(
       Object.entries(
-        options.inherited ??
-          inheritedSeed(root, options.profile ?? detectProfile(view), view, index),
+        options.inherited ?? inheritedSeed(root, profile, view, index),
       ).map(([property, value]) => [property, urls.inCss(value, `the inherited ${property}`)]),
     );
     diagnostics.push(...urls.diagnostics);

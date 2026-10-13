@@ -124,6 +124,15 @@ const PAGES: Readonly<Record<string, string>> = {
       sheet.textContent = '.tile{background-image:url("' + url + '")}';
       document.querySelector('main').prepend(sheet);`,
   ),
+  // A blob's type is any printable text; this one would close the `url("…")`
+  // and the sheet, were it written into the URL as given.
+  "/typed-held": `<!doctype html><html><head></head><body>${tile()}<script>
+      const bytes = Uint8Array.from(atob('${SQUARE}'), (c) => c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'image/png"); }</style><b>x</b>' }));
+      const sheet = document.createElement('style');
+      sheet.textContent = '.tile{background-image:url("' + url + '")}';
+      document.querySelector('main').prepend(sheet);
+    </script></body></html>`,
   "/seeded-held": holding(
     `<style>.tile{background-image:var(--tile)}</style>${tile()}`,
     "document.documentElement.style.setProperty('--tile', 'url(' + url + ')');",
@@ -151,6 +160,7 @@ const ROUTES: Readonly<Record<string, string>> = {
   "object/sheet": "/sheet",
   "object/sheet-held": "/sheet-held",
   "object/inner-held": "/inner-held",
+  "object/typed-held": "/typed-held",
   "object/seeded-held": "/seeded-held",
   "object/framed-held": "/framed-held",
 };
@@ -315,6 +325,12 @@ chromium_("a style that names an image a page made", () => {
     expect(html("inner-held")).not.toContain("blob:");
     expect(css("inner-held")).not.toContain("blob:");
     expect(bytes("inner-held")).toBe(bytes("sheet"));
+  });
+
+  it("writes a blob's type only as a media type, so a type cannot end the rule", () => {
+    expect(html("typed-held")).not.toContain("<b>");
+    expect(html("typed-held")).toContain(`url("data:image/png;base64,${SQUARE}")`);
+    expect(bytes("typed-held")).toBe(bytes("sheet"));
   });
 
   it("paints the background a custom property on the root named through an object URL", () => {

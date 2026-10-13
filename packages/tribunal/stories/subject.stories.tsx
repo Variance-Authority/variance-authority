@@ -88,8 +88,8 @@ function when(root: HTMLElement, what: string, enough: () => boolean): Promise<v
 /**
  * Every image under `root` decoded, so the photograph is not of a frame mid-load.
  *
- * An image that will not decode fails the story, named by its `alt`: its
- * photograph would be of a broken frame, and would pass.
+ * An image that will not decode fails the story, named by its `alt`, or its `src`
+ * when it has none: its photograph would be of a broken frame, and would pass.
  */
 const decoded: Play = async ({ canvasElement }) => {
   await replayed();
