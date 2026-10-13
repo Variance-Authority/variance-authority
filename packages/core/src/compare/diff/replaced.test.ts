@@ -46,6 +46,24 @@ describe('an element whose tag changed', () => {
     expect(result.roots.map((root) => root.label)).toEqual(['Toggle']);
   });
 
+  it('bands what the new element looks like with the tag change, not as a value that moved', () => {
+    // A `token` delta says a style value moved while structure held. Across two
+    // tags structure did not hold: the border is the `<div>`'s, not an edit to
+    // the checkbox's, and a token report or a token ignore rule must not read it.
+    const toggle = { owners: [{ name: 'Toggle' }], createdBy: 'Toggle' };
+    const row = (control: ReturnType<typeof node>) =>
+      capture({ root: node({ tag: 'li', owners: [{ name: 'TodoItem' }], createdBy: 'TodoItem', children: [control] }) });
+
+    const result = diff(
+      row(node({ tag: 'input', role: 'checkbox', name: 'Done', ...toggle })),
+      row(node({ tag: 'div', rules: [{ selector: '.toggle', declare: { border: '1px solid' } }], ...toggle })),
+    );
+    const styles = result.deltas.filter((delta) => delta.kind === 'style-changed');
+
+    expect(styles.length).toBeGreaterThan(0);
+    expect(new Set(styles.map((delta) => delta.band))).toEqual(new Set(['geometry']));
+  });
+
   it('says the tag changed on a pair its role and name joined', () => {
     // `matchKey` pairs one role and name across tags, so a native button and a
     // `div` with the button role are one node. Its box and its name did not move;

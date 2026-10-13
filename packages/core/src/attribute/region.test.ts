@@ -326,6 +326,55 @@ describe('a region that spans what left and what arrived', () => {
 
     expect(attributed!.component).toBe('Row');
   });
+
+  it('reads the boxes that left from their own image when the shots are clipped to the subject', () => {
+    // A banner above the subject grew by 100px. Each shot starts at its own
+    // root, so the pixels line up and only the page-space boxes moved.
+    const lower = snapshotOf(
+      node('0', { ...ROW, y: ROW.y + 100 }, {
+        provenance: row,
+        children: [node('0/0', { x: 29, y: 320.75, width: 16, height: 16 }, { tag: 'input', role: 'checkbox', name: 'Done', ...toggle })],
+      }),
+    );
+
+    const [attributed] = attributeRegions([REGION], AFTER, { scale: 1, before: lower });
+
+    expect(attributed!.component).toBe('Toggle');
+  });
+
+  it('reads them from the corner a caller states for the before image', () => {
+    // Both shots clipped to a box the caller reads, each in its own place.
+    const lower = snapshotOf(
+      node('0', ROW, {
+        provenance: row,
+        children: [node('0/0', { x: 29, y: 320.75, width: 16, height: 16 }, { tag: 'input', role: 'checkbox', name: 'Done', ...toggle })],
+      }),
+    );
+
+    const [moved] = attributeRegions([REGION], AFTER, { ...AT, before: lower, beforeOrigin: { x: 25, y: 317.5 } });
+    const [stayed] = attributeRegions([REGION], AFTER, { ...AT, before: lower });
+
+    expect(moved!.component).toBe('Toggle');
+    expect(stayed!.component).toBe('Row');
+  });
+
+  it('weighs a node that moved by both of its places when a sibling is tighter', () => {
+    // The badge's two boxes cover 512px², the label beside it 480px². A region
+    // over the label is in both, and the label is the tighter: the badge is not
+    // its 256px² box here alone.
+    const label = node('0/1', { x: 29, y: 220.75, width: 30, height: 16 }, {
+      provenance: { owners: [{ name: 'Row', propsDigest: 'v1:a' }], createdBy: 'Label' },
+    });
+    const at = (x: number) =>
+      snapshotOf(node('0', ROW, { provenance: row, children: [node('0/0', { x, y: 220.75, width: 16, height: 16 }, badge), label] }));
+
+    const [attributed] = attributeRegions([{ x: 4, y: 3.25, width: 30, height: 16, pixels: 480, density: 1 }], at(45), {
+      ...AT,
+      before: at(29),
+    });
+
+    expect(attributed!.component).toBe('Label');
+  });
 });
 
 describe('attributing a region to the tree', () => {

@@ -88,6 +88,23 @@ describe('an element its author replaced', () => {
     expect(matching.added).toEqual([exportLink]);
   });
 
+  it('pairs one that left and one that arrived anywhere under the parent, as one replacement', () => {
+    // The rule's limit, pinned so that moving it is a decision. The record says
+    // who wrote each element, not that one stands in for the other: a `Note`
+    // that dropped its emphasis at the start of the row and drew an icon at the
+    // end is read as one element that changed its tag and moved.
+    const emphasis = element('0/0', 'em', 'Note');
+    const icon = element('0/1', 'img', 'Note');
+    const before = row(emphasis, label('0/1'));
+    const after = row(label('0/0'), icon);
+
+    const matching = matchTrees(before, after);
+
+    expect(matching.pairs.get(emphasis)).toBe(icon);
+    expect(matching.removed).toEqual([]);
+    expect(matching.added).toEqual([]);
+  });
+
   it('does not pair elements whose author was not recorded', () => {
     const before = row(element('0/0', 'input', undefined, { role: 'checkbox', name: 'Done' }), label('0/1'));
     const after = row(element('0/0', 'div', undefined), label('0/1'));

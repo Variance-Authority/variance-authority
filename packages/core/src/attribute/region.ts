@@ -152,8 +152,23 @@ export interface AttributionOptions {
    * differ's matcher pairs it with in that one. Without it a control replaced
    * by a larger element changes pixels outside either box alone, and the join
    * names the row it sits in.
+   *
+   * Its boxes are placed by where they were in its own image, whose corner is
+   * {@link beforeOrigin}. A shot clipped to the subject starts at its root, so
+   * a root the page moved between the two shots moves none of the pixels, and
+   * each box that left is shifted by it.
    */
   readonly before: SemanticSnapshot | undefined;
+
+  /**
+   * Page-space CSS origin of the before image's top-left corner.
+   *
+   * Defaults to `origin` when one is stated, so a full-page pair passes `{x: 0,
+   * y: 0}` once, and otherwise to `before`'s own root rect, as `origin` defaults
+   * to this render's. A caller that clips both shots to something other than
+   * the root reads each corner and states both.
+   */
+  readonly beforeOrigin?: { readonly x: number; readonly y: number };
 }
 
 const DEFAULT_CONTAINMENT = 0.9;
@@ -170,13 +185,15 @@ export function attributeRegions(
   snapshot: SemanticSnapshot,
   options: AttributionOptions,
 ): readonly AttributedRegion[] {
-  const left = keptBoxes(options.before, snapshot);
+  const origin = options.origin ?? snapshot.root.rect ?? { x: 0, y: 0 };
+  // A box that left is placed by where it was in its image, not on the page.
+  const was = options.beforeOrigin ?? options.origin ?? options.before?.root.rect ?? origin;
+  const left = keptBoxes(options.before, snapshot, { x: origin.x - was.x, y: origin.y - was.y });
   const boxed = collectBoxes(snapshot.root).map((node) => {
     const before = left.get(node);
     const rects = before === undefined ? [node.rect!] : [node.rect!, before];
-    return { node, rects, area: covered(node.rect!, rects) };
+    return { node, rects, area: extent(rects) };
   });
-  const origin = options.origin ?? snapshot.root.rect ?? { x: 0, y: 0 };
   const containment = options.containment ?? DEFAULT_CONTAINMENT;
 
   return regions.map((region) => {
@@ -323,11 +340,18 @@ function describe(
  * across renders because it is a position, and a sibling inserted ahead
  * renumbers the node. A box with no area paints nothing, so it widens nothing.
  */
-function keptBoxes(before: SemanticSnapshot | undefined, after: SemanticSnapshot): ReadonlyMap<SemanticNode, Rect> {
+function keptBoxes(
+  before: SemanticSnapshot | undefined,
+  after: SemanticSnapshot,
+  shift: { readonly x: number; readonly y: number },
+): ReadonlyMap<SemanticNode, Rect> {
   const kept = new Map<SemanticNode, Rect>();
   if (before === undefined) return kept;
   for (const [left, arrived] of matchTrees(before.root, after.root).pairs) {
-    if (left.rect !== undefined && left.rect.width * left.rect.height > 0) kept.set(arrived, left.rect);
+    const rect = left.rect;
+    if (rect !== undefined && rect.width * rect.height > 0) {
+      kept.set(arrived, { ...rect, x: rect.x + shift.x, y: rect.y + shift.y });
+    }
   }
   return kept;
 }
@@ -344,6 +368,14 @@ function covered(rect: Rect, [first, second]: readonly Rect[]): number {
   if (second === undefined) return one;
   const both = overlap(first!, second);
   return one + intersectionArea(rect, second) - (both === undefined ? 0 : intersectionArea(rect, both));
+}
+
+/** The area the boxes cover together, counting what two of them share once. */
+function extent([first, second]: readonly Rect[]): number {
+  const one = first!.width * first!.height;
+  if (second === undefined) return one;
+  const both = overlap(first!, second);
+  return one + second.width * second.height - (both === undefined ? 0 : both.width * both.height);
 }
 
 function overlap(a: Rect, b: Rect): Rect | undefined {

@@ -24,6 +24,10 @@ row around both.
 pixels are compared against, or `undefined`. Each node is joined against the
 area its own box and the box of the node the differ's matcher pairs it with in
 `before` cover together: the two places, not the rectangle that holds both.
+A box that left is placed by where it was in its own image, whose corner is the
+new `AttributionOptions.beforeOrigin`: by default the stated `origin`, else the
+before snapshot's root, so a subject the page moved between two clipped shots
+joins where its pixels are.
 
 A baseline keeps that snapshot. `Raster.snapshot` is a `PackedSnapshot`, the
 tree gzipped and in base64, written by the Playwright fixture, its promotion,
@@ -53,15 +57,19 @@ A subject whose document has not moved settles on its digest and builds no
 observation to mark, so `settle` now renders a pictured baseline that kept no
 snapshot when this run collected one, with the reason *the baseline records no
 snapshot of its nodes, so this run renders it for an accepting run to record
-one*. A suite of baselines accepted before this release renders in full until
-one accepting run. `Described.keepsSnapshot` is the new required field it reads:
+one*. A suite of baselines accepted before this release renders them on every
+run until an accepting run re-stamps them. A tribunal project whose baselines
+move only by approval has no such run, because no reviewer decides an unchanged
+subject: each renders until it next changes and is approved. `Described.keepsSnapshot` is the new required field it reads:
 the durable, LFS and tribunal stores derive it from the sidecar with
 `keepsSnapshot` from `@variance-authority/core/format`, and the remote store
 refuses a description without it. A packed snapshot now opens with a `v1:`
 header naming its format version, `PACKED_SNAPSHOT_HEADER`, and a snapshot
 without it counts as not kept. Tribunal serves API 6, which describes a
 baseline with `keepsSnapshot`; `variance push` against an older deployment names
-the refused descriptions when the project's `remote` baselines are stored there. `settle` takes this run's snapshot as a
+the refused descriptions when the project's `remote` baselines are stored there,
+and the remote store's refusal names API 6 and the redeploy: deploy tribunal
+before upgrading the CLI. `settle` takes this run's snapshot as a
 fifth argument. `variance accept` and the MCP changelog call these subjects
 *unchanged and re-stamped* rather than re-stamped under this run's identity,
 which was untrue of them. The render cache no longer hands on a snapshot an

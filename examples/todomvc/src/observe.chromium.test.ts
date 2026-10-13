@@ -150,6 +150,7 @@ beforeAll(async () => {
   // the pixels were taken from, or the join is against a different layout.
   await mount(STORY, BASELINE_VARIANT);
   const before = await shoot();
+  const beforeOrigin = await clipOrigin();
 
   const snapshot: SemanticSnapshot = normalize(await harness.capture(STORY, BASELINE_VARIANT));
 
@@ -179,6 +180,7 @@ beforeAll(async () => {
       scale: VIEWPORT.deviceScaleFactor,
       origin: mutatedOrigin,
       before: snapshot,
+      beforeOrigin,
     }),
     causes,
   );

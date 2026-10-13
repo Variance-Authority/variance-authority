@@ -109,7 +109,9 @@ describe('a description that cannot be trusted', () => {
         ),
     });
 
-    await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(/keepsSnapshot/);
+    await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(
+      /`keepsSnapshot` missing or not a boolean, which a tribunal older than API 6 does not send: redeploy it/,
+    );
   });
 
   it('refuses a description whose missing fonts are not strings', async () => {

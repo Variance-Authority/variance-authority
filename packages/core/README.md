@@ -255,6 +255,13 @@ box and the box of the node the differ's matcher pairs it with. A stored baselin
 carries that snapshot packed, as its `snapshot`; `unpackSnapshot` in
 `@variance-authority/observe` reads it back.
 
+Each box that left is placed by where it was in its own image. A screenshot
+clipped to the subject starts at the subject's root, and `beforeOrigin` is the
+before image's top-left corner in page CSS pixels. It defaults to `origin` when
+you pass one, and otherwise to the before snapshot's root. Pass both when you
+clip each screenshot to an element other than the root, since the page can move
+that element between the two shots.
+
 Rendered comparisons throw when the two subjects differ, or when their
 observation profiles differ.
 

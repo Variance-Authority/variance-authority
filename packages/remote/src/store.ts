@@ -388,7 +388,7 @@ function readDescribed(payload: unknown, endpoint: string): Described | null {
     throw malformed(
       endpoint,
       BASELINE_DESCRIBE_PATH,
-      '`keepsSnapshot` missing or not a boolean',
+      '`keepsSnapshot` missing or not a boolean, which a tribunal older than API 6 does not send: redeploy it',
     );
   }
 

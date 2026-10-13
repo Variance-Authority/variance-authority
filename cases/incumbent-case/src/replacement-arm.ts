@@ -164,6 +164,7 @@ export async function runOurArm(harness: Harness, options: ArmOptions): Promise<
             scale: options.scale,
             origin: after.origin,
             before: baseline.snapshot,
+            beforeOrigin: baseline.origin,
           }),
           causes,
         )

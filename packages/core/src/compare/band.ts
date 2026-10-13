@@ -100,6 +100,10 @@ export type DeltaKind =
  * there is no rect evidence at all, and the style change stands alone — which is
  * why JSDOM can decide the token band but only part of geometry.
  *
+ * A style delta on a pair across two tags is the one `compareNodes` bands
+ * otherwise: it is `geometry`, with the `tag-changed` it follows, because the
+ * structure a `token` delta says held did not.
+ *
  * Policy may promote or demote from here per project, subject, region, or
  * component (spec §5). This function is the default, not the answer.
  */

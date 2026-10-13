@@ -18,3 +18,8 @@ by `Button`, and a Save button replaced by an Export link is two elements.
 declared alias or a shared role and name joined — a `<button>` and a
 `<div role="button">` with one name — now says its tag changed, where before it
 reported nothing for it.
+
+A `style-changed` or `token-changed` delta on a pair across two tags is banded
+`geometry`, with the `tag-changed` it follows, rather than `token`: the style is
+the new element's, and the structure a `token` delta says held did not. A
+`bands: ['token']` ignore rule no longer reads it.
