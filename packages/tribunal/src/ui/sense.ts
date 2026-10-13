@@ -51,14 +51,17 @@ export interface Sensed {
 /** A subject read at the semantic tier, and the two tiers held against each other. */
 export interface Sense {
   /**
-   * `false` when the baseline carried no hashes, so none of this was measured.
+   * Why none of this was measured, or `undefined` when it was: `no-baseline` for
+   * a render with nothing to compare against, `no-hashes` for one compared
+   * against a baseline that carried none.
    *
    * The whole record collapses to *unknown* rather than to *nothing moved*, and
    * a surface must print the difference. An empty `moved` on a measured subject
-   * with pixels in it is a real finding; the same emptiness unmeasured is a
-   * baseline written before the hashes existed.
+   * with pixels in it is a real finding; the same emptiness for `no-hashes` is a
+   * baseline written before the hashes existed, and for `no-baseline` is a
+   * comparison that never ran.
    */
-  readonly measured: boolean;
+  readonly unmeasured: 'no-baseline' | 'no-hashes' | undefined;
   readonly moved: readonly Sensed[];
   /** Caused the difference, and no region names it: what the picture lost. */
   readonly missed: readonly Sensed[];
@@ -125,7 +128,12 @@ export function senseOfSubject(subject: SubjectView): Sense {
   const stirred = new Set(moved.map((entry) => entry.component));
 
   return {
-    measured: subject.moved !== undefined,
+    unmeasured:
+      subject.moved !== undefined
+        ? undefined
+        : subject.verdict === 'new'
+          ? 'no-baseline'
+          : 'no-hashes',
     moved,
     missed: moved.filter((entry) => entry.cause && !entry.drawn),
     // Only when the hashes were read. Without them every named region would land
@@ -181,7 +189,7 @@ export function senseAcross(component: string, appearances: readonly Appearance[
 
   for (const { subject } of appearances) {
     const sense = senseOfSubject(subject);
-    if (!sense.measured) {
+    if (sense.unmeasured !== undefined) {
       unmeasured.push(subject.subject);
       continue;
     }

@@ -243,12 +243,33 @@ export function magnitude(subject: {
   return `${where}: ${areas}${all}${partial}`;
 }
 
-/** The short form, for a rail item that has to stay one line. */
+/**
+ * The short form, for a rail item that has to stay one line.
+ *
+ * It reads a zero the way `magnitude` does, because it is printed in the same
+ * places, beside the render's name, with `magnitude` as the tooltip over it.
+ */
 export function briefly(subject: {
+  readonly verdict: SubjectView['verdict'];
   readonly changedPixels: number;
   readonly regions: readonly { readonly pixels?: number; readonly fingerprint?: string }[];
+  readonly signals?: SubjectView['signals'];
 }): string {
+  if (subject.verdict === 'new') return 'no baseline';
+
   const size = magnitudeOf(subject);
+  if (size.total === 0 && size.regions === 0) {
+    switch (subject.signals?.pixels) {
+      case 'unchanged':
+        return count(0, 'pixel');
+      case 'changed':
+        return 'pixels changed, uncounted';
+      case 'unobservable':
+        return 'occupies no pixels';
+      case undefined:
+        return 'pixels not measured';
+    }
+  }
   if (size.regions === 0) return count(size.total, 'pixel');
 
   return size.changes === undefined

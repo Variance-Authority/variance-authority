@@ -38,7 +38,7 @@ import { RootHeading } from './root.js';
 import type { Order, Route } from './route.js';
 import { Go } from './shell.js';
 import { senseOfSubject } from './sense.js';
-import { count, magnitude, number } from './text.js';
+import { briefly, count, magnitude, number } from './text.js';
 
 export function OriginsPanel({
   build,
@@ -398,7 +398,7 @@ function Unattributed({
             >
               <span className="va-row-name">{subject.subject}</span>
               <Blamed subject={subject} />
-              <span className="va-row-size va-num">{number(subject.changedPixels)} px</span>
+              <span className="va-row-size va-num">{briefly(subject)}</span>
             </Go>
           </li>
         ))}

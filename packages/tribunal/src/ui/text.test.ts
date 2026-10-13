@@ -164,6 +164,7 @@ describe('the size of a change is counted in what is being decided', () => {
   it('keeps the same three counts in the short form', () => {
     expect(
       briefly({
+        verdict: 'changed',
         changedPixels: 3040,
         regions: [
           { pixels: 2140, fingerprint: 'f1' },
@@ -171,5 +172,17 @@ describe('the size of a change is counted in what is being decided', () => {
         ],
       }),
     ).toBe('1 change · 2 regions · 3,040px');
+  });
+
+  it('reads a zero by the pixel axis in the short form too', () => {
+    // The rail prints this beside a render's name, and so does reach's alarm. A
+    // *0 pixels* there is the same unmeasured zero the long form stopped saying.
+    const zero = { verdict: 'changed', changedPixels: 0, regions: [] } as const;
+
+    expect(briefly({ ...zero, verdict: 'new' })).toBe('no baseline');
+    expect(briefly({ ...zero, signals: { pixels: 'unchanged' } })).toBe('0 pixels');
+    expect(briefly({ ...zero, signals: { pixels: 'changed' } })).toBe('pixels changed, uncounted');
+    expect(briefly({ ...zero, signals: { pixels: 'unobservable' } })).toBe('occupies no pixels');
+    expect(briefly(zero)).toBe('pixels not measured');
   });
 });

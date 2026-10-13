@@ -70,7 +70,7 @@ describe('one render, with the hashes and the regions read against each other', 
   it('separates what was edited from what a region merely named', () => {
     const sense = senseOfSubject(SALE);
 
-    expect(sense.measured).toBe(true);
+    expect(sense.unmeasured).toBeUndefined();
     expect(sense.missed.map((each) => each.component)).toEqual(['Button']);
     expect(sense.moved.find((each) => each.component === 'Anonymous')?.cause).toBe(false);
   });
@@ -89,10 +89,16 @@ describe('one render, with the hashes and the regions read against each other', 
   it('collapses to unmeasured rather than to nothing-moved', () => {
     const sense = senseOfSubject(subject({ regions: [region({ component: 'Card' })] }));
 
-    expect(sense.measured).toBe(false);
+    expect(sense.unmeasured).toBe('no-hashes');
     // Without the hashes every named region would land in `pushed`, and the page
     // would report the whole build as collateral on the strength of no reading.
     expect(sense.pushed).toEqual([]);
+  });
+
+  it('says a new render went unmeasured for want of a baseline, not of hashes', () => {
+    // Both arrive with no `moved`. Read alike, a first run is a build of
+    // baselines that predate the hashes, which no comparison said.
+    expect(senseOfSubject(subject({ verdict: 'new' })).unmeasured).toBe('no-baseline');
   });
 });
 

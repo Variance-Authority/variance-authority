@@ -284,6 +284,25 @@ describe('the rail is scanned, not read', () => {
     expect(page).toContain('route:/checkout');
   });
 
+  it('prints no count beside a render whose pixels the run did not count', () => {
+    // A render that gained or lost its pixels has no region and arrives with a
+    // zero nobody measured. The row's tooltip already says so; *0 px* beside the
+    // name said the opposite in the place a reviewer reads.
+    const page = rail(
+      build([
+        subject({
+          subject: 'route:/checkout',
+          regions: [],
+          changedPixels: 0,
+          signals: { pixels: 'changed' },
+        }),
+      ]),
+    );
+
+    expect(page).toContain('pixels changed, uncounted');
+    expect(page).not.toContain('0 px');
+  });
+
   it('names what the hashes blamed in a render the regions could not', () => {
     // The band used to say nothing had named these, which was false on every
     // build carrying component hashes — and false in the expensive direction. A

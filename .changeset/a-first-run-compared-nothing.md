@@ -10,10 +10,11 @@ baseline carrying no component hashes, and a build of nothing but new renders
 was headed *Nothing in this build changed* and said there was nothing to
 approve. Each now says the render has no baseline, the docket is headed *No
 change to work through*, and the rail says how many renders await review under
-Subjects. A render whose
-count is zero is read by the run's pixel signal: no pixel differs (outside the
-ignored regions, for an absorbed render), its pixels changed uncounted, or it
-occupies none.
+Subjects. A render whose count is zero is read by the run's pixel signal: no
+pixel differs (outside the ignored regions, for an absorbed render), its pixels
+changed uncounted, or it occupies none. The viewer says so in full, and the
+rail's *No region named these* rows and reach's *Moved with nothing reaching it*
+list say so in short, where each used to print *0 px* or *0 pixels moved*.
 
 Smaller corrections on the same page:
 

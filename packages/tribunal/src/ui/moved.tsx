@@ -248,9 +248,7 @@ export function MovedHere({
 }): ReactElement {
   const sense = senseOfSubject(subject);
 
-  // Nothing was compared, so there is no baseline to blame for carrying no
-  // hashes: the absence is the baseline itself.
-  if (subject.verdict === 'new') {
+  if (sense.unmeasured === 'no-baseline') {
     return (
       <p className="va-note">
         This render has no baseline yet, so nothing was compared and nothing says which components
@@ -259,7 +257,7 @@ export function MovedHere({
     );
   }
 
-  if (!sense.measured) {
+  if (sense.unmeasured === 'no-hashes') {
     return (
       <p className="va-note">
         This render was compared against a baseline carrying no component hashes, so nothing says
