@@ -1,6 +1,6 @@
 # Workflows
 
-Five workflow files live here. Three of them are recipes, meant to be copied
+Six workflow files live here. Three of them are recipes, meant to be copied
 into your own repository and edited. Each is a complete answer to a different
 question, and every decision inside them is commented as a decision — including
 the ones that are wrong for somebody else's repository. They all shell out to
@@ -27,9 +27,10 @@ this repository, not one published to the Marketplace, so `uses:
 *Collection* is reading the live page; *render* is repainting that reading into
 an image. [`docs/stabilization.md`](../../docs/stabilization.md) has both.
 
-The other two files here, [`check.yml`](check.yml) and
-[`release.yml`](release.yml), are this repository's own build and publish, and
-neither is a recipe. On a pull request, `check.yml` runs only the tests the
+The other three files here, [`check.yml`](check.yml),
+[`release.yml`](release.yml) and [`outer-loop.yml`](outer-loop.yml), are this
+repository's own build, publish and end-to-end test, and none is a recipe.
+`outer-loop.yml` has [its own section](#the-outer-loop). On a pull request, `check.yml` runs only the tests the
 change reached, selected by the `withTestSelection` each slice's config is
 wrapped in from the recording `main` saved, and a push to `main` runs the whole
 suite. It then posts two comments on the pull request, each under its own
@@ -265,6 +266,53 @@ What differs is what reaching `1` *means*:
   another is recorded as `failed`. A shard's own exit code is about its slice and is
   never the check's colour.
 
+## The outer loop
+
+Every test in this repository stops at the GitHub API. `outer-loop.yml` is the
+one that goes through it: every Monday it drives each review flow the way a
+consumer meets it, in the example repository that carries it.
+
+| Flow | Example | The accept |
+|---|---|---|
+| `cache` | `Variance-Authority/example-storybook` | the `variance: accept` label |
+| `lfs` | `Variance-Authority/example-static-site` | the label, whose run commits the images to the branch |
+| `tribunal` | `Variance-Authority/example-tribunal` | an approval through the deployment's API, then a re-run |
+
+For each flow it opens two pull requests there: one that changes what a subject
+renders, and a control that changes nothing any subject reaches. It proves:
+
+- the change's `variance` check is red because a change needs review, and the
+  docket names the changed subject;
+- the control is green and nothing is pushed to it;
+- on `example-storybook`, the "What this change might do" and test evidence
+  comments name the one test that covers the changed file, and the test run
+  selected only it;
+- after the flow's accept the check is green, and on `example-static-site` the
+  commit the label made touches only the changed page's images.
+
+Then it closes both pull requests unmerged and deletes their branches, whatever
+happened. A tribunal approval is not scoped to a branch, so that flow also
+dispatches `example-tribunal`'s workflow on `main` with `accept` ticked, which
+gives `main` its own render back.
+
+These accepts are made by a job, not a person, and they are the only ones in
+this repository that are. The expectations live in
+[`../scripts/outer-loop/flows.mjs`](../scripts/outer-loop/flows.mjs), and
+`tools/outer-loop.check.ts` runs the script against a local GitHub that answers
+the way the examples do.
+
+A failing flow opens an issue labelled `outer-loop-e2e` here, or comments on the
+one already open, and the next run that passes closes it. To run it on demand,
+for one flow or all three:
+
+```bash
+gh workflow run outer-loop.yml -f flow=tribunal
+```
+
+It reaches the examples with the `VARIANCE_PUSH_TOKEN` secret, and the tribunal
+flow approves with `VARIANCE_REVIEW_TOKEN`. A run without either fails before it
+opens anything, naming the secret and what it has to be allowed.
+
 ## Two things none of these files does
 
 **Post anything you did not configure.** Beyond the checkout, they call the
@@ -274,7 +322,9 @@ passed in, and under `VARIANCE_REVIEW: tribunal` the service your config names. 
 bash around the same binary.
 
 **Accept without a person.** Every accept is a label, a dispatch, or a decision
-on the service. `commit-baselines` is on only in `variance.yml` under
+on the service. The outer loop's accepts are the one exception: they land only
+on pull requests it opened to close, and on `example-tribunal`'s `main` to undo
+its own approval there. `commit-baselines` is on only in `variance.yml` under
 `VARIANCE_REVIEW: git`, and only for the run a label started. On every run it
 would accept what the run just found, and a check that does that has stopped
 being a gate.
