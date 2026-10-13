@@ -24,7 +24,7 @@ import { OutcomeMapView } from '../src/ui/outcome.js';
 import { ReachPanel } from '../src/ui/reach.js';
 import { Settled, needsReview } from '../src/ui/settled.js';
 import { Tasks, tasksOf } from '../src/ui/tasks.js';
-import { BASE, CHANGED, buildOf, recorded, replayClient, subjectOf, summaries } from './replay.js';
+import { BASE, CHANGED, buildOf, recorded, replayClient, replayed, subjectOf, summaries } from './replay.js';
 
 /** Widths at the gate's 1280px viewport: the page, a card on it, the subject aside, the rail. */
 const PAGE = 1096;
@@ -92,16 +92,19 @@ const ask =
     await waitFor(() => {
       if (canvas.queryByText('Reading the record…') !== null) throw new Error('still reading');
     });
+    await replayed();
   };
 
 const open: NonNullable<Story['play']> = async ({ canvasElement }) => {
   const summary = canvasElement.querySelector('summary');
   if (summary !== null) await userEvent.click(summary);
+  await replayed();
 };
 
 const meta = {
   title: 'Tribunal/History',
   parameters: { width: PAGE },
+  play: replayed,
 } satisfies Meta;
 
 export default meta;
@@ -303,6 +306,7 @@ export const ReachMovedUnreached: Story = {
     await waitFor(() => {
       if (within(canvasElement).queryByText('Reading the record…') !== null) throw new Error('still reading');
     });
+    await replayed();
   },
 };
 export const ReachRefused: Story = {

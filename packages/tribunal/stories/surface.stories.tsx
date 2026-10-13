@@ -21,7 +21,7 @@ import { Mark } from '../src/ui/mark.js';
 import { SameImageNote, Siblings } from '../src/ui/same-image.js';
 import { Failure, Go, Nowhere, Prose, Skeleton, Stalled, Topbar, Waiting } from '../src/ui/shell.js';
 import { Variations } from '../src/ui/variations.js';
-import { BASE, CHANGED, buildOf, replayClient } from './replay.js';
+import { BASE, CHANGED, buildOf, replayClient, replayed } from './replay.js';
 
 const client = replayClient();
 const go = (): void => {};
@@ -31,6 +31,7 @@ const id = (member: string): string => `story:case-surface--${member}`;
 
 const meta = {
   title: 'Tribunal/Surface',
+  play: replayed,
 } satisfies Meta;
 
 export default meta;

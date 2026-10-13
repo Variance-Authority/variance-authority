@@ -23,7 +23,7 @@ import { RegionOverlay, RegionTable } from '../src/ui/regions.js';
 import { needsReview } from '../src/ui/settled.js';
 import { SubjectPanel } from '../src/ui/subject.js';
 import { Viewer } from '../src/ui/viewer.js';
-import { BASE, buildOf, CHANGED, replayClient, subjectOf } from './replay.js';
+import { BASE, buildOf, CHANGED, replayClient, replayed, subjectOf } from './replay.js';
 
 const client = replayClient();
 const none = (): void => {};
@@ -38,6 +38,7 @@ const first = subjectOf(BASE, '--composed');
 
 const meta = {
   title: 'Tribunal/Subject',
+  play: replayed,
 } satisfies Meta;
 
 export default meta;
@@ -77,6 +78,7 @@ function when(root: HTMLElement, enough: () => boolean): Promise<void> {
 
 /** Every image under `root` decoded, so the photograph is not of a frame mid-load. */
 const decoded: Play = async ({ canvasElement }) => {
+  await replayed();
   await Promise.all([...canvasElement.querySelectorAll('img')].map((img) => img.decode().catch(() => undefined)));
 };
 

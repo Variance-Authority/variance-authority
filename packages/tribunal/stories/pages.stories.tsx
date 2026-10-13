@@ -9,7 +9,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { ReviewApp } from '../src/ui/review.js';
 import type { Route } from '../src/ui/route.js';
-import { CHANGED, replayClient } from './replay.js';
+import { CHANGED, replayClient, replayed } from './replay.js';
 
 const client = replayClient();
 
@@ -18,6 +18,7 @@ const meta = {
   component: ReviewApp,
   parameters: { page: true },
   args: { client, reviewer: 'marina', onNavigate: () => {} },
+  play: replayed,
 } satisfies Meta<typeof ReviewApp>;
 
 export default meta;

@@ -927,7 +927,7 @@
             "decision": {
               "decision": "approved",
               "by": "marina",
-              "at": "2026-10-12T23:28:42.495Z",
+              "at": "2026-06-01T10:02:00.000Z",
               "note": "the wider padding is the change we asked for"
             },
             "missingFonts": [
@@ -1044,7 +1044,7 @@
             "decision": {
               "decision": "rejected",
               "by": "marina",
-              "at": "2026-10-12T23:28:42.502Z",
+              "at": "2026-06-01T10:03:00.000Z",
               "note": "the secondary button was not meant to move"
             },
             "missingFonts": [
@@ -2214,7 +2214,7 @@
             "by": [
               "marina"
             ],
-            "at": "2026-10-12T23:28:42.495Z",
+            "at": "2026-06-01T10:02:00.000Z",
             "intent": "give the primary button more room",
             "note": "the wider padding is the change we asked for"
           },
@@ -2231,7 +2231,7 @@
             "by": [
               "marina"
             ],
-            "at": "2026-10-12T23:28:42.495Z",
+            "at": "2026-06-01T10:02:00.000Z",
             "intent": "give the primary button more room",
             "note": "the wider padding is the change we asked for"
           }
@@ -2256,7 +2256,7 @@
             "by": [
               "marina"
             ],
-            "at": "2026-10-12T23:28:42.495Z",
+            "at": "2026-06-01T10:02:00.000Z",
             "intent": "give the primary button more room",
             "note": "the wider padding is the change we asked for"
           },
@@ -2273,7 +2273,7 @@
             "by": [
               "marina"
             ],
-            "at": "2026-10-12T23:28:42.495Z",
+            "at": "2026-06-01T10:02:00.000Z",
             "intent": "give the primary button more room",
             "note": "the wider padding is the change we asked for"
           }
@@ -2313,13 +2313,13 @@
             "title": "Card grows by six pixels when its button does",
             "evidence": [],
             "by": "marina",
-            "at": "2026-10-12T23:28:42.506Z",
+            "at": "2026-06-01T10:04:00.000Z",
             "state": "open",
             "events": [
               {
                 "state": "open",
                 "by": "marina",
-                "at": "2026-10-12T23:28:42.506Z",
+                "at": "2026-06-01T10:04:00.000Z",
                 "note": "The card follows its content; check whether a fixed height was intended.",
                 "hypothesis": "the card has no min-height, so the button padding reflows it"
               }
@@ -2344,13 +2344,13 @@
             "title": "Card grows by six pixels when its button does",
             "evidence": [],
             "by": "marina",
-            "at": "2026-10-12T23:28:42.506Z",
+            "at": "2026-06-01T10:04:00.000Z",
             "state": "open",
             "events": [
               {
                 "state": "open",
                 "by": "marina",
-                "at": "2026-10-12T23:28:42.506Z",
+                "at": "2026-06-01T10:04:00.000Z",
                 "note": "The card follows its content; check whether a fixed height was intended.",
                 "hypothesis": "the card has no min-height, so the button padding reflows it"
               }
@@ -2387,13 +2387,13 @@
             "title": "Card grows by six pixels when its button does",
             "evidence": [],
             "by": "marina",
-            "at": "2026-10-12T23:28:42.506Z",
+            "at": "2026-06-01T10:04:00.000Z",
             "state": "open",
             "events": [
               {
                 "state": "open",
                 "by": "marina",
-                "at": "2026-10-12T23:28:42.506Z",
+                "at": "2026-06-01T10:04:00.000Z",
                 "note": "The card follows its content; check whether a fixed height was intended.",
                 "hypothesis": "the card has no min-height, so the button padding reflows it"
               }
@@ -2778,68 +2778,68 @@
   "images": {
     "ci-101": {
       "story:case-surface--button-primary": {
-        "after": "ci-101-00.after.png"
+        "after": "768453dae1d65c98ee25658586ea9c4705a4c0bf80530ac2a5b1f3096b951966.png"
       },
       "story:case-surface--button-secondary": {
-        "after": "ci-101-01.after.png"
+        "after": "8485ce7a89d93dfcd40d3974e094b11ecf366a21cb7ad20f82ff5caec321ce43.png"
       },
       "story:case-surface--card-rebranded": {
-        "after": "ci-101-02.after.png"
+        "after": "14308dda9b727e3d04bd30e17bfbaa5a917107261eb3beec2c18d7dc98d6ca53.png"
       },
       "story:case-surface--card-with-actions": {
-        "after": "ci-101-03.after.png"
+        "after": "4aac85e24d70b70ee56c228b0289db1a669e74215e77580279740b169e9051b2.png"
       },
       "story:case-surface--composed": {
-        "after": "ci-101-04.after.png"
+        "after": "edfce3c3675596bdc206159f2bd2aa747c2d44b064df16fa0a9f28910c9de755.png"
       },
       "story:case-surface--deferred": {
-        "after": "ci-101-05.after.png"
+        "after": "d6da0b68e08ad3fb352823af99e723412141bccf0d2359a9beb58f561c52e58b.png"
       },
       "story:case-surface--loading": {
-        "after": "ci-101-06.after.png"
+        "after": "4f852cfe622067e2872424c8add5d3977db6b7d6ad84a6329f288f6d7da566fa.png"
       },
       "story:case-surface--receipt-at-two-widths@375": {
-        "after": "ci-101-07.after.png"
+        "after": "39ef225405e6c7ddd3293a276a50e7594e1dfced90290d0514a6aaeb8c7e31de.png"
       },
       "story:case-surface--receipt-at-two-widths@800": {
-        "after": "ci-101-08.after.png"
+        "after": "bf50efb97bb0ccbd3e02c7ac9174b3eb6c5e46fe1f85d350c138d6975bdcfb0e.png"
       },
       "story:case-surface--revealed": {
-        "after": "ci-101-09.after.png"
+        "after": "a154d78e362ac2fa1bd02f1da3e6bcd24242b27467ecd4e9cb04aac7e5a688d3.png"
       },
       "story:case-surface--suspense-settles": {
-        "after": "ci-101-10.after.png"
+        "after": "d6da0b68e08ad3fb352823af99e723412141bccf0d2359a9beb58f561c52e58b.png"
       },
       "story:case-surface--suspense-stalled": {
-        "after": "ci-101-11.after.png"
+        "after": "884fce5488822d5e7e04adeb451b7efe42b3bc21b16a67468090897351df2c2d.png"
       },
       "story:case-surface--suspense-waterfall": {
-        "after": "ci-101-12.after.png"
+        "after": "fd6f82ed245184cadfbd81e362f8057e8af1164c5aeb6b2f4c66cfb4289b55e3.png"
       },
       "story:case-surface--ticking": {
-        "after": "ci-101-13.after.png"
+        "after": "c75e75a2ca51cc2c01d4857f54a9be5dd3188e804533070c28e4d41cd5fe2654.png"
       }
     },
     "ci-102": {
       "story:case-surface--button-primary": {
-        "before": "ci-102-00.before.png",
-        "after": "ci-102-00.after.png"
+        "before": "768453dae1d65c98ee25658586ea9c4705a4c0bf80530ac2a5b1f3096b951966.png",
+        "after": "4050054c1e28c99f7ecc376793088d5c160e4d41a70c3d87cb5702420c3a89c0.png"
       },
       "story:case-surface--button-secondary": {
-        "before": "ci-102-01.before.png",
-        "after": "ci-102-01.after.png"
+        "before": "8485ce7a89d93dfcd40d3974e094b11ecf366a21cb7ad20f82ff5caec321ce43.png",
+        "after": "9cb60dd0af6afc3ca517e6fce665c032e2a8fb346eb521ce727cd182ac3fbe4d.png"
       },
       "story:case-surface--card-rebranded": {
-        "before": "ci-102-02.before.png",
-        "after": "ci-102-02.after.png"
+        "before": "14308dda9b727e3d04bd30e17bfbaa5a917107261eb3beec2c18d7dc98d6ca53.png",
+        "after": "7244c4d39138d2751c3271c904904d5410a6d790d9709dcf2ca30ea05144bbed.png"
       },
       "story:case-surface--card-with-actions": {
-        "before": "ci-102-03.before.png",
-        "after": "ci-102-03.after.png"
+        "before": "4aac85e24d70b70ee56c228b0289db1a669e74215e77580279740b169e9051b2.png",
+        "after": "002335125b654f0c09d75140f00b7111b28b52894ff3697dc1bbfe7e07584cdf.png"
       },
       "story:case-surface--composed": {
-        "before": "ci-102-04.before.png",
-        "after": "ci-102-04.after.png"
+        "before": "edfce3c3675596bdc206159f2bd2aa747c2d44b064df16fa0a9f28910c9de755.png",
+        "after": "b83cde3ee53f8ee97491443f5a8020845588428393136c9f54cd9b100e57f54c.png"
       }
     }
   }

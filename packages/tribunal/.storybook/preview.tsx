@@ -13,6 +13,7 @@
  */
 import type { Decorator, Preview } from '@storybook/react-vite';
 import { REVIEW_STYLES } from '../src/ui/styles.js';
+import { forgetMisses } from '../stories/replay.js';
 
 const ground: Decorator = (Story, context) => {
   const { page, width } = context.parameters as { page?: boolean; width?: number };
@@ -32,6 +33,8 @@ const ground: Decorator = (Story, context) => {
 
 const preview: Preview = {
   decorators: [ground],
+  // Each story's misses are its own; `replayed` in its play function reads them.
+  beforeEach: forgetMisses,
   parameters: { layout: 'fullscreen' },
 };
 

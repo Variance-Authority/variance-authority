@@ -4,9 +4,14 @@
  * The client is the real `createReviewClient`, handed a `fetch` that looks each
  * request up in `recorded/answers.json` instead of sending it. So a story sees
  * what the service said, decoded by the code that decodes it on a reviewer's
- * page, and a request the recording does not hold is a 404 with the path in it
- * — a story that asks for something nobody recorded says so on the page rather
- * than drawing an empty panel that looks like an answer.
+ * page.
+ *
+ * A request the recording does not hold is a 404 with the path in it, and it
+ * fails the story: {@link replayed} is every story's play function, and it
+ * throws once the page has gone quiet if anything was asked that nobody
+ * recorded. The collector reads a play function that threw as a story that did
+ * not render, so a panel drawn over a miss is a hole in the run, never a
+ * baseline that looks like an answer.
  *
  * Writes are not replayed. A recording of a decision is a decision that already
  * happened, and answering a second one as if it had been made would make a
@@ -31,9 +36,52 @@ export function imageOf(build: string, subject: string, kind: string): string | 
   return file === undefined ? undefined : `/recorded/${file}`;
 }
 
+/**
+ * What the current story asked for and the recording did not hold, and how many
+ * of its requests are still being answered. Module state because every story's
+ * client is one of these, and Storybook shows one story at a time.
+ */
+const missed: string[] = [];
+let answering = 0;
+
+/** Start a story with nothing missed. Storybook's `beforeEach`, set in `.storybook/preview.tsx`. */
+export function forgetMisses(): void {
+  missed.length = 0;
+}
+
+/**
+ * Wait for the replay to go quiet, then fail if the story asked for anything
+ * that was not recorded.
+ *
+ * Quiet is no request in flight across three frames in a row, which is long
+ * enough for an answer to be committed and for the request it causes to be
+ * made. A story that is still asking after five seconds fails too: a page that
+ * never stops fetching has no state to photograph.
+ */
+export async function replayed(): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  for (let still = 0; still < 3; ) {
+    await new Promise((done) => requestAnimationFrame(done));
+    still = answering === 0 ? still + 1 : 0;
+    if (Date.now() > deadline) throw new Error(`the replay was still answering ${answering} requests after five seconds`);
+  }
+  if (missed.length > 0) {
+    throw new Error(`the recording holds no answer for ${missed.join(', ')}; run stories/record.mjs or ask for what it holds`);
+  }
+}
+
 /** The review client over the recording. */
 export function replayClient(): ReviewClient {
   const replay = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    answering += 1;
+    try {
+      return await answerFor(input, init);
+    } finally {
+      answering -= 1;
+    }
+  };
+
+  const answerFor = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     const method = init?.method ?? 'GET';
     const key = `${url.pathname}${url.search}`;
@@ -43,17 +91,28 @@ export function replayClient(): ReviewClient {
     if (image !== null) {
       const [, build = '', subject = '', kind = ''] = image;
       const served = imageOf(decodeURIComponent(build), decodeURIComponent(subject), kind);
-      return served === undefined ? answer(404, { error: `no ${kind} image was recorded for ${key}` }) : fetch(served);
+      if (served !== undefined) return fetch(served);
+      missed.push(`GET ${key}`);
+      return answer(404, { error: `no ${kind} image was recorded for ${key}` });
     }
 
     const recorded = RECORDED.answers[key];
-    if (recorded === undefined) return answer(404, { error: `nothing was recorded for GET ${key}` });
+    if (recorded === undefined) {
+      missed.push(`GET ${key}`);
+      return answer(404, { error: `nothing was recorded for GET ${key}` });
+    }
     return answer(recorded.status, recorded.body);
   };
 
   const client = createReviewClient({ endpoint: ENDPOINT, fetch: replay });
   // `imageUrl` is for an `<img src>`, which never passes through `fetch`.
-  return { ...client, imageUrl: (build, subject, kind) => imageOf(build, subject, kind) ?? `${ENDPOINT}/missing.png` };
+  const imageUrl: ReviewClient['imageUrl'] = (build, subject, kind) => {
+    const served = imageOf(build, subject, kind);
+    if (served !== undefined) return served;
+    missed.push(`the ${kind} image of ${subject} in ${build}`);
+    return `${ENDPOINT}/missing.png`;
+  };
+  return { ...client, imageUrl };
 }
 
 /** One recorded answer, as the service sent it. */

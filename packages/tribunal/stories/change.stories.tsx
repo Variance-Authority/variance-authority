@@ -32,7 +32,7 @@ import { DivergenceOf, DivergencePanel } from '../src/ui/divergence.js';
 import { originsOf, type Origin } from '../src/ui/grouping.js';
 import { Impact } from '../src/ui/impact.js';
 import { movedElsewhere } from '../src/ui/sense.js';
-import { BASE, CHANGED, buildOf, replayClient, subjectOf } from './replay.js';
+import { BASE, CHANGED, buildOf, replayClient, replayed, subjectOf } from './replay.js';
 
 const client = replayClient();
 const changed = buildOf(CHANGED);
@@ -136,6 +136,7 @@ function Against({
 const meta = {
   title: 'Tribunal/Change',
   parameters: { width: 760 },
+  play: replayed,
 } satisfies Meta;
 
 export default meta;

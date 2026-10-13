@@ -29,7 +29,7 @@ import { Repeated } from '../src/ui/repeated.js';
 import { RootHeading, UnderRoot } from '../src/ui/root.js';
 import type { Order } from '../src/ui/route.js';
 import { movedElsewhere, senseAcross } from '../src/ui/sense.js';
-import { BASE, buildOf, CHANGED, recorded, replayClient, subjectOf } from './replay.js';
+import { BASE, buildOf, CHANGED, recorded, replayClient, replayed, subjectOf } from './replay.js';
 
 const client = replayClient();
 const go = (): void => {};
@@ -98,7 +98,7 @@ const ASIDE = { width: 384 };
 const RAIL = { width: 368 };
 const STAGE = { width: 760 };
 
-const meta = { title: 'Tribunal/Notes' } satisfies Meta;
+const meta = { title: 'Tribunal/Notes', play: replayed } satisfies Meta;
 
 export default meta;
 type Story = StoryObj;
