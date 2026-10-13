@@ -86,7 +86,7 @@ export function Viewer({
   const stage = useRef<HTMLDivElement>(null);
   // Computed rather than fetched, unless this build kept one: see
   // [`difference.ts`](./difference.js) for why a mask is the one image worth
-  // making twice. The plate says when it is still being made, and why it failed.
+  // making twice. In its place the page says it is being made, or why it failed.
   const difference = useDifference(client, build, subject, mode === 'difference');
 
   /**
@@ -269,6 +269,17 @@ export function Viewer({
             <Raster src={url('after')} alt={`${subject.subject} candidate`} size={size} />
           </figure>
         </div>
+      ) : mode === 'difference' && difference?.state !== 'made' ? (
+        // No mask yet, so no plate: the regions are rings on the mask's pixels,
+        // and drawn over a sentence instead they cover it. Never `undefined`
+        // here: the mode is offered only when there is a difference to show.
+        <p className="va-note">
+          {difference?.state === 'failed' ? (
+            <>This page could not compute the difference mask: {difference.reason}</>
+          ) : (
+            <>Working out the difference&hellip;</>
+          )}
+        </p>
       ) : (
         <div className="va-loupe" ref={stage}>
           <div className={box === undefined ? 'va-plate' : 'va-plate va-boxed'} style={plate}>
@@ -283,20 +294,10 @@ export function Viewer({
                 onChange={(event) => setSeam(Number(event.target.value))}
               />
             ) : null}
-            {mode === 'difference' ? (
+            {mode === 'difference' && difference?.state === 'made' ? (
               // Already in the union's coordinates: the mask is what the
-              // comparison drew, on the box it padded both captures to. Never
-              // `undefined` here: the mode is open and offered only when there
-              // is a difference to show, so the last branch is one being made.
-              difference?.state === 'made' ? (
-                <Raster src={difference.url} alt={`${subject.subject} difference mask`} />
-              ) : difference?.state === 'failed' ? (
-                <p className="va-note">
-                  This page could not compute the difference mask: {difference.reason}
-                </p>
-              ) : (
-                <p className="va-note">Working out the difference&hellip;</p>
-              )
+              // comparison drew, on the box it padded both captures to.
+              <Raster src={difference.url} alt={`${subject.subject} difference mask`} />
             ) : (
               <>
                 {subject.has.before ? (

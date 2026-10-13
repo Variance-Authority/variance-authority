@@ -249,6 +249,43 @@ describe('the mask of one subject, read while showing another', () => {
     expect(after[0]).toBe('making');
     expect(after).not.toContain('failed');
   });
+
+  it('keeps the new subject\u2019s answer when the last subject\u2019s settles after it', async () => {
+    // The last subject's computation is not cancelled, only let go. Settling
+    // after the new subject's, it would replace that answer with its own,
+    // and the new subject would read as still being made.
+    const late: (() => void)[] = [];
+    const client = createReviewClient({
+      endpoint: '/api',
+      fetch: (async (url: string) =>
+        url.includes(encodeURIComponent('story:a'))
+          ? await new Promise<Response>((answer) => late.push(() => answer(new Response('gone', { status: 404 }))))
+          : new Response('gone', { status: 404 })) as typeof globalThis.fetch,
+    });
+    const has = { before: true, after: true, diff: false };
+    const held: (Difference | undefined)[] = [];
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+    function Probe({ subject }: { readonly subject: string }): null {
+      held.push(useDifference(client, 'ci-1', { subject, has }));
+      return null;
+    }
+
+    const root = createRoot(document.createElement('div'));
+    act(() => root.render(createElement(Probe, { subject: 'story:a' })));
+    await act(async () => {
+      root.render(createElement(Probe, { subject: 'story:b' }));
+      await new Promise((settle) => setTimeout(settle, 0));
+    });
+    expect(held.at(-1)?.state).toBe('failed');
+
+    await act(async () => {
+      for (const answer of late) answer();
+      await new Promise((settle) => setTimeout(settle, 0));
+    });
+    expect(held.at(-1)?.state).toBe('failed');
+    act(() => root.unmount());
+  });
 });
 
 describe('whether a difference can be shown', () => {

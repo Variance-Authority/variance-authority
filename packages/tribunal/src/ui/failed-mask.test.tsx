@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { SubjectView } from '../review.js';
 import { createReviewClient } from './client.js';
-import { Viewer } from './review.js';
+import { Viewer } from './viewer.js';
 
 /**
  * The difference mode when the page cannot compute the mask.
@@ -67,4 +67,50 @@ describe('a difference mask the page could not compute', () => {
     expect(host.textContent).toContain('This page could not compute the difference mask');
     expect(host.textContent).toContain('answered 404');
   });
+
+  it('is said in place of the stage, with no region ringed over the sentence', async () => {
+    // The rings are placed on the mask's pixels. With no mask they are drawn
+    // over whatever stands in for it, and they cover the reason.
+    const refusing = createReviewClient({
+      endpoint: '/api',
+      fetch: (async () => new Response('gone', { status: 404 })) as typeof globalThis.fetch,
+    });
+    act(() => root.render(<Viewer client={refusing} build="ci-1" subject={RINGED} />));
+    await act(async () => {
+      press('difference');
+      await new Promise((settle) => setTimeout(settle, 0));
+    });
+
+    expect(host.textContent).toContain('This page could not compute the difference mask');
+    expect(host.querySelector('.va-plate')).toBeNull();
+    expect(host.querySelector('.va-regions')).toBeNull();
+  });
+
+  it('is said in place of the stage while it is being made, too', () => {
+    const waiting = createReviewClient({
+      endpoint: '/api',
+      fetch: (() => new Promise<Response>(() => undefined)) as typeof globalThis.fetch,
+    });
+    act(() => root.render(<Viewer client={waiting} build="ci-1" subject={RINGED} />));
+    act(() => press('difference'));
+
+    expect(host.textContent).toContain('Working out the difference');
+    expect(host.querySelector('.va-plate')).toBeNull();
+    expect(host.querySelector('.va-regions')).toBeNull();
+  });
 });
+
+/** A subject the run found regions in, at the size it captured. */
+const RINGED: SubjectView = {
+  ...SUBJECT,
+  size: { width: 330, height: 288 },
+  baseline: { width: 330, height: 276 },
+  regions: [{ x: 10, y: 20, width: 200, height: 10, pixels: 1276 }],
+};
+
+/** Presses the toggle that reads `label`, as a reviewer would. */
+function press(label: string): void {
+  const button = [...host.querySelectorAll('button')].find((each) => each.textContent === label);
+  if (button === undefined) throw new Error(`no button reads ${label}`);
+  button.click();
+}
