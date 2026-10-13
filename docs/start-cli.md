@@ -271,7 +271,7 @@ A run gives every subject one verdict:
 
 | verdict | what it means |
 | --- | --- |
-| `unchanged` | the stored baseline and the new capture were compared, and nothing differs. |
+| `unchanged` | the stored baseline and the new capture were compared, and nothing differs beyond the default policy's tolerance: antialiasing, and a colour change of up to 1%. |
 | `changed` | pixels moved. The report names the region, the component and the `file:line`. |
 | `new` | the subject was captured and no approved baseline exists. |
 | `ignored` | pixels moved, and every one of them fell inside a subtree your `ignore` rules excluded. |

@@ -131,8 +131,13 @@ Measured before choosing it:
 - **`0.1`.** Rejected. It is the defect.
 - **`0.05`.** Rejected. It still forgives the line token.
 - **`0.02`.** It counts both edits, and it forgives twice as much colour as
-  `0.01` while buying no measured noise back. `0.01` is the smallest threshold at
-  which the rounds stayed at zero.
+  `0.01` while buying no measured noise back.
+- **`0.005`.** It sits above the worst one-level wobble (0.39%) too, but by
+  0.11 points, and the rounds were measured on one darwin/arm64 machine.
+  `0.01` forgives any difference of up to two levels per channel (0.78% at
+  worst), twice the wobble measured, and still counts a grey moved three levels
+  (1.14%). It is also jest-image-snapshot's default (prior art: *How far a
+  pixel's colour moves before it counts*).
 
 **A green sentence names what was forgiven.** `decide` owns the sentence, and it
 is the only place that knows which policy the verdict was decided under. When
@@ -143,9 +148,10 @@ clause follows `nothing outside them moved` and `nothing else moved` on
 `ignored`. Both reasons are named whenever the policy has both, because one count
 cannot tell them apart. The words are read from the policy, not written out, so
 a threshold that changes cannot leave a sentence describing the old one. The
-count is exact: every path that writes the clause returns before isolation, so
-the deciding policy's whole mask is what it counted, and `strict` counts every
-one of those pixels and more. `recordOf` no longer appends its own clause.
+count is exact and covers the whole comparison: the deciding policy's mask is
+taken before any box is subtracted, and `strict` counts every one of its pixels
+and more, so on `ignored` it includes pixels forgiven inside an excluded box.
+`recordOf` no longer appends its own clause.
 
 **The verdict stays `unchanged`.** `ignored` is what somebody declared. Forgiven
 pixels are a property of the comparison and are on every comparison of

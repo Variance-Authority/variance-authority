@@ -388,9 +388,10 @@ function count(value: number, noun: string): string {
  * that moves cannot leave the sentence describing the old one. Both reasons are
  * named whenever both apply, because one count cannot tell them apart.
  *
- * Exact on every path that calls it: they all return before isolation, so the
- * isolation policy's whole mask is what was counted, and the strict policy
- * counts every pixel it does and more (ADR-0026).
+ * Counted over the whole comparison. `comparison.mask` is the isolation
+ * policy's mask before any box is subtracted, and the strict policy counts
+ * every pixel it does and more, so the difference is exact, and it includes
+ * pixels forgiven inside an excluded box (ADR-0026).
  */
 function forgiveness(comparison: RasterComparison, options: CompareInputs): string {
   const policy: DiffPolicy = options.compare?.isolateWith ?? DEFAULT_POLICY;

@@ -130,7 +130,7 @@ This is an excerpt — `before` and `after` are the buffers from the sample abov
 ```ts
 import type { DiffPolicy } from '@variance-authority/raster';
 
-const NEAR_EXACT: DiffPolicy = { id: 'near-exact', threshold: 0.02, includeAA: false };
+const NEAR_EXACT: DiffPolicy = { id: 'near-exact', threshold: 0.005, includeAA: false };
 
 const comparison = comparePngs(before, after, {
   policies: [NEAR_EXACT],
