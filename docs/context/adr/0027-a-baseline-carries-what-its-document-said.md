@@ -194,8 +194,9 @@ depend on `observe`.
 
 *Why this is not the compatibility surface the Decision feared.* No store parses
 the tree, so no store refuses a sidecar over it. `unpackSnapshot` checks the
-format version and the root's shape, and a snapshot it cannot read is treated as
-not recorded, exactly like a missing one.
+format version and, with `isSemanticSnapshot`, every node down to the leaves,
+and a snapshot it cannot read is treated as not recorded, exactly like a missing
+one.
 
 **A baseline without a snapshot says so.** One accepted before this field is
 joined against the changed render's boxes alone, and the changed verdict's
@@ -226,6 +227,28 @@ baselines accepted before this field renders in full once. A baseline with no
 pixels still settles, because no region is joined there. A run that collects
 no snapshot settles as before, because it would have none to record.
 
+**Tribunal records it on the push.** Approval is asked of a changed subject, so
+under tribunal no reviewer would ever record an unchanged one's snapshot, and a
+project that moves baselines only by approval would render each such subject on
+every run. So ingesting a build writes a candidate's snapshot onto the baseline
+an approval would overwrite, when that baseline has an image, kept no snapshot
+`keepsSnapshot` reads, and was painted from the candidate's document under the
+candidate's identity: the premise `settle` skips a render on. A snapshot it kept
+is never replaced, and the image, the digest and the time stay as they were.
+From the next run the subject settles. Every other store records it on its next
+accepting run, as above.
+
+*What such a snapshot describes.* The document digest covers what is painted,
+not the runtime that produced it: no file path enters it, so a component renamed
+without changing its output keeps the digest. The fields read off the page
+(tags, roles, names, text, attributes, styles, boxes) are the ones that painted
+the image. The fields read off the runtime (`provenance`, `createdBy` with it,
+`wiring`, `holding`, `styleProvenance`, `styleTokens`, `ignoredBy`) are the
+latest run's that drew the same document, on a baseline tribunal records on the
+push and on one an accepting run re-stamps alike. At the subject's next change,
+the join pairs against the authors of the latest code that drew that document,
+which is the side the change departs from.
+
 **What is still not closed.**
 
 - `observePair` renders two documents and is given one snapshot, the after
@@ -234,11 +257,8 @@ no snapshot settles as before, because it would have none to record.
   open work above already asks for.
 - A node that left with nothing paired to it adds no box. A region over the
   place it vacated falls to the parent around it, which did change its output.
-- tribunal promotes on approval, and approval is asked of a changed subject, so
-  no approval records an unchanged subject's snapshot. An accepting run whose
-  `remote` store writes to tribunal (`baseline/put`) does; a project that moves
-  its baselines only by approval renders each such subject on every run until it
-  next changes and is approved.
+- A store other than tribunal records an unchanged subject's snapshot only on
+  an accepting run. Until one, each such subject renders on every run.
 - Ignored subtrees are masked by their boxes in this render alone
   (`excludedBoxes` in `decide`). An ignored element that moved or shrank leaves
   pixels at its old box unmasked, and the baseline's snapshot now holds that

@@ -61,9 +61,13 @@ observation to mark, so `settle` now renders a pictured baseline that kept no
 snapshot when this run collected one, with the reason *the baseline records no
 snapshot of its nodes, so this run renders it for an accepting run to record
 one*. A suite of baselines accepted before this release renders them on every
-run until an accepting run re-stamps them. Against tribunal, the accepting run
-that re-stamps them is one whose `remote` store writes there; an approval
-decides only a changed subject, so it re-stamps none. `Described.keepsSnapshot`
+run until an accepting run re-stamps them. Tribunal records one on ingest
+instead: a pushed candidate's snapshot is written onto a baseline that has an
+image and kept none, when it was painted from the same document under the same
+identity, and never over one it kept, so such a subject renders once. The
+snapshot's runtime fields (`provenance`, `wiring`, `holding`,
+`styleProvenance`, `styleTokens`, `ignoredBy`) are then the latest run's that
+drew that document, as on a re-stamp. `Described.keepsSnapshot`
 is the new required field it reads:
 the durable, LFS and tribunal stores derive it from the sidecar with
 `keepsSnapshot` from `@variance-authority/core/format`, and the remote store

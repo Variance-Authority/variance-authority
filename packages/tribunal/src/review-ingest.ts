@@ -1,8 +1,13 @@
-import { identityDigest } from '@variance-authority/core/format';
-import type { D1Like, R2Like } from './bindings.js';
+import {
+  identityDigest,
+  keepsSnapshot,
+  PACKED_SNAPSHOT_HEADER,
+  type RenderIdentity,
+} from '@variance-authority/core/format';
+import type { D1Like, D1PreparedLike, R2Like } from './bindings.js';
 import { ReviewError, instant } from './review-rows.js';
-import type { BuildIngest } from './review-ingest-types.js';
-import { store } from './review-write.js';
+import type { BuildIngest, SubjectImages } from './review-ingest-types.js';
+import { promotedIdentity, store } from './review-write.js';
 
 /**
  * One run report, written into rows.
@@ -121,6 +126,7 @@ export async function ingestBuild(
     const keys = written.get(observation.subject) ?? {};
     const after = images[observation.subject]?.after;
     const before = images[observation.subject]?.before;
+    const candidateIdentity = after?.identity === undefined ? null : JSON.stringify(after.identity);
     statements.push(
       db
         .prepare(
@@ -173,7 +179,7 @@ export async function ingestBuild(
           // does not hold: its identity describes the machine and leaves the
           // scale at 1. Null is a push from a CLI that predates the field, and
           // `promote` falls back to the build's there.
-          after?.identity === undefined ? null : JSON.stringify(after.identity),
+          candidateIdentity,
           // `null` is *not recorded*; `'[]'` is *read, and empty*. A promotion
           // that turned the first into the second would tell every later run
           // this document declared no components and this render was clean.
@@ -186,6 +192,11 @@ export async function ingestBuild(
           before?.height ?? null,
         ),
     );
+    // Filed under the identity an approval would file it under, read off the
+    // same column value.
+    const under = promotedIdentity({ candidate_identity: candidateIdentity }, identity);
+    const recorded = recordSnapshot(db, project, observation.subject, after, under);
+    if (recorded !== null) statements.push(recorded);
   }
 
   for (const variation of report.variations ?? []) {
@@ -361,4 +372,47 @@ export async function ingestBuild(
   }
 
   await db.batch(statements);
+}
+
+/**
+ * The snapshot of an unchanged subject, onto the baseline that kept none.
+ *
+ * Approval is asked of a changed subject, so nothing a reviewer does records
+ * this one, and `settle` renders a baseline that kept no snapshot on every run,
+ * for somebody to record one. Recorded here instead, on the premise `settle`
+ * skips a render on: a document that digests to what the baseline was painted
+ * from, under the identity it was painted under, paints that image. What the
+ * tree read off the page is that image's; what it read off the runtime that
+ * drew it, authors and the state they held, is the latest run's that drew the
+ * same document, as it is on a baseline `variance accept` re-stamps.
+ *
+ * The row is the one an approval would overwrite, and only when it has an
+ * image, as `settle` asks. A snapshot it kept is never replaced, and text this
+ * code cannot read is never recorded. The image, the digest and the time the
+ * baseline was written stay as they were: nothing about the picture moved.
+ */
+function recordSnapshot(
+  db: D1Like,
+  project: string,
+  subject: string,
+  after: SubjectImages['after'],
+  under: RenderIdentity,
+): D1PreparedLike | null {
+  if (after?.documentDigest === undefined || !keepsSnapshot(after.snapshot)) return null;
+  return db
+    .prepare(
+      `UPDATE baselines SET snapshot = ?
+        WHERE project = ? AND identity_digest = ? AND subject = ? AND label = ''
+          AND document_digest = ? AND object_key IS NOT NULL
+          AND (snapshot IS NULL OR substr(snapshot, 1, ?) <> ?)`,
+    )
+    .bind(
+      after.snapshot!,
+      project,
+      identityDigest(under),
+      subject,
+      after.documentDigest,
+      PACKED_SNAPSHOT_HEADER.length,
+      PACKED_SNAPSHOT_HEADER,
+    );
 }
