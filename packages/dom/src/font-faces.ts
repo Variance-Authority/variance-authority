@@ -1,7 +1,6 @@
 import { pageOrigin, withoutOrigin } from '@variance-authority/core/format';
 import { URL_TOKEN } from './css-url.js';
-import { GENERATED_BOXES } from './generated-box.js';
-import { detectProfile } from './profile.js';
+import { paintedStyles } from './painted-styles.js';
 import { familiesIn } from './typeface.js';
 
 /**
@@ -39,8 +38,15 @@ export interface IndexedFace {
   readonly readable: boolean;
 }
 
+/**
+ * `CSSRule.FONT_FACE_RULE`, by number because this module runs in Node beside
+ * jsdom, where no global `CSSRule` holds the constant. A class name would hold
+ * in neither a minified CSSOM nor one that renames its classes.
+ */
+const FONT_FACE_RULE = 5;
+
 export function isFontFaceRule(rule: CSSRule): rule is CSSFontFaceRule {
-  return rule.constructor.name === 'CSSFontFaceRule';
+  return rule.type === FONT_FACE_RULE;
 }
 
 /**
@@ -75,33 +81,21 @@ export function faceOf(rule: CSSFontFaceRule, base: string, document: Document):
 /** The faces a subtree is set in, in the order the document declared them. */
 export function facesUsedBy(root: Element, faces: readonly IndexedFace[]): readonly IndexedFace[] {
   if (faces.length === 0) return [];
-  const used = familiesUsedBy(root);
+  const used = familiesPaintedWith(paintedStyles(root));
   return faces.filter((face) => used.has(face.family));
 }
 
 /**
- * Every family named in the computed `font-family` of the subtree.
+ * Every family named in the computed `font-family` of these styles.
  *
  * The whole stack, not the face that won: which entry a glyph is drawn from is
  * the renderer's to decide from the faces it holds, and a face left out because
  * an earlier entry was installed here is a face missing wherever it is not.
  */
-function familiesUsedBy(root: Element): ReadonlySet<string> {
-  const view = root.ownerDocument.defaultView;
+export function familiesPaintedWith(styles: readonly CSSStyleDeclaration[]): ReadonlySet<string> {
   const used = new Set<string>();
-  if (view === null) return used;
-
-  // As `referencedAssets` asks it, and for the same reason: jsdom costs a
-  // virtual-console error per element for a pseudo-element's style.
-  const pseudo = detectProfile(view).layout ? GENERATED_BOXES : [];
-
-  for (const element of [root, ...root.querySelectorAll('*')]) {
-    for (const selector of [null, ...pseudo]) {
-      const style = view.getComputedStyle(element, selector);
-      if (typeof style?.getPropertyValue !== 'function') continue;
-      for (const family of familiesIn(style.getPropertyValue('font-family'))) used.add(family);
-    }
+  for (const style of styles) {
+    for (const family of familiesIn(style.getPropertyValue('font-family'))) used.add(family);
   }
-
   return used;
 }
