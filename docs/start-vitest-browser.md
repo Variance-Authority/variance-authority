@@ -230,7 +230,7 @@ There are four verdicts:
 
 | verdict | what it means |
 | --- | --- |
-| `unchanged` | the stored baseline and this run's image were compared, and no pixels differ |
+| `unchanged` | the stored baseline and this run's image were compared, and no pixels differ beyond the default policy's tolerance: antialiasing, and a colour change of up to 1%. The reason counts any pixels it forgave |
 | `changed` | pixels differ; `regions` names what drew them, and the reason names a moved identity first |
 | `new` | no baseline exists for this subject. Not a pass and not a failure |
 | `ignored` | pixels differ and every one of them fell inside something you excluded |

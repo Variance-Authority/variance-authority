@@ -73,10 +73,36 @@ describe('comparing two rasters', () => {
 
   it('reports both a forgiving and an exact policy', () => {
     // Quoting one threshold is the most common way to lie with a pixel
-    // measurement. A change under the default's tolerance is invisible at
-    // `threshold: 0.1` and plainly there at `0`.
+    // measurement. A change under the default's tolerance is invisible to it and
+    // plainly there at `0`.
     const before = png(10, 10, () => [255, 255, 255]);
     const after = png(10, 10, () => [253, 255, 255]);
+
+    const comparison = comparePngs(before, after);
+
+    expect(comparison.changed[DEFAULT_POLICY.id]).toBe(0);
+    expect(comparison.changed[STRICT_POLICY.id]).toBe(100);
+  });
+
+  it.each([
+    // Every border on tribunal's review page, and its brand accent: the two
+    // token edits that went green at `threshold: 0.1`, which forgives a pixel up
+    // to a tenth of the way from black to white.
+    ['a line token', [0x2f, 0x34, 0x37], [0x3a, 0x40, 0x43]],
+    ['an accent token', [0xff, 0x4a, 0x19], [0xff, 0x6a, 0x19]],
+  ] as const)('counts every pixel of %s edit under the default policy', (_, from, to) => {
+    const comparison = comparePngs(png(10, 10, () => from), png(10, 10, () => to));
+
+    expect(comparison.changed[DEFAULT_POLICY.id]).toBe(100);
+  });
+
+  it('forgives the one-level wobble a reused page paints when nothing changed', () => {
+    // Journal 0010's remount rounds, re-run with the default's threshold at `0`:
+    // 18–25 pixels across fifteen stories that antialiasing detection did not
+    // explain, none further than one level per channel. This is the furthest
+    // such a pixel can be in `pixelmatch`'s metric.
+    const before = png(10, 10, () => [128, 128, 128]);
+    const after = png(10, 10, () => [129, 127, 127]);
 
     const comparison = comparePngs(before, after);
 

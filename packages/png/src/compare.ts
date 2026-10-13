@@ -20,10 +20,12 @@ import { differencePixels, type DecodedImage } from './mask.js';
  * that still has *positions* in it, and the phases that turn positions into
  * places and places into files come after.
  *
- * `pixelmatch` does the per-pixel work at its own defaults. It is the differ
- * behind most of the ecosystem — Playwright's `toHaveScreenshot`,
- * jest-image-snapshot — and using it at settings chosen to flatter this project
- * would make every comparison against a pixel tool worthless.
+ * `pixelmatch` does the per-pixel work. It is the differ behind most of the
+ * ecosystem — Playwright's `toHaveScreenshot`, jest-image-snapshot — so its
+ * metric is the one every pixel tool's numbers are in. Its default threshold is
+ * not this project's: {@link DEFAULT_POLICY} says why. The pixel arm a
+ * comparison against those tools runs keeps their defaults, in
+ * `examples/todomvc/src/pixel/diff.ts`.
  */
 
 /**

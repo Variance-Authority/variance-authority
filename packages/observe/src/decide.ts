@@ -12,7 +12,12 @@ import { mergeDiagnostics, type Pictured, type Raster } from '@variance-authorit
 import { absorbsEntirely, relaxes, fingerprintOfMask } from '@variance-authority/core/judge';
 import type { SemanticSnapshot } from '@variance-authority/core/format';
 import { compareRasters } from '@variance-authority/png';
-import type { RasterComparison } from '@variance-authority/raster';
+import {
+  DEFAULT_POLICY,
+  STRICT_POLICY,
+  type DiffPolicy,
+  type RasterComparison,
+} from '@variance-authority/raster';
 import { attributionOf } from './attribution.js';
 import { frameDiagnostics } from './frame.js';
 import type { CompareInputs, IgnoredPixels, Observation } from './observe.js';
@@ -165,17 +170,18 @@ export async function decide(
     // the second into the first is the failure the whole mechanism is written
     // around — a suite could then never be asked how much of its green it earned.
     const wasIgnored = subtraction.ignored > 0;
+    const beyond = forgiveness(comparison, options);
 
     return {
       subject,
       verdict: wasIgnored ? 'ignored' : 'unchanged',
       because: wasIgnored
         ? `${count(subtraction.ignored, 'pixel')} differ and all of them fall inside ` +
-          `${count(boxes.length, 'excluded region')}; nothing outside them moved`
+          `${count(boxes.length, 'excluded region')}; nothing outside them moved${beyond}`
         : missingFonts.length > 0
-          ? `no pixels differ, but the renderer lacked ${missingFonts.join(', ')} on both sides, ` +
-            'so both images are of a substituted font'
-          : 'no pixels differ',
+          ? `no pixels differ${beyond}, but the renderer lacked ${missingFonts.join(', ')} ` +
+            'on both sides, so both images are of a substituted font'
+          : `no pixels differ${beyond}`,
       comparison,
       regions: [],
       rendered,
@@ -261,7 +267,7 @@ export async function decide(
       verdict: 'ignored',
       because:
         `${count(absorbed, 'pixel')} differ and every one of them was absorbed by an ignore; ` +
-        'nothing else moved',
+        `nothing else moved${forgiveness(comparison, options)}`,
       comparison,
       regions: [],
       rendered,
@@ -371,6 +377,38 @@ export function declaredIgnores(
  */
 function count(value: number, noun: string): string {
   return `${value.toLocaleString('en-US')} ${noun}${value === 1 ? '' : 's'}`;
+}
+
+/**
+ * The clause a green sentence owes for the pixels its policy did not count.
+ *
+ * Empty when the strict policy found nothing more: then "no pixels differ" is
+ * true of the images themselves. Otherwise it names the policy and what that
+ * policy forgives, read off the policy rather than written out, so a threshold
+ * that moves cannot leave the sentence describing the old one. Both reasons are
+ * named whenever both apply, because one count cannot tell them apart.
+ *
+ * Exact on every path that calls it: they all return before isolation, so the
+ * isolation policy's whole mask is what was counted, and the strict policy
+ * counts every pixel it does and more (ADR-0026).
+ */
+function forgiveness(comparison: RasterComparison, options: CompareInputs): string {
+  const policy: DiffPolicy = options.compare?.isolateWith ?? DEFAULT_POLICY;
+  const strict = comparison.changed[STRICT_POLICY.id];
+  if (strict === undefined || policy.id === STRICT_POLICY.id) return '';
+  const forgiven = strict - comparison.mask.changed;
+  if (forgiven <= 0) return '';
+
+  const reasons = [
+    ...(!policy.includeAA && STRICT_POLICY.includeAA ? ['as antialiasing'] : []),
+    ...(policy.threshold > STRICT_POLICY.threshold
+      ? [`as a colour change of at most ${Number((policy.threshold * 100).toFixed(2))}%`]
+      : []),
+  ];
+  return (
+    ` beyond the tolerance of the ${policy.id} policy, which forgave ${count(forgiven, 'pixel')}` +
+    (reasons.length === 0 ? '' : ` ${reasons.join(' or ')}`)
+  );
 }
 
 function describeChange(
