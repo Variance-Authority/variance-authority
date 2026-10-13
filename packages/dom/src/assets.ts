@@ -99,51 +99,111 @@ export function referencedAssets(root: Element): readonly string[] {
   return [...found].sort();
 }
 
+/** An attribute that names a file: `srcset` names one per candidate. */
+export interface FileAttribute {
+  readonly name: string;
+  readonly namespace: string | null;
+  readonly candidates: boolean;
+}
+
+const SRC: FileAttribute = { name: 'src', namespace: null, candidates: false };
+const HREF: FileAttribute = { name: 'href', namespace: null, candidates: false };
+const XLINK_HREF: FileAttribute = { name: 'href', namespace: 'http://www.w3.org/1999/xlink', candidates: false };
+
 /**
  * The attributes that name a file, by element.
  *
  * `href` is read only on SVG's `<use>` and `<image>`. On an `<a>` it is a
  * destination rather than an asset, and hashing every link target would put the
  * whole site in one subject's key.
+ *
+ * **Every `srcset` candidate, not the one the browser picked.** Which candidate
+ * is used depends on the device pixel ratio, and a key that recorded only the
+ * chosen one would let a 2× asset change without moving the 1× runner's key —
+ * the same file, the same URL list, and a baseline that is quietly of different
+ * bytes. Over-inclusion here costs a re-render nobody needed; under-inclusion
+ * costs a false `unchanged`.
  */
-function addAttributes(element: Element, add: (value: string | null) => void): void {
-  const tag = element.tagName.toLowerCase();
-
-  if (tag === 'img' || tag === 'source') {
-    add(element.getAttribute('src'));
-    // **Every candidate, not the one the browser picked.** Which candidate is
-    // used depends on the device pixel ratio, and a key that recorded only the
-    // chosen one would let a 2× asset change without moving the 1× runner's key
-    // — the same file, the same URL list, and a baseline that is quietly of
-    // different bytes. Over-inclusion here costs a re-render nobody needed;
-    // under-inclusion costs a false `unchanged`.
-    for (const candidate of srcsetCandidates(element.getAttribute('srcset'))) add(candidate);
-  }
-
-  if (tag === 'image' || tag === 'use') {
-    add(element.getAttribute('href'));
-    add(element.getAttributeNS('http://www.w3.org/1999/xlink', 'href'));
-  }
-
-  if (tag === 'video' || tag === 'audio' || tag === 'track' || tag === 'embed' || tag === 'iframe') {
-    add(element.getAttribute('src'));
-  }
-
-  if (tag === 'video') add(element.getAttribute('poster'));
-  if (tag === 'object') add(element.getAttribute('data'));
-  if (tag === 'input' && element.getAttribute('type')?.toLowerCase() === 'image') {
-    add(element.getAttribute('src'));
+export function fileAttributes(element: Element): readonly FileAttribute[] {
+  switch (element.tagName.toLowerCase()) {
+    case 'img':
+    case 'source':
+      return [SRC, { name: 'srcset', namespace: null, candidates: true }];
+    case 'image':
+    case 'use':
+      return [HREF, XLINK_HREF];
+    case 'video':
+      return [SRC, { name: 'poster', namespace: null, candidates: false }];
+    case 'audio':
+    case 'track':
+    case 'embed':
+    case 'iframe':
+      return [SRC];
+    case 'object':
+      return [{ name: 'data', namespace: null, candidates: false }];
+    case 'input':
+      return element.getAttribute('type')?.toLowerCase() === 'image' ? [SRC] : [];
+    default:
+      return [];
   }
 }
 
-/** `a.png 1x, b.png 2x` → `['a.png', 'b.png']`. Descriptors are not URLs. */
-function srcsetCandidates(value: string | null): readonly string[] {
-  if (value === null) return [];
+function addAttributes(element: Element, add: (value: string | null) => void): void {
+  for (const attribute of fileAttributes(element)) {
+    const value = element.getAttributeNS(attribute.namespace, attribute.name);
+    if (!attribute.candidates) add(value);
+    else for (const candidate of srcsetCandidates(value ?? '')) add(candidate.url);
+  }
+}
 
-  return value
-    .split(',')
-    .map((candidate) => candidate.trim().split(/\s+/)[0] ?? '')
-    .filter((candidate) => candidate !== '');
+/** HTML splits a `srcset` on these, and a no-break space is part of a URL. */
+const ASCII_WHITESPACE = /[\t\n\f\r ]/;
+
+/** One candidate in a `srcset`: its URL, and the descriptor offered with it. */
+export interface SrcsetCandidate {
+  readonly url: string;
+  /** `2x`, `640w`, or empty. */
+  readonly descriptor: string;
+}
+
+/**
+ * `a.png 1x, b.png 2x` → each URL with its descriptor, by HTML's rule.
+ *
+ * A URL is a run of anything but ASCII whitespace, so the comma inside a `data:` URL is part of
+ * it: splitting on every comma cut such a URL in two, and the second half
+ * resolved as a file next to the page. A comma ends a candidate only after its
+ * URL, or trailing it.
+ */
+export function srcsetCandidates(value: string): readonly SrcsetCandidate[] {
+  const candidates: SrcsetCandidate[] = [];
+  let position = 0;
+
+  while (position < value.length) {
+    while (position < value.length && /[\t\n\f\r ,]/.test(value[position]!)) position += 1;
+    if (position >= value.length) break;
+
+    const start = position;
+    while (position < value.length && !ASCII_WHITESPACE.test(value[position]!)) position += 1;
+    const written = value.slice(start, position);
+    const url = written.replace(/,+$/, '');
+    if (url !== written) {
+      candidates.push({ url, descriptor: '' });
+      continue;
+    }
+
+    // A descriptor runs to the next comma outside parentheses; the first `)`
+    // closes them, however many opened.
+    const after = position;
+    let inParens = false;
+    while (position < value.length && (value[position] !== ',' || inParens)) {
+      if (value[position] === '(') inParens = true;
+      else if (value[position] === ')') inParens = false;
+      position += 1;
+    }
+    candidates.push({ url, descriptor: value.slice(after, position).trim() });
+  }
+
+  return candidates;
 }
 
 /**

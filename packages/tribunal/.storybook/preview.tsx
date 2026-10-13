@@ -4,7 +4,9 @@
  * The page is one stylesheet, `REVIEW_STYLES`, whose tokens and element reset
  * hang off `.va-app`. A component drawn outside it is a component in the
  * browser's default font on a white page, which no reviewer has ever seen, so a
- * story that photographed that would be a baseline of nothing.
+ * story that photographed that would be a baseline of nothing. Its faces are
+ * `fonts.css`, the sheet the served page links: without it the stories are set
+ * in whichever fallback the machine has, which is not the page either.
  *
  * A component story sits in a `.va-app` that is as tall as its content rather
  * than as tall as the window, at the width the story asks for — a panel's
@@ -12,6 +14,7 @@
  * the whole surface and draws its own `.va-app`.
  */
 import type { Decorator, Preview } from '@storybook/react-vite';
+import '../fonts/fonts.css';
 import { REVIEW_STYLES } from '../src/ui/styles.js';
 import { forgetMisses } from '../stories/replay.js';
 

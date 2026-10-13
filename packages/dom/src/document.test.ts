@@ -220,6 +220,27 @@ describe('a subject set in a face this host cannot read', () => {
 });
 
 /**
+ * An object URL under a host that paints nothing.
+ *
+ * jsdom mints no object URLs, so a `blob:` there is a string a test wrote, and
+ * no page ever showed the picture it names. The render still paints it broken,
+ * which is the host's standing limit, as an unread font face is: said, and not
+ * a failed run.
+ */
+describe('an object URL this host cannot read', () => {
+  it('warns that the render paints it broken, since no page here showed it', () => {
+    const subject = mount('<div id="subject"><img src="blob:http://localhost/made-up" alt="chart"></div>');
+
+    const acquired = acquireDocument(subject, { subject: { id: 's', kind: 'fixture' }, viewport: VIEWPORT });
+
+    const unread = acquired.diagnostics.filter((d) => d.code === 'unreadable-object-url');
+    expect(unread.map((d) => d.severity)).toEqual(['warn']);
+    expect(unread[0]?.message).toContain('<img src="blob:http://localhost/made-up">');
+    expect(acquired.html).toContain('src="blob:http://localhost/made-up"');
+  });
+});
+
+/**
  * The digest is a function of the tree, and of nothing about the run that read it.
  *
  * `outerHTML` writes attributes in the order the element happens to hold them,
