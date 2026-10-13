@@ -5,6 +5,7 @@ import { splitSelectorList, specificityOf, type Specificity } from './specificit
 import { items, propertyNames } from './dom-list.js';
 import { lastCompound, splitPseudoElement } from './selector-parts.js';
 import { STABILIZE_ATTRIBUTE } from './stabilize.js';
+import { faceOf, isFontFaceRule, type IndexedFace } from './font-faces.js';
 
 /**
  * The per-document half of the pruning: sheets flattened into a matchable index.
@@ -48,6 +49,13 @@ export interface StyleIndex {
   readonly diagnostics: readonly Diagnostic[];
   /** Rules seen before applicability filtering. Reported to show what was pruned. */
   readonly totalRules: number;
+
+  /**
+   * Every `@font-face` in force, in document order, under the same conditions
+   * as the rules. A face matches no element, so it is kept here rather than in
+   * a bucket, and `facesUsedBy` asks the subject which of them it is set in.
+   */
+  readonly faces: readonly IndexedFace[];
 
   /**
    * Which condition environment this index was flattened against, per
@@ -163,6 +171,18 @@ function isStabilizationSheet(sheet: CSSStyleSheet): boolean {
   return owner?.hasAttribute?.(STABILIZE_ATTRIBUTE) === true;
 }
 
+/**
+ * The sheets this project reads, in cascade order: every readable kind of sheet
+ * the document holds, less the one it injected itself, then the adopted ones.
+ */
+export function authoredSheets(document: Document): CSSStyleSheet[] {
+  const sheets: CSSStyleSheet[] = items(document.styleSheets)
+    .filter(isStyleSheet)
+    .filter((sheet) => !isStabilizationSheet(sheet));
+  for (const adopted of adoptedSheets(document)) sheets.push(adopted);
+  return sheets;
+}
+
 export function indexStyleSheets(
   document: Document,
   environment: ConditionEnvironment,
@@ -174,12 +194,9 @@ export function indexStyleSheets(
   let order = 0;
   let totalRules = 0;
 
-  const sheets: CSSStyleSheet[] = items(document.styleSheets)
-    .filter(isStyleSheet)
-    .filter((sheet) => !isStabilizationSheet(sheet));
-  for (const adopted of adoptedSheets(document)) sheets.push(adopted);
+  const faces: IndexedFace[] = [];
 
-  for (const [index, sheet] of sheets.entries()) {
+  for (const [index, sheet] of authoredSheets(document).entries()) {
     const name = sheetName(sheet, index);
 
     let rules: CSSRuleList;
@@ -207,7 +224,7 @@ export function indexStyleSheets(
       continue;
     }
 
-    walk(rules, name, false);
+    walk(rules, name, sheet.href ?? document.baseURI, false);
   }
 
   return {
@@ -215,11 +232,12 @@ export function indexStyleSheets(
     universal,
     diagnostics,
     totalRules,
+    faces,
     evaluatedConditions,
     conditions: conditionKey(environment),
   };
 
-  function walk(rules: CSSRuleList, sheet: string, uncertain: boolean): void {
+  function walk(rules: CSSRuleList, sheet: string, base: string, uncertain: boolean): void {
     for (const rule of items(rules)) {
       if (isGroupingRule(rule)) {
         const condition = conditionOf(rule, environment);
@@ -229,7 +247,13 @@ export function indexStyleSheets(
         }
 
         if (!condition.matches) continue;
-        walk(rule.cssRules, sheet, uncertain || condition.uncertain);
+        walk(rule.cssRules, sheet, base, uncertain || condition.uncertain);
+        continue;
+      }
+
+      if (isFontFaceRule(rule)) {
+        const face = faceOf(rule, base, document);
+        if (face !== null) faces.push(face);
         continue;
       }
 

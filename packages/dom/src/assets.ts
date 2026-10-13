@@ -1,6 +1,8 @@
 import { pageOrigin, withoutOrigin } from '@variance-authority/core/format';
 import { GENERATED_BOXES } from './generated-box.js';
 import { detectProfile } from './profile.js';
+import { authoredSheets } from './css-index.js';
+import { faceSourcesUsedBy } from './font-faces.js';
 
 /**
  * Which external files a subject's own subtree asks for.
@@ -104,6 +106,10 @@ export function referencedAssets(root: Element): readonly string[] {
       }
     }
   }
+
+  // A face's file is named by a rule no element matches, so no computed value
+  // above carries it; the subtree asks for it by setting text in the face.
+  for (const source of faceSourcesUsedBy(root, authoredSheets(document))) add(source);
 
   return [...found].sort();
 }
