@@ -23,7 +23,7 @@ export const DOCUMENTATION_INDEXES = [
   { href: "/docs/all", label: "All pages", description: "Browse every documentation page by its name and opening description.", sectionLabels: [] },
 ] as const;
 
-/** The complete publication order. Article sidebars select a neighbourhood. */
+/** The complete publication order. Sidebars expose the selected top-level section. */
 export const NAVIGATION = [
   {
     label: "Documentation",
@@ -237,17 +237,6 @@ export const DOCUMENTATION_ENTRY_POINTS: readonly LocatedNavigationItem[] = [
   '/docs/comparisons', '/docs/all',
 ].map((href) => navigationItem(href)!);
 
-/** The current question, rather than the entire publication catalogue. */
-export function navigationContext(href: string): NavigationSection | undefined {
-  const current = navigationItem(href) ??
-    (href.startsWith("/reference/packages/") ? navigationItem("/reference/packages") : undefined);
-  if (!current || current.unlisted) return undefined;
-  const items = NAVIGATION_ITEMS.filter((item) =>
-    !item.unlisted && item.section === current.section && item.cluster === current.cluster,
-  );
-  return { label: current.cluster ?? current.section, items };
-}
-
 export interface DocumentationIndex {
   readonly href: string;
   readonly label: string;
@@ -255,23 +244,64 @@ export interface DocumentationIndex {
   readonly sections: readonly NavigationSection[];
 }
 
-/** Every index is a view of the canonical entries, including cross-listed theory. */
-export function documentationIndex(href: string): DocumentationIndex | undefined {
+/** Existing question and integration pages are also top-level browsing entries. */
+const ENTRY_SECTIONS: Readonly<Record<string, readonly string[]>> = {
+  '/docs': ['Code exploration', 'Your test suite', 'Investigate a run'],
+  '/start': ['Visual review integrations'],
+  '/agents': ['Agents'],
+};
+
+/** One grouping owner for the index content and the complete secondary navigation. */
+function collectionSections(href: string): readonly NavigationSection[] | undefined {
   const index = DOCUMENTATION_INDEXES.find((entry) => entry.href === href);
-  if (!index) return undefined;
+  const sectionLabels: readonly string[] | undefined = index?.sectionLabels ?? ENTRY_SECTIONS[href];
+  if (!sectionLabels) return undefined;
   const catalogue: readonly NavigationSection[] = NAVIGATION;
-  const selected = index.sectionLabels.length
-    ? catalogue.filter((section) => (index.sectionLabels as readonly string[]).includes(section.label))
+  const selected = sectionLabels.length
+    ? catalogue.filter((section) => sectionLabels.includes(section.label))
     : catalogue.filter((section) => section.label !== 'Documentation');
   const sections = selected.flatMap((section) => {
     const clusters = [...new Set(section.items.map((item) => item.cluster))];
     return clusters.map((cluster) => ({
-      label: index.sectionLabels.length ? cluster ?? section.label : `${section.label}${cluster ? ` — ${cluster}` : ''}`,
+      label: href === '/docs' || href === '/docs/all' ? `${section.label}${cluster ? ` — ${cluster}` : ''}` : cluster ?? section.label,
       items: section.items.filter((item) => item.cluster === cluster && !item.unlisted),
     }));
   });
   if (href === '/docs/theory') {
     sections.push({ label: 'Theory in practice', items: NAVIGATION_ITEMS.filter((item) => item.theory) });
   }
-  return { ...index, sections };
+  return sections;
+}
+
+/** Every index is a view of the canonical entries, including cross-listed theory. */
+export function documentationIndex(href: string): DocumentationIndex | undefined {
+  const index = DOCUMENTATION_INDEXES.find((entry) => entry.href === href);
+  return index ? { ...index, sections: collectionSections(href)! } : undefined;
+}
+
+export interface NavigationContext {
+  readonly href: string;
+  readonly label: string;
+  readonly sections: readonly NavigationSection[];
+}
+
+/**
+ * Keep the selected section while reading one of its pages. A direct URL uses
+ * the page's catalogue owner; an unrelated selection never conceals that owner.
+ */
+export function navigationContext(href: string, selectedHref?: string): NavigationContext | undefined {
+  const current = navigationItem(href) ??
+    (href.startsWith('/reference/packages/') ? navigationItem('/reference/packages') : undefined);
+  if (!current) return undefined;
+  const atEntry = DOCUMENTATION_ENTRY_POINTS.find((entry) => entry.href === current.href);
+  const selected = selectedHref ? DOCUMENTATION_ENTRY_POINTS.find((entry) => entry.href === selectedHref) : undefined;
+  const belongs = (entry: LocatedNavigationItem) =>
+    collectionSections(entry.href)?.some((section) => section.items.some((item) => item.href === current.href));
+  const owner = DOCUMENTATION_ENTRY_POINTS.find((entry) => {
+    const index = DOCUMENTATION_INDEXES.find((index) => index.href === entry.href);
+    const labels: readonly string[] | undefined = index?.sectionLabels ?? ENTRY_SECTIONS[entry.href];
+    return labels?.includes(current.section);
+  });
+  const entry = atEntry ?? (selected && belongs(selected) ? selected : owner);
+  return entry ? { href: entry.href, label: entry.label, sections: collectionSections(entry.href)! } : undefined;
 }

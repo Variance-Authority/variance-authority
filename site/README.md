@@ -20,7 +20,7 @@ and figures without creating another contract.
 Every article also serves its Markdown beside it, at `<path>/index.md`,
 with repository links repointed at the Markdown of the page they name.
 `/llms.txt` indexes the complete publication catalogue. The question home, theory
-and reference indexes, and article neighbourhoods select from that catalogue, so
+and reference indexes, and section navigation select from that catalogue, so
 a reader can find the same material through a direct question or a complete
 index. Each page names the index in its head as `rel="describedby"`; an article
 also names its own Markdown as `rel="alternate"`, and every response — page, `robots.txt`, Markdown
@@ -68,8 +68,8 @@ in each:
   pagination stays inside one `cluster`, and `generateStaticParams` in
   `app/(docs)/docs/[slug]/page.tsx` builds only slugs that `NAVIGATION` lists —
   so a document added to `product-docs.ts` alone renders nowhere. The sidebar
-  shows direct entry routes and the current question's neighbourhood; it does
-  not display the complete catalogue. `DOCUMENTATION_INDEXES` selects the
+  shows direct entry routes and every secondary page in the selected section,
+  on both the section's entry page and its articles. `DOCUMENTATION_INDEXES` selects the
   existing entries for Theory, Reference, Comparisons and case studies, and
   All pages. Index entries use a catalogue caption when a meaningful name
   needs context, and otherwise use the document's opening description.
