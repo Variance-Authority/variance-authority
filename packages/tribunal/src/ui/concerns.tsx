@@ -93,7 +93,6 @@ export function Concerns({
   useEffect(() => {
     shown.current = subject.subject;
     setLoaded({ kind: 'loading' });
-    setWriting(false);
     setBusy(false);
     setFailed(null);
     return readTrail(client, subject.subject, setLoaded, reads);
@@ -111,6 +110,11 @@ export function Concerns({
   // Both before paint: a browser runs the next keydown as soon as the form is
   // drawn, and a J that reached the bar before it heard would leave the draft.
   useLayoutEffect(() => onWriting?.(writing), [onWriting, writing]);
+
+  // A draft belongs to its subject. Closed in a layout effect declared before
+  // the request below, so a request the panel mounts with opens the form after
+  // the close rather than being closed by it, as a passive reset did.
+  useLayoutEffect(() => setWriting(false), [subject.subject]);
 
   // Only a new request opens the form: the panel outlives the subject, and the
   // last request is still in its props when the reviewer moves to the next one.

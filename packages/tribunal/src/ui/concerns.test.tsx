@@ -277,6 +277,26 @@ describe('useConcernTally', () => {
 });
 
 describe('Concerns, across subjects', () => {
+  it('opens the form on a request the panel was mounted with, and not again on the next subject', async () => {
+    // A request is a request whenever it arrived. The subject reset ran after
+    // the request had opened the form, so one present at mount was closed
+    // before it was ever drawn — while the last request must still not reopen
+    // the form on the subject the reviewer moves to.
+    const client = concernClient(async () => []);
+    const asked = { state: 'investigating', seq: 1 } as const;
+    const other: SubjectView = { ...SUBJECT, subject: 'story:cart--empty' };
+    const show = (subject: SubjectView): Promise<void> =>
+      act(async () =>
+        root.render(<Concerns client={client} reviewer="marina" build="ci-1001" subject={subject} asked={asked} />),
+      );
+
+    await show(SUBJECT);
+    expect(host.querySelector('form.va-concern-form')).not.toBeNull();
+
+    await show(other);
+    expect(host.querySelector('form.va-concern-form')).toBeNull();
+  });
+
   it('never lands a write on the subject the reviewer moved to while it was in flight', async () => {
     // The subject page keeps one panel for every subject, so a raise that answers
     // after the reviewer moved on must not appear in the next subject's trail.

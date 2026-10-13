@@ -394,7 +394,7 @@ export function ChurnLine({
     <p className="va-churn">
       <strong>{component}</strong> caused an approved change in {churn.changedRuns} of {churn.runs}{' '}
       recorded run{churn.runs === 1 ? '' : 's'}
-      {churn.lastAt === undefined ? null : <>, most recently {churn.lastAt}</>}.
+      {churn.lastAt === undefined ? null : <>, most recently {when(churn.lastAt)}</>}.
       {churn.collateralRuns === 0 ? null : (
         <> It was displaced without changing in {churn.collateralRuns} more.</>
       )}

@@ -281,6 +281,17 @@ describe('the render’s own card', () => {
     expect(draw(<MovedHere subject={subject({ moved: [] })} />)).toContain('every component hash matched');
   });
 
+  it('says a new render had no baseline, rather than one carrying no hashes', () => {
+    // No hashes were compared because nothing was: a render seen for the first
+    // time has no baseline at all, and the hashes are not what is missing.
+    const html = draw(
+      <MovedHere subject={subject({ verdict: 'new', has: { before: false, after: true, diff: false } })} />,
+    );
+
+    expect(html).toContain('no baseline');
+    expect(html).not.toContain('compared against a baseline');
+  });
+
   it('says which names a region carried while their hashes held', () => {
     const html = draw(
       <MovedHere

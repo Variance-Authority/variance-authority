@@ -90,6 +90,7 @@ export const REVIEW_STYLES = `
 :where(.va-app button.va-current:disabled) { cursor: default; opacity: 1; }
 :where(.va-app input) { background: var(--va-surface); border: 1px solid var(--va-line-firm); border-radius: 7px; color: var(--va-ink); font: inherit; padding: 0.35rem 0.6rem; }
 :where(.va-app ul, .va-app ol) { list-style: none; margin: 0; padding: 0; }
+:where(.va-app a) { color: var(--va-accent); }
 
 /* The two things the reset above would otherwise have taken away. A surface that
    reports \`nested-interactive\` and unreachable controls cannot itself leave a
@@ -153,7 +154,7 @@ export const REVIEW_STYLES = `
 .va-builds { display: grid; gap: 0.85rem; }
 .va-build { background: var(--va-surface); border: 1px solid var(--va-line); border-radius: 12px; padding: 0.9rem 1.1rem; }
 .va-build-head { align-items: center; display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.45rem; }
-.va-build-open { align-items: baseline; background: none; border: 0; border-radius: 0; display: flex; gap: 0.5rem; padding: 0; }
+.va-build-open { align-items: baseline; background: none; border: 0; border-radius: 0; color: var(--va-ink); display: flex; gap: 0.5rem; padding: 0; text-decoration: none; }
 .va-build-id { font-size: 1.05rem; font-weight: 650; letter-spacing: -0.01em; }
 .va-build-go { color: var(--va-accent); font-size: 0.82rem; font-weight: 600; }
 .va-commit { background: var(--va-sunken); border-radius: 5px; color: var(--va-ink-2); padding: 0.1rem 0.35rem; }
@@ -162,7 +163,7 @@ export const REVIEW_STYLES = `
 
 .va-verdicts { align-items: center; display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.3rem; }
 .va-pending { color: var(--va-warn); font-weight: 650; }
-.va-settled { color: var(--va-good); font-weight: 650; }
+.va-clear { color: var(--va-good); font-weight: 650; }
 .va-counts { color: var(--va-ink-3); font-size: 0.84rem; }
 .va-coverage { color: var(--va-ink-2); font-size: 0.84rem; }
 .va-coverage.va-unknown { color: var(--va-warn); }

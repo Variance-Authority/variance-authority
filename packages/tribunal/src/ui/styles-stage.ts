@@ -21,7 +21,7 @@ export const STAGE_STYLES = `
 .va-viewer-bar { display: grid; gap: 0.45rem; margin: 0.85rem 0 0.6rem; }
 .va-viewer-controls, .va-viewer-readout { align-items: center; display: flex; flex-wrap: wrap; gap: 0.5rem; min-width: 0; }
 .va-modes, .va-zooms { background: var(--va-sunken); border-radius: 9px; display: inline-flex; flex-wrap: wrap; gap: 0.15rem; padding: 0.2rem; }
-.va-mode { background: none; border: 1px solid transparent; border-radius: 7px; font-family: var(--va-mono); font-size: 0.72rem; letter-spacing: 0.08em; padding: 0.25rem 0.6rem; text-transform: uppercase; white-space: nowrap; }
+.va-mode { background: none; border: 1px solid transparent; border-radius: 7px; color: var(--va-ink); font-family: var(--va-mono); font-size: 0.72rem; letter-spacing: 0.08em; padding: 0.25rem 0.6rem; text-decoration: none; text-transform: uppercase; white-space: nowrap; }
 .va-mode.va-current { background: var(--va-accent-soft); border-color: var(--va-accent); color: var(--va-accent); font-weight: 650; }
 .va-steps { align-items: center; display: inline-flex; gap: 0.4rem; margin-left: auto; }
 .va-steps button { font-size: 0.9rem; line-height: 1; padding: 0.25rem 0.55rem; }

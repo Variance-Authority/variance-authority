@@ -39,7 +39,7 @@ function subject(overrides: Partial<SubjectView> = {}): SubjectView {
 
 function build(
   subjects: readonly SubjectView[],
-  extra: { readonly causes?: readonly Cause[]; readonly reach?: ReachView | null } = {},
+  extra: { readonly causes?: readonly Cause[]; readonly reach?: ReachView | null; readonly pending?: number } = {},
 ): BuildDetail {
   return {
     project: 'snkr-shop',
@@ -50,7 +50,7 @@ function build(
     retention: 'durable',
     verdicts: { changed: 1, unchanged: 0, new: 0, unstable: 0, ignored: 0 },
     decided: 0,
-    pending: 1,
+    pending: extra.pending ?? 1,
     coverage: { stated: true, failed: 0, excluded: 0, unreached: 0 },
     subjects,
     notObserved: [],
@@ -318,7 +318,50 @@ describe('the rail is scanned, not read', () => {
   });
 
   it('says so plainly when the build holds nothing to decide', () => {
-    expect(rail(build([]))).toContain('Nothing in this build changed');
+    expect(rail(build([], { pending: 0 }))).toContain('none awaits review');
+  });
+
+  it('sends a first run to its new renders rather than saying there is nothing to approve', () => {
+    // A change is a difference from a baseline, so a build of renders nobody has
+    // seen before has no change to file and every render still to approve.
+    const fresh = ['story:a', 'story:b'].map((name) =>
+      subject({ subject: name, verdict: 'new', has: { before: false, after: true, diff: false } }),
+    );
+    const page = rail(build(fresh, { pending: 2 }));
+
+    expect(page).toContain('2 renders await review under Subjects');
+    expect(page).not.toContain('nothing to approve');
+  });
+
+  it('counts what the build says awaits review, as the header does, rather than recounting', () => {
+    // `pending` is the summary's answer, and the header's *N awaiting review*
+    // reads it. A second count here could disagree with the line above it.
+    const decision = { decision: 'approved', by: 'marina', at: '2026-06-01T09:00:00.000Z' } as const;
+    const page = rail(
+      build(
+        [
+          subject({ subject: 'story:a', verdict: 'new', has: { before: false, after: true, diff: false }, decision }),
+          subject({ subject: 'story:b', verdict: 'new', has: { before: false, after: true, diff: false } }),
+        ],
+        { pending: 3 },
+      ),
+    );
+
+    // Three, where a recount of the two renders here would say one.
+    expect(page).toContain('3 renders await review under Subjects');
+  });
+
+  it('says none awaits review once every new render is decided, not that nothing changed', () => {
+    const decision = { decision: 'approved', by: 'marina', at: '2026-06-01T09:00:00.000Z' } as const;
+    const page = rail(
+      build([subject({ verdict: 'new', has: { before: false, after: true, diff: false }, decision })], {
+        pending: 0,
+      }),
+    );
+
+    // *Nothing changed* would be false of a build made of renders nobody had
+    // seen before, decided or not.
+    expect(page).toContain('No render in this build was filed under a change, and none awaits review.');
   });
 
   it('links a change to its own address, so it can be sent to somebody', () => {

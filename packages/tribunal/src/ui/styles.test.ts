@@ -46,6 +46,20 @@ describe('REVIEW_STYLES', () => {
     expect([...counted].filter(([, times]) => times > 1).map(([selector]) => selector)).toEqual([]);
   });
 
+  it('draws a link that is a control in the page’s ink, not the browser’s link blue', () => {
+    // The pills and the build heading are links wherever they go somewhere and
+    // buttons wherever they switch something, and only the button half had a
+    // colour. *The run* on the docket, every build heading, the rail's rows and
+    // the change page's list of renders came out in the browser's blue or its
+    // visited purple — the one colour on the page the stylesheet did not choose.
+    expect(RULES.find((rule) => rule.selector === ':where(.va-app a)')?.body).toContain('color: var(--va-accent)');
+    for (const selector of ['.va-mode', '.va-build-open', '.va-row-link', '.va-where-subject']) {
+      const body = RULES.find((rule) => rule.selector === selector)?.body ?? '';
+      expect({ selector, body }).toEqual({ selector, body: expect.stringContaining('color: var(--va-ink)') });
+      expect({ selector, body }).toEqual({ selector, body: expect.stringContaining('text-decoration: none') });
+    }
+  });
+
   it('keeps the name of a comparison mode on one line, whatever it is called', () => {
     // The labels are set in small uppercase mono with letter spacing, so `side by
     // side` is three words the pill will break across three lines the moment the

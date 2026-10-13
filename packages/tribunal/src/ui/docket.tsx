@@ -361,8 +361,10 @@ function Opening({
         )}
 
         <h1>
+          {/* No change filed is not nothing changed: a first run files none, and
+              neither does a render that moved with no component named. */}
           {origins.length === 0
-            ? 'Nothing in this build changed'
+            ? 'No change to work through'
             : `${count(origins.length, 'change')} to work through`}
         </h1>
         {origins.length === 0 ? <Still verdicts={build.verdicts} /> : null}

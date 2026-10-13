@@ -58,9 +58,18 @@ export function OriginsPanel({
   const renders = origins.reduce((total, origin) => total + origin.appearances.length, 0);
 
   if (origins.length === 0 && unattributed.length === 0) {
+    // A change is a difference from a baseline, so a first run files none — and
+    // its new renders still await review under Subjects. `pending` is the count
+    // the header reads, so the two lines cannot disagree.
     return (
       <div className="va-rail-empty va-note">
-        Nothing in this build changed, so there is nothing to approve.
+        {build.pending === 0
+          ? 'No render in this build was filed under a change, and none awaits review.'
+          : `No render in this build was filed under a change. ${count(
+              build.pending,
+              'render awaits',
+              'renders await',
+            )} review under Subjects.`}
       </div>
     );
   }

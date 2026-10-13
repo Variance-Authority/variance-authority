@@ -11,6 +11,8 @@
  * would belong to the store, not to the presentation.
  */
 
+import type { SubjectView } from '../review-types.js';
+
 /** `1 pixel` / `8,818 pixels`, so a count of one does not read as a template. */
 export function count(value: number, noun: string, plural?: string): string {
   return `${number(value)} ${value === 1 ? noun : (plural ?? `${noun}s`)}`;
@@ -185,10 +187,34 @@ const NAMED = 3;
 
 /** The long form, for a surface with a line to spend on it. */
 export function magnitude(subject: {
+  readonly verdict: SubjectView['verdict'];
   readonly changedPixels: number;
   readonly regions: readonly { readonly pixels?: number; readonly fingerprint?: string }[];
+  readonly signals?: SubjectView['signals'];
 }): string {
+  // A new render has no baseline, so there is no count to report: *0 pixels
+  // differ* is the result of a comparison that never ran.
+  if (subject.verdict === 'new') return 'No baseline, so nothing was compared';
+
   const size = magnitudeOf(subject);
+
+  // A zero is a count only when the pixel axis says it measured one. A subject
+  // that gained or lost its pixels, or changed size, arrives with no count at
+  // all, and one that occupies none was never compared.
+  if (size.total === 0 && size.regions === 0) {
+    switch (subject.signals?.pixels) {
+      case 'unchanged':
+        // Read after the ignores are subtracted, so an absorbed render's pixels
+        // did differ — inside the regions its ignores took out.
+        return subject.verdict === 'ignored' ? 'No pixel differs outside the ignored regions' : 'No pixel differs';
+      case 'changed':
+        return 'Its pixels changed, and the run kept no count of them';
+      case 'unobservable':
+        return 'It occupies no pixels, so none were compared';
+      case undefined:
+        return 'The run did not say whether it measured pixels';
+    }
+  }
 
   // Nothing localised the difference, so the total is all there is to say — and
   // saying it plainly is better than dressing up a number the run did not break

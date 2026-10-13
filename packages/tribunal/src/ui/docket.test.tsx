@@ -142,6 +142,21 @@ describe('the opening line counts only what there is something to count', () => 
     expect(text).toContain('nothing here is a difference it also carried');
     expect(text).not.toMatch(/\b0 /);
   });
+
+  it('heads a build with no change filed by that, never by saying nothing changed', async () => {
+    // No change is filed for a first run, whose every render is new, nor for a
+    // render that moved with no component named as its cause. *Nothing in this
+    // build changed* was the heading over both.
+    const fresh = subject({ subject: 'story:new', verdict: 'new', regions: [], has: { before: false, after: true, diff: false } });
+    const unclaimed = subject({ subject: 'story:unclaimed', regions: [{ x: 0, y: 0, width: 10, height: 10, pixels: 100, cause: true }] });
+
+    for (const subjects of [[fresh], [unclaimed]]) {
+      const text = await open(build('6', subjects), build('5', []));
+
+      expect(text).toContain('No change to work through');
+      expect(text).not.toContain('Nothing in this build changed');
+    }
+  });
 });
 
 describe('the header counts the concerns the build showed', () => {

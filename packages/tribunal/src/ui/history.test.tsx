@@ -123,6 +123,15 @@ describe('churn counts approved changes and reports displacement beside them', (
     expect(markup).toContain('unknown');
     expect(markup).not.toContain('0 of 0');
   });
+
+  it('dates the last change the way the rest of the page dates things', () => {
+    const markup = renderToStaticMarkup(
+      <ChurnLine component="Toggle" churn={churn({ lastAt: '2026-10-12T23:28:42.495Z' })} />,
+    );
+
+    expect(markup).toContain('most recently 12 Oct 2026, 23:28 UTC');
+    expect(markup).not.toContain('2026-10-12T23:28');
+  });
 });
 
 describe('the changelog groups by shape and still counts what it could not group', () => {
