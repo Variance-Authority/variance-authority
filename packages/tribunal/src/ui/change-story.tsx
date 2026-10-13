@@ -270,7 +270,7 @@ export function SinceLast({
     <p className={seen.length > 0 ? 'va-since va-known' : 'va-since'}>
       {seen.length === 0 ? null : (
         <>
-          {seen.length === rows.length ? 'Every one of these' : count(seen.length, 'of these')}{' '}
+          {seen.length === rows.length ? 'Every one of these' : `${number(seen.length)} of these`}{' '}
           carried the same difference in {against}
           {undecided === 0
             ? ', and every one was decided there.'

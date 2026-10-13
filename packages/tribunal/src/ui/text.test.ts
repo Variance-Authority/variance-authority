@@ -70,6 +70,7 @@ describe('the size of a change is counted in what is being decided', () => {
     // useful one available: it answers how much of the raster is a different
     // colour, which nobody is deciding anything about.
     const line = magnitude({
+      verdict: 'changed',
       changedPixels: 3885,
       regions: [
         { pixels: 2140, fingerprint: 'f1' },
@@ -87,7 +88,7 @@ describe('the size of a change is counted in what is being decided', () => {
   it('drops the changes clause when nothing carried a shape', () => {
     // A shape is what says two regions are the same thing happening twice.
     // Counting regions as changes without one would be inventing the join.
-    const line = magnitude({ changedPixels: 300, regions: [{ pixels: 200 }, { pixels: 100 }] });
+    const line = magnitude({ verdict: 'changed', changedPixels: 300, regions: [{ pixels: 200 }, { pixels: 100 }] });
 
     expect(line).toBe('2 regions: 200, 100 pixels');
     expect(line).not.toContain('change');
@@ -95,6 +96,7 @@ describe('the size of a change is counted in what is being decided', () => {
 
   it('says how many regions the run recorded no shape for', () => {
     const line = magnitude({
+      verdict: 'changed',
       changedPixels: 300,
       regions: [{ pixels: 200, fingerprint: 'f1' }, { pixels: 100 }],
     });
@@ -104,7 +106,7 @@ describe('the size of a change is counted in what is being decided', () => {
   });
 
   it('names the total as a total only when the listed regions are not all of it', () => {
-    expect(magnitude({ changedPixels: 300, regions: [{ pixels: 300, fingerprint: 'f1' }] })).toBe(
+    expect(magnitude({ verdict: 'changed', changedPixels: 300, regions: [{ pixels: 300, fingerprint: 'f1' }] })).toBe(
       '1 change over 1 region: 300 pixels',
     );
   });
@@ -112,14 +114,57 @@ describe('the size of a change is counted in what is being decided', () => {
   it('reports a total nothing localised as exactly that', () => {
     // The absence is the finding and it belongs to whoever wrote the run. A
     // page that dressed the number up would be hiding the one thing wrong here.
-    expect(magnitude({ changedPixels: 3885, regions: [] })).toBe(
+    expect(magnitude({ verdict: 'changed', changedPixels: 3885, regions: [] })).toBe(
       '3,885 pixels differ, in regions this run did not record',
     );
+  });
+
+  it('says nothing was compared when there was no baseline to compare against', () => {
+    // A new render has no baseline. *0 pixels differ* reports a comparison that
+    // never happened, and *in regions this run did not record* blames the run
+    // for not localising a difference there was nothing to find.
+    const line = magnitude({ verdict: 'new', changedPixels: 0, regions: [] });
+
+    expect(line).toBe('No baseline, so nothing was compared');
+  });
+
+  it('says no pixel differs when the pixel axis measured that, rather than blaming the run for regions', () => {
+    // An absorbed render opened from the settled fold differs by nothing once
+    // the ignores are out, and has no region to record.
+    expect(
+      magnitude({ verdict: 'changed', changedPixels: 0, regions: [], signals: { pixels: 'unchanged' } }),
+    ).toBe('No pixel differs');
+  });
+
+  it('says an absorbed render differs only where the ignores took it out', () => {
+    // `ignored` is a render whose pixels differed and every differing pixel was
+    // absorbed. The pixel axis is read after the subtraction, so it says
+    // `unchanged`, and *no pixel differs* would deny the difference the ignore
+    // was written for.
+    expect(
+      magnitude({ verdict: 'ignored', changedPixels: 0, regions: [], signals: { pixels: 'unchanged' } }),
+    ).toBe('No pixel differs outside the ignored regions');
+  });
+
+  it('reads a zero count by what the pixel axis says, never as a measurement it was not', () => {
+    // A subject that gained or lost its pixels, or changed size, arrives with no
+    // count at all; one that occupies none was never compared; and a record
+    // without the signal has not said either way. Absent is not empty.
+    const zero = { verdict: 'changed', changedPixels: 0, regions: [] } as const;
+
+    expect(magnitude({ ...zero, signals: { pixels: 'changed' } })).toBe(
+      'Its pixels changed, and the run kept no count of them',
+    );
+    expect(magnitude({ ...zero, signals: { pixels: 'unobservable' } })).toBe(
+      'It occupies no pixels, so none were compared',
+    );
+    expect(magnitude(zero)).toBe('The run did not say whether it measured pixels');
   });
 
   it('keeps the same three counts in the short form', () => {
     expect(
       briefly({
+        verdict: 'changed',
         changedPixels: 3040,
         regions: [
           { pixels: 2140, fingerprint: 'f1' },
@@ -127,5 +172,32 @@ describe('the size of a change is counted in what is being decided', () => {
         ],
       }),
     ).toBe('1 change · 2 regions · 3,040px');
+  });
+
+  it('reads a zero by the pixel axis in the short form too', () => {
+    // The rail prints this beside a render's name, and so does reach's alarm. A
+    // *0 pixels* there is the same unmeasured zero the long form stopped saying.
+    const zero = { verdict: 'changed', changedPixels: 0, regions: [] } as const;
+
+    expect(briefly({ ...zero, verdict: 'new' })).toBe('no baseline');
+    expect(briefly({ ...zero, signals: { pixels: 'unchanged' } })).toBe('0 pixels');
+    expect(briefly({ ...zero, signals: { pixels: 'changed' } })).toBe('pixels changed, uncounted');
+    expect(briefly({ ...zero, signals: { pixels: 'unobservable' } })).toBe('occupies no pixels');
+    expect(briefly(zero)).toBe('no pixel signal');
+  });
+
+  it('reads a zero the same way in both forms, words aside', () => {
+    // The short form sits beside a render's name with the long form as its
+    // tooltip, so the two read one state. No surface hands the short form an
+    // absorbed render today; when one does, it says what the tooltip says.
+    const absorbed = {
+      verdict: 'ignored',
+      changedPixels: 0,
+      regions: [],
+      signals: { pixels: 'unchanged' },
+    } as const;
+
+    expect(magnitude(absorbed)).toBe('No pixel differs outside the ignored regions');
+    expect(briefly(absorbed)).toBe('0 pixels outside ignores');
   });
 });

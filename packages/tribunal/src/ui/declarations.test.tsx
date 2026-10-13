@@ -5,6 +5,7 @@ import type { IgnoreUsage, SensitivityUsage } from '@variance-authority/report';
 import type { Declarations, SubjectView } from '../review-types.js';
 import { DeclarationsPanel } from './declarations.js';
 import { Settled, needsReview } from './settled.js';
+import { REVIEW_STYLES } from './styles.js';
 
 /**
  * The audit, held to the two ways a page can lie about one.
@@ -315,5 +316,20 @@ describe('a green subject says which kind of green, in the report’s own words'
 
     expect(markup).toContain('/builds/ci-1001/subjects/route%2Fcart');
     expect(markup).not.toContain('/builds/ci-1001/subjects/story%3Afooter');
+  });
+
+  it('draws the fold at the weight of the page, not as a verdict', () => {
+    // `.va-settled` was the build list's bold green *nothing awaiting review*
+    // before the fold took the name too, and the whole fold came out bold.
+    const markup = renderToStaticMarkup(
+      <Settled subjects={[green('story:footer', 'unchanged')]} ignores={null} build="ci-1001" go={() => {}} />,
+    );
+    const carried = /<details class="([^"]*)"/.exec(markup)?.[1]?.split(' ') ?? [];
+    const own = [...REVIEW_STYLES.matchAll(/^([^@{}\n]+)\{([^}]*)\}/gm)]
+      .filter((rule) => carried.some((name) => rule[1]!.trim() === `.${name}`))
+      .map((rule) => rule[2]!);
+
+    expect(carried).not.toEqual([]);
+    expect(own.filter((body) => /font-weight|(^|[ ;])color:/.test(body))).toEqual([]);
   });
 });

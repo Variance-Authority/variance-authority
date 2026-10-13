@@ -216,6 +216,21 @@ describe('the panel', () => {
     expect(markup).toContain('Reading the record');
   });
 
+  it('says the run kept no count rather than that no pixel moved', () => {
+    const markup = renderToStaticMarkup(
+      <ReachPanel
+        client={CLIENT}
+        build={build(
+          [subject({ subject: 'alarm', changedPixels: 0, signals: { pixels: 'changed' } })],
+          reach({ subjects: { alarm: { reached: false, through: [], because: 'nothing reaches it' } } }),
+        )}
+      />,
+    );
+
+    expect(markup).toContain('pixels changed, uncounted');
+    expect(markup).not.toContain('0 pixels');
+  });
+
   it('names the chain rather than the component it arrives at', () => {
     const markup = renderToStaticMarkup(
       <ReachPanel client={CLIENT} build={build([], reach())} />,

@@ -27,7 +27,7 @@ import type { BuildDetail, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import { useCrossing, type Crossing } from './crossing.js';
 import type { Divergence, Shift, Shifted } from './shift.js';
-import { count, number, when } from './text.js';
+import { briefly, count, number, when } from './text.js';
 
 /**
  * The order the states are read in, and what each one is worth saying.
@@ -267,10 +267,10 @@ function ShiftRow({
       ) : null}
       {shifted.shift === 'again' ? <Standing earlier={earlier} against={against} /> : null}
       {shifted.shift === 'first' && now !== undefined ? (
-        <span className="va-note va-num">{number(now.changedPixels)} px</span>
+        <span className="va-note va-num">{briefly(now)}</span>
       ) : null}
       {shifted.shift === 'unmasked' && now !== undefined ? (
-        <span className="va-note va-num">{number(now.changedPixels)} px, reported</span>
+        <span className="va-note va-num">{briefly(now)}, reported</span>
       ) : null}
       {shifted.shift === 'absorbed' ? <Absorbing now={now} earlier={earlier} /> : null}
     </li>
@@ -294,7 +294,7 @@ function Absorbing({
 }): ReactElement {
   const green = now === undefined ? undefined : greenBecause(now);
   const was = earlier === undefined ? null : (
-    <span className="va-note va-num">{number(earlier.changedPixels)} px before</span>
+    <span className="va-note va-num">{briefly(earlier)} before</span>
   );
 
   if (green === undefined || green.kind === 'unsaid') {
