@@ -1,6 +1,6 @@
-import { access, readdir, stat } from 'node:fs/promises';
+import { access, open, readdir, stat } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { digestOfFileName, type Digest, type PageRegion } from '@variance-authority/core/format';
 import type { Renderer } from '@variance-authority/raster';
 import type { BrowserEngine, Config } from '../config.js';
@@ -38,6 +38,17 @@ export interface DoctorProbes {
    * than no doctor.
    */
   partitions(root: string): Promise<readonly PartitionReading[]>;
+
+  /**
+   * Every file under a root whose first bytes are a git-LFS pointer, relative to
+   * the root and sorted.
+   *
+   * Asked of the bytes at any depth, never of a layout: where a store puts a
+   * baseline is the store's answer, and a pointer is a pointer wherever it sits.
+   * The signature is the store's own (`isLfsPointer`), so doctor finds exactly
+   * what the run would refuse.
+   */
+  pointers(root: string): Promise<readonly string[]>;
 
   /**
    * This machine's render cache: where it is, and what each identity holds.
@@ -115,6 +126,17 @@ export function machineProbes(config: Config): DoctorProbes {
       } catch {
         return false;
       }
+    },
+    pointers: async (root) => {
+      const { isLfsPointer, LFS_POINTER_HEAD_BYTES } = await import('@variance-authority/store/lfs');
+      const found: string[] = [];
+      for (const file of await filesUnder(root)) {
+        // A record is JSON and never tracked by LFS; only an image can be a pointer.
+        if (file.endsWith('.json')) continue;
+        const head = await headOf(join(root, file), LFS_POINTER_HEAD_BYTES);
+        if (head !== undefined && isLfsPointer(head)) found.push(file);
+      }
+      return found.sort();
     },
     renderCache: async () => readRenderCache(renderCacheRoot(config)),
     cache: async () => readCache(config),
@@ -219,6 +241,35 @@ async function collect(
       continue;
     }
     await collect(path, found);
+  }
+}
+
+/** Every file at any depth under `root`, relative to it with `/` separators; none for a root that is not there. */
+async function filesUnder(root: string): Promise<readonly string[]> {
+  let entries: Dirent[];
+  try {
+    entries = await readdir(root, { recursive: true, withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => relative(root, join(entry.parentPath, entry.name)).split(sep).join('/'));
+}
+
+/** A file's first `length` bytes, or `undefined` when it went away under the walk. */
+async function headOf(path: string, length: number): Promise<Uint8Array | undefined> {
+  let file;
+  try {
+    file = await open(path, 'r');
+  } catch {
+    return undefined;
+  }
+  try {
+    const { buffer, bytesRead } = await file.read(Buffer.alloc(length), 0, length, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await file.close();
   }
 }
 

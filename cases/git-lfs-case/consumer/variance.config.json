@@ -1,0 +1,10 @@
+{
+  "project": "git-lfs-case",
+  "profile": "jsdom",
+  "viewport": { "width": 200, "height": 100 },
+  "retention": "durable",
+  "subjects": { "kind": "list", "ids": ["swatch"], "collector": "collector.mjs" },
+  "baselines": { "kind": "lfs", "root": "baselines" },
+  "fonts": [],
+  "report": ".variance/report.json"
+}

@@ -164,7 +164,7 @@ variance changelog [--config <path>] [--component <text>] [--subject <id>] [--li
 variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
-variance doctor  [--config <path>]
+variance doctor  [--config <path>] [--baselines]
 variance prune
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>]]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
@@ -187,7 +187,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `changelog` | reads back why the baselines are what they are |
 | `journeys` | finalizes one runner's journey artifact, stitches artifacts from CI shards, or reads back which regions this run's subjects covered differently |
 | `push` | sends a finished run to a review surface for somebody to decide |
-| `doctor` | prints what this machine can observe, before a run, not after one |
+| `doctor` | prints what this machine can observe, before a run, not after one; `--baselines` asks only what the baseline store holds, with no browser opened, and exits 2 on a checkout of git-LFS pointers |
 | `prune` | removes the cache entries whose checkout, worktree, process or commit is gone, now |
 | `collect` | reads the suite index's facts with no baseline, comparison or image, one part per shard; `collect merge` checks the parts are one build and folds them into the index |
 | `share` | prints what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite's record alone |

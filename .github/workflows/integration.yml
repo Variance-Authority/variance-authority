@@ -1,0 +1,511 @@
+name: integration
+
+# The integration modes, each run for real. A mode is a place a baseline is kept
+# together with the flow that accepts into it, and this workflow runs three of
+# them through the parts this repository does not control: git-lfs,
+# `actions/checkout`, `actions/cache`, Wrangler and the runner image. Not a
+# recipe; this repository's own check that those parts behave the way the store,
+# the action and the review service assume.
+#
+# The unit tests drive git-lfs through an injected runner and the cache through
+# keys nobody restores, so neither is ever met as it is. Each job here runs one
+# mode through `.github/actions/variance`, the way a consumer runs it, in a
+# consumer the job creates for itself in the runner's temporary directory:
+#
+# | job | store | accepted by | what it proves |
+# |---|---|---|---|
+# | `cache-accept`, `cache-compare` | `directory`, `carry: actions-cache` | `accept` | an accept saved in one job is the baseline another machine compares against |
+# | `review (lfs)` | `lfs` | `commit-baselines` | the commit-back pushes the image through git-lfs, a fresh clone holds the same bytes, and a clone without them is refused with exit 2 |
+# | `review (tribunal-node)` | `remote` | a decision on Tribunal, on Node | a pushed build approved on the service is the next run's baseline |
+# | `review (tribunal-cloudflare)` | `remote` | the same, under `wrangler dev` | the same, on workerd with D1 and R2 as Wrangler emulates them |
+#
+# A committed `directory` store accepts through the same commit-back step as
+# `lfs`, without git-lfs in it, so `review (lfs)` runs that step for both. The
+# git-LFS case in `cases/git-lfs-case` runs in `check.yml`'s `cases` job, in the
+# Playwright image, and is not repeated here.
+#
+# Every job that accepts does so into its own consumer, which is gone when the
+# job ends, or into a cache project named for this run, which nothing else
+# restores. That is why `accept` and `commit-baselines` are on here without a
+# person behind them: nothing they promote is a baseline of this repository.
+#
+# No retries. The one `continue-on-error` is on the run whose failure is the
+# assertion, and the step after it checks that it failed with exit 2. A part
+# that changed under us is the finding, and a retry would hide the one run that
+# showed it.
+
+on:
+  # For "does it still do that" without a pull request to carry the question.
+  # `review (lfs)` needs a pull request's head branch to commit back to, so a
+  # dispatched run leaves it out.
+  workflow_dispatch:
+
+  # On a change to anything these modes stand on, so a pull request that breaks
+  # one finds out on itself. A test file changes nothing a consumer runs.
+  pull_request:
+    paths:
+      - .github/workflows/integration.yml
+      - .github/actions/variance/**
+      - .github/actions/build/**
+      - cases/git-lfs-case/consumer/**
+      - packages/cli/src/**
+      - packages/core/src/**
+      - packages/observe/src/**
+      - packages/png/src/**
+      - packages/raster/src/**
+      - packages/remote/src/**
+      - packages/store/src/**
+      - packages/tribunal/src/**
+      - packages/tribunal/migrations/**
+      - yarn.lock
+      - '!**/*.test.ts'
+
+# Read the code. The commit-back pushes to a bare repository on the runner's
+# disk, never to this one.
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  # A pull request's newer push answers for the newer code. A dispatched run is
+  # never cancelled: somebody asked for that answer.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # The cache review flow, over two machines. The first accepts and saves; the
+  # second restores and compares. A store that did not travel reads `new` on
+  # the second, and the job fails on that word.
+  #
+  # The project is named for the run, so the only entry the second job can
+  # restore is the one the first saved: an entry from an earlier run, or from
+  # `variance.yml`, cannot answer for it.
+  cache-accept:
+    runs-on: ubuntu-24.04
+    env:
+      PROJECT: integration-cache-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - shell: bash
+        run: corepack enable && yarn install --immutable
+      - uses: ./.github/actions/build
+      - shell: bash
+        run: npx --no-install playwright install --with-deps chromium
+
+      - name: a consumer whose store the cache carries
+        shell: bash
+        run: |
+          set -euo pipefail
+          consumer="$RUNNER_TEMP/consumer"
+          mkdir -p "$consumer"
+          cp cases/git-lfs-case/consumer/collector.mjs "$consumer/"
+          echo 'rgb(30, 120, 200)' > "$consumer/swatch.txt"
+          cat > "$consumer/variance.config.json" <<EOF
+          {
+            "project": "$PROJECT",
+            "profile": "chromium",
+            "viewport": { "width": 200, "height": 100 },
+            "retention": "durable",
+            "subjects": { "kind": "list", "ids": ["swatch"], "collector": "collector.mjs" },
+            "baselines": { "kind": "directory", "root": "baselines", "carry": "actions-cache" },
+            "fonts": [],
+            "report": ".variance/report.json"
+          }
+          EOF
+          echo "CONSUMER=$consumer" >> "$GITHUB_ENV"
+          echo "CLI=$GITHUB_WORKSPACE/packages/cli/dist/bin.js" >> "$GITHUB_ENV"
+
+      - id: variance
+        uses: ./.github/actions/variance
+        with:
+          working-directory: ${{ env.CONSUMER }}
+          command: node ${{ env.CLI }}
+          comment: 'false'
+          accept: 'true'
+
+      - name: the accept is what this run compared against
+        shell: bash
+        env:
+          REPORT: ${{ steps.variance.outputs.report }}
+        run: |
+          got="$(jq -r '[.observations[] | "\(.subject) \(.verdict)"] | join(", ")' "$REPORT")"
+          echo "$got"
+          [ "$got" = 'swatch unchanged' ] || { echo "::error::expected 'swatch unchanged', the report says '$got'"; exit 1; }
+
+  cache-compare:
+    needs: cache-accept
+    runs-on: ubuntu-24.04
+    env:
+      PROJECT: integration-cache-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - shell: bash
+        run: corepack enable && yarn install --immutable
+      - uses: ./.github/actions/build
+      - shell: bash
+        run: npx --no-install playwright install --with-deps chromium
+
+      # The same consumer at the same path: `actions/cache` matches an entry
+      # by its key and by the paths it was saved from.
+      - name: the same consumer, on another machine
+        shell: bash
+        run: |
+          set -euo pipefail
+          consumer="$RUNNER_TEMP/consumer"
+          mkdir -p "$consumer"
+          cp cases/git-lfs-case/consumer/collector.mjs "$consumer/"
+          echo 'rgb(30, 120, 200)' > "$consumer/swatch.txt"
+          cat > "$consumer/variance.config.json" <<EOF
+          {
+            "project": "$PROJECT",
+            "profile": "chromium",
+            "viewport": { "width": 200, "height": 100 },
+            "retention": "durable",
+            "subjects": { "kind": "list", "ids": ["swatch"], "collector": "collector.mjs" },
+            "baselines": { "kind": "directory", "root": "baselines", "carry": "actions-cache" },
+            "fonts": [],
+            "report": ".variance/report.json"
+          }
+          EOF
+          echo "CONSUMER=$consumer" >> "$GITHUB_ENV"
+          echo "CLI=$GITHUB_WORKSPACE/packages/cli/dist/bin.js" >> "$GITHUB_ENV"
+
+      - id: variance
+        uses: ./.github/actions/variance
+        with:
+          working-directory: ${{ env.CONSUMER }}
+          command: node ${{ env.CLI }}
+          comment: 'false'
+
+      - name: the store the first job saved is the baseline here
+        shell: bash
+        env:
+          REPORT: ${{ steps.variance.outputs.report }}
+        run: |
+          got="$(jq -r '[.observations[] | "\(.subject) \(.verdict)"] | join(", ")' "$REPORT")"
+          echo "$got"
+          [ "$got" = 'swatch unchanged' ] || { echo "::error::expected 'swatch unchanged', the report says '$got'"; exit 1; }
+
+  # The other two review flows, each as `variance.yml` runs it: a first run
+  # that finds `swatch` new, the flow's own way of accepting it, and a second
+  # run that must find it unchanged.
+  #
+  # - `lfs`: the action's `commit-baselines` accepts and pushes to the branch
+  #   this pull request is named for, in a bare repository on this runner's
+  #   disk, through a `file://` URL. A bare repository rather than a scratch
+  #   repository on GitHub, because what is under test is git-lfs's half and
+  #   the action's: the pointer git-lfs's clean filter writes, the object its
+  #   pre-push hook moves, and the bytes a fresh clone smudges. GitHub's LFS
+  #   server is a third party behind a quota, and a push token to a second
+  #   repository is a secret this workflow would then hold. git-lfs moves
+  #   objects to a local remote only through its standalone transfer agent,
+  #   which a `file://` URL selects and a bare path does not. Then a clone that
+  #   skipped the LFS fetch runs the action and must stop with exit 2: its
+  #   subject did not move, so without the action's doctor step it would settle
+  #   from its sidecar and pass.
+  # - `tribunal-node` and `tribunal-cloudflare`: a Tribunal started in this
+  #   job, on Node and under `wrangler dev`. The first run's build goes to it
+  #   with `variance push`, a reviewer's approval is the review API's, and the
+  #   second run reads the baseline the approval made.
+  #
+  # The tokens below are not secrets: the service binds loopback and is
+  # stopped with the job.
+  review:
+    name: review (${{ matrix.flow }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # The commit-back pushes to the pull request's head branch, and a
+        # dispatched run has none.
+        flow: >-
+          ${{ fromJSON(github.event_name == 'pull_request'
+          && '["lfs", "tribunal-node", "tribunal-cloudflare"]'
+          || '["tribunal-node", "tribunal-cloudflare"]') }}
+    runs-on: ubuntu-24.04
+    env:
+      FLOW: ${{ matrix.flow }}
+      PORT: 7789
+      VARIANCE_INGEST_TOKEN: integration-ingest-token
+      REVIEW_TOKEN: integration-review-token
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - shell: bash
+        run: corepack enable && yarn install --immutable
+      - uses: ./.github/actions/build
+      - shell: bash
+        run: npx --no-install playwright install --with-deps chromium
+
+      # One subject, a box whose colour `swatch.txt` holds, collected by the
+      # git-LFS case's collector. Under `lfs` the consumer is a clone of the
+      # bare origin, on a branch named for this pull request's head, with
+      # nothing accepted yet: the first commit-back is also the one that writes
+      # the store's `.gitattributes`.
+      - name: a consumer
+        shell: bash
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          consumer="$RUNNER_TEMP/consumer"
+          mkdir -p "$consumer"
+          cp cases/git-lfs-case/consumer/collector.mjs "$consumer/"
+          echo 'rgb(30, 120, 200)' > "$consumer/swatch.txt"
+          if [ "$FLOW" = lfs ]; then
+            baselines='{ "kind": "lfs", "root": "baselines" }'
+            review=''
+          else
+            baselines="{ \"kind\": \"remote\", \"endpoint\": \"http://127.0.0.1:$PORT\", \"token\": { \"env\": \"VARIANCE_INGEST_TOKEN\" } }"
+            review=", \"review\": { \"endpoint\": \"http://127.0.0.1:$PORT\", \"token\": { \"env\": \"VARIANCE_INGEST_TOKEN\" } }"
+          fi
+          cat > "$consumer/variance.config.json" <<EOF
+          {
+            "project": "integration-$FLOW",
+            "profile": "chromium",
+            "viewport": { "width": 200, "height": 100 },
+            "retention": "durable",
+            "subjects": { "kind": "list", "ids": ["swatch"], "collector": "collector.mjs" },
+            "baselines": $baselines$review,
+            "fonts": [],
+            "report": ".variance/report.json"
+          }
+          EOF
+          echo "CONSUMER=$consumer" >> "$GITHUB_ENV"
+          echo "CLI=$GITHUB_WORKSPACE/packages/cli/dist/bin.js" >> "$GITHUB_ENV"
+
+          if [ "$FLOW" = lfs ]; then
+            origin="$RUNNER_TEMP/origin.git"
+            git init -q --bare "$origin"
+            {
+              echo "ORIGIN=$origin"
+              echo "REMOTE=file://$origin"
+              echo "BRANCH=$BRANCH"
+            } >> "$GITHUB_ENV"
+            cd "$consumer"
+            git init -q -b "$BRANCH"
+            git remote add origin "file://$origin"
+            git lfs install
+            printf '.variance/\n' > .gitignore
+            git add -A
+            git -c user.name=consumer -c user.email=consumer@example.invalid commit -q -m 'a consumer with nothing accepted'
+            git push -q origin "HEAD:refs/heads/$BRANCH"
+            echo "BEFORE=$(git -C "$origin" rev-parse "refs/heads/$BRANCH")" >> "$GITHUB_ENV"
+          fi
+
+      - name: Tribunal on Node
+        if: matrix.flow == 'tribunal-node'
+        shell: bash
+        env:
+          VARIANCE_TRIBUNAL_PROJECT: integration-tribunal
+          VARIANCE_TRIBUNAL_INGEST_TOKEN: ${{ env.VARIANCE_INGEST_TOKEN }}
+          VARIANCE_TRIBUNAL_REVIEW_TOKEN: ${{ env.REVIEW_TOKEN }}
+          VARIANCE_TRIBUNAL_DB: ${{ runner.temp }}/tribunal/tribunal.db
+          VARIANCE_TRIBUNAL_STORAGE: ${{ runner.temp }}/tribunal/objects
+          VARIANCE_TRIBUNAL_PORT: ${{ env.PORT }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/tribunal"
+          node packages/tribunal/dist/node/bin.js > "$RUNNER_TEMP/tribunal/log" 2>&1 &
+          echo "SERVICE_PID=$!" >> "$GITHUB_ENV"
+
+      # A deployment shaped the way `packages/tribunal/README.md` tells a
+      # deployer to make one: their own `worker.ts` re-exporting the package's
+      # entry, their own `wrangler.jsonc`, and the package's migrations read
+      # where it is installed. The package is this checkout's build, linked
+      # where an install would put it. Wrangler runs it locally, with D1 and R2
+      # as Miniflare emulates them. Wrangler is pinned, so a pull request
+      # answers for its own change; a newer Wrangler is a change somebody makes.
+      - name: Tribunal under wrangler dev
+        if: matrix.flow == 'tribunal-cloudflare'
+        shell: bash
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+          CI: '1'
+        run: |
+          set -euo pipefail
+          service="$RUNNER_TEMP/tribunal"
+          mkdir -p "$service/node_modules/@variance-authority"
+          ln -s "$GITHUB_WORKSPACE/packages/tribunal" "$service/node_modules/@variance-authority/tribunal"
+          echo "export { default } from '@variance-authority/tribunal/worker-entry';" > "$service/worker.ts"
+          cat > "$service/wrangler.jsonc" <<'EOF'
+          {
+            "name": "variance-tribunal",
+            "main": "worker.ts",
+            "compatibility_date": "2026-08-05",
+            "d1_databases": [
+              {
+                "binding": "DB",
+                "database_name": "variance-tribunal",
+                "database_id": "PLACEHOLDER — replace with the id `wrangler d1 create` prints",
+                "migrations_dir": "node_modules/@variance-authority/tribunal/migrations"
+              }
+            ],
+            "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "variance-tribunal" }],
+            "vars": { "PROJECT": "integration-tribunal" }
+          }
+          EOF
+          printf 'INGEST_TOKEN=%s\nREVIEW_TOKEN=%s\n' "$VARIANCE_INGEST_TOKEN" "$REVIEW_TOKEN" > "$service/.dev.vars"
+          cd "$service"
+          npx --yes wrangler@4.150.0 d1 migrations apply variance-tribunal --local
+          npx --yes wrangler@4.150.0 dev --port "$PORT" --ip 127.0.0.1 > "$service/log" 2>&1 &
+          echo "SERVICE_PID=$!" >> "$GITHUB_ENV"
+
+      - name: the service answers
+        if: matrix.flow != 'lfs'
+        shell: bash
+        run: |
+          for _ in $(seq 1 120); do
+            if curl -sf -H "authorization: Bearer $REVIEW_TOKEN" "http://127.0.0.1:$PORT/version"; then echo; exit 0; fi
+            sleep 0.5
+          done
+          echo "::error::the service did not answer on port $PORT within a minute"
+          cat "$RUNNER_TEMP/tribunal/log"
+          exit 1
+
+      # A cache per run, so nothing the first run kept on this machine answers
+      # for the second.
+      - id: first
+        uses: ./.github/actions/variance
+        env:
+          VARIANCE_AUTHORITY_CACHE: ${{ runner.temp }}/cache-first
+        with:
+          working-directory: ${{ env.CONSUMER }}
+          command: node ${{ env.CLI }}
+          comment: 'false'
+          commit-baselines: ${{ matrix.flow == 'lfs' }}
+
+      - name: the first run finds the subject new
+        shell: bash
+        env:
+          REPORT: ${{ steps.first.outputs.report }}
+        run: |
+          got="$(jq -r '[.observations[] | "\(.subject) \(.verdict)"] | join(", ")' "$REPORT")"
+          echo "$got"
+          [ "$got" = 'swatch new' ] || { echo "::error::expected 'swatch new', the report says '$got'"; exit 1; }
+
+      # Which files the store wrote is git-lfs's answer, never spelled here: the
+      # layout is the store's to decide. Every file it tracks must sit in the
+      # origin as a pointer and come back from a fresh clone as the same bytes.
+      - name: the commit-back went through git-lfs
+        if: matrix.flow == 'lfs'
+        shell: bash
+        run: |
+          set -euo pipefail
+          after="$(git -C "$ORIGIN" rev-parse "refs/heads/$BRANCH")"
+          [ "$after" != "$BEFORE" ] || { echo "::error::the origin's $BRANCH did not move"; exit 1; }
+          git -C "$ORIGIN" log -1 --format='%an: %s' "refs/heads/$BRANCH"
+          [ "$(git -C "$ORIGIN" log -1 --format=%an "refs/heads/$BRANCH")" = 'github-actions[bot]' ]
+
+          cd "$CONSUMER"
+          git lfs ls-files -n > "$RUNNER_TEMP/tracked"
+          [ -s "$RUNNER_TEMP/tracked" ] || { echo "::error::git-lfs tracks no file after the commit-back"; exit 1; }
+          fresh="$RUNNER_TEMP/fresh"
+          git clone -q -b "$BRANCH" "$REMOTE" "$fresh"
+          while IFS= read -r baseline; do
+            header="$(git -C "$ORIGIN" cat-file -p "refs/heads/$BRANCH:$baseline" | head -n 1)"
+            [ "$header" = 'version https://git-lfs.github.com/spec/v1' ] \
+              || { echo "::error::the origin holds $baseline as something other than a pointer: $header"; exit 1; }
+            cmp "$CONSUMER/$baseline" "$fresh/$baseline"
+            echo "git-lfs holds $baseline, and a fresh clone has the same bytes"
+          done < "$RUNNER_TEMP/tracked"
+          echo "SECOND=$fresh" >> "$GITHUB_ENV"
+
+      # A clone made with the LFS fetch skipped holds the pointers where the
+      # images belong. `swatch` did not move, so the run alone would settle it
+      # from its sidecar and pass; the action's doctor step reads the store
+      # first and stops it.
+      - name: a clone without the LFS objects
+        if: matrix.flow == 'lfs'
+        shell: bash
+        run: |
+          set -euo pipefail
+          unsmudged="$RUNNER_TEMP/unsmudged"
+          GIT_LFS_SKIP_SMUDGE=1 git clone -q -b "$BRANCH" "$REMOTE" "$unsmudged"
+          baseline="$(head -n 1 "$RUNNER_TEMP/tracked")"
+          header="$(head -n 1 "$unsmudged/$baseline")"
+          [ "$header" = 'version https://git-lfs.github.com/spec/v1' ] \
+            || { echo "::error::the clone holds $baseline as something other than a pointer: $header"; exit 1; }
+          echo "UNSMUDGED=$unsmudged" >> "$GITHUB_ENV"
+
+      - id: unsmudged
+        if: matrix.flow == 'lfs'
+        continue-on-error: true
+        uses: ./.github/actions/variance
+        env:
+          VARIANCE_AUTHORITY_CACHE: ${{ runner.temp }}/cache-unsmudged
+        with:
+          working-directory: ${{ env.UNSMUDGED }}
+          command: node ${{ env.CLI }}
+          comment: 'false'
+
+      - name: the clone without the LFS objects is refused with exit 2
+        if: matrix.flow == 'lfs'
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.unsmudged.outcome }}
+          CODE: ${{ steps.unsmudged.outputs.exit-code }}
+        run: |
+          echo "the action's outcome: $OUTCOME, its exit-code: '$CODE'"
+          [ "$OUTCOME" = failure ] && [ "$CODE" = 2 ] \
+            || { echo "::error::expected the action to fail with exit-code 2 on a clone of LFS pointers"; exit 1; }
+
+      # The build id is the one `variance push` named from this run, read back
+      # from the service rather than recomputed here.
+      - name: a reviewer approves on the service
+        if: matrix.flow != 'lfs'
+        shell: bash
+        working-directory: ${{ env.CONSUMER }}
+        run: |
+          set -euo pipefail
+          node "$CLI" push --config variance.config.json --branch main
+          builds="$(curl -sf -H "authorization: Bearer $REVIEW_TOKEN" "http://127.0.0.1:$PORT/review/builds")"
+          echo "$builds"
+          build="$(node -e '
+            const { builds } = JSON.parse(process.argv[1]);
+            if (builds.length !== 1 || builds[0].pending !== 1) throw new Error("expected one build with one pending subject");
+            console.log(builds[0].build);
+          ' "$builds")"
+          curl -sf -X POST -H 'content-type: application/json' -H "authorization: Bearer $REVIEW_TOKEN" \
+            -d '{"decision":"approved","by":"integration"}' \
+            "http://127.0.0.1:$PORT/review/builds/$build/subjects/swatch/decision"
+          echo
+          echo "SECOND=$CONSUMER" >> "$GITHUB_ENV"
+
+      - id: second
+        uses: ./.github/actions/variance
+        env:
+          VARIANCE_AUTHORITY_CACHE: ${{ runner.temp }}/cache-second
+        with:
+          working-directory: ${{ env.SECOND }}
+          command: node ${{ env.CLI }}
+          comment: 'false'
+
+      - name: the second run compares against what was accepted
+        shell: bash
+        env:
+          REPORT: ${{ steps.second.outputs.report }}
+        run: |
+          got="$(jq -r '[.observations[] | "\(.subject) \(.verdict)"] | join(", ")' "$REPORT")"
+          echo "$got"
+          [ "$got" = 'swatch unchanged' ] || { echo "::error::expected 'swatch unchanged', the report says '$got'"; exit 1; }
+
+      # Stopped by the pid this job started, and nothing else.
+      - name: stop the service
+        if: always() && env.SERVICE_PID != ''
+        shell: bash
+        run: |
+          kill "$SERVICE_PID" || true
+          cat "$RUNNER_TEMP/tribunal/log"

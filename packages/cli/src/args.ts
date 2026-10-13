@@ -48,6 +48,7 @@ export const REPEATABLE = new Set(['--where']);
  */
 export const BOOLEAN = new Set([
   '--all',
+  '--baselines',
   '--marker',
   '--flakes',
   '--publish',

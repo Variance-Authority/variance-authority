@@ -289,7 +289,12 @@ Three things this needs from the repository:
   committed by hand.
 - **git-lfs in the job, for `lfs`.** The Playwright image has none. Install it
   and fetch LFS objects in the checkout, or the store stops on a pointer file
-  where it expected an image.
+  where it expected an image. The action runs `variance doctor --baselines`
+  before the run, which counts the pointers in the root, names the first and
+  exits 2, so the job fails on the checkout rather than on the first subject
+  whose document changed; without that step, an unchanged subject passes from
+  its sidecar. The first commit-back carries the root's `.gitattributes` with
+  the images.
 
 ### A review service
 

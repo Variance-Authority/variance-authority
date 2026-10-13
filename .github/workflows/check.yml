@@ -952,10 +952,12 @@ jobs:
       # relative to the repository root, would name them relative to their own
       # directory instead. The compiler is for the native scanner, which is built
       # on this machine: without it every case that reads source fails to load by
-      # name. The hosted runners carry all of it, so the other jobs need no step.
+      # name. git-lfs is for `cases/git-lfs-case`, which commits a baseline
+      # through it. The hosted runners carry all of it, so the other jobs need no
+      # step.
       - name: version control and compiler
         shell: bash
-        run: apt-get update && apt-get install -y --no-install-recommends git build-essential curl ca-certificates
+        run: apt-get update && apt-get install -y --no-install-recommends git git-lfs build-essential curl ca-certificates
 
       - uses: actions/checkout@v4
 
@@ -1002,8 +1004,12 @@ jobs:
 
       # The cases' own unit tests, then the ones that launch a browser, each
       # under its slice's config (`vitest.config.mts` says why they are apart).
+      # git-lfs is installed above, so the case that skips without it fails here
+      # instead.
       - name: run the cases
         shell: bash
+        env:
+          VARIANCE_REQUIRE_GIT_LFS: '1'
         run: yarn test:unit cases && yarn test:chromium cases
 
   # How many shards each slice's near wave is worth in this group, counted by

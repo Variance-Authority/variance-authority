@@ -142,7 +142,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   review: ['--coverage', '--since', '--against', '--suite', '--out', '--from-run', '--artifact', '--root', '--format'],
   push: ['--run', '--commit', '--branch'],
   serve: ['--just-answer'],
-  doctor: [],
+  doctor: ['--baselines'],
   prune: [],
   share: ['--mainline', '--publish', '--suite', '--collected'],
   // `--config` by name: `carry` reads a project only when one is named, so it
@@ -173,7 +173,7 @@ export const USAGE = [
   'variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>',
   'variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]',
   'variance serve   [--config <path>] [--just-answer] # MCP over stdio',
-  'variance doctor  [--config <path>]',
+  'variance doctor  [--config <path>] [--baselines]',
   'variance prune',
   'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>]]',
   'variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>',
