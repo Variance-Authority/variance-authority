@@ -192,6 +192,7 @@ export function writeSeamModule(run: Pick<SelectionRun, 'made'>, id: string, sou
 
 /** What every module this seam writes is named after, whichever runner wrote it. */
 const SEAM_MODULE = 'test-selection-';
+const IGNORE_FILE = '.gitignore';
 
 /**
  * Where a seam's module for `role` in this run goes: `.variance-authority/` in
@@ -221,8 +222,7 @@ export function seamModuleId(configRoot: string, run: SelectionRun, role: 'setup
  * there is the project's, and it comes off once no seam module is left beside
  * it, so a directory is left as the run found it.
  */
-const IGNORE_FILE = '.gitignore';
-const IGNORE = `# Written by @variance-authority/sense for the run in progress.\n${IGNORE_FILE}\n${SEAM_MODULE}*\n`;
+const IGNORE =`# Written by @variance-authority/sense for the run in progress.\n${IGNORE_FILE}\n${SEAM_MODULE}*\n`;
 
 function writeShim(run: Pick<SelectionRun, 'made'>, id: string, source: string): string {
   // `mkdirSync` answers with the first directory it had to create, and with
@@ -305,12 +305,18 @@ export function removeSeamModules(run: Pick<SelectionRun, 'made'>, shims: Iterab
 /**
  * Take this seam's ignore file out of `directory` once no seam module is left
  * there. Another run's shim beside it keeps it, and that run's end takes it.
+ *
+ * Another run can find the file, and so not write it, between the look and the
+ * removal; its shim would then go unignored for the rest of that run. So the
+ * directory is looked at again after, and the file goes back if a shim came.
  */
 function removeIgnoreFile(directory: string): void {
   const file = resolve(directory, IGNORE_FILE);
+  const holdsShim = (): boolean => readdirSync(directory).some((entry) => entry.startsWith(SEAM_MODULE));
   try {
-    if (readdirSync(directory).some((entry) => entry.startsWith(SEAM_MODULE))) return;
-    if (readFileSync(file, 'utf8') === IGNORE) rmSync(file);
+    if (holdsShim() || readFileSync(file, 'utf8') !== IGNORE) return;
+    rmSync(file);
+    if (holdsShim()) writeFileSync(file, IGNORE, { encoding: 'utf8', flag: 'wx' });
   } catch {
     // Tidied, not required gone, for the reason the directories are.
   }
