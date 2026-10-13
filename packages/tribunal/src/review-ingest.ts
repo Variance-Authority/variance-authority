@@ -383,8 +383,10 @@ export async function ingestBuild(
  * skips a render on: a document that digests to what the baseline was painted
  * from, under the identity it was painted under, paints that image. What the
  * tree read off the page is that image's; what it read off the runtime that
- * drew it, authors and the state they held, is the latest run's that drew the
- * same document, as it is on a baseline `variance accept` re-stamps.
+ * drew it, authors and the state they held, is the recording push's: the first,
+ * from a build on any branch, that drew the same document onto a baseline that
+ * kept none, as it is the accepting run's on a baseline `variance accept`
+ * re-stamps. Whatever verdict the run reported: the premise is the document.
  *
  * The row is the one an approval would overwrite, and only when it has an
  * image, as `settle` asks. A snapshot it kept is never replaced, and text this

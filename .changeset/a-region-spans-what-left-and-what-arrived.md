@@ -66,8 +66,9 @@ instead: a pushed candidate's snapshot is written onto a baseline that has an
 image and kept none, when it was painted from the same document under the same
 identity, and never over one it kept, so such a subject renders once. The
 snapshot's runtime fields (`provenance`, `wiring`, `holding`,
-`styleProvenance`, `styleTokens`, `ignoredBy`) are then the latest run's that
-drew that document, as on a re-stamp. `Described.keepsSnapshot`
+`styleProvenance`, `styleTokens`, `ignoredBy`) are then the recording run's: the
+first push, from a build on any branch, that drew that document, as they are the
+accepting run's on a re-stamp. `Described.keepsSnapshot`
 is the new required field it reads:
 the durable, LFS and tribunal stores derive it from the sidecar with
 `keepsSnapshot` from `@variance-authority/core/format`, and the remote store
