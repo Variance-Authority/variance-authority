@@ -46,8 +46,9 @@ only the candidate's measurements, a resolved one only the baseline's.
 
 [Absent is not empty](../../DOMAIN.md#run-report), in both directions: a missing
 report, or a reading with no layout findings at all, is **changed** with the
-missing side named and carries no effects, neither side read is no signal, and a present but empty effect list
-says both sides were measured and no relationship consequence moved. Information
+missing side named and carries no effects; neither side read for layout is no
+signal; and a present but empty effect list says both sides were measured and
+no relationship consequence moved. Information
 identity is kept separate from the effects rather than folded into them, so equal
 counts cannot hide substituted or deleted content, and a density change is never
 reported as an improvement.

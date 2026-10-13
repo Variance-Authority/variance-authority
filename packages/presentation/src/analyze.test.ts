@@ -283,6 +283,8 @@ describe('presentation intelligence', () => {
       after: withLayout.digest,
     });
     expect(presentationSignal(withoutLayout, withoutLayout)).toBeUndefined();
+    expect(presentationSignal(undefined, withoutLayout)).toBeUndefined();
+    expect(presentationSignal(withoutLayout, undefined)).toBeUndefined();
   });
 
   it('reports a side without a presentation reading as changed, and no reading on either side as no signal', () => {

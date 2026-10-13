@@ -34,25 +34,17 @@ export function presentationSignal(
   after: PresentationReport | undefined,
   options: PresentationSignalOptions = {},
 ): PresentationSignalRecord | undefined {
-  if (before === undefined && after === undefined) return undefined;
-  if (before === undefined || after === undefined) {
+  const beforeFindings = before === undefined ? undefined : findingsOf(before, options.beforeHierarchy ?? []);
+  const afterFindings = after === undefined ? undefined : findingsOf(after, options.afterHierarchy ?? []);
+  if (beforeFindings === undefined && afterFindings === undefined) return undefined;
+  if (before === undefined || after === undefined || beforeFindings === undefined || afterFindings === undefined) {
+    const side = beforeFindings === undefined ? 'the baseline' : 'the candidate';
+    const report = beforeFindings === undefined ? before : after;
     return {
       verdict: 'changed',
-      because: `${before === undefined ? 'the baseline' : 'the candidate'} supplied no presentation reading`,
+      because: `${side} ${report === undefined ? 'supplied no presentation reading' : 'contained no layout findings'}`,
       ...(before === undefined ? {} : { before: before.digest }),
       ...(after === undefined ? {} : { after: after.digest }),
-    };
-  }
-
-  const beforeFindings = findingsOf(before, options.beforeHierarchy ?? []);
-  const afterFindings = findingsOf(after, options.afterHierarchy ?? []);
-  if (beforeFindings === undefined && afterFindings === undefined) return undefined;
-  if (beforeFindings === undefined || afterFindings === undefined) {
-    return {
-      verdict: 'changed',
-      because: `${beforeFindings === undefined ? 'the baseline' : 'the candidate'} contained no layout findings`,
-      before: before.digest,
-      after: after.digest,
     };
   }
 
