@@ -363,7 +363,7 @@ describe('the sidecar a promotion will be made from', () => {
     missingFonts: ['Inter'],
     components: [{ component: 'Card', instances: 1, structure: 's', semantics: 'm', text: 't', style: 'y' }],
     findingMarks: ['a control inside another control'],
-    snapshot: 'H4sIAAAAAAAAA6tWKkktLlGyUlAqzy/KSVGqBQBNnvU3EgAAAA==',
+    snapshot: 'v1:H4sIAAAAAAAAA6tWKkktLlGyUlAqzy/KSVGqBQBNnvU3EgAAAA==',
   });
 
   async function sentCandidate(sidecar: string): Promise<Record<string, unknown> | undefined> {
@@ -404,7 +404,7 @@ describe('the sidecar a promotion will be made from', () => {
 
   it('carries the snapshot the region join reads, as it was packed', async () => {
     expect((await sentCandidate(FULL))?.['snapshot']).toBe(
-      'H4sIAAAAAAAAA6tWKkktLlGyUlAqzy/KSVGqBQBNnvU3EgAAAA==',
+      'v1:H4sIAAAAAAAAA6tWKkktLlGyUlAqzy/KSVGqBQBNnvU3EgAAAA==',
     );
   });
 
