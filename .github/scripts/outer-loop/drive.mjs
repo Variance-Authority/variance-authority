@@ -370,13 +370,14 @@ export async function restore(context, { waitFor = true } = {}) {
     body: { ref: base, inputs },
     needs: `actions: write on ${repo}`,
   });
-  // Only once the dispatch is accepted: until then `main` still holds the
-  // change's render, and settle dispatches again. A second dispatch after an
-  // answer that was lost costs one run and moves nothing — the accept on `main`
-  // approves the render `main` already has.
-  rmSync(restoreMarker(env, name), { force: true });
   log(`${name}: dispatched ${workflow} on ${base} to give it back its own render`);
-  if (!waitFor) return;
+  // The marker stays until `main` has its render back — the accepted dispatch
+  // when nobody waits, its successful run when somebody does — so settle
+  // dispatches again after anything short of that. A second dispatch costs one
+  // run and moves nothing: the accept on `main` approves the render `main`
+  // already has.
+  const restored = () => rmSync(restoreMarker(env, name), { force: true });
+  if (!waitFor) return restored();
   // After the flow's budget, so it has one wait of its own: starting and finishing share it.
   const own = { ...wait, deadline: Date.now() + wait.seconds * 1000 };
   const started = await until(async () => (await gh('GET', runs)).workflow_runs.find((r) => !before.has(r.id)), {
@@ -396,6 +397,7 @@ export async function restore(context, { waitFor = true } = {}) {
         `baselines on the deployment still hold what the change rendered`,
     );
   }
+  restored();
 }
 
 /** Whether a run that approved left `main` without its render. */

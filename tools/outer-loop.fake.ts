@@ -25,6 +25,8 @@ export interface Behaviour {
   denied?: boolean;
   /** The example refuses the dispatch that gives `main` its render back. */
   undispatchable?: boolean;
+  /** The dispatched accept on `main` runs, and fails. */
+  unrestored?: boolean;
 }
 
 type Json = Record<string, any>;
@@ -229,7 +231,12 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
     if (method === 'POST' && (m = r('/actions/workflows/([^/]+)/dispatches'))) {
       if (behaviour.undispatchable) return reply(403, { message: 'Resource not accessible by integration' });
       state.dispatches.push({ workflow: m[1], ...body });
-      workflowRuns.push({ id: 5000 + workflowRuns.length, status: 'completed', conclusion: 'success', html_url: 'run' });
+      workflowRuns.push({
+        id: 5000 + workflowRuns.length,
+        status: 'completed',
+        conclusion: behaviour.unrestored ? 'failure' : 'success',
+        html_url: 'run',
+      });
       return reply(204);
     }
     if (method === 'GET' && (m = r('/git/matching-refs/heads/(.+)'))) {

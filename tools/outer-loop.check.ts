@@ -174,6 +174,14 @@ describe('settling a flow', () => {
     expect(existsSync(join(temp, 'outer-loop-tribunal.restore'))).toBe(true);
   });
 
+  it('keeps the restore marker when the dispatched accept fails, so settle tries again', async () => {
+    const { github, code, out, temp } = await drive('tribunal', { unrestored: true });
+    expect(code).toBe(1);
+    expect(out).toContain('concluded failure');
+    expect(github.dispatches).toHaveLength(1);
+    expect(existsSync(join(temp, 'outer-loop-tribunal.restore'))).toBe(true);
+  });
+
   it('files a failure before it sweeps, so the job timeout cannot take the report', async () => {
     const github = await fake('cache', {}, servers);
     await outerLoop('settle', 'cache', github.url, { OUTER_LOOP_OUTCOME: 'failure' });
