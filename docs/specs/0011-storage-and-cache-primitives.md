@@ -62,7 +62,7 @@ What makes this a primitive rather than a pile of heuristics is that its contrac
 is checkable, and the check is already computed on every comparison:
 
 > A reduction rule is admissible only if, across the corpus, every subject renders
-> **strict-identical** before and after — `STRICT_POLICY packages/raster/src/policy.ts:50`,
+> **strict-identical** before and after — `STRICT_POLICY packages/raster/src/policy.ts:51`,
 > which is `{ threshold: 0, includeAA: true }`.
 
 Not "within threshold". `unchanged` under the default policy forgives a colour
