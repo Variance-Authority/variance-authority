@@ -10,15 +10,13 @@
  * `variance push` files both runs with a real tribunal, and a reviewer decides
  * on two of the changes and raises a concern about a third.
  *
- * What it keeps is what was sent: every write, in `recorded/writes.json`, and
- * every pushed image, in `recorded/images`. The answers the stories replay,
- * `recorded/answers.json`, are worked out from those by
- * [`answers.mjs`](./answers.mjs), which `test/recording.test.ts` runs again on
- * every `yarn test` — so the service changing what it answers fails a test, and
- * `vitest -u` on that file writes the new answers without a browser.
- *
- * Run this again when what is sent changes — the case, the run report, the push
- * — and commit what it writes:
+ * What it writes is what that service then answers: every read the review page
+ * makes, in `recorded/answers.json`, and every image it serves, in
+ * `recorded/images`. Nothing of it is committed. The `tribunal` job records it
+ * again before it builds the Storybook, so the stories draw what this commit's
+ * service answers, photographed in the browser the gate photographs with.
+ * Locally, run it once before the Storybook, and again after changing the case,
+ * the run report, the push or the service:
  *
  *     yarn build && yarn workspace @variance-authority/tribunal stories:record
  *
@@ -34,7 +32,6 @@ import { serveTribunal } from '@variance-authority/tribunal/node';
 import { createMemoryR2, createSqliteD1 } from '@variance-authority/tribunal/testing';
 import { createReviewClient } from '@variance-authority/tribunal/ui';
 import { createTribunal } from '@variance-authority/tribunal/worker';
-import { INGEST, PROJECT, REVIEW, answersOf, imageName } from './answers.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../../..');
@@ -43,6 +40,11 @@ const OUT = join(HERE, 'recorded');
 const VARIANCE = join(ROOT, 'packages/cli/dist/bin.js');
 
 const REVIEWER = 'marina';
+
+/** The project the case is filed under, and the two credentials the recording uses. */
+const PROJECT = 'storybook-case';
+const INGEST = 'stories-ingest-token-0123456789';
+const REVIEW = 'stories-review-token-0123456789';
 
 /**
  * The two builds, each with the hour its run is filed at. Fixed, so recording
@@ -68,12 +70,12 @@ execFileSync('yarn', ['workspace', '@variance-authority/case-storybook', 'build-
   stdio: 'inherit',
 });
 
-// The service's clock is the recording's: each write is stamped with it and
-// moves it on a minute, and each push starts it at its build's hour.
+// The service's clock is the recording's: each write moves it on a minute,
+// and each push starts it at its build's hour. Reads leave it where the last
+// write did, so a decision's date and a window's edge come out the same on
+// every run.
 let clock = new Date(BUILDS[0].at);
-const writes = [];
-const files = new Map();
-const service = await serve();
+const { tribunal, service } = await serve();
 const baselines = join(work, 'baselines');
 
 for (const [position, one] of BUILDS.entries()) {
@@ -89,30 +91,33 @@ for (const [position, one] of BUILDS.entries()) {
 await review(createReviewClient({ endpoint: service.url, token: REVIEW }));
 await service.close();
 
-const recording = { at: clock.toISOString(), writes };
-const { answers, images } = await answersOf(recording, (file) => files.get(file), {
-  createTribunal,
-  createSqliteD1,
-  createMemoryR2,
-  createReviewClient,
-});
+const answers = {};
+const files = new Map();
+const reading = async (input, init) => {
+  const response = await tribunal.fetch(new Request(input, init));
+  const url = new URL(response.url || String(input));
+  if (!url.pathname.endsWith('.png')) {
+    answers[`${url.pathname}${url.search}`] = { status: response.status, body: await response.clone().json() };
+  }
+  return response;
+};
+const images = await read(createReviewClient({ endpoint: service.url, token: REVIEW, fetch: reading }), files);
 
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(join(OUT, 'images'), { recursive: true });
-for (const [file, bytes] of files) writeFileSync(join(OUT, 'images', file), bytes);
-writeFileSync(join(OUT, 'writes.json'), `${JSON.stringify(recording, null, 2)}\n`);
-writeFileSync(join(OUT, 'answers.json'), `${JSON.stringify({ answers, images }, null, 2)}\n`);
-process.stdout.write(
-  `recorded ${writes.length} writes, ${Object.keys(answers).length} answers and ${files.size} images in ${OUT}\n`,
-);
+for (const [file, bytes] of files) {
+  mkdirSync(dirname(join(OUT, 'images', file)), { recursive: true });
+  writeFileSync(join(OUT, 'images', file), bytes);
+}
+writeFileSync(join(OUT, 'answers.json'), `${JSON.stringify({ answers: sorted(answers), images }, null, 2)}\n`);
+process.stdout.write(`recorded ${Object.keys(answers).length} answers and ${files.size} images in ${OUT}\n`);
 process.exit(0);
 
 /**
- * The service on a loopback port, writing down every write it is sent.
+ * The service on a loopback port, its clock moved on by every write it is sent.
  *
  * In this process rather than the `variance-authority-tribunal` program, so its
- * clock is the recording's. A write is kept as the JSON it carried, with each
- * pushed image swapped for the file it is saved as.
+ * clock is the recording's, and so the answers can be read from it directly.
  */
 async function serve() {
   const tribunal = createTribunal({
@@ -123,55 +128,27 @@ async function serve() {
     reviewToken: REVIEW,
     now: () => clock,
   });
-  const keeping = {
+  const ticking = {
     async fetch(request) {
-      if (request.method !== 'GET' && request.method !== 'HEAD') {
-        const url = new URL(request.url);
-        writes.push({
-          at: clock.toISOString(),
-          as: capabilityOf(request),
-          method: request.method,
-          path: `${url.pathname}${url.search}`,
-          body: withFiles(await request.clone().json()),
-        });
-        clock = new Date(clock.getTime() + 60_000);
-      }
-      return tribunal.fetch(request);
+      const response = await tribunal.fetch(request);
+      if (request.method !== 'GET' && request.method !== 'HEAD') clock = new Date(clock.getTime() + 60_000);
+      return response;
     },
   };
-  return await serveTribunal({
-    tribunal: keeping,
+  const service = await serveTribunal({
+    tribunal: ticking,
     host: '127.0.0.1',
     port: 0,
     authorize: capabilityOf,
     tokens: { ingest: INGEST, review: REVIEW },
     ui: false,
   });
+  return { tribunal, service };
 }
 
 function capabilityOf(request) {
   const header = request.headers.get('authorization');
   return header === `Bearer ${INGEST}` ? 'ingest' : header === `Bearer ${REVIEW}` ? 'review' : null;
-}
-
-/** A push's images, each saved under its digest and named in the write instead of inlined. */
-function withFiles(body) {
-  if (body.images === undefined) return body;
-  const images = {};
-  for (const [subject, kinds] of Object.entries(body.images)) {
-    images[subject] = {};
-    for (const [kind, { bytes, ...rest }] of Object.entries(kinds)) {
-      if (bytes === undefined) {
-        images[subject][kind] = rest;
-        continue;
-      }
-      const decoded = Buffer.from(bytes, 'base64');
-      const file = imageName(decoded);
-      files.set(file, decoded);
-      images[subject][kind] = { file, ...rest };
-    }
-  }
-  return { ...body, images };
 }
 
 /** The case's own config, pointed at one build of its Storybook and at the deployment. */
@@ -249,4 +226,46 @@ async function review(client) {
     note: 'The card follows its content; check whether a fixed height was intended.',
     hypothesis: 'the card has no min-height, so the button padding reflows it',
   });
+}
+
+/**
+ * Every read the review page makes for the recorded builds, each answered and
+ * kept, and every image it draws, saved as `<build>/<subject>/<kind>.png` with
+ * the subject's `kind:id` as two directories, so a file says what it shows.
+ *
+ * @returns The file each subject's layer is drawn from, by build, subject and kind.
+ */
+async function read(client, files) {
+  const names = {};
+  const builds = (await client.builds()).map((one) => one.build).sort();
+  await client.changelog();
+  for (const build of builds) {
+    const detail = await client.build(build);
+    await client.concerns({ seenIn: build });
+    const components = new Set();
+    for (const subject of detail.subjects) {
+      await client.concerns({ subject: subject.subject });
+      await client.flakiness(subject.subject);
+      for (const region of subject.regions) if (region.component) components.add(region.component);
+      for (const moved of subject.moved ?? []) components.add(moved.component);
+      for (const kind of ['before', 'after', 'diff']) {
+        if (!subject.has[kind]) continue;
+        const bytes = new Uint8Array(await (await client.imageBlob(build, subject.subject, kind)).arrayBuffer());
+        const file = `${build}/${subject.subject.split(':').join('/')}/${kind}.png`;
+        files.set(file, bytes);
+        ((names[build] ??= {})[subject.subject] ??= {})[kind] = file;
+      }
+    }
+    for (const component of [...components].sort()) {
+      await client.changelog({ component });
+      await client.churn(component);
+      await client.reach(component);
+    }
+  }
+  return names;
+}
+
+/** Keys in code-unit order, so the same answers are always the same file. */
+function sorted(record) {
+  return Object.fromEntries(Object.entries(record).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }

@@ -399,10 +399,10 @@ jobs:
           if-no-files-found: warn
 
   # The review surface's own Storybook (`packages/tribunal/stories`), over
-  # builds `stories/record.mjs` pushed through an in-process tribunal. A second
-  # check rather than a second config in the job above, because each verdict is
-  # its own decision: a change to the review page is accepted or not on its own
-  # terms, not in the same breath as the case's buttons.
+  # builds `stories/record.mjs` pushes through an in-process tribunal on every
+  # run. A second check rather than a second config in the job above, because
+  # each verdict is its own decision: a change to the review page is accepted
+  # or not on its own terms, not in the same breath as the case's buttons.
   #
   # So it has its own label, `variance: accept tribunal`: the case's label does
   # not start this job, and this one's does not start the job above. The same
@@ -457,6 +457,12 @@ jobs:
         run: corepack enable && yarn install --immutable
 
       - uses: ./.github/actions/build
+
+      # What the stories draw is recorded here, from this commit's service and
+      # in this image's browser, rather than committed: CI makes the images.
+      - name: record what the stories draw
+        shell: bash
+        run: yarn workspace @variance-authority/tribunal stories:record
 
       - name: build the Storybook this run observes
         shell: bash

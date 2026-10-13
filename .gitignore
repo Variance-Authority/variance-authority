@@ -49,6 +49,12 @@ packages/react/browser-check/www/bundle.js
 docker/results/
 storybook-static/
 
+# What tribunal's stories draw: recorded from the service by
+# `yarn workspace @variance-authority/tribunal stories:record`, which the
+# `tribunal` job runs before it builds the Storybook. CI makes the images and
+# reports what moved; none is committed.
+packages/tribunal/stories/recorded/
+
 # The incumbent's own artifacts: its baselines are this machine's Chromium, and
 # its report belongs to a run rather than to the repository. Regenerate with
 # `yarn workspace @variance-authority/case-incumbent incumbent`.
