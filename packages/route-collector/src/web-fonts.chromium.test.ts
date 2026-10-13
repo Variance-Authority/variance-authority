@@ -19,7 +19,10 @@ import { routeCollector, type Collected, type Plan } from './index.js';
  * The face is declared in a linked sheet, with its file written against that
  * sheet, because that is what a bundler emits and the case that breaks: the
  * renderer's document has one inline sheet and a base, so a path left relative
- * to the sheet it came from resolves against the page and fetches nothing.
+ * to the sheet it came from resolves against the page and fetches nothing. The
+ * page sits two folders deep for the same reason: from `/a/b/page` the file
+ * resolves to `/a/fonts/`, from the sheet to `/fonts/`, and only one of them is
+ * served.
  *
  * And the server sends no CORS header, as neither a collector's server nor a
  * developer's does. The render is a document on `about:blank`, where the face is
@@ -77,7 +80,7 @@ beforeAll(async () => {
       response.writeHead(200, { 'content-type': 'font/woff2' }).end(FACE);
       return;
     }
-    if (path === '/page') {
+    if (path === '/a/b/page') {
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(PAGE);
       return;
     }
@@ -108,7 +111,7 @@ const PLAN: Plan = {
 
 async function collect(options: { portable?: boolean } = {}): Promise<RenderDocument> {
   const collector = await (
-    await routeCollector({ routes: { 'page/card': `${base}/page` }, roots: ['#app'], ...options })
+    await routeCollector({ routes: { 'page/card': `${base}/a/b/page` }, roots: ['#app'], ...options })
   )({
     config: {
       viewport: { width: 400, height: 200, deviceScaleFactor: 1, colorScheme: 'light' },
