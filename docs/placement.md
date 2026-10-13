@@ -219,7 +219,7 @@ arrangements, and each puts the approval somewhere else:
 
 | baselines live in | config | a change is accepted by | the record of it is |
 |---|---|---|---|
-| the CI cache | `directory`, root ignored by git | a label on the pull request | the label in the pull request's timeline |
+| the CI cache | `directory`, root ignored by git | a label on the pull request, and every push to `main` | the label in the pull request's timeline, and the push |
 | git | `directory` or `lfs`, root tracked | a commit on the pull request's branch, reviewed with the code | the commit and the pull-request review |
 | a review service | `remote` | an approval or a rejection per subject, on the service's page | the service's decisions |
 
@@ -238,21 +238,29 @@ committed](#committed-means-committed) describes.
 
 A reviewer reads the report and adds the `variance: accept` label. That starts a
 run that accepts every changed subject, compares again, and saves the baseline
-root into the pull request's own cache scope. When the pull request merges, the
-run on `main` renders the merge and accepts what it rendered, if the pull request's check was green at its
-head and `main` was green before the merge. A commit on `main` that has no
-finished check of its own, because its run was cancelled or because it is one of
-a rebase merge's earlier commits, is skipped when an accepted pull request
-brought it in, and the run reads the commit before it instead. When either
-check was red, `main` stays red until somebody dispatches the workflow with
-`accept` ticked.
+root into the pull request's own cache scope. It saves only when that second
+comparison passes. A subject that is still unstable, an observation that errored,
+or a subject that was not observed fails it even right after an accept, and then
+nothing is saved and the check stays red until you rerun that run or add the
+label again. The pull request's later runs read
+that scope first, so they compare against what you accepted there even after
+`main` moves.
+
+Merging is the second accept. Every push to `main` accepts what `main` renders,
+whether the pull request's check was green, red, unfinished, or never run because
+the project is new: you judge a change on its pull request, and what you merge is
+what `main` draws. The push saves under the same condition as the label's run,
+so a push whose second comparison fails leaves the store `main` had before. Every
+pull request that holds no accept of its own compares against the newest store
+saved on `main`, including one that was already open when that push landed.
 
 Nothing lands in git history, and approval is a label rather than a review of a
 diff. A push after an accept does not dismiss a reviewer's approval of the pull
 request, and it does not need to: a push that changes a pixel turns the check red again. The
 store lasts as long as GitHub keeps the cache entry. GitHub removes an entry
 nothing has restored for seven days, and after that every subject reports `new`
-until somebody accepts again. A pull request from a fork runs with a read-only
+until the next push to `main`, or a dispatch with `accept` ticked, records it
+again. A pull request from a fork runs with a read-only
 token: the label run still accepts, but it cannot take the label off again, and
 the pull request gets no comment.
 

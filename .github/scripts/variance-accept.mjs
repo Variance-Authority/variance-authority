@@ -8,13 +8,15 @@
 //   not a state: this removes it again, so the next change needs the next press,
 //   and the pull request's timeline keeps who pressed it and when. Only somebody
 //   with triage access can label, which is the whole of the authorisation.
-// - **On `main`, by merging** a pull request that was accepted. The acceptance
-//   is carried, not repeated: the pull request's own `variance` check on its
-//   head commit is the answer, and GitHub already holds it. A red `main` after a
-//   reviewed merge would ask the same person the same question twice.
-// - **Anywhere, by dispatching** the workflow with `accept` ticked — the
-//   bootstrap, and the answer for work that lands on `main` without a pull
-//   request.
+// - **On `main`, by landing there.** A pull request is where a change is
+//   judged, and merging it is the person's answer, whatever its check said at
+//   the time: green, red, still running, or never run because the check is new.
+//   What lands on `main` is `main`, so every push to it promotes what it
+//   renders. A `main` that compared against anything else would hold every
+//   later pull request to pixels that are on no branch.
+// - **Anywhere, by dispatching** the workflow with `accept` ticked — a branch
+//   with no pull request, or a `main` whose store GitHub evicted, without
+//   waiting for the next push.
 //
 // Which of those three applies depends on `VARIANCE_REVIEW`, the workflow's
 // choice of where an accepted baseline lives:
@@ -28,19 +30,6 @@
 //   subject is decided on the service's review page, one at a time, and a
 //   label here would be a second place deciding the same thing.
 //
-// The merge carries only when `main` was green before it. A red parent means
-// `main` already held pixels nobody accepted, and the merge's render cannot tell
-// those apart from the ones the pull request's reviewer saw; promoting would
-// accept both under one name.
-//
-// A parent with no finished check has not said either way. Its run was
-// cancelled, or replaced while it queued behind another, or never started: a
-// rebase merge lands every commit of the pull request and only the last one gets
-// a run. Such a parent is looked through when an accepted pull request brought
-// it in — its pixels were reviewed there — and the question passes to its own
-// parent, until a commit whose check finished decides. A parent nothing accepted
-// stops the carry, because nothing says its pixels were ever seen.
-//
 // Writes `promote`, `because` and `intent` to `$GITHUB_OUTPUT`. `fetch` and the
 // REST API only, like `post-comment.mjs`, for the same reason: a dependency here
 // would be a third party deciding what the baseline is.
@@ -48,13 +37,10 @@
 import { appendFileSync, readFileSync } from 'node:fs';
 
 const API_VERSION = '2022-11-28';
-/** How many commits `lastDecided` reads back before it gives up. */
-const LOOK_BACK = 20;
 
 const repository = required('GITHUB_REPOSITORY');
 const token = required('GITHUB_TOKEN');
 const label = required('VARIANCE_ACCEPT_LABEL');
-const check = process.env['VARIANCE_CHECK'] || 'variance';
 const api = (process.env['GITHUB_API_URL'] ?? 'https://api.github.com').replace(/\/+$/, '');
 const sha = required('GITHUB_SHA');
 const event = JSON.parse(readFileSync(required('GITHUB_EVENT_PATH'), 'utf8'));
@@ -113,112 +99,19 @@ async function decide(name) {
   if (name === 'push') {
     if (review === 'git') return { promote: false, because: 'the accepted baselines merged with the code' };
     if (review === 'tribunal') return { promote: false, because: 'the review service stores the baselines' };
-    return carried();
+    return landed();
   }
 
   return { promote: false, because: `${name} never accepts` };
 }
 
-/** The acceptance a merged pull request already carries, if `main` may take it. */
-async function carried() {
-  const merged = (await merges(sha)).find((candidate) => candidate.merge_commit_sha === sha);
-  if (merged === undefined) return { promote: false, because: 'not the merge of a pull request' };
-
-  const head = await conclusion(merged.head.sha);
-  if (head !== 'success') {
-    return {
-      promote: false,
-      because: `#${merged.number} merged while its \`${check}\` check at its head was ${head}`,
-    };
-  }
-
-  const before = await lastDecided(sha);
-  if (before.state !== 'success') {
-    return {
-      promote: false,
-      because:
-        `#${merged.number} was accepted, but ${before.why}, so its render cannot be told ` +
-        'apart from pixels `main` already held unaccepted',
-    };
-  }
-  // A rebase merge's own earlier commits name the same pull request.
-  const others = before.through.filter((number) => number !== `#${merged.number}`);
-  const verb = others.length === 1 ? 'was' : 'were';
-  const also = others.length === 0 ? '' : `, and so ${verb} ${others.join(', ')} before it`;
-  return { promote: true, because: `#${merged.number} was accepted on its pull request${also}` };
-}
-
-/**
- * What `main` was before `commit`: the nearest first-parent ancestor whose check
- * finished, and the accepted pull requests looked through on the way to it.
- */
-async function lastDecided(commit) {
-  const through = [];
-  let at = commit;
-  for (let step = 0; step < LOOK_BACK; step++) {
-    const parent = (await request('GET', `/commits/${at}`)).parents[0]?.sha;
-    if (parent === undefined) {
-      return { state: 'absent', why: `\`main\` has no commit before ${at.slice(0, 12)}`, through };
-    }
-    const state = await conclusion(parent);
-    if (state === 'success') return { state, through };
-    const short = parent.slice(0, 12);
-    if (state === 'failure') return { state, why: `\`main\` was red at ${short}`, through };
-
-    // Any merged pull request that brought this commit in, not only one whose
-    // merge commit it is: a rebase merge brings in several.
-    let accepted;
-    for (const candidate of await merges(parent)) {
-      if ((await conclusion(candidate.head.sha)) === 'success') {
-        accepted = candidate;
-        break;
-      }
-    }
-    if (accepted === undefined) {
-      const ran = state === 'absent' ? 'no check ran' : `its check was ${state}`;
-      return {
-        state,
-        why:
-          `\`main\` at ${short} was never judged (${ran}) ` +
-          'and no accepted pull request brought it in',
-        through,
-      };
-    }
-    if (!through.includes(`#${accepted.number}`)) through.push(`#${accepted.number}`);
-    at = parent;
-  }
-  return {
-    state: 'absent',
-    why: `none of the ${LOOK_BACK} commits before it on \`main\` has a finished \`${check}\` check`,
-    through,
-  };
-}
-
-/** The merged pull requests that brought `commit` into the repository. */
-async function merges(commit) {
-  const pulls = await request('GET', `/commits/${commit}/pulls`);
-  return pulls.filter((candidate) => candidate.merged_at);
-}
-
-/**
- * The newest completed `variance` check on a commit, or why there is none.
- *
- * Several runs can report on one commit — a push, a pull request, an accept —
- * and the newest one to finish is the current answer. A skipped one is no answer
- * at all: the job did not run. The pull request's `closed` event and any label
- * other than the accept label both start this workflow on the head commit and
- * skip the job. On a merge that skipped run finishes seconds before this asks,
- * and read as the answer it hid the acceptance it came after.
- */
-async function conclusion(commit) {
-  const { check_runs: runs } = await request(
-    'GET',
-    `/commits/${commit}/check-runs?check_name=${encodeURIComponent(check)}&per_page=100`,
-  );
-  const done = runs.filter((run) => run.completed_at !== null && run.conclusion !== 'skipped');
-  if (done.length === 0) return 'absent';
-  done.sort((a, b) => (a.completed_at < b.completed_at ? 1 : a.completed_at > b.completed_at ? -1 : 0));
-  return done[0].conclusion ?? 'absent';
+/** A push, named by the pull request that merged as it, if one did. */
+async function landed() {
+  const branch = required('GITHUB_REF_NAME');
+  const pulls = await request('GET', `/commits/${sha}/pulls`);
+  const merged = pulls.find((candidate) => candidate.merged_at && candidate.merge_commit_sha === sha);
+  if (merged !== undefined) return { promote: true, because: `#${merged.number} landed on \`${branch}\`` };
+  return { promote: true, because: `pushed to \`${branch}\` by @${event.sender.login}` };
 }
 
 async function removeLabel(number) {

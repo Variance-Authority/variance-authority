@@ -36,26 +36,28 @@ name: variance
 #   `variance: accept tribunal` for the `tribunal` check. The run saves
 #   into the pull request's own cache scope, which its later runs read first, and
 #   takes the label off again so the next change needs the next press.
-# - **On `main`, by merging** a pull request whose `variance` check was green at
-#   its head. That acceptance is carried rather than asked for twice — but only
-#   when `main` was green before the merge, so nothing `main` already held
-#   unaccepted is promoted under the pull request's name. A commit before it
-#   that was never judged, because its run was cancelled or it is one of a
-#   rebase merge's earlier commits, counts when an accepted pull request
-#   brought it in.
-# - **By dispatching** this workflow with `accept` ticked: the bootstrap, and the
-#   answer for work that lands on `main` without a pull request.
+# - **On `main`, by landing there.** A pull request is where a change is
+#   judged, and merging it is the person's answer, whatever its check said at
+#   the time: green, red, still running, or never run because the check is new.
+#   What lands on `main` is `main`, so every push to it promotes what it
+#   renders, and a pull request opened after it compares against what is on
+#   `main` rather than against pixels that are on no branch.
+# - **By dispatching** this workflow with `accept` ticked: a branch with no pull
+#   request, or a `main` whose store GitHub evicted, without waiting for the
+#   next push.
 #
 # Every one of those is a person, on purpose. `accept --all` cannot yet tell a
 # subject nobody has ever reviewed from a subject whose component just changed
 # (spec 0023), so a job that ran it on its own would promote the regression it
 # was added to catch and go green on the next run — which is the tool becoming a
 # recorder, the failure the exit codes exist to prevent. Spec 0016 says it does
-# not belong in an unattended job. The merge is not unattended: it carries a
-# label somebody added after reading the report.
+# not belong in an unattended job. A push to `main` is not unattended: somebody
+# merged or pushed it, and the pull request is where they read the report.
 #
-# The bootstrap is honest rather than hidden: before anybody has accepted, every
-# subject is `new`, every run is red, and the first dispatch on `main` ends that.
+# Until something lands on `main` with a project, nothing on `main` holds a
+# baseline for it, and a pull request reports every subject `new`, which exits
+# 0: nothing it compares against was ever accepted. The push that lands the
+# project's config records its baseline.
 #
 # The cache key does not name the renderer, and does not need to. The store
 # partitions by renderer identity, so a baseline painted by another Chromium is
@@ -104,8 +106,6 @@ on:
         default: false
 
 # Read the code, write one comment per project, take the accept label off.
-# `checks: read` is how a merge to `main` asks whether its pull request was
-# accepted.
 #
 # `contents: write` is for refs under `refs/variance/`, none of them a branch,
 # so a clone fetches none of them and none is the contributor's branch:
@@ -117,7 +117,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  checks: read
 
 # Where a pull request's comment images live. One prefix, read by the jobs that
 # push them and by the job that deletes them, so changing it here cannot strand
@@ -164,8 +163,8 @@ permissions:
 # matching `baselines` section in the config; `docs/placement.md` compares them.
 #
 # - `cache`: the store is this runner's Actions cache, and nothing is committed.
-#   A reviewer accepts with the `variance: accept` label, and a merge promotes
-#   the same pixels on `main` (the header says when). A later push does not
+#   A reviewer accepts with the `variance: accept` label, and every push to
+#   `main` promotes what `main` renders (the header says why). A later push does not
 #   dismiss anybody's pull-request approval, and it does not need to: a push
 #   that changes a pixel turns the check red again. The store lasts as long as
 #   GitHub keeps the cache entry.
@@ -203,12 +202,11 @@ jobs:
     # cancel a comparison in progress.
     #
     # A pull request's newer push cancels the run in progress, because only the
-    # newest head matters there. The default branch queues instead: a merge's
-    # run reads the run before it to decide whether the merge's acceptance
-    # carries, and a cancelled run is a question nobody answered. GitHub still
-    # keeps only one queued run per group, so three merges close together can
-    # leave the middle one unrun; `variance-accept.mjs` looks through such a
-    # commit when an accepted pull request brought it in.
+    # newest head matters there. The default branch queues instead, so each
+    # run's store is saved after the one before it and the newest commit's
+    # render is the last one kept. GitHub keeps only one queued run per group,
+    # so three merges close together can leave the middle one unrun, which
+    # costs nothing: the newest commit renders everything the middle one did.
     concurrency:
       group: variance-${{ github.ref }}
       cancel-in-progress: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
@@ -276,10 +274,13 @@ jobs:
       # the host cache carries, and on a run that accepts, it promotes what it
       # renders first and keeps the store only once a comparison against it came
       # back green. It
-      # exits 1 when a subject moved and nothing here suppresses that, on `main`
-      # as much as on a branch: a red `main` is the tool saying the pixels are
-      # not the ones anybody approved, and the way to answer it is to look and
-      # then accept — not to make the check quieter.
+      # exits 1 when a subject moved and nothing here suppresses that: a red
+      # pull request is the tool saying the pixels are not the ones on `main`,
+      # and the way to answer it is to look and then accept — not to make the
+      # check quieter. On `main` the run accepts first, so its check goes red
+      # only where accepting cannot settle it — a subject still unstable, an
+      # observation that errored, a subject not observed — and then it keeps no
+      # store, and `main` keeps the one before.
       #
       # `comment` is on only where there is a pull request to comment on. On a
       # push the action would render a docket, find no issue number, and warn.
@@ -315,7 +316,7 @@ jobs:
 
           # The step the comment cannot take for the reviewer, in this
           # repository's words. The label starts a run that accepts; see the
-          # header for why it is a label and what a merge carries afterwards.
+          # header for why it is a label and what a push to `main` promotes.
           to-accept: >-
             ${{
               env.VARIANCE_REVIEW == 'tribunal'
@@ -411,9 +412,9 @@ jobs:
   #
   # So it has its own label, `variance: accept tribunal`: the case's label does
   # not start this job, and this one's does not start the job above. The same
-  # accept rules otherwise, asked about this check by name (`VARIANCE_CHECK`),
-  # and its own cache entry, keyed by the config's `project`. A dispatch with
-  # `accept` ticked still accepts both, as the bootstrap should. Its
+  # accept rules otherwise, and its own cache entry, keyed by the config's
+  # `project`. A dispatch with `accept` ticked still accepts both, and so does
+  # a push to `main`. Its
   # `VARIANCE_REVIEW` is always `cache`: the config says `carry: actions-cache`
   # whatever the workflow's says. Its comment and its image ref are its own,
   # both keyed by the config's `project`, so the two jobs keep a docket each on
@@ -431,7 +432,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      checks: read
 
     concurrency:
       group: variance-tribunal-${{ github.ref }}
@@ -455,7 +455,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VARIANCE_ACCEPT_LABEL: 'variance: accept tribunal'
-          VARIANCE_CHECK: tribunal
           VARIANCE_DISPATCH_ACCEPT: ${{ inputs.accept }}
           VARIANCE_REVIEW: cache
         run: node .github/scripts/variance-accept.mjs
