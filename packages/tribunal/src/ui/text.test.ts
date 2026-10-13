@@ -183,6 +183,21 @@ describe('the size of a change is counted in what is being decided', () => {
     expect(briefly({ ...zero, signals: { pixels: 'unchanged' } })).toBe('0 pixels');
     expect(briefly({ ...zero, signals: { pixels: 'changed' } })).toBe('pixels changed, uncounted');
     expect(briefly({ ...zero, signals: { pixels: 'unobservable' } })).toBe('occupies no pixels');
-    expect(briefly(zero)).toBe('pixels not measured');
+    expect(briefly(zero)).toBe('no pixel signal');
+  });
+
+  it('reads a zero the same way in both forms, words aside', () => {
+    // The short form sits beside a render's name with the long form as its
+    // tooltip, so the two read one state. No surface hands the short form an
+    // absorbed render today; when one does, it says what the tooltip says.
+    const absorbed = {
+      verdict: 'ignored',
+      changedPixels: 0,
+      regions: [],
+      signals: { pixels: 'unchanged' },
+    } as const;
+
+    expect(magnitude(absorbed)).toBe('No pixel differs outside the ignored regions');
+    expect(briefly(absorbed)).toBe('0 pixels outside ignores');
   });
 });

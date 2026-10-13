@@ -348,6 +348,28 @@ describe('a declaration decided it, and that is not the same as nobody comparing
     expect(markup).toContain('325 px absorbed');
   });
 
+  it('prints no count beside a row whose pixels the run did not count', async () => {
+    // A render that changed size arrives with no count at all. *0 px* beside it,
+    // on any of the three rows that print one, is a comparison that never ran.
+    const uncounted = subject({ changedPixels: 0, signals: { pixels: 'changed' } });
+    const still = subject({
+      verdict: 'unchanged',
+      changedPixels: 0,
+      signals: { pixels: 'unchanged' },
+    });
+
+    for (const [now, earlier, row] of [
+      [uncounted, still, 'pixels changed, uncounted'],
+      [uncounted, declared(), 'pixels changed, uncounted, reported'],
+      [declared(), uncounted, 'pixels changed, uncounted before'],
+    ] as const) {
+      const markup = await mount(clientThat(async () => build('5', [earlier])), build('6', [now]));
+
+      expect(markup).toContain(row);
+      expect(markup).not.toMatch(/>0 px/);
+    }
+  });
+
   it('says the rule is unrecorded rather than implying the difference was small', async () => {
     // A build pushed before the store kept the per-subject block. The verdict
     // says a declaration absorbed it and the record does not say which one, and

@@ -157,6 +157,21 @@ describe('the opening line counts only what there is something to count', () => 
       expect(text).not.toContain('Nothing in this build changed');
     }
   });
+
+  it('counts a subject the earlier run did not have as new, not as one that moved', async () => {
+    // A subject absent from the earlier run has nothing there to have moved from,
+    // so *moved for the first time* says a comparison happened that did not.
+    const fresh = subject({
+      subject: 'story:new',
+      verdict: 'new',
+      regions: [],
+      has: { before: false, after: true, diff: false },
+    });
+    const text = await open(build('6', [fresh]), build('5', []));
+
+    expect(text).toContain('Against build 5: 1 subject is new to this run.');
+    expect(text).not.toContain('moved for the first time');
+  });
 });
 
 describe('the header counts the concerns the build showed', () => {
