@@ -63,15 +63,24 @@ function placeOf(build: string, subject: SubjectView): Place {
 /** Whether the run resolved any source file, as the build page decides it. */
 const sourced = (build: string): boolean => buildOf(build).causes.some((cause) => cause.file !== undefined);
 
-/** Resolves once `enough` holds of `root`, asked again on every change under it, without polling. */
-function when(root: HTMLElement, enough: () => boolean): Promise<void> {
+/**
+ * Resolves once `enough` holds of `root`, asked again on every change under it,
+ * without polling. Throws naming `what` if it still does not hold after five
+ * seconds, so a page that never gets there fails its story, not the whole run.
+ */
+function when(root: HTMLElement, what: string, enough: () => boolean): Promise<void> {
   if (enough()) return Promise.resolve();
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const observer = new MutationObserver(() => {
       if (!enough()) return;
       observer.disconnect();
+      clearTimeout(deadline);
       resolve();
     });
+    const deadline = setTimeout(() => {
+      observer.disconnect();
+      reject(new Error(`after five seconds, still waiting for ${what}`));
+    }, 5_000);
     observer.observe(root, { attributes: true, characterData: true, childList: true, subtree: true });
   });
 }
@@ -141,7 +150,7 @@ const inMode =
   async (context) => {
     const root = context.canvasElement;
     press(root, label);
-    await when(root, () => pressed(root, label) && root.querySelector(wait) !== null);
+    await when(root, `${label} pressed and ${wait} drawn`, () => pressed(root, label) && root.querySelector(wait) !== null);
     await decoded(context);
   };
 
@@ -229,7 +238,7 @@ const onLayer =
   async (context) => {
     const root = context.canvasElement;
     if (label !== undefined) press(root, label);
-    await when(root, () => {
+    await when(root, `every placed crop showing ${label ?? 'its layer'}`, () => {
       const placed = [...root.querySelectorAll('.va-crop:not(.va-crop-unplaced)')];
       return (
         (label === undefined || pressed(root, label)) &&
@@ -310,7 +319,7 @@ const panel = (subject: SubjectView, build = CHANGED): Story => {
     // saying *Reading…* is a panel photographed before it answered.
     play: async (context) => {
       const root = context.canvasElement;
-      await when(root, () => ![...root.querySelectorAll('.va-note, .va-waiting')].some(reading));
+      await when(root, 'every note answered', () => ![...root.querySelectorAll('.va-note, .va-waiting')].some(reading));
       await decoded(context);
     },
   };

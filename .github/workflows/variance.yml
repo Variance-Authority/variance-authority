@@ -419,6 +419,13 @@ jobs:
       (github.event.action != 'labeled' ||
       github.event.label.name == 'variance: accept tribunal')
 
+    # Narrower than the workflow's: this job pushes no ref and writes no
+    # comment, so it reads the code and the checks and takes its label off.
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: read
+
     concurrency:
       group: variance-tribunal-${{ github.ref }}
       cancel-in-progress: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
@@ -429,7 +436,11 @@ jobs:
       options: --ipc=host
 
     steps:
+      # Nothing after this authenticates to git, and the install and the builds
+      # run code from the pull request, so the token is not left on disk.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: decide whether this run accepts
         id: accept

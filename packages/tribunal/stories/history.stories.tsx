@@ -151,7 +151,7 @@ export const ChangelogUngrouped: Story = {
   render: () => (
     <ChangelogEntries
       log={{
-        ...changelog,
+        changes: [],
         ungrouped: [
           {
             build: CHANGED,
