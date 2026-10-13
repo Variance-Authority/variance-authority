@@ -366,13 +366,15 @@ export async function restore(context, { waitFor = true } = {}) {
   const { workflow, inputs } = flow.restore;
   const runs = `/repos/${repo}/actions/workflows/${workflow}/runs?event=workflow_dispatch&branch=${base}&per_page=20`;
   const before = new Set((await gh('GET', runs)).workflow_runs.map((r) => r.id));
-  // Attempted once: the marker goes before the dispatch, so a dispatch that
-  // fails is reported by whoever attempted it and never sent a second time.
-  rmSync(restoreMarker(env, name), { force: true });
   await gh('POST', `/repos/${repo}/actions/workflows/${workflow}/dispatches`, {
     body: { ref: base, inputs },
     needs: `actions: write on ${repo}`,
   });
+  // Only once the dispatch is accepted: until then `main` still holds the
+  // change's render, and settle dispatches again. A second dispatch after an
+  // answer that was lost costs one run and moves nothing — the accept on `main`
+  // approves the render `main` already has.
+  rmSync(restoreMarker(env, name), { force: true });
   log(`${name}: dispatched ${workflow} on ${base} to give it back its own render`);
   if (!waitFor) return;
   // After the flow's budget, so it has one wait of its own: starting and finishing share it.

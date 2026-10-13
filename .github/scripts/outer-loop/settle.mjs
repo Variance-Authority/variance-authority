@@ -40,6 +40,20 @@ export async function settle(name, outcome, env, log = console.log) {
     }
   };
 
+  const home = () => client({ base: api, token: env.GITHUB_TOKEN, secret: 'GITHUB_TOKEN' });
+
+  // A failure is filed before the sweep: a job stopped by its own timeout
+  // starts nothing after this step, and a sweep of serial requests could spend
+  // the minutes the step has left. A pass is filed after it, so a sweep that
+  // fails does not close the issue. Nobody cancels a scheduled run by hand, so
+  // a scheduled run that ended cancelled ran out of the job's time: that is the
+  // flow failing slowly, and it is filed like any other failure. A dispatched
+  // run cancelled is a person's decision, and files nothing.
+  const timedOut = outcome === 'cancelled' && env.GITHUB_EVENT_NAME === 'schedule';
+  if (outcome === 'failure' || timedOut) {
+    await attempt('reporting', () => report(home(), env, name, timedOut ? 'cancelled' : outcome, log));
+  }
+
   if (env.VARIANCE_PUSH_TOKEN) {
     const gh = client({ base: api, token: env.VARIANCE_PUSH_TOKEN, secret: 'VARIANCE_PUSH_TOKEN' });
     await attempt(`sweeping ${flow.repository}`, () => sweep(gh, flow.repository, name, log, attempt));
@@ -50,15 +64,7 @@ export async function settle(name, outcome, env, log = console.log) {
     }
   }
 
-  // Nobody cancels a scheduled run by hand, so a scheduled run that ended
-  // cancelled ran out of the job's time: that is the flow failing slowly, and
-  // it is filed like any other failure. A dispatched run cancelled is a person's
-  // decision, and files nothing.
-  const timedOut = outcome === 'cancelled' && env.GITHUB_EVENT_NAME === 'schedule';
-  if (outcome === 'success' || outcome === 'failure' || timedOut) {
-    const gh = client({ base: api, token: env.GITHUB_TOKEN, secret: 'GITHUB_TOKEN' });
-    await attempt('reporting', () => report(gh, env, name, timedOut ? 'cancelled' : outcome, log));
-  }
+  if (outcome === 'success') await attempt('reporting', () => report(home(), env, name, outcome, log));
   return problems;
 }
 

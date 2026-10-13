@@ -23,6 +23,8 @@ export interface Behaviour {
   unchecked?: boolean;
   /** The token may not see the example: every request for it is a 404. */
   denied?: boolean;
+  /** The example refuses the dispatch that gives `main` its render back. */
+  undispatchable?: boolean;
 }
 
 type Json = Record<string, any>;
@@ -225,6 +227,7 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
     if (method === 'GET' && (m = r('/actions/runs/(\\d+)'))) return reply(200, workflowRuns.find((w) => w.id === Number(m![1])));
     if (method === 'GET' && (m = r('/actions/workflows/([^/]+)/runs'))) return reply(200, { workflow_runs: workflowRuns });
     if (method === 'POST' && (m = r('/actions/workflows/([^/]+)/dispatches'))) {
+      if (behaviour.undispatchable) return reply(403, { message: 'Resource not accessible by integration' });
       state.dispatches.push({ workflow: m[1], ...body });
       workflowRuns.push({ id: 5000 + workflowRuns.length, status: 'completed', conclusion: 'success', html_url: 'run' });
       return reply(204);

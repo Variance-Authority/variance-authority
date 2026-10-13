@@ -166,6 +166,23 @@ describe('the outer loop against an example that breaks a promise', () => {
 });
 
 describe('settling a flow', () => {
+  it('keeps the restore marker when the dispatch is refused, so settle gives main back', async () => {
+    const { github, code, out, temp } = await drive('tribunal', { undispatchable: true });
+    expect(code).toBe(1);
+    expect(out).toContain('restoring');
+    expect(github.dispatches).toEqual([]);
+    expect(existsSync(join(temp, 'outer-loop-tribunal.restore'))).toBe(true);
+  });
+
+  it('files a failure before it sweeps, so the job timeout cannot take the report', async () => {
+    const github = await fake('cache', {}, servers);
+    await outerLoop('settle', 'cache', github.url, { OUTER_LOOP_OUTCOME: 'failure' });
+    const filed = github.requests.indexOf('POST /repos/o/r/issues');
+    const swept = github.requests.findIndex((r) => r.includes('/git/matching-refs/'));
+    expect(filed).toBeGreaterThanOrEqual(0);
+    expect(filed).toBeLessThan(swept);
+  });
+
   it('opens one issue on a failure, comments on it on the next, and closes it on a pass', async () => {
     const github = await fake('cache', {}, servers);
     const temp = await mkdtemp(join(tmpdir(), 'outer-loop-'));
