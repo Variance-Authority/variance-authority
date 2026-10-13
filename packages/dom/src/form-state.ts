@@ -1,5 +1,5 @@
 import { items } from './dom-list.js';
-import type { AttributeEdit } from './object-urls.js';
+import type { AttributeEdit, TextEdit } from './object-urls.js';
 
 /**
  * What a form control holds now, where its markup says something else.
@@ -60,7 +60,8 @@ export interface FormState {
 
   /**
    * `root.outerHTML`, with every edit in the subtree written in, and `also`:
-   * attributes another reading of the page found it must write, by element.
+   * attributes and text another reading of the page found it must write, by
+   * element.
    *
    * The edits go onto a copy imported into an inert document, never onto the
    * page. Writing them on the live tree and taking them off again is not an
@@ -70,7 +71,7 @@ export interface FormState {
    * context, so the copy runs no custom element constructor and fetches
    * nothing. With no edit, the copy is never made.
    */
-  serialize(root: Element, also?: ReadonlyMap<Element, readonly AttributeEdit[]>): string;
+  serialize(root: Element, also?: ReadonlyMap<Element, readonly (AttributeEdit | TextEdit)[]>): string;
 }
 
 const CONTROLS = 'input, textarea, option';
@@ -155,7 +156,9 @@ export function formState(ownerDocument: Document): FormState {
         originals.forEach((element, index) => {
           const twin = twins[index];
           for (const edit of also.get(element) ?? []) {
-            twin?.setAttributeNS(edit.namespace, edit.name, edit.value);
+            if ('text' in edit) {
+              if (twin) twin.textContent = edit.text;
+            } else twin?.setAttributeNS(edit.namespace, edit.name, edit.value);
           }
         });
       }

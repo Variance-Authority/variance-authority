@@ -1,6 +1,7 @@
 import type { Diagnostic } from '@variance-authority/core/format';
 import { fileAttributes, srcsetCandidates } from './assets.js';
 import { URL_TOKEN } from './css-url.js';
+import { detectProfile } from './profile.js';
 
 /**
  * Images a page made from bytes it held, carried as those bytes.
@@ -25,10 +26,13 @@ import { URL_TOKEN } from './css-url.js';
  * `x-user-defined` text, the one way a synchronous request in a window hands
  * back bytes, since a window refuses it a `responseType`.
  *
- * An object URL nothing can read any more — revoked after the image loaded,
- * or in a host with no request — keeps its URL and is reported as an `error`:
- * the render paints that image broken where the page shows it whole, and a
- * comparison of the two would agree with a picture nobody saw.
+ * An object URL nothing can read — revoked after the image loaded, or in a
+ * host with no request — keeps its URL. In a host that paints, it is an
+ * `error`: the render paints that image broken where the page shows it whole,
+ * and a comparison of the two would agree with a picture nobody saw. A host
+ * that paints nothing, such as jsdom, mints no object URLs either, so the URL is
+ * a string a test wrote and no page showed its picture; that is the host's
+ * standing limit, and a `warn`, as an unread font face is.
  */
 
 /** One attribute of one element, as the render document must write it. */
@@ -38,11 +42,20 @@ export interface AttributeEdit {
   readonly value: string;
 }
 
+/** The text a `<style>` must hold, written in place of what it holds. */
+export interface TextEdit {
+  readonly text: string;
+}
+
 export interface ObjectUrls {
   /** What `element` must write so none of its own attributes names an object URL. */
   editsOf(element: Element): readonly AttributeEdit[];
-  /** The edits of every element in `root`'s subtree, `root` included, that needs one. */
-  editsIn(root: Element): ReadonlyMap<Element, readonly AttributeEdit[]>;
+  /**
+   * The edits of every element in `root`'s subtree, `root` included, that needs
+   * one: its attributes, and the text of a `<style>`, which the markup carries
+   * as written.
+   */
+  editsIn(root: Element): ReadonlyMap<Element, readonly (AttributeEdit | TextEdit)[]>;
   /** `css` with every `url()` that names an object URL naming its bytes; `place` says where it was read. */
   inCss(css: string, place: string, nodePath?: string): string;
   /** An `unreadable-object-url` error for each place an object URL could not be read. */
@@ -63,19 +76,23 @@ const OBJECT_URL = /^\s*blob:/i;
 export function objectUrls(view: Window | null, pathAttribute: string): ObjectUrls {
   const read = new Map<string, string | undefined>();
   const diagnostics: Diagnostic[] = [];
+  let painted: boolean | undefined;
 
   const carried = (url: string, place: string, nodePath: string | undefined): string => {
     if (!OBJECT_URL.test(url)) return url;
     if (!read.has(url)) read.set(url, dataUrlOf(url.trim(), view));
     const data = read.get(url);
     if (data !== undefined) return data;
+    painted ??= detectProfile(view).layout;
     diagnostics.push({
-      severity: 'error',
+      severity: painted ? 'error' : 'warn',
       code: 'unreadable-object-url',
-      message:
-        `${place} names memory in the page that this host could not read, so the ` +
-        'render paints it broken where the page shows it; keep the URL until the subject ' +
-        'has been acquired',
+      message: painted
+        ? `${place} names memory in the page that this host could not read, so the ` +
+          'render paints it broken where the page shows it; keep the URL until the subject ' +
+          'has been acquired'
+        : `${place} names memory this host could not read, and this host paints nothing ` +
+          'to show it; the render paints a broken image in its place',
       ...(nodePath !== undefined ? { nodePath } : {}),
     });
     return url;
@@ -120,9 +137,15 @@ export function objectUrls(view: Window | null, pathAttribute: string): ObjectUr
   return {
     editsOf,
     editsIn(root) {
-      const edits = new Map<Element, readonly AttributeEdit[]>();
+      const edits = new Map<Element, readonly (AttributeEdit | TextEdit)[]>();
       for (const element of [root, ...root.querySelectorAll('*')]) {
-        const own = editsOf(element);
+        const own: (AttributeEdit | TextEdit)[] = [...editsOf(element)];
+        if (element.localName === 'style') {
+          const text = element.textContent ?? '';
+          const nodePath = element.getAttribute(pathAttribute) ?? undefined;
+          const written = inCss(text, 'a <style> in the subject', nodePath);
+          if (written !== text) own.push({ text: written });
+        }
         if (own.length > 0) edits.set(element, own);
       }
       return edits;

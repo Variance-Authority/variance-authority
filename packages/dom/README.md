@@ -163,11 +163,13 @@ face read there cannot be carried; `acquireDocument` reports
 A `blob:` URL names memory in the page that minted it, and the renderer paints
 in a page of its own. So `acquireDocument` reads every `blob:` URL the render
 document would carry, in an attribute that names a file or in a `url()` of a
-style, a kept rule or an inherited value, and writes its bytes in as a `data:`
-URL: the render paints the picture the page showed, and the same picture is the
-same document on every load. An object URL the page has already revoked
-cannot be read; it is reported as an `unreadable-object-url` error, because its
-render would show a broken image where the page shows a whole one.
+style, a `<style>` in the subject, a kept rule, an inherited value or a box the
+subject sits in, and writes its bytes in as a `data:` URL: the render paints the
+picture the page showed, and the same picture is the same document on every
+load. An object URL the page has already revoked cannot be read; it is reported
+as an `unreadable-object-url` error, because its render would show a broken
+image where the page shows a whole one. Under a host that paints nothing, such
+as jsdom, the same report is a warning: no page there showed the picture.
 
 ## Use this package when
 

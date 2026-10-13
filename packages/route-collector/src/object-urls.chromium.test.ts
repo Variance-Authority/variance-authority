@@ -30,7 +30,8 @@ import {
  * would paint the first two alike and fail it.
  *
  * A style names a file too, so the same square is also a tile's background:
- * written in the tile's own `style`, in a rule a sheet holds, and in the
+ * written in the tile's own `style`, in a rule a sheet holds, in a sheet the
+ * subject itself holds, and in the
  * `style` of a box the subject sits in, which the document carries as frame,
  * and in a custom property set on the root, which it carries as inherited.
  */
@@ -116,6 +117,13 @@ const PAGES: Readonly<Record<string, string>> = {
       sheet.textContent = '.tile{background-image:url("' + url + '")}';
       document.head.append(sheet);`,
   ),
+  // The same rule, in a sheet the subject holds, so its text is in the markup.
+  "/inner-held": holding(
+    tile(),
+    `const sheet = document.createElement('style');
+      sheet.textContent = '.tile{background-image:url("' + url + '")}';
+      document.querySelector('main').prepend(sheet);`,
+  ),
   "/seeded-held": holding(
     `<style>.tile{background-image:var(--tile)}</style>${tile()}`,
     "document.documentElement.style.setProperty('--tile', 'url(' + url + ')');",
@@ -142,6 +150,7 @@ const ROUTES: Readonly<Record<string, string>> = {
   "object/tiled-held": "/tiled-held",
   "object/sheet": "/sheet",
   "object/sheet-held": "/sheet-held",
+  "object/inner-held": "/inner-held",
   "object/seeded-held": "/seeded-held",
   "object/framed-held": "/framed-held",
 };
@@ -300,6 +309,12 @@ chromium_("a style that names an image a page made", () => {
     expect(css("sheet-held")).not.toContain("blob:");
     expect(css("sheet-held")).toContain(`data:image/png;base64,${SQUARE}`);
     expect(bytes("sheet-held")).toBe(bytes("sheet"));
+  });
+
+  it("paints the background a sheet inside the subject named through an object URL", () => {
+    expect(html("inner-held")).not.toContain("blob:");
+    expect(css("inner-held")).not.toContain("blob:");
+    expect(bytes("inner-held")).toBe(bytes("sheet"));
   });
 
   it("paints the background a custom property on the root named through an object URL", () => {

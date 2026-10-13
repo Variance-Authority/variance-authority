@@ -57,6 +57,17 @@ describe('the assets a subtree references', () => {
     ]);
   });
 
+  it('splits a srcset on ASCII whitespace only, and ends a descriptor at the first closing parenthesis', () => {
+    // HTML's rule: a no-break space is part of a URL, and the parenthesis state
+    // a descriptor opens ends at its first `)`, so the comma after it separates.
+    const root = subtree('<img srcset="a\u00a0b.png 1x, c.png (x)) 2x, d.png 3x">');
+    expect(referencedAssets(root)).toEqual([
+      'https://shop.example/story/a%C2%A0b.png',
+      'https://shop.example/story/c.png',
+      'https://shop.example/story/d.png',
+    ]);
+  });
+
   it('reads a data: candidate as one URL, though it holds a comma', () => {
     // A URL in a srcset is a run of non-whitespace, so the comma inside a
     // `data:` URL is part of it. Read as a separator, it left `iVBORw0` behind

@@ -156,6 +156,9 @@ function addAttributes(element: Element, add: (value: string | null) => void): v
   }
 }
 
+/** HTML splits a `srcset` on these, and a no-break space is part of a URL. */
+const ASCII_WHITESPACE = /[\t\n\f\r ]/;
+
 /** One candidate in a `srcset`: its URL, and the descriptor offered with it. */
 export interface SrcsetCandidate {
   readonly url: string;
@@ -166,7 +169,7 @@ export interface SrcsetCandidate {
 /**
  * `a.png 1x, b.png 2x` → each URL with its descriptor, by HTML's rule.
  *
- * A URL is a run of non-whitespace, so the comma inside a `data:` URL is part of
+ * A URL is a run of anything but ASCII whitespace, so the comma inside a `data:` URL is part of
  * it: splitting on every comma cut such a URL in two, and the second half
  * resolved as a file next to the page. A comma ends a candidate only after its
  * URL, or trailing it.
@@ -176,11 +179,11 @@ export function srcsetCandidates(value: string): readonly SrcsetCandidate[] {
   let position = 0;
 
   while (position < value.length) {
-    while (position < value.length && /[\s,]/.test(value[position]!)) position += 1;
+    while (position < value.length && /[\t\n\f\r ,]/.test(value[position]!)) position += 1;
     if (position >= value.length) break;
 
     const start = position;
-    while (position < value.length && !/\s/.test(value[position]!)) position += 1;
+    while (position < value.length && !ASCII_WHITESPACE.test(value[position]!)) position += 1;
     const written = value.slice(start, position);
     const url = written.replace(/,+$/, '');
     if (url !== written) {
@@ -188,12 +191,13 @@ export function srcsetCandidates(value: string): readonly SrcsetCandidate[] {
       continue;
     }
 
-    // A descriptor runs to the next comma outside parentheses.
+    // A descriptor runs to the next comma outside parentheses; the first `)`
+    // closes them, however many opened.
     const after = position;
-    let depth = 0;
-    while (position < value.length && (value[position] !== ',' || depth > 0)) {
-      if (value[position] === '(') depth += 1;
-      else if (value[position] === ')') depth = Math.max(0, depth - 1);
+    let inParens = false;
+    while (position < value.length && (value[position] !== ',' || inParens)) {
+      if (value[position] === '(') inParens = true;
+      else if (value[position] === ')') inParens = false;
       position += 1;
     }
     candidates.push({ url, descriptor: value.slice(after, position).trim() });
