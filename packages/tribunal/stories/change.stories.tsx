@@ -81,7 +81,7 @@ function unhashed(endings: readonly string[]): BuildDetail {
   });
 }
 
-const approval = subjectOf(CHANGED, 'button-primary').decision;
+const approval = subjectOf(CHANGED, 'story:case-surface--button-primary').decision;
 
 // Every render of the change decided, which the recording leaves three short of.
 const settled = subjects(changed, (subject) =>
@@ -101,7 +101,7 @@ const repeated: BuildDetail = {
 
 // As above, except card-rebranded did not move there and button-secondary moved
 // the way button-primary did.
-const primary = subjectOf(CHANGED, 'button-primary');
+const primary = subjectOf(CHANGED, 'story:case-surface--button-primary');
 const mixed = subjects(repeated, (subject) => {
   if (subject.subject.endsWith('card-rebranded')) {
     return { ...subject, verdict: 'unchanged', changedPixels: 0, regions: [], decision: null };

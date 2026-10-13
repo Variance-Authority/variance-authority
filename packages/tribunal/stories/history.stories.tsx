@@ -141,7 +141,7 @@ export const CoverageNarrowed: Story = {
   render: () => <CoverageLine build={coverage({ unreached: 6 })} />,
 };
 
-const decided = subjectOf(CHANGED, '--button-primary');
+const decided = subjectOf(CHANGED, 'story:case-surface--button-primary');
 
 export const ChangelogApproved: Story = {
   render: () => <ChangelogEntries log={changelog} />,
@@ -175,16 +175,16 @@ export const ChangelogNothingApproved: Story = {
 
 export const HistoryNotAsked: Story = {
   parameters: { width: ASIDE },
-  render: () => <SubjectHistory client={client} subject={subjectOf(CHANGED, '--card-rebranded')} />,
+  render: () => <SubjectHistory client={client} subject={subjectOf(CHANGED, 'story:case-surface--card-rebranded')} />,
 };
 export const HistoryEmptyRecord: Story = {
   parameters: { width: ASIDE },
-  render: () => <SubjectHistory client={client} subject={subjectOf(CHANGED, '--card-rebranded')} />,
+  render: () => <SubjectHistory client={client} subject={subjectOf(CHANGED, 'story:case-surface--card-rebranded')} />,
   play: ask(/Has this changed before/),
 };
 export const HistoryNoCause: Story = {
   parameters: { width: ASIDE },
-  render: () => <SubjectHistory client={client} subject={subjectOf(CHANGED, '--loading')} />,
+  render: () => <SubjectHistory client={client} subject={subjectOf(CHANGED, 'story:case-surface--loading')} />,
   play: ask(/Has this changed before/),
 };
 

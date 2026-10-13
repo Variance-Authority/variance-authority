@@ -133,10 +133,10 @@ export const CHANGED = 'ci-102';
 export const buildOf = (build: string): BuildDetail => recorded<BuildDetail>(`/review/builds/${build}`);
 export const summaries = (): readonly BuildSummary[] => recorded<{ builds: BuildSummary[] }>('/review/builds').builds;
 
-/** One subject of a recorded build, by the end of its id. */
-export function subjectOf(build: string, ending: string): SubjectView {
-  const found = buildOf(build).subjects.find((one) => one.subject.endsWith(ending));
-  if (found === undefined) throw new Error(`${build} recorded no subject ending in ${ending}`);
+/** One subject of a recorded build, by its id. */
+export function subjectOf(build: string, subject: string): SubjectView {
+  const found = buildOf(build).subjects.find((one) => one.subject === subject);
+  if (found === undefined) throw new Error(`${build} recorded no subject ${subject}`);
   return found;
 }
 

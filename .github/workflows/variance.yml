@@ -399,17 +399,18 @@ jobs:
           if-no-files-found: warn
 
   # The review surface's own Storybook (`packages/tribunal/stories`), over
-  # builds `stories/record.mjs` pushed through a real tribunal. A second check
-  # rather than a second config in the job above, because each verdict is its
-  # own decision: a change to the review page is accepted or not on its own
+  # builds `stories/record.mjs` pushed through an in-process tribunal. A second
+  # check rather than a second config in the job above, because each verdict is
+  # its own decision: a change to the review page is accepted or not on its own
   # terms, not in the same breath as the case's buttons.
   #
   # So it has its own label, `variance: accept tribunal`: the case's label does
   # not start this job, and this one's does not start the job above. The same
   # accept rules otherwise, asked about this check by name (`VARIANCE_CHECK`),
   # and its own cache entry, keyed by the config's `project`. A dispatch with
-  # `accept` ticked still accepts both, as the bootstrap should. It is always `cache`: the config says `carry: actions-cache`
-  # whatever `VARIANCE_REVIEW` says. No comment and no image ref, because both
+  # `accept` ticked still accepts both, as the bootstrap should. Its
+  # `VARIANCE_REVIEW` is always `cache`: the config says `carry: actions-cache`
+  # whatever the workflow's says. No comment and no image ref, because both
   # are one per pull request and the job above holds them; the report page is
   # in this check's summary instead.
   tribunal:

@@ -28,13 +28,13 @@ import { BASE, buildOf, CHANGED, replayClient, replayed, subjectOf } from './rep
 const client = replayClient();
 const none = (): void => {};
 
-const composed = subjectOf(CHANGED, '--composed');
-const primary = subjectOf(CHANGED, '--button-primary');
-const secondary = subjectOf(CHANGED, '--button-secondary');
-const rebranded = subjectOf(CHANGED, '--card-rebranded');
-const withActions = subjectOf(CHANGED, '--card-with-actions');
-const loading = subjectOf(CHANGED, '--loading');
-const first = subjectOf(BASE, '--composed');
+const composed = subjectOf(CHANGED, 'story:case-surface--composed');
+const primary = subjectOf(CHANGED, 'story:case-surface--button-primary');
+const secondary = subjectOf(CHANGED, 'story:case-surface--button-secondary');
+const rebranded = subjectOf(CHANGED, 'story:case-surface--card-rebranded');
+const withActions = subjectOf(CHANGED, 'story:case-surface--card-with-actions');
+const loading = subjectOf(CHANGED, 'story:case-surface--loading');
+const first = subjectOf(BASE, 'story:case-surface--composed');
 
 const meta = {
   title: 'Tribunal/Subject',

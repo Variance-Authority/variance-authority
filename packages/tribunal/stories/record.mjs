@@ -224,12 +224,21 @@ function fileAt(path, one) {
   writeFileSync(path, JSON.stringify({ ...rest, at: one.at, ...(one.intent ? { intent: one.intent } : {}) }));
 }
 
-/** A reviewer's pass over the second build: one approval, one rejection, one concern. */
+/**
+ * A reviewer's pass over the second build: one approval, one rejection, one
+ * concern, each on the subject its note is about. A subject the mutation no
+ * longer changes stops the recording rather than deciding on something else.
+ */
 async function review(client) {
   const [, changed] = BUILDS;
+  const approve = 'story:case-surface--button-primary';
+  const reject = 'story:case-surface--button-secondary';
+  const concern = 'story:case-surface--card-rebranded';
   const detail = await client.build(changed.build);
-  const pending = detail.subjects.filter((one) => one.verdict === 'changed').map((one) => one.subject).sort();
-  const [approve, reject, concern] = pending;
+  const pending = new Set(detail.subjects.filter((one) => one.verdict === 'changed').map((one) => one.subject));
+  for (const subject of [approve, reject, concern]) {
+    if (!pending.has(subject)) throw new Error(`${changed.build} did not change ${subject}, which the review decides on`);
+  }
   await client.decide(changed.build, approve, 'approved', REVIEWER, 'the wider padding is the change we asked for');
   await client.decide(changed.build, reject, 'rejected', REVIEWER, 'the secondary button was not meant to move');
   await client.raise({

@@ -47,11 +47,11 @@ const across = senseAcross(button.component, button.appearances);
 const changes = new Set([button.component]);
 const unread = first(docketOf(changed, originsOf(changed).origins, 'story'), 'docket band in ci-102');
 
-const primary = subjectOf(CHANGED, 'button-primary');
-const secondary = subjectOf(CHANGED, 'button-secondary');
-const rebranded = subjectOf(CHANGED, 'card-rebranded');
-const composed = subjectOf(CHANGED, 'composed');
-const loading = subjectOf(CHANGED, 'loading');
+const primary = subjectOf(CHANGED, 'story:case-surface--button-primary');
+const secondary = subjectOf(CHANGED, 'story:case-surface--button-secondary');
+const rebranded = subjectOf(CHANGED, 'story:case-surface--card-rebranded');
+const composed = subjectOf(CHANGED, 'story:case-surface--composed');
+const loading = subjectOf(CHANGED, 'story:case-surface--loading');
 
 const raised = recorded<{ concerns: Concern[]; tally: ConcernTally }>(`/review/concerns?build=${CHANGED}`);
 const concern = first(raised.concerns, 'concern');
@@ -207,8 +207,8 @@ export const FindingsUndated = side('Findings', () => <Findings subject={undated
 
 /* --- declarations -------------------------------------------------------- */
 
-const ticking = subjectOf(CHANGED, 'ticking').subject;
-const receipt = subjectOf(CHANGED, 'receipt-at-two-widths@375').subject;
+const ticking = subjectOf(CHANGED, 'story:case-surface--ticking').subject;
+const receipt = subjectOf(CHANGED, 'story:case-surface--receipt-at-two-widths@375').subject;
 
 const ignore = (rule: string, reason: string, over: Partial<IgnoreUsage>): IgnoreUsage => ({
   rule,
