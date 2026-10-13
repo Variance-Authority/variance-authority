@@ -418,7 +418,7 @@ function isStyleRule(rule: CSSRule): rule is CSSStyleRule {
   return 'selectorText' in rule && 'style' in rule;
 }
 
-function isGroupingRule(rule: CSSRule): rule is CSSGroupingRule {
+export function isGroupingRule(rule: CSSRule): rule is CSSGroupingRule {
   return 'cssRules' in rule && !('selectorText' in rule);
 }
 

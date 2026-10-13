@@ -1,8 +1,11 @@
 import { pageOrigin, withoutOrigin } from '@variance-authority/core/format';
 import { GENERATED_BOXES } from './generated-box.js';
 import { detectProfile } from './profile.js';
-import { authoredSheets } from './css-index.js';
-import { faceSourcesUsedBy } from './font-faces.js';
+import { authoredSheets, isGroupingRule } from './css-index.js';
+import { urlsIn } from './css-url.js';
+import { items } from './dom-list.js';
+import { faceOf, isFontFaceRule } from './font-faces.js';
+import { familiesIn } from './typeface.js';
 
 /**
  * Which external files a subject's own subtree asks for.
@@ -70,6 +73,7 @@ export function referencedAssets(root: Element): readonly string[] {
   // host resolve a pseudo-element's style*, not *is this jsdom*.
   const pseudo = view === null || !detectProfile(view).layout ? [] : GENERATED_BOXES;
   const found = new Set<string>();
+  const families = new Set<string>();
 
   const add = (value: string | null | undefined): void => {
     if (value === null || value === undefined) return;
@@ -104,12 +108,13 @@ export function referencedAssets(root: Element): readonly string[] {
       for (const property of URL_PROPERTIES) {
         for (const url of urlsIn(style.getPropertyValue(property))) add(url);
       }
+      for (const family of familiesIn(style.getPropertyValue('font-family'))) families.add(family);
     }
   }
 
   // A face's file is named by a rule no element matches, so no computed value
   // above carries it; the subtree asks for it by setting text in the face.
-  for (const source of faceSourcesUsedBy(root, authoredSheets(document))) add(source);
+  for (const source of faceSources(families, document)) add(source);
 
   return [...found].sort();
 }
@@ -162,23 +167,45 @@ function srcsetCandidates(value: string | null): readonly string[] {
 }
 
 /**
- * The URLs inside a computed style value.
+ * The files of every face named in `families`, conditions or not.
  *
- * Computed values are normalized by the engine, so quoting is predictable — but
- * only in a real engine. Under jsdom a declared value comes back as written,
- * which is why both quoted forms and the bare one are handled: the same function
- * has to work in the cheap tier, where most of this project's tests run.
+ * The whole stack, not the face that won: which entry a glyph is drawn from is
+ * the renderer's to decide from the faces it holds. And a face under an
+ * `@media` that does not hold here is counted anyway, because the key is asked
+ * of the live page with no environment to erase a condition against: a key
+ * naming a file the render will not fetch costs a render nobody needed, and
+ * one missing a file the render paints with is a false `unchanged`.
+ *
+ * A walk of its own rather than the index's, because the index is built per
+ * environment and erases what does not hold in it.
  */
-function urlsIn(value: string): readonly string[] {
-  if (value === '' || !value.includes('url(')) return [];
+function faceSources(families: ReadonlySet<string>, document: Document): readonly string[] {
+  if (families.size === 0) return [];
+  const sources: string[] = [];
 
-  const urls: string[] = [];
-  for (const match of value.matchAll(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s]*))\s*\)/g)) {
-    const url = match[1] ?? match[2] ?? match[3] ?? '';
-    if (url !== '') urls.push(url);
+  const walk = (rules: CSSRuleList, base: string): void => {
+    for (const rule of items(rules)) {
+      if (isFontFaceRule(rule)) {
+        const face = faceOf(rule, base, document);
+        if (face !== null && families.has(face.family)) sources.push(...face.sources);
+      } else if (isGroupingRule(rule)) {
+        walk(rule.cssRules, base);
+      }
+    }
+  };
+
+  for (const sheet of authoredSheets(document)) {
+    let rules: CSSRuleList;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      // Cross-origin. The index reports it; nothing in it can be read here.
+      continue;
+    }
+    walk(rules, sheet.href ?? document.baseURI);
   }
 
-  return urls;
+  return sources;
 }
 
 /**

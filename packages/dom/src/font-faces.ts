@@ -1,5 +1,5 @@
 import { pageOrigin, withoutOrigin } from '@variance-authority/core/format';
-import { items } from './dom-list.js';
+import { URL_TOKEN } from './css-url.js';
 import { GENERATED_BOXES } from './generated-box.js';
 import { detectProfile } from './profile.js';
 import { familiesIn } from './typeface.js';
@@ -72,51 +72,11 @@ export function faceOf(rule: CSSFontFaceRule, base: string, document: Document):
   return { family, text, sources, readable: rule.style.getPropertyValue('src') !== '' };
 }
 
-const URL_TOKEN = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s]*))\s*\)/g;
-
 /** The faces a subtree is set in, in the order the document declared them. */
 export function facesUsedBy(root: Element, faces: readonly IndexedFace[]): readonly IndexedFace[] {
   if (faces.length === 0) return [];
   const used = familiesUsedBy(root);
   return faces.filter((face) => used.has(face.family));
-}
-
-/**
- * The files of every face the subtree is set in, conditions or not.
- *
- * For the asset key, which is asked of the live page with no environment to
- * erase a condition against. A face under an `@media` that does not hold here
- * is counted anyway: a key naming a file the render will not fetch costs a
- * render nobody needed, and one missing a file the render paints with is a
- * false `unchanged`.
- */
-export function faceSourcesUsedBy(root: Element, sheets: readonly CSSStyleSheet[]): readonly string[] {
-  const document = root.ownerDocument;
-  const faces: IndexedFace[] = [];
-
-  const walk = (rules: CSSRuleList, base: string): void => {
-    for (const rule of items(rules)) {
-      if (isFontFaceRule(rule)) {
-        const face = faceOf(rule, base, document);
-        if (face !== null) faces.push(face);
-      } else if ('cssRules' in rule && !('selectorText' in rule)) {
-        walk((rule as CSSGroupingRule).cssRules, base);
-      }
-    }
-  };
-
-  for (const sheet of sheets) {
-    let rules: CSSRuleList;
-    try {
-      rules = sheet.cssRules;
-    } catch {
-      // Cross-origin. The index reports it; nothing in it can be read here.
-      continue;
-    }
-    walk(rules, sheet.href ?? document.baseURI);
-  }
-
-  return facesUsedBy(root, faces).flatMap((face) => face.sources);
 }
 
 /**
