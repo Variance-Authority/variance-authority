@@ -11,8 +11,9 @@ import type { CompareInputs } from './observe.js';
  * The clauses a verdict's reason is built from.
  *
  * `decide` chooses the verdict and which clauses follow it; these say what each
- * clause says. Each one is read off the comparison it describes, so a sentence
- * cannot name a policy, a count or a record the verdict was not decided on.
+ * clause says. Each one is read off what the verdict was decided on, the
+ * comparison or the before side it was compared against, so a sentence cannot
+ * name a policy, a count or a record the verdict was not decided on.
  */
 
 /** What the before side of a comparison is. */

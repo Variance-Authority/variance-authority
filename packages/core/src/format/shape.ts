@@ -1,5 +1,6 @@
 import type { SubjectRef } from './capture.js';
 import type { RenderDocument } from './document.js';
+import { FORMAT_VERSION } from './packed.js';
 import type { SemanticSnapshot } from './snapshot.js';
 
 /**
@@ -27,7 +28,7 @@ export function isSemanticSnapshot(value: unknown): value is SemanticSnapshot {
   const root = snapshot === null ? null : record(snapshot.root);
   return (
     snapshot !== null &&
-    snapshot.formatVersion === 1 &&
+    snapshot.formatVersion === FORMAT_VERSION &&
     isSubjectRef(snapshot.subject) &&
     profile !== null &&
     (profile.id === 'jsdom' || profile.id === 'chromium') &&
