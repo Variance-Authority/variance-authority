@@ -289,6 +289,38 @@ describe('every shape is drawn, and the difference is what is drawn first', () =
     expect(host.textContent).toContain('No baseline was kept for this render');
     expect(host.querySelectorAll('.va-crop-unplaced')).toHaveLength(1);
   });
+
+  it('says the mask could not be computed rather than drawing a ring over nothing', async () => {
+    // A render whose build kept no mask has it computed from the two captures
+    // when the card shows the difference, and a capture the service will not
+    // serve leaves nothing to draw. The ring over that empty plate claims a
+    // difference the reviewer cannot see.
+    const refusing = createReviewClient({
+      endpoint: '/api',
+      fetch: (async () => new Response('gone', { status: 404 })) as typeof globalThis.fetch,
+    });
+
+    await act(async () => {
+      root.render(
+        <Look
+          client={refusing}
+          build="6"
+          component="LinkComponent"
+          appearances={[
+            appearance({ subject: subject({ subject: 'kept' }) }),
+            appearance({
+              subject: subject({ subject: 'computed', has: { before: true, after: true, diff: false } }),
+              shape: 'v1:b',
+            }),
+          ]}
+        />,
+      );
+      await new Promise((settle) => setTimeout(settle, 0));
+    });
+
+    expect(host.textContent).toContain('The difference could not be computed for this render');
+    expect(host.querySelectorAll('.va-crop-unplaced')).toHaveLength(1);
+  });
 });
 
 describe('the raster is deferred by the window, not by a button', () => {

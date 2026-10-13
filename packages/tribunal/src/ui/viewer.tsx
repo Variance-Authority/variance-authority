@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import type { SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
-import { hasDifference, useDifferenceUrl } from './difference.js';
+import { hasDifference, useDifference } from './difference.js';
 import { Raster, share, union } from './plate.js';
 import { RegionOverlay, RegionTable } from './regions.js';
 import { count, magnitude, number } from './text.js';
@@ -86,8 +86,8 @@ export function Viewer({
   const stage = useRef<HTMLDivElement>(null);
   // Computed rather than fetched, unless this build kept one: see
   // [`difference.ts`](./difference.js) for why a mask is the one image worth
-  // making twice. `undefined` until it is ready, which is why the plate says so.
-  const difference = useDifferenceUrl(client, build, subject, mode === 'difference');
+  // making twice. The plate says when it is still being made, and why it failed.
+  const difference = useDifference(client, build, subject, mode === 'difference');
 
   /**
    * The frame both readings are drawn in.
@@ -285,11 +285,17 @@ export function Viewer({
             ) : null}
             {mode === 'difference' ? (
               // Already in the union's coordinates: the mask is what the
-              // comparison drew, on the box it padded both captures to.
-              difference === undefined ? (
-                <p className="va-note">Working out the difference&hellip;</p>
+              // comparison drew, on the box it padded both captures to. Never
+              // `undefined` here: the mode is open and offered only when there
+              // is a difference to show, so the last branch is one being made.
+              difference?.state === 'made' ? (
+                <Raster src={difference.url} alt={`${subject.subject} difference mask`} />
+              ) : difference?.state === 'failed' ? (
+                <p className="va-note">
+                  This page could not compute the difference mask: {difference.reason}
+                </p>
               ) : (
-                <Raster src={difference} alt={`${subject.subject} difference mask`} />
+                <p className="va-note">Working out the difference&hellip;</p>
               )
             ) : (
               <>

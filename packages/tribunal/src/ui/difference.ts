@@ -60,22 +60,37 @@ export function hasDifference(subject: Comparable): boolean {
 }
 
 /**
- * A URL for the difference mask, computed if the build did not keep one.
+ * The difference mask, or where its making stands.
  *
- * `undefined` while it is being made, and while `wanted` is false — nothing is
- * decoded for a mode nobody opened. The object URL is revoked when the subject
- * changes or the component unmounts; two full-page captures is real memory and
- * leaving it to the collector means holding every subject a reviewer walked
- * past.
+ * `making` and `failed` are separate states because they ask opposite things of
+ * a reviewer: one is worth waiting for, and the other never arrives. `reason` is
+ * the rejection's own message, such as which capture the service refused.
  */
-export function useDifferenceUrl(
+export type Difference =
+  | { readonly state: 'made'; readonly url: string }
+  | { readonly state: 'making' }
+  | { readonly state: 'failed'; readonly reason: string };
+
+/**
+ * The difference mask, computed if the build did not keep one.
+ *
+ * `undefined` while `wanted` is false, and for a subject with nothing to compare:
+ * nothing is decoded for a mode nobody opened. The object URL is revoked when the
+ * subject changes or the component unmounts; two full-page captures is real
+ * memory and leaving it to the collector means holding every subject a reviewer
+ * walked past.
+ */
+export function useDifference(
   client: ReviewClient,
   build: string,
   subject: Comparable,
   wanted = true,
-): string | undefined {
+): Difference | undefined {
   const stored = subject.has.diff ? client.imageUrl(build, subject.subject, 'diff') : undefined;
-  const [made, setMade] = useState<string>();
+  // Held with the subject it is for: the effect that clears it runs after the
+  // frame that switched subject, and that frame would show the last one's state.
+  const key = `${build}\u0000${subject.subject}`;
+  const [made, setMade] = useState<{ readonly key: string; readonly difference: Difference }>();
 
   const computable = stored === undefined && wanted && hasDifference(subject);
 
@@ -89,12 +104,12 @@ export function useDifferenceUrl(
       (blob) => {
         if (dropped) return;
         url = URL.createObjectURL(blob);
-        setMade(url);
+        setMade({ key, difference: { state: 'made', url } });
       },
-      () => {
-        // Left undefined: the caller draws nothing rather than a broken frame,
-        // and the two captures are still one click away in every other mode.
-        if (!dropped) setMade(undefined);
+      (error: unknown) => {
+        if (dropped) return;
+        const reason = error instanceof Error ? error.message : String(error);
+        setMade({ key, difference: { state: 'failed', reason } });
       },
     );
 
@@ -103,9 +118,11 @@ export function useDifferenceUrl(
       setMade(undefined);
       if (url !== undefined) URL.revokeObjectURL(url);
     };
-  }, [client, build, subject.subject, computable]);
+  }, [client, build, subject.subject, key, computable]);
 
-  return stored ?? made;
+  if (stored !== undefined) return { state: 'made', url: stored };
+  if (!computable) return undefined;
+  return made?.key === key ? made.difference : { state: 'making' };
 }
 
 /** Both captures, decoded, differenced and encoded — the whole of the work. */

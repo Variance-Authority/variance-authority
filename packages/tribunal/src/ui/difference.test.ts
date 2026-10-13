@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { PNG } from 'pngjs';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { diffImage } from '@variance-authority/png';
 import { createReviewClient } from './client.js';
-import { decodeBlob, differenceOf, hasDifference } from './difference.js';
+import { decodeBlob, differenceOf, hasDifference, useDifference, type Difference } from './difference.js';
 
 /**
  * The mask the reviewer sees, held to the mask the run measured.
@@ -172,6 +174,80 @@ describe('the mask the page computes', () => {
 
     expect({ width: decoded.width, height: decoded.height }).toEqual({ width: 40, height: 30 });
     expect(new Uint8Array(decoded.data)).toEqual(pixelsOf(AFTER));
+  });
+});
+
+describe('the mask, as the page holds it', () => {
+  it('is being made until the computation settles, then made, and its URL is let go on unmount', async () => {
+    // A failed computation is held apart from one in progress: the viewer's
+    // test of that state is in `failed-mask.test.tsx`.
+    const client = serving(BEFORE, AFTER);
+    const subject = { subject: 'story:card', has: { before: true, after: true, diff: false } };
+    const held: (Difference | undefined)[] = [];
+    const revoked: string[] = [];
+    const url = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
+    URL.createObjectURL = () => 'blob:made';
+    URL.revokeObjectURL = (made) => void revoked.push(made);
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+    function Probe(): null {
+      held.push(useDifference(client, 'ci-1', subject));
+      return null;
+    }
+
+    const root = createRoot(document.createElement('div'));
+    try {
+      await act(async () => {
+        root.render(createElement(Probe));
+        await new Promise((settle) => setTimeout(settle, 0));
+      });
+      act(() => root.unmount());
+    } finally {
+      URL.createObjectURL = url.create;
+      URL.revokeObjectURL = url.revoke;
+    }
+
+    expect(held[0]).toEqual({ state: 'making' });
+    expect(held.at(-1)).toEqual({ state: 'made', url: 'blob:made' });
+    expect(revoked).toEqual(['blob:made']);
+  });
+});
+
+describe('the mask of one subject, read while showing another', () => {
+  it('is the new subject being made, never the last subject\u2019s failure', async () => {
+    // The state is set from an effect, and an effect runs after the frame
+    // that switched subject. Read without its subject, the first frame of the
+    // next render says why the last one failed.
+    const client = createReviewClient({
+      endpoint: '/api',
+      fetch: (async (url: string) =>
+        url.includes(encodeURIComponent('story:a'))
+          ? new Response('gone', { status: 404 })
+          : await new Promise<Response>(() => undefined)) as typeof globalThis.fetch,
+    });
+    const has = { before: true, after: true, diff: false };
+    const held: (Difference | undefined)[] = [];
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+    function Probe({ subject }: { readonly subject: string }): null {
+      held.push(useDifference(client, 'ci-1', { subject, has }));
+      return null;
+    }
+
+    const root = createRoot(document.createElement('div'));
+    await act(async () => {
+      root.render(createElement(Probe, { subject: 'story:a' }));
+      await new Promise((settle) => setTimeout(settle, 0));
+    });
+    expect(held.at(-1)?.state).toBe('failed');
+
+    const before = held.length;
+    act(() => root.render(createElement(Probe, { subject: 'story:b' })));
+    act(() => root.unmount());
+
+    const after = held.slice(before).map((each) => each?.state);
+    expect(after[0]).toBe('making');
+    expect(after).not.toContain('failed');
   });
 });
 
