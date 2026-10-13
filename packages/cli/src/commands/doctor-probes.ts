@@ -257,7 +257,11 @@ async function filesUnder(root: string): Promise<readonly string[]> {
     .map((entry) => relative(root, join(entry.parentPath, entry.name)).split(sep).join('/'));
 }
 
-/** A file's first `length` bytes, or `undefined` when it went away under the walk. */
+/**
+ * A file's first `length` bytes, or `undefined` when they cannot be read — gone
+ * under the walk, or closed to this user. Either way it is not a pointer the run
+ * would refuse, and one such file must not cost the answer for the rest.
+ */
 async function headOf(path: string, length: number): Promise<Uint8Array | undefined> {
   let file;
   try {
@@ -268,8 +272,10 @@ async function headOf(path: string, length: number): Promise<Uint8Array | undefi
   try {
     const { buffer, bytesRead } = await file.read(Buffer.alloc(length), 0, length, 0);
     return buffer.subarray(0, bytesRead);
+  } catch {
+    return undefined;
   } finally {
-    await file.close();
+    await file.close().catch(() => undefined);
   }
 }
 
