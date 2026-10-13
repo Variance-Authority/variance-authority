@@ -238,19 +238,19 @@ committed](#committed-means-committed) describes.
 
 A reviewer reads the report and adds the `variance: accept` label. That starts a
 run that accepts every changed subject, compares again, and saves the baseline
-root into the pull request's own cache scope. It saves only when that second
-comparison passes. A subject that is still unstable, an observation that errored,
-or a subject that was not observed fails it even right after an accept, and then
-nothing is saved and the check stays red until you rerun that run or add the
-label again. The pull request's later runs read
+root into the pull request's own cache scope. A subject that is still unstable,
+an observation that errored, or a subject that was not observed fails that
+second comparison even right after an accept. The check is then red and names
+it, and the accept is saved all the same, so one such subject costs no other
+subject its baseline. The pull request's later runs read
 that scope first, so they compare against what you accepted there even after
 `main` moves.
 
 Merging is the second accept. Every push to `main` accepts what `main` renders,
 whether the pull request's check was green, red, unfinished, or never run because
 the project is new: you judge a change on its pull request, and what you merge is
-what `main` draws. The push saves under the same condition as the label's run,
-so a push whose second comparison fails leaves the store `main` had before. Every
+what `main` draws. The push saves as the label's run does, so a push whose
+second comparison fails is red and still records what `main` renders. Every
 pull request that holds no accept of its own compares against the newest store
 saved on `main`, including one that was already open when that push landed.
 
