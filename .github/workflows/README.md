@@ -157,8 +157,8 @@ label, and the timeline keeps who accepted and when.
 Merging is an accept too. A pull request is where a change is judged, and what
 lands on `main` is `main`: every push to `main` promotes what it renders,
 whatever the pull request's check said, whether it finished, and whether `main`
-was green before. Like the label's run, it keeps the store and then compares
-again: a subject still unstable, an observation that errored or a subject not
+was green before. Like the label's run, it compares again and keeps the store
+whatever that finds: a subject still unstable, an observation that errored or a subject not
 observed leaves `main` red and names it, and every other subject's baseline is
 kept all the same. A pull request that holds no accept of its own then compares
 against the newest push to `main`. The run's log names the pull request that

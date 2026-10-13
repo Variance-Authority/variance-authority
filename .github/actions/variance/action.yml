@@ -570,9 +570,10 @@ runs:
     # keep the second. Kept whatever the gate found: the accept is the person's
     # answer, and a subject that rendered differently on the gate's pass is that
     # subject's defect, named by the red check, not a reason to drop every other
-    # subject's baseline.
+    # subject's baseline. `!cancelled()`, so a report, an image or a comment
+    # step that failed after the gate cannot drop the accept either.
     - id: keep
-      if: ${{ inputs.accept == 'true' && steps.promote.outcome == 'success' }}
+      if: ${{ !cancelled() && inputs.accept == 'true' && steps.promote.outcome == 'success' }}
       name: what the host keeps
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -584,7 +585,8 @@ runs:
         # shellcheck disable=SC2086
         $VARIANCE_COMMAND carry save --config "$VARIANCE_CONFIG" --format github >> "$GITHUB_OUTPUT"
 
-    - if: ${{ steps.keep.outputs.baselines-key != '' }}
+    - id: saved
+      if: ${{ !cancelled() && steps.keep.outputs.baselines-key != '' }}
       name: keep the accepted baselines for every run after this one
       uses: actions/cache/save@v4
       with:
@@ -601,7 +603,7 @@ runs:
       shell: bash
       env:
         CODE: ${{ steps.run.outputs.exit-code }}
-        ACCEPTED: ${{ steps.promote.outcome == 'success' }}
+        KEPT: ${{ steps.saved.outcome == 'success' }}
         # Where the reader goes next. A push has no pull request, so pointing at
         # a comment there sends them looking for something that was never written.
         WHERE: >-
@@ -614,10 +616,10 @@ runs:
             echo "nothing needs review."
             ;;
           1)
-            if [ "$ACCEPTED" = true ]; then
-              # Nothing here needs a reviewer: the run accepted, and kept it.
-              # What moved, moved between two renders of one commit.
-              echo "::error::variance kept what this run accepted, then rendered a subject differently when it compared again: that subject does not render the same way twice; $WHERE."
+            if [ "$KEPT" = true ]; then
+              # The run accepted, and kept it: what failed, failed against
+              # this commit's own accept.
+              echo "::error::variance kept what this run accepted, and the comparison after it still failed: a subject that does not render the same way twice, an observation that errored, or a subject not observed; $WHERE."
             else
               echo "::error::variance found changes that need review; $WHERE."
             fi

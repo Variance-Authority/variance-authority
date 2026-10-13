@@ -27,7 +27,7 @@ name: variance
 # moved no pixel. So the store is the runner's cache, which the case's config
 # says with `baselines.carry: actions-cache`. Every run restores it and compares
 # against it; a run that accepts first promotes what it rendered, then compares
-# again, and saves the store only when that comparison is green.
+# again, and saves the store whatever that comparison finds.
 #
 # A run accepts when a person said so, in the place they already are
 # (`.github/scripts/variance-accept.mjs` decides, and says which):
@@ -272,7 +272,7 @@ jobs:
 
       # The gate, on every run. The action restores the store the config says
       # the host cache carries, and on a run that accepts, it promotes what it
-      # renders first, keeps the store, and then compares against it. It
+      # renders first, compares against it, and keeps the store either way. It
       # exits 1 when a subject moved and nothing here suppresses that: a red
       # pull request is the tool saying the pixels are not the ones on `main`,
       # and the way to answer it is to look and then accept — not to make the

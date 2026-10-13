@@ -46,4 +46,22 @@ describe('the variance action', () => {
   it('promotes as the step the keep step reads', async () => {
     expect(await conditionOf('id: promote')).toBe("${{ inputs.accept == 'true' }}");
   });
+
+  it('keeps the accept even when a step after the gate failed', async () => {
+    expect(await conditionOf('what the host keeps')).toMatch(/^\$\{\{ !cancelled\(\) && /);
+    expect(await conditionOf('id: saved')).toMatch(/^\$\{\{ !cancelled\(\) && /);
+  });
+
+  it('lets the gate finish, so the keep step runs after a red comparison', async () => {
+    const action = await readFile(ACTION, 'utf8');
+
+    expect(action).toContain('if $VARIANCE_COMMAND "${args[@]}"; then code=0; else code=$?; fi');
+  });
+
+  it('names a red check after a kept accept as the subject, not as a change to review', async () => {
+    const action = await readFile(ACTION, 'utf8');
+
+    expect(action).toContain("KEPT: ${{ steps.saved.outcome == 'success' }}");
+    expect(action).toMatch(/if \[ "\$KEPT" = true \]; then\s*(#.*\s*)*echo "::error::variance kept what this run accepted/);
+  });
 });
