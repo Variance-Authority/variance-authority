@@ -99,7 +99,7 @@ On tribunal's Storybook gate (183 stories), `--va-line` from #2f3437 to #3a4043 
 every border on the review page — reported 183 `unchanged` and exit 0, and so did
 `--va-accent` from #ff4a19 to #ff6a19. A padding edit on the same gate reported 51
 `changed`. In `pixelmatch`'s YIQ metric the two colour edits are 4.4% and 8.5% of
-the distance from black to white, both inside 10%. That is a false `unchanged`,
+the largest difference it measures, both inside 10%. That is a false `unchanged`,
 the failure ADR-0002 calls the worst this product has. The sentence beside it
 said `no pixels differ; 6,172 pixels differ with antialiasing counted`: `recordOf`
 appended the strict count and credited all of it to antialiasing, beside pixels
@@ -145,7 +145,7 @@ the strict policy counts pixels the deciding policy did not, `no pixels differ`
 becomes `no pixels differ beyond the tolerance of the default policy, which
 forgave N pixels as antialiasing or as a colour change of at most 1%`. The same
 clause follows `nothing outside them moved` and `nothing else moved` on
-`ignored`. Both reasons are named whenever the policy has both, because one count
+`ignored`, and `pixels differ` on a subject a sensitivity level absorbed. Both reasons are named whenever the policy has both, because one count
 cannot tell them apart. The words are read from the policy, not written out, so
 a threshold that changes cannot leave a sentence describing the old one. The
 count is exact and covers the whole comparison: the deciding policy's mask is

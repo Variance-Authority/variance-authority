@@ -20,7 +20,11 @@ const IDENTITY: RenderIdentity = {
   fonts: [],
 };
 
-function raster(documentDigest: string, colour: readonly [number, number, number]): Raster {
+function raster(
+  documentDigest: string,
+  colour: readonly [number, number, number],
+  missingFonts: readonly string[] = [],
+): Raster {
   const png = new PNG({ width: 10, height: 10 });
   for (let index = 0; index < png.data.length; index += 4) {
     png.data[index] = colour[0];
@@ -34,7 +38,7 @@ function raster(documentDigest: string, colour: readonly [number, number, number
     width: 10,
     height: 10,
     bytes: PNG.sync.write(png).toString('base64'),
-    missingFonts: [],
+    missingFonts,
   };
 }
 
@@ -63,6 +67,21 @@ describe('what the default policy forgives', () => {
     expect(result.because).toBe(
       'no pixels differ beyond the tolerance of the default policy, which forgave 100 pixels ' +
         'as antialiasing or as a colour change of at most 1%',
+    );
+  });
+
+  it('names the tolerance before the substituted font', async () => {
+    const result = await observeRasters(
+      'review',
+      raster('v1:before', [128, 128, 128], ['Inter']),
+      raster('v1:before', [129, 127, 127], ['Inter']),
+    );
+
+    expect(result.verdict).toBe('unchanged');
+    expect(result.because).toBe(
+      'no pixels differ beyond the tolerance of the default policy, which forgave 100 pixels ' +
+        'as antialiasing or as a colour change of at most 1%, but the renderer lacked Inter on ' +
+        'both sides, so both images are of a substituted font',
     );
   });
 

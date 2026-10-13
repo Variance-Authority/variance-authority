@@ -16,7 +16,8 @@ enough to fit under it. Nothing records what a given run's tolerance absorbs.
 There *is* a per-pixel colour threshold — `DiffPolicy.threshold`, `pixelmatch`'s
 YIQ distance — and it is the one number that decides whether two pixel values
 count as different at all. The default policy counts a pixel whose colour changed
-by more than 1% of the distance from black to white, and forgives antialiasing.
+by more than 1% of the largest difference that metric measures (black to white
+is 97% of it), and forgives antialiasing.
 `pixelmatch`'s own default is 10%, and at 10% a border colour changed from
 `#2f3437` to `#3a4043` counts as no change.
 

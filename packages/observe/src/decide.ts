@@ -133,7 +133,7 @@ export async function decide(
   // It cannot run before the exclusion subtraction above, because a subject may
   // be both relaxed and masked, and the ignore register's numbers are computed
   // there. It runs after, so both accounts are complete.
-  const relaxed = relaxedVerdict(options, before, after);
+  const relaxed = relaxedVerdict(options, before, after, forgiveness(comparison, options));
 
   if (
     relaxed !== null &&
@@ -382,6 +382,10 @@ function count(value: number, noun: string): string {
 /**
  * The clause a green sentence owes for the pixels its policy did not count.
  *
+ * Every green sentence carries it, the relaxed one included: `pixels differ`
+ * there says nothing about how many, and the forgiven ones are still pixels the
+ * strict policy saw.
+ *
  * Empty when the strict policy found nothing more: then "no pixels differ" is
  * true of the images themselves. Otherwise it names the policy and what that
  * policy forgives, read off the policy rather than written out, so a threshold
@@ -463,6 +467,7 @@ function relaxedVerdict(
   options: CompareInputs,
   before: Raster,
   after: Raster,
+  beyond: string,
 ): { readonly because: string; readonly relaxed: NonNullable<Observation['relaxed']> } | null {
   const rule = options.sensitivity;
   if (rule === undefined || rule.level === 'strict') return null;
@@ -475,7 +480,7 @@ function relaxedVerdict(
 
   return {
     because:
-      `pixels differ, and every band that moved (${absorbed.join(', ')}) is one this subject ` +
+      `pixels differ${beyond}, and every band that moved (${absorbed.join(', ')}) is one this subject ` +
       `is not asserted on: \`${rule.rule}\` declares it asserts on ${rule.level} — ${rule.reason}`,
     relaxed: { rule: rule.rule, level: rule.level, bands: absorbed },
   };

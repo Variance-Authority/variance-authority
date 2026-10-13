@@ -87,7 +87,7 @@ describe('comparing two rasters', () => {
   it.each([
     // Every border on tribunal's review page, and its brand accent: the two
     // token edits that went green at `threshold: 0.1`, which forgives a pixel up
-    // to a tenth of the way from black to white.
+    // to a tenth of the largest difference the YIQ metric measures.
     ['a line token', [0x2f, 0x34, 0x37], [0x3a, 0x40, 0x43]],
     ['an accent token', [0xff, 0x4a, 0x19], [0xff, 0x6a, 0x19]],
   ] as const)('counts every pixel of %s edit under the default policy', (_, from, to) => {
