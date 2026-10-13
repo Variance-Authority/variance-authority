@@ -241,7 +241,7 @@ be requested anonymously.
 
 | method and path | token | what it does |
 |---|---|---|
-| `GET /version` | any | `{"service":"variance-authority-tribunal","api":5,"schema":19}` |
+| `GET /version` | any | `{"service":"variance-authority-tribunal","api":6,"schema":21}` |
 | `POST /baseline/find` | ingest | the approved image for a key, bytes and all |
 | `POST /baseline/describe` | ingest | the same lookup without moving the image |
 | `POST /baseline/put` | ingest | store an approved image |

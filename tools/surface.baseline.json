@@ -316,6 +316,7 @@
         "identityDigest": "function",
         "intersectionArea": "function",
         "interventionById": "function",
+        "isSemanticSnapshot": "function",
         "jsxSourceOf": "function",
         "keepsSnapshot": "function",
         "keyedByPosition": "function",

@@ -1,5 +1,6 @@
 import { gunzipSync, gzipSync } from 'node:zlib';
 import {
+  isSemanticSnapshot,
   keepsSnapshot,
   PACKED_SNAPSHOT_HEADER,
   type PackedSnapshot,
@@ -24,10 +25,10 @@ export function packSnapshot(snapshot: SemanticSnapshot): PackedSnapshot {
  *
  * Unreadable is *not recorded*, the same answer as absent: the snapshot decides
  * which boxes a region is joined against, and the sentence of a verdict joined
- * without one says so. The shape is checked as far as the root, which is what a
- * reader can tell from a truncated or foreign record; gzip's checksum guards the
- * rest, and the format version, in the header and again inside, says the fields
- * mean what this code reads them as.
+ * without one says so. Its shape is checked to the leaves by
+ * `isSemanticSnapshot`, the check a capture file's snapshot meets too, because
+ * the matcher walks every node and gzip's checksum vouches only that the text
+ * is what was packed, not that what was packed was a snapshot.
  */
 export function unpackSnapshot(packed: PackedSnapshot | undefined): SemanticSnapshot | undefined {
   if (!keepsSnapshot(packed)) return undefined;
@@ -39,17 +40,5 @@ export function unpackSnapshot(packed: PackedSnapshot | undefined): SemanticSnap
     return undefined;
   }
 
-  const snapshot = value as Partial<SemanticSnapshot> | null;
-  const root = snapshot?.root as Partial<SemanticSnapshot['root']> | undefined;
-  if (
-    snapshot?.formatVersion !== 1 ||
-    typeof root !== 'object' ||
-    root === null ||
-    typeof root.path !== 'string' ||
-    typeof root.tag !== 'string' ||
-    !Array.isArray(root.children)
-  ) {
-    return undefined;
-  }
-  return value as SemanticSnapshot;
+  return isSemanticSnapshot(value) ? value : undefined;
 }

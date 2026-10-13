@@ -1,6 +1,6 @@
 import { gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import type { SemanticSnapshot } from '@variance-authority/core/format';
+import { CHROMIUM_PROFILE, environmentKey, type SemanticSnapshot } from '@variance-authority/core/format';
 import { packSnapshot, unpackSnapshot } from './packed.js';
 
 /**
@@ -11,11 +11,33 @@ import { packSnapshot, unpackSnapshot } from './packed.js';
  * back as *not recorded* rather than as a tree the matcher trips over.
  */
 
-const SNAPSHOT = {
+const SNAPSHOT: SemanticSnapshot = {
   formatVersion: 1,
   subject: { id: 's', kind: 'fixture' },
-  root: { path: '0', tag: 'div', attributes: {}, style: {}, children: [] },
-} as unknown as SemanticSnapshot;
+  profile: CHROMIUM_PROFILE,
+  environment: environmentKey({
+    profile: 'chromium',
+    engine: 'chromium',
+    ruleset: 'r',
+    allowlist: 'a',
+    viewport: { width: 8, height: 8, deviceScaleFactor: 1, colorScheme: 'light' },
+    fonts: [],
+    conditions: {},
+    assets: {},
+  }),
+  renderHash: 'v1:r',
+  structureHash: 'v1:s',
+  styleHash: 'v1:t',
+  root: {
+    path: '0',
+    tag: 'div',
+    attributes: {},
+    style: {},
+    children: [{ path: '0/0', tag: 'span', attributes: {}, style: {}, children: [] }],
+  },
+  styleProvenance: [],
+  diagnostics: [],
+};
 
 const packedJson = (value: unknown) => `v1:${gzipSync(JSON.stringify(value)).toString('base64')}`;
 
@@ -44,6 +66,13 @@ describe('a packed snapshot', () => {
 
   it('is not recorded when what it unpacks to is not a snapshot', () => {
     expect(unpackSnapshot(packedJson({ formatVersion: 1, root: 'html' }))).toBeUndefined();
+  });
+
+  it('is not recorded when a node below its root is not a node', () => {
+    // The matcher walks every child, so one that is not a node would throw
+    // there, where a missing snapshot falls back to the one tree it has.
+    const damaged = { ...SNAPSHOT, root: { ...SNAPSHOT.root, children: [{ path: '0/0', tag: 'span' }] } };
+    expect(unpackSnapshot(packedJson(damaged))).toBeUndefined();
   });
 
   it('is not recorded when it is of another format version', () => {

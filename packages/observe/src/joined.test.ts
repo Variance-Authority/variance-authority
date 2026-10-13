@@ -5,7 +5,9 @@ import { PNG } from 'pngjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { hashComponents } from '@variance-authority/core/attribute';
 import {
+  CHROMIUM_PROFILE,
   documentDigest,
+  environmentKey,
   type Raster,
   type RenderDocument,
   type RenderIdentity,
@@ -84,15 +86,17 @@ function snapshotWith(toggle: typeof LEFT, control: Partial<SemanticNode> = {}):
   return {
     formatVersion: 1,
     subject: { id: 's', kind: 'fixture' },
-    profile: {
-      id: 'chromium',
-      layout: true,
-      computedStyle: true,
-      accessibility: 'engine',
-      pseudoElements: true,
-      raster: true,
-    },
-    environment: { inputs: {}, digest: 'v1:x', semanticDigest: 'v1:y' } as never,
+    profile: CHROMIUM_PROFILE,
+    environment: environmentKey({
+      profile: 'chromium',
+      engine: 'chromium',
+      ruleset: 'r',
+      allowlist: 'a',
+      viewport: VIEWPORT,
+      fonts: [],
+      conditions: {},
+      assets: {},
+    }),
     renderHash: 'v1:r',
     structureHash: 'v1:s',
     styleHash: 'v1:t',

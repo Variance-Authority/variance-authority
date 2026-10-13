@@ -5,8 +5,10 @@ import { PNG } from 'pngjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CaptureArtifact } from '@variance-authority/core';
 import {
+  CHROMIUM_PROFILE,
   digestFileName,
   documentDigest,
+  environmentKey,
   identityDigest,
   type Raster,
   type RenderDocument,
@@ -96,8 +98,17 @@ function artifactFor(subject: string, html = '<div data-va-path="0">Save</div>')
 const SNAPSHOT: SemanticSnapshot = {
   formatVersion: 1,
   subject: { id: 'k', kind: 'fixture' },
-  profile: { id: 'chromium', layout: true, computedStyle: true, accessibility: 'engine', pseudoElements: true, raster: true },
-  environment: { inputs: {}, digest: 'v1:x', semanticDigest: 'v1:y' } as never,
+  profile: CHROMIUM_PROFILE,
+  environment: environmentKey({
+    profile: 'chromium',
+    engine: 'chromium',
+    ruleset: 'r',
+    allowlist: 'a',
+    viewport: { width: 8, height: 8, deviceScaleFactor: 1, colorScheme: 'light' },
+    fonts: [],
+    conditions: {},
+    assets: {},
+  }),
   renderHash: 'v1:r',
   structureHash: 'v1:s',
   styleHash: 'v1:t',
