@@ -189,7 +189,7 @@ describe('a stored baseline and the snapshot it kept', () => {
     expect(observation.verdict).toBe('changed');
     expect(observation.regions.map((region) => region.component)).toContain('Row');
     expect(observation.because).toMatch(
-      /; the baseline records no snapshot of its nodes, so regions were joined against this render's boxes alone: accept it again to record them$/,
+      /; the baseline records no snapshot of its nodes, so regions were joined against this render's boxes alone: an accepting run records one on a revision where this subject is unchanged$/,
     );
   });
 
@@ -197,6 +197,44 @@ describe('a stored baseline and the snapshot it kept', () => {
     const observation = await againstBaseline({ ...raster(BEFORE_IMAGE, 'v1:before'), snapshot: 'not gzip' });
 
     expect(observation.because).toContain('the baseline records no snapshot of its nodes');
+  });
+});
+
+describe('an unchanged baseline that kept no snapshot', () => {
+  // Nothing changed, so nothing was joined and no sentence complains. The
+  // baseline still cannot say where its nodes were the day something does, and
+  // an accepting run re-stamps it on this mark, as it re-stamps one painted
+  // under another identity.
+  it('is marked, so an accepting run records one', async () => {
+    const observation = await againstBaseline(raster(AFTER_IMAGE, 'v1:before'));
+
+    expect(observation.verdict).toBe('unchanged');
+    expect(observation.signals?.snapshot).toBe('unrecorded');
+  });
+
+  it('is marked when its snapshot will not unpack', async () => {
+    const observation = await againstBaseline({ ...raster(AFTER_IMAGE, 'v1:before'), snapshot: 'not gzip' });
+
+    expect(observation.signals?.snapshot).toBe('unrecorded');
+  });
+
+  it('is not marked when it kept one', async () => {
+    const observation = await againstBaseline({ ...raster(AFTER_IMAGE, 'v1:before'), snapshot: packSnapshot(AFTER) });
+
+    expect(observation.verdict).toBe('unchanged');
+    expect(observation.signals).not.toHaveProperty('snapshot');
+  });
+
+  it('is not marked when this run collected none to record', async () => {
+    const store = createDurableStore(root);
+    await store.put({ subject: 's' }, raster(AFTER_IMAGE, 'v1:before'));
+    const observation = await observeAgainstBaseline(DOCUMENT, { subject: 's' }, {
+      renderer: rendererOf(AFTER_IMAGE),
+      store,
+    });
+
+    expect(observation.verdict).toBe('unchanged');
+    expect(observation.signals).not.toHaveProperty('snapshot');
   });
 });
 

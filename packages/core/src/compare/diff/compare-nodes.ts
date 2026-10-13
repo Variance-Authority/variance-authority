@@ -51,9 +51,10 @@ export function compareNodes(
     ...(createdBy ? { createdBy } : {}),
   });
 
-  // Only a replacement its author recorded pairs two tags (see `match.ts`), and
-  // it is said first: the role, the attributes and the box that follow are what
-  // the new element is, not edits to the old one.
+  // Two tags pair under a declared alias, under one role and name, or as the one
+  // replacement its author recorded (see `match.ts`). The tag is said first: the
+  // role, the attributes and the box that follow are what the new element is,
+  // not edits to the old one.
   if (before.tag !== after.tag) {
     deltas.push({ ...base('tag-changed'), from: before.tag, to: after.tag });
   }

@@ -104,6 +104,15 @@ export interface Observation {
       readonly before?: AccessibilitySnapshot;
       readonly after?: AccessibilitySnapshot;
     };
+    /**
+     * `unrecorded` when this run collected a snapshot and the side it was
+     * compared against kept none that unpacks, whatever the verdict. A changed
+     * region is joined against that side's nodes, so an accepting run re-stamps
+     * an unchanged baseline that carries this, as it re-stamps one painted under
+     * another identity: left alone, the first change after it is joined against
+     * one render.
+     */
+    readonly snapshot?: 'unrecorded';
   };
 
   /**
@@ -408,6 +417,19 @@ export async function observeAgainstBaseline(
     identityCause(found.storedUnder, identity),
     documentMoved(found.raster, fresh.raster),
   );
+}
+
+/**
+ * Whether an accepting run rewrites this unchanged observation's baseline.
+ *
+ * Nothing changed, so there is nothing to accept, but the baseline is left
+ * worse than a fresh one in two ways: painted under another identity, it names
+ * the same move on every later run (ADR-0090); keeping no snapshot, it joins
+ * the first change after it against one render. `promotionOf` in
+ * `@variance-authority/report` asks the same of a record.
+ */
+export function restamps(observation: Observation): boolean {
+  return observation.signals?.identity !== undefined || observation.signals?.snapshot === 'unrecorded';
 }
 
 /**

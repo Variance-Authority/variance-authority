@@ -304,7 +304,7 @@ chromium_('reading a pixel diff further than a number', () => {
     // against and how to make the baseline answer for its own.
     expect(unjoined!.verdict).toBe('changed');
     expect(unjoined!.because).toContain(
-      "the baseline records no snapshot of its nodes, so regions were joined against this render's boxes alone: accept it again to record them",
+      "the baseline records no snapshot of its nodes, so regions were joined against this render's boxes alone: an accepting run records one on a revision where this subject is unchanged",
     );
   });
 

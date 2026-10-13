@@ -185,6 +185,22 @@ describe('node matching', () => {
     expect(result.roots.map((root) => root.label)).toEqual(['Toggle']);
   });
 
+  it('says the tag changed on a pair its role and name joined', () => {
+    // `matchKey` pairs one role and name across tags, so a native button and a
+    // `div` with the button role are one node. Its box and its name did not move;
+    // the element did, and without the tag the pair would report nothing.
+    const toolbar = (control: ReturnType<typeof node>) =>
+      capture({ root: node({ tag: 'nav', owners: [{ name: 'Toolbar' }], children: [control] }) });
+
+    const result = diff(
+      toolbar(node({ tag: 'button', role: 'button', name: 'Save', owners: [{ name: 'Toolbar' }] })),
+      toolbar(node({ tag: 'div', role: 'button', name: 'Save', owners: [{ name: 'Toolbar' }] })),
+    );
+
+    expect(result.deltas.map((delta) => delta.kind)).toEqual(['tag-changed']);
+    expect(result.deltas[0]).toMatchObject({ path: '0/0', from: 'button', to: 'div' });
+  });
+
   it('reports a removal once, not once per descendant', () => {
     const before = capture({
       root: node({

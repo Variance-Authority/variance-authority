@@ -90,10 +90,15 @@ export async function decide(
   const documentMoved = before.documentDigest !== after.documentDigest;
   const accessibility = accessibilityBetween(before, after);
   const pixelsMoved = remaining > 0 || comparison.dimensionsChanged;
+  // The before side's tree, for the region join. Asked only when this run has a
+  // tree of its own: without one there is nothing to join, and nothing an
+  // accepting run could record in its place.
+  const left = options.snapshot === undefined ? undefined : unpackSnapshot(before.snapshot);
   const signals = {
     document: documentMoved ? ('changed' as const) : ('unchanged' as const),
     pixels: pixelsMoved ? ('changed' as const) : ('unchanged' as const),
     ...(accessibility === undefined ? {} : { accessibility }),
+    ...(options.snapshot !== undefined && left === undefined ? { snapshot: 'unrecorded' as const } : {}),
   };
 
   const byRule: Record<string, number> = {};
@@ -281,7 +286,6 @@ export async function decide(
 
   // Every surviving region carries its own fingerprint, so writing a shape-scoped
   // ignore is copying a digest out of the report rather than deriving one.
-  const left = unpackSnapshot(before.snapshot);
   const regions = (
     options.snapshot === undefined
       ? []

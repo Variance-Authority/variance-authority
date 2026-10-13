@@ -114,8 +114,11 @@ todomvc's populated list the tree is 163,032 bytes of JSON and 8,211 packed.
 `undefined` is an answer, and the observation says what it cost. A baseline
 accepted before it kept a snapshot is joined against this render's boxes alone,
 and a changed verdict adds that the baseline records no snapshot of its nodes,
-and that accepting it again records one. Two images handed in directly get the
-same sentence, without the remedy: no accept rewrites a file somebody passed in.
+and that an accepting run records one on a revision where the subject is
+unchanged. An accepting run re-stamps every unchanged baseline that kept none,
+so one accepting run on a clean revision records them all. Two images handed in
+directly get the same sentence, without the remedy: no accept rewrites a file
+somebody passed in.
 
 ### When nothing contains it
 

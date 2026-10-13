@@ -11,3 +11,8 @@ delta, in the geometry band and counted as structural, followed by whatever else
 differs: role, name, state, attributes, styles and box. Before, the same change
 was a `node-removed` and a `node-added`. Two or more replaced by one author under
 one parent stay unpaired, because either could be either.
+
+`tag-changed` is reported on every pair across two tags, so a pair that a
+declared alias or a shared role and name joined — a `<button>` and a
+`<div role="button">` with one name — now says its tag changed, where before it
+reported nothing for it.

@@ -28,11 +28,16 @@ export type BeforeSide = 'baseline' | 'image';
  * element is then named by the row it sits in. Absent is not empty: the
  * sentence says the before side's nodes are unknown rather than joining as
  * though nothing had been there.
+ *
+ * The remedy names a revision where the subject is unchanged because an
+ * accepting run re-stamps an unchanged baseline that kept none (`restamps`).
+ * Accepting this change records one too, and accepts the change with it.
  */
 export function unjoined(beforeIs: BeforeSide): string {
   return beforeIs === 'baseline'
     ? '; the baseline records no snapshot of its nodes, so regions were joined against ' +
-        "this render's boxes alone: accept it again to record them"
+        "this render's boxes alone: an accepting run records one on a revision where this " +
+        'subject is unchanged'
     : '; the before image records no snapshot of its nodes, so regions were joined ' +
         "against the after image's boxes alone";
 }

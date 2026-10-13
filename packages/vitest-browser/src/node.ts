@@ -4,6 +4,7 @@ import type { CaptureArtifact } from '@variance-authority/core';
 import {
   observeCaptureAgainstBaseline,
   packSnapshot,
+  restamps,
   summarizeObservation,
 } from '@variance-authority/observe';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
@@ -109,10 +110,10 @@ export function varianceCommands(options: VarianceNodeOptions = {}): VarianceCom
 
       // `--update` sweeps every selected test as `variance accept --all` does.
       const accepting = options.accept === true || (options.accept === undefined && updating(context));
-      // An unchanged subject under a moved identity is re-stamped, so the move
-      // is named once rather than on every later run.
-      const restamp = observation.verdict === 'unchanged' && observation.signals?.identity !== undefined;
-      if (accepting && (observation.verdict !== 'unchanged' || restamp)) {
+      // An unchanged subject is re-stamped under a moved identity, so the move
+      // is named once rather than on every later run, and when its baseline
+      // kept no snapshot, so it keeps this run's.
+      if (accepting && (observation.verdict !== 'unchanged' || restamps(observation))) {
         await promote(store, painter, artifact, key);
       }
 

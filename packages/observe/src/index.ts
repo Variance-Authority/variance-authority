@@ -17,7 +17,7 @@
 
 // compass: variance-authority.adjudication
 
-export { observePair, observeAgainstBaseline, observeRasters } from './observe.js';
+export { observePair, observeAgainstBaseline, observeRasters, restamps } from './observe.js';
 export { summarizeObservation } from './summarize.js';
 export { declaredIgnores } from './decide.js';
 export type {

@@ -109,7 +109,8 @@ export const RESTRUCTURED_CASES: readonly CorpusCase[] = [
       'general argument for the semantic stage sitting above raster rather than beside it. ' +
       'It also fixes the tag/role boundary: the snapshot keeps `tag`, so a normalizer that ' +
       'collapsed elements purely by box effect would still have to keep these apart. The ' +
-      'element changed tag, so `matchKey` does not pair the two; what does is the record of ' +
+      '`div` has no role and no name and the `section` has both, so no identity key in ' +
+      '`matchKey` is shared; what pairs them is the record of ' +
       'who wrote them — one element left and one arrived under the same parent, and `Card` ' +
       'created both. The pair reports `tag-changed`, `role-changed` and `name-changed`, and ' +
       'the band is `a11y`: "the card became a region named Details" rather than a removal ' +

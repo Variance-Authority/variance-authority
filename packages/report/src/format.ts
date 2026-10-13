@@ -300,6 +300,13 @@ export interface ObservationRecord {
     };
     /** Rendered relationship consequences, independent of render impact and verdict. */
     readonly presentation?: PresentationSignalRecord;
+    /**
+     * `unrecorded` when the run collected a snapshot and the baseline kept none
+     * that unpacks. An unchanged subject carrying it is re-stamped by an
+     * accepting run, so the baseline can say where its nodes were the day
+     * something changes.
+     */
+    readonly snapshot?: 'unrecorded';
   };
 
   /**

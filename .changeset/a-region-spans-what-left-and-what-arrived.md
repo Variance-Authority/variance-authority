@@ -4,6 +4,7 @@
 '@variance-authority/observe': minor
 '@variance-authority/playwright-test': minor
 '@variance-authority/raster': minor
+'@variance-authority/report': minor
 '@variance-authority/tribunal': minor
 '@variance-authority/vitest-browser': minor
 ---
@@ -34,6 +35,10 @@ tribunal stores it in new `baselines.snapshot` and
 A baseline without a snapshot says so. When a changed verdict has regions and
 its baseline kept no snapshot, or one that will not unpack, the reason ends
 *the baseline records no snapshot of its nodes, so regions were joined against
-this render's boxes alone: accept it again to record them*. Accept such a
-baseline once to record it. Two images compared directly get the same clause,
-naming the before image, without the remedy.
+this render's boxes alone: an accepting run records one on a revision where
+this subject is unchanged*. An accepting run — `--update-snapshots`, Vitest's
+`--update`, `variance accept` — now re-stamps an unchanged baseline that kept no
+snapshot, as it re-stamps one painted under another identity, and the
+observation marks it `signals.snapshot: 'unrecorded'`; `restamps` in
+`@variance-authority/observe` is the rule. Two images compared directly get the
+same clause, naming the before image, without the remedy.

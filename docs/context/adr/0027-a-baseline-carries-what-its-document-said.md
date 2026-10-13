@@ -151,7 +151,9 @@ removed, three added) to 97 across geometry, a11y and token, and its band from
 removed node and an added one as a signal of their own. The docket counts
 `tag-changed` as structural, as it counts both of those, and `parting` files a
 delta under the boundary that owns its path, which for a pair under one matched
-parent is the same boundary.
+parent is the same boundary. `tag-changed` is said of every pair across two tags,
+so a `<button>` and a `<div role="button">` that one role and name joined, which
+before reported nothing for the tag, now report it.
 
 The hashes could not carry this. They keep one box per instance root, and the
 replaced element is not an instance root; nothing in them is a node the matcher
@@ -190,10 +192,20 @@ not recorded, exactly like a missing one.
 **A baseline without a snapshot says so.** One accepted before this field is
 joined against the changed render's boxes alone, and the changed verdict's
 sentence ends `the baseline records no snapshot of its nodes, so regions were
-joined against this render's boxes alone: accept it again to record them`. When
-the before side is an image handed in, the sentence names the image and gives
-no remedy, because no accept rewrites it. Without the clause, the row the region
-fell to would read as the answer.
+joined against this render's boxes alone: an accepting run records one on a
+revision where this subject is unchanged`. When the before side is an image
+handed in, the sentence names the image and gives no remedy, because no accept
+rewrites it. Without the clause, the row the region fell to would read as the
+answer.
+
+**An accepting run re-stamps an unchanged baseline that kept no snapshot.** The
+clause appears only on a changed verdict, and accepting that verdict accepts the
+change with it. An unchanged subject was never rewritten, so without the
+re-stamp a baseline would keep no snapshot until the change it was needed for.
+The observation marks such a subject `signals.snapshot: 'unrecorded'` whenever
+this run collected a snapshot and the baseline kept none that unpacks, and
+`restamps` adopts it beside one painted under another identity (ADR-0090):
+`--update-snapshots`, Vitest's `--update` and `variance accept` all ask it.
 
 **What is still not closed.**
 
@@ -203,6 +215,13 @@ fell to would read as the answer.
   open work above already asks for.
 - A node that left with nothing paired to it adds no box. A region over the
   place it vacated falls to the parent around it, which did change its output.
+- tribunal promotes on approval, and approval is asked of a changed subject, so
+  an unchanged subject's baseline there gains its snapshot only when something
+  is next approved for it.
+- Ignored subtrees are masked by their boxes in this render alone
+  (`excludedBoxes` in `decide`). An ignored element that moved or shrank leaves
+  pixels at its old box unmasked, and the baseline's snapshot now holds that
+  box; joining it is a change of the ignore's rule, not of attribution.
 - The packed bytes are deterministic for one zlib, not across zlib versions. No
   digest covers them, so a re-accept on another machine can only rewrite the
   field, never move a verdict.
