@@ -97,9 +97,23 @@ describe('presentation evidence in a run-report file', () => {
     await writeFile(path, JSON.stringify(reportOf({
       verdict: 'changed',
       because: 'the baseline supplied no presentation reading',
+      before: digestValue('before'),
       after: 42,
     } as never)), 'utf8');
     await expect(readRunReport(path)).rejects.toThrow('has a presentation digest that is not a string');
+
+    await writeFile(path, JSON.stringify(reportOf({
+      verdict: 'changed',
+      because: 'the baseline supplied no presentation reading',
+    } as never)), 'utf8');
+    await expect(readRunReport(path)).rejects.toThrow('names a missing side but carries no digest of the side it read');
+
+    await writeFile(path, JSON.stringify(reportOf({
+      verdict: 'unchanged',
+      because: 'the baseline supplied no presentation reading',
+      before: digestValue('before'),
+    } as never)), 'utf8');
+    await expect(readRunReport(path)).rejects.toThrow('names a missing side but is not changed');
   });
 
   it('refuses the incomparable verdict ADR-0090 removed', async () => {

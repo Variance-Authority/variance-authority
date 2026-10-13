@@ -508,8 +508,8 @@ A missing report, or a report with no layout findings to compare, produces
 `verdict: 'changed'` with a `because` naming which side was missing and no
 effects. It is never an empty clean list, because "we could not look" and "we
 looked and found nothing" are different answers. When neither side has a
-reading, `presentationSignal` returns `undefined`, and the member stays absent. The content identity and information counts
-travel alongside the effects.
+reading with layout findings, `presentationSignal` returns `undefined`, and the
+member stays absent. The content identity and information counts travel alongside the effects.
 
 The stored signal reports consequence, not severity. Project policy still
 decides whether any finding blocks a run.

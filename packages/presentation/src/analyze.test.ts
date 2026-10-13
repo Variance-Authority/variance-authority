@@ -247,11 +247,11 @@ describe('presentation intelligence', () => {
     const introduced = presentationSignal(clean, collapsed);
     const resolved = presentationSignal(collapsed, clean);
 
-    expect(introduced.verdict).toBe('changed');
-    expect(introduced.verdict === 'changed' && introduced.effects).toEqual(
+    expect(introduced?.verdict).toBe('changed');
+    expect(introduced !== undefined && 'effects' in introduced && introduced.effects).toEqual(
       expect.arrayContaining([expect.objectContaining({ transition: 'introduced' })]),
     );
-    expect(resolved.verdict === 'changed' && resolved.effects).toEqual(
+    expect(resolved !== undefined && 'effects' in resolved && resolved.effects).toEqual(
       expect.arrayContaining([expect.objectContaining({ transition: 'resolved' })]),
     );
   });

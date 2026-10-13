@@ -76,7 +76,8 @@ reviewer reads first.
    snapshot or a presentation reading, is `changed`, and `because` names the
    side that has none. Nothing is invented from the side that is there: a
    presentation signal read on one side carries no effects. Neither side
-   measured is no signal at all, as when no producer looked. A presentation
+   measured is no signal at all, as when no producer looked; a presentation
+   reading without layout findings has not measured the layout. A presentation
    signal still changes no subject's verdict (ADR-0054).
 
 The partition by `identityDigest` stays. It keys the render cache, and a

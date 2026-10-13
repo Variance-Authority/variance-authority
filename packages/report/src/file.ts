@@ -92,7 +92,10 @@ function checkPresentation(path: string, index: number, value: unknown): void {
   if (signal.verdict !== 'unchanged' && signal.verdict !== 'changed') {
     throw new Error(`${where}.verdict is not unchanged or changed`);
   }
-  if (signal.verdict === 'changed' && 'because' in signal) {
+  if ('because' in signal) {
+    if (signal.verdict !== 'changed') {
+      throw new Error(`${where} names a missing side but is not changed`);
+    }
     if (typeof signal.because !== 'string') {
       throw new Error(`${where}.because is not a string`);
     }
@@ -104,6 +107,9 @@ function checkPresentation(path: string, index: number, value: unknown): void {
       (signal.after !== undefined && typeof signal.after !== 'string')
     ) {
       throw new Error(`${where} has a presentation digest that is not a string`);
+    }
+    if (signal.before === undefined && signal.after === undefined) {
+      throw new Error(`${where} names a missing side but carries no digest of the side it read`);
     }
     return;
   }

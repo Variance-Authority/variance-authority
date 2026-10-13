@@ -709,7 +709,7 @@ record and the run's observation carries it.
 `verdict` is `changed` or `unchanged`; each effect's `transition` is
 `introduced`, `resolved`, or `persisted`. A missing report, or one with no
 layout findings at all, is `changed`, names the missing side, carries no
-effects, and is never clean. With neither side read, there is no signal:
+effects, and is never clean. With neither side read for layout, there is no signal:
 
 ```
 {"verdict":"changed","because":"the baseline supplied no presentation reading",

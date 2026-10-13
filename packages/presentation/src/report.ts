@@ -24,7 +24,8 @@ export interface PresentationSignalOptions {
  * Project presentation evidence into the durable regression-report signal.
  *
  * A side with no reading or no layout findings is `changed`, naming that side,
- * and never clean. Neither side measured is no signal at all: the member is
+ * and never clean. A reading without layout findings has not measured the
+ * layout, so neither side measured is no signal at all: the member is
  * absent, as it is when no producer looked. The result records consequences
  * without changing the regression verdict or prescribing a design response.
  */
