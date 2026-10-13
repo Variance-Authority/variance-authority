@@ -97,6 +97,13 @@ describe('where baselines live', () => {
     });
   });
 
+  it('refuses a `path` that is not a template, by the field', () => {
+    const error = attempt(withField('baselines', { kind: 'directory', root: 'b', path: ['{title}', '{name}'] }));
+
+    expect(error.field).toBe('baselines.path');
+    expect(error.message).toContain('must be a path template');
+  });
+
   it('refuses {project}, which no subject this config collects carries', () => {
     // Projects are Playwright's, and Playwright reads its own path from the
     // fixture options: every baseline written through this config would have

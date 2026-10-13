@@ -343,6 +343,21 @@ describe('machineProbes partitions', () => {
     ]);
   });
 
+  it('does not count a record under `node_modules` or a dot-directory, which no accept wrote', async () => {
+    // A root of `.` holds the whole repository: an installed package or a
+    // `.git` object store that happens to sit at a template path is not a baseline.
+    const root = await rootWith([
+      'Button/Primary-chromium.png',
+      'node_modules/Card/Wide-chromium.png',
+      '.cache/Card/Wide-chromium.png',
+    ]);
+    for (const record of ['Button/Primary-chromium', 'node_modules/Card/Wide-chromium', '.cache/Card/Wide-chromium']) {
+      await writeFile(join(root, `${record}.json`), JSON.stringify({ identity: IDENTITY }), 'utf8');
+    }
+
+    expect(await machineProbes(configOf()).partitions(root)).toEqual([{ identity, baselines: 1 }]);
+  });
+
   it('reports nothing for a root that is not there', async () => {
     expect(await machineProbes(configOf()).partitions(join(tmpdir(), 'variance-doctor-absent')))
       .toEqual([]);
