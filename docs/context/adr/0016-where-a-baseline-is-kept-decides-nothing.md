@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-08-03
+**Amended by:** [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) — a run compares against an image another machine painted, with the identity named as the cause; the partition keys the store, it does not refuse
 **Extends:** ADR-0011 (durable and ephemeral retention), ADR-0013 (packages are named for their requirements)
 **Discharges:** spec 0004
 

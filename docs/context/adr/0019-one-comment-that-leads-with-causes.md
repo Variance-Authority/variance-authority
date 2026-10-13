@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-08-03
+**Amended by:** [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) — a suite pinned to a moving image goes `changed` with the platform named as the cause, not `incomparable`; the pinned container is still what keeps that from happening on somebody else's schedule
 **Extends:** ADR-0012 (observability and the damage boundary), ADR-0017 (the exit code is the interface)
 **Discharges:** the CI integration and PR feedback spec
 

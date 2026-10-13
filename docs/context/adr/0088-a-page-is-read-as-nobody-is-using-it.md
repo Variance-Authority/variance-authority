@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-10-10
+**Amended by:** [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) — a reading under another clock, instant, timezone or locale is compared, with the moved recipe named as the cause; where this record says `incomparable`, read `changed` with that cause
 **Amends:** [ADR-0012](0012-observability-and-the-damage-boundary.md) — §2, which
 declined runtime substitution, now makes one: `Date`; and §3, whose cheapest
 tier a focus ring or a printed date would put in jsdom, where neither is held;
