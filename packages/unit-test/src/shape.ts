@@ -18,9 +18,9 @@ import {
  * bytes in one of them are a capture. The split is also where the size is — a
  * document carries a semantic snapshot, a resource closure and a source index.
  * The document's and the snapshot's shapes are `isRenderDocument` and
- * `isSemanticSnapshot` from `@variance-authority/core/format`, which every
- * reader of those formats asks; what is checked here is what a capture file
- * adds to them.
+ * `isSemanticSnapshot` from `@variance-authority/core/format`, which a packed
+ * snapshot is read with too; what is checked here is what a capture file adds
+ * to them.
  *
  * Everything is re-derived rather than believed. A digest that arrived in the
  * file is recomputed from the content it claims to describe, so a baseline

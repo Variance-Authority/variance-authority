@@ -127,7 +127,9 @@ function environmentInputsShape(value: unknown): boolean {
     stringArray(inputs.fonts) &&
     scalarRecord(inputs.conditions) &&
     stringRecord(inputs.assets) &&
-    optionalString(inputs.stabilization);
+    optionalString(inputs.stabilization) &&
+    optionalString(inputs.timezoneId) &&
+    optionalString(inputs.locale);
 }
 
 function styleProvenanceShape(value: unknown): boolean {
@@ -160,6 +162,7 @@ function semanticNodeShape(node: Record<string, unknown>): boolean {
     optionalString(node.text) &&
     (node.provenance === undefined || provenanceShape(node.provenance)) &&
     (node.wiring === undefined || wiringShape(node.wiring)) &&
+    (node.holding === undefined || holdingShape(node.holding)) &&
     (node.portalled === undefined || typeof node.portalled === 'boolean') &&
     (node.ignoredBy === undefined || stringArray(node.ignoredBy)) &&
     optionalString(node.unread) &&
@@ -233,6 +236,25 @@ function wiringShape(value: unknown): boolean {
         wiring.wrappers.every((entry) => entry === 'memo' || entry === 'forwardRef'))) &&
     (wiring.contexts === undefined || stringArray(wiring.contexts)) &&
     optionalString(wiring.key);
+}
+
+function holdingShape(value: unknown): boolean {
+  const holding = record(value);
+  return holding !== null &&
+    (holding.cells === undefined || (Array.isArray(holding.cells) && holding.cells.every((value) => {
+      const cell = record(value);
+      return cell !== null && finiteNumber(cell.index) && typeof cell.hook === 'string' && typeof cell.digest === 'string';
+    }))) &&
+    (holding.contexts === undefined || heldValues(holding.contexts)) &&
+    (holding.props === undefined || heldValues(holding.props)) &&
+    optionalString(holding.unread);
+}
+
+function heldValues(value: unknown): boolean {
+  return Array.isArray(value) && value.every((entry) => {
+    const held = record(entry);
+    return held !== null && typeof held.name === 'string' && typeof held.digest === 'string';
+  });
 }
 
 function diagnosticArray(value: unknown): boolean {
