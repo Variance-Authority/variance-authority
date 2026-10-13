@@ -493,7 +493,7 @@ const observation: ObservationRecord = {
   because: 'the candidate differs from its baseline',
   changedPixels: 320,
   regions: [],
-  signals: { presentation },
+  ...(presentation === undefined ? {} : { signals: { presentation } }),
 };
 
 console.log(observation.signals?.presentation);
@@ -505,9 +505,10 @@ effects were introduced, which were resolved, and which changed measurement.
 automatic findings are the complete evidence for the subject.
 
 A missing report, or a report with no layout findings to compare, produces
-`verdict: 'incomparable'` with a `because` naming which side was missing —
-never an empty clean list, because "we could not look" and "we looked and found
-nothing" are different answers. The content identity and information counts
+`verdict: 'changed'` with a `because` naming which side was missing and no
+effects. It is never an empty clean list, because "we could not look" and "we
+looked and found nothing" are different answers. When neither side has a
+reading, `presentationSignal` returns `undefined`, and the member stays absent. The content identity and information counts
 travel alongside the effects.
 
 The stored signal reports consequence, not severity. Project policy still

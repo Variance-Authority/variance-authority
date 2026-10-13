@@ -246,8 +246,9 @@ identity and information-count deltas.
 
 Presence remains meaningful:
 
-- A missing report, or a side without layout findings, produces
-  `incomparable` with the missing side named and no effects.
+- A missing report, or a side without layout findings, produces `changed`
+  with the missing side named and no effects. Neither side measured produces
+  no signal.
 - A present empty effects list means both sides were measured and no
   relationship consequence changed.
 - An absent presentation signal means no producer measured that subject.

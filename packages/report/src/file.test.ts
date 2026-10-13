@@ -62,6 +62,46 @@ describe('presentation evidence in a run-report file', () => {
 
     await expect(readRunReport(path)).rejects.toThrow('does not carry the evidence its transition requires');
   });
+
+  it('round-trips a side that supplied no reading as changed', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'variance-presentation-report-'));
+    const path = join(directory, 'run.json');
+    const report = reportOf({
+      verdict: 'changed',
+      because: 'the baseline supplied no presentation reading',
+      after: digestValue('after'),
+    });
+
+    await writeRunReport(path, report);
+    expect(await readRunReport(path)).toEqual(report);
+  });
+
+  it('refuses a one-sided reading that names no side, or claims compared evidence', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'variance-presentation-report-'));
+    const path = join(directory, 'run.json');
+
+    await writeFile(path, JSON.stringify(reportOf({ verdict: 'changed', after: digestValue('after') } as never)), 'utf8');
+    await expect(readRunReport(path)).rejects.toThrow('has no before and after presentation digests');
+
+    await writeFile(path, JSON.stringify(reportOf({
+      verdict: 'changed',
+      because: 'the baseline supplied no presentation reading',
+      after: digestValue('after'),
+      effects: [],
+    } as never)), 'utf8');
+    await expect(readRunReport(path)).rejects.toThrow('names a missing side but claims compared evidence');
+  });
+
+  it('refuses the incomparable verdict ADR-0090 removed', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'variance-presentation-report-'));
+    const path = join(directory, 'run.json');
+    await writeFile(path, JSON.stringify(reportOf({
+      verdict: 'incomparable',
+      because: 'the baseline supplied no presentation reading',
+    } as never)), 'utf8');
+
+    await expect(readRunReport(path)).rejects.toThrow('.verdict is not unchanged or changed');
+  });
 });
 
 function reportOf(presentation: NonNullable<RunReport['observations'][number]['signals']>['presentation']): RunReport {

@@ -89,12 +89,15 @@ export async function readSuiteIndex(path: string): Promise<SuiteIndex> {
 function checkPresentation(path: string, index: number, value: unknown): void {
   const signal = value as Partial<PresentationSignalRecord> & Record<string, unknown>;
   const where = `${path}: observations[${index}].signals.presentation`;
-  if (signal.verdict === 'incomparable') {
+  if (signal.verdict !== 'unchanged' && signal.verdict !== 'changed') {
+    throw new Error(`${where}.verdict is not unchanged or changed`);
+  }
+  if (signal.verdict === 'changed' && 'because' in signal) {
     if (typeof signal.because !== 'string') {
-      throw new Error(`${where} is incomparable without a \`because\``);
+      throw new Error(`${where}.because is not a string`);
     }
     if ('effects' in signal || 'information' in signal) {
-      throw new Error(`${where} is incomparable but claims comparable evidence`);
+      throw new Error(`${where} names a missing side but claims compared evidence`);
     }
     if (
       (signal.before !== undefined && typeof signal.before !== 'string') ||
@@ -103,9 +106,6 @@ function checkPresentation(path: string, index: number, value: unknown): void {
       throw new Error(`${where} has a presentation digest that is not a string`);
     }
     return;
-  }
-  if (signal.verdict !== 'unchanged' && signal.verdict !== 'changed') {
-    throw new Error(`${where}.verdict is not unchanged, changed, or incomparable`);
   }
   if (typeof signal.before !== 'string' || typeof signal.after !== 'string') {
     throw new Error(`${where} has no before and after presentation digests`);

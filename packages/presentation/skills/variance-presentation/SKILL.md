@@ -688,7 +688,8 @@ declared findings are unioned with the report's own.
 
 It returns a `PresentationSignalRecord` from `@variance-authority/report`, which
 is exactly what `ObservationRecord.signals.presentation` accepts — assign it
-there, unchanged. Nothing intermediate holds it: this function produces the
+there, unchanged. It returns `undefined` when neither side was measured; leave
+the member out then. Nothing intermediate holds it: this function produces the
 record and the run's observation carries it.
 
 ```
@@ -705,12 +706,13 @@ record and the run's observation carries it.
                  "before": { "finding": "F3", "measurements": { … } } } ] }
 ```
 
-`verdict` is `changed`, `unchanged`, or `incomparable`; each effect's
-`transition` is `introduced`, `resolved`, or `persisted`. A missing report, or
-one with no layout findings at all, is `incomparable` and never clean:
+`verdict` is `changed` or `unchanged`; each effect's `transition` is
+`introduced`, `resolved`, or `persisted`. A missing report, or one with no
+layout findings at all, is `changed`, names the missing side, carries no
+effects, and is never clean. With neither side read, there is no signal:
 
 ```
-{"verdict":"incomparable","because":"the baseline supplied no presentation reading",
+{"verdict":"changed","because":"the baseline supplied no presentation reading",
  "after":"v1:a841d3a4cac87c9d248174c38d291756"}
 ```
 
