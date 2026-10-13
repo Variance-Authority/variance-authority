@@ -108,8 +108,8 @@ three arrangements. This is what each one needs in your copy:
 | `tribunal` | `remote`, and a `review` section | not in the work tree | `VARIANCE_INGEST_TOKEN` |
 
 - **`cache`** is what the rest of this page describes: a label accepts, the
-  store is saved to the runner's cache, and a merge accepts the same pixels on
-  `main`.
+  store is saved to the runner's cache, and every push to `main` accepts what
+  `main` renders.
 - **`git`** checks out the pull request's branch instead of the merge, skips the
   cache, and turns on the action's `commit-baselines` for the run the label
   started. That run stays red, because it found the change it then committed.
@@ -127,21 +127,23 @@ three arrangements. This is what each one needs in your copy:
 
 The first run of any subject reports `new`, and the comment lists it as NEW,
 apart from anything that needs review. `new` does not turn the check red —
-nothing moved — but an image nobody has approved is not a pass either, and
-nothing in these files promotes one on its own: the subject stays `new` on
-every run until somebody accepts it.
+nothing moved — but an image nobody has approved is not a pass either.
 
-To end that state under `cache`: run `variance.yml` from the Actions tab on `main`, tick
-`accept: true`, and let it finish. That run executes
+Under `cache`, the push to `main` that lands a subject's config records its
+baseline: every push to `main` accepts what `main` renders, as [Accepting a
+change on a pull request](#accepting-a-change-on-a-pull-request) describes. To
+record one without waiting for a push, run `variance.yml` from the Actions tab
+on `main`, tick `accept: true`, and let it finish. Either run executes
 `variance run --exit-zero-on-changes`, then `variance accept --all`, compares
 again, and saves the baseline store to the runner cache. Every run after it
 restores that store and compares against it.
 
 `accept --all` promotes every candidate the run produced — both the subjects
 nobody has ever reviewed and the subjects whose component just changed. The CLI
-cannot yet tell those two apart, so a job that ran it on a schedule or a push
-would promote the regression it was added to catch. That is why every accept is
-a person's act. Read the report from the run that listed them first.
+cannot yet tell those two apart, so a job that ran it on a schedule would
+promote the regression it was added to catch. That is why every accept is a
+person's act: a label, a dispatch, or a merge or push to `main`, each made by
+somebody who could read the report first.
 
 ## Accepting a change on a pull request
 
@@ -152,21 +154,22 @@ pull request's own cache scope, which its later runs read before `main`'s. The
 run takes the label off again, so a later push that moves pixels needs a new
 label, and the timeline keeps who accepted and when.
 
-Merging carries the acceptance to `main`. The push run finds the merged pull
-request, reads its `variance` check at its head commit, and when that was green
-it promotes the same pixels on `main`, so nobody accepts twice. It does so only
-when `main` itself was green before the merge: a red `main` already held pixels
-nobody accepted, and one render cannot separate them from the reviewed ones. In
-that case `main` stays red until somebody dispatches an accept there, and the
-run's log says why.
+Merging is an accept too. A pull request is where a change is judged, and what
+lands on `main` is `main`: every push to `main` promotes what it renders,
+whatever the pull request's check said, whether it finished, and whether `main`
+was green before. Like the label's run, it keeps the store only once the
+comparison after the accept comes back green: a subject still unstable, an
+observation that errored or a subject not observed leaves `main` red, and the
+store as it was. A pull request that holds no accept of its own then compares
+against the newest push to `main`. The run's log names the pull request that
+merged, or the pusher.
 
-Runs on `main` wait for each other instead of cancelling each other, so a
-merge's run always has the run before it to read. GitHub still keeps only one
-waiting run, so of three merges close together the middle one may never run,
-and a rebase merge runs only its last commit. A commit like that, with no
-finished check of its own, is skipped when an accepted pull request brought it
-in, and the run reads the commit before it instead. A commit nothing accepted
-stops there, and `main` stays red.
+Runs on `main` wait for each other instead of cancelling each other, so each
+run's store is saved after the one before it and the newest commit's render is
+the last one kept. GitHub keeps only one waiting run, so of three merges close
+together the middle one may never run, and a rebase merge runs only its last
+commit. That costs nothing: the newest commit renders everything the skipped one
+did.
 
 ## The pictures in the comment
 
