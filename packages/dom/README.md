@@ -150,7 +150,8 @@ stylesheet the subject never touched does.
 
 An `@font-face` matches no element, so it is kept by what the subtree is set
 in: the render document carries every face whose family appears in a computed
-`font-family` inside the subject, with its `url()`s rewritten to resolve against
+`font-family` inside the subject or in a box its frame generates, with its
+`url()`s rewritten to resolve against
 the page rather than the sheet that declared them, and `referencedAssets` adds
 those files to the asset key. A face the subject is not set in is pruned like
 any other rule. jsdom keeps a face's `font-family` and drops its `src`, so a

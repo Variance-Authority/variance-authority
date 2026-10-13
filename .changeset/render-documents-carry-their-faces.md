@@ -8,7 +8,8 @@ A subject set in a web font is painted in it, and a change to the font file chan
 Pruning kept only the rules that match an element, and an `@font-face` matches
 none, so a render document named a family it never declared and every render
 painted the fallback. `acquireDocument` now carries each face whose family
-appears in a computed `font-family` inside the subject, with its `url()`s
+appears in a computed `font-family` inside the subject or in a box its
+frame generates, such as `body::before`, with its `url()`s
 rewritten against the page, and `referencedAssets` adds the face's files to the
 asset key. A face the subject is not set in is still pruned. Under jsdom, which
 drops a face's `src`, the face is not carried and `acquireDocument` reports

@@ -62,7 +62,12 @@ const SHEET = `@font-face {
   font-family: "Unused Face";
   src: url("../fonts/unused.woff2") format("woff2");
 }
-#card { background: #fff; font: 600 32px "Brand Sans", monospace; padding: 8px; }`;
+@font-face {
+  font-family: "Frame Face";
+  src: url("../fonts/frame.woff2") format("woff2");
+}
+#card { background: #fff; font: 600 32px "Brand Sans", monospace; padding: 8px; }
+body::before { content: "Frame"; font: 12px "Frame Face", monospace; }`;
 
 let server: Server | undefined;
 let base = '';
@@ -76,7 +81,7 @@ beforeAll(async () => {
       response.writeHead(200, { 'content-type': 'text/css; charset=utf-8' }).end(SHEET);
       return;
     }
-    if (path === '/fonts/brand.woff2') {
+    if (path === '/fonts/brand.woff2' || path === '/fonts/frame.woff2') {
       response.writeHead(200, { 'content-type': 'font/woff2' }).end(FACE);
       return;
     }
@@ -144,6 +149,16 @@ describe.skipIf(!BROWSER_AVAILABLE)('a subject set in a web font', () => {
     // Pruning still holds for faces: one nothing in the subject is set in is
     // not the subject's, and carrying it would key the subject on its file.
     expect(css).not.toContain('Unused Face');
+  }, 60_000);
+
+  it('carries the face a box the frame generates is set in, and keys the subject on it', async () => {
+    // The frame is rendered, and so are the boxes its rules generate: a
+    // `body::before` in a face nobody declared paints the fallback above the
+    // subject, and a change to that face's file moves the image.
+    const document = await collect();
+
+    expect(document.css.join('\n')).toMatch(/@font-face\s*\{[^}]*"Frame Face"[^}]*url\("\/fonts\/frame\.woff2"\)/);
+    expect(Object.keys(document.assets ?? {})).toContain('/fonts/frame.woff2');
   }, 60_000);
 
   it('keys the subject on the bytes of its face', async () => {

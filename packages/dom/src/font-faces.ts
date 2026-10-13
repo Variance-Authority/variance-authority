@@ -14,7 +14,8 @@ import { familiesIn } from './typeface.js';
  * a change to that font moved no image.
  *
  * A face is carried when a family it declares is in the computed `font-family`
- * of something in the subtree, which is the pruning question asked of the one
+ * of something the subtree paints, generated boxes of its frame included
+ * (`paintedStyles`), which is the pruning question asked of the one
  * rule that cannot be asked it directly. Its files are named against the page,
  * not against the sheet that declared them, because the render document has one
  * inline sheet and a base: `url(../fonts/a.woff2)` written in

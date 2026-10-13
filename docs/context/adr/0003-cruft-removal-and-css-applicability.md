@@ -80,7 +80,8 @@ actually decides the subject's appearance**, computed as:
 
    An `@font-face` matches no node: it names a file, and the element names the
    face. It is asked the question it can answer instead — whether a family it
-   declares is in the computed `font-family` of something in the subtree — and
+   declares is in the computed `font-family` of something in the subtree, or of
+   a box the frame generates, since the frame is rendered too — and
    kept when one is, with every `url()` rewritten against the page, because the
    render document holds one inline sheet and a path relative to the sheet it
    came from fetches nothing there. Dropped like the rest, it left a render that
