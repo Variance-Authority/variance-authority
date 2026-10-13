@@ -4,7 +4,7 @@ import { routedDocument } from "../content/routed-docs";
 import type { DocumentationIndex as Index } from "../navigation";
 import DocsPage from "./DocsPage";
 
-/** An index routes to existing documents and uses their own opening descriptions. */
+/** An index routes to existing documents using catalogue captions or their openings. */
 export default function DocumentationIndex({ index }: { readonly index: Index }) {
   return (
     <DocsPage
