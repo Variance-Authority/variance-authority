@@ -71,7 +71,8 @@ in each:
   shows direct entry routes and the current question's neighbourhood; it does
   not display the complete catalogue. `DOCUMENTATION_INDEXES` selects the
   existing entries for Theory, Reference, Comparisons and case studies, and
-  All pages. These index pages use each document's own opening description.
+  All pages. Index entries use a catalogue caption when a meaningful name
+  needs context, and otherwise use the document's opening description.
 - `app/content/markdown-links.ts` — `siteHref` maps a repository path to a site
   route. `docs/<name>.md` becomes `/docs/<name>` by default; add a row to
   `DOCUMENT_ROUTES` only when the route does not follow from the file name (as

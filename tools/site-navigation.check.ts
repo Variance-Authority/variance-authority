@@ -26,7 +26,7 @@ describe('the public documentation catalogue', () => {
   });
 
   it('resolves the source behind every existing article path', () => {
-    for (const path of paths.filter((path) => path !== '/reference/packages' && !navigation.documentationIndex(path))) {
+    for (const { href: path } of navigation.NAVIGATION_ITEMS.filter((item) => !item.unlisted && item.href !== '/reference/packages')) {
       expect(routedDocument(path), path).toBeDefined();
     }
   });
