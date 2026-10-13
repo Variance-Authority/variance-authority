@@ -22,8 +22,8 @@ export function restoreMarker(env, name) {
 
 /**
  * The flow's whole budget, in waits: every wait is bounded by `minutes`, and all
- * of them together by twice that, so the job's timeout is a sum somebody can
- * check rather than five waits nobody added up. The tribunal's restore runs
+ * of them together by twice that, so the flow step's timeout is a sum somebody
+ * can check rather than five waits nobody added up. The tribunal's restore runs
  * after the budget, inside one more wait of its own.
  */
 export const BUDGET_WAITS = 2;

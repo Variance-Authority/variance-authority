@@ -293,7 +293,9 @@ renders, and a control that changes nothing any subject reaches. It proves:
 Then it closes both pull requests unmerged and deletes their branches, whatever
 happened. A tribunal approval is not scoped to a branch, so that flow also
 dispatches `example-tribunal`'s workflow on `main` with `accept` ticked, which
-gives `main` its own render back.
+gives `main` its own render back. It approves only after the control, cut from
+`main`, came back green, so the render it gives back is one the baselines
+already held.
 
 These accepts are made by a job, not a person, and they are the only ones in
 this repository that are. The expectations live in
@@ -305,11 +307,12 @@ The examples pin a released action, so this reads a release, not `main`: it
 fails after a release reaches an example, or after an example changes, never on
 a pull request here.
 
-Every wait is bounded, and so is the flow as a whole, and the job's timeout is
-that budget plus the tribunal's restore. A failing flow opens an issue labelled
-`outer-loop-e2e` here, or comments on the one already open, and the next run
-that passes closes it. A scheduled job cancelled by its timeout counts as
-failing; a dispatched run somebody cancels files nothing. To run it on demand,
+Every wait is bounded, and so is the flow as a whole: all its waits share twice
+one wait's minutes. The flow step's timeout is that budget plus the tribunal's
+restore, and the job gives the settle step ten minutes after it. A failing flow,
+or one its timeout stopped, opens an issue labelled `outer-loop-e2e` here, or
+comments on the one already open, and the next run that passes closes it. A
+dispatched run somebody cancels files nothing. To run it on demand,
 for one flow or all three:
 
 ```bash

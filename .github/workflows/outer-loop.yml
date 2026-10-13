@@ -51,10 +51,9 @@ jobs:
       matrix:
         flow: ${{ fromJSON((inputs.flow == '' || inputs.flow == 'all') && '["cache","lfs","tribunal"]' || format('["{0}"]', inputs.flow)) }}
     runs-on: ubuntu-24.04
-    # The tribunal's budget (two 40-minute waits), its restore (one more) and
-    # ten minutes for requests: `jobMinutes` in the script, which a test holds
-    # this number to. A scheduled job that reaches it is filed as a failure.
-    timeout-minutes: 130
+    # The flow step's minutes and ten for settle, so settle always gets to sweep
+    # and file after the flow step is stopped. A test holds both numbers.
+    timeout-minutes: 140
     steps:
       - uses: actions/checkout@v4
         with:
@@ -65,6 +64,10 @@ jobs:
 
       - id: flow
         name: drive the flow
+        # The tribunal's budget (two 40-minute waits), its restore (one more) and
+        # ten minutes for requests: `jobMinutes` in the script. A flow stopped
+        # here is a failure, filed by settle.
+        timeout-minutes: 130
         env:
           OUTER_LOOP_FLOW: ${{ matrix.flow }}
           VARIANCE_PUSH_TOKEN: ${{ secrets.VARIANCE_PUSH_TOKEN }}

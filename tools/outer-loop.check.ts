@@ -130,10 +130,12 @@ describe('the outer loop against an example that breaks a promise', () => {
     expect(leftOpen(github)).toEqual({ pulls: [], branches: [] });
   });
 
-  it('gives every job the minutes its flow can spend', async () => {
+  it('gives the flow the minutes it can spend, and settle ten more after it', async () => {
     const workflow = await readFile(join(ROOT, '.github/workflows/outer-loop.yml'), 'utf8');
-    const minutes = Number(/timeout-minutes: (\d+)/.exec(workflow)?.[1]);
-    expect(minutes).toBe(Math.max(...Object.keys(FLOWS).map((name) => jobMinutes(name))));
+    const job = Number(/^ {4}timeout-minutes: (\d+)$/m.exec(workflow)?.[1]);
+    const step = Number(/^ {8}timeout-minutes: (\d+)$/m.exec(workflow)?.[1]);
+    expect(step).toBe(Math.max(...Object.keys(FLOWS).map((name) => jobMinutes(name))));
+    expect(job).toBe(step + 10);
   });
 
   it('names the push token when the accept commit gets no check', async () => {

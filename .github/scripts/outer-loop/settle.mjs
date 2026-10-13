@@ -103,7 +103,7 @@ async function report(gh, env, name, outcome, log) {
     ? readFileSync(file, 'utf8').trim()
     : outcome === 'cancelled'
       ? "the scheduled job was cancelled before the flow finished, which is its timeout: a request or a wait outlasted the job's minutes; read its log"
-      : 'the run step wrote no failure; read its log';
+      : 'the run step wrote no failure, so something outside it stopped it: its timeout or the runner; read its log';
   const body = `The ${name} review flow failed in ${runUrl}:\n\n\`\`\`\n${said}\n\`\`\`\n`;
   if (issue !== undefined) {
     await gh('POST', `/repos/${repo}/issues/${issue.number}/comments`, { body: { body } });
