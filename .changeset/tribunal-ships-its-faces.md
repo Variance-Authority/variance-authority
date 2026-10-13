@@ -10,3 +10,7 @@ stories, read the surface in a system fallback. Both faces now ship under the
 SIL Open Font License as `@variance-authority/tribunal/fonts.css`, which a host
 imports beside `REVIEW_STYLES`. The page `tribunal serve` writes links it, and
 serves the sheet and its two files under `/ui/fonts/`.
+
+A host that already gates its tribunal stories sees every baseline set in text
+move once it imports `fonts.css`, because those images were of the fallback.
+Review them and accept them once.

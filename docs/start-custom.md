@@ -257,7 +257,7 @@ A full success object from the example above, abbreviated:
 
 `acquireDocument` fills every one of those document fields for you, so you do not
 assemble it by hand. Two are worth knowing about anyway. `css` lists only the
-rules that actually match the subtree — the `.unused` rule in the harness's
+rules that actually match the subtree, plus the `@font-face` of each face it is set in — the `.unused` rule in the harness's
 stylesheet is not in the list above, and on a real design system this is the
 difference between shipping one rule and shipping a thousand. And `frame`
 reproduces the ancestors the subject rendered inside as empty tags, so a rule
@@ -330,7 +330,7 @@ against this file's directory rather than the working directory.
 | `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent and your `collect` must return `before`. Setting both is refused. |
 | `subjects.kind` | `list` — the ids are in this file. `storybook` — read them from a built story index. `collector` — your `plan()` discovers them, and the config stops being the statement of what is watched. |
 | `baselines.kind` | `directory` — files you commit. `lfs` — the same files through the Git LFS filter. `remote` — an endpoint and a token, with nothing in the repository. No default; see [baseline placement](placement.md). |
-| `fonts` | Fonts this machine is asserted to have, each as `family/weight/style/hash` — a bare family name is refused. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. `[]` asserts nothing, which is correct for the example (it declares `system-ui` and no web fonts) and wrong for a subject with a web font: two machines with different cuts of Inter would then produce the same identity, compare, and report the difference as a regression. |
+| `fonts` | Fonts installed on this machine that a subject is set in, each as `family/weight/style/hash` — a bare family name is refused. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. A face the page serves itself does not go here: `acquireDocument` carries its `@font-face` and keys the subject on its file's bytes. `[]` asserts nothing, which is correct for the example (it declares `system-ui`) and for a page that serves every face it is set in. It is wrong for a subject set in an installed font: two machines with different cuts of Inter would then produce the same identity, compare, and report the difference as a regression. |
 | `report` | Where `run` writes and where `report` and `accept` read. Defaults to `.variance/report.json`. Candidate images land beside it. |
 | `browser` | Which engine paints: `chromium` (default), `firefox`, or `webkit`. It is part of the identity baselines are stored under, so switching it compares every subject against the other engine's image, with the engine named as the cause, until you accept. |
 

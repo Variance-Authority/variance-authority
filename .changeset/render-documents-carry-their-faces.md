@@ -19,3 +19,7 @@ page served from its own origin is a cross-origin font that the browser refuses
 without CORS headers. For a document that is not resource-closed and carries a
 face, the renderer now fetches font requests itself and answers them with
 `access-control-allow-origin: *`, as it already does for a closed document.
+
+Baselines of subjects set in a web font move on the first run after upgrading:
+the image is painted in the face rather than the fallback, and the key holds
+the face's file. Review them and accept them once.

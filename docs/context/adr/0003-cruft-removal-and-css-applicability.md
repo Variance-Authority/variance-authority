@@ -77,6 +77,16 @@ actually decides the subject's appearance**, computed as:
    node is dropped. This evicts Storybook's chrome, the preview reset, unused
    utility classes, dead design-system rules, and every accreted CSS-in-JS rule
    belonging to a previously-rendered story.
+
+   An `@font-face` matches no node: it names a file, and the element names the
+   face. It is asked the question it can answer instead — whether a family it
+   declares is in the computed `font-family` of something in the subtree — and
+   kept when one is, with every `url()` rewritten against the page, because the
+   render document holds one inline sheet and a path relative to the sheet it
+   came from fetches nothing there. Dropped like the rest, it left a render that
+   named a face nobody declared, painted in whatever the renderer had
+   installed. Every other at-rule that matches no node, `@keyframes` among them,
+   is still dropped, and an `@import`ed sheet is not enumerated.
 4. **Project onto the allowlist.** Within surviving rules, discard declarations for
    properties outside the versioned computed-style allowlist.
 5. **Resolve the cascade.** For each (node, allowlisted property) keep only the
@@ -101,7 +111,9 @@ pruned output; that equivalence is a test, not an assumption.
   subject root, since rules on ancestors outside the subtree still reach in;
 - the environment key covering fonts, viewport, and flattened conditions;
 - resource-backed properties digested by asset content hash, not URL, since the same
-  `url(…)` can resolve to different bytes.
+  `url(…)` can resolve to different bytes — and the files of the faces kept in
+  step 3 among them, since a font replaced under the same name repaints every
+  glyph and changes no rule.
 
 Without the seed the tier is unsound and produces false `unchanged` verdicts. The
 seed is therefore mandatory, not an optimization.
