@@ -188,12 +188,12 @@ are five, loudest first:
 |---|---|---|
 | `a11y` | a role, accessible name, description or ARIA state | `role-changed`, `name-changed`, `state-changed` |
 | `geometry` | boxes appeared, vanished, moved, resized or were replaced | `node-added`, `node-moved`, `tag-changed`, `rect-changed`, `attribute-changed` |
-| `token` | style values changed while structure stayed the same | `style-changed`, `token-changed` |
+| `token` | style values changed while structure stayed the same | `style-changed`, `token-changed`, except on a pair across two tags, where they are `geometry` |
 | `content` | text changed and nothing else did | `text-changed` |
 | `texture` | sub-semantic rendering variance | `raster-residue` |
 
-`bandOf(kind)` performs that assignment and is the default rather than the
-answer — policy may promote or demote per project, subject, region or
+`bandOf(kind, { retagged })` performs that assignment and is the default
+rather than the answer — policy may promote or demote per project, subject, region or
 component. `loudestBand(bands)` collapses a set to the loudest one present, and
 returns `null` for an empty set so that *nothing changed* and *something changed
 at the quietest band* stay apart.

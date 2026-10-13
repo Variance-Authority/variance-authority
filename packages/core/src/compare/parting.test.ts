@@ -112,6 +112,7 @@ describe('the rung a reading reaches', () => {
     ).boundaries!.find((entry) => entry.component === 'Summary')!;
 
     expect(summary.moved).toContain('display');
+    expect(summary.bands).toContain('geometry');
     expect(summary.bands).not.toContain('token');
   });
 

@@ -60,10 +60,10 @@ observation to mark, so `settle` now renders a pictured baseline that kept no
 snapshot when this run collected one, with the reason *the baseline records no
 snapshot of its nodes, so this run renders it for an accepting run to record
 one*. A suite of baselines accepted before this release renders them on every
-run until an accepting run re-stamps them. Against tribunal that is an
-accepting run whose `remote` store writes there: an approval decides only a
-changed subject, so it re-stamps none of them. `Described.keepsSnapshot` is the
-new required field it reads:
+run until an accepting run re-stamps them. Against tribunal, the accepting run
+that re-stamps them is one whose `remote` store writes there; an approval
+decides only a changed subject, so it re-stamps none. `Described.keepsSnapshot`
+is the new required field it reads:
 the durable, LFS and tribunal stores derive it from the sidecar with
 `keepsSnapshot` from `@variance-authority/core/format`, and the remote store
 refuses a description without it. A packed snapshot now opens with a `v1:`

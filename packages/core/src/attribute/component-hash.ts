@@ -236,8 +236,10 @@ function ownContentMoved(before: BandDigests, after: BandDigests): boolean {
  * One delta the digests cannot band as `bandOf` does: the style of an element
  * its author replaced, which `bandOf` bands `geometry` with the tag change. Two
  * hashes do not say the tag changed under the style, so the `style` digest still
- * reads `token` beside it. The `structure` digest moves with the tag, so the
- * loudest band is `geometry` on both paths.
+ * reads `token` beside it. The `structure` digest moves with the tag, so both
+ * paths report `geometry`, and the one level that asserts `token`, `strict`,
+ * asserts `geometry` too: the verdict agrees. What differs is the list a
+ * relaxed reason gives as absorbed, which names `token` on this path only.
  *
  * | digest | band | what it covers |
  * |---|---|---|
