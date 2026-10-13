@@ -248,6 +248,24 @@ describe('two subjects on one path', () => {
     expect((await createDurableStore(root).find(winner, MAC))?.comparable).toBe(true);
   });
 
+  it('repairs a record that does not parse, rather than blaming a writer that is not there', async () => {
+    // A merge that both sides accepted leaves conflict markers in the committed
+    // record; the accept that follows is how the operator resolves it.
+    const record = join(root, 'Components/Button/Primary-chromium.json');
+    await createDurableStore(root).put(PRIMARY, rasterOf(MAC, 'v1:a'));
+    await writeFile(record, '<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> theirs\n');
+
+    await createDurableStore(root).put(PRIMARY, rasterOf(MAC, 'v1:b'));
+    expect((await createDurableStore(root).find(PRIMARY, MAC))?.comparable).toBe(true);
+  });
+
+  it('still refuses another subject over a damaged pair whose record names the first', async () => {
+    await createDurableStore(root).put(PRIMARY, rasterOf(MAC));
+    await rm(join(root, 'Components/Button/Primary-chromium.png'));
+
+    await expect(createDurableStore(root).put(twin, rasterOf(MAC))).rejects.toThrow(RasterStoreError);
+  });
+
   it('does not check a record written before records named their subject', async () => {
     // Such a record carries no claim to compare against; the store's own
     // in-memory claim is all it gets, and the next accept stamps it.

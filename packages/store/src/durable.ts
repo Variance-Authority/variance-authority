@@ -294,7 +294,10 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
       const path = placed(key, raster.identity);
       const places = at(path);
       // Before anything is written: a refused accept leaves the tree as it was.
-      const before = await readSidecar(places).catch(() => null);
+      // A damaged pair is there, not absent: the accept repairs it, so it is
+      // overwritten rather than raced for, and whoever its record still names
+      // keeps the path.
+      const before = await readSidecar(places).catch(async () => ({ placedFor: placedForIn(await rawRecord(places)) }));
       occupied(before?.placedFor, key, path);
       await mkdir(dirname(places.record), { recursive: true });
       const record = `${JSON.stringify({ ...raster, bytes: undefined, placedFor: placedForOf(key) }, null, 2)}\n`;
@@ -398,3 +401,12 @@ function cachedAt(cacheRoot: string, identity: Digest, documentDigest: Digest): 
   return join(cacheRoot, digestFileName(identity), 'by-document', digestFileName(documentDigest));
 }
 
+
+/** A record as JSON, or `undefined` when it is gone or does not parse — damage says nobody's name. */
+async function rawRecord(places: Places): Promise<unknown> {
+  try {
+    return JSON.parse(await readFile(`${places.record}.json`, 'utf8')) as unknown;
+  } catch {
+    return undefined;
+  }
+}
