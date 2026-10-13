@@ -57,6 +57,10 @@ export function forgetMisses(): void {
  * enough for an answer to be committed and for the request it causes to be
  * made. A story that is still asking after five seconds fails too: a page that
  * never stops fetching has no state to photograph.
+ *
+ * Three frames are a bound, not a proof: a request a component makes only after
+ * a timer, or after this returns, is not counted, and its miss is photographed
+ * as whatever the component draws for a 404.
  */
 export async function replayed(): Promise<void> {
   const deadline = Date.now() + 5_000;

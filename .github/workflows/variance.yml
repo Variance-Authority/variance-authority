@@ -32,7 +32,8 @@ name: variance
 # A run accepts when a person said so, in the place they already are
 # (`.github/scripts/variance-accept.mjs` decides, and says which):
 #
-# - **On a pull request**, by adding the `variance: accept` label. The run saves
+# - **On a pull request**, by adding the `variance: accept` label, or
+#   `variance: accept tribunal` for the `tribunal` check. The run saves
 #   into the pull request's own cache scope, which its later runs read first, and
 #   takes the label off again so the next change needs the next press.
 # - **On `main`, by merging** a pull request whose `variance` check was green at
@@ -403,9 +404,11 @@ jobs:
   # own decision: a change to the review page is accepted or not on its own
   # terms, not in the same breath as the case's buttons.
   #
-  # The same accept rules as above, asked about this check by name
-  # (`VARIANCE_CHECK`), and its own cache entry, keyed by the config's
-  # `project`. It is always `cache`: the config says `carry: actions-cache`
+  # So it has its own label, `variance: accept tribunal`: the case's label does
+  # not start this job, and this one's does not start the job above. The same
+  # accept rules otherwise, asked about this check by name (`VARIANCE_CHECK`),
+  # and its own cache entry, keyed by the config's `project`. A dispatch with
+  # `accept` ticked still accepts both, as the bootstrap should. It is always `cache`: the config says `carry: actions-cache`
   # whatever `VARIANCE_REVIEW` says. No comment and no image ref, because both
   # are one per pull request and the job above holds them; the report page is
   # in this check's summary instead.
@@ -413,7 +416,7 @@ jobs:
     if: >-
       github.event.action != 'closed' &&
       (github.event.action != 'labeled' ||
-      github.event.label.name == 'variance: accept')
+      github.event.label.name == 'variance: accept tribunal')
 
     concurrency:
       group: variance-tribunal-${{ github.ref }}
@@ -432,7 +435,7 @@ jobs:
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VARIANCE_ACCEPT_LABEL: 'variance: accept'
+          VARIANCE_ACCEPT_LABEL: 'variance: accept tribunal'
           VARIANCE_CHECK: tribunal
           VARIANCE_DISPATCH_ACCEPT: ${{ inputs.accept }}
           VARIANCE_REVIEW: cache
