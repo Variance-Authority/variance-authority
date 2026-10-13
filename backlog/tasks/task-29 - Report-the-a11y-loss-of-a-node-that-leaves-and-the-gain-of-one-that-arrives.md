@@ -4,7 +4,7 @@ title: 'Report the a11y loss of a node that leaves, and the gain of one that arr
 status: To Do
 assignee: []
 created_date: '2026-10-13 10:33'
-updated_date: '2026-10-13 10:37'
+updated_date: '2026-10-13 10:40'
 labels: []
 dependencies: []
 references:
@@ -24,10 +24,11 @@ The component hashes make the same choice on purpose: `bandsBetween` and `movedB
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A removed node that carried a role reports the role's loss in the `a11y` band on the docket, pinned by a test that fails on the code before the change
-- [ ] #2 An added node that carries a role reports the gain in the `a11y` band, with a test
-- [ ] #3 A removed or added node that carries no role, name or ARIA state reports no `a11y` delta
-- [ ] #4 A replaced element that `matchTrees` pairs reports its role change once, not also as a removal and an addition
-- [ ] #5 The task records whether a component present on one side only still bands `geometry` in `bandsBetween`, and why
-- [ ] #6 Fixtures that asserted the old banding are amended, the band table in `packages/core/README.md` names `node-removed` and `node-added` with the new rule, and a changeset names it
+- [ ] #1 A removed node whose subtree carried a role reports the role's loss in the `a11y` band on the docket, pinned by a test that fails on the code before the change; a removed wrapper around a checkbox counts, since an unmatched node is recorded whole
+- [ ] #2 An added node whose subtree carries a role reports the gain in the `a11y` band, with a test
+- [ ] #3 Losing or gaining an accessible name or ARIA state with a removed or added subtree reports in the `a11y` band, with a test
+- [ ] #4 A removed or added node whose subtree carries no role, name or ARIA state reports no `a11y` delta
+- [ ] #5 A replaced element that `matchTrees` pairs reports its role change once, not also as a removal and an addition
+- [ ] #6 This task owns, and records with its reason, whether a component present on one side only still bands `geometry` in `bandsBetween` and `movedBandsBetween`
+- [ ] #7 Fixtures that asserted the old banding are amended, the band table in `packages/core/README.md` names `node-removed` and `node-added` with the new rule, and a changeset names it
 <!-- AC:END -->
