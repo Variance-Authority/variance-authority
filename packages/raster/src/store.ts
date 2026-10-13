@@ -157,7 +157,9 @@ export interface Described {
   readonly pictured: boolean;
 
   /**
-   * Whether the baseline kept the snapshot of the nodes that painted it.
+   * Whether the baseline kept a snapshot this code reads of the nodes that
+   * painted it: `keepsSnapshot` in `@variance-authority/core/format`, the one
+   * answer every store gives.
    *
    * Not the snapshot: a description carries no bytes, and the packed tree is
    * the largest thing a sidecar holds. Only whether one is there, because that

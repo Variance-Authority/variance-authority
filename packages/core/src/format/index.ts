@@ -115,5 +115,6 @@ export type {
   RenderIdentity,
   Raster,
   Pictured,
-  PackedSnapshot,
 } from './document.js';
+export { keepsSnapshot, PACKED_SNAPSHOT_HEADER } from './packed.js';
+export type { PackedSnapshot } from './packed.js';

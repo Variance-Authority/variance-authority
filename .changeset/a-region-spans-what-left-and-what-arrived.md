@@ -22,8 +22,8 @@ row around both.
 
 `AttributionOptions.before` is now required: the snapshot of the revision the
 pixels are compared against, or `undefined`. Each node is joined against the
-union of its own box and the box of the node the differ's matcher pairs it with
-in `before`.
+area its own box and the box of the node the differ's matcher pairs it with in
+`before` cover together: the two places, not the rectangle that holds both.
 
 A baseline keeps that snapshot. `Raster.snapshot` is a `PackedSnapshot`, the
 tree gzipped and in base64, written by the Playwright fixture, its promotion,
@@ -43,7 +43,9 @@ this subject is unchanged*. An accepting run — `--update-snapshots`, Vitest's
 `--update`, `variance accept` — now re-stamps an unchanged baseline that kept no
 snapshot, as it re-stamps one painted under another identity, and the
 observation marks it `signals.snapshot: 'unrecorded'`; `restamps` in
-`@variance-authority/core/judge` is the one rule all three ask. Two images
+`@variance-authority/core/judge` is the one rule all three ask. Every other
+verdict the mark is on ends *the baseline records no snapshot of its nodes, and
+an accepting run records this one*. Two images
 compared directly get the same clause, naming the before image, without the
 remedy, and are never marked.
 
@@ -53,8 +55,13 @@ snapshot when this run collected one, with the reason *the baseline records no
 snapshot of its nodes, so this run renders it for an accepting run to record
 one*. A suite of baselines accepted before this release renders in full until
 one accepting run. `Described.keepsSnapshot` is the new required field it reads:
-the durable, LFS and tribunal stores derive it from the sidecar, and the remote
-store refuses a description without it. `settle` takes this run's snapshot as a
+the durable, LFS and tribunal stores derive it from the sidecar with
+`keepsSnapshot` from `@variance-authority/core/format`, and the remote store
+refuses a description without it. A packed snapshot now opens with a `v1:`
+header naming its format version, `PACKED_SNAPSHOT_HEADER`, and a snapshot
+without it counts as not kept. Tribunal serves API 6, which describes a
+baseline with `keepsSnapshot`; `variance push` against an older deployment names
+the refused descriptions when the project's `remote` baselines are stored there. `settle` takes this run's snapshot as a
 fifth argument. `variance accept` and the MCP changelog call these subjects
 *unchanged and re-stamped* rather than re-stamped under this run's identity,
 which was untrue of them. The render cache no longer hands on a snapshot an

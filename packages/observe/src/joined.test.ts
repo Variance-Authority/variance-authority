@@ -212,6 +212,16 @@ describe('an unchanged baseline that kept no snapshot', () => {
     expect(observation.signals?.snapshot).toBe('unrecorded');
   });
 
+  // A digest-matched one is rendered on every run until an accepting run, so
+  // the sentence says why, and what ends it.
+  it('says so, and what records one', async () => {
+    const observation = await againstBaseline(raster(AFTER_IMAGE, 'v1:before'));
+
+    expect(observation.because).toMatch(
+      /^no pixels differ.*; the baseline records no snapshot of its nodes, and an accepting run records this one$/,
+    );
+  });
+
   it('is marked when its snapshot will not unpack', async () => {
     const observation = await againstBaseline({ ...raster(AFTER_IMAGE, 'v1:before'), snapshot: 'not gzip' });
 
@@ -247,6 +257,7 @@ describe('two images handed in', () => {
       { snapshot: AFTER },
     );
 
+    expect(observation.regions.length).toBeGreaterThan(0);
     expect(observation.regions.every((region) => region.component === 'Toggle')).toBe(true);
     expect(observation.because).not.toContain('records no snapshot');
   });

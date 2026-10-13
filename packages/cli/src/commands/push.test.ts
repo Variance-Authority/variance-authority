@@ -323,6 +323,25 @@ describe('saying where a push has got to', () => {
     expect(await noteOf({ kind: 'http', endpoint: 'https://bucket.example/share' })).toBeUndefined();
     expect(await noteOf({ kind: 'http', endpoint: `${REVIEW.endpoint}/share` })).toContain('404 under /share/');
   });
+
+  it('names a refused description at API 5 only when the project reads its baselines from that deployment', async () => {
+    const noteOf = async (baselines?: PushOptions['baselines']): Promise<string | undefined> => {
+      const seen: PushProgress[] = [];
+      await push(
+        options({
+          ...(baselines === undefined ? {} : { baselines }),
+          onProgress: (event) => seen.push(event),
+          deps: { fetch: surface({ api: 5 }).fetch, read: disk({}) },
+        }),
+      );
+      const service = seen.find((event) => event.phase === 'service');
+      return service?.phase === 'service' ? service.note : undefined;
+    };
+
+    expect(await noteOf()).toBeUndefined();
+    expect(await noteOf({ kind: 'remote', endpoint: 'https://store.example' })).toBeUndefined();
+    expect(await noteOf({ kind: 'remote', endpoint: REVIEW.endpoint })).toContain('kept a snapshot of its nodes');
+  });
 });
 
 describe('the sidecar a promotion will be made from', () => {

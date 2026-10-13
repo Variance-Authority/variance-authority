@@ -15,7 +15,8 @@ import { messageOf } from '../config-values.js';
 import type { CliRunReport } from './run-report.js';
 import { alreadyHeld, endpointOf } from './push-have.js';
 import type { ShareConfig } from '../config-share.js';
-import { type Reached, reach, shareAt, versionNote } from '../version.js';
+import type { BaselinesConfig } from '../config-sections.js';
+import { type Reached, baselinesAt, reach, shareAt, versionNote } from '../version.js';
 
 /**
  * The caller the tribunal's write half never had.
@@ -101,6 +102,12 @@ export interface PushOptions {
    * when the share is there.
    */
   readonly share?: ShareConfig;
+  /**
+   * Where the project's baselines are, read only to say whether they are stored
+   * at this deployment: one older than API 6 refuses every baseline it
+   * describes, which matters only to a project that reads its baselines there.
+   */
+  readonly baselines?: BaselinesConfig;
   /**
    * Told where this is, while it is still there.
    *
@@ -247,7 +254,10 @@ export async function push(options: PushOptions): Promise<PushResult> {
   // is a sentence nobody needed.
   const deployment = endpointOf(options.review);
   const service = await reach(send, deployment, options.review.token());
-  const note = versionNote(service, shareAt(options.share, deployment));
+  const note = versionNote(service, {
+    share: shareAt(options.share, deployment),
+    baselines: baselinesAt(options.baselines, deployment),
+  });
   options.onProgress?.({ phase: 'service', ...(note !== undefined ? { note } : {}) });
   const images: Record<string, Record<string, unknown>> = {};
   const counted = { after: 0, before: 0 };

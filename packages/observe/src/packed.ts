@@ -1,5 +1,10 @@
 import { gunzipSync, gzipSync } from 'node:zlib';
-import type { PackedSnapshot, SemanticSnapshot } from '@variance-authority/core/format';
+import {
+  keepsSnapshot,
+  PACKED_SNAPSHOT_HEADER,
+  type PackedSnapshot,
+  type SemanticSnapshot,
+} from '@variance-authority/core/format';
 
 /**
  * The snapshot a raster keeps, packed for the sidecar.
@@ -11,7 +16,7 @@ import type { PackedSnapshot, SemanticSnapshot } from '@variance-authority/core/
  * both of them are this package or call it.
  */
 export function packSnapshot(snapshot: SemanticSnapshot): PackedSnapshot {
-  return gzipSync(JSON.stringify(snapshot)).toString('base64');
+  return PACKED_SNAPSHOT_HEADER + gzipSync(JSON.stringify(snapshot)).toString('base64');
 }
 
 /**
@@ -21,14 +26,15 @@ export function packSnapshot(snapshot: SemanticSnapshot): PackedSnapshot {
  * which boxes a region is joined against, and the sentence of a verdict joined
  * without one says so. The shape is checked as far as the root, which is what a
  * reader can tell from a truncated or foreign record; gzip's checksum guards the
- * rest, and the format version says the fields mean what this code reads them as.
+ * rest, and the format version, in the header and again inside, says the fields
+ * mean what this code reads them as.
  */
 export function unpackSnapshot(packed: PackedSnapshot | undefined): SemanticSnapshot | undefined {
-  if (packed === undefined) return undefined;
+  if (!keepsSnapshot(packed)) return undefined;
 
   let value: unknown;
   try {
-    value = JSON.parse(gunzipSync(Buffer.from(packed, 'base64')).toString('utf8'));
+    value = JSON.parse(gunzipSync(Buffer.from(packed!.slice(PACKED_SNAPSHOT_HEADER.length), 'base64')).toString('utf8'));
   } catch {
     return undefined;
   }

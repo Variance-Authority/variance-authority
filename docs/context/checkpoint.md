@@ -362,8 +362,8 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   under one matched parent with the same `createdBy`. Either way the pair reports
   `tag-changed`. So `<div>` → `<section aria-label>` is a `role-changed` in the
   `a11y` band, and `as-region/card` declares that. Two replacements by one author
-  under one parent, or an element whose author was not recorded, still report a
-  removal and an addition.
+  under one parent, two that each carry an alias or a role and name, or an
+  element whose author was not recorded, still report a removal and an addition.
 
 ---
 

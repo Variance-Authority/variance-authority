@@ -45,6 +45,19 @@ export function unjoined(beforeIs: BeforeSide): string {
 }
 
 /**
+ * The clause every other verdict on a stored baseline carries when that
+ * baseline kept no snapshot of its nodes.
+ *
+ * Nothing was joined, so nothing is wrong with this sentence, but the record is
+ * short of what the day something changes will need, and a digest-matched one
+ * is rendered on every run until then (`settle`). The verdict says so, rather
+ * than leaving the render unexplained and the remedy to a mark nobody reads.
+ */
+export function unrecorded(): string {
+  return '; the baseline records no snapshot of its nodes, and an accepting run records this one';
+}
+
+/**
  * `1 pixel`, `8,818 pixels` — a quantity, rather than a template with the plural
  * left for the reader to apply.
  *

@@ -37,7 +37,9 @@ export interface DiffPolicy {
  * stories reported `unchanged`. Not `0` either. A page reused across subjects
  * repaints a remounted story up to one level per channel away, which is never
  * more than 0.4% of it, and `0` would turn the wobble into findings.
- * ADR-0026 holds the measurements.
+ * ADR-0026 holds the measurements, which were taken on one darwin/arm64
+ * machine: another platform's wobble is unmeasured, and a finding there is the
+ * measurement.
  */
 export const DEFAULT_POLICY: DiffPolicy = { id: 'default', threshold: 0.01, includeAA: false };
 

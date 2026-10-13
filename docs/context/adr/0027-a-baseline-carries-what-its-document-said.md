@@ -136,6 +136,8 @@ forgiven.
 
 **Each node is joined against the union of its own box and its counterpart's in
 the baseline, and the differ's matcher says which node is its counterpart.**
+The union is of the two boxes as places, not the rectangle that holds both: a
+node that moved across a row was never in the space between.
 `AttributionOptions.before` is the snapshot of the revision the pixels are
 compared against. It is required, and `undefined` is an answer. `matchTrees`
 already pairs nodes by content and identity, so a path renumbered by a sibling
@@ -143,7 +145,10 @@ inserted ahead still pairs. It now pairs one more case: under one matched
 parent, exactly one element left and exactly one arrived, and the same
 component's `createdBy` wrote both. That rests on recorded authorship, not on a
 spelling. Two such pairs under one parent stay unpaired, because either could be
-either. The pair is diffed like any other and leads with a `tag-changed` delta
+either. So do two nodes that each declare who they are, by an alias or a role
+and name: `createdBy` names a component, not a slot, and every `<Button>` is
+created by `Button`, so a Save button and an Export link share an author while
+their names say they are two elements. The pair is diffed like any other and leads with a `tag-changed` delta
 (geometry, structural), so a replacement never reads as a small edit: on the
 broken toggle the docket's `Toggle` root moves from 6 geometry deltas (three
 removed, three added) to 97 across geometry, a11y and token, and its band from

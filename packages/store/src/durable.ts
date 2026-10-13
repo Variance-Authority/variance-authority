@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import {
   digestFileName,
   identityDigest,
+  keepsSnapshot,
   occupiesPixels,
   type Digest,
   type Raster,
@@ -151,9 +152,10 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
           comparable,
           storedUnder: sidecar.identity,
           pictured: occupiesPixels(sidecar),
-          // Whether it is there, never the tree: the packed snapshot is the
-          // largest thing a sidecar holds, and nothing that settles reads it.
-          keepsSnapshot: sidecar.snapshot !== undefined,
+          // Whether it kept one this code reads, never the tree: the packed
+          // snapshot is the largest thing a sidecar holds, and nothing that
+          // settles reads it.
+          keepsSnapshot: keepsSnapshot(sidecar.snapshot),
           missingFonts: sidecar.missingFonts,
           ...(sidecar.accessibility === undefined ? {} : { accessibility: sidecar.accessibility }),
           // Names only. The sidecar carries hashes; a describe that handed them

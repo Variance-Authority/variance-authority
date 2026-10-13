@@ -1,4 +1,4 @@
-import { identityDigest, type Digest, type Raster } from '@variance-authority/core/format';
+import { identityDigest, keepsSnapshot, type Digest, type Raster } from '@variance-authority/core/format';
 import {
   REFUSAL,
   RasterStoreError,
@@ -162,7 +162,7 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
         comparable: row.identityDigest === mine,
         storedUnder: sidecar.identity,
         pictured: object !== null,
-        keepsSnapshot: sidecar.snapshot !== undefined,
+        keepsSnapshot: keepsSnapshot(sidecar.snapshot),
         missingFonts: sidecar.missingFonts,
         ...(sidecar.components === undefined
           ? {}

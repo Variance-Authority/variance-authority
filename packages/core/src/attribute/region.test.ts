@@ -313,6 +313,19 @@ describe('a region that spans what left and what arrived', () => {
 
     expect(attributed!.component).toBe('Row');
   });
+
+  it('does not credit a node that moved with the space between its two places', () => {
+    // The badge moved across the row. A change in between is in neither of its
+    // boxes, only in the rectangle that would hold both.
+    const at = (x: number) => snapshotOf(node('0', ROW, { provenance: row, children: [node('0/0', { x, y: 220.75, width: 16, height: 16 }, badge)] }));
+
+    const [attributed] = attributeRegions([{ x: 300, y: 3.5, width: 20, height: 14, pixels: 40, density: 0.14 }], at(600), {
+      ...AT,
+      before: at(29),
+    });
+
+    expect(attributed!.component).toBe('Row');
+  });
 });
 
 describe('attributing a region to the tree', () => {

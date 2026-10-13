@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { CLI_VERSION, NEEDS_API, reach, shareAt, versionNote } from './version.js';
+import { CLI_VERSION, NEEDS_API, baselinesAt, reach, shareAt, versionNote } from './version.js';
+
+/** What this project keeps at the deployment it reached. */
+const NOTHING = { share: false, baselines: false } as const;
+const SHARE = { share: true, baselines: false } as const;
+const BASELINES = { share: false, baselines: true } as const;
 
 /**
  * Whether the two halves can tell each other apart.
@@ -32,7 +37,7 @@ describe('knowing which halves are talking', () => {
     expect(reached).toEqual({ known: true, api: NEEDS_API, schema: 17 });
     // And the agreement is silent: a tool that announces every normal state is
     // a tool whose output people stop reading.
-    expect(versionNote(reached, true)).toBeUndefined();
+    expect(versionNote(reached, SHARE)).toBeUndefined();
   });
 
   it('reads a 404 as the strongest available evidence rather than as nothing', async () => {
@@ -42,11 +47,11 @@ describe('knowing which halves are talking', () => {
     // The deployment that predates this route is exactly the deployment that
     // predates everything the route would have warned about, so the absence of
     // an answer is itself the answer.
-    expect(versionNote(reached, false)).toContain('older than that route');
-    expect(versionNote(reached, false)).toContain('full upload of every image');
-    expect(versionNote(reached, false)).toContain('run identity');
-    expect(versionNote(reached, false)).not.toContain('/share/');
-    expect(versionNote(reached, true)).toContain('404 under /share/');
+    expect(versionNote(reached, NOTHING)).toContain('older than that route');
+    expect(versionNote(reached, NOTHING)).toContain('full upload of every image');
+    expect(versionNote(reached, NOTHING)).toContain('run identity');
+    expect(versionNote(reached, NOTHING)).not.toContain('/share/');
+    expect(versionNote(reached, SHARE)).toContain('404 under /share/');
   });
 
   it('survives a deployment that cannot be reached at all', async () => {
@@ -66,14 +71,14 @@ describe('knowing which halves are talking', () => {
   });
 
   it('names which half is older, in both directions', async () => {
-    const behind = versionNote({ known: true, api: 2 }, true);
+    const behind = versionNote({ known: true, api: 2 }, SHARE);
     expect(behind).toContain('Redeploy the tribunal');
     expect(behind).toContain(`variance ${CLI_VERSION}`);
     // What is missing is said as what the operator would see.
     expect(behind).toContain('404 under /share/');
     expect(behind).not.toContain('full upload');
 
-    const ahead = versionNote({ known: true, api: NEEDS_API + 1 }, true);
+    const ahead = versionNote({ known: true, api: NEEDS_API + 1 }, SHARE);
     // Not an error and not a fix: an older CLI pushes correctly, and saying so
     // is what stops somebody chasing a version number that is not the problem.
     expect(ahead).toContain('this CLI is the older half');
@@ -83,21 +88,39 @@ describe('knowing which halves are talking', () => {
   it('names every capability a deployment lacks, and only those this project uses', () => {
     // API 1 predates `/review/have` and document identity, and API 2 predates the
     // share. Each level names what it lacks, not only the newest thing.
-    const first = versionNote({ known: true, api: 1 }, false);
+    const first = versionNote({ known: true, api: 1 }, NOTHING);
     expect(first).toContain('full upload of every image');
     expect(first).toContain('run identity');
     expect(first).not.toContain('/share/');
-    expect(versionNote({ known: true, api: 1 }, true)).toContain('404 under /share/');
+    expect(versionNote({ known: true, api: 1 }, SHARE)).toContain('404 under /share/');
 
     // A project whose share is not at this deployment loses nothing at API 2,
     // so a push there says nothing rather than asking for a redeploy.
-    expect(versionNote({ known: true, api: 2 }, false)).toBeUndefined();
+    expect(versionNote({ known: true, api: 2 }, NOTHING)).toBeUndefined();
 
     // API 4 keeps concerns but predates the share token reading what review
     // settled; only a project whose share token is for this deployment would
     // read with it.
-    expect(versionNote({ known: true, api: 4 }, true)).toContain('refuses the share token');
-    expect(versionNote({ known: true, api: 4 }, false)).toBeUndefined();
+    expect(versionNote({ known: true, api: 4 }, SHARE)).toContain('refuses the share token');
+    expect(versionNote({ known: true, api: 4 }, NOTHING)).toBeUndefined();
+
+    // API 5 describes a baseline without saying whether it kept a snapshot of
+    // its nodes, and this CLI refuses a description that does not say. Only a
+    // project that reads its baselines from that deployment asks for one.
+    expect(versionNote({ known: true, api: 5 }, BASELINES)).toContain('kept a snapshot of its nodes');
+    expect(versionNote({ known: true, api: 5 }, SHARE)).toBeUndefined();
+    expect(versionNote({ known: true, api: 2 }, SHARE)).not.toContain('kept a snapshot');
+  });
+
+  it('counts baselines as stored at the deployment only when they are remote ones under its endpoint', () => {
+    const remote = (endpoint: string) => ({ kind: 'remote', endpoint }) as const;
+    expect(baselinesAt(remote('https://review.example/'), 'https://review.example')).toBe(true);
+    expect(baselinesAt(remote('https://REVIEW.example/api'), 'https://review.example/api/')).toBe(true);
+
+    expect(baselinesAt(remote('https://store.example'), 'https://review.example')).toBe(false);
+    expect(baselinesAt(remote('https://review.example/api-store'), 'https://review.example/api')).toBe(false);
+    expect(baselinesAt({ kind: 'directory', root: '/srv/baselines' }, 'https://review.example')).toBe(false);
+    expect(baselinesAt(undefined, 'https://review.example')).toBe(false);
   });
 
   it('counts a share as stored at the deployment only when it is an http share under its endpoint', () => {

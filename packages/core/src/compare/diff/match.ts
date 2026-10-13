@@ -142,7 +142,11 @@ export function matchTrees(baseline: SemanticNode, candidate: SemanticNode): Mat
     //
     // Exactly one and one, or nothing. Two that left and two that arrived from
     // one author could pair either way, and choosing by position is the guess
-    // pass 2 already declines across keys.
+    // pass 2 already declines across keys. And never two nodes that each
+    // declare who they are: `createdBy` names a component, and every `<Button>`
+    // is created by `Button`, so a Save button and an Export link under one
+    // toolbar share an author while their names, which pass 2 has read, say
+    // they are two elements.
     replacements(before.children, after.children, taken, partner);
 
     const sequence: number[] = [];
@@ -184,9 +188,15 @@ function replacements(
   for (const [author, [beforeIndex, ...more]] of left) {
     const counterpart = arrived.get(author);
     if (more.length > 0 || counterpart?.length !== 1) continue;
+    if (declared(before[beforeIndex!]!) && declared(after[counterpart[0]!]!)) continue;
     taken.add(beforeIndex!);
     partner[counterpart[0]!] = beforeIndex;
   }
+}
+
+/** Whether a node says who it is, by the first two of `matchKey`'s keys. */
+function declared(node: SemanticNode): boolean {
+  return node.alias !== undefined || (node.role !== undefined && node.name !== undefined);
 }
 
 /** Positions of the nodes `open` admits, by the component that created each. */

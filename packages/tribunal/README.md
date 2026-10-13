@@ -336,8 +336,9 @@ before it uploads and prints both numbers. A CLI newer than its deployment is
 not an error: it works, and what the older deployment lacks shows up somewhere
 else — before API 2 as upload it could have skipped and as an approved subject
 that stays `new`, before API 3 as a share that is always empty, and before API 4
-as a review page that answers 404 when you flag a concern, and before API 5 as a
-share token refused at `/review/changelog` with no `/review/decisions` to read.
+as a review page that answers 404 when you flag a concern, before API 5 as a
+share token refused at `/review/changelog` with no `/review/decisions` to read,
+and before API 6 as every baseline description refused as malformed.
 Until something prints both numbers, neither looks like a version mismatch.
 
 ## What a reviewer sees

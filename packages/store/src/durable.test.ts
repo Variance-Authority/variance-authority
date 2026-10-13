@@ -122,13 +122,20 @@ describe('the durable mode', () => {
 
   it('round-trips the snapshot a baseline keeps', async () => {
     // Opaque to the store: what packed it and what unpacks it live elsewhere.
-    const snapshot = 'H4sIAAAAAAAAA6tWKkktLlGyUlAqzy/KSVGqBQBNnvU3EgAAAA==';
+    const snapshot = 'v1:H4sIAAAAAAAAA6tWKkktLlGyUlAqzy/KSVGqBQBNnvU3EgAAAA==';
     const store = createDurableStore(root);
     await store.put({ subject: 'toggle' }, { ...rasterOf(MAC), snapshot });
 
     expect((await store.find({ subject: 'toggle' }, MAC))?.raster.snapshot).toBe(snapshot);
     // Whether it kept one is what `settle` asks, from the sidecar alone.
     expect((await store.describe({ subject: 'toggle' }, MAC))?.keepsSnapshot).toBe(true);
+  });
+
+  it('does not count a snapshot of another format as kept', async () => {
+    const store = createDurableStore(root);
+    await store.put({ subject: 'toggle' }, { ...rasterOf(MAC), snapshot: 'H4sIAAAAAAAAA6uuBQBDv6ajAgAAAA==' });
+
+    expect((await store.describe({ subject: 'toggle' }, MAC))?.keepsSnapshot).toBe(false);
   });
 
   it('finds another machine`s baseline and refuses to call it comparable', async () => {

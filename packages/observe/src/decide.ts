@@ -12,7 +12,7 @@ import { absorbsEntirely, relaxes, fingerprintOfMask } from '@variance-authority
 import type { SemanticSnapshot } from '@variance-authority/core/format';
 import { compareRasters } from '@variance-authority/png';
 import { attributionOf } from './attribution.js';
-import { count, describeChange, forgiveness, unjoined, type BeforeSide } from './because.js';
+import { count, describeChange, forgiveness, unjoined, unrecorded, type BeforeSide } from './because.js';
 import { unpackSnapshot } from './packed.js';
 import { frameDiagnostics } from './frame.js';
 import type { CompareInputs, IgnoredPixels, Observation } from './observe.js';
@@ -103,6 +103,8 @@ export async function decide(
       ? { snapshot: 'unrecorded' as const }
       : {}),
   };
+  // Said on every verdict the mark is set on, so the sentence explains the render.
+  const short = signals.snapshot === undefined ? '' : unrecorded();
 
   const byRule: Record<string, number> = {};
   for (const [index, box] of boxes.entries()) {
@@ -152,7 +154,7 @@ export async function decide(
     return {
       subject,
       verdict: 'ignored',
-      because: relaxed.because,
+      because: relaxed.because + short,
       relaxed: relaxed.relaxed,
       comparison,
       regions: [],
@@ -183,13 +185,13 @@ export async function decide(
     return {
       subject,
       verdict: wasIgnored ? 'ignored' : 'unchanged',
-      because: wasIgnored
+      because: (wasIgnored
         ? `${count(subtraction.ignored, 'pixel')} differ and all of them fall inside ` +
           `${count(boxes.length, 'excluded region')}; nothing outside them moved${beyond}`
         : missingFonts.length > 0
           ? `no pixels differ${beyond}, but the renderer lacked ${missingFonts.join(', ')} ` +
             'on both sides, so both images are of a substituted font'
-          : `no pixels differ${beyond}`,
+          : `no pixels differ${beyond}`) + short,
       comparison,
       regions: [],
       rendered,
@@ -211,11 +213,11 @@ export async function decide(
       subject,
       verdict: 'changed',
       because:
-        accessibility?.before === undefined
+        (accessibility?.before === undefined
           ? 'the baseline has no browser accessibility snapshot and this run captured one, while no pixels changed'
           : accessibility.after === undefined
             ? 'this run captured no browser accessibility snapshot where the baseline has one, while no pixels changed'
-            : 'the browser accessibility tree changed while no pixels changed',
+            : 'the browser accessibility tree changed while no pixels changed') + short,
       comparison,
       regions: [],
       rendered,
@@ -275,7 +277,7 @@ export async function decide(
       verdict: 'ignored',
       because:
         `${count(absorbed, 'pixel')} differ and every one of them was absorbed by an ignore; ` +
-        `nothing else moved${forgiveness(comparison, options)}`,
+        `nothing else moved${forgiveness(comparison, options)}${short}`,
       comparison,
       regions: [],
       rendered,
@@ -307,7 +309,7 @@ export async function decide(
     because:
       describeChange(comparison, isolation, regions, outstanding) +
       (absorbed > 0 ? `, with ${absorbed}px absorbed by an ignore` : '') +
-      (regions.length > 0 && left === undefined ? unjoined(beforeIs) : ''),
+      (regions.length > 0 && left === undefined ? unjoined(beforeIs) : short),
     comparison,
     isolation,
     regions,

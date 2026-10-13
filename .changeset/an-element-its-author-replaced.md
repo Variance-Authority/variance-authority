@@ -10,7 +10,9 @@ them. The pair is compared like any other and leads with a new `tag-changed`
 delta, in the geometry band and counted as structural, followed by whatever else
 differs: role, name, state, attributes, styles and box. Before, the same change
 was a `node-removed` and a `node-added`. Two or more replaced by one author under
-one parent stay unpaired, because either could be either.
+one parent stay unpaired, because either could be either, and so do two that
+each carry an alias or a role and name of their own: every `<Button>` is created
+by `Button`, and a Save button replaced by an Export link is two elements.
 
 `tag-changed` is reported on every pair across two tags, so a pair that a
 declared alias or a shared role and name joined — a `<button>` and a

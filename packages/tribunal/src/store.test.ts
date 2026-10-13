@@ -208,7 +208,7 @@ describe('a baseline split across D1 and R2', () => {
 
 describe('the cheap lookup and the full one agree', () => {
   it('says whether the baseline kept its snapshot, without returning it', async () => {
-    const snapshot = 'H4sIAAAAAAAAA6tWKkktLlGyUlAqzy/KSVGqBQBNnvU3EgAAAA==';
+    const snapshot = 'v1:H4sIAAAAAAAAA6tWKkktLlGyUlAqzy/KSVGqBQBNnvU3EgAAAA==';
     await store().put({ subject: 'kept' }, { ...raster(MAC), snapshot });
     await store().put({ subject: 'bare' }, raster(MAC));
 
@@ -216,6 +216,14 @@ describe('the cheap lookup and the full one agree', () => {
     expect(kept?.keepsSnapshot).toBe(true);
     expect(JSON.stringify(kept)).not.toContain(snapshot);
     expect((await store().describe({ subject: 'bare' }, MAC))?.keepsSnapshot).toBe(false);
+  });
+
+  it('does not count a snapshot of another format as kept', async () => {
+    // `decide` cannot read it, so a run that settled on it would never record
+    // the one it can.
+    await store().put({ subject: 'old' }, { ...raster(MAC), snapshot: 'v0:H4sIAAAAAAAAA6uuBQBDv6ajAgAAAA==' });
+
+    expect((await store().describe({ subject: 'old' }, MAC))?.keepsSnapshot).toBe(false);
   });
 
   it('describes without moving the image', async () => {

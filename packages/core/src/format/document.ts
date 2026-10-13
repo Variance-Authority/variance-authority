@@ -2,6 +2,7 @@ import type { Diagnostic, SubjectRef } from './capture.js';
 import type { Viewport } from './environment.js';
 import { digestValue, type Digest } from './hash.js';
 import { pageOrigin, withoutOrigin } from './origin.js';
+import type { PackedSnapshot } from './packed.js';
 import type { ComponentHash } from './snapshot.js';
 
 /**
@@ -394,15 +395,6 @@ export interface Raster {
    */
   readonly snapshot?: PackedSnapshot;
 }
-
-/**
- * A `SemanticSnapshot` as JSON, gzipped and in base64.
- *
- * Text, so that it survives every hop a raster makes, as {@link Raster.bytes}
- * does. `packSnapshot` and `unpackSnapshot` in `@variance-authority/observe`
- * are the two ends; nothing between them reads inside it.
- */
-export type PackedSnapshot = string;
 
 /**
  * A raster whose image is in hand.

@@ -173,7 +173,8 @@ export function attributeRegions(
   const left = keptBoxes(options.before, snapshot);
   const boxed = collectBoxes(snapshot.root).map((node) => {
     const before = left.get(node);
-    return { node, rect: before === undefined ? node.rect! : union(node.rect!, before) };
+    const rects = before === undefined ? [node.rect!] : [node.rect!, before];
+    return { node, rects, area: covered(node.rect!, rects) };
   });
   const origin = options.origin ?? snapshot.root.rect ?? { x: 0, y: 0 };
   const containment = options.containment ?? DEFAULT_CONTAINMENT;
@@ -187,15 +188,14 @@ export function attributeRegions(
     };
     const area = css.width * css.height;
 
-    let inside: { node: SemanticNode; rect: Rect } | undefined;
-    let overlapping: { node: SemanticNode; rect: Rect } | undefined;
+    let inside: (typeof boxed)[number] | undefined;
+    let overlapping: (typeof boxed)[number] | undefined;
 
     for (const box of boxed) {
-      const rect = box.rect;
-      const shared = intersectionArea(css, rect);
+      const shared = covered(css, box.rects);
       if (shared <= 0) continue;
 
-      const nodeArea = rect.width * rect.height;
+      const nodeArea = box.area;
 
       // `<=`, not `<`, and the difference is one component name in every report
       // over a design system. A wrapper that shrink-wraps its only child carries
@@ -207,11 +207,11 @@ export function attributeRegions(
       // to its file. Ties go to the last box seen, which is the innermost, and is
       // also the one the browser painted on top.
       if (area > 0 && shared / area >= containment) {
-        if (inside === undefined || nodeArea <= inside.rect.width * inside.rect.height) inside = box;
+        if (inside === undefined || nodeArea <= inside.area) inside = box;
       }
       // The same rule for `nearest`. It is orientation rather than attribution,
       // and a hint should point at the same node the join would have picked.
-      if (overlapping === undefined || nodeArea <= overlapping.rect.width * overlapping.rect.height) {
+      if (overlapping === undefined || nodeArea <= overlapping.area) {
         overlapping = box;
       }
     }
@@ -332,15 +332,26 @@ function keptBoxes(before: SemanticSnapshot | undefined, after: SemanticSnapshot
   return kept;
 }
 
-function union(a: Rect, b: Rect): Rect {
-  const x = Math.min(a.x, b.x);
-  const y = Math.min(a.y, b.y);
-  return {
-    x,
-    y,
-    width: Math.max(a.x + a.width, b.x + b.width) - x,
-    height: Math.max(a.y + a.height, b.y + b.height) - y,
-  };
+/**
+ * How much of `rect` the boxes cover, counting what two of them share once.
+ *
+ * A node's two boxes are two places, not the rectangle that holds both: a node
+ * that moved across a row was never in the space between, and a change there is
+ * not its.
+ */
+function covered(rect: Rect, [first, second]: readonly Rect[]): number {
+  const one = intersectionArea(rect, first!);
+  if (second === undefined) return one;
+  const both = overlap(first!, second);
+  return one + intersectionArea(rect, second) - (both === undefined ? 0 : intersectionArea(rect, both));
+}
+
+function overlap(a: Rect, b: Rect): Rect | undefined {
+  const x = Math.max(a.x, b.x);
+  const y = Math.max(a.y, b.y);
+  const width = Math.min(a.x + a.width, b.x + b.width) - x;
+  const height = Math.min(a.y + a.height, b.y + b.height) - y;
+  return width > 0 && height > 0 ? { x, y, width, height } : undefined;
 }
 
 /** Every node carrying a rect, in document order. Zero-area boxes are skipped. */

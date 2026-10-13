@@ -73,6 +73,21 @@ describe('an element its author replaced', () => {
     expect(matching.added).toEqual([after.children[0]]);
   });
 
+  it('does not pair two elements whose own names say they are different ones', () => {
+    // Every `<Button>` is created by `Button`. A toolbar that drops its Save
+    // button for an Export one did not rename a button: pass 2 already read
+    // both names and found two elements.
+    const save = element('0/0', 'button', 'Button', { role: 'button', name: 'Save' });
+    const exportLink = element('0/0', 'a', 'Button', { role: 'link', name: 'Export' });
+    const before = row(save, label('0/1'));
+    const after = row(exportLink, label('0/1'));
+
+    const matching = matchTrees(before, after);
+
+    expect(matching.removed).toEqual([save]);
+    expect(matching.added).toEqual([exportLink]);
+  });
+
   it('does not pair elements whose author was not recorded', () => {
     const before = row(element('0/0', 'input', undefined, { role: 'checkbox', name: 'Done' }), label('0/1'));
     const after = row(element('0/0', 'div', undefined), label('0/1'));

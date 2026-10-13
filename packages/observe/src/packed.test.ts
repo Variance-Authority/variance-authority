@@ -17,15 +17,21 @@ const SNAPSHOT = {
   root: { path: '0', tag: 'div', attributes: {}, style: {}, children: [] },
 } as unknown as SemanticSnapshot;
 
-const packedJson = (value: unknown) => gzipSync(JSON.stringify(value)).toString('base64');
+const packedJson = (value: unknown) => `v1:${gzipSync(JSON.stringify(value)).toString('base64')}`;
 
 describe('a packed snapshot', () => {
   it('unpacks to the snapshot that was packed', () => {
     expect(unpackSnapshot(packSnapshot(SNAPSHOT))).toEqual(SNAPSHOT);
   });
 
-  it('is gzip, in base64', () => {
-    expect(packSnapshot(SNAPSHOT).startsWith('H4sI')).toBe(true);
+  it('is gzip in base64, after a header that names its format version', () => {
+    expect(packSnapshot(SNAPSHOT).startsWith('v1:H4sI')).toBe(true);
+  });
+
+  it('is not recorded when it carries no header', () => {
+    // Every store answers "kept a snapshot" from the header alone, so text
+    // without one must not unpack here either.
+    expect(unpackSnapshot(packedJson(SNAPSHOT).slice('v1:'.length))).toBeUndefined();
   });
 
   it('is not recorded when there is none', () => {
