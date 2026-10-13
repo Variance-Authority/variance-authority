@@ -1,4 +1,4 @@
-# ADR-0019 — One comment, updated in place, leading with causes
+# ADR-0019 — One comment per project, updated in place, leading with causes
 
 **Status:** accepted
 **Date:** 2026-08-03
@@ -19,10 +19,16 @@ blindness produced by volume instead of by depth.
 
 ## Decision
 
-**One comment, found by an invisible marker and updated in place.** A new comment
-per run is refused. The marker is carried in the rendered body itself and printed
-by `variance comment --marker`, so any platform's poster can find its own comment
-without this project knowing anything about that platform.
+**One comment per project, found by an invisible marker and updated in place.**
+A new comment per run is refused. The marker is carried in the rendered body
+itself and printed by `variance comment --config <path> --marker`, so any
+platform's poster can find its own comment without this project knowing anything
+about that platform. It names the config's `project`, because a repository that
+gates one pull request with two configs runs two posters, and one marker for
+both made them rewrite each other's docket; the alternative, one comment holding
+every project's docket, would need one job to wait for all the others before it
+could render. The pictures a comment shows are pushed per project too, so one
+project's push cannot replace what another's comment links.
 
 **The comment leads with causes and counts collateral.** One token change
 reaching 300 subjects is one review item with a count, never 300 lines. Each
@@ -61,6 +67,15 @@ real limitation and the correct trade: `pull_request_target` would run the fork'
 own build, collector and dependencies with a token that can write to this
 repository. The comment step warns and continues, and the verdict still arrives
 as the exit code, which no token can change.
+
+**The marker that named no project is adopted, not abandoned.** Dockets rendered
+before the marker named a project carry `<!-- variance-authority: pr-docket v1 -->`.
+The poster takes a comment carrying it over when none carries the project's own,
+so an open pull request keeps one comment through the upgrade. Only the gate that
+wrote it adopts it: a job that never commented before turns adoption off, because
+the old docket is another gate's, and taking it would replace that docket or, on
+a clean run, clear it. A poster written for another platform adopts it the same
+way, or posts a second comment beside the old one once.
 
 **A pinned container, not `ubuntu-latest`.** A durable baseline is machine-bound
 (ADR-0011), so a suite pinned to a moving image goes `incomparable` on somebody

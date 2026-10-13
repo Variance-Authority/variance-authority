@@ -43,8 +43,10 @@ posts nothing.
 Here, the gate runs on every pull request and on every push to `main`, the sweep
 nightly, and the shards on demand only — sharding fourteen subjects across two
 installs saves nothing, and the shards find their pull-request comment by the
-same hidden HTML marker the gate uses, so on the same event the two would
-overwrite each other.
+same hidden HTML marker the gate uses, because the marker names the config's
+`project` and the two run one config, so on the same event the two would
+overwrite each other. The gate's two jobs run two configs, the case's Storybook
+and the review surface's, and keep a comment each.
 
 `check.yml` runs one job per harness — the repository's rules, the timed
 measurements, and the vitest suite — and a `check` job that turns their results
@@ -170,19 +172,21 @@ stops there, and `main` stays red.
 
 The comment shows the leading cause's before and after on its first screen, and
 each further cause's pair inside its fold. The action pushes the report's before
-and after images to `refs/variance/images/<branch>`, named for the pull request's
-branch: one commit with no parent, replaced by every run that finds a change. It
-is not a branch, so a clone does not fetch it and the branch list does not show
-it. The comment links the commit rather than the ref, so an image cache never
-shows a previous run's pictures. When the pull request closes, merged or not, a
-second job deletes the ref.
+and after images to `refs/variance/project/<project>/images/<branch>`, named for
+the config's `project` and the pull request's branch, so each job's comment
+links its own pictures. `<project>` is spelled as `variance carry` prints it,
+one path segment whatever the project holds. The ref is one commit with no
+parent, replaced by every run that finds a change. It is not a branch, so a
+clone does not fetch it and the branch list does not show it. The comment links
+the commit rather than the ref, so an image cache never shows a previous run's
+pictures. When the pull request closes, merged or not, a second job deletes
+every project's ref for the branch.
 
 That ref and the report's share lines below are why `variance.yml` asks for
-`contents: write`. Anyone who can read
-the repository can read the images. A pull request from a fork runs with a
-read-only token, so the push is refused, the step warns, and the comment arrives
-without pictures. To turn this off in your copy, drop the `image-ref` input and
-the `images-cleanup` job.
+`contents: write`. Anyone who can read the repository can read the images. A
+pull request from a fork runs with a read-only token, so the push is refused,
+the step warns, and the comment arrives without pictures. To turn this off in
+your copy, drop the `image-ref-prefix` input and the `images-cleanup` job.
 
 ## Where the baselines live here
 

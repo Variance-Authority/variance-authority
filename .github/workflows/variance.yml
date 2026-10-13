@@ -103,51 +103,56 @@ on:
         type: boolean
         default: false
 
-# Read the code, write one comment, take the accept label off. `checks: read` is
-# how a merge to `main` asks whether its pull request was accepted.
+# Read the code, write one comment per project, take the accept label off.
+# `checks: read` is how a merge to `main` asks whether its pull request was
+# accepted.
 #
 # `contents: write` is for refs under `refs/variance/`, none of them a branch,
 # so a clone fetches none of them and none is the contributor's branch:
-# `refs/variance/images/<head>`, which holds the images the comment shows and is
-# deleted when the pull request closes, and the share's lines, which hold the
-# latest report of each mainline and each branch. Only `VARIANCE_REVIEW: git`
-# writes to a branch, with its own token, and only when somebody added the
-# accept label.
+# `refs/variance/project/<project>/images/<head>`, which holds the images a
+# project's comment shows and is deleted when the pull request closes, and the
+# share's lines, which hold the latest report of each mainline and each branch.
+# Only `VARIANCE_REVIEW: git` writes to a branch, with its own token, and only
+# when somebody added the accept label.
 permissions:
   contents: write
   pull-requests: write
   checks: read
 
-# Where a pull request's comment images live. One name, read by the job that
-# pushes them and by the job that deletes them, so changing it here cannot strand
-# a ref nothing will ever clean up. Empty on a push: there is no pull request, no
-# comment, and nothing to picture.
+# Where a pull request's comment images live. One prefix, read by the jobs that
+# push them and by the job that deletes them, so changing it here cannot strand
+# a ref nothing will ever clean up. The action names each job's ref under it
+# from its config's `project` and the head branch; on a push there is no pull
+# request, no comment, and nothing to picture.
 #
-# Why `refs/variance/images/<head branch>`:
+# Why `refs/variance/project/<project>/images/<head branch>`:
 #
 # - **Outside `refs/heads/`.** A clone fetches `refs/heads/*` and nothing else,
 #   so no developer's `git clone` or `git fetch` downloads a single pixel, and
 #   main's history never holds one. It is not in the branch list either, so it
 #   raises no "compare & pull request" banner and matches no branch protection
 #   rule or `on: push: branches` filter. `raw/<commit>` serves it all the same.
+# - **Named for the project.** Each job here runs its own config and keeps its
+#   own comment, and a second project's push to a shared ref would replace the
+#   pictures the first one's comment still links.
 # - **Named for the branch.** The branch is what the images describe and what a
 #   person recognises in `git ls-remote origin 'refs/variance/*'`. It lives in a
 #   namespace shaped exactly like `refs/heads/`, so any branch name is a valid
 #   name here, `feature/x` included, and two names collide here only when they
 #   would already collide as branches.
-# - **Under `images/`.** The share keeps its lines beside it, under
+# - **Under `project/`.** The share keeps its lines beside it, under
 #   `mainline/` and `branch/`, so a branch named `mainline` cannot take the
 #   name a line needs.
 # - **Not `refs/pull/`.** That namespace is GitHub's own and refuses a push.
 #
 # Two alternatives, each one line:
 #
-# - `refs/heads/${{ github.head_ref }}--variance` puts it in the branch list,
-#   beside the branch it pictures. Every clone then fetches it while the pull
-#   request is open.
-# - `refs/variance/images/pr/${{ github.event.pull_request.number }}` keys it by pull
-#   request, for a repository that proposes one branch into two bases at once;
-#   by branch, those two would overwrite each other's images.
+# - `refs/heads/${{ github.head_ref }}--variance-<project>` puts it in the
+#   branch list, beside the branch it pictures. Every clone then fetches it
+#   while the pull request is open.
+# - `refs/variance/project/<project>/images/pr/${{ github.event.pull_request.number }}`
+#   keys it by pull request, for a repository that proposes one branch into two
+#   bases at once; by branch, those two would overwrite each other's images.
 #
 # Whichever you choose, it holds one commit with no parent, replaced by every run
 # that finds a change, so nothing accumulates under it while it exists.
@@ -178,7 +183,7 @@ permissions:
 # this repository ignores.
 env:
   VARIANCE_REVIEW: cache
-  VARIANCE_IMAGE_REF: ${{ github.event_name == 'pull_request' && format('refs/variance/images/{0}', github.head_ref) || '' }}
+  VARIANCE_IMAGES: refs/variance/project
 
 jobs:
   variance:
@@ -189,10 +194,10 @@ jobs:
       (github.event.action != 'labeled' ||
       github.event.label.name == 'variance: accept')
 
-    # One run per branch. The poster looks for its previous comment and then
-    # writes, and those two steps are not atomic — two runs racing on the same
-    # branch can both conclude there is no previous comment and both create one,
-    # which is exactly the duplication the marker exists to prevent.
+    # One run per branch. The poster looks for this project's previous comment
+    # and then writes, and those two steps are not atomic — two runs racing on
+    # the same branch can both conclude there is no previous comment and both
+    # create one, which is exactly the duplication the marker exists to prevent.
     #
     # On the job rather than the workflow, so a label this job skips cannot
     # cancel a comparison in progress.
@@ -303,10 +308,10 @@ jobs:
           report-page: 'true'
 
           # The leading cause's before and after on the comment's first screen,
-          # pushed to the ref named at the top of this file and removed by
+          # pushed under the prefix named at the top of this file and removed by
           # `images-cleanup` below. A pull request from a fork gets a read-only
           # token, and its comment arrives without pictures.
-          image-ref: ${{ env.VARIANCE_IMAGE_REF }}
+          image-ref-prefix: ${{ env.VARIANCE_IMAGES }}
 
           # The step the comment cannot take for the reviewer, in this
           # repository's words. The label starts a run that accepts; see the
@@ -410,19 +415,21 @@ jobs:
   # and its own cache entry, keyed by the config's `project`. A dispatch with
   # `accept` ticked still accepts both, as the bootstrap should. Its
   # `VARIANCE_REVIEW` is always `cache`: the config says `carry: actions-cache`
-  # whatever the workflow's says. No comment and no image ref, because both
-  # are one per pull request and the job above holds them; the report page is
-  # in this check's summary instead.
+  # whatever the workflow's says. Its comment and its image ref are its own,
+  # both keyed by the config's `project`, so the two jobs keep a docket each on
+  # one pull request.
   tribunal:
     if: >-
       github.event.action != 'closed' &&
       (github.event.action != 'labeled' ||
       github.event.label.name == 'variance: accept tribunal')
 
-    # Narrower than the workflow's: this job pushes no ref and writes no
-    # comment, so it reads the code and the checks and takes its label off.
+    # The workflow's, spelled out: `contents: write` pushes this project's
+    # images ref under `VARIANCE_IMAGES`, and `pull-requests: write` writes its
+    # comment and takes its label off. The checkout keeps no credentials, since
+    # the action pushes with the token it is handed.
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
       checks: read
 
@@ -474,18 +481,18 @@ jobs:
           config: packages/tribunal/variance.config.json
           profile: chromium
           command: node packages/cli/dist/bin.js
-          comment: 'false'
+          comment: ${{ github.event_name == 'pull_request' }}
+          # The docket from before the marker named a project is the case's:
+          # this job never commented then, and taking it would replace the
+          # case's.
+          adopt-unkeyed-comment: 'false'
           intent: ${{ steps.accept.outputs.intent }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           accept: ${{ steps.accept.outputs.promote == 'true' }}
           report-page: 'true'
-
-      # With no comment, the summary is the only place a reviewer reads, so it
-      # names the label that answers this check and not the case's.
-      - if: failure() && github.event_name == 'pull_request'
-        shell: bash
-        run: |
-          echo 'To accept: check the report page, then add the **variance: accept tribunal** label to this pull request.' >> "$GITHUB_STEP_SUMMARY"
+          image-ref-prefix: ${{ env.VARIANCE_IMAGES }}
+          # This check's label, not the case's.
+          to-accept: 'check the report, then add the **variance: accept tribunal** label to this pull request.'
 
       - if: always()
         uses: actions/upload-artifact@v4
@@ -497,13 +504,16 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
 
-  # The images go when their pull request does, merged or not. Nothing else
-  # removes it, and nothing here reads it afterwards: the comment's pictures stop
-  # loading, and the report page in the run's artifacts still carries them.
+  # The images go when their pull request does, merged or not: every project's
+  # ref for the branch, found by listing the prefix rather than by naming each
+  # project, so a job added above cannot strand its pictures. Nothing else
+  # removes them, and nothing here reads them afterwards: the comments' pictures
+  # stop loading, and the report pages in the run's artifacts still carry them.
   #
-  # Not found is the answer for a pull request that never had a change to
-  # picture. A fork's is skipped: its run could not push one, and its token
-  # cannot delete one.
+  # Also `refs/variance/images/<branch>`, the one ref a pull request had before
+  # the refs were named for a project. Not found is the answer for a pull
+  # request that never had a change to picture. A fork's is skipped: its run
+  # could not push one, and its token cannot delete one.
   images-cleanup:
     if: >-
       github.event.action == 'closed' &&
@@ -514,13 +524,36 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VARIANCE_BRANCH: ${{ github.head_ref }}
         run: |
-          # `git/` and the full name make the API's `git/refs/<name>` path.
-          if gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/${VARIANCE_IMAGE_REF}" --silent 2> err; then
-            echo "deleted $VARIANCE_IMAGE_REF"
-          elif grep -qE 'HTTP (404|422)' err; then
-            echo "$VARIANCE_IMAGE_REF was never pushed; nothing to delete"
-          else
-            cat err >&2
-            exit 1
-          fi
+          set -euo pipefail
+          # `matching-refs/` takes the name without `refs/`. `variance carry`
+          # writes a project as one path segment, so what follows it has to be
+          # the branch exactly: `feature` must not take `feature/x`'s images.
+          # Listed into a variable first, so a listing that fails fails the job
+          # rather than reading as a branch with no pictures.
+          listed=$(gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/${VARIANCE_IMAGES#refs/}/" --jq '.[].ref')
+          # The ref a pull request pushed before refs were named for a project.
+          refs=("refs/variance/images/$VARIANCE_BRANCH")
+          while IFS= read -r ref; do
+            rest=${ref#"$VARIANCE_IMAGES/"}
+            if [ -n "$ref" ] && [ "${rest#*/}" = "images/$VARIANCE_BRANCH" ]; then refs+=("$ref"); fi
+          done <<< "$listed"
+
+          for ref in "${refs[@]}"; do
+            # `git/` and the full name make the API's `git/refs/<name>` path.
+            # The API decodes the path, and a project segment spells its bytes
+            # as `%XX`, so `%` is escaped first: the ref `a%2Eb` is asked for as
+            # `a%252Eb`, or the API would look for `a.b`. Then `#`, which a
+            # branch may hold and a URL reads as the start of a fragment.
+            path=${ref//\%/%25}
+            path=${path//#/%23}
+            if gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/$path" --silent 2> err; then
+              echo "deleted $ref"
+            elif grep -qE 'HTTP (404|422)' err; then
+              echo "$ref was never pushed; nothing to delete"
+            else
+              cat err >&2
+              exit 1
+            fi
+          done
