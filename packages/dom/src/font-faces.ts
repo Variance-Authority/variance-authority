@@ -2,6 +2,7 @@ import { pageOrigin, withoutOrigin } from '@variance-authority/core/format';
 import { items } from './dom-list.js';
 import { GENERATED_BOXES } from './generated-box.js';
 import { detectProfile } from './profile.js';
+import { familiesIn } from './typeface.js';
 
 /**
  * The `@font-face` rules a subject is set in.
@@ -143,19 +144,4 @@ function familiesUsedBy(root: Element): ReadonlySet<string> {
   }
 
   return used;
-}
-
-/**
- * `"Brand Sans", Inter, monospace` → `['brand sans', 'inter', 'monospace']`.
- *
- * Split on the commas outside quotes, unquoted, and lower-cased, because family
- * names match without regard to ASCII case.
- */
-function familiesIn(value: string): readonly string[] {
-  const families: string[] = [];
-  for (const match of value.matchAll(/\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^,]+))\s*(?:,|$)/g)) {
-    const family = (match[1] ?? match[2] ?? match[3] ?? '').replace(/\\(.)/g, '$1').trim().toLowerCase();
-    if (family !== '') families.push(family.replace(/\s+/g, ' '));
-  }
-  return families;
 }
