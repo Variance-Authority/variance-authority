@@ -46,7 +46,7 @@ export function markdownPath(path: string): string {
   return `${path}/index.md`;
 }
 
-/** The guides published under a section, in the reading order the sidebar uses. */
+/** The guides published under a section, in publication order. */
 export function guidesUnder(section: string): readonly string[] {
   return NAVIGATION_ITEMS.flatMap(({ href }) => {
     const guide = href.startsWith(`${section}/`)
