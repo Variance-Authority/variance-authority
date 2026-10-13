@@ -194,7 +194,7 @@ describe('a stored baseline and the snapshot it kept', () => {
   });
 
   it('says the same of a snapshot that will not unpack', async () => {
-    const observation = await againstBaseline({ ...raster(BEFORE_IMAGE, 'v1:before'), snapshot: 'not gzip' });
+    const observation = await againstBaseline({ ...raster(BEFORE_IMAGE, 'v1:before'), snapshot: 'v1:not gzip' });
 
     expect(observation.because).toContain('the baseline records no snapshot of its nodes');
   });
@@ -223,7 +223,7 @@ describe('an unchanged baseline that kept no snapshot', () => {
   });
 
   it('is marked when its snapshot will not unpack', async () => {
-    const observation = await againstBaseline({ ...raster(AFTER_IMAGE, 'v1:before'), snapshot: 'not gzip' });
+    const observation = await againstBaseline({ ...raster(AFTER_IMAGE, 'v1:before'), snapshot: 'v1:not gzip' });
 
     expect(observation.signals?.snapshot).toBe('unrecorded');
   });

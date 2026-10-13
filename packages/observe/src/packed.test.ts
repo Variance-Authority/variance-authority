@@ -38,8 +38,8 @@ describe('a packed snapshot', () => {
     expect(unpackSnapshot(undefined)).toBeUndefined();
   });
 
-  it('is not recorded when the text will not unpack', () => {
-    expect(unpackSnapshot('not gzip')).toBeUndefined();
+  it('is not recorded when the text after its header will not unpack', () => {
+    expect(unpackSnapshot('v1:not gzip')).toBeUndefined();
   });
 
   it('is not recorded when what it unpacks to is not a snapshot', () => {
