@@ -14,7 +14,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
 import { defaultInclude, type CapturedModule } from './instrumented-modules.js';
@@ -190,6 +190,40 @@ export function writeSeamModule(run: Pick<SelectionRun, 'made'>, id: string, sou
   }
 }
 
+/** What every module this seam writes is named after, whichever runner wrote it. */
+const SEAM_MODULE = 'test-selection-';
+
+/**
+ * Where a seam's module for `role` in this run goes: `.variance-authority/` in
+ * the configuration's directory, named for the run rather than for the seam.
+ * These are files on disk, so two processes over one project — a watch run
+ * beside a CLI one, or this repository's own integration tests — would otherwise
+ * write each other's shim, and a shim carries the directory its journals go to.
+ * The run directory already carries a pid and a uuid; the same stamp names it.
+ */
+export function seamModuleId(configRoot: string, run: SelectionRun, role: 'setup' | 'case-runner'): string {
+  return resolve(configRoot, '.variance-authority', `${SEAM_MODULE}${role}-${runStamp(run)}.mjs`);
+}
+
+/**
+ * What the seam's directory says to git: the seam's modules, and this file, are
+ * not the change's.
+ *
+ * A shim is a file the run wrote, not one the change made, and every reader of
+ * what a change touched asks git — the scan, the landing of this very run, the
+ * review of a head — and git leaves out what an ignore file names. So the
+ * directory carries its own, as `.pytest_cache` does, wherever in the checkout
+ * the configuration put it and whether or not the project's ignore file names
+ * it. It names the seam's modules and nothing else, so a file the project keeps
+ * beside them is what it was to git before the run.
+ *
+ * It is written only where there is none, so an ignore file the project put
+ * there is the project's, and it comes off once no seam module is left beside
+ * it, so a directory is left as the run found it.
+ */
+const IGNORE_FILE = '.gitignore';
+const IGNORE = `# Written by @variance-authority/sense for the run in progress.\n${IGNORE_FILE}\n${SEAM_MODULE}*\n`;
+
 function writeShim(run: Pick<SelectionRun, 'made'>, id: string, source: string): string {
   // `mkdirSync` answers with the first directory it had to create, and with
   // nothing when every one was there: whether this run made it is that answer.
@@ -199,6 +233,12 @@ function writeShim(run: Pick<SelectionRun, 'made'>, id: string, source: string):
       run.made.add(made);
       if (made === first || made === dirname(made)) break;
     }
+  }
+  // Before the shim, so no reader sees the shim and not the rule.
+  try {
+    writeFileSync(resolve(dirname(id), IGNORE_FILE), IGNORE, { encoding: 'utf8', flag: 'wx' });
+  } catch (error) {
+    if (!isErrno(error, 'EEXIST')) throw error;
   }
   writeFileSync(id, source, 'utf8');
   leaveOnExit(run, id);
@@ -243,10 +283,13 @@ function leaveOnExit(run: Pick<SelectionRun, 'made'>, id: string): void {
  * platform would not let go of — a lock, a scanner, a read-only mount.
  */
 export function removeSeamModules(run: Pick<SelectionRun, 'made'>, shims: Iterable<string>): void {
+  const held = new Set<string>();
   for (const shim of shims) {
     rmSync(shim, { force: true });
     onDisk.delete(shim);
+    held.add(dirname(shim));
   }
+  for (const directory of held) removeIgnoreFile(directory);
   for (const directory of run.made) {
     try {
       rmdirSync(directory);
@@ -256,6 +299,20 @@ export function removeSeamModules(run: Pick<SelectionRun, 'made'>, shims: Iterab
       if (!isErrno(error, 'ENOENT')) continue;
     }
     run.made.delete(directory);
+  }
+}
+
+/**
+ * Take this seam's ignore file out of `directory` once no seam module is left
+ * there. Another run's shim beside it keeps it, and that run's end takes it.
+ */
+function removeIgnoreFile(directory: string): void {
+  const file = resolve(directory, IGNORE_FILE);
+  try {
+    if (readdirSync(directory).some((entry) => entry.startsWith(SEAM_MODULE))) return;
+    if (readFileSync(file, 'utf8') === IGNORE) rmSync(file);
+  } catch {
+    // Tidied, not required gone, for the reason the directories are.
   }
 }
 
