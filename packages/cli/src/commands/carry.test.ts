@@ -231,6 +231,7 @@ describe('the output the host reads', () => {
     expect(githubOutput(plan).split('\n')).toEqual([
       'line=main',
       `base=${BASE}`,
+      'project=shop',
       'baselines-path<<VARIANCE_CARRY_END',
       '/r/.variance/baselines',
       'VARIANCE_CARRY_END',
@@ -245,6 +246,29 @@ describe('the output the host reads', () => {
       `review=${join(root, '.variance/review')}`,
       '',
     ]);
+  });
+
+  it('names the project as one path segment, which a ref and an artifact name both take as it is', () => {
+    // A ref per project and a report page per project are named with it, so two
+    // projects never share one, and a project is one segment whatever it is
+    // spelled with: a slash would make cleanup miss the ref, a space or a colon
+    // would make git refuse it, and `..` or a leading dot either.
+    const projects = ['storybook-case', 'tribunal', 'web_2', '@acme/web', 'a b', 'a-b', 'a.b', 'a%2Eb', '..', 'a:b~c', 'café'];
+    const segments = projects.map(
+      (name) => /^project=(.*)$/mu.exec(githubOutput(carryPlan({ direction: 'restore', root, config: project({ project: name }), run: PULL, mainlines: MAIN })))?.[1],
+    );
+
+    expect(segments.slice(0, 3)).toEqual(['storybook-case', 'tribunal', 'web_2']);
+    for (const segment of segments) expect(segment).toMatch(/^[A-Za-z0-9_%-]+$/u);
+    expect(new Set(segments).size).toBe(projects.length);
+    expect(githubOutput(carryPlan({ direction: 'restore', root, suites: UNIT, run: PULL, mainlines: MAIN }))).not.toContain('project=');
+  });
+
+  it('refuses a project holding a lone surrogate, which would be spelled as the replacement character is', () => {
+    const plan = (name: string) => carryPlan({ direction: 'restore', root, config: project({ project: name }), run: PULL, mainlines: MAIN });
+
+    expect(() => plan('a\ud800')).toThrow(/lone surrogate/);
+    expect(plan('a\ufffd').project).toBe('a%EF%BF%BD');
   });
 
   it('names the suites given to the share, in the order they are given, and no other', () => {

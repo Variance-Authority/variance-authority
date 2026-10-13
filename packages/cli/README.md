@@ -2159,9 +2159,10 @@ and the filter does not distinguish the clean ones. It writes to `--body-file`
 when given one and to stdout otherwise, and it posts nothing itself. `--marker`
 prints the HTML comment the poster searches for to find and rewrite its own
 previous docket; it is printed by a separate flag because it is needed in
-exactly the case where there is no body to read it out of. Exit `0` means *this
-rendered*, never *the run was clean* — the verdict belongs to `run`, which
-already decided it.
+exactly the case where there is no body to read it out of. It names the config's
+`project`, so two configs gating one pull request keep a comment each. Exit `0`
+means *this rendered*, never *the run was clean* — the verdict belongs to `run`,
+which already decided it.
 
 `--intent <text>` declares what the change was *meant* to do, overriding the
 config's `intent`. **It is a label, and it changes no verdict.** The string is
@@ -2570,6 +2571,14 @@ instead of naming them:
   run: for suite in $SHARED; do npx variance share --suite "$suite"; done
 ```
 
+With a config, `--format github` also prints `project=<segment>`: the config's
+`project` as one path segment that a git ref and an Actions artifact name both
+take. Every UTF-8 byte but a letter, a digit, `_` or `-` is written as `%XX`,
+so `@acme/web` stays one segment and `a b` stays apart from `a-b`, and a project
+holding a lone surrogate, which has no UTF-8 bytes, is refused. The composite
+action names its report page artifact and its images ref with it, and
+`variance comment --marker` spells the project the same way.
+
 A key is `variance-<file>:<branch>:<commit>`. The branch is the one a pull
 request targets, so a pull request restores what its target saved and never
 what it saved itself. A save appends the run id, because the Actions cache
@@ -2619,17 +2628,23 @@ pipelines:
 The poster is the platform-specific half, and it needs one thing from this CLI:
 
 ```bash
-variance comment --marker
+variance comment --config variance.config.json --marker
 ```
 
-That prints the invisible marker the rendered body embeds, and nothing else.
+That prints the invisible marker the rendered body embeds, and nothing else. It
+names the config's `project`, so each config's poster finds its own comment.
 Finding a previous comment by it and updating that comment — rather than adding
 one per run — is the whole of the "one comment, updated in place" rule; on
 Bitbucket that is a `GET` of
 `/2.0/repositories/{workspace}/{repo}/pullrequests/{id}/comments`, a search for
 the marker in `content.raw`, and a `PUT` to the one that has it or a `POST` if
-none does. The composite action above does the same three steps against
-GitHub's API.
+none does. A docket rendered before the marker named its project carries
+`<!-- variance-authority: pr-docket v1 -->`: the poster of the gate that wrote
+it takes a comment carrying it over, when none carries its own marker, and keeps
+an open pull request at one comment through the upgrade. A gate that never
+commented before leaves it alone, because it is another gate's docket. The
+composite action above does the same steps against GitHub's API, and adopts the
+old marker the same way unless `adopt-unkeyed-comment` is `'false'`.
 
 The YAML is a platform example. Its `script` invokes the same `variance` binary
 used locally, while `after-script` owns the platform-specific API call that
@@ -2656,7 +2671,7 @@ image path the report records to it, with every segment percent-encoded, so the
 file `images/story%3Abutton.before.png` is asked for as
 `images/story%253Abutton.before.png`. On GitHub, a commit's `raw` address works,
 `https://github.com/<owner>/<repo>/raw/<sha>`, and the composite action's
-`image-ref` input publishes one.
+`image-ref-prefix` input publishes one.
 
 ## Integration troubleshooting
 

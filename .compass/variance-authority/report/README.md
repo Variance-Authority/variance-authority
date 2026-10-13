@@ -92,7 +92,7 @@ accounts of the same evidence with no way to tell which one was fixed.
 | [exit code](./exit-code/README.md) | Says in one integer whether anything needs review, keeping a verdict about the product off the channel a crash uses |
 | [shard merge](./shard-merge/README.md) | Folds N partial runs into one artifact, or refuses by name, promoting any subject every shard excluded to a failure |
 | [person reading](./person-reading/README.md) | Renders the artifact for a person, at a terminal and as one self-contained page |
-| [proposal comment](./proposal-comment/README.md) | Renders the docket as one comment on a change proposal, found by a marker and rewritten in place |
+| [proposal comment](./proposal-comment/README.md) | Renders the docket as one comment per project on a change proposal, found by a marker and rewritten in place |
 | [agent surface](./agent-surface/README.md) | Serves evidence to an agent as a set of tools that read and never act |
 | [intent adjudication](./intent-adjudication/README.md) | Reads a run back against what its author declared they were changing |
 | `packages/cli/src/commands/report-html-{style,script,elements}.ts` | L5 — the page's inline stylesheet, its comparison script, and the escaping primitives every block writes through |

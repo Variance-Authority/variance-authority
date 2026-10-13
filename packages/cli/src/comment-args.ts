@@ -31,8 +31,8 @@ export function parseCommentArgs(flags: Flags, config: string): ParsedComment {
       flags.positionals.length > 0)
   ) {
     // Two different questions, and answering both at once would mean deciding
-    // which one the exit code is about. `--marker` is a constant this build
-    // carries; the body is a reading of a report that may not exist yet.
+    // which one the exit code is about. `--marker` is read from the config
+    // alone; the body is a reading of a report that may not exist yet.
     throw new OperatorError(
       '`--marker` prints the marker and nothing else; it does not take --body-file, ' +
         '--run-url, --to-accept, --image-root or a report',

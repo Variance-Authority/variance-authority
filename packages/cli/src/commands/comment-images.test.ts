@@ -3,6 +3,8 @@ import type { ObservationRecord } from '@variance-authority/report';
 import { renderComment } from './comment.js';
 import type { CliRunReport } from './run.js';
 
+const PROJECT = 'storybook-case';
+
 function changed(subject: string, component: string, file: string): ObservationRecord {
   const name = encodeURIComponent(subject);
   return {
@@ -41,7 +43,7 @@ const ROOT = 'https://github.com/o/r/raw/0123abc/';
 
 describe('pictures in the comment, when the operator published the images', () => {
   it('shows the leading cause before and after above the fold, at the published path', () => {
-    const body = renderComment({ report: REPORT, imageRoot: ROOT });
+    const body = renderComment({ project: PROJECT, report: REPORT, imageRoot: ROOT });
     const before =
       '<img src="https://github.com/o/r/raw/0123abc/images/story%253Atoggle.before.png"';
 
@@ -52,7 +54,7 @@ describe('pictures in the comment, when the operator published the images', () =
   });
 
   it('gives each further cause its pair in the fold, and does not repeat the first', () => {
-    const body = renderComment({ report: REPORT, imageRoot: ROOT });
+    const body = renderComment({ project: PROJECT, report: REPORT, imageRoot: ROOT });
     const fold = body.slice(body.indexOf('<details>'));
 
     expect(fold).toContain('alt="story:&quot;quoted&quot; after"');
@@ -60,6 +62,6 @@ describe('pictures in the comment, when the operator published the images', () =
   });
 
   it('carries no picture when nothing was published', () => {
-    expect(renderComment({ report: REPORT })).not.toContain('<img');
+    expect(renderComment({ project: PROJECT, report: REPORT })).not.toContain('<img');
   });
 });

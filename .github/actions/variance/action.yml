@@ -92,7 +92,20 @@ inputs:
     default: '.'
 
   comment:
-    description: 'Post the docket to the pull request. One comment, updated in place.'
+    description: >-
+      Post the docket to the pull request: one comment for the config's
+      `project`, updated in place.
+    required: false
+    default: 'true'
+
+  adopt-unkeyed-comment:
+    description: >-
+      Take over the docket this job posted before the marker named the config's
+      `project`, rather than post a second comment beside it on a pull request
+      opened before the upgrade. Set it to `'false'` on a job that never posted
+      a comment before then: in a repository with two gates, the old docket is
+      the other gate's, and taking it would replace that docket, or clear it on
+      a clean run.
     required: false
     default: 'true'
 
@@ -144,24 +157,43 @@ inputs:
   report-page:
     description: >-
       Write the HTML report as one file with its images inside it, upload it
-      unzipped as the `variance-report.html` artifact, and link that from the
-      comment. The artifact opens in the browser, a phone's included. Off by
-      default, because it is the one thing this action would publish: the images
-      are pixels of your product, kept for your artifact retention period.
+      unzipped as the `variance-report-<project>.html` artifact, and link that
+      from the comment. Named for the config's `project`, so two jobs over two
+      configs in one run each upload their own: a run holds one artifact per
+      name. `<project>` is spelled as `variance carry` prints it, with every
+      character but a letter, a digit, `_` or `-` written as `%XX`. The artifact
+      opens in the browser, a phone's included. Off by default, because it is
+      the one thing this action would publish: the images are pixels of your
+      product, kept for your artifact retention period.
     required: false
     default: 'false'
 
   image-ref:
     description: >-
-      A ref to push the report's before and after images to, so the comment can
-      show the leading cause's pair on its first screen, such as
-      `refs/variance/images/<head branch>`. Outside `refs/heads/`, a clone does not
-      fetch it and the branch list does not show it. One commit with no parent,
-      replaced by every run that finds a change, and linked by its commit so a
-      reader never sees the previous run's pictures from a cache. Empty is off.
-      Anyone who can read the repository can read the images, and pushing needs
-      `contents: write`; deleting the ref when the pull request closes is the
-      workflow's job, since this action runs on nothing but the change.
+      Removed: set `image-ref-prefix` instead. A ref named by the workflow
+      cannot hold the project this action reads from the config, so two jobs
+      would push to one ref. Set, it fails the run rather than leaving the
+      comment without pictures behind a warning.
+    required: false
+    default: ''
+
+  image-ref-prefix:
+    description: >-
+      A prefix to push the report's before and after images under, so the
+      comment can show the leading cause's pair on its first screen, such as
+      `refs/variance/project`, with no trailing slash. The action pushes them to
+      `<prefix>/<project>/images/<head branch>`, with `<project>` as
+      `variance carry --format github` prints it, one segment a ref takes, and
+      the head branch the pull request's. Named for the project as well as the
+      branch, because each config's run pushes its own pictures and a second
+      project's push would replace the first's while its comment still links
+      them. Outside `refs/heads/`, a clone does not fetch it and the branch list
+      does not show it. One commit with no parent, replaced by every run that
+      finds a change, and linked by its commit so a reader never sees the
+      previous run's pictures from a cache. Empty is off. Anyone who can read
+      the repository can read the images, and pushing needs `contents: write`;
+      deleting the refs when the pull request closes is the workflow's job,
+      since this action runs on nothing but the change.
     required: false
     default: ''
 
@@ -191,6 +223,13 @@ outputs:
 runs:
   using: composite
   steps:
+    - if: ${{ inputs.image-ref != '' }}
+      name: refuse the removed image-ref input
+      shell: bash
+      run: |
+        echo "::error::image-ref is removed: set image-ref-prefix, such as refs/variance/project, and the action names the ref for the project and the branch"
+        exit 1
+
     # Before the run, because the baselines have to be in place before it
     # compares. A config the parser refuses stops here, with the CLI's message.
     - id: carry
@@ -291,9 +330,10 @@ runs:
         VARIANCE_COMMAND: ${{ inputs.command }}
         VARIANCE_CONFIG: ${{ inputs.config }}
         VARIANCE_REPORT: ${{ steps.carry.outputs.report }}
+        VARIANCE_PROJECT: ${{ steps.carry.outputs.project }}
       run: |
         set -euo pipefail
-        page="$(dirname "$VARIANCE_REPORT")/variance-report.html"
+        page="$(dirname "$VARIANCE_REPORT")/variance-report-$VARIANCE_PROJECT.html"
         # `--exit-zero-on-changes`: this step writes a page, and the verdict is
         # the run step's. It suppresses 1 and never 2.
         # shellcheck disable=SC2086
@@ -326,16 +366,21 @@ runs:
     # comment with no pictures is still the whole verdict.
     - id: images
       name: publish the images the comment shows
-      if: ${{ inputs.image-ref != '' && inputs.comment == 'true' && steps.run.outputs.exit-code == '1' }}
+      if: ${{ inputs.image-ref-prefix != '' && inputs.comment == 'true' && steps.run.outputs.exit-code == '1' }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         VARIANCE_REPORT: ${{ steps.carry.outputs.report }}
-        VARIANCE_IMAGE_REF: ${{ inputs.image-ref }}
+        VARIANCE_IMAGE_REF_PREFIX: ${{ inputs.image-ref-prefix }}
+        VARIANCE_PROJECT: ${{ steps.carry.outputs.project }}
+        VARIANCE_BRANCH: ${{ github.head_ref }}
       run: |
         set -uo pipefail
         skip() { echo "::warning::the comment shows no images: $1"; exit 0; }
 
+        [ -n "$VARIANCE_BRANCH" ] || skip "there is no pull request branch to name the images ref for"
+        [ -n "$VARIANCE_PROJECT" ] || skip "carry named no project to name the images ref for"
+        VARIANCE_IMAGE_REF="$VARIANCE_IMAGE_REF_PREFIX/$VARIANCE_PROJECT/images/$VARIANCE_BRANCH"
         [ -n "$GITHUB_TOKEN" ] || skip "no github-token to push $VARIANCE_IMAGE_REF with"
 
         here="$(dirname "$VARIANCE_REPORT")"
@@ -387,8 +432,9 @@ runs:
 
         # The marker, asked for separately, because the poster needs it in the
         # one case where there is no body to read it out of: a clean run, where
-        # a *previous* docket has to be found. It is a constant this build
-        # carries, so this costs a process and reads no report.
+        # a *previous* docket has to be found. It names the config's project, so
+        # two configs on one pull request keep a comment each; this reads the
+        # config and no report.
         #
         # $VARIANCE_COMMAND is unquoted so `node path/to/bin.js` splits.
         # shellcheck disable=SC2086
@@ -417,6 +463,7 @@ runs:
         # a value carrying a quote would become shell syntax.
         GITHUB_TOKEN: ${{ inputs.github-token }}
         VARIANCE_MARKER: ${{ steps.render.outputs.marker }}
+        VARIANCE_ADOPT_UNKEYED: ${{ inputs.adopt-unkeyed-comment }}
       run: |
         # In a container job `github.action_path` is the runner's host path; the
         # container mounts the same tree elsewhere. `GITHUB_WORKSPACE` is the
@@ -427,7 +474,8 @@ runs:
         here="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${here#"$host_root"}"
         node "$here/post-comment.mjs" \
           --body-file "$RUNNER_TEMP/variance-comment.md" \
-          --marker "$VARIANCE_MARKER"
+          --marker "$VARIANCE_MARKER" \
+          --adopt-unkeyed "$VARIANCE_ADOPT_UNKEYED"
 
     - name: commit regenerated baselines
       if: ${{ inputs.commit-baselines == 'true' && steps.run.outputs.exit-code != '2' }}

@@ -78,7 +78,10 @@
     "wrangler.jsonc"
   ],
   "scripts": {
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "build-storybook": "storybook build -o storybook-static --quiet",
+    "storybook": "storybook dev -p 6007",
+    "stories:record": "node stories/record.mjs"
   },
   "dependencies": {
     "@variance-authority/core": "workspace:^",
@@ -101,12 +104,17 @@
     }
   },
   "devDependencies": {
+    "@storybook/react-vite": "^9.1.13",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@variance-authority/jsx-source": "workspace:^",
     "@variance-authority/remote": "workspace:^",
     "@variance-authority/sense": "workspace:^",
+    "@variance-authority/storybook-collector": "workspace:^",
     "pngjs": "^7.0.0",
     "react": "^19",
-    "react-dom": "^19"
+    "react-dom": "^19",
+    "storybook": "^9.1.13",
+    "vite": "^6.0.0"
   }
 }

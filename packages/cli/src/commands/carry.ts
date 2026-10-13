@@ -51,6 +51,7 @@ import type { Mainlines } from '../share-lines.js';
 import type { Config } from '../config.js';
 import { loadConfig } from '../config-load.js';
 import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
+import { projectSegment } from '../project-segment.js';
 
 export type CarryDirection = 'restore' | 'save';
 
@@ -89,6 +90,11 @@ export interface CarryPlan {
   /** The branch the keys are cut for. Absent off a host, where nothing is keyed. */
   readonly line?: string;
   readonly base?: string;
+  /**
+   * The config's `project` as one path segment, for what the host names per
+   * project: a ref, an artifact. Absent with no config.
+   */
+  readonly project?: string;
   readonly cached: readonly Cached[];
   /**
    * Where the baseline store sits on disk, for a host step that commits what an
@@ -240,6 +246,7 @@ export function carryPlan(input: CarryInput): CarryPlan {
     direction,
     ...(line === undefined ? {} : { line }),
     ...(run.base === undefined ? {} : { base: run.base }),
+    ...(config === undefined ? {} : { project: projectSegment(config.project) }),
     cached,
     ...(store === undefined || store.kind === 'remote' ? {} : { baselinesRoot: store.root }),
     uploads: [
@@ -274,11 +281,12 @@ function savesRecording(run: HostRun, line: string | undefined, mainlines: Mainl
 /**
  * The plan as `$GITHUB_OUTPUT` lines.
  *
- * `<artifact>-path`, `<artifact>-key` and, on a restore,
- * `<artifact>-restore-keys`, with the multi-line values in the heredoc form
- * the host reads; then `baselines-root` and the uploads, one path each. An artifact that is not carried this time prints nothing,
- * so a step guarded by `<artifact>-key != ''` does not run. Last, `shared-suites`:
- * the suites given to the share, separated by spaces, when there are any.
+ * `project` when there is a config; `<artifact>-path`, `<artifact>-key` and,
+ * on a restore, `<artifact>-restore-keys`, with the multi-line values in the
+ * heredoc form the host reads; then `baselines-root` and the uploads, one path
+ * each. An artifact that is not carried this time prints nothing, so a step
+ * guarded by `<artifact>-key != ''` does not run. Last, `shared-suites`: the
+ * suites given to the share, separated by spaces, when there are any.
  */
 export function githubOutput(plan: CarryPlan): string {
   const lines: string[] = [];
@@ -292,6 +300,7 @@ export function githubOutput(plan: CarryPlan): string {
   };
   if (plan.line !== undefined) one('line', plan.line);
   if (plan.base !== undefined) one('base', plan.base);
+  if (plan.project !== undefined) one('project', plan.project);
   for (const cached of plan.cached) {
     many(`${cached.artifact}-path`, cached.paths);
     one(`${cached.artifact}-key`, cached.key);
