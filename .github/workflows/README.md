@@ -157,10 +157,10 @@ label, and the timeline keeps who accepted and when.
 Merging is an accept too. A pull request is where a change is judged, and what
 lands on `main` is `main`: every push to `main` promotes what it renders,
 whatever the pull request's check said, whether it finished, and whether `main`
-was green before. Like the label's run, it keeps the store only once the
-comparison after the accept comes back green: a subject still unstable, an
-observation that errored or a subject not observed leaves `main` red, and the
-store as it was. A pull request that holds no accept of its own then compares
+was green before. Like the label's run, it keeps the store and then compares
+again: a subject still unstable, an observation that errored or a subject not
+observed leaves `main` red and names it, and every other subject's baseline is
+kept all the same. A pull request that holds no accept of its own then compares
 against the newest push to `main`. The run's log names the pull request that
 merged, or the pusher.
 
@@ -197,7 +197,7 @@ your copy, drop the `image-ref-prefix` input and the `images-cleanup` job.
 reports beside their images would make a diff out of every edit that moved no
 pixel. The store is the runner's cache instead, which the case's config declares
 with `baselines.carry: actions-cache`. `variance.yml` writes it only on a run
-that accepts, and only after a comparison against it came back green.
+that accepts.
 
 A pull request and a push to `main` are both gates, both red when a subject
 moved. The cache key does not name the renderer, because the store already

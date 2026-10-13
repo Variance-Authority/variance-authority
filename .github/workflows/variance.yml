@@ -272,15 +272,15 @@ jobs:
 
       # The gate, on every run. The action restores the store the config says
       # the host cache carries, and on a run that accepts, it promotes what it
-      # renders first and keeps the store only once a comparison against it came
-      # back green. It
+      # renders first, keeps the store, and then compares against it. It
       # exits 1 when a subject moved and nothing here suppresses that: a red
       # pull request is the tool saying the pixels are not the ones on `main`,
       # and the way to answer it is to look and then accept — not to make the
       # check quieter. On `main` the run accepts first, so its check goes red
       # only where accepting cannot settle it — a subject still unstable, an
-      # observation that errored, a subject not observed — and then it keeps no
-      # store, and `main` keeps the one before.
+      # observation that errored, a subject not observed. The store is kept
+      # anyway: one subject that does not render the same way twice is that
+      # subject's defect, and every other subject's baseline still lands.
       #
       # `comment` is on only where there is a pull request to comment on. On a
       # push the action would render a docket, find no issue number, and warn.

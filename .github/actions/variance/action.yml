@@ -112,7 +112,10 @@ inputs:
   accept:
     description: >-
       Promote what this run renders before the gate compares, and save the store
-      for every run after when that comparison comes back green. For a store the
+      for every run after. The gate still compares against what was promoted,
+      and a subject that renders differently twice still turns the check red,
+      but the accept is kept either way: one unstable subject does not take the
+      others' baselines with it. For a store the
       host cache carries (`carry: actions-cache`); a committed store accepts
       through `commit-baselines` instead. Turn it on only for a run a person
       asked for, as `.github/workflows/variance.yml` does: on every run,
@@ -260,9 +263,10 @@ runs:
     # `--exit-zero-on-changes` because this run is not asking: the person has
     # already decided. It suppresses 1 and never 2, so a run whose browser did
     # not launch still fails here rather than accepting an empty report. The
-    # gate below then compares against what was promoted, and the store is kept
-    # only when that comes back green.
-    - if: ${{ inputs.accept == 'true' }}
+    # gate below then compares against what was promoted, which is how a subject
+    # that does not render the same way twice is found.
+    - id: promote
+      if: ${{ inputs.accept == 'true' }}
       name: promote what this run proposes
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -563,10 +567,12 @@ runs:
     # Saved under this commit and this run, so the next comparison restores this
     # store and not an older one. An Actions cache key is never overwritten,
     # which is why the key names the run: accepting the same commit twice must
-    # keep the second. Only after a green gate, so an accept is kept once a
-    # comparison against it agreed.
+    # keep the second. Kept whatever the gate found: the accept is the person's
+    # answer, and a subject that rendered differently on the gate's pass is that
+    # subject's defect, named by the red check, not a reason to drop every other
+    # subject's baseline.
     - id: keep
-      if: ${{ inputs.accept == 'true' && steps.run.outputs.exit-code == '0' }}
+      if: ${{ inputs.accept == 'true' && steps.promote.outcome == 'success' }}
       name: what the host keeps
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -595,6 +601,7 @@ runs:
       shell: bash
       env:
         CODE: ${{ steps.run.outputs.exit-code }}
+        ACCEPTED: ${{ steps.promote.outcome == 'success' }}
         # Where the reader goes next. A push has no pull request, so pointing at
         # a comment there sends them looking for something that was never written.
         WHERE: >-
@@ -607,7 +614,13 @@ runs:
             echo "nothing needs review."
             ;;
           1)
-            echo "::error::variance found changes that need review; $WHERE."
+            if [ "$ACCEPTED" = true ]; then
+              # Nothing here needs a reviewer: the run accepted, and kept it.
+              # What moved, moved between two renders of one commit.
+              echo "::error::variance kept what this run accepted, then rendered a subject differently when it compared again: that subject does not render the same way twice; $WHERE."
+            else
+              echo "::error::variance found changes that need review; $WHERE."
+            fi
             exit 1
             ;;
           2)
