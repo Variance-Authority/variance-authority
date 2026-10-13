@@ -194,7 +194,7 @@ export const ViewerDifferenceRefused = view(
   async (context) => {
     const root = context.canvasElement;
     press(root, 'difference');
-    await when(root, 'the stage saying why there is no mask', () =>
+    await when(root, 'the viewer saying why there is no mask', () =>
       [...root.querySelectorAll('.va-note')].some((note) => note.textContent?.includes('could not compute') ?? false),
     );
     await decoded(context);

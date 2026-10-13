@@ -191,8 +191,9 @@ export function Viewer({
    * What stands in for a mask the page has not got. The regions are rings on the
    * mask's pixels, so with no mask the plate holds neither: rings over nothing
    * read as a finding, and over a sentence they cover it. The plate itself stays,
-   * at the capture's size, so a reviewer who zoomed and scrolled to a region and
-   * then asked for the mask is still at that region when it arrives.
+   * at the size it is drawn at in every other mode, so a reviewer who zoomed and
+   * scrolled to a region and then asked for the mask is still at that region
+   * when it arrives.
    */
   const waiting =
     mode !== 'difference' || difference?.state === 'made'
