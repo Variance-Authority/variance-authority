@@ -24,7 +24,10 @@ const BROWSER_AVAILABLE = ((): boolean => {
 })();
 
 if (!BROWSER_AVAILABLE) {
-  console.warn('\npackages/playwright-test placed baselines: skipped.\n  no browser — npx playwright install chromium\n');
+  console.warn(
+    '\npackages/playwright-test placed baselines: skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
 }
 
 afterAll(async () => {
