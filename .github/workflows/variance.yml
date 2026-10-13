@@ -463,6 +463,13 @@ jobs:
           accept: ${{ steps.accept.outputs.promote == 'true' }}
           report-page: 'true'
 
+      # With no comment, the summary is the only place a reviewer reads, so it
+      # names the label that answers this check and not the case's.
+      - if: failure() && github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          echo 'To accept: check the report page, then add the **variance: accept tribunal** label to this pull request.' >> "$GITHUB_STEP_SUMMARY"
+
       - if: always()
         uses: actions/upload-artifact@v4
         with:
