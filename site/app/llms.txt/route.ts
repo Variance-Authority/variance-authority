@@ -1,4 +1,4 @@
-import { documentDescription, documentTitle } from "../content/markdown-text";
+import { documentDescription } from "../content/markdown-text";
 import { PACKAGE_DOCUMENTS } from "../content/package-docs";
 import { markdownPath, routedDocument } from "../content/routed-docs";
 import { ROOT_DESCRIPTION, SITE, SITE_NAME } from "../metadata";
@@ -9,8 +9,8 @@ export const revalidate = 3600;
 /**
  * The site's index for readers that take Markdown rather than pages.
  *
- * It carries the same reading order the sidebar does, pointing at the Markdown
- * each page is built from instead of the page, so a reader arrives at the
+ * It carries the complete publication order, pointing at the Markdown
+ * each article is built from instead of the page, so a reader arrives at the
  * source this site renders rather than at a rendering of it.
  */
 export function GET(): Response {
@@ -55,9 +55,8 @@ function entry(path: string, label: string): string {
   const document = routedDocument(path);
   if (!document) return `- [${label}](${url(path)})`;
 
-  const title = documentTitle(document.source);
   const description = documentDescription(document.source);
-  return `- [${title}](${url(markdownPath(path))}): ${description}`;
+  return `- [${label}](${url(markdownPath(path))}): ${description}`;
 }
 
 function url(path: string): string {

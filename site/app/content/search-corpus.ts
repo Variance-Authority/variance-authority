@@ -17,7 +17,7 @@ import {
   navigationSection,
 } from "../navigation";
 
-/** Published paths, in the order the sidebar reads them. */
+/** Published paths, in publication order. */
 function publishedPaths(): readonly string[] {
   return [
     ...NAVIGATION_ITEMS.map(({ href }) => href),

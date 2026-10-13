@@ -1,9 +1,9 @@
 /**
  * Reading a Markdown document without rendering it.
  *
- * The title, lead paragraph, and section headings are the same text whether a
- * document is being painted into a page, described to a crawler, or listed in
- * `llms.txt`, so they are read here rather than in any one of those.
+ * The title, lead paragraph, and section headings come from the document, so
+ * they are read here rather than in any one of their consumers. Navigation
+ * labels come from the publication catalogue.
  */
 
 export function headingId(heading: string): string {
