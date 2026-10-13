@@ -372,30 +372,6 @@
     "packages": 1
   },
   {
-    "name": "BASELINE_DESCRIBE_PATH",
-    "kind": "const",
-    "at": "packages/remote/src/store.ts",
-    "packages": 1
-  },
-  {
-    "name": "BASELINE_PUT_PATH",
-    "kind": "const",
-    "at": "packages/remote/src/store.ts",
-    "packages": 1
-  },
-  {
-    "name": "CACHE_FIND_PATH",
-    "kind": "const",
-    "at": "packages/remote/src/store.ts",
-    "packages": 1
-  },
-  {
-    "name": "CACHE_PUT_PATH",
-    "kind": "const",
-    "at": "packages/remote/src/store.ts",
-    "packages": 1
-  },
-  {
     "name": "ComponentWindowQuery",
     "kind": "interface",
     "at": "packages/server/src/backend.ts",

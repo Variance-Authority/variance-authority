@@ -513,8 +513,8 @@ change.
 | Document painted remotely | pinning the acquisition machine; enables remote fan-out | disclosing the document and its resources, plus transport; an environment-dependent document requires equivalent resource access | a shared render service; cross-environment portability, for closed documents only |
 | A raster you already have | all acquisition and rendering work | less semantic evidence, unless you supply it yourself | another trusted capture system already owns the pixels and the identity |
 
-Baselines are partitioned by renderer identity: engine, platform, scale, fonts,
-stabilization, and rasterization recipe. Chromium rendering defaults to
+Every baseline records the renderer identity that painted it: engine, platform,
+scale, fonts, stabilization, and rasterization recipe. Chromium rendering defaults to
 `--disable-lcd-text` and `--font-render-hinting=none`; changing the ordered
 launch recipe changes identity, so a font rasterization difference comes back as
 a change caused by the recipe rather than as a component regression. The cause

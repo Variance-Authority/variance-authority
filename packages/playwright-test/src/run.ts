@@ -18,6 +18,7 @@
 import type { TestInfo } from '@playwright/test';
 import { relative, resolve, sep } from 'node:path';
 import type { Viewport } from '@variance-authority/core/format';
+import { testBaselineKey, type BaselineKey } from '@variance-authority/raster';
 
 /** The run an observation belongs to, independent of what is driving it. */
 export interface VarianceRun {
@@ -44,6 +45,17 @@ export interface VarianceRun {
    * by the file that asked. A run that records no execution leaves it unset.
    */
   readonly owner?: string;
+
+  /**
+   * The titles the test was declared under and its own, outermost first: the
+   * `describe` blocks, then the test.
+   *
+   * `id` is the same titles joined with `/`, which is a fine address and a
+   * lossy one — a title that contains a slash comes back as two. A baseline's
+   * path names the test by its titles, so they are carried apart. Absent on a
+   * descriptor, whose `id` is then read as the titles.
+   */
+  readonly titlePath?: readonly string[];
 
   /**
    * Whether this run may promote a candidate to a baseline.
@@ -75,6 +87,8 @@ export function runOf(testInfo: TestInfo): VarianceRun {
     ...(typeof testInfo.file === 'string'
       ? { owner: relative(resolve(process.cwd()), testInfo.file).split(sep).join('/') }
       : {}),
+    // The first entry is the spec file, which `owner` already carries.
+    titlePath: testInfo.titlePath.slice(1),
     accepting: flag === 'all' || flag === 'changed',
     failed: testInfo.status !== undefined && testInfo.status !== 'passed',
   };
@@ -83,11 +97,12 @@ export function runOf(testInfo: TestInfo): VarianceRun {
 /**
  * Accept either shape at the seam, so one entry point serves both runners.
  *
- * `TestInfo` is recognised by `titlePath`: a run descriptor is a small record
- * of options and has no reason to carry one.
+ * `TestInfo` is recognised by `project`, the configuration it reads options
+ * from: a run descriptor carries those options itself and has no project.
+ * `titlePath` is no test, because a descriptor carries one too.
  */
 export function asRun(given: TestInfo | VarianceRun): VarianceRun {
-  return 'titlePath' in given ? runOf(given as TestInfo) : (given as VarianceRun);
+  return 'project' in given ? runOf(given as TestInfo) : (given as VarianceRun);
 }
 
 /**
@@ -105,6 +120,32 @@ export function subjectFromRun(run: VarianceRun): string {
     );
   }
   return run.id;
+}
+
+/**
+ * The key a baseline is stored under: the subject, the spec file that observed
+ * it, and the titles that named it.
+ *
+ * The file and the titles are what a baseline's path is written from
+ * (`baselines.path`), so a reviewer reading the pull request sees which test
+ * painted each image, and a collocated template can put it beside the spec.
+ * The subject alone still decides *which* baseline it is; the rest decide only
+ * where it is filed.
+ *
+ * An observation the test named with `subjectId` carries the file and nothing
+ * else. One test may name several, and each has to land on its own path: the
+ * test's titles are the same for all of them, so the id is what the path is
+ * written from.
+ */
+export function baselineKeyOf(
+  run: VarianceRun,
+  subject: string,
+  options: { readonly named?: boolean } = {},
+): BaselineKey {
+  return testBaselineKey(subject, {
+    ...(run.owner === undefined ? {} : { file: run.owner }),
+    ...(options.named === true || run.titlePath === undefined ? {} : { titles: run.titlePath }),
+  });
 }
 
 export function viewportOf(

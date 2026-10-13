@@ -195,12 +195,13 @@ plan declares about it:
 
 | field | type | required | what it is |
 | --- | --- | --- | --- |
-| `subject.id` | `string` | yes | The id this state is stored, compared and accepted under. Any string. `receipt/empty` is one id, not a path — the slash means nothing to the tool. |
+| `subject.id` | `string` | yes | The id this state is stored, compared and accepted under. Any string. `receipt/empty` is one id; its slash is a directory in the baseline's file name and means nothing else. |
 | `subject.kind` | `'story' \| 'route' \| 'fixture' \| 'value'` | yes | What sort of thing it is. Subjects planned from a config `ids` list are `fixture`. |
 | `subject.title` | `string` | no | A human label for the report. |
 | `viewport` | `Viewport` | no | Present when the subject declares its own; it overrides the run's. Absent means use the run's. |
 | `tags` | `readonly string[]` | no | What the subject declares itself to be, when the artifact that planned it declared tags. Absent for a `list` plan. |
-| `path` | `string` | no | The directory that declares this subject, relative to the repository root, when a plan can supply one. It decides where a `beside` baseline layout files the image. |
+| `declaredIn` | `string` | no | The file that declares this subject, relative to the repository root, when a plan can supply one. A `baselines.path` with `{dir}` or `{file}` files the image beside it. |
+| `title`, `name` | `string` | no | Where the subject sits in its file's own hierarchy and its name there — a story's title and name. `baselines.path` writes them as `{title}` and `{name}`; absent, both are read from the id. |
 
 One subject id is one image. To observe the same state at two viewports or in
 dark mode, give it two ids.
@@ -357,10 +358,10 @@ rather than the directory, and git still descends:
 !.variance/baselines/
 ```
 
-Inside that root, images are filed under the identity of the machine that
-painted them — `v1-297753c4…/receipt%2Fempty.png`. A run compares against its
-own partition first and otherwise against whichever identity painted the subject,
-naming the machine as the cause. So baselines approved on your laptop are
+Inside that root, images are filed by subject and engine —
+`receipt/empty-chromium.png` — and the `.json` beside each records the machine
+that painted it. A run compares against that image whichever machine painted
+it, and names the machine as the cause when it is not this one. So baselines approved on your laptop are
 compared with a Linux runner's pixels, and the platform's font and antialiasing
 differences come back as changes. Paint in one place that both use, which in practice means
 running `variance run` inside the same container image locally and in CI.

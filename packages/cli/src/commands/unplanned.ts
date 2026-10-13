@@ -38,10 +38,10 @@ export async function unplanned(
   const list = store.unplanned;
   if (list === undefined) return [];
 
-  // Grouped by identity because that is the partition the store is asked about:
-  // a suite planned at two widths is two renderer identities and two directories
-  // of approved images, and asking about one with the other's keys would report
-  // every subject in the suite as unplanned at the width it is not.
+  // Grouped by identity because the store renders `{engine}` and finds
+  // identity-directory baselines from it: a suite planned on two engines is two
+  // sets of files, and asking about one with the other's keys would report every
+  // subject in the suite as unplanned on the engine it is not.
   const groups = new Map<string, { identity: RenderIdentity; keys: BaselineKey[] }>();
   for (const planned of subjects) {
     const identity = identityOf(planned);
@@ -68,6 +68,10 @@ export async function unplanned(
  * named anywhere else in the run. Truncating the list would reproduce the
  * silence in a shorter form.
  *
+ * Each is named by its path under the baseline root, without the extension,
+ * because the path is what a person deletes or moves, and under a
+ * `baselines.path` template it already says which story and which variant.
+ *
  * Both readings are named because a record does not say which suite approved
  * it. Neither is a verdict, and neither is a reason to delete an image before
  * the operator knows which one holds.
@@ -75,7 +79,7 @@ export async function unplanned(
 export function unplannedNote(names: readonly string[]): string | undefined {
   if (names.length === 0) return undefined;
   return (
-    `the baseline store holds ${many(names.length, 'approved subject')} this run did not plan: ` +
+    `the baseline store holds ${many(names.length, 'approved baseline')} this run did not plan: ` +
     `${names.join(', ')}. Either the collector stopped listing them or a second suite shares ` +
     'this baseline root.'
   );

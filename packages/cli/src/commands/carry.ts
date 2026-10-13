@@ -36,7 +36,7 @@
 
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import {
   declaredSuites,
@@ -47,6 +47,7 @@ import {
   type DeclaredSuite,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
+import { DEFAULT_BASELINE_PATH, parseBaselinePath } from '@variance-authority/store/durable';
 import type { Mainlines } from '../share-lines.js';
 import type { Config } from '../config.js';
 import { loadConfig } from '../config-load.js';
@@ -102,6 +103,17 @@ export interface CarryPlan {
    * which keep nothing in the checkout.
    */
   readonly baselinesRoot?: string;
+  /**
+   * What that step stages, as git pathspecs: the images and records at every
+   * path `baselines.path` can render, the old layout's partitions, and for
+   * `lfs` the `.gitattributes` that tracks them.
+   *
+   * Never the root. A template with `{dir}` puts the root at the repository,
+   * and staging it would commit whatever else the run left in the working
+   * tree. The old partitions are named so that a pair `accept` retired goes out
+   * as a deletion beside the file it moved to, which git shows as a rename.
+   */
+  readonly baselinesPathspecs?: readonly string[];
   /** What a reviewer downloads: uploaded as it is, so it has a path and no key. */
   readonly uploads: readonly { readonly name: string; readonly path: string }[];
   /**
@@ -248,7 +260,7 @@ export function carryPlan(input: CarryInput): CarryPlan {
     ...(run.base === undefined ? {} : { base: run.base }),
     ...(config === undefined ? {} : { project: projectSegment(config.project) }),
     cached,
-    ...(store === undefined || store.kind === 'remote' ? {} : { baselinesRoot: store.root }),
+    ...(store === undefined || store.kind === 'remote' ? {} : { baselinesRoot: store.root, baselinesPathspecs: pathspecsOf(store) }),
     uploads: [
       ...(config === undefined ? [] : [{ name: 'report', path: config.report }, { name: 'images', path: config.images }]),
       { name: 'review', path: resolve(input.root, REVIEW_OUT) },
@@ -256,6 +268,19 @@ export function carryPlan(input: CarryInput): CarryPlan {
     shared: (input.suites ?? []).filter((suite) => suite.carry === 'share').map((suite) => suite.name),
     notes,
   };
+}
+
+/** See {@link CarryPlan.baselinesPathspecs}. */
+function pathspecsOf(store: Exclude<NonNullable<Config['baselines']>, { kind: 'remote' }>): readonly string[] {
+  const { glob } = parseBaselinePath(store.path ?? DEFAULT_BASELINE_PATH);
+  const records = store.records ?? store.root;
+  const roots = records === store.root ? [store.root] : [store.root, records];
+  return [
+    `:(glob)${join(store.root, `${glob}.png`)}`,
+    `:(glob)${join(records, `${glob}.json`)}`,
+    ...roots.map((root) => `:(glob)${join(root, '**/v1-*/*')}`),
+    ...(store.kind === 'lfs' ? [`:(glob)${join(store.root, '.gitattributes')}`] : []),
+  ];
 }
 
 function eyesNote(root: string, suite: string, notes: string[]): void {
@@ -307,6 +332,7 @@ export function githubOutput(plan: CarryPlan): string {
     if (cached.restoreKeys !== undefined) many(`${cached.artifact}-restore-keys`, cached.restoreKeys);
   }
   if (plan.baselinesRoot !== undefined) one('baselines-root', plan.baselinesRoot);
+  if (plan.baselinesPathspecs !== undefined) many('baselines-pathspecs', plan.baselinesPathspecs);
   for (const upload of plan.uploads) one(upload.name, upload.path);
   if (plan.shared.length > 0) {
     // Read by a shell loop, so a space in a name would split it into two suites.

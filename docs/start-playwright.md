@@ -77,37 +77,41 @@ Its uniqueness scope is the baseline root, not the spec file and not the test.
 Two observations that use the same id in one root address the same baseline and
 overwrite each other, whichever files they live in.
 
-The `/` is not a path separator by default. Under the default flat layout the id
-is percent-encoded into a single filename, so `cart/empty` becomes
-`cart%2Fempty.png`. Use `/` to group ids readably; nothing reads it as a
-directory unless you configure a `beside` layout.
+The `/` is a directory in the baseline's path: `cart/empty` is written as
+`cart/empty-chromium.png`, so ids that share a prefix share a folder.
 
-Omit `subjectId` and the id defaults to the test's title path. Renaming the test
-then orphans its baseline and the next run reports `new`, so name long-lived
-subjects explicitly.
+Omit `subjectId` and the id defaults to the test's title path, and the baseline
+is filed under the `describe` titles with the test's own title as its name.
+Renaming the test then orphans its baseline and the next run reports `new`, so
+name long-lived subjects explicitly.
 
 ## Where the baseline is written
 
 Approved baselines go to `.variance/baselines` unless you point `baselines`
-somewhere else. Each one is two files under a directory named for the renderer
-identity that painted it:
+somewhere else. Each one is two files, named for the subject and the browser
+engine that painted it:
 
 ```
-.variance/baselines/v1-6c1f…/cart%2Fempty.png
-.variance/baselines/v1-6c1f…/cart%2Fempty.json
+.variance/baselines/cart/empty-chromium.png
+.variance/baselines/cart/empty-chromium.json
 ```
 
 The `.png` is the approved image. The `.json` records which renderer painted it
 and what it may be compared against.
 
-**Renderer identity** is what that `v1-…` directory is named for: the renderer
-and its engine build, the OS and architecture, the device scale factor, the
+The path is a template, `{title}/{name}-{engine}` by default. Set
+`varianceBaselinePath` in `use` to change it — for instance to
+`{dir}/__baselines__/{file}/{title}/{name}-{engine}`, with `varianceBaselines`
+at the repository root, to keep each image beside the spec that took it.
+[Where baselines live](placement.md) lists the tokens.
+
+**Renderer identity** is what the `.json` records: the renderer and its engine
+build, the OS and architecture, the device scale factor, the
 fonts the renderer actually had, and digests of the stabilization and raster
 settings it used. A reading is compared against the baseline under its own
 identity first. Upgrade Chromium, change `deviceScaleFactor`, or run on a
 machine with a different font stack, and the run compares against the baseline
-it finds and names what moved as the cause of whatever changed. The project's
-`colorScheme` partitions baselines the same way.
+it finds and names what moved as the cause of whatever changed.
 
 Commit both files. They are ordinary tracked files and they are how the next run
 and CI find the approved state. If your repository ignores `.variance/`, exclude

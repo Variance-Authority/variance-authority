@@ -156,6 +156,23 @@ describe('the command the browser half calls', () => {
     expect(renderer.renders).toBe(1);
   });
 
+  it('files a baseline by the test file and the titles the test was declared under', async () => {
+    const store = createDurableStore(root, { path: '{dir}/__baselines__/{file}/{title}/{name}-{engine}' });
+    const renderer = fakeRenderer();
+    const commands = varianceCommands({ store, renderer, accept: true });
+    const context = { testPath: join(process.cwd(), 'src', 'ui', 'Button.test.tsx') };
+
+    await commands.varianceObserve(context, {
+      artifact: artifactFor('Button > renders primary'),
+      titlePath: ['Button', 'renders primary'],
+    });
+
+    expect(await readdir(join(root, 'src/ui/__baselines__/Button.test.tsx/Button'))).toEqual([
+      'renders-primary-fake.json',
+      'renders-primary-fake.png',
+    ]);
+  });
+
   it('reads the runner`s own `--update` when nothing was declared', async () => {
     const store = createDurableStore(root);
     const renderer = fakeRenderer();

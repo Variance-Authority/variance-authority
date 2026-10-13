@@ -2,16 +2,17 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { keyFor, planList } from './collector.js';
 import { planStorybook } from './run.js';
 
 /**
- * The route from a story to the directory its code lives in.
+ * The route from a story to the name and place of its baseline.
  *
- * Storybook's index is the only thing that knows it, `planStorybook` is the only
- * place it passes through, and a `beside` baseline layout is what spends it. A
- * plan that drops it is not a visible failure: the images land in the baseline
- * root instead, the run is green, and the placement the project configured never
- * happens.
+ * Storybook's index is the only thing that knows a story's file, title and
+ * name, `planStorybook` is the only place they pass through, and the baseline
+ * path template is what spends them. A plan that drops them is not a visible
+ * failure: the images land under names read off the id instead, the run is
+ * green, and the path the project configured never happens.
  */
 describe('planning a storybook run', () => {
   const indexOf = async (entries: Record<string, unknown>): Promise<string> => {
@@ -21,33 +22,28 @@ describe('planning a storybook run', () => {
     return path;
   };
 
-  it('carries the directory declaring each story, with the `./` off it', async () => {
+  it('keys each story by its file, with the `./` off it, its title and its name', async () => {
     const path = await indexOf({
       'hatbar--accepted': {
         type: 'story',
         id: 'hatbar--accepted',
         name: 'Accepted',
-        title: 'HatBar',
+        title: 'Shell/HatBar',
         importPath: './src/ui/shell/HatBar.stories.tsx',
       },
     });
 
     const plan = await planStorybook(path, { width: 100, height: 100 });
 
-    expect(plan.subjects[0]?.path).toBe('src/ui/shell');
-  });
-
-  it('reads a story declared at the root as the root, not as absent', async () => {
-    const path = await indexOf({
-      'a--b': { type: 'story', id: 'a--b', name: 'B', title: 'A', importPath: './App.stories.tsx' },
+    expect(keyFor(plan.subjects[0]!)).toEqual({
+      subject: 'story:hatbar--accepted',
+      file: 'src/ui/shell/HatBar.stories.tsx',
+      title: 'Shell/HatBar',
+      name: 'Accepted',
     });
-
-    const plan = await planStorybook(path, { width: 100, height: 100 });
-
-    expect(plan.subjects[0]?.path).toBe('');
   });
 
-  it('leaves a path climbing out of the project for the store to refuse by name', async () => {
+  it('leaves a file climbing out of the project for the store to refuse by name', async () => {
     // Not clamped here. A placement this cannot express is worth a sentence
     // naming the subject, not a quiet fallback to whichever directory happens
     // to be writable.
@@ -63,6 +59,10 @@ describe('planning a storybook run', () => {
 
     const plan = await planStorybook(path, { width: 100, height: 100 });
 
-    expect(plan.subjects[0]?.path).toBe('../shared');
+    expect(keyFor(plan.subjects[0]!).file).toBe('../shared/A.stories.tsx');
+  });
+
+  it('keys a listed subject by its id alone', () => {
+    expect(keyFor(planList(['checkout/cart/empty']).subjects[0]!)).toEqual({ subject: 'checkout/cart/empty' });
   });
 });

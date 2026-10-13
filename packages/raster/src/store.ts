@@ -73,22 +73,44 @@ export interface BaselineKey {
   readonly label?: string;
 
   /**
-   * The directory this subject belongs to, for a store that places by path.
+   * The file that declares this subject, relative to the repository, in posix
+   * spelling: `src/ui/Button.stories.tsx`, a Playwright spec, a test file.
    *
-   * A subject id is a namespaced identifier and is not always a path: a story is
+   * A subject id is a namespaced identifier and is not a path: a story is
    * `story:components-button--primary`, and the file declaring it is known to
-   * the artifact that produced the plan and to nothing downstream. Carrying that
-   * directory here is what lets a `beside` layout put the image where the code
-   * it is an image of lives, without making the id path-shaped — which would
-   * break every glob, story lookup and report that reads an id as a name.
+   * the artifact that produced the plan and to nothing downstream. Carried here
+   * so a store can place the image beside the code it is an image of, and
+   * name it after that code, without making the id path-shaped.
    *
-   * Advisory, and only placement reads it. `flat` ignores it, a store keeping
-   * one corpus ignores it, and a key omitting it places exactly as it did
-   * before. Two placements of one subject are still one subject, which is what
-   * [ADR-0016](../../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)
+   * Absent when no file declares the subject. Only placement reads this, `title`
+   * and `name`: two placements of one subject are one subject, which is what [ADR-0016](../../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)
    * says about every other storage decision.
    */
-  readonly path?: string;
+  readonly file?: string;
+
+  /**
+   * Where the subject sits in its file's own hierarchy, `/`-separated: a
+   * story's title (`Components/Button`), a test's describe chain. Absent when
+   * the collector knows none, and a store then reads it from the id.
+   */
+  readonly title?: string;
+
+  /** The subject's own name under its title: a story's name, a test's title. */
+  readonly name?: string;
+}
+
+/**
+ * A baseline read from where a store's previous layout kept it.
+ *
+ * The baseline, and not a different one: compared as any other, with the move
+ * named as a cause, so an upgrade of the layout never reports a subject `new`.
+ * Both are paths under the store's root, without the extension.
+ */
+export interface Relocated {
+  /** Where the baseline was read from. */
+  readonly from: string;
+  /** Where the store writes it now; an accept moves it there. */
+  readonly to: string;
 }
 
 export interface Found {
@@ -102,6 +124,8 @@ export interface Found {
    */
   readonly comparable: boolean;
   readonly storedUnder: RenderIdentity;
+  /** Set when the baseline was read from where an earlier layout kept it. */
+  readonly relocated?: Relocated;
 }
 
 /**
@@ -119,6 +143,8 @@ export interface Described {
   /** As {@link Found.comparable} — whether the identity now asking wrote it. */
   readonly comparable: boolean;
   readonly storedUnder: RenderIdentity;
+  /** As {@link Found.relocated}. A settlement renders it, so an accept can move it. */
+  readonly relocated?: Relocated;
 
   /**
    * Fonts the renderer did not have when the baseline was painted.
@@ -255,18 +281,19 @@ export interface RasterStore {
   /**
    * What this run is about to ask about — a hint, and never a question.
    *
-   * A store on a disk ignores it: `describe` is a `readFile`, and there is
-   * nothing to save. A store across a hop is the reason it exists. Most subjects
-   * in a run are settled from the sidecar without an image ever moving, which is
-   * the whole argument for `describe` — and across a network that saving is spent
-   * again as three hundred sequential round trips to answer thirty-two hex
-   * characters each. Declared up front they are one request.
+   * A store on a disk saves nothing by it — `describe` is a `readFile` — and
+   * refuses two keys it would file at one path, before a pixel is painted. A
+   * store across a hop is the reason it exists. Most subjects in a run are
+   * settled from the sidecar without an image ever moving, which is the whole
+   * argument for `describe` — and across a network that saving is spent again as
+   * three hundred sequential round trips to answer thirty-two hex characters
+   * each. Declared up front they are one request.
    *
-   * Optional, and calling it must change no verdict. It declares nothing about
-   * the subjects that are *not* named: a lookup outside the declared set is
-   * answered exactly as it would have been, because a run that narrowed its
-   * selection and then asked about something else must get an answer rather than
-   * a miss.
+   * Optional, and calling it must change no verdict: a refusal stops the run and
+   * answers nothing about a subject. It declares nothing about the subjects that
+   * are *not* named: a lookup outside the declared set is answered exactly as it
+   * would have been, because a run that narrowed its selection and then asked
+   * about something else must get an answer rather than a miss.
    */
   expect?(keys: readonly BaselineKey[]): void;
 

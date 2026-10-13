@@ -1,6 +1,4 @@
 import type { Viewport } from '@variance-authority/core/format';
-import type { BaselineLayout } from '@variance-authority/store/durable';
-import { baselineCarrierOf } from './config-placement.js';
 import {
   declaredSecret,
   fail,
@@ -121,59 +119,6 @@ export interface ListSubjects {
 export interface DiscoveredSubjects {
   readonly kind: 'collector';
   readonly collector: string;
-}
-
-/**
- * Where baselines live — the one axis with no default and no inferred answer.
- *
- * Three placements, chosen in [`placement.md`](../../../docs/placement.md), and
- * the choice is the operator's because the three fail in different directions
- * and none of them is safe to guess: `directory` and `lfs` are committed, and a
- * repository that ignores them reports every subject `new` forever without ever
- * erroring; `remote` is not committed, and a run that cannot reach it must stop.
- * Nothing here reads a verdict differently
- * ([ADR-0016](../../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)).
- */
-export type BaselinesConfig = DirectoryBaselines | LfsBaselines | RemoteBaselines;
-
-export interface DirectoryBaselines {
-  readonly kind: 'directory';
-  readonly root: string;
-  readonly layout?: BaselineLayout;
-  /**
-   * Where the `.json` records go, if not beside the images.
-   *
-   * The one key here that answers *what does version control see*. A record
-   * changes whenever the document does — a class name, a build id, a font that
-   * resolved to something else — so records beside their images make a diff out
-   * of every edit, including the ones that moved no pixel. Pointed at an ignored
-   * directory or a CI cache, `root` holds images and nothing else.
-   *
-   * Not inferred, and deliberately not: a record that is not there costs the run
-   * its `missingFonts` and its inspected regions, which a verdict is allowed to
-   * turn on. An operator who moves them is choosing to keep them somewhere.
-   */
-  readonly records?: string;
-  /**
-   * Who carries the directory to the next job: `actions-cache` or nobody. `lfs`
-   * and `remote` take none, because git and the service already carry them.
-   */
-  readonly carry?: 'actions-cache';
-}
-
-export interface LfsBaselines {
-  readonly kind: 'lfs';
-  readonly root: string;
-  readonly pattern?: string;
-  readonly layout?: BaselineLayout;
-  /** See {@link DirectoryBaselines.records}. */
-  readonly records?: string;
-}
-
-export interface RemoteBaselines {
-  readonly kind: 'remote';
-  readonly endpoint: string;
-  readonly token?: string;
 }
 
 /**
@@ -322,81 +267,6 @@ export function parseSubjects(value: unknown, options: ParseOptions): SubjectsCo
       nonEmpty(source, 'collector', options, 'subjects.collector'),
     ),
   };
-}
-
-export function parseBaselines(value: unknown, options: ParseOptions): BaselinesConfig {
-  const kind = kindOf(value, 'baselines', ['directory', 'lfs', 'remote'], options);
-
-  if (kind === 'remote') {
-    const source = object(value, 'baselines', ['kind', 'endpoint', 'token'], options);
-    // Optional, and read through `secret` when it is there: the store that needs
-    // one is somebody's deployment, so the value belongs in the environment even
-    // though the decision to send it belongs here.
-    const token =
-      source['token'] === undefined ? undefined : secret(source, 'token', options, 'baselines.token');
-
-    return {
-      kind: 'remote',
-      endpoint: url(source, 'endpoint', 'baselines.endpoint', options),
-      ...(token !== undefined ? { token } : {}),
-    };
-  }
-
-  if (kind === 'lfs') {
-    const source = object(
-      value,
-      'baselines',
-      ['kind', 'root', 'pattern', 'layout', 'records'],
-      options,
-    );
-    const pattern = optionalText(source, 'pattern', options, 'baselines.pattern');
-    const layout = parseLayout(source['layout'], options);
-    const records = parseRecords(source['records'], options);
-
-    return {
-      kind: 'lfs',
-      root: resolveFrom(options.baseDir, nonEmpty(source, 'root', options, 'baselines.root')),
-      ...(pattern !== undefined ? { pattern } : {}),
-      ...(layout !== undefined ? { layout } : {}),
-      ...(records !== undefined ? { records } : {}),
-    };
-  }
-
-  const source = object(value, 'baselines', ['kind', 'root', 'layout', 'records', 'carry'], options);
-  const layout = parseLayout(source['layout'], options);
-  const records = parseRecords(source['records'], options);
-  const carry = baselineCarrierOf(source['carry'], options);
-  return {
-    kind: 'directory',
-    root: resolveFrom(options.baseDir, nonEmpty(source, 'root', options, 'baselines.root')),
-    ...(layout !== undefined ? { layout } : {}),
-    ...(records !== undefined ? { records } : {}),
-    ...(carry !== undefined ? { carry } : {}),
-  };
-}
-
-/**
- * The record directory, resolved like the root it is an alternative to.
- *
- * Relative to the config file rather than the process, for the same reason
- * `root` is: the two are read together by a person deciding what their
- * repository tracks, and a pair of paths that resolve against different things
- * is a pair somebody gets wrong once.
- */
-function parseRecords(value: unknown, options: ParseOptions): string | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== 'string' || value === '') {
-    fail('baselines.records', `must be a directory path, not ${quote(value)}`, options);
-  }
-  return resolveFrom(options.baseDir, value as string);
-}
-
-function parseLayout(value: unknown, options: ParseOptions): BaselineLayout | undefined {
-  if (value === undefined) return undefined;
-  if (value !== 'flat' && value !== 'beside') {
-    fail('baselines.layout', `must be "flat" or "beside", not ${quote(value)}`, options);
-  }
-  return value as BaselineLayout;
 }
 
 export function parseRenderer(value: unknown, options: ParseOptions): RemoteRendererConfig {

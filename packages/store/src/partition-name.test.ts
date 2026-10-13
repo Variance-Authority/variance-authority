@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rename, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -9,10 +9,11 @@ import { createDurableStore } from './durable.js';
 /**
  * What an identity partition is called on disk, and the name it used to be called.
  *
- * The store writes `v1-<hex>` and reads the raw `v1:<hex>` digest as a fallback.
- * The old spelling is made here the way a repository has it: a partition written
- * under the new name, then renamed to the raw digest, which is byte-for-byte
- * what an earlier store left behind.
+ * Baselines no longer live in a partition, and the render cache still does,
+ * as `v1-<hex>`. The layout before `baselines.path` wrote baselines into
+ * partitions spelled `v1-<hex>`, and before that into the raw `v1:<hex>`
+ * digest; a repository can hold either. Both are made here by hand, as such a
+ * repository has them.
  */
 
 const MAC: RenderIdentity = {
@@ -29,10 +30,13 @@ function rasterOf(identity: RenderIdentity, digest = 'v1:doc', bytes = 'AAAA'): 
   return { documentDigest: digest, identity, width: 10, height: 10, bytes, missingFonts: [] };
 }
 
-/** Rename a partition written today to the raw digest an earlier store wrote. */
-async function spellWithColon(holder: string, identity: RenderIdentity): Promise<void> {
-  const digest = identityDigest(identity);
-  await rename(join(holder, digestFileName(digest)), join(holder, digest));
+/** A pair as an earlier store left it, under the raw digest unless told otherwise. */
+async function oldPair(holder: string, leaf: string, raster: Raster, spelling: 'raw' | 'written' = 'raw'): Promise<void> {
+  const digest = identityDigest(raster.identity);
+  const directory = join(holder, spelling === 'raw' ? digest : digestFileName(digest));
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, `${leaf}.png`), Buffer.from(raster.bytes!, 'base64'));
+  await writeFile(join(directory, `${leaf}.json`), JSON.stringify({ ...raster, bytes: undefined }));
 }
 
 /** Every path under a directory, relative to it. */
@@ -54,15 +58,15 @@ afterEach(async () => {
 });
 
 describe('the partition a store writes', () => {
-  it('spells the identity without a colon, for the baseline and the render cache alike', async () => {
+  it('is the render cache`s alone, spelled without a colon', async () => {
     const store = createDurableStore(root);
     await store.put({ subject: 'button' }, rasterOf(MAC));
     await store.renderCache.put(rasterOf(MAC, 'v1:0123456789abcdef0123456789abcdef'));
 
     const hex = identityDigest(MAC).slice('v1:'.length);
     expect(await tree(root)).toEqual([
-      `v1-${hex}/button.json`,
-      `v1-${hex}/button.png`,
+      'button-chromium.json',
+      'button-chromium.png',
       `v1-${hex}/by-document/v1-0123456789abcdef0123456789abcdef.json`,
       `v1-${hex}/by-document/v1-0123456789abcdef0123456789abcdef.png`,
     ]);
@@ -71,20 +75,19 @@ describe('the partition a store writes', () => {
 
 describe('a partition named with the raw digest', () => {
   it('still compares, in both lookup tiers', async () => {
+    await oldPair(root, 'button', rasterOf(MAC, 'v1:doc', 'QUJD'));
     const store = createDurableStore(root);
-    await store.put({ subject: 'button' }, rasterOf(MAC, 'v1:doc', 'QUJD'));
-    await spellWithColon(root, MAC);
 
     const found = await store.find({ subject: 'button' }, MAC);
     expect(found?.comparable).toBe(true);
     expect(found?.raster.bytes).toBe('QUJD');
+    expect(found?.relocated).toEqual({ from: `${identityDigest(MAC)}/button`, to: 'button-chromium' });
     expect((await store.describe({ subject: 'button' }, MAC))?.comparable).toBe(true);
   });
 
-  it('is another machine`s partition when another machine wrote it', async () => {
+  it('is another machine`s baseline when another machine wrote it', async () => {
+    await oldPair(root, 'button', rasterOf(RUNNER));
     const store = createDurableStore(root);
-    await store.put({ subject: 'button' }, rasterOf(RUNNER));
-    await spellWithColon(root, RUNNER);
 
     const found = await store.find({ subject: 'button' }, MAC);
     expect(found?.comparable).toBe(false);
@@ -93,47 +96,39 @@ describe('a partition named with the raw digest', () => {
   });
 
   it('is read ahead of another machine`s partition, so a comparable baseline wins', async () => {
+    await oldPair(root, 'button', rasterOf(MAC, 'v1:doc', 'TUFD'));
+    await oldPair(root, 'button', rasterOf(RUNNER, 'v1:doc', 'UlVO'), 'written');
     const store = createDurableStore(root);
-    await store.put({ subject: 'button' }, rasterOf(MAC, 'v1:doc', 'TUFD'));
-    // Both copies, as an earlier store left them: a put now moves the baseline.
-    const elsewhere = await mkdtemp(join(tmpdir(), 'va-partition-'));
-    await createDurableStore(elsewhere).put({ subject: 'button' }, rasterOf(RUNNER, 'v1:doc', 'UlVO'));
-    const runner = digestFileName(identityDigest(RUNNER));
-    await rename(join(elsewhere, runner), join(root, runner));
-    await rm(elsewhere, { recursive: true, force: true });
-    await spellWithColon(root, MAC);
 
     const found = await store.find({ subject: 'button' }, MAC);
     expect(found?.comparable).toBe(true);
     expect(found?.raster.bytes).toBe('TUFD');
   });
 
-  it('is found beside a component under a `beside` layout, and never mistaken for one', async () => {
-    const store = createDurableStore(root, { layout: 'beside' });
-    await store.put({ subject: 'ui/Button/primary' }, rasterOf(RUNNER));
-    await spellWithColon(join(root, 'ui', 'Button'), RUNNER);
+  it('is found under the id`s own directories, and a component directory is never mistaken for one', async () => {
+    await oldPair(join(root, 'ui', 'Button'), 'primary', rasterOf(RUNNER));
+    await mkdir(join(root, 'ui', 'Button', 'Icon'), { recursive: true });
+    const store = createDurableStore(root);
 
     const found = await store.find({ subject: 'ui/Button/primary' }, MAC);
     expect(found?.comparable).toBe(false);
     expect(found?.storedUnder).toEqual(RUNNER);
   });
 
-  it('is moved by the next `put`, leaving one copy under the written name', async () => {
+  it('is moved by the next `put`, leaving one copy at the template path', async () => {
+    await oldPair(root, 'button', rasterOf(MAC, 'v1:doc', 'QUJD'));
     const store = createDurableStore(root);
-    await store.put({ subject: 'button' }, rasterOf(MAC, 'v1:doc', 'QUJD'));
-    await spellWithColon(root, MAC);
 
     await store.put({ subject: 'button' }, rasterOf(MAC, 'v1:doc', 'REVG'));
 
-    expect(await readdir(root)).toEqual([digestFileName(identityDigest(MAC))]);
+    expect(await tree(root)).toEqual(['button-chromium.json', 'button-chromium.png']);
     expect((await store.find({ subject: 'button' }, MAC))?.raster.bytes).toBe('REVG');
   });
 
   it('keeps the subjects a `put` did not name', async () => {
+    await oldPair(root, 'button', rasterOf(MAC));
+    await oldPair(root, 'card', rasterOf(MAC));
     const store = createDurableStore(root);
-    await store.put({ subject: 'button' }, rasterOf(MAC));
-    await store.put({ subject: 'card' }, rasterOf(MAC));
-    await spellWithColon(root, MAC);
 
     await store.put({ subject: 'button' }, rasterOf(MAC, 'v1:doc', 'REVG'));
 
@@ -142,10 +137,9 @@ describe('a partition named with the raw digest', () => {
   });
 
   it('holds planned subjects the plan names, and names the ones it does not', async () => {
+    await oldPair(root, 'home.html', rasterOf(MAC));
+    await oldPair(root, 'blog.html', rasterOf(MAC));
     const store = createDurableStore(root);
-    await store.put({ subject: 'home.html' }, rasterOf(MAC));
-    await store.put({ subject: 'blog.html' }, rasterOf(MAC));
-    await spellWithColon(root, MAC);
 
     expect(await store.unplanned?.([{ subject: 'home.html' }], MAC)).toEqual(['blog.html']);
   });

@@ -374,11 +374,11 @@ export async function storeFor(config: Config): Promise<RasterStore> {
       const { renderCacheRoot } = await import('./renders.js');
       // Same rule as the LFS arm below, and for the same reason: every on-disk
       // placement in `docs/placement.md` is a directory the operator commits, so
-      // the tracked root holds baselines and nothing else. See
+      // nothing but baselines is written under the tracked root. See
       // {@link renderCacheRoot}.
       return createDurableStore(baselines.root, {
         cacheRoot: renderCacheRoot(config),
-        ...(baselines.layout !== undefined ? { layout: baselines.layout } : {}),
+        ...(baselines.path !== undefined ? { path: baselines.path } : {}),
         // The operator's, unlike the cache root above. A record that is not
         // there costs the run evidence a verdict may turn on, so where it goes
         // is a decision this process is not entitled to make on its own.
@@ -390,12 +390,12 @@ export async function storeFor(config: Config): Promise<RasterStore> {
       const { renderCacheRoot } = await import('./renders.js');
       return createLfsStore({
         root: baselines.root,
-        // The tracked root holds baselines and nothing else. See
+        // Nothing but baselines is written under the tracked root. See
         // {@link renderCacheRoot} for why this is not the operator's decision to
         // make in the config file and why it is safe for it not to be.
         cacheRoot: renderCacheRoot(config),
         ...(baselines.pattern !== undefined ? { pattern: baselines.pattern } : {}),
-        ...(baselines.layout !== undefined ? { layout: baselines.layout } : {}),
+        ...(baselines.path !== undefined ? { path: baselines.path } : {}),
         ...(baselines.records !== undefined ? { recordRoot: baselines.records } : {}),
       });
     }

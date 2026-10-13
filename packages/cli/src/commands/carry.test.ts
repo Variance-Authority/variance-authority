@@ -241,6 +241,11 @@ describe('the output the host reads', () => {
       'variance-shop-baselines:main:',
       'VARIANCE_CARRY_END',
       'baselines-root=/r/.variance/baselines',
+      'baselines-pathspecs<<VARIANCE_CARRY_END',
+      ':(glob)/r/.variance/baselines/**/*-*.png',
+      ':(glob)/r/.variance/baselines/**/*-*.json',
+      ':(glob)/r/.variance/baselines/**/v1-*/*',
+      'VARIANCE_CARRY_END',
       'report=/r/.variance/run.json',
       'images=/r/.variance/images',
       `review=${join(root, '.variance/review')}`,
@@ -316,6 +321,47 @@ describe('the output the host reads', () => {
     expect(githubOutput(committed)).toContain('\nbaselines-root=/r/baselines\n');
     expect(committed.cached).toEqual([]);
     expect(githubOutput(remote)).not.toContain('baselines-root');
+  });
+
+  it('names what a commit-back stages by the paths `baselines.path` renders, never the whole root', () => {
+    // Collocated, the root is the repository, and staging it would commit
+    // whatever else the run left in the working tree. The old layout's
+    // partitions are named too, so the pair `accept` retired goes out as a
+    // deletion beside the file it moved to: a rename in the pull request.
+    const collocated = carryPlan({
+      direction: 'save',
+      root,
+      config: project({
+        baselines: { kind: 'lfs', root: '/r', path: '{dir}/__baselines__/{file}/{name}-{engine}' },
+      } as Partial<Config>),
+      run: PULL,
+      mainlines: MAIN,
+    });
+
+    expect(githubOutput(collocated).split('\n')).toEqual(expect.arrayContaining([
+      'baselines-pathspecs<<VARIANCE_CARRY_END',
+      ':(glob)/r/**/__baselines__/*/*-*.png',
+      ':(glob)/r/**/__baselines__/*/*-*.json',
+      ':(glob)/r/**/v1-*/*',
+      ':(glob)/r/.gitattributes',
+      'VARIANCE_CARRY_END',
+    ]));
+
+    const split = carryPlan({
+      direction: 'save',
+      root,
+      config: project({
+        baselines: { kind: 'directory', root: '/r/baselines', records: '/r/records' },
+      } as Partial<Config>),
+      run: PULL,
+      mainlines: MAIN,
+    });
+    expect(split.baselinesPathspecs).toEqual([
+      ':(glob)/r/baselines/**/*-*.png',
+      ':(glob)/r/records/**/*-*.json',
+      ':(glob)/r/baselines/**/v1-*/*',
+      ':(glob)/r/records/**/v1-*/*',
+    ]);
   });
 });
 

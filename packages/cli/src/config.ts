@@ -12,9 +12,9 @@ import {
   text,
   type ParseOptions,
 } from './config-values.js';
+import { parseBaselines, type BaselinesConfig } from './config-baselines.js';
 import {
   parseAlone,
-  parseBaselines,
   parseFonts,
   parseHistory,
   parseRenderer,
@@ -22,7 +22,6 @@ import {
   parseSubjects,
   parseViewport,
   type AloneConfig,
-  type BaselinesConfig,
   type HistoryConfig,
   type ReviewConfig,
   type RemoteRendererConfig,
@@ -89,14 +88,11 @@ export { DEFAULT_REPORT_PATH, type Carrier } from './config-placement.js';
 export { ConfigError } from './config-values.js';
 export type { ParseOptions } from './config-values.js';
 export { DEFAULT_ALONE_LIMIT } from './config-sections.js';
+export type { BaselinesConfig, DirectoryBaselines, LfsBaselines, RemoteBaselines } from './config-baselines.js';
 export type {
   AloneConfig,
-  BaselinesConfig,
-  DirectoryBaselines,
   HistoryConfig,
-  LfsBaselines,
   ListSubjects,
-  RemoteBaselines,
   ReviewConfig,
   StorybookSubjects,
   SubjectsConfig,

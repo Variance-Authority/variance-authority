@@ -1,28 +1,21 @@
 # Where baselines live
 
 Approved images have to sit somewhere between runs, one per **subject** — the
-named UI state a baseline belongs to, such as `story:checkout--empty` — and
+named UI state a baseline belongs to, such as a story or a test — and
 there are three places to put them: committed to the repository, tracked
 through git-LFS, or stored by a service. They differ in what a clone costs, who
 can approve a change, and what happens to the repository as history grows. This
 page is the reference for choosing one while you set a project up.
 
-```bash
-npm install --save-dev @variance-authority/cli
-```
-
-Baselines outlive a run only under `"retention": "durable"` in the config. The
-other mode, `ephemeral`, renders both sides inside a single run and keeps
-neither past it, so there is nothing to place. Everything below is about
-`durable`.
-
-Whether a difference between two images is the code's is decided by the
-**identity digest** — a hash of the renderer, browser engine, platform, device
-scale factor and fonts that produced the image, written into paths as the
-`v1-6c1f…` segment you will see throughout this page. Two images under different
-identities are still compared, and the identity that moved is named as the
-cause. Storage has no say in it. What placement decides is **who has the bytes when the next run starts**,
-and what that costs.
+A committed baseline is reviewed as a file in a pull request, so it is named
+for what it is an image of: the story or test, and its variant. A change to the
+primary button lists `Ui/Button/Primary-chromium.png` and its `.json` record,
+and nothing about the machine that painted it. That machine — renderer, browser
+engine version, platform, device scale factor and fonts — is written into the
+record. An image painted on another machine is still compared, and the field
+that differs is named as the cause, so where a baseline is stored has no say in
+a verdict. What placement decides is **who has the bytes when the next run
+starts**, and what that costs.
 
 There are three answers and no default. Set `baselines.kind` explicitly.
 
@@ -36,6 +29,15 @@ There are three answers and no default. Set `baselines.kind` explicitly.
 its cache between runs. Nothing is committed, so nothing lands in git history,
 and the cache decides how long the baselines last. [Who accepts a
 change](#who-accepts-a-change) compares all three arrangements by who approves.
+
+```bash
+npm install --save-dev @variance-authority/cli
+```
+
+Baselines outlive a run only under `"retention": "durable"` in the config. The
+other mode, `ephemeral`, renders both sides inside a single run and keeps
+neither past it, so there is nothing to place. Everything below is about
+`durable`.
 
 ## Committed means committed
 
@@ -57,12 +59,57 @@ descends:
 !.variance/baselines/
 ```
 
-`npx variance doctor` is the readback. It lists each identity partition in the root
-with a count, and says whether this machine's identity is one of them — an empty
-root on a clean checkout is a store nobody committed, and it reads exactly the
+`npx variance doctor` is the readback. It lists each renderer identity the
+root's records name, with a count of baselines, and says whether this machine's
+identity is one of them — an empty root on a clean checkout is a store nobody committed, and it reads exactly the
 same as a store nobody has written to yet.
 
-## A parallel folder
+## What a committed baseline is called
+
+Under `directory` and `lfs`, `baselines.path` names each file. It is a template
+under `baselines.root`, the store adds `.png` and `.json`, and when you set none
+it is `{title}/{name}-{engine}`. For a Storybook story titled `Ui/Button` and a
+Playwright test `checkout › empty cart`, a run writes:
+
+```
+baselines/Ui/Button/Primary-chromium.png
+baselines/Ui/Button/Primary-chromium.json
+baselines/Ui/Button/Primary__dark-chromium.png
+baselines/Ui/Button/Primary__dark-chromium.json
+baselines/checkout/empty-cart-chromium.png
+baselines/checkout/empty-cart-chromium.json
+```
+
+The `.json` record is the attribution: which machine painted the image, from
+which document, with which fonts missing. It stays text, and reviewable, in
+every placement. A labelled image — a second viewport or state of one subject —
+appends the label to the name after `__`.
+
+| token | what it is |
+|---|---|
+| `{title}` | the story's title, or the test's `describe` path, one directory per level |
+| `{name}` | the story's name, or the test's own title |
+| `{id}` | the whole subject id, as one file name |
+| `{file}` | the name of the file that declares the subject, such as `Button.stories.tsx` |
+| `{dir}` | the directory of that file, from the repository root |
+| `{engine}` | the browser engine's declared name: `chromium`, `firefox` or `webkit` |
+
+A character a file name cannot carry is written `-`, so `checkout › empty cart`
+is `checkout/empty-cart`. `{file}` and `{dir}` name files that exist, so they are
+checked rather than cleaned.
+
+Without `{engine}`, every engine writes the one file. With it, Chromium and
+WebKit keep a baseline each. Nothing finer is in the path: two machines that
+both paint Chromium write the same file, and the record says which one did.
+
+Two subjects that render one path stop the run before anything is compared, and
+the message names both subjects and the template. A store never numbers its way
+around it, because a suffix that depends on which subject was planned first
+gives your approved image to the other subject when the order changes. Two
+paths that differ only in case are the same path, because a checkout on macOS or
+Windows writes them as one file.
+
+### A parallel folder
 
 ```jsonc
 // variance.config.json
@@ -77,93 +124,56 @@ same as a store nobody has written to yet.
 }
 ```
 
-Take this one when the baselines are a corpus rather than part of a codebase —
-something you back up, prune, or point a bucket at. When the code is in the
-same repository, the placement below is the one that keeps it together.
+Take the default when the baselines are a corpus rather than part of a
+codebase — something you back up, prune, or point a bucket at. Every image is
+under one root, in a tree that mirrors your story titles and `describe` blocks,
+so a reviewer finds `Ui/Button` in the diff where the sidebar shows it.
 
-One directory, anywhere, with every subject in the suite. Under the `flat`
-layout the whole store is one directory per machine identity, and a subject id is
-a file name:
-
-```
-baselines/v1-6c1f…/src%2Fui%2FButton%2Fprimary.png
-baselines/v1-6c1f…/src%2Fui%2FButton%2Fprimary.json
-```
-
-The `.json` sidecar is the attribution — which machine wrote the image, and what
-it was allowed to be compared against. It stays text, and reviewable, in every
-placement. A labelled key lands as `<subject>__<label>.png`.
-
-The percent-encoding is what keeps one directory flat, and it is also its cost:
-a diff touching four components is four files in one heap, and the heap is
-ordered by URL escape rather than by anything a reviewer recognises.
-
-## Beside the code
+### Beside the code
 
 An excerpt — this replaces the `baselines` key of the full
 `variance.config.json` above, and the rest of that file is unchanged:
 
 ```json
 {
-  "baselines": { "kind": "lfs", "root": ".", "layout": "beside" }
+  "baselines": { "kind": "lfs", "root": ".", "path": "{dir}/__baselines__/{file}/{name}-{engine}" }
 }
 ```
 
 Take this one when the baselines belong to code in the same repository, which in
-a monorepo is every time. `"layout": "beside"` puts a subject's image in the
-directory where the thing it is an image of lives, so it arrives with the
-checkout, moves with the `git mv` that moves the component, is deleted by the
-commit that deletes it, and shows up in the diff of the directory that caused
-it:
+a monorepo is every time. With the root at the repository and `{dir}` first, an
+image lands next to the file that declares its story or test, so it arrives
+with the checkout, moves with the `git mv` that moves the file, is deleted by
+the commit that deletes it, and shows up in the diff of the directory that
+caused it:
 
 ```
-src/ui/Button/Button.tsx
-src/ui/Button/v1-6c1f…/primary.png
-src/ui/Button/v1-6c1f…/primary.json
+src/ui/Button/Button.stories.tsx
+src/ui/Button/__baselines__/Button.stories.tsx/Primary-chromium.png
+src/ui/Button/__baselines__/Button.stories.tsx/Primary-chromium.json
+e2e/checkout.spec.ts
+e2e/__baselines__/checkout.spec.ts/empty-cart-chromium.png
+e2e/__baselines__/checkout.spec.ts/empty-cart-chromium.json
 ```
 
-The identity directory stays in the path. An image painted under a different
-renderer, engine, platform, scale factor or font stack is compared with the old
-one, and the field that moved is named as the cause, so upgrading a runner image
-shows every diff it makes. Accepting it moves the baseline into the new
-identity's directory.
+The declaring file comes from the host. Storybook's index names the file of
+every story, and the [Playwright fixture](../packages/playwright-test) and the
+[Vitest plugin](../packages/vitest-browser) name the test file. A subject no
+file declares — a route listed in the config — has no `{dir}`, and a template
+that needs one refuses it by name; give that suite a template without `{dir}`
+or `{file}`.
 
-### How a subject finds its directory
+The fixture and the plugin open their own stores, so the template is theirs to
+take too: `varianceBaselinePath` for the fixture, `baselinePath` for the plugin,
+with the same tokens.
 
-The **collector** is the host-specific code named by the `collector` field in
-the config above — the part that discovers which subjects exist and captures
-each one from its host, whether that host is Storybook, a route set, or a
-fixture runner. Two answers, and you do not choose between them — whichever
-one your collector can supply is the one that applies.
+`{dir}` is available to `directory` too. Under either backend the images sit
+next to code people edit, so they turn up in every diff and every clone; `lfs`
+is what keeps the PNG bytes out of the git history.
 
-A collector that names its own subjects after paths has already said where they
-go. `beside` spends the slashes instead of percent-encoding them, so
-`components/Button/primary` lands in `components/Button/` under the name
-`primary`. An id with a `..` or an empty segment is refused rather than resolved,
-because it would write outside the root.
-
-A **story** is not named after a path. Its id is `story:components-button--primary`
-— a namespaced identifier, which is what keeps it stable when the file moves and
-distinct from a route called the same thing. The directory comes from the built
-index instead: Storybook records an `importPath` per story, the plan picks up
-the directory it names, and the image lands there under the story's whole id.
-
-```
-src/ui/shell/HatBar.stories.tsx
-src/ui/shell/v1-6c1f…/story%3Ahatbar--accepted-hats.png
-```
-
-A story declared at the root of the repository places at the root. A path
-climbing out of the project with `../` is refused, and the message names the
-subject whose id spelled it.
-
-`beside` is available to `directory` too. Under either backend the images sit
-next to code people edit, so they turn up in every diff and every clone;
-`lfs` is what keeps the PNG bytes out of the git history.
-
-`createLfsStore` writes its own `.gitattributes` in the root, and the layout
-needs nothing added to it — attributes apply to the directory the file sits in
-and to everything under it.
+`createLfsStore` writes its own `.gitattributes` in the root, with a pattern made
+from the template, so only files the template can name go through LFS. Under
+this template that is `**/__baselines__/*/*-*.png`.
 
 ## Somewhere else entirely
 
@@ -386,12 +396,12 @@ unchanged:
 "baselines": {
   "kind": "directory",
   "root": "baselines",
-  "layout": "beside",
   "records": ".variance/records"  // ignored, or restored from the CI cache
 }
 ```
 
-The images stay where `layout` puts them. If a change did not update an image,
+The images stay where `path` puts them, and each record goes to the same path
+under `records`. If a change did not update an image,
 it now updates no file under version control.
 
 What you are taking on is a second location to keep. Both halves are still
@@ -408,8 +418,18 @@ differ, and `remote` has no paths at all. What is portable is the verdict: every
 placement answers the same comparison the same way, so moving changes where the
 bytes live and nothing about what a run reports.
 
-Switching is a re-record. Run the suite once against the new placement on a
-commit you already trust, rather than copying files between layouts.
+Switching backends, or editing `baselines.path`, is a re-record. Run the suite
+once against the new placement on a commit you already trust, rather than
+copying files between them. Until you do, every subject reads `new`, and the
+files the old template wrote are listed as baselines no planned subject has.
+Renaming a story file or a `describe` block is the same move for the subjects in
+it, so commit the baseline's rename with the code's.
+
+A root written with a directory per renderer identity, such as
+`v1-6c1f…/primary.png`, is the one exception. A run still finds those
+baselines and compares against them, and reports each subject as moved, with
+both paths. `npx variance accept` writes the template's path and deletes the
+old pair, so the pull request shows each one as a rename.
 
 ---
 

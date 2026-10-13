@@ -56,7 +56,9 @@ export type {
   BaselineKey,
   Found,
   Described,
+  Relocated,
 } from './store.js';
+export { testBaselineKey } from './key.js';
 export { createEphemeralStore } from './ephemeral.js';
 export type { EphemeralStoreOptions } from './ephemeral.js';
 export { rasterFrom, sidecarFrom } from './codec.js';

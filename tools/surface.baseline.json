@@ -1946,6 +1946,7 @@
         "RasterComparison": "interface",
         "RasterStore": "interface",
         "RasterStoreError": "class",
+        "Relocated": "interface",
         "RenderCache": "interface",
         "Renderer": "interface",
         "Retention": "type",
@@ -1971,7 +1972,8 @@
         "recordFrom": "function",
         "settle": "function",
         "sidecarFrom": "function",
-        "summarizeGate": "function"
+        "summarizeGate": "function",
+        "testBaselineKey": "function"
       },
       "./difference": {
         "AlphaMode": "type",
@@ -3402,11 +3404,13 @@
     },
     "names": {
       "./durable": {
-        "BaselineLayout": "type",
+        "BaselinePathTemplate": "interface",
+        "DEFAULT_BASELINE_PATH": "const",
         "DurableStoreOptions": "interface",
         "RenderCacheBound": "interface",
         "RenderCacheSwept": "interface",
         "createDurableStore": "function",
+        "parseBaselinePath": "function",
         "renderCacheIn": "function",
         "sweepRenderCache": "function"
       },

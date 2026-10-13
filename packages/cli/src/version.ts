@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import type { ShareConfig } from './config-share.js';
-import type { BaselinesConfig } from './config-sections.js';
+import type { BaselinesConfig } from './config-baselines.js';
 
 /**
  * What this tool is, and what it expects the other end to be.

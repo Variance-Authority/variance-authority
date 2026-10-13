@@ -436,3 +436,42 @@ describe('what the cause list drops, and the band record keeps', () => {
     expect(observation.moved).toBeUndefined();
   });
 });
+
+describe('a baseline read from where an earlier layout kept it', () => {
+  const relocated = { from: 'v1-abc/story-page', to: 'story-page/page-chromium' };
+
+  function storeRelocating(baseline: Raster): RasterStore {
+    return {
+      ...createEphemeralStore(),
+      async find() {
+        return { raster: baseline, comparable: true, storedUnder: MACHINE, relocated };
+      },
+    };
+  }
+
+  it('is compared, and the move is its cause rather than `new`', async () => {
+    // An upgrade that renamed every baseline would otherwise report the whole
+    // suite as never seen, and a reviewer would accept three hundred `new`
+    // subjects without a single comparison behind them.
+    const observation = await observeAgainstBaseline(documentFor('page'), KEY, {
+      renderer: rendererPainting(image(30)),
+      store: storeRelocating(rasterOf(documentFor('page'), image(30))),
+    });
+
+    expect(observation.verdict).toBe('unchanged');
+    expect(observation.because).toMatch(
+      /^the baseline was read from v1-abc\/story-page.*story-page\/page-chromium/,
+    );
+    expect(observation.signals?.relocated).toEqual(relocated);
+  });
+
+  it('still names what changed', async () => {
+    const observation = await observeAgainstBaseline(documentFor('page'), KEY, {
+      renderer: rendererPainting(image(46)),
+      store: storeRelocating(rasterOf(documentFor('page'), image(30))),
+    });
+
+    expect(observation.verdict).toBe('changed');
+    expect(observation.signals?.relocated).toEqual(relocated);
+  });
+});

@@ -191,6 +191,7 @@ export async function observeSubject(
 
   return await deliver({
     artifact: { ...artifact, stabilization: held.ids },
+    ...(options.subjectId === undefined ? { titlePath: subject.id.split(' > ') } : {}),
     ...(options.sensitivity === undefined ? {} : { sensitivity: options.sensitivity }),
   });
 }

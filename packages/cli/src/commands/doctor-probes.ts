@@ -1,7 +1,14 @@
-import { access, readdir, stat } from 'node:fs/promises';
+import { access, readdir, readFile, stat } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { join } from 'node:path';
-import { digestOfFileName, type Digest, type PageRegion } from '@variance-authority/core/format';
+import {
+  digestOfFileName,
+  identityDigest,
+  type Digest,
+  type PageRegion,
+  type RenderIdentity,
+} from '@variance-authority/core/format';
+import { DEFAULT_BASELINE_PATH, parseBaselinePath, type BaselinePathTemplate } from '@variance-authority/store/durable';
 import type { Renderer } from '@variance-authority/raster';
 import type { BrowserEngine, Config } from '../config.js';
 import { readCache, type CacheReading } from './doctor-cache.js';
@@ -12,7 +19,7 @@ import { renderCacheRoot } from './renders.js';
  *
  * The findings in `./doctor` are a report about a machine; this is the machine
  * half — a browser that opens or does not, and a filesystem walked for the
- * identity directories a store names its partitions with. They are one interface
+ * identities a store's records name. They are one interface
  * away from each other so that the reasoning can be tested against a fake and
  * the walk can be tested against a real directory tree, which is the only way
  * either half is worth having.
@@ -24,18 +31,22 @@ export interface DoctorProbes {
   /** Whether a path exists here. Used for baseline roots; never for a URL. */
   exists(path: string): Promise<boolean>;
   /**
-   * The identity directories under a baseline root, and how many images each holds.
+   * The identities a baseline root's records name, and how many baselines each holds.
+   *
+   * Two layouts are read. A record at a path `baselines.path` renders names its
+   * identity inside it, so it is opened; a directory named for an identity, the
+   * layout before `baselines.path`, names it in the directory, so its images are
+   * counted without opening one.
    *
    * A probe rather than a call into `@variance-authority/store` because doctor
    * must answer for a root that is empty, absent, or holds something else
    * entirely — none of which a store can open — and because the CLI does not
    * reach into a backend's layout to ask a question the backend was not asked.
    *
-   * Identity directories are found by name at any depth, rather than by listing
-   * the root. Under a `beside` layout they sit beside the components, so a scan
-   * one level deep answers *this root holds nothing* for a root full of
-   * baselines — and a doctor that is wrong in the direction of "fine" is worse
-   * than no doctor.
+   * Both are found at any depth, rather than by listing the root. A template
+   * with `{dir}` puts baselines beside the components, so a scan one level deep
+   * answers *this root holds nothing* for a root full of baselines — and a
+   * doctor that is wrong in the direction of "fine" is worse than no doctor.
    */
   partitions(root: string): Promise<readonly PartitionReading[]>;
 
@@ -124,6 +135,8 @@ export function machineProbes(config: Config): DoctorProbes {
       // Two ways to say "there is nothing here" would let the two disagree, and
       // the one with the better sentence should win.
       await collect(root, found);
+      const placed = placedBy(config);
+      if (placed !== undefined) await collectPlaced(placed.records ?? root, '', placed.template, found);
       return [...found]
         .map(([identity, { baselines, colonSpelled }]) => ({
           identity,
@@ -184,11 +197,12 @@ async function readRenderCache(root: string): Promise<RenderCacheReading> {
 }
 
 /**
- * Every identity directory at or under `directory`, summed by identity.
+ * Every identity directory at or under `directory`, summed by identity: where a
+ * baseline was kept when the path carried the renderer identity.
  *
  * Summed rather than listed per location, because one machine's partition is one
- * partition however many component directories it is spread across — a `beside`
- * root with forty components has forty directories named for the same digest,
+ * partition however many component directories it is spread across — a root
+ * with forty components has forty directories named for the same digest,
  * and reporting forty machines would be the opposite of the sentence this probe
  * exists to produce. For the same reason both spellings of a digest are one
  * identity: `digestOfFileName` reads either, and a directory that spells no
@@ -199,14 +213,7 @@ async function collect(
   directory: string,
   found: Map<Digest, { baselines: number; colonSpelled: number }>,
 ): Promise<void> {
-  let entries: Dirent[];
-  try {
-    entries = await readdir(directory, { withFileTypes: true });
-  } catch {
-    return;
-  }
-
-  for (const entry of entries) {
+  for (const entry of await direntsOf(directory)) {
     if (!entry.isDirectory()) continue;
     const path = join(directory, entry.name);
     const identity = digestOfFileName(entry.name);
@@ -219,6 +226,72 @@ async function collect(
       continue;
     }
     await collect(path, found);
+  }
+}
+
+/** The template a file-backed store places by, and where its records go; nothing for any other store. */
+function placedBy(config: Config): { template: BaselinePathTemplate; records?: string } | undefined {
+  const store = config.baselines;
+  if (store === undefined || store.kind === 'remote') return undefined;
+  return {
+    template: parseBaselinePath(store.path ?? DEFAULT_BASELINE_PATH),
+    ...(store.kind === 'directory' && store.records !== undefined ? { records: store.records } : {}),
+  };
+}
+
+/**
+ * Every record at a path the template renders for the engine it names, summed
+ * by the identity it names.
+ *
+ * Opened, because the path names the engine family and nothing finer: two
+ * machines that both paint Chromium write the same path, and only the record
+ * says which of them did. Not descended into: an identity directory, which
+ * {@link collect} counts; `node_modules`; a directory starting with `.`; and
+ * `by-document`, the render cache.
+ */
+async function collectPlaced(
+  directory: string,
+  under: string,
+  template: BaselinePathTemplate,
+  found: Map<Digest, { baselines: number; colonSpelled: number }>,
+): Promise<void> {
+  for (const entry of await direntsOf(directory)) {
+    const path = under === '' ? entry.name : `${under}/${entry.name}`;
+    if (entry.isDirectory()) {
+      if (entry.name === 'node_modules' || entry.name === 'by-document' || entry.name.startsWith('.')) continue;
+      if (digestOfFileName(entry.name) !== undefined) continue;
+      await collectPlaced(join(directory, entry.name), path, template, found);
+      continue;
+    }
+    if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+    const identity = await recordedIdentity(join(directory, entry.name));
+    if (identity === undefined) continue;
+    const at = identity.engine.indexOf('@');
+    const family = at === -1 ? identity.engine : identity.engine.slice(0, at);
+    if (!template.matches(path.slice(0, -'.json'.length), family)) continue;
+    const digest = identityDigest(identity);
+    const sum = found.get(digest) ?? { baselines: 0, colonSpelled: 0 };
+    sum.baselines += 1;
+    found.set(digest, sum);
+  }
+}
+
+/** What `directory` holds, or nothing when it cannot be read: a probe reports, it never stops. */
+async function direntsOf(directory: string): Promise<Dirent[]> {
+  try {
+    return await readdir(directory, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+}
+
+/** The identity a record names, or nothing for a file that is not a baseline record. */
+async function recordedIdentity(path: string): Promise<RenderIdentity | undefined> {
+  try {
+    const record = JSON.parse(await readFile(path, 'utf8')) as { identity?: Partial<RenderIdentity> };
+    return typeof record.identity?.engine === 'string' ? (record.identity as RenderIdentity) : undefined;
+  } catch {
+    return undefined;
   }
 }
 

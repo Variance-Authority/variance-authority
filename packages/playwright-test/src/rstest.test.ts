@@ -35,6 +35,7 @@ describe('runOf', () => {
   it('reads the subject, the raster partition and the origin from one test context', () => {
     expect(runOf(context())).toEqual({
       id: 'checkout/shows an empty cart',
+      titlePath: ['checkout', 'shows an empty cart'],
       colorScheme: 'dark',
       deviceScaleFactor: 2,
       baseURL: 'http://localhost:3000',

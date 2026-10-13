@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-10-11
+**Amended by:** [ADR-0091](0091-a-baseline-is-named-for-its-subject.md) — §6's line is one engine family; platform and scale share one baseline file, and the record names which painted it
 **Supersedes:** [ADR-0011](0011-durable-and-ephemeral-retention.md)'s rule that a
 cross-identity baseline is `incomparable`, and
 [ADR-0012](0012-observability-and-the-damage-boundary.md) §4's sentence that a
