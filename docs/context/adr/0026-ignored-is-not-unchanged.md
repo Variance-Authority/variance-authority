@@ -111,8 +111,10 @@ Measured before choosing it:
 
 - **The edits.** Each of tribunal's 55 stored before images was recoloured exact
   pixel for exact pixel. The line token touched 54 subjects: 0 pixels counted at
-  `0.1` and at `0.05`, and 142,469 at `0.02`. The accent touched 17: 0 at `0.1`,
-  and 54,625 at `0.05`.
+  `0.1` and at `0.05`, and 142,469 at `0.02` and at `0`, so 142,469 at `0.01`.
+  The accent touched 17: 0 at `0.1`, and 54,625 at `0.05` and at `0`. A second
+  reading the same day, of 37 pairs the gate had rewritten meanwhile, gave the
+  same shape: nothing at `0.1`, and `0.01` counting exactly what `0` counts.
 - **The noise.** Journal 0010's flakiness rounds, 10 rounds over todomvc's 15
   stories in Chromium. Shooting a mounted story twice: 0 pixels under every
   policy. Remounting it on the reused page: 0 pixels at every threshold from
