@@ -158,6 +158,16 @@ any other rule. jsdom keeps a face's `font-family` and drops its `src`, so a
 face read there cannot be carried; `acquireDocument` reports
 `unreadable-font-face` for it, and the render paints the fallback.
 
+## Images a page made itself
+
+A `blob:` URL names memory in the page that minted it, and the renderer paints
+in a page of its own. So `acquireDocument` reads every `blob:` URL in an
+attribute that names a file and writes its bytes into the render document as a
+`data:` URL: the render paints the picture the page showed, and the same picture
+is the same document on every load. An object URL the page has already revoked
+cannot be read; it is reported as an `unreadable-object-url` error, because its
+render would show a broken image where the page shows a whole one.
+
 ## Use this package when
 
 Use `@variance-authority/dom` when your code already owns a live `Element` and

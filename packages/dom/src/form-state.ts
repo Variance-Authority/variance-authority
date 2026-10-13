@@ -1,4 +1,5 @@
 import { items } from './dom-list.js';
+import type { AttributeEdit } from './object-urls.js';
 
 /**
  * What a form control holds now, where its markup says something else.
@@ -58,7 +59,8 @@ export interface FormState {
   editOf(element: Element): FormEdit | undefined;
 
   /**
-   * `root.outerHTML`, with every edit in the subtree written in.
+   * `root.outerHTML`, with every edit in the subtree written in, and `also`:
+   * attributes another reading of the page found it must write, by element.
    *
    * The edits go onto a copy imported into an inert document, never onto the
    * page. Writing them on the live tree and taking them off again is not an
@@ -68,7 +70,7 @@ export interface FormState {
    * context, so the copy runs no custom element constructor and fetches
    * nothing. With no edit, the copy is never made.
    */
-  serialize(root: Element): string;
+  serialize(root: Element, also?: ReadonlyMap<Element, readonly AttributeEdit[]>): string;
 }
 
 const CONTROLS = 'input, textarea, option';
@@ -137,9 +139,9 @@ export function formState(ownerDocument: Document): FormState {
 
   return {
     editOf,
-    serialize(root) {
+    serialize(root, also = new Map()) {
       const edits = controlsIn(root).map(editOf);
-      if (edits.every((edit) => edit === undefined)) return root.outerHTML;
+      if (edits.every((edit) => edit === undefined) && also.size === 0) return root.outerHTML;
 
       const copy = inertDocument().importNode(root, true);
       const copies = controlsIn(copy);
@@ -147,6 +149,16 @@ export function formState(ownerDocument: Document): FormState {
         const target = copies[index];
         if (edit !== undefined && target !== undefined) apply(target, edit);
       });
+      if (also.size > 0) {
+        const originals = [root, ...root.querySelectorAll('*')];
+        const twins = [copy, ...copy.querySelectorAll('*')];
+        originals.forEach((element, index) => {
+          const twin = twins[index];
+          for (const edit of also.get(element) ?? []) {
+            twin?.setAttributeNS(edit.namespace, edit.name, edit.value);
+          }
+        });
+      }
       return copy.outerHTML;
     },
   };

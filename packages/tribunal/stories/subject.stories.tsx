@@ -85,10 +85,20 @@ function when(root: HTMLElement, what: string, enough: () => boolean): Promise<v
   });
 }
 
-/** Every image under `root` decoded, so the photograph is not of a frame mid-load. */
+/**
+ * Every image under `root` decoded, so the photograph is not of a frame mid-load.
+ *
+ * An image that will not decode fails the story, named by its `alt`: its
+ * photograph would be of a broken frame, and would pass.
+ */
 const decoded: Play = async ({ canvasElement }) => {
   await replayed();
-  await Promise.all([...canvasElement.querySelectorAll('img')].map((img) => img.decode().catch(() => undefined)));
+  const images = [...canvasElement.querySelectorAll('img')];
+  const settled = await Promise.allSettled(images.map((img) => img.decode()));
+  const broken = images.filter((_, index) => settled[index]?.status === 'rejected');
+  if (broken.length > 0) {
+    throw new Error(`these images did not decode: ${broken.map((img) => img.alt || img.src).join(', ')}`);
+  }
 };
 
 /** Whether the toggle that reads `label` is the one pressed. */

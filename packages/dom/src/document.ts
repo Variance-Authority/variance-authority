@@ -15,6 +15,7 @@ import { attributesOf, elements } from './dom-list.js';
 import { formState } from './form-state.js';
 import { splitPseudoElement } from './selector-parts.js';
 import { facesUsedBy, type IndexedFace } from './font-faces.js';
+import { carryObjectUrls } from './object-urls.js';
 
 /**
  * Acquisition — phase one: a live DOM becomes something you can send somewhere.
@@ -126,10 +127,13 @@ export function acquireDocument(root: Element, options: AcquireOptions): RenderD
     }
     const frame = frameOf(root);
     settleStamps(stamped);
-    // What a form holds now lives in properties `outerHTML` does not read; a
-    // play function's typing is written in here, on a copy, or the deferred
-    // renderer paints the form the server sent.
-    const html = formState(ownerDocument).serialize(root);
+    // What a form holds now lives in properties `outerHTML` does not read, and
+    // an image shown through an object URL lives in memory only this page can
+    // read: both are written in here, on a copy, or the deferred renderer paints
+    // the form the server sent and a broken image.
+    const objectUrls = carryObjectUrls(root, PATH_ATTRIBUTE);
+    diagnostics.push(...objectUrls.diagnostics);
+    const html = formState(ownerDocument).serialize(root, objectUrls.edits);
 
     diagnostics.push(...verify(ownerDocument, html, frame, bindings));
 
