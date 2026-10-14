@@ -50,6 +50,12 @@ function siteLinkLabel(href: string, children: ReactNode): ReactNode {
   return children;
 }
 
+/**
+ * Every heading level carries its id. A document links to a heading at any
+ * depth, as it may on GitHub, and a link to one without an id leads nowhere.
+ */
+const HEADINGS = ["h1", "h2", "h3", "h4", "h5", "h6"] as const;
+
 function CodeBlock({ children }: { children: ReactNode }) {
   if (
     isValidElement<{ className?: string; children?: ReactNode }>(children) &&
@@ -87,24 +93,20 @@ export default function MarkdownDocument({
         rehypePlugins={[rehypeRaw]}
         remarkPlugins={[remarkGfm]}
         components={{
-          h2: ({ children }) => {
-            const id = headingId(textOf(children));
-            return (
-              <>
-                <h2 id={id}>{children}</h2>
-                {sectionFigures[id]}
-              </>
-            );
-          },
-          h3: ({ children }) => {
-            const id = headingId(textOf(children));
-            return (
-              <>
-                <h3 id={id}>{children}</h3>
-                {sectionFigures[id]}
-              </>
-            );
-          },
+          ...Object.fromEntries(
+            HEADINGS.map((Heading) => [
+              Heading,
+              ({ children }: { children?: ReactNode }) => {
+                const id = headingId(textOf(children));
+                return (
+                  <>
+                    <Heading id={id}>{children}</Heading>
+                    {sectionFigures[id]}
+                  </>
+                );
+              },
+            ]),
+          ),
           a: ({ href = "", children, className }) => (
             <a href={siteHref(href, sourcePath)} className={className}>
               {siteLinkLabel(href, children)}
