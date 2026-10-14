@@ -60,6 +60,8 @@ export default routeCollector({
 of the URL's shape. The id is also the baseline's path: under the default
 `baselines.path`, `checkout/empty` is written as `checkout/empty-chromium.png`,
 each `/` a directory, so the folder you review reads like your list of routes.
+A site root, `/`, has no segment to name a file after, so it is
+written as `index-chromium.png`, the file a server answers `/` with.
 Ids are also what `ignore` rules glob over, so `checkout/empty` and
 `checkout/one-item` are both matched by `checkout/*`.
 

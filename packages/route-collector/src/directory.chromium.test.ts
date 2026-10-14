@@ -71,6 +71,9 @@ chromium_('a built directory as a suite', () => {
     const plan = await collector!.plan();
 
     expect(plan.subjects.map((planned) => planned.subject.id).sort()).toEqual(['/', 'about']);
+    // The root has no segment a baseline file can be named after, so the plan
+    // names it, and the default `{title}/{name}-{engine}` can place it.
+    expect(plan.subjects.find((planned) => planned.subject.id === '/')?.name).toBe('index');
     // The trade is stated in the plan itself, because a discovered suite can
     // quietly stop watching a page that the build stopped producing.
     expect(plan.warnings.join(' ')).toContain('stops being watched');

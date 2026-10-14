@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { locationsIn, routesFrom, routesFromFiles, subjectIdFor } from './sitemap.js';
+import { locationsIn, plannedRoute, routesFrom, routesFromFiles, subjectIdFor } from './sitemap.js';
 
 /**
  * A subject list taken from what the application already publishes.
@@ -86,6 +86,19 @@ describe('reading a sitemap', () => {
     </sitemapindex>`;
 
     expect(routesFrom(index, 'https://a.example/sitemap.xml')).toEqual({ 'pages.xml': 'https://a.example/pages.xml' });
+  });
+});
+
+describe('naming a route for its baseline', () => {
+  it('names the site root `index`, so a baseline path can carry it', () => {
+    // `/` has no segment a file name can be made of, and the default
+    // `{title}/{name}-{engine}` refuses an empty name rather than writing
+    // `-chromium.png`. `index` is what a server answers `/` with.
+    expect(plannedRoute('/')).toEqual({ subject: { id: '/', kind: 'route' }, name: 'index' });
+  });
+
+  it('leaves every other route to be named by its id', () => {
+    expect(plannedRoute('docs/start')).toEqual({ subject: { id: 'docs/start', kind: 'route' } });
   });
 });
 
