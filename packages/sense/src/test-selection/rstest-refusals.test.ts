@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import MagicString from 'magic-string';
 import { afterEach, describe, expect, it } from 'vitest';
 import instrumentModule from './rstest-loader.js';
-import { PROBES_LOADER, SELECTION_LOADER } from './rstest-loaders.js';
+import { AFTER_LOADER, SELECTION_LOADER } from './rstest-loaders.js';
 import probeAfter from './rstest-after-loader.js';
 import { withTestSelection, type RstestFileResult } from './rstest.js';
 
@@ -103,7 +103,7 @@ describe('an Rstest module the probes cannot be placed in', () => {
 
   it('passes a file on where Rspack names the probes loader among the loaders it runs through', async () => {
     const { coverageFile, source } = await seam();
-    expect(loaded(instrumentModule, source, coverageFile, PRICE, [SELECTION_LOADER, PROBES_LOADER]).error).toBeNull();
+    expect(loaded(instrumentModule, source, coverageFile, PRICE, [SELECTION_LOADER, AFTER_LOADER]).error).toBeNull();
   });
 
   it('ends the run as usual where the probes loader reached every module the first loader passed on', async () => {

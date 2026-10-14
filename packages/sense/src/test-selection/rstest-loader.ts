@@ -27,7 +27,7 @@
 import { cadence, type CutSourceMap } from '../instrument/cadence.js';
 import { placeModule } from './captured-modules.js';
 import { cleanId } from './instrumented-modules.js';
-import { PROBES_LOADER, unprobedFiles } from './rstest-loaders.js';
+import { AFTER_LOADER, unprobedFiles } from './rstest-loaders.js';
 import { namesItsMap } from './source-lines.js';
 import { runOf, type SelectionRun } from './selection-run.js';
 
@@ -68,7 +68,7 @@ function instrumentModule(this: SelectionLoaderContext, code: string): void {
   // Every module is the probes loader's to reach, after the project's own: a
   // configuration that carries this loader without it fails here, where Rspack
   // names the loaders a file runs through, and otherwise at the run's end.
-  if (this.loaders !== undefined && !this.loaders.some((loader) => loader.path === PROBES_LOADER)) {
+  if (this.loaders !== undefined && !this.loaders.some((loader) => loader.path === AFTER_LOADER)) {
     this.callback(unprobedFiles(run.root, [file]));
     return;
   }

@@ -74,6 +74,9 @@ function probed(context: ProbesLoaderContext, options: ProbesLoaderOptions, code
   // it runs before the mark and no column moves. Whether that text is a
   // script is asked of the text itself; one the instrumenter cannot parse
   // takes the `require`, which Rspack and webpack read in a module too.
+  // The asking costs one parse of the loaders' text, for a marked module alone:
+  // an `unprobed` module and a variant reach here unparsed, so no earlier read
+  // holds the answer.
   if (!placed.captured.module.instrumented) {
     const taken = instrument(code, file)?.module === true ? `\n;import ${collector};` : `\n;${required}`;
     return { code: `${code}${taken}${text.slice(code.length)}`, map: placed.map };

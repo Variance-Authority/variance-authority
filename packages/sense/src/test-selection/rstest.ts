@@ -25,7 +25,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { InstrumentMode } from '../instrument/index.js';
 import { defaultInclude, type ProbePlacement } from './instrumented-modules.js';
-import { PROBES_LOADER, SELECTION_LOADER, unprobedFiles } from './rstest-loaders.js';
+import { AFTER_LOADER, SELECTION_LOADER, unprobedFiles } from './rstest-loaders.js';
 import { carriedJournal, reportedDuration, statusesComplete } from './finished-files.js';
 import { foldRun } from './selection-fold.js';
 import { removeSeamModules, reopenRun, runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
@@ -332,7 +332,7 @@ export function withTestSelection(
                 // reads syntax never reads a probe, and the probes go where
                 // their map says the file went.
                 enforce: 'post',
-                use: [{ loader: PROBES_LOADER, options: { coverageFile } }],
+                use: [{ loader: AFTER_LOADER, options: { coverageFile } }],
               },
               ...rules,
               {

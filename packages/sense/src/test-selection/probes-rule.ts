@@ -29,7 +29,13 @@ export interface TestSelectionRuleOptions {
    * Names are relative to the checkout it sits in, never to it.
    */
   readonly root?: string;
-  /** Decide which modules are product source; defaults to every file outside `node_modules` and `dist` that is not a test or a config. */
+  /**
+   * Decide which modules are product source; defaults to every file outside
+   * `node_modules` and `dist` that is not a test or a config. It must be pure,
+   * answering from the file name alone: the rule is keyed by the function's
+   * source text, so Rspack's cache reuses a module probed under another
+   * function of the same text, one closing over a different value.
+   */
   readonly include?: (file: string) => boolean;
   /** The probe recipe, as `testSelectionProbes` takes it: one answer for every seam that shares a coverage file. */
   readonly mode?: InstrumentMode;
@@ -85,8 +91,9 @@ export const COLLECTOR_FILE = fileURLToPath(new URL('./probes-collector.js', imp
  * Leave `devtool` writing source maps: the probes go where the map the loaders
  * hand on says each region of the file went, and a module that arrives with no
  * map stops the build by name. `include` is a function, and loader options
- * cross into Rspack's core as data, so the rule carries a key to it, which the
- * loader finds in this process: a loader run in a worker cannot.
+ * cross into Rspack's core as data, so the rule carries a key to it, its source
+ * text's digest, which the loader finds in this process: a loader run in a
+ * worker cannot. A worker is told so, by name, and the build stops.
  */
 export function testSelectionRule(options: TestSelectionRuleOptions = {}): TestSelectionRule {
   const loaderOptions: ProbesLoaderOptions = {

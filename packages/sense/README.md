@@ -400,7 +400,7 @@ file(s)`.
 By default every seam places the probes after your transforms: each module is
 read once from disk, its regions are cut from that text, and the probes go into
 what your transforms wrote, where their map carries each region. A compiler
-that reads the syntax it compiles, such as Compiled, Linaria or React Compiler,
+that reads the syntax it compiles, such as Compiled or React Compiler,
 then reads your file without probes in it. That costs a second parse, of the
 transformed text, and the map that leads back to the file.
 
@@ -962,7 +962,7 @@ journals into the same snapshot the Vitest seam writes. Same probes, same
 ordinals, same file.
 
 ```ts
-// vite.config.ts, or a Storybook `viteFinal`
+// vite.config.ts
 import { testSelectionProbes } from '@variance-authority/sense/journal';
 
 export default {
@@ -979,7 +979,11 @@ a journey head for a service bundle under that name (`build` by default).
 `testSelectionProbes` runs at `enforce: 'post'`, after your transforms, so a
 compiler that reads the syntax it compiles, such as a CSS-in-JS
 extractor or React Compiler, reads the text it reads without recording and
-compiles the same output. The regions are still the file's own:
+compiles the same output. The probes are placed through the transforms'
+combined map, so under a `vite build` that writes no source map, the default,
+`testSelectionProbes` turns maps on for the transforms, as `hidden`, and takes
+the `.map` files that wrote out of the bundle: the build writes what it wrote
+without the probes. The regions are still the file's own:
 each module is cut from the file on disk, named after it, digested as its text
 and placed on its lines, and the probes are written into the transformed text
 where the transforms' combined map carries each region. Code a compiler wrote
@@ -1017,8 +1021,8 @@ too.
 
 ### A build Rspack or webpack bundles
 
-A Storybook built by Rspack or webpack, or an application bundled by either,
-takes the probes as a rule rather than a plugin. `testSelectionRule()` returns
+An application Rspack or webpack bundles takes the probes as a rule rather
+than a plugin. `testSelectionRule()` returns
 one `module.rules` entry, in the shape both read:
 
 ```js
@@ -1034,7 +1038,7 @@ It takes `root`, `include`, `mode` and `placement`, as `testSelectionProbes`
 does; at `'before-transforms'` the rule runs at `enforce: 'pre'`. Its
 loader, `@variance-authority/sense/probes-loader`, which the rule names for you,
 runs at `enforce: 'post'`, after SWC, Babel and every loader you
-configured, so a compiler that reads syntax, such as Compiled's or Linaria's
+configured, so a compiler that reads syntax, such as Compiled's
 loader, reads your file without probes in it. Loaders of one `enforce` run right
 to left, so list the rule first: a `post` loader of yours listed ahead of it
 runs after the probes and reads them. Under `'before-transforms'`, list it last.
@@ -1053,9 +1057,11 @@ module with no file on disk, such as a
 builder's virtual entry, is not probed.
 
 `include` is a function, and Rspack hands loader options to its core as data,
-so the rule registers `include` in the process that built the configuration.
-A loader run in a worker, such as `thread-loader`'s, cannot find it, and the
-build stops and says so.
+so the rule registers `include` in the process that built the configuration,
+keyed by its source text. Keep it pure, answering from the file name alone:
+Rspack's cache reuses a module probed under another `include` of the same
+text, one closing over a different value. A loader run in a worker, such as
+`thread-loader`'s, cannot find it, and the build stops and says so.
 
 In a Storybook, list `@variance-authority/storybook-collector` in `addons`
 instead: it adds this rule under Rspack or webpack, and `testSelectionProbes`
