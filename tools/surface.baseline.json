@@ -1774,9 +1774,11 @@
     },
     "names": {
       ".": {
+        "ChangeImages": "interface",
         "DeclaredPainter": "interface",
         "DecodedImage": "interface",
         "PngDecoder": "interface",
+        "changeImages": "function",
         "comparePixels": "function",
         "comparePngs": "function",
         "compareRasters": "function",
@@ -1794,6 +1796,7 @@
         "observePngDifference": "function"
       },
       "./mask": {
+        "AlignedRows": "interface",
         "DecodedImage": "interface",
         "PixelDifference": "interface",
         "differencePixels": "function",
@@ -1950,6 +1953,8 @@
         "RenderCache": "interface",
         "Renderer": "interface",
         "Retention": "type",
+        "RowAlignment": "interface",
+        "RowSpan": "interface",
         "STRICT_POLICY": "const",
         "SUBJECT_PATH": "const",
         "Settlement": "type",

@@ -8,8 +8,9 @@ import {
   type DiffPolicy,
   type RasterComparison,
 } from '@variance-authority/raster';
+import { alignRows } from './align.js';
 import { changeImages } from './change.js';
-import { alignRows, differencePixels, type DecodedImage } from './mask.js';
+import { differencePixels, type DecodedImage } from './mask.js';
 
 /**
  * Comparison — phase three: two images become a mask.

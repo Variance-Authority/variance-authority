@@ -1,7 +1,8 @@
 import { PNG } from 'pngjs';
 import type { DiffRegion } from '@variance-authority/core/attribute';
 import { DEFAULT_POLICY, type DiffPolicy, type RowAlignment } from '@variance-authority/raster';
-import { alignRows, differencePixels, type DecodedImage } from './mask.js';
+import { alignRows } from './align.js';
+import { differencePixels, type DecodedImage } from './mask.js';
 
 /**
  * The change at its own size: what a reviewer reads in place of two pages.

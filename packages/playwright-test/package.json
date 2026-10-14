@@ -65,5 +65,8 @@
   },
   "peerDependencies": {
     "@playwright/test": ">=1.49 <2"
+  },
+  "devDependencies": {
+    "pngjs": "^7.0.0"
   }
 }

@@ -8,8 +8,8 @@
  * have to install `pngjs` to reach the same arithmetic, and a bundler following
  * this subpath must not find it.
  *
- * So the subpath exists, and it exports the padding rule, the row alignment and
- * the diff. They matter more than they look, because a diff is now computed in
+ * So the subpath exists, and it exports exactly two things: the padding rule and
+ * the diff. Both matter more than they look, because a diff is now computed in
  * two places — Node, when a run writes its report, and the browser, when a
  * reviewer opens a change whose mask was never uploaded. Two ends computing the
  * same thing from the same inputs is only safe while it is literally the same
@@ -22,7 +22,7 @@ import pixelmatch from 'pixelmatch';
 import { DEFAULT_POLICY, type DiffPolicy, type RowAlignment } from '@variance-authority/raster';
 import { alignRows, type AlignedRows } from './align.js';
 
-export { alignRows, ALIGNMENT_LIMIT, type AlignedRows } from './align.js';
+export type { AlignedRows } from './align.js';
 
 /**
  * One decoded image: raw 8-bit RGBA, row-major, no padding.
