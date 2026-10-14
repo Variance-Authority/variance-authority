@@ -300,6 +300,9 @@ export function buildSnapshot(shards = 0) {
       'sets.blob': blob(pool.bytes, pool.offsets),
       'sets.off': column(pool.offsets),
       'blocks.loadedSet': column(blockLoadedSet),
+      // Every shard of one build started from no record, as a CI build's
+      // shards record into fresh files (`record-base.ts`).
+      'run.base': { plain: Buffer.from('none'), rows: 4, width: 1 },
     });
     watch();
     writeFileSync(file, bytes);
