@@ -8,7 +8,8 @@
  * possible — the id already crossed, which is the whole design.
  */
 
-import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
+import { INSTRUMENTATION_ID } from '../instrument/identity.js';
+import type { ModuleId } from '../instrument/index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoveragePrecondition } from './index.js';
 import type { ObservedSubject } from './journal.js';

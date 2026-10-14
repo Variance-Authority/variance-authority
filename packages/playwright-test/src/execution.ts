@@ -19,6 +19,7 @@
 import type { Page, TestInfo } from '@playwright/test';
 import {
   drainExecution,
+  driveJourneys,
   joinObservations,
   listenForPreconditions,
   modulesEntered,
@@ -33,16 +34,9 @@ import {
   type ObservedSubject,
   type PreconditionStanding,
 } from '@variance-authority/sense/journal';
-import {
-  journeyReportFrom,
-  mintJourney,
-  stitchJourneys,
-  unsettledScopes,
-  type JourneyReport,
-} from '@variance-authority/sense/journey';
+import { stitchJourneys } from '@variance-authority/sense/journey';
 import { repositoryRoot, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
-import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
-import { listen, type Wire } from '@variance-authority/wire/listen';
+import type { Wire } from '@variance-authority/wire/listen';
 import { resolve } from 'node:path';
 import { absorb, accumulation, type Accumulated } from './accumulated.js';
 import type { ExecutionRecording } from './execution-recording.js';
@@ -122,9 +116,6 @@ export interface ExecutionRecorder {
   readonly close: () => Promise<void>;
 }
 
-/** How long a worker waits at its end for requests a head is still serving. */
-const SETTLING_MS = 5_000;
-
 
 /**
  * Collect one worker's crossings.
@@ -166,28 +157,14 @@ export function createExecutionRecorder(
   // Each case's Eyes journals, one per attempt that handed one over.
   const looked = new Map<string, ObservedEyes[]>();
   const add = (key: string, duration: number): void => void spent.set(key, (spent.get(key) ?? 0) + duration);
-  const reports: JourneyReport[] = [];
-  let seen = false;
-  let announced = false;
-  let instrumentation: string | undefined;
-  let owned: Wire | undefined;
-  let taking: Wire | undefined;
-
   // The medium is opened on the first execution that could use it, and only when
   // a head was named: a suite with one realm has nothing to reach it from
   // another process, and a listener nobody can find is a port for nothing.
-  const takeReports = async (): Promise<Wire> => {
-    const open = wire ?? (owned ??= await listen());
-    if (taking !== open) {
-      taking = open;
-      open.on('journeys', (journey, body) => {
-        if (journey === undefined) return;
-        const report = journeyReportFrom(journey, body);
-        if (report !== undefined) reports.push(report);
-      });
-    }
-    return open;
-  };
+  const journeys = driveJourneys(wire);
+  const reports = journeys.reports;
+  let seen = false;
+  let announced = false;
+  let instrumentation: string | undefined;
 
   return {
     root,
@@ -226,17 +203,10 @@ export function createExecutionRecorder(
         );
         return undefined;
       }
-      const open = await takeReports();
-      const journey = mintJourney();
+      const { journey, cookies } = await journeys.mint(url);
       minted.set(journey, owner);
       if (subject !== undefined) mintedFor.set(journey, { owner, subject });
-      // Both at one site, because they are one fact: this is the execution, and
-      // this is where it answers. Written apart, whichever half a later mint
-      // overwrote would leave a head reporting under an id nobody claims.
-      await page.context().addCookies([
-        { name: JOURNEY_COOKIE, value: journey, url },
-        { name: RETURN_COOKIE, value: open.addressFor(journey), url },
-      ]);
+      await page.context().addCookies([...cookies]);
       return journey;
     },
 
@@ -272,31 +242,16 @@ export function createExecutionRecorder(
     close: async () => {
       try {
         listener?.close();
-        await settled();
+        await journeys.settled();
         await contribute();
       } finally {
         // Only a listener this recorder opened for itself: one it was handed
         // belongs to the worker, and closing somebody else's channel would take
         // the announcements down with the accounts.
-        await owned?.close();
+        await journeys.close();
       }
     },
   };
-
-  /**
-   * Wait for every request a head said it was still serving, up to a bound.
-   *
-   * A spec is over when its page is, and a handler's scope is over when what it
-   * returned settles: a streamed body or a write behind outlives the response
-   * that ended the test. Nothing is waited on when nothing is open, and what is
-   * still open at the bound is named by the stitch and retires the run.
-   */
-  async function settled(): Promise<void> {
-    const deadline = Date.now() + SETTLING_MS;
-    while (unsettledScopes(reports).size > 0 && Date.now() < deadline) {
-      await new Promise((settle) => setTimeout(settle, 10));
-    }
-  }
 
   /** An accumulation as a journal again, which is what both records are made of. */
   function journalOf(accumulated: Accumulated) {

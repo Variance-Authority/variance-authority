@@ -27,7 +27,7 @@ async function instrumented() {
   const built = resolve(process.env.VARIANCE_AUTHORITY_BUILD, `${service}-${process.pid}.mjs`);
   await mkdir(dirname(built), { recursive: true });
   // The collector import is the page's half; this realm already has a factory.
-  await writeFile(built, transformed.code.replace(/^import "[^"]+";/, ''), 'utf8');
+  await writeFile(built, transformed.code.replace(/\n;import "[^"]+";$/, ''), 'utf8');
   return import(pathToFileURL(built).href);
 }
 

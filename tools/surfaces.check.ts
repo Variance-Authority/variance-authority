@@ -88,6 +88,13 @@ const REACH_THROUGH_DEBT: Readonly<Record<string, readonly string[]>> = {
     '@variance-authority/jsx-source',
     '@variance-authority/sense',
   ],
+  // The same two halves for a served application: `testSelectionProbes()` goes
+  // in its Vite config and `collectJourneys()` wraps its server's request
+  // handler, so a recorded page run knows what each page ran. Neither is code
+  // the collector runs; the application does. The fix is the same composing
+  // entry, on `@variance-authority/route-collector`, that the Storybook entry
+  // above names.
+  '@variance-authority/route-collector README': ['@variance-authority/sense'],
 };
 
 describe('adopter-facing code knows one package', () => {

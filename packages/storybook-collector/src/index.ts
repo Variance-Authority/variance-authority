@@ -316,6 +316,9 @@ export function storybookCollector(
 
       callSites,
 
+      // The route collector closes in the same order, recorder first, so every
+      // head's account is in before the world that drove it goes.
+      // FIXME: one collector shell for both; until then they are kept in step by hand.
       async close(costs?: ReadonlyMap<string, number>): Promise<void> {
         await recorder?.close(costs);
         await declared.close();
