@@ -50,12 +50,10 @@ pub struct Placed {
     pub instrumented: Instrumented,
     /// The authored ordinals nothing in `transformed` fires.
     pub unplaced: Uint32Array,
-    /// The map from `instrumented.code` back to `transformed`, or `null` when
-    /// the header took a line of its own.
-    pub mappings: Option<String>,
+    /// The map from `instrumented.code` back to `transformed`.
+    pub mappings: String,
     /// With `carry`, the composed map moved onto `instrumented.code`, its
-    /// sources and names as they were; `null` without it, or when the header
-    /// took a line of its own.
+    /// sources and names as they were; `null` without it.
     pub carried: Option<String>,
 }
 

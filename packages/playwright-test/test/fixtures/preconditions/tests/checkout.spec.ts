@@ -16,7 +16,7 @@ const CART = moduleId(
   readFileSync(new URL('../src/cart.ts', import.meta.url), 'utf8'),
 );
 const COLLECTOR = `globalThis.__variance_authority_execution__ = {
-  drain: () => ({ instrumentation: 'sense:instrument/presence-v6', modules: [{ id: '${CART}', hits: [0], shared: [] }] }),
+  drain: () => ({ instrumentation: 'sense:instrument/presence-v7', modules: [{ id: '${CART}', hits: [0], shared: [] }] }),
 };`;
 
 test.beforeEach(async ({ page }) => {

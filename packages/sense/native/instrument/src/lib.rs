@@ -59,8 +59,8 @@ impl Mode {
     /// `instrumentationId()` in `src/instrument/index.ts` answers the same.
     pub const fn instrumentation(self) -> &'static str {
         match self {
-            Mode::Presence => "sense:instrument/presence-v6",
-            Mode::Entries => "sense:instrument/entries-v3",
+            Mode::Presence => "sense:instrument/presence-v7",
+            Mode::Entries => "sense:instrument/entries-v4",
         }
     }
 }
@@ -152,7 +152,7 @@ mod tests {
         assert!(out.code.starts_with("import a from './a';\nvar __vaK"));
         assert!(out.code.contains(".r(\"src/f.js@00\",5);"));
         assert_eq!(out.regions, 5);
-        assert_eq!(out.instrumentation, "sense:instrument/presence-v6");
+        assert_eq!(out.instrumentation, "sense:instrument/presence-v7");
     }
 
     #[test]

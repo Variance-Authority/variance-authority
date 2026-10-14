@@ -41,7 +41,7 @@ import { cadence, type CutTestFile } from '../instrument/cadence.js';
 import { behindCut, inlineBehindCut } from './cut-map.js';
 import { probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { markUnplaced, placeModule, planModule } from './captured-modules.js';
-import { defaultInclude } from './instrumented-modules.js';
+import { defaultInclude, projectPath } from './instrumented-modules.js';
 import { probedAfter } from './jest-after.js';
 import type { SelectionTransformerConfig } from './jest.js';
 import { namesItsMap, type TransformSourceMap } from './source-lines.js';
@@ -181,6 +181,23 @@ export async function createTransformer(
       .update(cuts ? 'cadence' : '')
       .digest('hex')
       .slice(0, 32);
+  // A transformer that rewrote a module and returned no map leaves nothing to
+  // carry the regions into what it wrote, so it runs again on the probed text:
+  // said once, because every module it transforms pays for it.
+  let warned = false;
+  const mapless = <T>(path: string, again: () => T): T => {
+    if (!warned) {
+      warned = true;
+      const name = typeof config.transformer === 'string' ? config.transformer : config.transformer?.[0] ?? 'the transformer';
+      console.warn(
+        `variance-authority: \`${name}\` returned no source map for \`${projectPath(root, path)}\`, so the probes cannot ` +
+          'be placed in what it wrote, and it transforms each such module twice: once to read, once on the probed file. ' +
+          'A compiler that reads syntax, such as a CSS-in-JS extractor or a memoising compiler, then reads the probes too. ' +
+          `Have \`${name}\` return a source map to transform once, with the probes out of its reading.`,
+      );
+    }
+    return again();
+  };
   const innerKeyAsync = inner?.getCacheKeyAsync ?? inner?.getCacheKey;
   const innerProcessAsync = inner?.processAsync ?? inner?.process;
 
@@ -198,7 +215,7 @@ export async function createTransformer(
       if (handed !== undefined) return behind(marked(await innerProcessAsync(text, path, handed), handed), cut);
       const first = async () => await innerProcessAsync(place(root, path, options, text, how), path, forInner(options));
       if (places || !after(path, options, how, source)) return behind(await first(), cut);
-      return probedAfter(root, path, source, await innerProcessAsync(text, path, forInner(options)), how.mode, how.unprobed) ?? first();
+      return probedAfter(root, path, source, await innerProcessAsync(text, path, forInner(options)), how.mode, how.unprobed) ?? mapless(path, first);
     },
   };
   const innerProcess = inner?.process?.bind(inner);
@@ -211,7 +228,7 @@ export async function createTransformer(
       if (handed !== undefined) return behind(marked(innerProcess(text, path, handed), handed), cut);
       const first = () => innerProcess(place(root, path, options, text, how), path, forInner(options));
       if (places || !after(path, options, how, source)) return behind(first(), cut);
-      return probedAfter(root, path, source, innerProcess(text, path, forInner(options)), how.mode, how.unprobed) ?? first();
+      return probedAfter(root, path, source, innerProcess(text, path, forInner(options)), how.mode, how.unprobed) ?? mapless(path, first);
     };
   }
   return transformer;

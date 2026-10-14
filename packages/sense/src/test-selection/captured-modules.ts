@@ -170,7 +170,13 @@ interface AfterOptions {
   /** Answer the composed map moved onto the probed text, for a runner no bundler composes maps for. */
   readonly carry?: boolean;
   readonly original?: (path: string) => string;
+  /** The plugins ahead of this one that rewrote the module and returned no map: {@link unmappedSteps}. */
+  readonly unmapped?: readonly string[];
+  /** How this seam's project has its transforms write a map, for the error that has none. */
+  readonly remedy?: string;
 }
+
+const REMEDY = 'Have them write a source map';
 
 /**
  * Cut one module as {@link placeModule} cuts it, from the file on disk, and
@@ -180,8 +186,8 @@ interface AfterOptions {
  * ordinals and the id are the file's, as they are when the probes go in first,
  * and `map` says which code in `code` each one became. A region `map` carries
  * nowhere is an error that names it, because recording without it would
- * record that it never ran. Where `code` is the file, or the map cannot be
- * had, this is {@link placeModule}.
+ * record that it never ran, and so is a rewrite with no map, or one a plugin
+ * returned no map for. Where `code` is the file, this is {@link placeModule}.
  */
 export function captureAfter(
   root: string,
@@ -192,23 +198,32 @@ export function captureAfter(
   map: (() => ComposedMap | undefined) | undefined,
   options: AfterOptions = {},
 ): CapturedAfter | undefined {
-  const { unprobed, carry = false, original = readOriginal } = options;
+  const { unprobed, carry = false, original = readOriginal, unmapped = [], remedy = REMEDY } = options;
   let disk: string | undefined;
   try {
     disk = original(path);
   } catch {
     disk = undefined;
   }
-  if (disk === undefined || map === undefined || handedTexts(disk).includes(code)) {
+  if (disk === undefined || handedTexts(disk).includes(code)) {
     return placeModule(root, path, code, include, unprobed, mode, original);
   }
   const plan = planModule(root, path, disk, include, original, unprobed);
   if (plan === undefined) return undefined;
   const { frame, file, id } = plan;
+  const named = projectPath(root, path);
   const unread = { file, id, sourceDigest: frame.sourceDigest, instrumented: false, blocks: [] };
-  const composed = map();
+  const composed = map?.();
   // The mark follows the last line, so no column the map names moves.
   if (plan.marked) return { module: unread, code: markLoaded(code, id), ...(carry && composed ? { carried: composed.mappings } : {}) };
+  if (unmapped.length > 0) {
+    const plugins = unmapped.map((name) => `\`${name}\``).join(', ');
+    throw new Error(
+      `\`${named}\`: ${unmapped.length === 1 ? 'the plugin' : 'the plugins'} ${plugins} ahead of the probes rewrote the file ` +
+        'and returned no source map, which Vite reads as moving nothing, so the map back to the file names code that is not there. ' +
+        `Have ${unmapped.length === 1 ? 'it' : 'each'} return the map of what it wrote, or leave the file out of \`include\`.`,
+    );
+  }
   // A text with no code in it, or code the map carries to nothing, such as what
   // a module of types compiles to, has no map to name the file in: the probe of
   // loading it is all it can hold, and a region of the file is refused by name.
@@ -216,15 +231,15 @@ export function captureAfter(
   const source = blank ? 0 : composed?.sources.findIndex(
     (name) => name !== null && resolve(dirname(path), composed.sourceRoot ?? '', name) === path,
   ) ?? -1;
-  if (composed === undefined || source === -1) {
+  if (!blank && (composed === undefined || source === -1)) {
     throw new Error(
-      `\`${projectPath(root, path)}\`: the transforms ahead of the probes rewrote the file and left no map back to it, ` +
-        'so no region of it can be placed in what they wrote. Have them write a source map, or leave the file out of `include`.',
+      `\`${named}\`: the transforms ahead of the probes rewrote the file and left no map back to it, ` +
+        `so no region of it can be placed in what they wrote. ${remedy}, or leave the file out of \`include\`.`,
     );
   }
-  const done = instrumentTransformed(disk, code, { file, mappings: blank ? '' : composed.mappings, source }, id, { ...(mode === undefined ? {} : { mode }), carry });
+  const done = instrumentTransformed(disk, code, { file, mappings: blank ? '' : composed!.mappings, source }, id, { ...(mode === undefined ? {} : { mode }), carry });
   if (done === undefined) {
-    return { module: unread, code: markLoaded(code, id), ...(carry ? { carried: composed.mappings } : {}) };
+    return { module: unread, code: markLoaded(code, id), ...(carry && composed ? { carried: composed.mappings } : {}) };
   }
   if (done.unplaced.length > 0) {
     const names = done.unplaced.map((ordinal) => {
@@ -232,14 +247,14 @@ export function captureAfter(
       return `${block.name}${block.path === '' ? '' : `/${block.path}`}`;
     });
     throw new Error(
-      `\`${file}\`: the transforms ahead of the probes left no code their map carries back to ${names.join(', ')}, ` +
+      `\`${named}\`: the transforms ahead of the probes left no code their map carries back to ${names.join(', ')}, ` +
         'so a test that ran it would be recorded as not running it. Leave the file out of `include`, or have the transform map what it wrote.',
     );
   }
   return {
     module: { ...unread, instrumented: true, blocks: recordedBlocks(done.blocks, frame, disk, mode ?? 'presence') },
     code: done.code,
-    ...(done.mappings === undefined ? {} : { mappings: done.mappings }),
+    mappings: done.mappings,
     ...(done.carried === undefined ? {} : { carried: done.carried }),
   };
 }

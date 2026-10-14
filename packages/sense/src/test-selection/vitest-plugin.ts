@@ -14,6 +14,7 @@ import { browserSetupSource } from './worker-source.js';
 import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
 import { removeSeamModules, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { handedTexts, namesItsMap } from './source-lines.js';
+import { unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
 import { readCommandLine, seedInBanner, type BannerContext } from './vitest-sequencer.js';
 
 export interface ConfigPlugin {
@@ -43,6 +44,7 @@ interface VitePlugin extends ConfigPlugin {
 interface ProbesPlugin {
   readonly name: string;
   readonly enforce: 'post';
+  readonly configResolved: (config: ResolvedViteConfig) => void;
   readonly transform: {
     readonly order: 'post';
     readonly handler: (
@@ -60,9 +62,16 @@ export function selectionPlugin(
   runnerId: string,
   globalSetup: ReadonlySet<string>,
   run: SelectionRun,
-  { capture, after }: {
+  { capture, changed: recordsChanged, after }: {
     readonly capture: (file: string, code: string) => Captured | undefined;
-    readonly after: (file: string, code: string, map: () => ComposedMap) => CapturedAfter | undefined;
+    /** Whether `code` is not the file on disk, and the file is one the run records. */
+    readonly changed: (file: string, code: string) => boolean;
+    readonly after: (
+      file: string,
+      code: string,
+      map: () => ComposedMap,
+      unmapped: readonly string[],
+    ) => CapturedAfter | undefined;
   },
   mode: InstrumentMode,
   declared: readonly string[],
@@ -177,7 +186,7 @@ export function selectionPlugin(
           // handed, so a file changed on its way here would be placed by lines
           // the author never wrote: refused, if it is one the run records.
           const changed = text !== '' && !handedTexts(text).includes(code);
-          if (changed && (cuts || capture(file, code)?.changed === true)) throw changedOnArrival(root, file);
+          if (changed && (cuts || recordsChanged(file, code))) throw changedOnArrival(root, file);
           return cutOf(code) ?? null;
         }
         first.add(id);
@@ -199,16 +208,21 @@ export function selectionPlugin(
       return cutOf(captured.code) ?? { code: captured.code, map: null };
     } },
   }, {
-    name: 'variance-authority:test-selection-probes',
+    name: PROBES,
     // Last, on what every transform wrote: a compiler that reads syntax — a
-    // CSS-in-JS extractor, a macro, a memoising compiler — reads no probe. The
-    // regions are cut from the file on disk as they are when the probes go in
-    // first, and placed where the map Vite composed says their code went.
+    // CSS-in-JS extractor, a memoising compiler — reads no probe. The regions
+    // are cut from the file on disk as they are when the probes go in first,
+    // and placed where the map Vite composed says their code went. Vite
+    // composes a plugin that rewrote the file and returned no map as moving
+    // nothing, so every other plugin is watched for one.
     enforce: 'post',
+    configResolved(config) {
+      watchUnmapped((config as unknown as { plugins: readonly { name: string; transform?: unknown }[] }).plugins, PROBES);
+    },
     transform: { order: 'post', handler(code, id) {
       const file = cleanId(id);
       if (own(file) || id !== file || inPage || first.delete(id)) return null;
-      const captured = after(file, code, () => this.getCombinedSourcemap());
+      const captured = after(file, code, () => this.getCombinedSourcemap(), unmappedSteps(this));
       if (captured === undefined) return null;
       modules.set(captured.module.id, captured.module);
       return {
@@ -218,6 +232,8 @@ export function selectionPlugin(
     } },
   }];
 }
+
+const PROBES = 'variance-authority:test-selection-probes';
 
 /** The refusal of a file whose lines no longer match the file on disk when it reaches the seam. */
 function changedOnArrival(root: string, file: string): Error {

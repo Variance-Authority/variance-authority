@@ -310,12 +310,20 @@ fn prologue_end(program: &Program) -> u32 {
     at
 }
 
+/// A statement that only names another module: it runs when the module loads.
+pub(crate) fn is_import(statement: &Statement) -> bool {
+    matches!(
+        statement,
+        Statement::ImportDeclaration(_)
+            | Statement::ExportAllDeclaration(_)
+            | Statement::ExportFromDeclaration(_)
+            | Statement::TSImportEqualsDeclaration(_)
+    )
+}
+
 pub(crate) fn is_prologue(statement: &Statement) -> bool {
     match statement {
-        Statement::ImportDeclaration(_)
-        | Statement::ExportAllDeclaration(_)
-        | Statement::ExportFromDeclaration(_)
-        | Statement::TSImportEqualsDeclaration(_) => true,
+        statement if is_import(statement) => true,
         Statement::ExpressionStatement(it) => match &it.expression {
             Expression::StringLiteral(_) => true,
             expression => is_hoisted_call(Some(expression)),

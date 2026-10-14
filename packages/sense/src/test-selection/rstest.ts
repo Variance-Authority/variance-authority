@@ -22,10 +22,10 @@
  */
 
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
-import { defaultInclude } from './instrumented-modules.js';
+import { defaultInclude, projectPath } from './instrumented-modules.js';
 import { carriedJournal, reportedDuration, statusesComplete } from './finished-files.js';
 import { foldRun } from './selection-fold.js';
 import { removeSeamModules, reopenRun, runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
@@ -173,6 +173,23 @@ export const SELECTION_LOADER = fileURLToPath(new URL('./rstest-loader.js', impo
 export const PROBES_LOADER = fileURLToPath(new URL('./rstest-after-loader.js', import.meta.url));
 
 /**
+ * The refusal of a run whose first loader passed modules on that the probes
+ * loader never reached: a configuration put together by hand, carrying
+ * {@link SELECTION_LOADER} without {@link PROBES_LOADER}. Folded, it would
+ * record that no test ran a line of them.
+ */
+function unprobedAtEnd(run: SelectionRun): Promise<never> | undefined {
+  if (run.awaiting.size === 0) return undefined;
+  const files = [...run.awaiting].map((file) => `\`${projectPath(run.root, file)}\``).sort();
+  run.awaiting.clear();
+  return Promise.reject(new Error(
+    `variance-authority: ${files.join(', ')} went through \`${basename(SELECTION_LOADER)}\` and never reached ` +
+      `\`${basename(PROBES_LOADER)}\`, so no probe was placed in ${files.length === 1 ? 'it' : 'them'} and nothing was recorded. ` +
+      `Add a rule with \`enforce: 'post'\` that runs \`@variance-authority/sense/rstest-after-loader\` on the same files, or build the configuration with \`withTestSelection\`.`,
+  ));
+}
+
+/**
  * Rstest's API, which is an injected object rather than a resolvable module.
  *
  * Rspack is configured with `'@rstest/core': 'global @rstest/core'`, so an
@@ -241,7 +258,7 @@ export function withTestSelection(
   const reporter = {
     // A watching Rstest starts every cycle here, after the last cycle's end.
     onTestRunStart: () => reopenRun(run),
-    onTestRunEnd: (payload: RstestRunEnd) => settle(
+    onTestRunEnd: (payload: RstestRunEnd) => unprobedAtEnd(run) ?? settle(
       cycleResults(run, payload).map((file) => ({
         filepath: file.testPath,
         complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status)),

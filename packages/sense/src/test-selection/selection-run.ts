@@ -74,6 +74,13 @@ export interface SelectionRun {
    * project's, whatever is in it.
    */
   readonly made: Set<string>;
+  /**
+   * The files a bundler's first loader passed on to be probed after the
+   * project's own loaders, until the loader that probes them reaches each one.
+   * Any left at the end were never probed: a configuration that carries the
+   * first loader without the second.
+   */
+  readonly awaiting: Set<string>;
   /** Whether this run records per-case crossings: every run does, unless its files run in a page. */
   cases: boolean;
   /**
@@ -135,6 +142,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     cadence: undefined,
     shims: new Set<string>(),
     made: new Set<string>(),
+    awaiting: new Set<string>(),
     cases: true,
     settled: false,
     watching: false,

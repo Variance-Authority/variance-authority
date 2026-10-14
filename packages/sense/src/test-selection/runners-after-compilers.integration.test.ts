@@ -11,8 +11,10 @@ import { decodeTestCoverage } from './format.js';
 // A compiler that reads the syntax it compiles refuses a probe it was not
 // written for. In `compilers`, each runner's project transform is followed by
 // an extractor that reads `css()`'s arrow and fails on anything but a
-// condition between two strings: under every runner seam the probes go in
-// after it, the suite passes, and the record is the file's own.
+// condition between two strings, and moves every column after the call. Under
+// every runner seam the probes go in after it, through the maps it and the
+// runner's own transform return; the suite passes, and the record is the
+// file's own.
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));

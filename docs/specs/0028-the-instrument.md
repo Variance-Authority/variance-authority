@@ -10,7 +10,9 @@ and [ADR-0041](../context/adr/0041-a-request-is-the-edge-a-binding-is-the-name.m
 [ADR-0004](../context/adr/0004-defer-native-acceleration.md) (native
 acceleration stays behind a measured gate),
 [ADR-0013](../context/adr/0013-packages-are-named-for-their-requirements.md)
-(the package is named for what it requires — a runner).
+(the package is named for what it requires — a runner),
+[ADR-0093](../context/adr/0093-probes-are-placed-after-the-transforms.md)
+(regions cut from the authored text, probes placed after the transforms).
 
 ## Purpose
 
@@ -37,11 +39,52 @@ brief's own rule: for `if (order.isPremium && order.total > 100)` the fact worth
 recording is which branch ran, not which operand short-circuited. They belong to
 their containing region.
 
-**2. Span-based insertion, not a re-print.** `oxc-parser` gives a full AST with
-UTF-16 code-unit spans, so probes are spliced at offsets and the rest of the
-file is untouched. Nothing is re-printed, so the source map stays trivial and
-the output stays diffable. The transform shares its parse with the reader that
-already runs.
+**2. Cut on the authored text, placed on the transformed text.** A region is
+the file's own: its ordinal, name, digest and lines are cut from the file on
+disk, so an edit lands on the region it was made in and nothing a compiler
+writes is ever a region. The probes go into the text the project's transforms
+wrote, after every one of them, because a compiler that reads the syntax it
+compiles reads probes as code: Compiled, the CSS-in-JS extractor, cannot
+extract a probed `styled` call that takes a function, and turns a probed
+dynamic prop into a runtime CSS variable, so the recorded build is not the one
+that ships. React Compiler restructures a probed component the same way.
+
+One native call, `place`, takes the authored text, the transformed text and
+the composed source map from the transformed text to its sources. It cuts the
+authored text exactly as `instrument` does, parses the transformed text with
+`oxc-parser`, walks it into regions of its own, and reads the map in one
+direction only: from a generated position to the authored region its origin
+sits in. Each transformed region gets the probes of the authored regions it
+fires, spliced at UTF-16 offsets; nothing is re-printed. It returns the probed
+text, the map from it back to the transformed text, and the authored ordinals
+nothing fires. When no transform changed the text, the call is `instrument`.
+
+| Case | Rule | Why |
+| --- | --- | --- |
+| A mapped position in a transformed region | fires the innermost authored region its origin sits in | the code there came from that region, so it runs when that region does |
+| A transformed region with no text of its own: the `else` or `default` the walk adds | fires the authored one of the same kind and step, under an owner its own owner fires | an absent outcome has no position for a map to name |
+| An authored region no origin falls in | fired by the transformed regions holding the nearest origin in front of it, inside the code of a region enclosing it | that code runs on every entry into the enclosing region before the region can; a strict refusal stops every Compiled module with a dynamic prop, whose map names a styled component's whole body by its declarator |
+| An authored region nothing fires | the module is refused, naming the file and each region | a silent gap records a test that ran the region as not running it |
+| A mapped position in an import statement whose origin is not module code | fires nothing | an import runs when the module loads; esbuild maps the `react/jsx-runtime` import to the first JSX element, which would fire a component's body on every load |
+| A transformed region that fires none | no probe | the project wrote it, so a decorator helper or a generated constructor is never a region |
+| esbuild's map at an indented line's column 0 | read at the next non-blank character, the snap | esbuild names the first token's origin there, which fired a function's entry from the indentation |
+| A transformed text the map carries to nothing, such as a types-only module compiled to the CommonJS prologue | holds the probe of loading it | the module region is all such a file has |
+
+Rule 1 can over-approximate through a compiler's own map, and never
+under-approximates. React Compiler's map names a component's closing `}` as
+the end of its last statement, so the region after an early `return` fires at
+the component's entry: an extra selection, never a miss. The third rule
+over-approximates the same way, and fails only for a function called before
+the enclosing code in front of it is reached: a declaration hoisted above it,
+or one handed out while an earlier test ran.
+
+Alternatives not taken:
+
+| Alternative | Why not |
+| --- | --- |
+| Probes first, with a caller-declared list of source consumers whose arguments carry none | per library and per caller; a skipped style callback gets no region, so an edit to it reaches only the module region, and React Compiler and whole-file compilers stay uncovered |
+| Probes after the transforms, regions cut from the transformed text | breaks the record's address: regions land on compiled lines, and compiler-written code is recorded |
+| A strict refusal of a region with no origin of its own | refuses every Compiled module with a dynamic prop |
 
 **3. The worker runtime, and presence is the whole of it.** A per-worker set
 of block ordinals, drained per completed test file. No stack is maintained and
@@ -58,10 +101,32 @@ until that data feeds the diff-based selection stage in
 
 | Need | Seam |
 |---|---|
-| instrument | regions cut from the file on disk; the probes are written into what the project's transforms wrote, where the combined map carries each region: Vite and Vitest at `enforce: 'post'`, Jest around the configured transformer, Rstest in a second loader at `enforce: 'post'`; a file that names its own source map is probed before the transforms |
+| instrument | regions cut from the file on disk, probes placed on what the project's transforms wrote, by seam below |
 | configuration | the user adds the integration to the runner configuration or CI job |
 | coverage owner | the test file that the runner executes |
 | selection output | test-file paths for the runner to execute |
+
+| Seam | Cut | Placement | Map handed on | Refused |
+| --- | --- | --- | --- | --- |
+| `testSelectionProbes`, a Vite build or dev server | at `enforce: 'post'`, from disk | the same hook | probed text to transformed, composed by Vite | no map back, a region carried to no code, and under a dev server a plugin ahead that rewrote the file with no map, by name |
+| Vitest | test files at `enforce: 'pre'`; every module from disk | a second plugin at `enforce: 'post'` | composed by Vite | the same, and a file changed on its way to the `pre` plugin |
+| Jest | test files in the wrapper; every module from disk | after the wrapped transformer, through its map, inline or returned | the transformer's map carried past the probes | no map back, a region carried to no code |
+| Rstest | test files in an `enforce: 'pre'` loader | `rstest-after-loader` at `enforce: 'post'`, after SWC and the project's loaders | the loaders' map carried past the probes | a file that reaches the second loader with no map, naming Rspack's `devtool`; at the run's end, a file that went through the first loader and never reached the second, naming the second |
+
+A seam's own error names the file by its project-relative path. Four cases
+are still probed, or marked, before the transforms:
+
+- **A file that names its own source map**, a built package: the composed map
+  names the build's sources, not the file, so no placement after could join it.
+- **A Jest transformer that rewrites a module and returns no map** is handed the
+  probed text, as before, and transforms each such module twice; the run warns
+  once per transformer, naming it, that a syntax-reading compiler then reads
+  the probes.
+- **Vitest browser mode**: `vi.mock` loads a mock under the file's name from no
+  text of the file's a map could carry back, so a page probes first.
+- **A test file** is cut for its cases before the transforms, so a compiler that
+  reads a test file's syntax reads the case marks. The cut keeps every line, and
+  its map moves the columns back.
 
 The integration does not replace a runner or select individual test cases. It
 uses the runner’s normal configuration surface to instrument modules and records
@@ -71,16 +136,13 @@ crossing uses a transport before its coverage joins its test file.
 
 **5. Five hazards that are silent when wrong.**
 
-- A build-time compiler that reads syntax — a CSS-in-JS extractor, a macro, a
-  GraphQL tag, React Compiler — fails or compiles differently on probed text,
-  so no transform of the project's reads a probe, in a build or under a
-  runner. The cut stays on the file on disk; only placement reads the
-  transformed text, and a region the combined map carries to no code, or a
-  rewritten file with no map back, stops the run by file and region rather
-  than dropping the region. A region whose own code the map names no origin
-  for fires with the code holding the nearest origin in front of it: it can be
-  reported present when it did not run, which over-selects, and never missing
-  when it ran.
+- A build-time compiler that reads syntax, such as a CSS-in-JS extractor or
+  React Compiler, fails or compiles differently on probed text, so no
+  transform of the project's reads a probe outside the four cases above. A map
+  that names the wrong code is never used: Vite's dev server composes a plugin
+  that rewrote a file and returned no map as identity, so each plugin's
+  `transform` is watched and such a plugin is refused by name; `map: null` is
+  the plugin saying nothing moved, and is believed.
 - vitest hoists `vi.mock` calls in its own transform. The module probe must be
   inserted at the **first executable statement after the hoisted block**, never
   at offset 0 — a probe above a hoisted mock changes evaluation order.
@@ -163,8 +225,10 @@ shares one module graph across test files installs a factory per file; a
 service that hands back a distinct factory per journey makes two interleaved
 requests count into two arrays with no change to the probe.
 
-**Probe forms.** Every insertion is text at an offset in the original, and no
-inserted text contains a newline. A region whose body is a block gets
+**Probe forms.** Every insertion is text at an offset in the text it is placed
+on, the authored one under `instrument` and the transformed one under `place`,
+and no inserted text contains a newline but one: a module that is only a
+hashbang takes its header on the next line, which the separator opens. A region whose body is a block gets
 `__va(n);` after its `{`. A bare statement body is wrapped in `{` and `}`,
 which is also what keeps a synthesized `else` from rebinding to an inner `if`.
 An expression-bodied arrow becomes `(__va(n), expr)`. A function whose
@@ -186,13 +250,18 @@ region whose arrival does not follow from the region above because an arm may
 have returned.
 
 **Identity.** `INSTRUMENTATION_ID` at `packages/sense/src/instrument/index.ts`
-is `sense:instrument/presence-v6`. Every module record, journal, account and
+is `sense:instrument/presence-v7`. Every module record, journal, account and
 coverage file names it, and every reader refuses one that names another. A
 change to where probes go or what a block means mints a new id. The `entries`
 mode — the module and each function, nothing between — is a second recipe
-under `sense:instrument/entries-v3`, and `instrumentationId(mode)` names the
+under `sense:instrument/entries-v4`, and `instrumentationId(mode)` names the
 recipe a seam was asked for.
 
-**Cost.** One parse and one walk, O(module length). Instrumenting is done per
-module per process that bundles, and the runtime records a hit in O(1): one
+**Cost.** Under `instrument`, one parse and one walk, O(module length). Under
+`place`, two of each, the authored text and the transformed one, plus one read
+of the composed map, O(module length + mappings); a seam also reads the file
+from disk and asks the bundler for the composed map. Rounded, on an M4 Max: a
+Vite dev transform pays about 0.4 ms a module over the transforms alone, and a
+Jest transform about 0.07 ms, once per content version through Jest's cache.
+Instrumenting is done per module per process that bundles, and the runtime records a hit in O(1): one
 array read, one write, no allocation after the first resolution.

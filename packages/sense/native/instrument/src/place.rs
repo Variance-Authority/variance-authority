@@ -1,8 +1,8 @@
 //! Probes placed on what a project's transforms wrote, for regions cut from
 //! what its author wrote.
 //!
-//! A compiler that reads syntax — a CSS-in-JS extractor, a macro, a memoising
-//! compiler — reads the probes too when they go in first, and either refuses
+//! A compiler that reads syntax, such as a CSS-in-JS extractor or a memoising
+//! compiler, reads the probes too when they go in first, and either refuses
 //! the code or compiles it into something the project does not ship. So the
 //! regions are cut from the authored text exactly as [`crate::cut`] cuts it —
 //! same ordinals, names, digests and offsets, same module id — and the probes
@@ -18,9 +18,16 @@
 //! 2. a region with no text of its own — the `else` or `default` the walk adds
 //!    — fires the authored one of the same kind and step, under an owner its
 //!    own owner fires, nearest to the origin of the code in front of it;
-//! 3. an authored region no origin falls in — a compiler that inlined a
-//!    function maps all it wrote to the declaration — is fired by the deepest
-//!    transformed regions holding the nearest origin in front of it.
+//! 3. an authored region no origin falls in — an extractor that moved a
+//!    function's text maps what it wrote to the declaration — is fired by the
+//!    deepest transformed regions holding the nearest origin in front of it
+//!    that sits in the code of a region enclosing it. That code runs on every
+//!    entry into the enclosing region before the region can run, so a test that
+//!    ran the region ran it too — unless the region is a function called
+//!    before that code is reached: a declaration hoisted above it, or one the
+//!    enclosing code handed out while an earlier test ran. A test that ran only
+//!    that code is reported running the region. With no such origin in front
+//!    of it, it is unplaced.
 //!
 //! A transformed region that fires none was written by the project and carries
 //! no probe. An authored region nothing fires is answered in
@@ -28,6 +35,7 @@
 
 use oxc_allocator::Allocator;
 use oxc_parser::Parser;
+use oxc_span::GetSpan;
 
 use crate::cut::{self, Cut, Utf16};
 use crate::dialect::dialect;
@@ -41,12 +49,11 @@ pub struct Placed {
     pub cut: Cut,
     /// The authored ordinals no transformed region fires.
     pub unplaced: Vec<u32>,
-    /// The map from `cut.code` back to the transformed text, one source, or
-    /// nothing when the header needed a line of its own.
-    pub mappings: Option<String>,
+    /// The map from `cut.code` back to the transformed text, one source.
+    pub mappings: String,
     /// With `carry`, the project's composed map moved onto `cut.code`: the
-    /// same sources and names, each generated column past the probes in front
-    /// of it. Nothing when the header needed a line of its own.
+    /// same sources and names, each generated position past the probes in
+    /// front of it.
     pub carried: Option<String>,
 }
 
@@ -85,7 +92,24 @@ pub fn place(
         }
     }
     let units: [Vec<u16>; 2] = [transformed.encode_utf16().collect(), authored.encode_utf16().collect()];
-    let segments = segments(mappings, source, &starts(transformed), &starts(authored), &units);
+    let mut segments = segments(mappings, source, &starts(transformed), &starts(authored), &units);
+    // An import runs when the module loads, so it can only vouch for module
+    // code. One a compiler wrote names the code that asked for it — esbuild maps
+    // the `react/jsx-runtime` import to the first JSX element — and read as that
+    // code it fires a component's body on every load. One the author wrote, moved
+    // below Vitest's hoisted mocks, still names itself and is kept.
+    let table = (!transformed.is_ascii()).then(|| Utf16::new(transformed));
+    let unit = |offset: u32| table.as_ref().map_or(offset, |table| table.at(offset));
+    let imports: Vec<(u32, u32)> = program
+        .body
+        .iter()
+        .filter(|statement| cut::is_import(statement))
+        .map(|statement| (unit(statement.span().start), unit(statement.span().end)))
+        .collect();
+    let in_import = |segment: &Segment| imports.iter().any(|&(start, end)| start <= segment.generated && segment.generated < end);
+    let named = innermost(&cut.blocks, &segments.iter().map(|it| it.original).collect::<Vec<_>>());
+    let mut kept = named.iter().map(|it| *it == Some(0));
+    segments.retain(|segment| kept.next().unwrap_or(false) || !in_import(segment));
     let fires = fired(&cut.blocks, &regions, &segments);
 
     let mut fired_any = vec![false; cut.blocks.len()];
@@ -94,24 +118,24 @@ pub fn place(
     }
     let unplaced = (0..cut.blocks.len() as u32).filter(|it| !fired_any[*it as usize]).collect();
 
+    // The module's own probe is the header's: an authored region the module's
+    // code carries fires once the header has run.
+    let mut head = header(module, cut.blocks.len());
+    for ordinal in fires.first().into_iter().flatten().filter(|it| **it != 0) {
+        head.push_str(&format!("__va({ordinal});"));
+    }
     let walker = cut::walk_firing(program, false, entries, Some(fires));
     let mut spliced = cut::splice(transformed, program, walker, true);
-    let head = header(module, cut.blocks.len());
     spliced.code.insert_str(spliced.header_byte, &head);
-    let one_line = !spliced.edits.iter().any(|(_, text)| text.contains('\n'));
-    let (mappings, carried) = if one_line {
-        let mut edits = spliced.edits;
-        let at = edits.partition_point(|(offset, _)| *offset < spliced.header_source);
-        edits.insert(at, (spliced.header_source, head));
-        let (own, shifts) = crate::cadence_map::mappings(transformed, &edits);
-        (Some(own), carry.then(|| crate::carry::carried(mappings, &shifts)))
-    } else {
-        (None, None)
-    };
+    let mut edits = spliced.edits;
+    let at = edits.partition_point(|(offset, _)| *offset < spliced.header_source);
+    edits.insert(at, (spliced.header_source, head));
+    let (own, shifts) = crate::cadence_map::shifted(transformed, &edits);
+    let carried = carry.then(|| crate::carry::carried(mappings, &shifts));
     cut.code = spliced.code;
     cut.header_at = spliced.header_at;
     cut.header_byte = spliced.header_byte;
-    Some(Placed { cut, unplaced, mappings, carried })
+    Some(Placed { cut, unplaced, mappings: own, carried })
 }
 
 /// A mapped position: generated and original offsets, in UTF-16 code units.
@@ -287,7 +311,9 @@ fn fired(authored: &[Block], transformed: &[Block], segments: &[Segment]) -> Vec
         reached[0] = true;
     }
 
-    // 3. An authored region no origin falls in.
+    // 3. An authored region no origin falls in: the nearest origin in front of
+    // it whose own region encloses it, so the code it names runs on every
+    // entry into what holds the region before the region can run.
     let mut by_origin: Vec<usize> = (0..segments.len()).collect();
     by_origin.sort_by_key(|it| (segments[*it].original, *it));
     for (index, region) in authored.iter().enumerate() {
@@ -295,10 +321,17 @@ fn fired(authored: &[Block], transformed: &[Block], segments: &[Segment]) -> Vec
             continue;
         }
         let behind = by_origin.partition_point(|it| segments[*it].original <= region.start);
-        let Some(last) = behind.checked_sub(1) else { continue };
+        let encloses = |it: &usize| {
+            from[*it].is_some_and(|holder| {
+                let holder = &authored[holder as usize];
+                holder.start <= region.start && region.end <= holder.end
+            })
+        };
+        let Some(last) = by_origin[..behind].iter().rposition(encloses) else { continue };
         let origin = segments[by_origin[last]].original;
         let first = by_origin.partition_point(|it| segments[*it].original < origin);
-        let mut holders: Vec<u32> = by_origin[first..behind].iter().filter_map(|it| into[*it]).collect();
+        let mut holders: Vec<u32> =
+            by_origin[first..behind].iter().filter(|it| segments[**it].original == origin).filter_map(|it| into[*it]).collect();
         holders.sort_unstable();
         holders.dedup();
         let inside = |outer: &Block, inner: &Block| {

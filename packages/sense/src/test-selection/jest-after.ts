@@ -1,8 +1,8 @@
 /**
  * The Jest seam's probes on what the project's transformer wrote.
  *
- * A compiler that reads syntax — a CSS-in-JS extractor, a macro, a memoising
- * compiler — reads probes too when they go in first. So the project's
+ * A compiler that reads syntax, such as a CSS-in-JS extractor or a memoising
+ * compiler, reads probes too when they go in first. So the project's
  * transformer runs on the file as Jest read it, and the probes go into what it
  * wrote, where the map it returned says each region of the file went: the
  * regions, ordinals and id are the file's, cut from that text. Jest composes no
@@ -47,6 +47,6 @@ export function probedAfter(
   if (captured === undefined) return done;
   return {
     code: captured.code,
-    map: map === undefined || captured.carried === undefined ? null : JSON.stringify({ ...map, mappings: captured.carried }),
+    map: map === undefined ? null : JSON.stringify(captured.carried === undefined ? map : { ...map, mappings: captured.carried }),
   };
 }

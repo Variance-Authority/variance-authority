@@ -6,8 +6,8 @@ import { placed } from './spliced.js';
 export interface InstrumentedTransformed extends Instrumented {
   /** The ordinals of `blocks` nothing in the transformed text fires. */
   readonly unplaced: readonly number[];
-  /** The `mappings` from `code` back to the transformed text, when it has one. */
-  readonly mappings?: string;
+  /** The `mappings` from `code` back to the transformed text. */
+  readonly mappings: string;
   /** With `carry`, `map.mappings` moved onto `code`: its sources and names as they were. */
   readonly carried?: string;
 }
@@ -41,7 +41,7 @@ export function instrumentTransformed(
     instrumentation: instrumentationId(mode),
     blocks,
     unplaced,
-    ...(mappings === undefined ? {} : { mappings }),
+    mappings,
     ...(carried === undefined ? {} : { carried }),
   };
 }

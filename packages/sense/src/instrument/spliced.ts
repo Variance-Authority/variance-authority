@@ -132,7 +132,7 @@ const KINDS: readonly BlockKind[] = [
 export interface NativePlaced {
   readonly instrumented: NativeInstrumented;
   readonly unplaced: Uint32Array;
-  readonly mappings: string | null;
+  readonly mappings: string;
   readonly carried: string | null;
 }
 
@@ -179,8 +179,8 @@ export function spliced(source: string, file: string, mode: InstrumentMode, modu
 export interface Placed extends Spliced {
   /** The authored ordinals nothing in the text fires. */
   readonly unplaced: readonly number[];
-  /** The map from `code` back to the transformed text, when it has one. */
-  readonly mappings?: string;
+  /** The map from `code` back to the transformed text. */
+  readonly mappings: string;
   /**
    * With `carry`, the composed map's `mappings` moved onto `code`: its sources
    * and names as they were, each column past the probes in front of it.
@@ -215,7 +215,7 @@ export function placed(
   return {
     ...columns(answer.instrumented),
     unplaced: [...answer.unplaced],
-    ...(answer.mappings === null ? {} : { mappings: answer.mappings }),
+    mappings: answer.mappings,
     ...(answer.carried === null ? {} : { carried: answer.carried }),
   };
 }

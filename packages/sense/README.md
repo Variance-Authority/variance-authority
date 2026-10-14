@@ -54,6 +54,16 @@ The probes go in after your plugins, as they do in
 [a build](#record-what-a-driven-page-executed), so a compiler that reads
 syntax compiles the same output under the suite as it ships.
 
+A plugin ahead of the probes that rewrites a file and returns no source map
+stops the run, with an error naming the plugin and the file. Vite reads a
+missing map as one that moves nothing, so probes placed through it would count
+code that did not run. Return the map, or `map: null` when no position moved.
+
+Two kinds of file still reach the seam before your plugins read them. A test
+file has its lines marked for its cases first, so a compiler that reads a test
+file's syntax reads those marks. Under browser mode, every file is probed first,
+as it was before.
+
 ```ts
 // vitest.config.ts
 import { defineConfig } from 'vitest/config';
@@ -575,7 +585,9 @@ its own options, and the probes go into what it wrote, where the map it returns
 carries each region of your file. The map handed on to Jest is that map moved
 past the probes, so a stack trace points where it did before. A transformer
 that changes the text and returns no map is handed the probed text instead, as
-nothing carries a region into what it wrote. `setupFiles` keep their order and
+nothing carries a region into what it wrote. It then transforms each such
+module twice and reads the probes, and the run warns once for each such
+transformer, naming it. `setupFiles` keep their order and
 gain the counter factory at the start; `setupFilesAfterEnv` gain the journal
 writer at the end; reporters gain one at the end, and a configuration with no
 reporters keeps Jest's default.
@@ -765,7 +777,11 @@ The second argument accepts `root`, `suite`, `coverageFile`, `include`,
 does not report which config file it loaded, so name it in `preconditions`. The
 regions are cut from the text you wrote, so the lines a record carries are the
 ones you edited, and a second loader at `enforce: 'post'` writes the probes into
-what SWC and your loaders wrote, where their map carries each region.
+what SWC and your loaders wrote, where their map carries each region. A loader
+of yours that rewrites a file is handed the map so far and returns it composed
+with its own. A file that reaches the second loader with no map stops the run,
+naming the file: leave Rspack's `devtool` writing source maps, as Rstest sets
+it.
 
 Recording per case needs nothing from the configuration. Rstest has no runner option, so
 the per-case bracket goes around `it` and `test` themselves — on the realm when
@@ -783,7 +799,9 @@ after the wrap has run, so its files are preconditions of every test.
 To assemble a configuration by hand instead, `withTestSelection` names two
 loaders by path, and you can name them yourself:
 `@variance-authority/sense/rstest-loader` with `enforce: 'pre'`, and
-`@variance-authority/sense/rstest-after-loader` with `enforce: 'post'`.
+`@variance-authority/sense/rstest-after-loader` with `enforce: 'post'`. A
+configuration that names the first and not the second fails when the run ends,
+naming each file that never reached the second loader.
 
 ## Record a runner this package has no seam for
 
@@ -922,9 +940,9 @@ modules are product source, `mode`, and `journeys` with `label`, which install
 a journey head for a service bundle under that name (`build` by default).
 
 `testSelectionProbes` runs at `enforce: 'post'`, after every transform of
-yours, so a compiler that reads the syntax it compiles — a CSS-in-JS extractor,
-a macro, a GraphQL tag, React Compiler — reads the text it reads without
-recording and compiles the same output. The regions are still the file's own:
+yours, so a compiler that reads the syntax it compiles, such as a CSS-in-JS
+extractor or React Compiler, reads the text it reads without recording and
+compiles the same output. The regions are still the file's own:
 each module is cut from the file on disk, named after it, digested as its text
 and placed on its lines, and the probes are written into the transformed text
 where the transforms' combined map carries each region. Code a compiler wrote
@@ -933,9 +951,17 @@ generated constructor is never recorded.
 
 Where the transforms ahead of the probes rewrote a file and left no map back to
 it, or left a region of it with no code the map carries back, the build stops
-and names the file and the region. A region a compiler folded into a
-neighbour, such as a style function inlined into its component, is carried by
-the code the map attributes it to.
+and names the file and the region. Under a dev server, a plugin that rewrote a
+file and returned no map is named the same way. A region a compiler folded into
+a neighbour, such as a style function inlined into its component, is carried by
+the code the map attributes it to: the code in front of it, inside a region
+that encloses it.
+
+A region can be recorded as running when it did not, and never the other way
+round. A compiler's map may name a function's closing brace as the end of its
+last statement; React Compiler's does, so the code after an early `return` is
+recorded on every call, and an edit to it selects the tests that returned early
+too.
 
 ### A library loaded from its build
 

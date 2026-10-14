@@ -57,7 +57,14 @@ function instrumentModule(this: SelectionLoaderContext, code: string): void {
   // This seam's own setup module is a file under the project root like any
   // other, so it is excluded by path rather than by the shape of its name.
   const first = run !== undefined && namesItsMap(code);
-  if (run === undefined || run.shims.has(file) || (!first && !cutting(run, file))) {
+  if (run === undefined || run.shims.has(file)) {
+    this.callback(null, code);
+    return;
+  }
+  // Every other module is the probes loader's, after the project's own: a
+  // configuration that carries this loader without it fails at the run's end.
+  if (!first && run.include(file)) run.awaiting.add(file);
+  if (!first && !cutting(run, file)) {
     this.callback(null, code);
     return;
   }

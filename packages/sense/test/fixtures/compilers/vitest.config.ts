@@ -1,9 +1,13 @@
+import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { withTestSelection } from '@variance-authority/sense/vitest';
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
-import extractor from './extract.cjs';
+
+// Required by Node rather than bundled into the config, so `magic-string`
+// loads as the CommonJS it ships for `require`.
+const extractor = createRequire(import.meta.url)('./extract.cjs') as typeof import('./extract.cjs');
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const source = resolve(root, 'src');
@@ -13,7 +17,7 @@ if (coverageFile === undefined) throw new Error('VARIANCE_AUTHORITY_COVERAGE is 
 // After Vite's TypeScript transform, as a project's normal plugin runs.
 const extract: Plugin = {
   name: 'extract',
-  transform: (code, id) => (id.endsWith('.ts') ? { code: extractor.extract(code), map: null } : null),
+  transform: (code, id) => (id.endsWith('.ts') ? (extractor.extract(code, id) ?? null) : null),
 };
 
 export default withTestSelection(

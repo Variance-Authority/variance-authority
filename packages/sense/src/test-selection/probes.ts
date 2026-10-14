@@ -10,6 +10,7 @@ import { instrumentationId, type InstrumentMode, type ModuleId } from '../instru
 import { captureAfter, type ComposedMap } from './captured-modules.js';
 import { cleanId, defaultInclude } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
+import { unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
 
@@ -110,6 +111,11 @@ export interface InstrumentedMap {
 export interface InstrumentingPlugin {
   readonly name: string;
   readonly enforce: 'post';
+  /** Under the dev server, watch every other plugin for a rewrite with no map: {@link watchUnmapped}. */
+  readonly configResolved: (config: {
+    readonly command: string;
+    readonly plugins: readonly { readonly name: string; transform?: unknown }[];
+  }) => void;
   readonly resolveId: (id: string) => string | null;
   readonly load: (id: string) => string | null;
   readonly transform: (
@@ -138,12 +144,13 @@ const RESOLVED_COLLECTOR = `\0${VIRTUAL_COLLECTOR}`;
  * ```
  *
  * `enforce: 'post'`, so no transform of the project's reads a probe: a
- * compiler that reads syntax — a CSS-in-JS extractor, a macro, a memoising
- * compiler — would refuse probed code, or compile it into something the
- * project does not ship. The regions are still the file's as it is on disk,
+ * compiler that reads syntax — a CSS-in-JS extractor, a memoising compiler —
+ * would refuse probed code, or compile it into something the project does not
+ * ship. The regions are still the file's as it is on disk,
  * the text the join cuts again and a diff is written against; the composed
  * map says where each one's code went, and a region it carries nowhere stops
- * the build by name.
+ * the build by name. So does a plugin that rewrote the file under the dev
+ * server and returned no map, which Vite would compose as moving nothing.
  */
 export function testSelectionProbes(
   options: TestSelectionProbeOptions = {},
@@ -151,9 +158,15 @@ export function testSelectionProbes(
   const root = repositoryRoot(options.root ?? process.cwd());
   const include = options.include ?? defaultInclude;
 
+  const name = 'variance-authority:test-selection-probes';
   return {
-    name: 'variance-authority:test-selection-probes',
+    name,
     enforce: 'post',
+    // A build composes a rewrite with no map to nothing, which the placement
+    // refuses by region; the dev server composes it as moving nothing.
+    configResolved: (config) => {
+      if (config.command === 'serve') watchUnmapped(config.plugins, name);
+    },
     resolveId: (id) => (id === VIRTUAL_COLLECTOR || id === RESOLVED_COLLECTOR ? RESOLVED_COLLECTOR : null),
     load: (id) => {
       if (id !== RESOLVED_COLLECTOR) return null;
@@ -172,7 +185,7 @@ export function testSelectionProbes(
       const context = this as InstrumentingContext | undefined;
       const combined = context?.getCombinedSourcemap;
       const map = typeof combined === 'function' ? () => combined.call(context) : undefined;
-      const captured = captureAfter(root, source, code, include, options.mode, map);
+      const captured = captureAfter(root, source, code, include, options.mode, map, { unmapped: unmappedSteps(context) });
       if (captured === undefined) return null;
 
       // Hoisted in front of everything the module imports, and on the first line,

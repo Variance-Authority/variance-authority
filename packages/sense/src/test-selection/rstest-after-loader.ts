@@ -2,8 +2,8 @@
  * The Rstest seam's probes on what the project's loaders wrote, as an Rspack
  * loader.
  *
- * A compiler that reads syntax — a CSS-in-JS extractor, a macro, a memoising
- * compiler — reads probes too when they go in first. Declared `enforce: 'post'`,
+ * A compiler that reads syntax, such as a CSS-in-JS extractor or a memoising
+ * compiler, reads probes too when they go in first. Declared `enforce: 'post'`,
  * this loader runs after SWC and every loader the project configured, and the
  * probes go into what they wrote, where the map they handed on says each region
  * of the file on disk went: the regions, ordinals and id are the file's, cut
@@ -40,6 +40,7 @@ export interface AfterLoaderContext {
 function probeAfter(this: AfterLoaderContext, code: string, handed?: HandedMap): void {
   const file = cleanId(this.resourcePath);
   const run = runOf(this.getOptions().coverageFile);
+  run?.awaiting.delete(file);
   if (run === undefined || run.shims.has(file) || namesItsMap(disk(file))) {
     this.callback(null, code, handed);
     return;
@@ -52,6 +53,7 @@ function probeAfter(this: AfterLoaderContext, code: string, handed?: HandedMap):
     captured = captureAfter(run.root, file, code, run.include, run.mode, map && (() => map), {
       unprobed: run.unprobed,
       carry: true,
+      remedy: REMEDY,
     });
   } catch (error) {
     this.callback(error as Error);
@@ -62,8 +64,14 @@ function probeAfter(this: AfterLoaderContext, code: string, handed?: HandedMap):
     return;
   }
   run.modules.set(captured.module.id, captured.module);
-  this.callback(null, captured.code, map && captured.carried !== undefined ? { ...map, mappings: captured.carried } : undefined);
+  this.callback(null, captured.code, map && (captured.carried === undefined ? map : { ...map, mappings: captured.carried }));
 }
+
+/**
+ * Rstest asks Rspack for source maps unless the project turned `devtool` off;
+ * a loader that rewrites the file and hands on no map breaks the chain too.
+ */
+const REMEDY = 'Leave Rspack\'s `devtool` writing source maps, as Rstest sets it, and have every loader ahead of the probes hand its map on';
 
 /** The file on disk, or nothing when it cannot be read. */
 function disk(file: string): string {

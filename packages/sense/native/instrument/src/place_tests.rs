@@ -92,15 +92,21 @@ fn code_only_the_transform_wrote_carries_no_probe() {
 }
 
 #[test]
-fn a_region_nothing_maps_into_is_unplaced() {
+fn a_region_with_no_origin_in_front_of_it_in_an_enclosing_region_is_unplaced() {
     let authored = "export function f() { return 1 }\nexport function g() { return 2 }\n";
     let transformed = "export function f() { return 1 }\n";
-    // Only the module's start is mapped, in front of both functions, so both
-    // are carried by the region holding it: the module fires them.
-    let placed = place(authored, transformed, "a.js", "AAAA", 0, "a.js@00", false, false).expect("it parses");
-    assert!(placed.unplaced.is_empty());
     let none = place(authored, transformed, "a.js", "", 0, "a.js@00", false, false).expect("it parses");
     assert_eq!(none.unplaced, vec![1, 2]);
+}
+
+#[test]
+fn a_region_with_no_origin_of_its_own_is_fired_by_the_enclosing_code_in_front_of_it() {
+    let authored = "export function f() { return 1 }\nexport function g() { return 2 }\n";
+    let transformed = "export function f() { return 1 }\n";
+    // Only the module's start is mapped. It is in front of both functions and
+    // in the module's own code, which encloses them, so the module fires both.
+    let placed = place(authored, transformed, "a.js", "AAAA", 0, "a.js@00", false, false).expect("it parses");
+    assert!(placed.unplaced.is_empty());
 }
 
 #[test]
@@ -118,27 +124,55 @@ fn an_awaited_resume_fires_each_authored_one_and_none_for_its_own() {
 fn the_map_back_names_the_transformed_columns() {
     let source = "export const a = () => 1;\n";
     let placed = place(source, source, "a.js", &identity(source), 0, "a.js@00", false, false).expect("it parses");
-    assert!(placed.mappings.is_some_and(|it| it.starts_with("AAAA")));
+    assert!(placed.mappings.starts_with("AAAA"));
 }
 
 #[test]
-fn a_region_without_an_origin_is_reported_with_the_code_in_front_of_it() {
-    // `g`'s text carries no origin: it fires wherever the code holding the
-    // nearest origin in front of it runs, so it can be reported present
-    // when only `f` ran, and never missing when it ran.
+fn a_region_without_an_origin_is_fired_by_the_code_enclosing_it_in_front_of_it() {
+    // `g`'s text carries no origin. The nearest origin in front of it inside a
+    // region enclosing it is the module's own code, `export function f() `,
+    // so the module fires `g` when it loads: present whenever the module ran.
+    // `f`'s body is in front of `g` too, but does not enclose it.
     let authored = "export function f() { return 1 }\nexport function g() { return 2 }\n";
     let points: Vec<_> = (0..32).map(|column| (0, column, 0, column)).collect();
     let placed = place(authored, authored, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
     assert!(placed.unplaced.is_empty(), "{:?}", placed.unplaced);
-    assert!(placed.cut.code.contains("function f() {__va(1),__va(2); return 1 }"), "{}", placed.cut.code);
+    assert!(placed.cut.code.contains("__vaK.g(2147483648|__vaB);__va(2);"), "{}", placed.cut.code);
+    assert!(placed.cut.code.contains("function f() {__va(1); return 1 }"), "{}", placed.cut.code);
     assert!(placed.cut.code.contains("function g() {void 0; return 2 }"), "{}", placed.cut.code);
+}
+
+#[test]
+fn a_region_with_only_a_sibling_in_front_of_it_is_unplaced() {
+    // Only `f`'s body is mapped: the one origin in front of `g` is in a region
+    // that does not enclose it, so nothing that runs `g` is known to run.
+    let authored = "export function f() { return 1 }\nexport function g() { return 2 }\n";
+    let points: Vec<_> = (20..32).map(|column| (0, column, 0, column)).collect();
+    let placed = place(authored, authored, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
+    assert_eq!(placed.unplaced, vec![2]);
+}
+
+#[test]
+fn an_outlined_callback_is_fired_by_the_component_that_holds_it() {
+    // An extractor that hoists a callback out of a component maps what it
+    // wrote to the component's code: the callback is fired on entry into the
+    // component, in front of it and enclosing it, not by the sibling `h`.
+    let authored = "export function h() { return 0 }\nexport function C(p) { const on = () => p; return on }\n";
+    let transformed = "export function h() { return 0 }\nconst _on = (p) => () => p;\nexport function C(p) { const on = _on(p); return on }\n";
+    let mut points: Vec<_> = (0..33).map(|column| (0, column, 0, column)).collect();
+    // `C`'s line maps onto `C`'s authored line, up to `const on = `.
+    points.extend((0..33).map(|column| (2, column, 1, column)));
+    let placed = place(authored, transformed, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
+    assert!(placed.unplaced.is_empty(), "{:?}", placed.unplaced);
+    let body = placed.cut.code.split("export function C(p) {").nth(1).expect("C");
+    assert!(body.starts_with("__va(2),__va(3);"), "{}", placed.cut.code);
 }
 
 #[test]
 fn the_carried_map_keeps_the_sources_and_moves_past_the_probes() {
     let source = "export const a = () => 1;\n";
     let placed = place(source, source, "a.js", &identity(source), 0, "a.js@00", false, true).expect("it parses");
-    let own = placed.mappings.expect("one line");
+    let own = placed.mappings;
     let carried = placed.carried.expect("carried");
     assert_eq!(carried.split(',').count(), identity(source).split(',').count());
     assert_ne!(carried, identity(source));
@@ -174,4 +208,41 @@ fn a_segment_in_a_line_s_indentation_is_read_at_the_token_after_it() {
     assert!(placed.unplaced.is_empty(), "{:?}", placed.unplaced);
     let entry = placed.cut.code.split("function f(v) {").nth(1).expect("the function").split('\n').next().unwrap();
     assert_eq!(entry.matches("__va(").count(), 1, "{}", placed.cut.code);
+}
+
+#[test]
+fn a_header_on_a_line_of_its_own_keeps_both_maps() {
+    // A module that is only a hashbang takes its header on the next line: the
+    // maps still say where everything went.
+    let source = "#!/usr/bin/env node";
+    let placed = place(source, source, "a.js", &identity(source), 0, "a.js@00", false, true).expect("it parses");
+    assert!(placed.cut.code.starts_with("#!/usr/bin/env node\n"), "{}", placed.cut.code);
+    assert!(placed.mappings.starts_with("AAAA") && placed.mappings.contains(';'), "{}", placed.mappings);
+    assert!(placed.carried.expect("carried").ends_with(';'));
+}
+
+#[test]
+fn an_import_a_compiler_wrote_fires_nothing_from_the_code_it_names() {
+    // esbuild maps the `react/jsx-runtime` import it adds to the first JSX
+    // element: read as that code, the module would fire `f` on every load.
+    let authored = "export function f() { return 1 }\n";
+    let transformed = "import 'rt';\nexport function f() { return 1 }\n";
+    let mut points = vec![(0, 0, 0, 22)];
+    points.extend((0..32).map(|column| (1, column, 0, column)));
+    let placed = place(authored, transformed, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
+    assert!(placed.unplaced.is_empty(), "{:?}", placed.unplaced);
+    assert!(!placed.cut.code.contains("__vaB);__va(1);"), "{}", placed.cut.code);
+    assert!(placed.cut.code.contains("function f() {__va(1); return 1 }"), "{}", placed.cut.code);
+}
+
+#[test]
+fn an_import_the_author_wrote_still_fires_the_module_code_behind_it() {
+    // Vitest hoists `vi.hoisted` above the imports and maps only the import it
+    // moved: the factory behind it is fired by the module code in front of it.
+    let authored = "import 'a';\nconst x = h(() => 1);\n";
+    let transformed = "const x = h(() => 1);\nimport 'a';\n";
+    let points: Vec<_> = (0..11).map(|column| (1, column, 0, column)).collect();
+    let placed = place(authored, transformed, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
+    assert!(placed.unplaced.is_empty(), "{:?}", placed.unplaced);
+    assert!(placed.cut.code.contains("__vaB);__va(1);"), "{}", placed.cut.code);
 }

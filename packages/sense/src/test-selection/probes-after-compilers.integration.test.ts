@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import MagicString from 'magic-string';
 import { build, createServer, type Plugin } from 'vite';
 import { afterEach, describe, expect, it } from 'vitest';
 import { deriveModules } from './captured-modules.js';
@@ -9,9 +10,10 @@ import { testSelectionProbes } from './probes.js';
 /**
  * A build-time compiler that reads syntax, the way a CSS-in-JS extractor
  * does: `css()` takes an arrow whose body it can evaluate, a condition between
- * two strings, and anything else cannot have its styles extracted. It renames
- * the call in place, so its own map is the identity, and Vite's TypeScript
- * transform in front of it writes the map the probes are placed through.
+ * two strings, and anything else cannot have its styles extracted. It
+ * replaces the call with one that names the class it extracted, so every
+ * column after it moves, and returns its map, which Vite composes onto the
+ * map of the TypeScript transform in front of it.
  */
 function extractor(): Plugin {
   return {
@@ -19,12 +21,15 @@ function extractor(): Plugin {
     transform(code, id) {
       if (!id.endsWith('.ts')) return null;
       const calls = [...code.matchAll(/\bcss\(\(([a-z]+)\) => (.*?)\);/g)];
-      for (const [, , body] of calls) {
-        if (!/^[a-z.]+ \? "[a-z]+" : "[a-z]+"$/.test(body!)) {
-          throw new Error(`extractor: \`${body}\` is unable to have its styles extracted`);
+      if (calls.length === 0) return null;
+      const written = new MagicString(code);
+      for (const call of calls) {
+        if (!/^[a-z.]+ \? "[a-z]+" : "[a-z]+"$/.test(call[2]!)) {
+          throw new Error(`extractor: \`${call[2]}\` is unable to have its styles extracted`);
         }
+        written.overwrite(call.index, call.index + 'css('.length, "cls('tone', ");
       }
-      return calls.length === 0 ? null : { code: code.replaceAll('css((', 'cls(('), map: null };
+      return { code: written.toString(), map: written.generateMap({ hires: true, source: id }) };
     },
   };
 }
@@ -52,7 +57,7 @@ async function workspace(): Promise<string> {
   temporary.push(root);
   await mkdir(resolve(root, 'src'), { recursive: true });
   await writeFile(resolve(root, 'src/tone.ts'), SOURCE);
-  await writeFile(resolve(root, 'src/cls.js'), 'export const cls = (style) => style;\n');
+  await writeFile(resolve(root, 'src/cls.js'), 'export const cls = (_name, style) => style;\n');
   await writeFile(resolve(root, 'src/main.js'), "import { label } from './tone.ts';\nconsole.log(label(true));\n");
   return root;
 }
@@ -90,7 +95,7 @@ describe('a compiler that reads the syntax it compiles', () => {
     // The arrow `css()` takes is a region of its own, on line 2 of the file.
     expect(served?.blocks).toContainEqual(['css.arg0', 'entry', 2, 2]);
     // Its probe went in after the extractor read it, inside the arrow it kept.
-    expect(code).toMatch(/cls\(\(props\) => \(__va\(\d+\),/);
+    expect(code).toMatch(/cls\('tone', \(props\) => \(__va\(\d+\),/);
 
     const output = await build({
       root,
@@ -117,5 +122,28 @@ describe('a compiler that reads the syntax it compiles', () => {
       plugins: [testSelectionProbes({ root }), extractor(), blind],
       build: { write: false, rollupOptions: { input: resolve(root, 'src/main.js') } },
     })).rejects.toThrow(/`src\/tone\.ts`: .* back to css\.arg0\/entry, label\/entry, /);
+  });
+
+  it('refuses a dev-server module a plugin rewrote without a map, naming the plugin, where Vite would read it as moving nothing', async () => {
+    const root = await workspace();
+    // Every line moves down one, and Vite composes the missing map as identity.
+    const banner: Plugin = {
+      name: 'banner',
+      transform: (code, id) => (id.endsWith('tone.ts') ? { code: `/* banner */\n${code}` } : null),
+    };
+    const server = await createServer({
+      root,
+      configFile: false,
+      logLevel: 'silent',
+      plugins: [testSelectionProbes({ root }), extractor(), banner],
+      server: { middlewareMode: true, hmr: false, ws: false },
+    });
+    try {
+      await expect(server.transformRequest('/src/tone.ts')).rejects.toThrow(
+        /`src\/tone\.ts`: the plugin `banner` ahead of the probes rewrote the file and returned no source map/,
+      );
+    } finally {
+      await server.close();
+    }
   });
 });

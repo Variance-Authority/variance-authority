@@ -51,7 +51,10 @@ function instrumented(file: string, code: string, coverageFile: string): string 
   const context: SelectionLoaderContext = {
     resourcePath: file,
     getOptions: () => ({ coverageFile }),
-    callback: (_error, next) => (out = next),
+    callback: (error, next) => {
+      if (error) throw error;
+      out = next;
+    },
   };
   instrumentModule.call(context, code);
   probeAfter.call(context, out);
@@ -105,7 +108,7 @@ describe('an Rstest file that runs in a page', () => {
     plugin.setup(api({ enabled: true }));
     await mkdir(resolve(root, 'src'));
     const source = resolve(root, 'src/price.js');
-    await writeFile(source, `${PRICE}\n`);
+    await writeFile(source, PRICE);
     const module = instrumented(source, PRICE, coverageFile);
     const shim = await readFile(setup, 'utf8');
 
