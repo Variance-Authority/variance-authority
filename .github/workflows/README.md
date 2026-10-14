@@ -45,8 +45,9 @@ nightly, and the shards on demand only — sharding fourteen subjects across two
 installs saves nothing, and the shards find their pull-request comment by the
 same hidden HTML marker the gate uses, because the marker names the config's
 `project` and the two run one config, so on the same event the two would
-overwrite each other. The gate's two jobs run two configs, the case's Storybook
-and the review surface's, and keep a comment each.
+overwrite each other. The gate runs three configs, each its own check with its
+own comment and its own accept label: the case's Storybook, and a matrix over
+this project's own surfaces, the review surface's Storybook and the site.
 
 `check.yml` runs one job per harness — the repository's rules, the timed
 measurements, and the vitest suite — and a `check` job that turns their results

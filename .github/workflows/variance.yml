@@ -9,12 +9,13 @@ name: variance
 # It is also **the only thing in this repository that observes a subject**. Until
 # it did, every step here was skipped behind a check for a `variance.config.json`
 # that was never written: three workflows shaped like a gate, none of which had
-# ever launched a browser. Two subjects, one job each. `variance` observes
+# ever launched a browser. Three projects, one check each. `variance` observes
 # `cases/storybook-case`, twelve stories that are a fixture. `tribunal` observes
 # this project's own interface: the review surface's Storybook, its pages and
 # components drawn over builds the project recorded through itself. A redesign
 # of that page once landed without one image moving, because nothing
-# photographed it. [`site/`](../../site) still has no subject of any kind.
+# photographed it. `site` observes variance-authority.dev, [`site/`](../../site),
+# every route its sitemap lists.
 #
 # ## Where the baselines come from, since nothing here is committed
 #
@@ -33,7 +34,7 @@ name: variance
 # (`.github/scripts/variance-accept.mjs` decides, and says which):
 #
 # - **On a pull request**, by adding the `variance: accept` label, or
-#   `variance: accept tribunal` for the `tribunal` check. The run saves
+#   `variance: accept <project>` for the `tribunal` and `site` checks. The run saves
 #   into the pull request's own cache scope, which its later runs read first, and
 #   takes the label off again so the next change needs the next press.
 # - **On `main`, by landing there.** A pull request is where a change is
@@ -404,26 +405,59 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
 
-  # The review surface's own Storybook (`packages/tribunal/stories`), over
-  # builds `stories/record.mjs` pushes through an in-process tribunal on every
-  # run. A second check rather than a second config in the job above, because
-  # each verdict is its own decision: a change to the review page is accepted
-  # or not on its own terms, not in the same breath as the case's buttons.
+  # This project's own surfaces, one check each: `tribunal` is the review
+  # surface's Storybook (`packages/tribunal/stories`), over builds
+  # `stories/record.mjs` pushes through an in-process tribunal on every run, and
+  # `site` is variance-authority.dev, every route its sitemap lists. Checks apart
+  # from the one above and from each other, because each verdict is its own
+  # decision: a change to the review page or to a docs page is accepted or not on
+  # its own terms, not in the same breath as the case's buttons.
   #
-  # So it has its own label, `variance: accept tribunal`: the case's label does
-  # not start this job, and this one's does not start the job above. The same
-  # accept rules otherwise, and its own cache entry, keyed by the config's
-  # `project`. A dispatch with `accept` ticked still accepts both, and so does
-  # a push to `main`. Its
-  # `VARIANCE_REVIEW` is always `cache`: the config says `carry: actions-cache`
-  # whatever the workflow's says. Its comment and its image ref are its own,
-  # both keyed by the config's `project`, so the two jobs keep a docket each on
-  # one pull request.
-  tribunal:
-    if: >-
-      github.event.action != 'closed' &&
-      (github.event.action != 'labeled' ||
-      github.event.label.name == 'variance: accept tribunal')
+  # So each has its own label, `variance: accept <project>`: one project's label
+  # starts no other project's run. The same accept rules otherwise, and its own
+  # cache entry, keyed by the config's `project`. A dispatch with `accept`
+  # ticked still accepts every project, and so does a push to `main`. Their
+  # `VARIANCE_REVIEW` is always `cache`: each config says `carry: actions-cache`
+  # whatever the workflow's says. Each comment and each image ref is the
+  # project's own, keyed by the config's `project`, so every job keeps its own
+  # docket on one pull request.
+  #
+  # A project is one row in `plan` below and, when it needs something built
+  # before it can be observed, a step under `build what this project observes`.
+  # A job-level `if` cannot read `matrix`, so `plan` decides which rows run: all
+  # of them, or on a label, the row whose label it is.
+  plan:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-24.04
+    outputs:
+      projects: ${{ steps.plan.outputs.projects }}
+    steps:
+      - id: plan
+        shell: bash
+        env:
+          VARIANCE_EVENT_ACTION: ${{ github.event.action }}
+          VARIANCE_LABEL: ${{ github.event.label.name }}
+        run: |
+          set -euo pipefail
+          projects='[
+            {"project": "tribunal", "config": "packages/tribunal/variance.config.json", "label": "variance: accept tribunal"},
+            {"project": "site", "config": "site/variance.config.json", "label": "variance: accept site"}
+          ]'
+          if [ "$VARIANCE_EVENT_ACTION" = labeled ]; then
+            projects=$(jq --arg label "$VARIANCE_LABEL" 'map(select(.label == $label))' <<< "$projects")
+          fi
+          echo "projects=$(jq -c . <<< "$projects")" >> "$GITHUB_OUTPUT"
+
+  project:
+    needs: plan
+    if: needs.plan.outputs.projects != '[]'
+    # The check is the project's name, as it was when each was its own job.
+    name: ${{ matrix.project }}
+    strategy:
+      # One project's red says nothing about another's pixels.
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.projects) }}
 
     # The workflow's, spelled out: `contents: write` pushes this project's
     # images ref under `VARIANCE_IMAGES`, and `pull-requests: write` writes its
@@ -434,7 +468,7 @@ jobs:
       pull-requests: write
 
     concurrency:
-      group: variance-tribunal-${{ github.ref }}
+      group: variance-${{ matrix.project }}-${{ github.ref }}
       cancel-in-progress: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
 
     runs-on: ubuntu-24.04
@@ -454,7 +488,7 @@ jobs:
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VARIANCE_ACCEPT_LABEL: 'variance: accept tribunal'
+          VARIANCE_ACCEPT_LABEL: ${{ matrix.label }}
           VARIANCE_DISPATCH_ACCEPT: ${{ inputs.accept }}
           VARIANCE_REVIEW: cache
         run: node .github/scripts/variance-accept.mjs
@@ -466,37 +500,60 @@ jobs:
 
       # What the stories draw is recorded here, from this commit's service and
       # in this image's browser, rather than committed: CI makes the images.
-      - name: record what the stories draw
+      - name: build what this project observes
+        if: matrix.project == 'tribunal'
         shell: bash
-        run: yarn workspace @variance-authority/tribunal stories:record
+        run: |
+          yarn workspace @variance-authority/tribunal stories:record
+          yarn workspace @variance-authority/tribunal build-storybook
 
-      - name: build the Storybook this run observes
+      # The site is its own install, outside the workspaces, and its build reads
+      # `docs/` and the packages' READMEs from this checkout. It is observed as
+      # built, served by the same worker it deploys as, so a page that differs
+      # between the build and production is not this check's to find. The
+      # server stays up for the rest of the job; the gate reads its sitemap.
+      - name: build what this project observes
+        if: matrix.project == 'site'
         shell: bash
-        run: yarn workspace @variance-authority/tribunal build-storybook
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          set -euo pipefail
+          cd site
+          yarn install --immutable
+          yarn build
+          nohup yarn start > "$RUNNER_TEMP/site.log" 2>&1 &
+          for _ in $(seq 60); do
+            if node -e "fetch('http://localhost:8787/sitemap.xml').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"; then exit 0; fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/site.log" >&2
+          echo "::error::the site did not answer on localhost:8787 within a minute"
+          exit 1
 
       - id: variance
         uses: ./.github/actions/variance
         with:
-          config: packages/tribunal/variance.config.json
+          config: ${{ matrix.config }}
           profile: chromium
           command: node packages/cli/dist/bin.js
           comment: ${{ github.event_name == 'pull_request' }}
           # The docket from before the marker named a project is the case's:
-          # this job never commented then, and taking it would replace the
-          # case's.
+          # these projects never commented then, and taking it would replace
+          # the case's.
           adopt-unkeyed-comment: 'false'
           intent: ${{ steps.accept.outputs.intent }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           accept: ${{ steps.accept.outputs.promote == 'true' }}
           report-page: 'true'
           image-ref-prefix: ${{ env.VARIANCE_IMAGES }}
-          # This check's label, not the case's.
-          to-accept: 'check the report, then add the **variance: accept tribunal** label to this pull request.'
+          # This project's label, not the case's.
+          to-accept: 'check the report, then add the **${{ matrix.label }}** label to this pull request.'
 
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tribunal-files
+          name: ${{ matrix.project }}-files
           path: |
             ${{ steps.variance.outputs.report }}
             ${{ steps.variance.outputs.images }}
