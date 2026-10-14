@@ -233,6 +233,24 @@ describe('settle', () => {
     expect(settle(digest, found, IDENTITY, undefined, COLLECTED).kind).toBe('settled');
   });
 
+  it('renders a baseline read from where an earlier layout kept it, so an accepting run moves it', () => {
+    // Settled, the subject would keep its old path for as long as its document
+    // holds: a settled subject produces no observation, and accept moves only
+    // what an observation names.
+    const found: Described = {
+      documentDigest: digest,
+      comparable: true,
+      storedUnder: IDENTITY,
+      missingFonts: [],
+      relocated: { from: 'v1-abc/button', to: 'Components/Button/Primary-chromium' },
+    };
+
+    expect(settle(digest, found, IDENTITY)).toEqual({
+      kind: 'render',
+      because: expect.stringMatching(/read from v1-abc\/button.*Components\/Button\/Primary-chromium/),
+    });
+  });
+
   it.todo(
     'the share of subjects `settle` answers without a render is a measured number — needs a checkout with pull-request history and one run per pull request, which is what spec §10 asks for with `>70% screenshot-skip on typical PRs`',
   );

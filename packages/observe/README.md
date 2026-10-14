@@ -310,7 +310,7 @@ measures displacement.
   baseline was written.
 - **Everything is `changed` with a moved identity.** Compare the reported
   identities. Browser, platform, scale, font declarations and stabilization
-  inputs partition baselines on purpose; pin one painter for every run.
+  inputs are part of the identity on purpose; pin one painter for every run.
 - **Regions have coordinates but no components.** Supply the semantic snapshot
   from the same render.
 - **Components have no source lines.** Supply a matching `SourceIndex`.

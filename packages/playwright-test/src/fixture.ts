@@ -25,7 +25,7 @@ import type { MaterializationOptions, VarianceOptions } from './options.js';
 import { bundlePageAgent } from './bundle.js';
 import { checkoutStore } from './render-cache.js';
 import { acquireFrom, refocusAfter } from './acquire.js';
-import { runOf, subjectFromRun, viewportOf, type VarianceRun } from './run.js';
+import { baselineKeyOf, runOf, subjectFromRun, viewportOf, type VarianceRun } from './run.js';
 import { regionOf, settledCapture } from './in-place.js';
 import { varianceCompletedFixtures, type VarianceCompletedFixtures } from './completed.js';
 import { varianceDocumentFixtures } from './documents.js';
@@ -124,6 +124,12 @@ export interface VarianceWorkerFixtures
   readonly varianceBundle: string;
   readonly varianceStore: RasterStore;
   readonly varianceBaselines: string;
+  /**
+   * Where each baseline goes under `varianceBaselines`, as `baselines.path`
+   * spells it: `{title}/{name}-{engine}` when unset, and
+   * `{dir}/__baselines__/{file}/{name}-{engine}` beside each spec.
+   */
+  readonly varianceBaselinePath: string | undefined;
 }
 
 export interface VarianceRuntime {
@@ -177,6 +183,8 @@ export const varianceFixtures: Fixtures<
 
   varianceBaselines: ['.variance/baselines', { scope: 'worker', option: true }],
 
+  varianceBaselinePath: [undefined, { scope: 'worker', option: true }],
+
   varianceExecution: [false, { scope: 'worker', option: true }],
 
   // FIXME: a `variancePrecondition` call while the worker's first file is
@@ -215,8 +223,9 @@ export const varianceFixtures: Fixtures<
   ],
 
   varianceStore: [
-    async ({ varianceBaselines }, use) => {
-      const { store, sweep } = checkoutStore(varianceBaselines);
+    async ({ varianceBaselines, varianceBaselinePath }, use, workerInfo) => {
+      const projects = workerInfo.config.projects.map((project) => project.name);
+      const { store, sweep } = checkoutStore(varianceBaselines, varianceBaselinePath, projects);
       await use(store);
       await sweep();
     },
@@ -382,7 +391,7 @@ async function observeAcquired(
   // folds in the scale and nothing else about the viewport, and nothing here
   // sets `label`, the one part of the key the store files apart, so no layer
   // partitions on what the `start-*.md` pages say an image is stored under.
-  const key: BaselineKey = { subject: subject.id };
+  const key: BaselineKey = baselineKeyOf(run, subject.id, { named: options.subjectId !== undefined });
 
   if (materialization.kind === 'in-place') {
     const { held, snapshot: heldSnapshot, raster: candidate } = await settledCapture(

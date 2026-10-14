@@ -233,7 +233,7 @@ export async function observeOne(
       // Only on the durable path, and only because `accept` writes baselines
       // from this report and never re-plans. The ephemeral branch above compares
       // two renders from one run and stores neither, so it has nowhere to place.
-      ...(planned.path !== undefined ? { placement: planned.path } : {}),
+      ...baselineKeyOf(key),
       ...(await images(
         id,
         observation,
@@ -265,6 +265,14 @@ export async function observeOne(
  * image had nothing to measure on either side: `unobservable`, because a reader
  * who saw `unchanged` would take the image as evidence it never was.
  */
+/** The key's naming fields, absent when it names the subject id alone. */
+function baselineKeyOf(key: BaselineKey): { baselineKey?: CliObservationRecord['baselineKey'] } {
+  const { subject, label, ...naming } = key;
+  void subject;
+  void label;
+  return Object.keys(naming).length === 0 ? {} : { baselineKey: naming };
+}
+
 function pixelAxis(
   settlement: Extract<Settlement, { kind: 'settled' }>,
 ): { pixels: 'unchanged' | 'unobservable' } {

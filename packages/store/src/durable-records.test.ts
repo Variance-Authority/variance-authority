@@ -3,11 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
-import { digestFileName, identityDigest } from '@variance-authority/core/format';
 import { createDurableStore } from './durable.js';
-
-/** The directory a store names for this identity's partition. */
-const partition = (identity: RenderIdentity): string => digestFileName(identityDigest(identity));
 
 const MAC: RenderIdentity = {
   renderer: 'playwright-chromium',
@@ -50,10 +46,7 @@ describe('the record location', () => {
     const store = createDurableStore(root);
     await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
 
-    expect(await readdir(join(root, partition(MAC)))).toEqual([
-      'todo--empty.json',
-      'todo--empty.png',
-    ]);
+    expect(await readdir(root)).toEqual(['todo--empty-chromium.json', 'todo--empty-chromium.png']);
   });
 
   it('leaves the baseline root holding images alone when it is pointed elsewhere', async () => {
@@ -62,8 +55,8 @@ describe('the record location', () => {
       const store = createDurableStore(root, { recordRoot: records });
       await store.put({ subject: 'todo--empty' }, rasterOf(MAC, 'v1:doc', 'QUJD'));
 
-      expect(await readdir(join(root, partition(MAC)))).toEqual(['todo--empty.png']);
-      expect(await readdir(join(records, partition(MAC)))).toEqual(['todo--empty.json']);
+      expect(await readdir(root)).toEqual(['todo--empty-chromium.png']);
+      expect(await readdir(records)).toEqual(['todo--empty-chromium.json']);
 
       // And the halves are still one baseline to every reader.
       const found = await store.find({ subject: 'todo--empty' }, MAC);
@@ -120,7 +113,7 @@ describe('the record location', () => {
     try {
       const store = createDurableStore(root, { recordRoot: records });
       await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
-      await unlink(join(records, partition(MAC), 'todo--empty.json'));
+      await unlink(join(records, 'todo--empty-chromium.json'));
 
       await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toThrow(
         new RegExp(`half there.+${records}`, 's'),

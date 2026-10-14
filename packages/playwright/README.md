@@ -466,7 +466,7 @@ Chromium launches with `--disable-lcd-text` and `--font-render-hinting=none` by
 default. An explicit ordered `launchArgs` list replaces that default. Headless
 mode and the ordered launch recipe are hashed into
 `RenderIdentity.rasterization`, so changing font rasterization settings
-partitions baselines instead of appearing as a product diff.
+is named as the cause instead of appearing as a product diff.
 
 A resource-closed document is rendered without network access: archived resource
 bytes satisfy matching requests and every unresolved request is aborted. A

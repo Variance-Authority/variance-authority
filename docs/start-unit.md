@@ -119,8 +119,9 @@ never attached gets no styling.
 `subject` is the id this state is stored, compared and accepted under. It is any
 string, and it has to be unique across the run — one id is one capture file, and
 the second write under the same id fails rather than overwriting. The slash in
-`button/save` is not a namespace or a directory; the whole string is the id, and
-it is what the report shows and what `variance accept` names.
+`button/save` is not a namespace; the whole string is the id, and it is what the
+report shows and what `variance accept` names. The baseline's file name spells it
+as a directory, `button/save-chromium.png`.
 
 `viewport` is required and is resolved here, in the unit process, because the
 renderer never sees this DOM: media queries in the applicable CSS are evaluated

@@ -85,6 +85,17 @@ describe('widthsOf', () => {
     ]);
   });
 
+  it('names each width apart, so a baseline filed by its name is one file per width', () => {
+    const widened = widthsOf(
+      { subjects: [{ subject: { id: 'story:card--receipt' }, title: 'Card', name: 'Receipt' }, { subject: { id: 'route/home' } }] },
+      [375, 800],
+      RUN,
+    );
+
+    expect(widened.subjects.map((planned) => planned.name)).toEqual(['Receipt @375', 'Receipt @800', undefined, undefined]);
+    expect(widened.subjects[0]?.title).toBe('Card');
+  });
+
   it('returns the plan itself when no width is declared, so removing `widths` gives the old ids back', () => {
     expect(widthsOf(plan, undefined, RUN)).toBe(plan);
     expect(widthsOf(plan, [], RUN)).toBe(plan);

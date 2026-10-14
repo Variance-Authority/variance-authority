@@ -132,10 +132,10 @@ export interface BaselineFinding {
    *
    * `false` is the finding that costs an afternoon everywhere else: a run here
    * compares every subject against another machine's image (ADR-0090), and
-   * every change it reports names the machine as its cause. It is a `readdir`
-   * here, because the store's layout *is* the partition:
-   * `<…>/<identityDigest>/<subject>.png`, at the root under a `flat` layout and
-   * in the subject's own directory under `beside`.
+   * every change it reports names the machine as its cause. Read from each
+   * record's identity at the paths `baselines.path` renders, and from the
+   * directory name of an identity-directory baseline,
+   * `<…>/<identityDigest>/<subject>.png`.
    *
    * Absent when nothing was looked at: a remote store is not contacted, and an
    * ephemeral run keeps no baselines.

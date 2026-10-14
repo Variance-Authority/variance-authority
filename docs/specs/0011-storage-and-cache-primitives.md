@@ -1,9 +1,10 @@
 # Spec 0011 — Storage and cache primitives
 
-**Missing:** three seams — a reduction, a baseline layout, and a lens. Plus one
+**Missing:** two seams — a reduction and a lens. Plus one
 thing that must *not* be built, recorded here so nobody builds it. A fourth — a
 render cache that is not the baseline store — is built, and is kept below as
-item 1 because what it cost is the useful part.
+item 1 because what it cost is the useful part, and a fifth — where a baseline
+file lives — is built as a path template ([ADR-0091](../context/adr/0091-a-baseline-is-named-for-its-subject.md)).
 **Built on:** [ADR-0003](../context/adr/0003-cruft-removal-and-css-applicability.md)
 (pruning), [ADR-0007](../context/adr/0007-subject-boundary-is-the-component-tree.md)
 (boundaries), [ADR-0011](../context/adr/0011-durable-and-ephemeral-retention.md)
@@ -12,7 +13,7 @@ item 1 because what it cost is the useful part.
 (where a baseline lives), [ADR-0018](../context/adr/0018-a-component-hash-covers-its-own-nodes.md)
 (component hashes).
 **Packages:** `@variance-authority/raster` (the contracts), `@variance-authority/store`
-(layouts), `@variance-authority/core` (inspectors), and one new package for the
+(the path template), `@variance-authority/core` (inspectors), and one new package for the
 reduction.
 
 ## Purpose
@@ -27,7 +28,7 @@ the two that remain are not the two they look like.
 | One global key, or a split by region | Component boundaries and per-band hashes ship, in `packages/core/src/attribute/component-hash.ts:45`. The boundary is the component tree, not an operator's choice (ADR-0007). | Nothing calls it from a run. And a per-region *raster* key is unsound, not merely unbuilt. |
 | Where the cache lives — PNG, CI cache, S3, service | **`RenderCache` is its own contract** with its own rule — it never throws — and four backends implement it: a directory under `by-document/`, git-LFS, a wire, and a bucket. | Nothing yet lets an operator *choose* one independently of where baselines live. The seam is open; the configuration is not. |
 | Scans, and how they reason about cache | `inspect packages/core/src/judge/inspect.ts:136` ships with nine rules; `compareLocales` adds two; both band as `a11y` (ADR-0015). | The rule set is a closed union, and — the deeper miss — inspection is modelled as a *scan beside* the comparison rather than as a second **lens over the same artifact**. See §4. |
-| Where files live | `directory`, `lfs`, `remote` (ADR-0016), and both placements: `flat` for a corpus, `beside` for a baseline that belongs to code in the same tree, with the rules in one file both backends read. | The layout is a closed union of two words, so a third placement is a pull request rather than a config key. And the record rides in the tree with its image only while `baselines.records` is unset; where it goes instead, and what a store may conclude when it is not there, is [0040](0040-a-baseline-in-git-is-a-picture.md). |
+| Where files live | `directory`, `lfs`, `remote` (ADR-0016), and `baselines.path`, a template over the subject's file, title, name and id, with the declared engine as the only machine word in it (ADR-0091). The default is a parallel tree; `{dir}/__baselines__/{file}/…` puts the image beside the code. One parser both file backends read. | A template edit or a file rename is a re-record (§5). And the record rides in the tree with its image only while `baselines.records` is unset; where it goes instead, and what a store may conclude when it is not there, is [0040](0040-a-baseline-in-git-is-a-picture.md). |
 
 The unifying constraint, and the reason these are one spec: **every item on that
 list is a choice about a key or a place, and none of them may change a verdict.**
@@ -129,7 +130,7 @@ index says *why* — "`Card`'s style hash moved" — which is the sentence this
 product promises about a diff, applied to the cache instead.
 
 **Supplying `before` and `causes` on the durable path.** Today both come from the
-collector (the contract SubjectSource `packages/cli/src/commands/collector.ts:298`),
+collector (the contract SubjectSource `packages/cli/src/commands/collector.ts:300`),
 so a durable baseline — an image with no document behind it — has neither, and the
 docket falls back to ranking by area. ADR-0021 records that ordering as measured
 backwards: a container that only reflowed outranks the edit by 6×. Since the PR
@@ -178,7 +179,7 @@ They have opposite loss semantics, and one interface can only encode one of them
 - **Losing a baseline is fatal.** `null` means "looked, nothing there", which
   becomes `new`, which re-records whatever is on screen, which destroys the
   baseline this run existed to compare against. So every failure must throw —
-  `RasterStoreError packages/raster/src/store.ts:54` and the `REFUSAL` beside it.
+  `RasterStoreError packages/raster/src/store.ts:55` and the `REFUSAL` beside it.
 - **Losing a cache costs a render.** `null` is the correct answer to every
   failure, including a failure to reach the network.
 
@@ -356,36 +357,34 @@ artifacts do — in a cache, until eviction; in a service, indefinitely. So *how
 back can a new lens look* is a real difference between rung 2 and rung 4, and a
 better argument for deploying the service than storage capacity ever was.
 
-## 5. Where files live — layout as a value
+## 5. Where files live — a template, and the machine in the record
 
-Three backends ship (ADR-0016), and co-location ships with them. `layout:
-"beside"` puts a subject's image in the directory holding the code it is an image
-of; the placement rules live in one file both file backends read, so `lfs.ts` still
-cannot get the partition wrong on its own; and a story reaches a directory through
-the `path` its key carries, because a story id is a namespaced identifier and
-making it path-shaped would break every glob and lookup that reads an id as a name.
-The reason that placement is one function has not changed: *a second copy of that
-layout is a second chance to get the partition wrong*, and the partition is all
-that stands between a runner upgrade and a day of unattributable red.
+Three backends ship (ADR-0016), and the file-backed two place a baseline by
+`baselines.path`, a template rendered from the key: `{dir}` and `{file}` (the
+file that declares the subject), `{title}`, `{name}`, `{id}`, `{project}` (a
+Playwright project's name, which only the fixture's template takes) and
+`{engine}`.
+The default, `{title}/{name}-{engine}`, is a parallel tree; collocation is
+`{dir}/__baselines__/{file}/{name}-{engine}` under a root of `.`. A key carries
+its file, title and name, because a story id is a namespaced identifier and
+making it path-shaped would break every glob and lookup that reads an id as a
+name. The template is parsed in one file both backends read, for the reason the
+old placement was one function: *a second copy of it is a second chance for two
+backends to disagree about where a baseline is.*
 
-What is left is the **third** layout. `BaselineLayout` is a closed union of two
-words, so an operator whose tree wants neither — a Java-style parallel test tree, a
-directory per team — is asking for a pull request. The union becomes a value with
-the partition **outside** it, where nothing configurable can reach:
+What left the path is the identity partition. `<root>/<identityDigest>/<leaf>`
+was ADR-0011's first line of defence: an image painted elsewhere was not where
+the lookup looked. ADR-0090 made that image a compared baseline with the moved
+field named, so the digest directory did nothing but make the path unreadable
+and double the files a second machine accepted. The record beside the image
+says what painted it, and the path names only what a reviewer can check against
+the change ([ADR-0091](../context/adr/0091-a-baseline-is-named-for-its-subject.md)).
+The price is one file per engine family: two painters of one engine alternate
+on it, the last accept wins, and one pinned painter is the advice.
 
-```ts
-// Proposed. The union widens into this; the partition stays where it is.
-export interface BaselineLayout {
-  readonly name: string;
-  /** Never sees an identity. The partition is the store's, not this. */
-  leafFor(key: BaselineKey): string;
-}
-```
-
-The store already composes `<root>/<identityDigest>/<leaf>`, with the leaf decided
-by a `switch` over two words. Widening it makes `flat` and `beside` the two
-implementations that ship, lets an operator supply a third, and moves nothing on
-disk.
+The template is also where an operator's tree is expressed, so the third
+placement this section used to ask for — a Java-style parallel test tree, a
+directory per team — is a config value, and no interface is needed for it.
 
 **One file per subject, and why that is not a preference.** The obvious way to
 make a layout configurable is a manifest — one index per identity directory,
@@ -400,8 +399,12 @@ maximises write contention on exactly the file whose damage is widest: any two
 pull requests that accept anything both append to it.
 
 Per-subject files are therefore load-bearing, not incidental — they are what bounds
-the cost of every failure a metadata scheme can have. A layout may move where the
-leaf goes. It may not collapse N files into one.
+the cost of every failure a metadata scheme can have. A template may move where a
+subject's file goes. It may not collapse N files into one, and two subjects that
+render one path stop the run naming both rather than being renumbered, because a
+number decided by plan order hands an approved image to the other subject when
+the order changes. The record names the subject it was placed for, so the
+refusal reaches across shards, workers and runs, and not only within one store.
 
 **The reviewable half deserves the same conflict rule as the image half, for as
 long as it is in the tree.** LFS tracks `*.png` with `-text`, so a baseline image
@@ -413,13 +416,16 @@ Worth the two lines, and a stopgap either way: `baselines.records`
 the tracked root, and a record nobody commits has no conflict to settle. The two
 lines are for the repository that leaves the key unset, which is the default.
 
-**What co-location costs, stated rather than discovered.** No file path enters
-`documentDigest`, deliberately, so moving a story between files costs no re-render.
-Co-location breaks that at the storage layer instead: renaming `Button.tsx` orphans
-`Button/default.png`, and the next run reports `new` and re-records. The key is
-untouched; the baseline is unreachable, which is worse, because a key miss is slow
-and a lost baseline is silent. That is why co-location is a layout an operator opts
-into with the consequence written down, and not the default.
+**What a readable path costs, stated rather than discovered.** No file path
+enters `documentDigest`, deliberately, so moving a story between files costs no
+re-render. A template that names the subject breaks that at the storage layer
+instead: renaming `Button.stories.tsx` under `{file}`, or a story under
+`{title}` or `{name}`, orphans its image, and the next run reports `new` and the
+old file unplanned. The key is untouched; the baseline is unreachable. It is not
+silent — the unplanned file is in the report and in the pull request — but it
+is a re-record, and the pull request that renames the code commits the
+baseline's rename with it. Collocation pays it for every file move; the default
+pays it only when a title or name changes.
 
 ## What would discharge this
 
@@ -457,13 +463,13 @@ In this order, because each unblocks the next.
    caller outside its own tests and it carries the identity bug `observe`'s
    `renderOnce` exists to fix — reading under `renderer.identity` and writing
    under the raster's, so above 1x the cache can never hit its own write.
-2. **`BaselineLayout` as a value**, with the identity partition applied by the
-   store. Half of this shipped as a closed union: `flat` and `beside`, the
-   placement rules in one file both file backends read, and a key carrying its own
-   directory so a story can be placed by a path its id does not contain. What is
-   left is the widening — the two words become two implementations of an
-   interface an operator can add a third to. Contained in
-   `@variance-authority/store`, and nothing moves on disk.
+2. ~~**`BaselineLayout` as a value**~~ **Discharged** by
+   [ADR-0091](../context/adr/0091-a-baseline-is-named-for-its-subject.md), and
+   not as proposed. The proposal kept the identity partition outside an
+   operator's reach; ADR-0090 had already made it unnecessary, so it left the
+   path, and the value an operator supplies is a template string rather than an
+   interface. Baselines under the identity directories are still read, reported
+   `relocated` with both paths, and moved by the next accept.
 3. **The `Lens` seam**, with `inspect`'s nine rules as its first implementation,
    and the review surface leading with the union of what the lenses found rather
    than with the images. The pixels are one lens, not the subject the others hang

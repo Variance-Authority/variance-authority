@@ -4,9 +4,9 @@
 
 ## Responsibility
 
-Keeps **baseline**s on a filesystem, in a layout whose directories are the
-identity partition, whether the root is a directory the runner owns or a tracked
-path that travels with a branch.
+Keeps **baseline**s on a filesystem, at a path the operator's template renders
+from what the subject is, whether the root is a directory the runner owns or a
+tracked path that travels with a branch.
 
 ## Bounded context
 
@@ -14,7 +14,7 @@ path that travels with a branch.
 
 ## Inputs and outputs
 
-In: a root, a placement, and the lookups and writes of
+In: a root, a path template, and the lookups and writes of
 [`baseline-store`](../baseline-store/README.md). Out: an image and the sidecar
 beside it, read as a **raster** once it has passed the record checks.
 
@@ -24,12 +24,16 @@ the dimensions, the fonts that were missing, the **digest** of the document they
 came from, and the **component hash**es that document rendered. The sidecar
 stays text, so the half of the artifact a person can review stays reviewable.
 
-Placement is the operator's. One placement keeps every image for a root under a
-single identity directory and encodes a subject's slashes into one filename,
-which is the shape to take when the baselines are a corpus somebody backs up or
-points a bucket at. The other spends the slashes, so a baseline lands in the
-directory holding the component it is a baseline of and is in the same review,
-the same move and the same delete as the code.
+The path is the operator's, and it is the reviewer's interface: a committed
+baseline is reviewed as a file in a pull request, so its path names the subject
+and nothing a person cannot check. A template renders it from the key — the
+file that declares the subject, its title, its name, its id, the Playwright
+project that observed it — and from the engine's family, never from a digest. The default files a subject under its
+title in one parallel tree; a template that starts at the declaring file's
+directory puts the image beside the code, in the same review, the same move and
+the same delete. Renderer identity lives in the sidecar, so two machines on one
+engine write one file, the last accept is the baseline, and the other machine's
+comparison names the identity field that moved as its cause.
 
 Where the root is a tracked path, images go through a large-file filter and the
 sidecars do not. The bytes stay ordinary files — a checked-out tree
@@ -57,17 +61,29 @@ degrades to a diagnostic rather than a failed run.
 
 ## Boundary
 
-The layout is the rule rather than a convention. A baseline written under one
-identity is not in the directory another identity reads, so the wrong baseline
-is not where the lookup looks, rather than a check somebody has to remember to
-call. The lookup then
-scans the sibling identities so it can say what it *did* find, which is what
-turns a wrong-machine run from an unattributable mass failure into one sentence.
+The path is never evidence. Whether a baseline is comparable is decided by the
+record beside it: an image painted under another identity is still read, and
+the identity field that differs is named as the cause, so a runner upgrade is
+one sentence rather than a day of red nobody can attribute. The lookup tries
+this engine's path first, then the other engines' files at the same path, so a
+wrong-engine run says what it *did* find.
 
-The partition exists once. The branch-carried backend reimplements no path
-decision and delegates every one of them, because a second copy of the layout is
-a second chance to get the partition wrong, and the partition is the only thing
-standing between a runner upgrade and a day of red nobody can attribute.
+Two subjects that render one path are a collision, and a collision stops the
+run naming both subjects — on the keys a run declares before it observes, and
+again on every lookup and write. The sidecar names the key it was placed for,
+so the refusal reaches a shard, a worker or a later run that never saw the
+other key, and it names the token that tells the two apart. Nothing is renumbered, because a renumbered path is a name that
+depends on plan order. The comparison folds case, since a case-insensitive
+checkout would merge the two files.
+
+Baselines written under the identity-directory layout are still read: a lookup
+that misses the template's path finds them, reports the subject `relocated`
+with both paths, and a write puts the pair at the template's path and removes
+the old one, so the pull request that accepts it shows a rename.
+
+The path decision exists once. The branch-carried backend reimplements none of
+it and delegates every one, because a second copy of the template is a second
+place for two backends to disagree about where a baseline is.
 
 The cheap answer reads the sidecar and stats the image, written out rather than
 expressed in terms of the full lookup — *in terms of the full lookup* is exactly
@@ -81,8 +97,13 @@ subject against it would be comparing a subject against a text file.
 
 ## Implementation coordinates
 
-`packages/store/src/durable.ts` — `createDurableStore`, `BaselineLayout`, and
-the identity-partitioned path; `packages/store/src/lfs.ts` — `createLfsStore`,
+`packages/store/src/durable.ts` — `createDurableStore` and the lookup order;
+`packages/store/src/claims.ts` — the collision claim, in one store and through
+the sidecar's `placedFor`; `packages/store/src/path-template.ts` — `parseBaselinePath`,
+`DEFAULT_BASELINE_PATH`, and the token rules; `packages/store/src/legacy.ts` —
+`legacyHolders`, where an identity-directory baseline is read from;
+`packages/store/src/pair.ts` — reading and retiring an image and its sidecar;
+`packages/store/src/lfs.ts` — `createLfsStore`,
 the tracking check, the pointer refusal, and the injectable command runner that
 separates *this is not a repository* from *this machine has no such tool*.
 
