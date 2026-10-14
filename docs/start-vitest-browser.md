@@ -283,8 +283,8 @@ digest of the document it was painted from.
 A baseline is filed under the **renderer identity** that painted it: the
 renderer and its engine build, the OS and architecture, the device scale factor,
 the fonts the renderer actually had, and digests of the stabilization and raster
-settings it used. Baselines are partitioned by it —
-that is the `v1-6c1f…` directory the `.png` lives under.
+settings it used. It is recorded in the `.json` beside the `.png`, and the
+path names only the engine.
 
 This is why the tab's own screenshot is not used. A live screenshot has nothing
 behind it that records which machine, which scale and which font stack produced

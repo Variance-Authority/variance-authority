@@ -116,6 +116,7 @@ for a region to name a component and a line.
 | option | default | what it decides |
 |---|---|---|
 | `baselines` | `.variance/baselines` | the directory baselines are stored in |
+| `baselinePath` | `{title}/{name}-{engine}` | where each baseline goes under `baselines`: `{title}` is the `describe` titles, `{name}` the test's title, `{file}` and `{dir}` the test file. `{dir}/__baselines__/{file}/{title}/{name}-{engine}` with `baselines: '.'` keeps each image beside its test |
 | `store` | a durable store on `baselines` | an existing store, when baselines do not live in a directory |
 | `renderer` | a Playwright renderer opened on first use | an existing renderer, whose lifetime then stays yours |
 | `accept` | Vitest's own `--update` | whether this run may promote a candidate to a baseline |

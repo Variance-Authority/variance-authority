@@ -16,7 +16,7 @@ import { exitForBaselines, exitForDiagnosis, formatBaselines, formatDiagnosis } 
  * The run refuses a pointer one subject at a time, and only the subjects whose
  * document moved ever look a baseline up — so a clone that skipped the smudge is
  * green until somebody edits a component. Doctor opens the first bytes of every
- * image under the root, which is the one question the run never asks of the
+ * image the store reads, which is the one question the run never asks of the
  * subjects it settles without a lookup.
  */
 
@@ -174,27 +174,50 @@ describe('machineProbes pointers', () => {
     return root;
   }
 
-  it('finds a pointer at any depth, by its first bytes rather than its name', async () => {
-    // Asked of the bytes, never of the layout: where a store puts a baseline is
-    // the store's to decide, and a pointer is a pointer wherever it sits.
-    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  /** A record the default `baselines.path` places, `{title}/{name}-{engine}`. */
+  const RECORD = JSON.stringify({ subject: 'story:button--primary', identity: IDENTITY });
+  const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+  it('reads the image beside each record the template places, by its first bytes', async () => {
     const root = await rootWith({
-      'a/b/c/deep.png': POINTER,
-      'shallow.png': POINTER,
-      'real.png': png,
-      'a/record.json': '{"subject":"a"}',
+      'Button/Primary-chromium.json': RECORD,
+      'Button/Primary-chromium.png': POINTER,
+      'Card/Plain-chromium.json': RECORD,
+      'Card/Plain-chromium.png': PNG,
     });
 
-    expect(await machineProbes(lfsConfig()).pointers(root)).toEqual(['a/b/c/deep.png', 'shallow.png']);
+    expect(await machineProbes(lfsConfig()).pointers(root)).toEqual(['Button/Primary-chromium.png']);
+  });
+
+  it('reads every image in an identity directory, the layout before `baselines.path`', async () => {
+    const root = await rootWith({
+      'v1-9281721578cd1ed2bb1a8e23820a31a2/story%3Abutton--primary.png': POINTER,
+      'v1-9281721578cd1ed2bb1a8e23820a31a2/story%3Acard--plain.png': PNG,
+    });
+
+    expect(await machineProbes(lfsConfig()).pointers(root)).toEqual([
+      'v1-9281721578cd1ed2bb1a8e23820a31a2/story%3Abutton--primary.png',
+    ]);
+  });
+
+  it('never names an LFS file the store does not read, so a collocated root of `.` is not the repository', async () => {
+    const root = await rootWith({ 'docs/diagram.png': POINTER, 'stray.png': POINTER });
+
+    expect(await machineProbes(lfsConfig()).pointers(root)).toEqual([]);
   });
 
   it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('passes over a file it cannot read, and still names the pointer beside it', async () => {
     // A file doctor cannot open is not one the run will refuse as a pointer, and
     // one unreadable file must not cost the operator the answer for the rest.
-    const root = await rootWith({ 'locked.png': 'not a pointer', 'pointer.png': POINTER });
-    await chmod(join(root, 'locked.png'), 0o000);
+    const root = await rootWith({
+      'Button/Locked-chromium.json': RECORD,
+      'Button/Locked-chromium.png': 'not a pointer',
+      'Button/Primary-chromium.json': RECORD,
+      'Button/Primary-chromium.png': POINTER,
+    });
+    await chmod(join(root, 'Button/Locked-chromium.png'), 0o000);
 
-    expect(await machineProbes(lfsConfig()).pointers(root)).toEqual(['pointer.png']);
+    expect(await machineProbes(lfsConfig()).pointers(root)).toEqual(['Button/Primary-chromium.png']);
   });
 
   it('answers none for a root that is not there', async () => {

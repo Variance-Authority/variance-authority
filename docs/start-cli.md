@@ -147,12 +147,14 @@ in different directions:
 
 | `baselines.kind` | where images live | keys |
 | --- | --- | --- |
-| `directory` | a path in the repository, committed like any other file. | `root`, `layout`, `records` |
-| `lfs` | the same, tracked through Git LFS. | `root`, `pattern`, `layout`, `records` |
+| `directory` | a path in the repository, committed like any other file. | `root`, `path`, `records` |
+| `lfs` | the same, tracked through Git LFS. | `root`, `pattern`, `path`, `records` |
 | `remote` | a service, not committed; a run that cannot connect to it stops. | `endpoint`, `token` |
 
 `directory` and `lfs` are committed, so a repository that gitignores `root`
-reports every subject `new` forever without ever erroring. `records` moves the
+reports every subject `new` forever without ever erroring. `path` names each
+image under `root`, `{title}/{name}-{engine}` unless you set it, so a reviewer
+reads the story or test from the file name. `records` moves the
 `.json` records away from the images, which is what keeps a class name or a build
 id from producing a diff on every edit that moved no pixel.
 [Baseline placement](placement.md) covers the trade in full.

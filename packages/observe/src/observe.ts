@@ -21,6 +21,7 @@ import {
   type IdentityCause,
   type RasterComparison,
   type RasterStore,
+  type Relocated,
   type Renderer,
 } from '@variance-authority/raster';
 import { declaredIgnores } from './decide.js';
@@ -114,6 +115,14 @@ export interface Observation {
      * one render.
      */
     readonly snapshot?: 'unrecorded';
+    /**
+     * Set when the baseline was read from where the layout before
+     * `baselines.path` kept it, root-relative and without an extension: `from`
+     * the old place, `to` the path the configured template renders. A cause,
+     * never a reason to call the subject `new`, and an accepting run re-stamps
+     * an unchanged baseline that carries it, which is the move.
+     */
+    readonly relocated?: { readonly from: string; readonly to: string };
   };
 
   /**
@@ -406,16 +415,20 @@ export async function observeAgainstBaseline(
     };
   }
 
-  return withCause(
-    await decideRasters(
-      document.subject.id,
-      found.raster,
-      fresh.raster,
-      fresh.rendered,
-      options,
-      'baseline',
+  return withRelocation(
+    withCause(
+      await decideRasters(
+        document.subject.id,
+        found.raster,
+        fresh.raster,
+        fresh.rendered,
+        options,
+        'baseline',
+      ),
+      identityCause(found.storedUnder, identity),
+      documentMoved(found.raster, fresh.raster),
     ),
-    identityCause(found.storedUnder, identity),
+    found.relocated,
     documentMoved(found.raster, fresh.raster),
   );
 }
@@ -440,6 +453,29 @@ export function withCause(
       identity: cause.identity,
       moved: cause.moved,
     },
+  };
+}
+
+/**
+ * An observation with the place its baseline was read from as a cause: a
+ * baseline the layout before `baselines.path` kept is compared all the same,
+ * and the move is named first, so an upgrade that renames every baseline
+ * reads as one move and never as a suite of `new` subjects. Unchanged when the
+ * baseline was where the template puts it.
+ */
+export function withRelocation(
+  observation: Observation,
+  relocated: Relocated | undefined,
+  document: 'unchanged' | 'changed',
+): Observation {
+  if (relocated === undefined) return observation;
+  return {
+    ...observation,
+    because:
+      `the baseline was read from ${relocated.from}, a directory named for its renderer ` +
+      `identity, and accepting moves it to ${relocated.to}, the path \`baselines.path\` names; ` +
+      observation.because,
+    signals: { document, ...observation.signals, relocated },
   };
 }
 

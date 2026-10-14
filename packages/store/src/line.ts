@@ -4,15 +4,18 @@ import { readdir } from 'node:fs/promises';
 import { identityDigest, type RenderIdentity } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { orAbsent } from './absent.js';
-import { identityOfPartition, partitionsOf } from './placement.js';
+import { identityOfPartition } from './legacy.js';
 
 /**
  * Whether two identities paint one line of baselines: one engine family, on one
  * platform, at one scale. An engine build, the fonts or this tool's recipe move
- * along a line; a write retires the line's older copy, so an upgrade moves the
- * baseline. A matrix of engines or machines is several lines, each keeping its own.
- * The renderer is not part of a line: a local and a remote renderer of one engine
- * on one platform paint the same image, so either one's write moves the other's.
+ * along a line. The renderer is not part of a line: a local and a remote
+ * renderer of one engine on one platform paint the same image.
+ *
+ * A path keeps one baseline per engine family, so a line no longer decides
+ * where a file goes. It still decides which of several old-layout copies an
+ * upgrade reads first: the one this machine's line painted, because another
+ * line's copy would blame the machine for a change the upgrade made.
  */
 export function sameLine(a: RenderIdentity, b: RenderIdentity): boolean {
   return (
@@ -23,24 +26,19 @@ export function sameLine(a: RenderIdentity, b: RenderIdentity): boolean {
 }
 
 /** `chromium@131.0.0` is `chromium`; an engine with no build names its family whole. */
-function familyOf(engine: string): string {
+export function familyOf(engine: string): string {
   const at = engine.indexOf('@');
   return at === -1 ? engine : engine.slice(0, at);
 }
 
 /**
- * The identities that have written here, in code-unit order, or none because nobody has.
+ * The partition directories in a holder, in code-unit order, or none because nobody wrote one.
  *
- * Scanned in the **record** root rather than the image root. Every baseline has
- * a record and only a pictured one has an image, so a scan of the images would
- * miss the identity that painted a subject with no pixels — and report `new` for
- * a subject another machine has already recorded, which is the exact sentence
- * this scan exists to prevent.
- *
- * A root that does not exist is a legitimate empty answer: the first run on a
- * fresh checkout creates it on `put`. A root that exists and cannot be listed
- * throws, because this scan alone compares a wrong-machine run against a
- * baseline instead of calling the subject `new` and re-recording it.
+ * Scanned in the **record** root rather than the image root: every baseline has
+ * a record and only a pictured one has an image. A holder that does not exist
+ * is a legitimate empty answer. One that exists and cannot be listed throws,
+ * because this scan alone stands between an upgrade and every subject reported
+ * `new`.
  */
 export async function identities(holder: string): Promise<readonly string[]> {
   const entries = await orAbsent(() => readdir(holder, { withFileTypes: true }), holder);
@@ -51,34 +49,12 @@ export async function identities(holder: string): Promise<readonly string[]> {
     .sort(codeUnitOrder);
 }
 
-/** What a partition's record says painted it, or `null` when it holds no record of the subject. */
-export type IdentityAt = (partition: string) => Promise<RenderIdentity | null>;
-
 /**
- * The partitions a lookup reads, in the order it reads them, and whether each is this machine's.
- *
- * This machine's written name first and alone, so a hit costs no `readdir`.
- * Then this machine's raw-digest name, then this identity's line, then every
- * other line in code-unit order. The line comes first because it holds the
- * baseline an upgrade moves from; a neighbour's line would blame the machine
- * for a change the upgrade made.
+ * How near a stored identity is to this machine's, nearest first: the same
+ * identity, the same line, the same engine family, anything else.
  */
-export async function* searched(
-  holder: string,
-  mine: RenderIdentity,
-  identityAt: IdentityAt,
-): AsyncGenerator<{ partition: string; comparable: boolean }> {
-  const digest = identityDigest(mine);
-  const [written, legacy] = partitionsOf(digest);
-  yield { partition: written, comparable: true };
-  const scanned = await identities(holder);
-  if (scanned.includes(legacy)) yield { partition: legacy, comparable: true };
-  const lined: string[] = [];
-  const elsewhere: string[] = [];
-  for (const other of scanned) {
-    if (identityOfPartition(other) === digest) continue;
-    const painter = await identityAt(other);
-    if (painter !== null) (sameLine(painter, mine) ? lined : elsewhere).push(other);
-  }
-  for (const partition of [...lined, ...elsewhere]) yield { partition, comparable: false };
+export function nearness(stored: RenderIdentity, mine: RenderIdentity): 0 | 1 | 2 | 3 {
+  if (identityDigest(stored) === identityDigest(mine)) return 0;
+  if (sameLine(stored, mine)) return 1;
+  return familyOf(stored.engine) === familyOf(mine.engine) ? 2 : 3;
 }

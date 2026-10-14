@@ -1,9 +1,14 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { Raster, RenderIdentity } from '@variance-authority/core/format';
+import {
+  digestFileName,
+  identityDigest,
+  type Raster,
+  type RenderIdentity,
+} from '@variance-authority/core/format';
 import { RasterStoreError, type RasterStore } from '@variance-authority/raster';
 import { createDurableStore } from '@variance-authority/store/durable';
 import {
@@ -161,6 +166,21 @@ describe('a baseline store somewhere else', () => {
 
     expect(described?.comparable).toBe(false);
     expect(described?.storedUnder).toEqual(RUNNER);
+  });
+
+  it('carries a baseline read from an earlier layout, on both lookups', async () => {
+    // Dropped on the hop, the move would never be accepted: the subject would
+    // settle on its digest and stay at the old path behind every remote run.
+    const partition = join(root, digestFileName(identityDigest(MAC)));
+    await mkdir(partition, { recursive: true });
+    await writeFile(join(partition, 'button.png'), Buffer.from('QUJD', 'base64'));
+    await writeFile(join(partition, 'button.json'), JSON.stringify({ ...rasterOf(MAC), bytes: undefined }));
+    server = await serveRasterStore(createDurableStore(root));
+    const store = createRemoteStore({ endpoint: server.url });
+
+    const relocated = { from: `${digestFileName(identityDigest(MAC))}/button`, to: 'button-chromium' };
+    expect((await store.find({ subject: 'button' }, MAC))?.relocated).toEqual(relocated);
+    expect((await store.describe({ subject: 'button' }, MAC))?.relocated).toEqual(relocated);
   });
 
   it('reports a described subject nobody has rendered as a miss, and only then', async () => {

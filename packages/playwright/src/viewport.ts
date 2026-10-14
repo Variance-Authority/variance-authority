@@ -59,6 +59,8 @@ export interface WidthPlanned {
   readonly subject: { readonly id: string };
   readonly viewport?: Viewport;
   readonly declaredIn?: string;
+  /** What a baseline is filed by under its title; each width carries its own. */
+  readonly name?: string;
 }
 
 /**
@@ -98,6 +100,9 @@ export function widthsOf<S extends WidthPlanned, P extends { readonly subjects: 
               ({
                 ...planned,
                 subject: { ...planned.subject, id: `${planned.subject.id}@${width}` },
+                // The id says the width, and so must the name: a baseline path
+                // filed by title and name would otherwise hold every width in one file.
+                ...(planned.name === undefined ? {} : { name: `${planned.name} @${width}` }),
                 // One subject, one module graph: a shard keeps its widths together.
                 declaredIn: planned.declaredIn ?? planned.subject.id,
                 viewport: { ...viewport, width },

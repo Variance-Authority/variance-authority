@@ -289,6 +289,13 @@ export interface ObservationRecord {
      * something changes.
      */
     readonly snapshot?: 'unrecorded';
+    /**
+     * Set when the baseline was read from where the layout before
+     * `baselines.path` kept it: `from` that path, `to` the one the template
+     * renders. An unchanged subject carrying it is re-stamped by an accepting
+     * run, which moves the baseline and shows the move as a rename.
+     */
+    readonly relocated?: { readonly from: string; readonly to: string };
   };
 
   /**

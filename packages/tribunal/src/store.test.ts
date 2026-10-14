@@ -192,17 +192,20 @@ describe('a baseline split across D1 and R2', () => {
     expect(found?.storedUnder.platform).toBe('linux/x64');
   });
 
-  it('prefers this identity over another that also has the subject', async () => {
-    // Both exist. Answering with the sibling would blame the machine for a
-    // subject this very machine has a baseline for — a suite that goes red on a
-    // machine that is entirely able to compare.
-    await store().put({ subject: 's' }, raster(RUNNER, BLACK));
-    await store().put({ subject: 's' }, raster(MAC, WHITE));
+  it('reads the last accept on this engine family, whichever machine made it', async () => {
+    // Both rows exist. A file-backed store keeps one file per engine family,
+    // which holds the last accept, and this store answers as that file does.
+    let at = Date.parse('2026-01-01T00:00:00Z');
+    const ticking = (): ReturnType<typeof createBucketStore> => createBucketStore({ db, bucket, project: 'p', now: () => new Date((at += 1000)) });
+    await ticking().put({ subject: 's' }, raster(RUNNER, BLACK));
+    await ticking().put({ subject: 's' }, raster(MAC, WHITE));
 
-    const found = await store().find({ subject: 's' }, MAC);
-
+    const found = await ticking().find({ subject: 's' }, MAC);
     expect(found?.comparable).toBe(true);
     expect(found?.raster.bytes).toBe(WHITE);
+
+    await ticking().put({ subject: 's' }, raster(RUNNER, BLACK));
+    expect((await ticking().find({ subject: 's' }, MAC))?.storedUnder.platform).toBe('linux/x64');
   });
 });
 

@@ -18,6 +18,11 @@ import { asRun, type VarianceRun } from './run.js';
 export interface CreateVarianceOptions {
   /** Defaults to `.variance/baselines`. */
   readonly baselines?: string;
+  /**
+   * Where each baseline goes under `baselines`, as `baselines.path` in the
+   * config spells it. Defaults to `{title}/{name}-{engine}`.
+   */
+  readonly baselinePath?: string;
   /** Supply an existing renderer when the suite already owns its lifetime. */
   readonly renderer?: Renderer;
   /** Supply an existing store when baselines do not live in a directory. */
@@ -48,6 +53,11 @@ export interface CreateVarianceOptions {
 export interface DirectObservationOptions extends VarianceOptions {
   /** Defaults to `.variance/baselines`. */
   readonly baselines?: string;
+  /**
+   * Where each baseline goes under `baselines`, as `baselines.path` in the
+   * config spells it. Defaults to `{title}/{name}-{engine}`.
+   */
+  readonly baselinePath?: string;
   /** Defaults to deferred document rendering. */
   readonly materialization?: MaterializationOptions;
   /**
@@ -101,7 +111,11 @@ export async function createVariance(
   const bundle = options.bundle ?? (await bundlePageAgent());
   const materialization = options.materialization ?? { kind: 'deferred' };
   const owned = options.store === undefined
-    ? checkoutStore(options.baselines ?? '.variance/baselines')
+    ? checkoutStore(
+        options.baselines ?? '.variance/baselines',
+        options.baselinePath,
+        projectsOf(within),
+      )
     : undefined;
   const store = options.store ?? owned!.store;
   const ownsRenderer = materialization.kind === 'deferred' && options.renderer === undefined;
@@ -168,6 +182,17 @@ export async function createVariance(
   };
 }
 
+/**
+ * The config's project names, when the runner built the `TestInfo`: a run
+ * descriptor carries none, and nor does a `TestInfo` assembled by hand outside
+ * the runner, which is a shape this entry point accepts.
+ */
+function projectsOf(within: TestInfo | VarianceRun): readonly string[] | undefined {
+  if (!('project' in within)) return undefined;
+  const projects = within.config.projects as readonly { readonly name: string }[] | undefined;
+  return projects?.map((project) => project.name);
+}
+
 /** Observe one locator without extending or replacing Playwright's test API. */
 export async function observe(
   page: Page,
@@ -177,6 +202,7 @@ export async function observe(
 ): Promise<Observed> {
   const session = await createVariance(page, within, {
     ...(options.baselines === undefined ? {} : { baselines: options.baselines }),
+    ...(options.baselinePath === undefined ? {} : { baselinePath: options.baselinePath }),
     ...(options.materialization === undefined
       ? {}
       : { materialization: options.materialization }),

@@ -262,7 +262,7 @@ export async function accept(options: AcceptOptions): Promise<AcceptResult> {
     await options.store.put(
       {
         subject: observation.subject,
-        ...(observation.placement !== undefined ? { path: observation.placement } : {}),
+        ...observation.baselineKey,
       },
       raster,
     );

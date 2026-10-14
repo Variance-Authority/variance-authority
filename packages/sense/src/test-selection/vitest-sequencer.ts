@@ -16,9 +16,15 @@
  * records it is a partial run: what it holds is folded over the record as any
  * filtered run's is, and a skipped file keeps the rows it had.
  *
- * Vitest checks for "no test files" before it calls the sequencer, so a run
- * whose every file was skipped exits as a run that passed. That is the
- * answer, and the line before it says `selected none of M`.
+ * A run the selection leaves nothing to run passes: the change reached none of
+ * its files, so none of them can fail. Vitest 2 decides "no test files" before
+ * it calls a sequencer, so it never sees the files dropped here. Vitest 3 and 4
+ * decide after, when the run ends, and fail a run that ran no file unless
+ * `passWithNoTests` is set, so the sequencer sets it on the run's own config
+ * when what it hands back is empty and the selection dropped any file. A shard
+ * the selection's files all landed outside is the same answer. When nothing
+ * was dropped, an empty run is the runner's, and the project's option stands.
+ * The line before the run says `selected none of M`.
  *
  * Under `--shard k/n` the files left are placed by the time the suite's record
  * holds for each, rather than cut by count: every shard places every file and
@@ -54,6 +60,8 @@ export interface SequencerContext {
     readonly watch?: boolean;
     readonly shard?: unknown;
     readonly sequence?: { readonly shuffle?: unknown; seed?: number };
+    /** Read by Vitest 3 and 4 when the run ends; set here when the selection leaves the run nothing. */
+    passWithNoTests?: boolean;
   };
   readonly state?: { readonly getPaths?: () => readonly string[] };
   /** Vitest's logger, which {@link seedInBanner} marks once its banner names the seed. */
@@ -138,6 +146,8 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
     static readonly [SELECTING] = true;
     readonly #ctx: SequencerContext;
     #inner: Promise<Sequencer> | undefined;
+    /** Has the selection dropped any file handed to this sequencer, through `shard` or `sort`. */
+    #dropped = false;
 
     /**
      * What Vitest does for its own `RandomSequencer` only: a seed when none was
@@ -186,7 +196,10 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
 
     async sort<T extends Spec>(files: T[]): Promise<T[]> {
       const kept = await this.#kept(files);
-      return (await this.#sequencer()).sort(kept);
+      const sorted = await (await this.#sequencer()).sort(kept);
+      // Vitest sorts after it shards, so this is what the run is left with.
+      if (sorted.length === 0 && this.#dropped) this.#ctx.config.passWithNoTests = true;
+      return sorted;
     }
 
     #sequencer(): Promise<Sequencer> {
@@ -212,6 +225,7 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
       }
       said = true;
       const kept = files.filter((file) => !selection.skip.has(name(moduleOf(file))));
+      if (kept.length < files.length) this.#dropped = true;
       const cut = cutOf(selection, kept.map(moduleOf), options.root);
       if (cut.size > 0) options.cut?.(cut);
       return kept;

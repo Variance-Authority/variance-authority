@@ -206,8 +206,8 @@ with `baselines.carry: actions-cache`. `variance.yml` writes it only on a run
 that accepts.
 
 A pull request and a push to `main` are both gates, both red when a subject
-moved. The cache key does not name the renderer, because the store already
-partitions by it: a baseline whose identity differs from the run's is compared
+moved. The cache key does not name the renderer, because the record beside
+each image already does: a baseline whose identity differs from the run's is compared
 with the moved identity named as the cause, so the worst an image bump does is
 make a check loud until the next accept.
 

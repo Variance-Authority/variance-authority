@@ -334,7 +334,7 @@
           "minLength": 1,
           "description": "Directory the images live in, resolved against this file."
         },
-        "layout": { "$ref": "#/$defs/baselineLayout" },
+        "path": { "$ref": "#/$defs/baselinePath" },
         "records": {
           "type": "string",
           "minLength": 1,
@@ -363,7 +363,7 @@
           "minLength": 1,
           "description": "The `.gitattributes` pattern the images are tracked by."
         },
-        "layout": { "$ref": "#/$defs/baselineLayout" },
+        "path": { "$ref": "#/$defs/baselinePath" },
         "records": {
           "type": "string",
           "minLength": 1,
@@ -390,9 +390,11 @@
         }
       }
     },
-    "baselineLayout": {
-      "description": "How image files are arranged under `root`. `flat` is one directory per identity, for baselines kept as a corpus; `beside` puts each image in the directory holding the code it depicts, which is the placement to take when that code is in this repository. A story finds its directory through the `importPath` its built index carries; a subject named after a path finds it in its own id.",
-      "enum": ["flat", "beside"]
+    "baselinePath": {
+      "type": "string",
+      "minLength": 1,
+      "default": "{title}/{name}-{engine}",
+      "description": "Where each baseline is written under `root`, without an extension. `{title}` and `{name}` are the story's title and name, or a test's describe titles and its own title; `{file}` is the file that declares the subject and `{dir}` its directory; `{id}` is the subject id; `{engine}` is the browser engine. `{dir}/__baselines__/{file}/{name}-{engine}` keeps each image beside the code it depicts. A template names `{name}` or `{id}`. Without `{engine}`, every engine writes one file. `{project}` is refused here: it is the Playwright fixture's. Two subjects that render one path stop the run, which names both."
     },
 
     "share": {
