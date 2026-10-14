@@ -74,7 +74,8 @@ durations). What changes is the record a run writes, below.
 - Every record a run writes names the record it started from, in a new
   `run.base` part: `none` when the run was laid over no record, and otherwise
   the `sha256` digest of the record the first run at its commit was laid
-  over. 0.15.0 cannot read a record that holds the part. Shards that started
+  over. 0.15.0 reads such a record's coverage and refuses its case index
+  with an unknown section, `run.base`. Shards that started
   from different records fail the build — two bases, two commits, two before
   layers (the case index each shard's run started from), one that began over
   no case index beside one that did, or one file on two texts before them.
