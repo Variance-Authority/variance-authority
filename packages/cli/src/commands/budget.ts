@@ -21,7 +21,7 @@
 
 /** One subject's share of the budget. */
 export interface SubjectBudget {
-  /** This subject changed: whether the run re-collects it. Asked once per subject. */
+  /** This subject changed: whether the run re-collects it. The first answer is kept, however often it is asked. */
   claim(): Promise<boolean>;
 }
 

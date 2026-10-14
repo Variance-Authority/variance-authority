@@ -14,10 +14,11 @@ A run collects in parallel by default, and the report says where each subject's 
 Without `workers` in the config, a run collected in one browser world, so a
 route suite read its pages one after another on any machine. It now collects in
 half the machine's logical cores, at least one and never more worlds than there
-are files: two on a 4-vCPU CI runner, eight on a 16-core laptop. A `workers` you
-set still wins. Set `workers: 1` for a server under test that cannot take
-concurrent pages. A collector with no `openWorker` still collects in one world,
-and the run warns about it only when you set `workers`. Verdicts and the order
+are files: two on a 4-vCPU CI runner, eight on a 16-core laptop. A `concurrency`
+you set holds it lower, since every world keeps a page and a subject in flight.
+A `workers` you set still wins over both. Set `workers: 1` for a server under
+test that cannot take concurrent pages. A collector with no `openWorker` still
+collects in one world, and the run warns about it only when you set `workers`. Verdicts and the order
 of observations do not depend on the count, and the report's new `workers` field
 records it. `variance collect` takes the same width.
 
@@ -53,5 +54,5 @@ width, as a sharded run always did, and takes its slowest files first. One
 world takes its subjects in the same order as several, so the budget above
 reaches the same subjects.
 
-`concurrency` is shared across the worlds, with at least one subject per world,
-so by default the raster tier is as wide as the number of worlds.
+`concurrency` is split evenly across the worlds and rounded up, at least one
+per world, so by default the raster tier is as wide as the number of worlds.

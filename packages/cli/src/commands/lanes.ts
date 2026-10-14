@@ -31,9 +31,14 @@ export interface Lane {
  * one — the default Playwright Test takes. Half, because a page read is mostly
  * waiting and the other half is left to what the waiting is for: the run's own
  * comparison and, on one machine, the server under test.
+ *
+ * A declared `concurrency` holds the derived width: it is a memory bound, and
+ * every world holds a page and a subject in flight. A declared width is the
+ * operator's word on both and is taken as it is.
  */
 export function workersOf(config: Config, cores: number = availableParallelism()): number {
-  return Math.max(1, config.workers ?? Math.floor(cores / 2));
+  if (config.workers !== undefined) return Math.max(1, config.workers);
+  return Math.max(1, Math.min(Math.floor(cores / 2), config.concurrency ?? Number.POSITIVE_INFINITY));
 }
 
 /**
@@ -59,7 +64,7 @@ export async function openLanes(
     return {
       lanes,
       warnings: [
-        `\`workers\` is ${workers}, and this collector supplies no \`openWorker\`, so the ` +
+        `\`workers\` is ${config.workers}, and this collector supplies no \`openWorker\`, so the ` +
           'run collected in one world',
       ],
     };
@@ -107,11 +112,10 @@ export function contextFor(context: ObserveContext, lane: Lane): ObserveContext 
 /**
  * Run `body` over every index in `queue`, group by group, lane by lane.
  *
- * Each lane keeps up to `window` subjects in flight — `concurrency` shared
- * across the lanes, and at least one each, so the raster tier is as wide as it
- * was configured or as there are lanes — and takes its next group only once it
- * has started the last subject of the
- * one before. With one lane and a concurrency of one this is the loop a run
+ * Each lane keeps up to `window` subjects in flight — its even share of
+ * `concurrency`, rounded up, so at least one and in all at least as wide as
+ * configured — and takes its next group only once it has started the last
+ * subject of the one before. With one lane and a concurrency of one this is the loop a run
  * always was: one subject at a time, in queue order.
  */
 export async function steal(

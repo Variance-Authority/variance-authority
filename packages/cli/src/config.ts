@@ -291,8 +291,8 @@ export interface Config extends RestsOn, PageRegion {
   readonly decoder?: 'auto' | 'pngjs' | 'sharp';
 
   /**
-   * How many subjects may be in the raster tier at once, shared across the
-   * worlds, and never fewer than one per world. Defaults to 1.
+   * How many subjects may be in the raster tier at once, split evenly across
+   * the worlds and rounded up, so at least one per world. Defaults to 1.
    *
    * This widens rendering, decoding, comparing and writing, never collection:
    * a standing world (ADR-0009) collects one subject at a time, and mounting two
@@ -312,9 +312,9 @@ export interface Config extends RestsOn, PageRegion {
    * `openWorker` with its own serial lane. Files go to workers whole, longest
    * recorded first, and a worker that finishes takes the next.
    *
-   * Absent, it is half the logical cores, at least one, as Playwright's default
-   * is: the other half is left to decoding, comparing and a local server under
-   * test. It never opens more worlds than there are files. A collector with no
+   * Absent, half the logical cores, at least one and at most a declared
+   * `concurrency`, leaving the rest to decoding, comparing and a local server
+   * under test; never more worlds than there are files. A collector with no
    * `openWorker` collects in one world, and warns only when this was declared.
    * Set 1 for a server that cannot take concurrent pages. The report names the
    * worlds it used; no verdict or observation order depends on the count.

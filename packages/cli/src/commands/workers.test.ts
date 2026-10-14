@@ -156,12 +156,12 @@ describe('workers', () => {
     expect(report.lexicon?.declaredIn).toEqual({ Button: ['src/Button.tsx'], Card: ['src/Card.tsx'] });
   });
 
-  it('says so when the collector cannot open another world', async () => {
+  it('says so when the collector cannot open another world, naming the width as declared', async () => {
     const { collector, worlds } = workingCollector(planOf(2, 1), { lanes: false });
-    const { report } = await runWith(configOf({ workers: 2 }), collector, storeAnswering(null));
+    const { report } = await runWith(configOf({ workers: 3 }), collector, storeAnswering(null));
 
     expect(worlds).toHaveLength(1);
-    expect(report.warnings).toContainEqual(expect.stringMatching(/supplies no `openWorker`/));
+    expect(report.warnings).toContainEqual(expect.stringMatching(/^`workers` is 3, and this collector supplies no `openWorker`/));
   });
 
   it('runs a changed subject alone from whichever world read it, and says the same of it at any width', async () => {
@@ -209,6 +209,13 @@ describe('workers', () => {
     expect([16, 4, 3, 2, 1].map((cores) => workersOf(configOf(), cores))).toEqual([8, 2, 1, 1, 1]);
     expect(workersOf(configOf({ workers: 1 }), 16)).toBe(1);
     expect(workersOf(configOf({ workers: 12 }), 4)).toBe(12);
+  });
+
+  it('holds a derived width to a declared concurrency, which a declared width still overrides', () => {
+    expect(workersOf(configOf({ concurrency: 1 }), 16)).toBe(1);
+    expect(workersOf(configOf({ concurrency: 3 }), 16)).toBe(3);
+    expect(workersOf(configOf({ concurrency: 12 }), 16)).toBe(8);
+    expect(workersOf(configOf({ concurrency: 1, workers: 4 }), 16)).toBe(4);
   });
 
   it('collects side by side by default, and says how many worlds it read in', async () => {
