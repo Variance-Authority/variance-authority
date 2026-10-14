@@ -7,7 +7,8 @@ probed the text the author wrote, before any other transform)
 **Amends:** [spec 0028](../../specs/0028-the-instrument.md) §2, §4 and §5
 **Relates to:** [`packages/sense/native/instrument/src/place.rs`](../../../packages/sense/native/instrument/src/place.rs),
 [`packages/sense/src/test-selection/captured-modules.ts`](../../../packages/sense/src/test-selection/captured-modules.ts),
-[`packages/sense/src/test-selection/unmapped-transforms.ts`](../../../packages/sense/src/test-selection/unmapped-transforms.ts)
+[`packages/sense/src/test-selection/unmapped-transforms.ts`](../../../packages/sense/src/test-selection/unmapped-transforms.ts),
+[`packages/sense/src/test-selection/loader-probes.ts`](../../../packages/sense/src/test-selection/loader-probes.ts)
 
 ## Context
 
@@ -84,7 +85,9 @@ source map. A map that would place a probe on the wrong code is never used.**
    loader with no map, a configuration whose loaders leave the second out,
    and, when Rspack lists no loaders, at the
    run's end, a file that went through the first loader and never reached the
-   second.
+   second. The Rspack and webpack loader that `testSelectionRule` adds, and the
+   Storybook addon adds under either builder, places as Rstest's second loader
+   does and refuses a file that reaches it with no map, naming `devtool`.
 
 4. **Four cases still meet the probes, or the case marks, before the
    transforms.** A file that names its own source map under a Vite dev server,
@@ -116,8 +119,8 @@ source map. A map that would place a probe on the wrong code is never used.**
   a compiler wrote around that code, and an authored branch inside a
   compiler's cache branch fires at the code around the compiler's branch.
 - A project whose plugin returns no map under Vite, whose rewrite maps back to
-  another file, or whose Rstest config turned `devtool` off or left out the
-  second loader, fails where it ran before. The error names the plugin, the
+  another file, or whose Rstest or Rspack config turned `devtool` off or left
+  out Rstest's second loader, fails where it ran before. The error names the plugin, the
   file or the setting.
 
 ## What this forecloses
@@ -125,4 +128,4 @@ source map. A map that would place a probe on the wrong code is never used.**
 - A list of compilers or call shapes whose arguments are left unprobed. It is
   per library and per caller, and a skipped argument has no region of its own.
 - Regions cut from compiled text.
-- A silent fallback when a map is missing under Vite or Rstest.
+- A silent fallback when a map is missing under Vite, Rstest, Rspack or webpack.

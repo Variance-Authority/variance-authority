@@ -116,6 +116,10 @@ its own probes handed back with none in it, carry the same mark.
   past the probes placed in the text it maps
 - `packages/sense/src/test-selection/unmapped-transforms.ts` — the plugins
   ahead of the probes that rewrote a module under Vite and returned no map
+- `packages/sense/src/test-selection/loader-probes.ts` — the placement every
+  Rspack and webpack loader at `enforce: 'post'` shares, through the map the
+  loaders ahead handed on; `probes-rule.ts` and `probes-loader.ts` — the rule
+  and loader that probe a build no test runner drives
 - `packages/sense/native/instrument/src/lib.rs` — the instrumenter crate a Rust
   pipeline links from `node_modules`: `instrument`, `module_id` and `recipe`
 - `packages/sense/native/instrument/src/header.rs` — the one author of the

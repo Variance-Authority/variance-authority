@@ -978,6 +978,40 @@ last statement; React Compiler's does, so the code after an early `return` is
 recorded on every call, and an edit to it selects the tests that returned early
 too.
 
+### A build Rspack or webpack bundles
+
+A Storybook built by Rspack or webpack, or an application bundled by either,
+takes the probes as a rule rather than a plugin. `testSelectionRule()` returns
+one `module.rules` entry, in the shape both read:
+
+```js
+// rspack.config.mjs, or webpack.config.mjs
+import { testSelectionRule } from '@variance-authority/sense/journal';
+
+export default {
+  module: { rules: [...yourRules, testSelectionRule({ root: process.cwd() })] },
+};
+```
+
+It takes `root`, `include` and `mode`, as `testSelectionProbes` does. Its
+loader runs at `enforce: 'post'`, after SWC, Babel and every loader you
+configured, so a compiler that reads syntax, such as Compiled's or Linaria's
+loader, reads your file without probes in it. The regions are the file's on
+disk, placed where the map your loaders handed on says each one went. Leave
+`devtool` writing source maps: a module that arrives with no map stops the
+build and names the file. Each probed module imports the page collector on its
+first line, so no line moves. A module with no file on disk, such as a
+builder's virtual entry, is not probed.
+
+`include` is a function, and Rspack hands loader options to its core as data,
+so the rule registers `include` in the process that built the configuration.
+A loader run in a worker, such as `thread-loader`'s, cannot find it, and the
+build stops and says so.
+
+In a Storybook, list `@variance-authority/storybook-collector` in `addons`
+instead: it adds this rule under Rspack or webpack, and `testSelectionProbes`
+under Vite.
+
 ### A library loaded from its build
 
 A workspace library your application imports through its `tsc` build is
