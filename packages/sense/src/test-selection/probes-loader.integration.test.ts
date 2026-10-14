@@ -1,10 +1,11 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { createContext, runInContext } from 'node:vm';
+import { rspack } from '@rspack/core';
 import { afterAll, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { decodeTestCoverage } from './format.js';
@@ -76,4 +77,43 @@ describe('a page Rspack built, a syntax-reading compiler among its loaders', () 
     );
     expect(failed).toMatch(/extractor: `[^`]*__va\([^`]*` is unable to have its styles extracted/);
   }, 60_000);
+});
+
+describe('a CommonJS module Rspack bundles', () => {
+  /** `lib` and the entry requiring it, with extension `extension`, built for Node through the rule alone. */
+  async function bundled(extension: '.js' | '.cjs'): Promise<{ root: string; page: string }> {
+    const root = await realpath(await mkdtemp(resolve(tmpdir(), 'variance-authority-cjs-')));
+    temporary.push(root);
+    await mkdir(resolve(root, 'src'));
+    await writeFile(resolve(root, `src/lib${extension}`), 'function tone(on) {\n  if (on) return "red";\n  return "blue";\n}\nmodule.exports = { tone };\n');
+    // The built rule: it names the loader by path, and Rspack loads that path as it is.
+    const { testSelectionRule } = (await import(pathToFileURL(resolve(repository, 'packages/sense/dist/test-selection/probes-rule.js')).href)) as typeof import('./probes-rule.js');
+    await writeFile(resolve(root, `src/main${extension}`), `const { tone } = require("./lib${extension}");\nglobalThis.pressed = tone(true);\n`);
+    const compiler = rspack({
+      mode: 'development',
+      devtool: 'source-map',
+      target: 'node',
+      context: root,
+      entry: `./src/main${extension}`,
+      output: { path: resolve(root, 'out'), filename: 'page.js' },
+      module: { rules: [testSelectionRule({ root })] },
+    });
+    const stats = await new Promise<{ hasErrors(): boolean; toString(options: object): string }>((done, fail) =>
+      compiler.run((error, result) => (error ? fail(error) : done(result!))),
+    );
+    await new Promise((done) => compiler.close(done));
+    if (stats.hasErrors()) throw new Error(stats.toString({ all: false, errors: true }));
+    return { root, page: await readFile(resolve(root, 'out/page.js'), 'utf8') };
+  }
+
+  for (const extension of ['.cjs', '.js'] as const) {
+    it(`keeps a \`${extension}\` script a script, its exports read and its probes run`, async () => {
+      const { page } = await bundled(extension);
+      const context = createContext({});
+      runInContext(page, context);
+      expect(runInContext('globalThis.pressed', context)).toBe('red');
+      const journal = (runInContext(`globalThis[${JSON.stringify(EXECUTION_GLOBAL)}]`, context) as ExecutionCollector).drain();
+      expect(journal.modules.map((module) => module.id.split('@')[0]).sort()).toEqual([`src/lib${extension}`, `src/main${extension}`]);
+    }, 60_000);
+  }
 });

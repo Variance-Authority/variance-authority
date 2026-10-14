@@ -34,6 +34,12 @@ export interface Captured {
   readonly code: string;
   /** The file is on disk, and the text handed over is not it, nor it with its map comments blanked: see {@link rawFrame}. */
   readonly changed?: true;
+  /**
+   * `code` was read and neither imports nor exports, as CommonJS does: what
+   * opens it must not be an `import`, which would make it a module. Absent
+   * where it is a module, and where it was marked rather than read.
+   */
+  readonly script?: true;
 }
 
 /**
@@ -146,6 +152,7 @@ export function placeModule(
       : { file, id, sourceDigest, instrumented: true, blocks: recordedBlocks(done.blocks, frame, code, mode ?? 'presence') },
     code: done?.code ?? markLoaded(code, id),
     ...changed,
+    ...(done?.module === false ? { script: true as const } : {}),
   };
 }
 
@@ -294,6 +301,7 @@ export function captureAfter(
   return {
     module: { ...unread, instrumented: true, blocks: recordedBlocks(done.blocks, frame, disk, mode ?? 'presence') },
     code: done.code,
+    ...(done.module ? {} : { script: true as const }),
     mappings: done.mappings,
     ...(done.carried === undefined ? {} : { carried: done.carried }),
   };

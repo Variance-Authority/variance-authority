@@ -136,6 +136,7 @@ pub fn place(
     cut.code = spliced.code;
     cut.header_at = spliced.header_at;
     cut.header_byte = spliced.header_byte;
+    cut.module = parsed.module_record.has_module_syntax;
     Some(Placed { cut, mappings: own, carried })
 }
 

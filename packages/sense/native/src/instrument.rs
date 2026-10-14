@@ -27,6 +27,8 @@ pub struct Instrumented {
     pub names: Vec<String>,
     pub paths: Vec<String>,
     pub digests: Vec<String>,
+    /// Whether `code` imports or exports: a script takes the collector by `require`.
+    pub module: bool,
 }
 
 /// `instrument()` from `src/instrument/index.ts`, or `null` where it must answer.
@@ -100,6 +102,7 @@ fn columns(out: Cut) -> Instrumented {
         names,
         paths,
         digests: out.digests,
+        module: out.module,
     }
 }
 

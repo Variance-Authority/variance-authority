@@ -5,8 +5,9 @@
  * Asked for the collector, it answers with the collector's source. Asked for
  * any other module, it places the probes in what the loaders before it wrote,
  * through the map they handed on ([`loader-probes.ts`](./loader-probes.ts)),
- * and opens the module with an import of the collector, on its first line so no
- * line moves, the map's first line moved with it. A module it does not probe
+ * and opens the module with the collector — an `import`, or a `require` in a
+ * script such as CommonJS — on its first line so no line moves, the map's first
+ * line moved with it. A module it does not probe
  * passes untouched. With `placement: 'before-transforms'` it runs ahead of
  * the loaders and places the probes in the text it is handed, as read.
  */
@@ -59,7 +60,10 @@ function probed(context: ProbesLoaderContext, options: ProbesLoaderOptions, code
     : probeHanded(file, code, handed, { root, include, mode: options.mode, remedy: REMEDY });
   if (placed === undefined) return { code, map: handed };
   // `!!`: the collector goes through this loader alone, never the project's.
-  const opening = `import ${JSON.stringify(`!!${PROBES_LOADER}?collector=${options.mode ?? 'presence'}!${COLLECTOR_FILE}`)};`;
+  const collector = JSON.stringify(`!!${PROBES_LOADER}?collector=${options.mode ?? 'presence'}!${COLLECTOR_FILE}`);
+  // An `import` would make a script a module, and its `module.exports` unread;
+  // an `.mjs` file is a module whatever it holds, and has no `require`.
+  const opening = placed.captured.script && !/\.m[jt]s$/.test(file) ? `require(${collector});` : `import ${collector};`;
   const map = placed.map && { ...placed.map, mappings: shifted(placed.map.mappings, opening.length) };
   return { code: `${opening}${placed.captured.code}`, map };
 }

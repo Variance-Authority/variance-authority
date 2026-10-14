@@ -30,6 +30,8 @@ pub struct Cut {
     /// Block offsets are UTF-16 code units into the original source.
     pub blocks: Vec<Block>,
     pub digests: Vec<String>,
+    /// Whether `code` is a module — it imports or exports — rather than a script.
+    pub module: bool,
 }
 
 /// Calls vitest hoists above everything, so a header must not land in front of them.
@@ -68,6 +70,7 @@ fn cut_in(allocator: &Allocator, source: &str, file: &str, entries: bool) -> Opt
         source_digest: digest::of_string(source),
         blocks: spliced.blocks,
         digests,
+        module: parsed.module_record.has_module_syntax,
     })
 }
 

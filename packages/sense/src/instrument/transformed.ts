@@ -32,12 +32,13 @@ export function instrumentTransformed(
   const mode = options.mode ?? 'presence';
   const answer = placed(source, transformed, map, mode, id, options.carry);
   if (answer === undefined) return undefined;
-  const { code, sourceDigest, blocks, mappings, carried } = answer;
+  const { code, sourceDigest, blocks, module, mappings, carried } = answer;
   return {
     code,
     sourceDigest,
     instrumentation: instrumentationId(mode),
     blocks,
+    module,
     mappings,
     ...(carried === undefined ? {} : { carried }),
   };

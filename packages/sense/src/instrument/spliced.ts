@@ -89,6 +89,8 @@ export interface Spliced {
   /** Identity of the source the offsets are into. */
   readonly sourceDigest: string;
   readonly blocks: readonly Block[];
+  /** Whether `code` imports or exports: `false` is a script, which takes nothing by `import`. */
+  readonly module: boolean;
 }
 
 /** The addon, which is the only instrumenter: no addon is an error, never an uninstrumented run. */
@@ -114,6 +116,7 @@ export interface NativeInstrumented {
   readonly names: readonly string[];
   readonly paths: readonly string[];
   readonly digests: readonly string[];
+  readonly module: boolean;
 }
 
 /** The addon numbers kinds in this order; `walk.rs` declares the same. */
@@ -237,5 +240,6 @@ function columns(answer: NativeInstrumented): Spliced {
     headerAt: answer.headerAt,
     sourceDigest: answer.sourceDigest,
     blocks,
+    module: answer.module,
   };
 }
