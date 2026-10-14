@@ -84,20 +84,20 @@ fn lines() -> Vec<u8> {
 
 #[test]
 fn moves_a_cases_lines_to_the_rows_of_the_fold() {
-    let moved = remap_lines(&lines(), &[Some(5), None, Some(1)]).unwrap();
+    let moved = remap_lines(&lines(), &[Ok(5), Err("src/b.ts"), Ok(1)]).unwrap();
     // Module 2 is row 1 now and module 0 row 5, so row 1 comes first.
     assert_eq!(moved, vec![2, 4, 5, 0, 2, 1, 1, 1, 3, 2, 0, 1, 1]);
-    assert_eq!(remap_lines(&moved, &(0..6).map(Some).collect::<Vec<_>>()).unwrap(), moved);
+    assert_eq!(remap_lines(&moved, &(0..6).map(Ok).collect::<Vec<_>>()).unwrap(), moved);
     assert_eq!(remap_lines(&[1, 0], &[]).unwrap(), vec![1, 0]);
 }
 
 #[test]
 fn refuses_lines_on_a_renumbered_or_missing_module_and_lines_that_lie() {
-    assert!(remap_lines(&lines(), &[None, None, Some(1)]).unwrap_err().contains("cut differently"));
-    assert!(remap_lines(&lines(), &[Some(0)]).unwrap_err().contains("missing module"));
+    assert_eq!(remap_lines(&lines(), &[Err("src/a.ts"), Err("src/b.ts"), Ok(1)]).unwrap_err(), "its lines stand on `src/a.ts`, which two shards cut into different regions");
+    assert!(remap_lines(&lines(), &[Ok(0)]).unwrap_err().contains("missing module"));
     assert!(remap_lines(&[0xff, 0xff, 0xff, 0xff, 0x0f], &[]).unwrap_err().contains("more values"));
     assert!(remap_lines(&[0xff, 0xff, 0xff, 0xff, 0xff, 0x01], &[]).is_err());
     let mut longer = lines();
     longer.push(0);
-    assert!(remap_lines(&longer, &[Some(0), None, Some(1)]).unwrap_err().contains("run past"));
+    assert!(remap_lines(&longer, &[Ok(0), Err("src/b.ts"), Ok(1)]).unwrap_err().contains("run past"));
 }

@@ -6,6 +6,7 @@ import {
   caseSectionsAt,
   commitRunsFile,
   encodeAsSetExecutionIndex,
+  encodeExecutionIndex,
   lastCaseRunOf,
   readTestCoverage,
   RecordWithoutCoverage,
@@ -231,6 +232,35 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     expect(withoutCoverage(shard)).toBe(true);
 
     await expect(landJourneys(dir, [shard], record)).rejects.toThrow(`cannot read the case index of ${shard}`);
+    expect(await readFile(record)).toEqual(before);
+  });
+
+  it('refuses one whose cases are spelled as rows, by name, and says to record it again', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    await ranWhole(record, first);
+    const before = await readFile(record);
+    // The spelling of an index before cases were sets: one row per case and region.
+    const rows = encodeExecutionIndex(await readExecutionIndex(record));
+    const shard = await uncoveredShard(first, rows, 'shard-rows.bin');
+
+    await expect(landJourneys(dir, [shard], record)).rejects.toThrow(
+      new RegExp(`cannot read the case index of ${shard}: .*version 5.*\\. Record it again with this version\\.$`),
+    );
+    expect(await readFile(record)).toEqual(before);
+  });
+
+  it('refuses one test file whose cases two shards ran, naming both, and writes nothing', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    const before = await readFile(record);
+    const index = caseSectionsAt(record).index!;
+    const at = await uncoveredShard(first, index, 'shard-a.bin');
+    const again = await uncoveredShard(first, index, 'shard-b.bin');
+
+    await expect(landJourneys(dir, [at, again], record)).rejects.toThrow(
+      /`test\/total\.test\.ts` has cases in .*shard-[ab]\.bin and again in .*shard-[ab]\.bin\. A test file belongs to one shard/,
+    );
     expect(await readFile(record)).toEqual(before);
   });
 

@@ -16,7 +16,7 @@
  */
 
 import type { ModuleId } from '../instrument/index.js';
-import { reconcileRegions, type RegionShape } from './execution-merge.js';
+import { reconcileRegions, type RegionShape } from './reconcile-regions.js';
 import { codeUnitOrder, type CapturedModule, type ReadJournal } from './instrumented-modules.js';
 import { isWritten } from './written-lines.js';
 import type { CoverageBlock } from './index.js';

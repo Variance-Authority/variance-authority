@@ -136,8 +136,11 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
         }
         // A case's lines name its regions by their order in the module, so a
         // module the fold renumbered has no row its lines stand on.
-        let row_of: Vec<Option<u32>> = shard.modules.iter()
-            .map(|module| (landings[rows[module.file.as_str()]].is_empty()).then(|| rows[module.file.as_str()] as u32))
+        let row_of: Vec<Result<u32, &str>> = shard.modules.iter()
+            .map(|module| {
+                let row = rows[module.file.as_str()];
+                if landings[row].is_empty() { Ok(row as u32) } else { Err(module.file.as_str()) }
+            })
             .collect();
         for (local, global) in shard.local_to_global.iter().enumerate() {
             let global = *global as usize;
@@ -148,8 +151,12 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
             if shard.lines[local].is_empty() {
                 continue;
             }
-            let lines = case_shard::remap_lines(&shard.lines[local], &row_of)
-                .map_err(|error| format!("case {:?}: {error}", tests[global].id))?;
+            let lines = case_shard::remap_lines(&shard.lines[local], &row_of).map_err(|error| {
+                format!(
+                    "{}: case {:?}: {error}, so they name regions the combined record does not hold. Record every shard with one build, so each cuts the file the same way.",
+                    shard.name, tests[global].id
+                )
+            })?;
             let held = &mut extras.lines[global];
             if held.is_empty() {
                 *held = lines;

@@ -53,6 +53,7 @@ fn stitch(files: &[String]) -> Result<(Folded, u32), String> {
     for file in files {
         let bytes = fs::read(file).map_err(|error| format!("cannot read {file}: {error}"))?;
         let shard = case_shard::read_shard(&bytes, &mut inventories)
+            .map(|shard| case_shard::Shard { name: file.clone(), ..shard })
             .map_err(|error| format!("cannot read journey artifact {file}: {error}"))?;
         shards.push(shard);
     }

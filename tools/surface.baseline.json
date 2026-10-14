@@ -3024,7 +3024,6 @@
         "machineOwners": "function",
         "mainlineReadRoot": "function",
         "mergeCoverage": "function",
-        "mergeExecutionIndexes": "function",
         "mib": "function",
         "nameIndex": "function",
         "narrowByExecution": "function",

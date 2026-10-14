@@ -12,6 +12,8 @@ use crate::journey_record::{Block, NO_OWNER};
 use crate::record_layout::LAYOUT;
 
 pub(crate) struct Shard {
+    /// The name a refusal calls the shard by; empty until its reader names it.
+    pub name: String,
     pub tests: Vec<Test>,
     /// Each case's duration in whole milliseconds, where its runner reported one.
     pub durations: Vec<Option<u32>>,
@@ -46,7 +48,7 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     let (version, decoded) = journey_columns::decode_any(bytes)?;
     let cases = &LAYOUT.cases;
     if version != cases.format && version != cases.loaded_sets {
-        return Err(format!("unsupported case index version: {version}; combine reads versions {} and {}", cases.loaded_sets, cases.format));
+        return Err(format!("it is written at version {version}, and this build reads versions {} and {}", cases.loaded_sets, cases.format));
     }
     let strings = strings(&decoded)?;
     let ids = decoded.words("tests.id")?;
@@ -159,6 +161,7 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
         });
     }
     Ok(Shard {
+        name: String::new(),
         tests,
         durations,
         lines,
@@ -290,11 +293,12 @@ pub(crate) fn decode_set(bytes: &[u8], tests: usize) -> Result<Vec<u32>, String>
 }
 
 /// One case's lines with its modules named by `rows[module]`, their rows in
-/// the fold, re-sorted by row. A module `rows` names no row for is refused: the
-/// fold renumbered its regions, and the lines name regions by their order.
+/// the fold, re-sorted by row. A module `rows` holds a file for instead is
+/// refused by that file: the fold renumbered its regions, and the lines name
+/// regions by their order.
 /// The bytes are read as `case-lines.ts` writes them; every count is checked
 /// against the bytes left before anything is held.
-pub(crate) fn remap_lines(bytes: &[u8], rows: &[Option<u32>]) -> Result<Vec<u8>, String> {
+pub(crate) fn remap_lines(bytes: &[u8], rows: &[Result<u32, &str>]) -> Result<Vec<u8>, String> {
     let mut reader = Varints { bytes, at: 0 };
     let count = reader.take()?;
     if count > bytes.len() as u64 {
@@ -320,7 +324,7 @@ pub(crate) fn remap_lines(bytes: &[u8], rows: &[Option<u32>]) -> Result<Vec<u8>,
         let row = usize::try_from(module).ok()
             .and_then(|module| rows.get(module))
             .ok_or_else(|| "case lines name a missing module".to_owned())?
-            .ok_or_else(|| "case lines stand on a module two shards cut differently".to_owned())?;
+            .map_err(|file| format!("its lines stand on `{file}`, which two shards cut into different regions"))?;
         let runs = reader.take()?;
         if runs == 0 || runs > bytes.len() as u64 {
             return Err("case lines hold an invalid segment".to_owned());

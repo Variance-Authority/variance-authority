@@ -150,5 +150,5 @@ fn reads_an_index_that_spells_load_time_as_sets() {
     let flags: Vec<Vec<bool>> = shard.modules.iter().map(|module| module.loaded.clone()).collect();
     assert_eq!(flags, [vec![true, false], vec![false]]);
     let refused = case_shard::read_shard(&journey_columns::encode(Vec::new(), 5).unwrap(), &mut HashMap::new()).err().unwrap();
-    assert!(refused.contains("unsupported case index version: 5"), "{refused}");
+    assert!(refused.contains("it is written at version 5, and this build reads versions 2 and 3"), "{refused}");
 }

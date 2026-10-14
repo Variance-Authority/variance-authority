@@ -84,7 +84,8 @@ pub(crate) fn combine_bytes(named: &[(String, Vec<u8>)]) -> Result<Combined, Str
         .enumerate()
         .map(|(at, (path, bytes))| {
             let digest: [u8; 32] = Sha256::digest(bytes).into();
-            let record = record_coverage::read(bytes).map_err(|error| format!("cannot read the record {path}: {error}"))?;
+            let record = record_coverage::read(bytes)
+                .map_err(|error| format!("cannot read the record {path}: {error}. Record it again with this version."))?;
             let (commit, ran) = match &record.coverage {
                 Some(coverage) => (coverage.commit.map(|id| coverage.strings().map(|strings| strings[id as usize].to_owned())).transpose()?, Vec::new()),
                 None => match record.parts.last.as_deref() {
@@ -120,11 +121,11 @@ pub(crate) fn combine_bytes(named: &[(String, Vec<u8>)]) -> Result<Combined, Str
     if !cased.is_empty() {
         if let Some(uncased) = held.iter().find(|shard| shard.record.parts.index.is_none()) {
             return Err(format!(
-                "{} kept cases and {} kept none, so the combined record could answer for the cases of only some of its files.",
-                cased[0].path, uncased.path
+                "{} kept cases and {} kept none, so the combined record could answer for the cases of only some of its files. Record {} again with cases kept, as {} was.",
+                cased[0].path, uncased.path, uncased.path, cased[0].path
             ));
         }
-        let index = fold_index(&cased, |shard| shard.record.parts.index.as_deref())?;
+        let index = fold_index(&cased, |shard| shard.record.parts.index.as_deref(), true)?;
         columns.push(Column::Plain(LAYOUT.coverage.part("index"), index.bytes));
         cases = Some(index.tests);
         renumbered = index.renumbered;
@@ -136,7 +137,7 @@ pub(crate) fn combine_bytes(named: &[(String, Vec<u8>)]) -> Result<Combined, Str
                     before[0].path, without.path
                 ));
             }
-            columns.push(Column::Plain(LAYOUT.coverage.part("before"), fold_index(&before, |shard| shard.record.parts.before.as_deref())?.bytes));
+            columns.push(Column::Plain(LAYOUT.coverage.part("before"), fold_index(&before, |shard| shard.record.parts.before.as_deref(), false)?.bytes));
         }
         let parts = |part: fn(&Held) -> Option<&[u8]>| -> Vec<(&str, &[u8], &HashMap<String, String>)> {
             cased.iter().zip(&index.renamed).filter_map(|(shard, renamed)| part(shard).map(|bytes| (shard.path.as_str(), bytes, renamed))).collect()
@@ -182,15 +183,36 @@ pub(crate) fn combine_bytes(named: &[(String, Vec<u8>)]) -> Result<Combined, Str
     Ok(Combined { bytes, result })
 }
 
-fn fold_index(shards: &[&&Held], part: impl Fn(&Held) -> Option<&[u8]>) -> Result<case_fold::Folded, String> {
+/// The `part` of every shard through the one case fold. A test file belongs to
+/// one shard, so where `owned` its cases may come from one shard only: no
+/// sharded run, retry or rerun hands two shards one file, and a case run in
+/// two is two observations of which neither is the suite's. The before layer
+/// is every shard's view of one earlier index, so its files repeat.
+fn fold_index(shards: &[&&Held], part: impl Fn(&Held) -> Option<&[u8]>, owned: bool) -> Result<case_fold::Folded, String> {
     let mut inventories = HashMap::new();
     let read = shards
         .iter()
         .map(|shard| {
             let bytes = part(shard).unwrap_or_default();
-            case_shard::read_shard(bytes, &mut inventories).map_err(|error| format!("cannot read the case index of {}: {error}", shard.path))
+            case_shard::read_shard(bytes, &mut inventories)
+                .map(|read| case_shard::Shard { name: shard.path.clone(), ..read })
+                .map_err(|error| format!("cannot read the case index of {}: {error}. Record it again with this version.", shard.path))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    if owned {
+        let mut owner: HashMap<&str, &str> = HashMap::new();
+        for shard in &read {
+            for test in &shard.tests {
+                let held = *owner.entry(test.file.as_str()).or_insert(shard.name.as_str());
+                if held != shard.name {
+                    return Err(format!(
+                        "`{}` has cases in {held} and again in {}. A test file belongs to one shard, and two runs of its cases cannot both be the suite's; combine only one of the two.",
+                        test.file, shard.name
+                    ));
+                }
+            }
+        }
+    }
     case_fold::fold(read, inventories)
 }
 

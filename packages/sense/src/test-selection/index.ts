@@ -69,7 +69,6 @@ export {
   encodeExecutionIndex,
   isEncodedExecutionIndex,
 } from './execution-format.js';
-export { mergeExecutionIndexes } from './execution-merge.js';
 export { combineRecords, type CombinedRecord, type CombinedShard } from './record-combine.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
 export { encodeAsSetExecutionIndex, journeyGaps, openSetColumns, type JourneyGaps, type SetColumns, type StringTable, type TestColumns } from './execution-set-format.js';

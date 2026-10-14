@@ -80,9 +80,13 @@ variance journeys merge shard-1/coverage.bin shard-2/coverage.bin \
 The merge reads the shards and nothing else: no configuration, no checkout, no
 source index. Paths resolve from the working directory. The output is replaced,
 not layered over, and is the same bytes whatever order the shards are named in.
-It keeps the case sections for `distill` and refuses overlapping test files,
-different commits, different probe recipes, and a shard that kept cases beside
-one that kept none. Land the result with `variance journeys <record>`.
+It keeps the case sections for `distill` and refuses, by shard, overlapping test
+files or case files, different commits, different probe recipes, a shard that
+kept cases beside one that kept none, a case index this build cannot read
+(record it again with this version), and lines on a file two shards cut into
+different regions (record every shard with one build). Land the result with
+`variance journeys <record>`; to lay the shards over a record that is already
+there, run `variance journeys <shard.bin>... --into <record>`.
 `journeys stitch` reads journey-only artifacts instead, which lack the per-file
 loads `distill` needs.
 

@@ -1602,7 +1602,9 @@ journeys: combined 2 records into artifacts/coverage.bin (342 tests, 1204 module
 
 It reads the shards and nothing else: no configuration, no checkout, no
 source index. `--into` is replaced, not layered over, and the output is the
-same bytes whatever order the shards are named in. Paths resolve from the
+same bytes whatever order the shards are named in. To lay the shards over a
+record that is already there, name it to `journeys` instead:
+`variance journeys <shard.bin>... --into <record>`. Paths resolve from the
 working directory. Landing the combined record, in this checkout or another,
 is `journeys`'s; the rules below apply to both commands, because `journeys`
 combines its shards the same way and lands the result as one.
@@ -1614,6 +1616,14 @@ file two shards both recorded means the split overlapped, which only the
 operator can resolve. A module one shard could not instrument is answered by the
 shards that did: that row records that one build could not read the module, and
 is no evidence about the tests another build watched run it.
+
+The cases are refused by the shard that holds them, with what to do. A test
+file whose cases two shards both ran names both shards: two runs of one file's
+cases cannot both be the suite's, so you combine only one of them. A case index
+this build cannot read, the row spelling of older versions among them, is
+recorded again with this version. A case whose lines stand on a file two
+shards cut into different regions is refused, because its lines name regions
+by their order; record every shard with one build.
 
 Where it lands is this checkout's own cache, the file every run on this
 machine layers over — the record of the suite `--suite` names, when the root

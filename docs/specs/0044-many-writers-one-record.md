@@ -66,8 +66,8 @@ of segments — a format version, not a generation — and publishes by the same
 read-modify-write-and-rename with no expected-prior check
 (`packages/sense/src/immutable-log.ts:122-140`).
 
-**4. A demotion carries its reason.** Three sites write `{ ...test, complete:
-false }` and drop why: `packages/sense/src/test-selection/merge.ts:166`, `packages/sense/src/test-selection/merge.ts:205`, `packages/sense/src/test-selection/format-layer.ts:266`. The
+**4. A demotion carries its reason.** Two sites write `{ ...test, complete:
+false }` and drop why: `packages/sense/src/test-selection/merge.ts:205` and `packages/sense/src/test-selection/format-layer.ts:124`. The
 reason is computed — `stitchJourneys` builds a `because` string — and reaches
 stderr once, then is gone.
 

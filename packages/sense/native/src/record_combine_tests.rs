@@ -203,6 +203,11 @@ fn folds_sets_of_every_spelling_and_width() {
 }
 
 fn cases(file: &str, runner: &str) -> Vec<u8> {
+    index(file, runner, 1, Vec::new())
+}
+
+/// A case index whose one case of `file` called the first of `regions` regions of `src/a.ts`, with `lines` as its lines.
+fn index(file: &str, runner: &str, regions: u32, lines: Vec<u8>) -> Vec<u8> {
     let tests = [Test {
         id: format!("{file} > adds"),
         file: file.to_owned(),
@@ -212,16 +217,20 @@ fn cases(file: &str, runner: &str) -> Vec<u8> {
         settled: FINISHED,
         preconditions: None,
     }];
-    let regions = Module {
+    let regions_of = Module {
         id: "src/a.ts".to_owned(),
         file: "src/a.ts".to_owned(),
-        blocks: vec![Block { kind: "function".to_owned(), name: "f0".to_owned(), path: "f0".to_owned(), start_line: 1, end_line: 1, source: true }],
+        blocks: (0..regions)
+            .map(|at| Block { kind: "function".to_owned(), name: format!("f{at}"), path: format!("f{at}"), start_line: at + 1, end_line: at + 1, source: true })
+            .collect(),
         owners: None,
     };
     let mut sets = SetPool::new(1);
-    let called = vec![sets.intern(&[0])];
-    let modules = [EncodedModule { module: &regions, called: &called, loaded: &[false] }];
-    journey_format::encode(&tests, &CaseExtras::default(), &modules, &sets, None).unwrap()
+    let called: Vec<u32> = (0..regions).map(|at| if at == 0 { sets.intern(&[0]) } else { sets.intern(&[]) }).collect();
+    let loaded = vec![false; regions as usize];
+    let modules = [EncodedModule { module: &regions_of, called: &called, loaded: &loaded }];
+    let extras = CaseExtras { durations: Vec::new(), lines: if lines.is_empty() { Vec::new() } else { vec![lines] } };
+    journey_format::encode(&tests, &extras, &modules, &sets, None).unwrap()
 }
 
 fn last(commit: &str, files: &[&str], cases: &[&str]) -> Vec<u8> {
@@ -268,11 +277,46 @@ fn writes_a_record_of_cases_alone_when_no_shard_measured_coverage() {
     assert!(!folded.result.shards[1].measured);
 }
 
+/// A record of `index` as its cases, and no coverage.
+fn cases_alone(index: Vec<u8>, file: &str) -> Vec<u8> {
+    let columns = vec![Column::Plain(LAYOUT.coverage.part("index"), index), Column::Plain(LAYOUT.coverage.part("last"), last("c0ffee", &[file], &[]))];
+    journey_columns::encode(columns, LAYOUT.coverage.format).unwrap()
+}
+
 #[test]
 fn refuses_shards_of_which_only_some_kept_cases() {
     let bare = fixture::write(&spec(vec![test("b.test.ts")], Vec::new()));
     let message = refused(&[&fixture::write(&cased("a.test.ts", "1")), &bare]);
-    assert!(message.contains("kept none"), "{message}");
+    assert!(message.contains("shard-0.bin kept cases and shard-1.bin kept none"), "{message}");
+    assert!(message.contains("Record shard-1.bin again with cases kept"), "{message}");
+}
+
+#[test]
+fn refuses_a_case_file_two_shards_ran_by_both_names_whatever_their_order() {
+    let (one, other) = (cases_alone(cases("a.test.ts", "1"), "a.test.ts"), cases_alone(cases("a.test.ts", "2"), "a.test.ts"));
+    for message in [refused(&[&one, &other]), refused(&[&other, &one])] {
+        assert!(message.contains("`a.test.ts` has cases in shard-"), "{message}");
+        assert!(message.contains("shard-0.bin") && message.contains("shard-1.bin"), "{message}");
+        assert!(message.contains("combine only one of the two"), "{message}");
+    }
+}
+
+#[test]
+fn refuses_an_index_this_build_cannot_read_and_says_to_record_it_again() {
+    let message = refused(&[&cases_alone(vec![0xff; 16], "a.test.ts")]);
+    assert!(message.contains("cannot read the case index of shard-0.bin"), "{message}");
+    assert!(message.ends_with("Record it again with this version."), "{message}");
+}
+
+#[test]
+fn refuses_lines_on_a_file_two_shards_cut_differently_by_the_shard_and_the_file() {
+    // One case's lines: two values, one segment on module 0, one run.
+    let lines = vec![2, 4, 5, 0, 1, 0, 1, 1];
+    let one = cases_alone(index("a.test.ts", "1", 2, lines), "a.test.ts");
+    let other = cases_alone(index("b.test.ts", "1", 3, Vec::new()), "b.test.ts");
+    let message = refused(&[&one, &other]);
+    assert!(message.starts_with("shard-0.bin: case \"a.test.ts > adds\": its lines stand on `src/a.ts`"), "{message}");
+    assert!(message.contains("Record every shard with one build"), "{message}");
 }
 
 #[test]

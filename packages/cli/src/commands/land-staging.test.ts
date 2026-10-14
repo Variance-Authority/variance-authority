@@ -10,13 +10,16 @@ import { published, wholeRecord } from './mainline-fixture.js';
  * A landing whose snapshot or runs record cannot be written — a full disk, a
  * read-only volume — changes nothing, the cases the snapshot carries included.
  * Both are staged before either replaces what is there, so the write that fails
- * is a staging.
+ * is a staging. A combined record that cannot be read back is refused as the
+ * reader said, and changes nothing either.
  */
 
 /** Once set, every write of `file` into this directory fails as a full disk does. */
 const full = vi.hoisted(() => ({
   directory: undefined as string | undefined,
   file: 'snapshot' as 'snapshot' | 'runs record',
+  /** Once set, reading the staged combine fails as a cut file does. */
+  combined: false,
 }));
 
 vi.mock('@variance-authority/sense/test-selection', async (original) => {
@@ -31,6 +34,10 @@ vi.mock('@variance-authority/sense/test-selection', async (original) => {
     writeTestCoverage: async (...args: Parameters<typeof actual.writeTestCoverage>) => {
       failing('snapshot', args[0]);
       return actual.writeTestCoverage(...args);
+    },
+    readTestCoverage: async (...args: Parameters<typeof actual.readTestCoverage>) => {
+      if (full.combined && args[0].endsWith('-combined.tmp')) throw new Error('the record ends before its sections do');
+      return actual.readTestCoverage(...args);
     },
     writeCommitRuns: async (...args: Parameters<typeof actual.writeCommitRuns>) => {
       failing('runs record', args[0]);
@@ -48,6 +55,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   full.directory = undefined;
+  full.combined = false;
   delete process.env['VARIANCE_AUTHORITY_CACHE'];
   await rm(home, { recursive: true, force: true });
 });
@@ -82,4 +90,18 @@ describe('landJourneys when what it stages cannot be written', () => {
       expect((await readdir(dirname(record))).filter((name) => name.endsWith('.tmp'))).toEqual([]);
     },
   );
+
+  it('refuses a combine it cannot read back with the reader\'s own words, and leaves the snapshot and no staged file', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    const snapshot = await readFile(record);
+    const shard = join(home, 'shard-1.bin');
+    await writeTestCoverage(shard, { version: 3, instrumentation: 'fixture', commit: first, tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }], modules: [] });
+
+    full.combined = true;
+    await expect(landJourneys(dir, [shard], record)).rejects.toThrow(/^the record ends before its sections do$/);
+
+    expect(await readFile(record)).toEqual(snapshot);
+    expect((await readdir(dirname(record))).filter((name) => name.endsWith('.tmp'))).toEqual([]);
+  });
 });
