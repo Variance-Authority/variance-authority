@@ -102,6 +102,15 @@ describe('the change a commit makes', () => {
 
     expect(changedBy(ROOT, first)).toBeUndefined();
   });
+
+  // In CI's container the checkout belongs to another user, and git refuses
+  // it as dubious until it is trusted. Outside a repository it refuses the
+  // same way: that is a failure, not a commit without a parent.
+  it('is a failure when git refuses the checkout', async () => {
+    const elsewhere = await mkdtemp(join(tmpdir(), 'site-reach-'));
+
+    expect(() => changedBy(elsewhere, 'HEAD')).toThrow(/not a git repository/);
+  });
 });
 
 async function decide(

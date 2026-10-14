@@ -86,7 +86,8 @@ const git = (root, ...args) =>
 
 /**
  * Every path a commit touched against its first parent, both sides of a move,
- * or `undefined` when there is no parent to compare against.
+ * or `undefined` when there is no parent to compare against. Any other answer
+ * git refuses to give, an untrusted checkout among them, throws.
  *
  * On a pull request the checkout is GitHub's merge commit, whose first parent
  * is the base branch, so this is the whole of what merging would change.
@@ -94,8 +95,10 @@ const git = (root, ...args) =>
 export function changedBy(root, commit) {
   try {
     git(root, 'rev-parse', '--verify', '--quiet', `${commit}^1`);
-  } catch {
-    return undefined;
+  } catch (error) {
+    // `--quiet` makes a missing revision exit 1 and say nothing.
+    if (error.status === 1) return undefined;
+    throw new Error(`git could not read \`${commit}^1\`: ${String(error.stderr ?? error.message).trim()}`);
   }
   return git(root, 'diff', '-z', '--name-only', '--no-renames', `${commit}^1`, commit)
     .split('\0')

@@ -513,9 +513,11 @@ jobs:
       # is built from or what photographs it; a push, a dispatch, the accept
       # label and a change it cannot read always run. What the site's files
       # reach is read from the source index, which CI refuses to build on
-      # demand, so `variance index` publishes it first. Nothing after this runs
-      # for the site when it says `false`. Any failure here leaves a warning,
-      # and the site runs.
+      # demand, so `variance index` publishes it first. The checkout belongs to
+      # the runner, not to the container's user, and git refuses to read a
+      # directory it does not trust, so the workspace is trusted first, as in
+      # `check.yml`. Nothing after this runs for the site when it says `false`.
+      # Any failure here leaves a warning, and the site runs.
       - name: decide whether this change reaches the site
         id: reach
         if: matrix.project == 'site'
@@ -527,6 +529,7 @@ jobs:
           VARIANCE_RUNNER: packages/cli/dist/bin.js
         run: |
           trap 'echo "::warning title=site reach not decided::this step failed, so the site runs."' ERR
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           node packages/cli/dist/bin.js index
           node tools/site-reach.mjs
 
