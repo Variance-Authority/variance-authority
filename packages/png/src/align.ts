@@ -15,8 +15,11 @@ import type { DecodedImage } from './mask.js';
  * identical rows become one token, and Myers' algorithm finds the shortest edit
  * between the two token columns. The result is a pairing, not a verdict: the
  * caller still compares each after row with the before row it is paired with,
- * pixel by pixel, so a pairing that is wrong can only find more difference,
- * never hide one. A row with no partner is reported, never paired with white.
+ * pixel by pixel, and every row that moved, came or went is itself a change, so
+ * no pairing can make a page read as unchanged. A row with no partner is
+ * reported, never paired with white. Where two paired runs meet, the before
+ * rows on either side were not neighbours, and pixelmatch's anti-aliasing test,
+ * which reads neighbours, may count a pixel on that seam differently.
  *
  * Myers is O((N+M)·D) in time and keeps O(D²) of trace, where N and M count runs
  * rather than rows and D is the size of the edit in runs. A page's runs are

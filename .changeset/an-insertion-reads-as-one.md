@@ -11,10 +11,11 @@ Two images of the same width are compared row by row after their rows are
 aligned: each row is hashed, runs of equal rows are one token, and Myers finds
 the shortest edit between the two sequences. Each after row is then compared
 with the before row that shows the same content, and `pixelmatch` still judges
-every pairing, so a wrong pairing can only find more difference. A section added
-to a long page marks that section, and the content it pushed down matches.
-Images of different widths, or an edit longer than 2,000 tokens, are compared
-position by position on the union box, as before.
+every pairing; a row that moved, came or went is a change in itself, so no
+pairing makes a page read as unchanged. A section added to a long page marks that
+section, and the content it pushed down matches. Images of different widths, or
+an edit longer than 2,000 runs of rows, are compared position by position on the
+union box, as before.
 
 `RasterComparison.alignment` carries the pairing as `RowAlignment`: the after
 rows `inserted`, the before rows `removed` with the after row they left from,

@@ -182,10 +182,14 @@ the after row they would have sat above, and the after rows that moved with `by`
 how far. Content that moved without changing still counts as a change: the
 pixels match, and the rows say where they went.
 
-The alignment proposes pairs and the pixel comparison judges each one, so a
-pairing that is wrong finds more difference, never less. A run of identical rows
+The alignment proposes pairs and the pixel comparison judges each one, and a
+row that moved, came or went is a change in itself, so no pairing makes a page
+read as unchanged. Where two paired runs meet, the before rows on either side
+were not neighbours, and the anti-aliasing test, which reads neighbours, may
+count a pixel on that seam differently. A run of identical rows
 that only grew, such as a white gap one row taller, pairs its extra rows with
-the run's own last row rather than marking them inserted. Only whole rows are
+the run's own last row rather than marking them inserted; its crop is cut where
+the rows under it start to move. Only whole rows are
 matched: content that moves in one column beside a column that stays put is
 compared where it sits.
 

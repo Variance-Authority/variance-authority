@@ -79,8 +79,9 @@ export function changeImages(
 }
 
 /**
- * Where to cut: each region and each removal padded with context, merged where
- * they meet, the heaviest kept and read top to bottom.
+ * Where to cut: each region, each removal and each place the rows start to
+ * move, padded with context, merged where they meet, the heaviest kept and read
+ * top to bottom.
  */
 function windowsFor(
   regions: readonly DiffRegion[],
@@ -111,6 +112,10 @@ function windowsFor(
     // A removal has no after pixels to be a region of; it is a seam at `at`, and
     // weighs what it took away.
     ...(alignment?.removed ?? []).map((span) => padded(0, span.at, width, span.at, (span.to - span.from) * width)),
+    // A gap that grew paints no new pixel and removes no row, so neither of the
+    // above marks it; it is seen where the rows under it start to move, and
+    // weighs the distance they moved.
+    ...seams(alignment).map(({ at, by }) => padded(0, at, width, at, by * width)),
   ].filter((window) => window.bottom > window.top && window.right > window.left);
 
   const merged: Window[] = [];
@@ -129,6 +134,17 @@ function windowsFor(
     .slice(0, MAX_WINDOWS)
     .sort((a, b) => a.top - b.top)
     .map((window) => ({ ...window, bottom: Math.min(window.bottom, window.top + MAX_ROWS) }));
+}
+
+/** Each after row where the displacement of the rows changes, and by how much. */
+function seams(alignment: RowAlignment | undefined): { at: number; by: number }[] {
+  const found: { at: number; by: number }[] = [];
+  let by = 0;
+  for (const span of alignment?.shifted ?? []) {
+    if (span.by !== by) found.push({ at: span.from, by: Math.abs(span.by - by) });
+    by = span.by;
+  }
+  return found;
 }
 
 /**
