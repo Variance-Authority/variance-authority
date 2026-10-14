@@ -54,4 +54,11 @@ describe('a rule reaches the element its rightmost compound names', () => {
     const css = '.md\\:w-\\[10px\\] { width: 10px }';
     expect(matched(css, '<div class="md:w-[10px]"></div>', 'div')).toEqual(['.md\\:w-\\[10px\\]']);
   });
+
+  // An escaped combinator is a character of the class, not a break before the
+  // compound: read as a break, the rule was filed under `.b` and never tested.
+  it('files a class with an escaped combinator by the whole class', () => {
+    const css = '.a\\+b { color: red }';
+    expect(matched(css, '<div class="a+b"></div>', 'div')).toEqual(['.a\\+b']);
+  });
 });
