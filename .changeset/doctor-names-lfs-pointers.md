@@ -8,7 +8,8 @@
 On a clone that skipped the LFS fetch, a subject whose page did not move is
 settled from its sidecar without its image being read, so `variance run` passed
 until the first subject that moved met the pointer. `variance doctor` now reads
-the head of every image in an `lfs` root, counts the ones that are git-LFS
+the head of every image the `lfs` store reads — the one beside each record
+`baselines.path` places, and those in an identity directory — counts the ones that are git-LFS
 pointers, names the first under *POINTERS, NOT IMAGES*, prints
 `git lfs install && git lfs pull`, and exits 2, the code the run exits with when
 it meets one. It exits 2 for that finding under a remote renderer as well.
