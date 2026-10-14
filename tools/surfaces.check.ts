@@ -84,10 +84,7 @@ const REACH_THROUGH_DEBT: Readonly<Record<string, readonly string[]>> = {
   // reader assembling the plugin array from a description. The fix is a
   // `@variance-authority/storybook-collector/vite` that composes both behind
   // one import, not a page that goes back to describing them.
-  '@variance-authority/storybook-collector README': [
-    '@variance-authority/jsx-source',
-    '@variance-authority/sense',
-  ],
+  '@variance-authority/storybook-collector README': ['@variance-authority/jsx-source'],
 };
 
 describe('adopter-facing code knows one package', () => {

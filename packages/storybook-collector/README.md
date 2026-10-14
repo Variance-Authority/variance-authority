@@ -356,7 +356,9 @@ export default {
 };
 ```
 
-The addon reads the builder Storybook runs. Under Vite it adds
+Storybook loads the addon through its preset,
+`@variance-authority/storybook-collector/preset`, which you never import
+yourself. The preset reads the builder Storybook runs. Under Vite it adds
 `testSelectionProbes()` from `@variance-authority/sense/journal`; under Rspack,
 through `rsbuildFinal`, and Webpack 5, through `webpackFinal`, it adds
 `testSelectionRule()`, a loader at `enforce: 'post'`. Either way the probes go

@@ -263,7 +263,6 @@ describe('coverage generations', () => {
     try {
       const configured = withTestSelection({}, { root, coverageFile, include: () => true });
       const { plugin, reporter } = seamOf(configured);
-
       await writeFile(resolve(root, 'broken.ts'), 'const =');
       // It still runs marked as loaded, so a test that loaded it still says so.
       expect(plugin.transform.handler('const =', resolve(root, 'broken.ts'))).toEqual({

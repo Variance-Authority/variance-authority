@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
 import { repositoryRoot } from './repository-root.js';
 
+/** What `testSelectionRule` takes: where names start, which modules are yours, and the probe recipe. */
 export interface TestSelectionRuleOptions {
   /**
    * A directory inside the repository; defaults to the current directory.

@@ -994,7 +994,8 @@ export default {
 ```
 
 It takes `root`, `include` and `mode`, as `testSelectionProbes` does. Its
-loader runs at `enforce: 'post'`, after SWC, Babel and every loader you
+loader, `@variance-authority/sense/probes-loader`, which the rule names for you,
+runs at `enforce: 'post'`, after SWC, Babel and every loader you
 configured, so a compiler that reads syntax, such as Compiled's or Linaria's
 loader, reads your file without probes in it. The regions are the file's on
 disk, placed where the map your loaders handed on says each one went. Leave
