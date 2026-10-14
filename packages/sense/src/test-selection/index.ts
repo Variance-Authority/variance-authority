@@ -61,15 +61,8 @@ export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from
 export { unmeasuredOf, type Unmeasured } from './route.js';
 export { importReferences, type FileReferences } from './references.js';
 export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
-export {
-  rankDistillCauses,
-  readDistillRecords,
-  type DistillRecords,
-  type NativeDistillCause,
-  type NativeDistillFile,
-  type NativeDistillRegion,
-  type NativeDistillScope,
-} from './distill-native.js';
+export { rankDistillCauses, readDistillRecords, type DistillRecords, type NativeDistillCause } from './distill-native.js';
+export { type NativeDistillFile, type NativeDistillRegion, type NativeDistillScope } from './distill-native.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
 export { formatCoveringChange, type CoveringCaseNote, type CoveringChangeHeading } from './covering-change-text.js';
 export {
