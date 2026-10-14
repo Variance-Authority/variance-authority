@@ -184,7 +184,13 @@ pixels match, and the rows say where they went.
 
 The alignment proposes pairs and the pixel comparison judges each one, and a
 row that moved, came or went is a change in itself, so no pairing makes a page
-read as unchanged. Where two paired runs meet, the before rows on either side
+read as unchanged. The shortest edit counts runs of rows, not pixels, so a
+pairing is kept only when it leaves fewer pixels differing than position does:
+where a mark beside a line of text changed in place, a matching row at another
+height would otherwise shift the lines around it. A tie goes to whichever moved
+nothing. Rows rewritten between two kept runs are paired from the band's top or
+its bottom, whichever leaves fewer pixels differing, so a block drawn into the
+middle of a gap marks the block and not the gap under it. Where two paired runs meet, the before rows on either side
 were not neighbours, and the anti-aliasing test, which reads neighbours, may
 count a pixel on that seam differently. A run of identical rows
 that only grew, such as a white gap one row taller, pairs its extra rows with

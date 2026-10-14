@@ -42,7 +42,8 @@ export const ALIGNMENT_LIMIT = 2000;
 
 /**
  * The pairing, or `undefined` when there is none to make: the widths differ, so
- * no row of one is a row of the other, or the edit is larger than `limit`.
+ * no row of one is a row of the other, the edit is larger than `limit`, or the
+ * pairing leaves no fewer pixels differing than position does.
  */
 export function alignRows(
   before: DecodedImage,
@@ -90,7 +91,63 @@ export function alignRows(
   const script = edits(left.hash, right.hash, limit);
   if (script === undefined) return undefined;
 
-  return pairing(left, right, script, after.height);
+  const rows = pairing(left, right, script, after.height, (from, to) => differing(was, from, now, to, width));
+  return explainsMore(rows, was, now, before.height, after.height, width, head) ? rows : undefined;
+}
+
+/**
+ * Whether the pairing leaves fewer pixels differing than position does.
+ *
+ * The shortest edit counts runs, not pixels. Where a line changed in place, a
+ * row beside it that matches a row at another height is a shorter edit than the
+ * substitution, and pairing on it shifts everything around it: a mark that went
+ * from beside two lines of text becomes two whole lines compared against their
+ * neighbours. So the pairing is weighed by what it leaves for the comparison:
+ * every pixel that differs exactly between the rows it pairs, and every pixel of
+ * a row it pairs with nothing; position counts the same on the union box, white
+ * where an image has no row. A tie goes to whichever moved nothing: the pairing
+ * when it shifted no row and only says where rows came or went, else position.
+ * Rows in the shared head are equal under both and are not read.
+ */
+function explainsMore(
+  rows: AlignedRows,
+  was: Uint32Array,
+  now: Uint32Array,
+  beforeHeight: number,
+  afterHeight: number,
+  width: number,
+  head: number,
+): boolean {
+  let paired = 0;
+  for (let y = head; y < afterHeight; y += 1) {
+    const from = rows.source[y]!;
+    paired += from < 0 ? width : differing(was, from, now, y, width);
+  }
+
+  let positional = 0;
+  for (let y = head; y < Math.max(beforeHeight, afterHeight) && positional <= paired; y += 1) {
+    if (y >= beforeHeight) positional += width - matching(now, y, WHITE, width);
+    else if (y >= afterHeight) positional += width - matching(was, y, WHITE, width);
+    else positional += differing(was, y, now, y, width);
+  }
+  return paired < positional || (paired === positional && rows.shifted.length === 0);
+}
+
+/** Every channel at 255, whichever way the bytes are read. */
+const WHITE = 0xffffffff;
+
+function differing(left: Uint32Array, leftRow: number, right: Uint32Array, rightRow: number, width: number): number {
+  const from = leftRow * width;
+  const to = rightRow * width;
+  let count = 0;
+  for (let x = 0; x < width; x += 1) if (left[from + x] !== right[to + x]) count += 1;
+  return count;
+}
+
+function matching(words: Uint32Array, row: number, word: number, width: number): number {
+  let count = 0;
+  for (let index = row * width, end = index + width; index < end; index += 1) if (words[index] === word) count += 1;
+  return count;
 }
 
 /** Rows of identical pixels, as one token each: the hash, where it starts and how many. */
@@ -258,7 +315,11 @@ function edits(left: Float64Array, right: Float64Array, limit: number): Edit[] |
  * within the band, so a sentence whose text changed is compared glyph against
  * glyph rather than reported as new. When a kept run is longer on one side, what
  * is left of it opens the band: a white gap that a block was drawn into is the
- * gap's rows compared with the block's.
+ * gap's rows compared with the block's. Position within a band is counted from
+ * its top or from its bottom, whichever leaves fewer pixels differing (`cost`
+ * counts them for one pair of rows): a block drawn into the middle of a gap
+ * leaves the gap's lower rows in the band, and from the top they would sit
+ * against the block.
  *
  * What the band cannot pair is either removed, when it is before rows, or
  * inserted and marked in full, when it is after rows. The exception is a run
@@ -267,7 +328,13 @@ function edits(left: Float64Array, right: Float64Array, limit: number): Edit[] |
  * and the page reports that it changed size rather than marking a gap that got
  * one pixel taller as new content.
  */
-function pairing(left: Runs, right: Runs, script: readonly Edit[], height: number): AlignedRows {
+function pairing(
+  left: Runs,
+  right: Runs,
+  script: readonly Edit[],
+  height: number,
+  cost: (beforeRow: number, afterRow: number) => number,
+): AlignedRows {
   const source = new Int32Array(height).fill(-1);
   const inserted: RowSpan[] = [];
   const removed: { from: number; to: number; at: number }[] = [];
@@ -283,6 +350,12 @@ function pairing(left: Runs, right: Runs, script: readonly Edit[], height: numbe
     else shifted.push({ from: afterFrom, to: afterFrom + rows, by });
   };
 
+  const insert = (from: number, to: number): void => {
+    const last = inserted.at(-1);
+    if (last !== undefined && last.to === from) inserted[inserted.length - 1] = { from: last.from, to };
+    else inserted.push({ from, to });
+  };
+
   // The band being gathered: before rows and after rows, each contiguous, and
   // the grown run it opened with, if it did.
   let band:
@@ -291,14 +364,30 @@ function pairing(left: Runs, right: Runs, script: readonly Edit[], height: numbe
   const settle = (): void => {
     if (band === undefined) return;
     const rows = Math.min(band.beforeTo - band.beforeFrom, band.afterTo - band.afterFrom);
+    const spare = band.beforeTo - band.beforeFrom + band.afterTo - band.afterFrom - 2 * rows;
+    // A grown run's copies are paired from the top, so only a band without
+    // them is read from its bottom.
+    if (band.grown === 0 && spare > 0 && rows > 0) {
+      let top = 0;
+      let bottom = 0;
+      for (let row = 0; row < rows; row += 1) {
+        top += cost(band.beforeFrom + row, band.afterFrom + row);
+        bottom += cost(band.beforeTo - rows + row, band.afterTo - rows + row);
+      }
+      if (bottom < top) {
+        pair(band.beforeTo - rows, band.afterTo - rows, rows);
+        if (band.afterFrom < band.afterTo - rows) insert(band.afterFrom, band.afterTo - rows);
+        if (band.beforeFrom < band.beforeTo - rows) {
+          removed.push({ from: band.beforeFrom, to: band.beforeTo - rows, at: band.afterFrom });
+        }
+        band = undefined;
+        return;
+      }
+    }
     pair(band.beforeFrom, band.afterFrom, rows);
     for (let y = band.afterFrom + rows; y < band.afterFrom + band.grown; y += 1) source[y] = band.row;
     const unpaired = band.afterFrom + Math.max(rows, band.grown);
-    if (unpaired < band.afterTo) {
-      const last = inserted.at(-1);
-      if (last !== undefined && last.to === unpaired) inserted[inserted.length - 1] = { from: last.from, to: band.afterTo };
-      else inserted.push({ from: unpaired, to: band.afterTo });
-    }
+    if (unpaired < band.afterTo) insert(unpaired, band.afterTo);
     if (band.beforeFrom + rows < band.beforeTo) {
       removed.push({ from: band.beforeFrom + rows, to: band.beforeTo, at: band.afterTo });
     }

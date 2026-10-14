@@ -13,8 +13,10 @@ the shortest edit between the two sequences. Each after row is then compared
 with the before row that shows the same content, and `pixelmatch` still judges
 every pairing; a row that moved, came or went is a change in itself, so no
 pairing makes a page read as unchanged. A section added to a long page marks that
-section, and the content it pushed down matches. Images of different widths, or
-an edit longer than 2,000 runs of rows, are compared position by position on the
+section, and the content it pushed down matches. A pairing is kept only when it
+leaves fewer pixels differing than position does, so a line that changed in
+place is never shifted against its neighbours. Images of different widths, or an
+edit longer than 2,000 runs of rows, are compared position by position on the
 union box, as before.
 
 `RasterComparison.alignment` carries the pairing as `RowAlignment`: the after
