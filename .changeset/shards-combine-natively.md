@@ -18,7 +18,9 @@ columns rather than decoding it: the same sixteen shards land in about 4 s
 under 600 MiB. Over the record a previous run left, the addon lays the
 combined record over it in one pass, and the landing takes under 5 s and
 600 MiB, where it ran out of heap. The landing lays over that record and
-never rewrites the cached base a worktree reads through.
+never rewrites the cached base a worktree reads through: in a worktree,
+`variance journeys --into` refuses the primary checkout's record, and
+`writesBase(layers, file)` says whether a path is that record.
 
 `combineRecords(paths, output)` in `@variance-authority/sense/test-selection`
 writes the record and returns `CombinedRecord`: the counts, the commit, the

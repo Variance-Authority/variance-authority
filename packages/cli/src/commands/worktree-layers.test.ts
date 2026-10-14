@@ -147,6 +147,26 @@ describe('a worktree that has not run', () => {
     expect(keepsCases(testCoverageFile(primary, { suite: 'unit' }))).toBe(true);
   });
 
+  it('refuses an `--into` that names the cached base, and leaves the base as it was', async () => {
+    const { primary, worktree, first } = await worktreeOf(true);
+    const shard = join(home, 'shard-1.bin');
+    await writeTestCoverage(shard, {
+      version: 3,
+      instrumentation: 'fixture',
+      commit: first,
+      tests: [{ file: 'test/third.test.ts', complete: true, preconditions: [] }],
+      modules: [],
+    });
+    const base = testCoverageFile(primary, { suite: 'unit' });
+    const held = await readFile(base);
+
+    await expect(landJourneys(worktree, [shard], base)).rejects.toThrow(
+      `${base} is the record the primary checkout's runs write, which this worktree's runs are laid over and never write. ` +
+        'Land without `--into`, and the landing is laid over it in this worktree\'s own layer.',
+    );
+    expect((await readFile(base)).equals(held)).toBe(true);
+  });
+
   it('answers no case question from the primary checkout\'s cases once a landing dropped its own, and does not copy them again', async () => {
     const { primary, worktree, first } = await worktreeOf(true);
     const shard = join(home, 'shard-1.bin');

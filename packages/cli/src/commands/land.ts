@@ -56,6 +56,12 @@ export async function landJourneys(
 ): Promise<LandedJourneys> {
   const selection = await import('@variance-authority/sense/test-selection');
   const at = into ?? (await landingRecord(root));
+  if (into !== undefined && selection.writesBase(selection.repositoryLayers(root), into)) {
+    throw new OperatorError(
+      `${into} is the record the primary checkout's runs write, which this worktree's runs are laid over and never write. ` +
+        'Land without `--into`, and the landing is laid over it in this worktree\'s own layer.',
+    );
+  }
 
   // The combine is staged beside the target, so the rename below never crosses
   // a file system, and the staged name ends in `.tmp` for prune to find.

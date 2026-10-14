@@ -3101,7 +3101,8 @@
         "writeCommitRuns": "function",
         "writeCoverageBytes": "function",
         "writeFetchedMainline": "function",
-        "writeTestCoverage": "function"
+        "writeTestCoverage": "function",
+        "writesBase": "function"
       },
       "./cache-root": {
         "cacheRootFor": "function"
