@@ -40,6 +40,17 @@ describe('Compiled style declarations', () => {
     }
   });
 
+  it.each(['entries', 'presence'] as const)('keeps dynamic style value callbacks under %s probes', mode => {
+    const source = `import { styled } from '@compiled/react';
+const items = [{ color: 'red' }];
+export const Button = styled.button({ color: items.map(value => value.color).join(',') });`;
+    expect(() => compile(source)).not.toThrow();
+    const probed = instrument(source, 'compiled-styles.tsx', 'compiled-styles.tsx', { mode })!;
+    expect(probed.blocks).toHaveLength(2);
+    expect(probed.code).toContain('value => (__va(1),value.color)');
+    expect(() => compile(probed.code)).not.toThrow();
+  });
+
   it.each(['entries', 'presence'] as const)('preserves compiler syntax and CSS under %s probes', mode => {
     const plain = compile(SOURCE);
     const probed = instrument(SOURCE, 'compiled-styles.tsx', 'compiled-styles.tsx', { mode })!;

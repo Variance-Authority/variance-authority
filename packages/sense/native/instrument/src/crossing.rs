@@ -192,6 +192,12 @@ mod tests {
     }
 
     #[test]
+    fn compiled_dynamic_style_value_callbacks_stay_runtime() {
+        let source = "import { styled, css } from '@compiled/react'; styled.button({ color: items.map(value => value.color).join(',') }); styled.button(css({ width: props => props.width }));";
+        assert_eq!(crossing_text(source), ["props => props.width"]);
+    }
+
+    #[test]
     fn unrelated_and_shadowed_style_names_keep_their_probes() {
         let source = "import { styled } from '@compiled/react';\nfunction runtime(styled) { return styled.button(p => p.active); }\nlist.map(p => p.active);\n";
         assert!(crossing_text(source).is_empty());

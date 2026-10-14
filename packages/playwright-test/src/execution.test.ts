@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import type { Page, TestInfo } from '@playwright/test';
+import { instrumentationId } from '@variance-authority/sense/instrument';
 import {
   closeStage,
   foldStage,
@@ -30,7 +31,7 @@ vi.mock('./preconditions.js', async (original) => ({
   enterDescribes: async () => {},
 }));
 
-const INSTRUMENTATION = 'sense:instrument/presence-v6';
+const INSTRUMENTATION = instrumentationId();
 
 /** A page that hands over whatever the test says it entered, once per drain. */
 function pageReporting(...journals: readonly (ExecutionJournal | undefined)[]): Page {

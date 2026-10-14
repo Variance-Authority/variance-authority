@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { test as base, expect } from '@playwright/test';
 import { varianceFixtures, type VarianceFixtures, type VarianceWorkerFixtures } from '@variance-authority/playwright-test';
+import { instrumentationId } from '@variance-authority/sense/instrument';
 import { moduleId } from '@variance-authority/sense/journal';
 
 const test = base.extend<VarianceFixtures, VarianceWorkerFixtures>(varianceFixtures);
@@ -12,7 +13,7 @@ const GREET = moduleId(
   readFileSync(new URL('../src/greet.ts', import.meta.url), 'utf8'),
 );
 const COLLECTOR = `globalThis.__variance_authority_execution__ = {
-  drain: () => ({ instrumentation: 'sense:instrument/presence-v6', modules: [{ id: '${GREET}', hits: [0], shared: [] }] }),
+  drain: () => ({ instrumentation: '${instrumentationId()}', modules: [{ id: '${GREET}', hits: [0], shared: [] }] }),
 };`;
 
 test('greets by name', async ({ page }) => {

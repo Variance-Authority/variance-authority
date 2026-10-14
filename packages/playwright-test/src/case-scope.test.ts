@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import type { Page, TestInfo } from '@playwright/test';
+import { instrumentationId } from '@variance-authority/sense/instrument';
 import { moduleId } from '@variance-authority/sense/journal';
 import { decodeExecutionIndex, recordedEyesAt } from '@variance-authority/sense/test-selection';
 import { describe, expect, it, vi } from 'vitest';
@@ -17,7 +18,7 @@ vi.mock('./preconditions.js', async (original) => ({
 }));
 
 const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
-const INSTRUMENTATION = 'sense:instrument/presence-v6';
+const INSTRUMENTATION = instrumentationId();
 const SOURCE = ['export function price(amount) {', '  return amount * 2;', '}'].join('\n');
 
 interface Scope {

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { test as base, expect } from '@playwright/test';
 import { varianceFixtures, type VarianceFixtures, type VarianceWorkerFixtures } from '@variance-authority/playwright-test';
+import { instrumentationId } from '@variance-authority/sense/instrument';
 import { moduleId } from '@variance-authority/sense/journal';
 
 // Every statement below ends in a comment naming it, which is how the test that
@@ -21,7 +22,7 @@ globalThis.__variance_authority_execution__ = {
   drain: () => {
     const hits = [...entered];
     entered.clear();
-    return { instrumentation: 'sense:instrument/presence-v6', modules: [{ id: '${SHOP}', hits, shared: [] }] };
+    return { instrumentation: '${instrumentationId()}', modules: [{ id: '${SHOP}', hits, shared: [] }] };
   },
 };
 </script>

@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { relative, resolve } from 'node:path';
 import type { Page, TestInfo } from '@playwright/test';
+import { instrumentationId } from '@variance-authority/sense/instrument';
 import { moduleId, type PreconditionStanding } from '@variance-authority/sense/journal';
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { decodeExecutionIndex, repositoryRoot } from '@variance-authority/sense/test-selection';
@@ -116,7 +117,7 @@ describe('snapshotCaseOf', () => {
 
       // Reading what a case holds leaves it in place for the row.
       const drained = {
-        evaluate: async () => ({ instrumentation: 'sense:instrument/presence-v6', modules: [{ id: moduleId('price.js', source), hits: [0], shared: [] }] }),
+        evaluate: async () => ({ instrumentation: instrumentationId(), modules: [{ id: moduleId('price.js', source), hits: [0], shared: [] }] }),
       } as unknown as Page;
       await recorder.note(drained, owner, { name: 'mocked > pays', id: 'one' });
       recorder.mark(owner, true, { name: 'mocked > pays', id: 'one' });

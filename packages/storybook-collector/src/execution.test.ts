@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
+import { instrumentationId } from '@variance-authority/sense/instrument';
 import {
   moduleId,
   type EvaluatingPage,
@@ -18,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 import { createStoryRecorder } from './execution.js';
 import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
 
-const INSTRUMENTATION = 'sense:instrument/presence-v6';
+const INSTRUMENTATION = instrumentationId();
 const SOURCE = ['export function price(amount) {', '  return amount * 2;', '}'].join('\n');
 
 const INDEX = {

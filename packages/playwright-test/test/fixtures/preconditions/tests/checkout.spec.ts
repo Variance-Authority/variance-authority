@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { test as base, expect } from '@playwright/test';
 import { varianceFixtures, type VarianceFixtures, type VarianceWorkerFixtures } from '@variance-authority/playwright-test';
+import { instrumentationId } from '@variance-authority/sense/instrument';
 import { moduleId } from '@variance-authority/sense/journal';
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 
@@ -16,7 +17,7 @@ const CART = moduleId(
   readFileSync(new URL('../src/cart.ts', import.meta.url), 'utf8'),
 );
 const COLLECTOR = `globalThis.__variance_authority_execution__ = {
-  drain: () => ({ instrumentation: 'sense:instrument/presence-v6', modules: [{ id: '${CART}', hits: [0], shared: [] }] }),
+  drain: () => ({ instrumentation: '${instrumentationId()}', modules: [{ id: '${CART}', hits: [0], shared: [] }] }),
 };`;
 
 test.beforeEach(async ({ page }) => {

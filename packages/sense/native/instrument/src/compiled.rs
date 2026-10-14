@@ -85,6 +85,10 @@ struct Functions<'s, 'a> {
     followed: &'s mut HashSet<(u32, u32)>,
 }
 impl<'a> Visit<'a> for Functions<'_, 'a> {
+    // Calls inside style values execute at runtime; Sites finds nested DSL calls
+    // separately, by their imported binding, rather than by traversing their values.
+    fn visit_call_expression(&mut self, _: &CallExpression<'a>) {}
+
     fn visit_identifier_reference(&mut self, id: &IdentifierReference<'a>) {
         match crate::crossing::bound_declaration(self.semantic, id) {
             Some(AstKind::VariableDeclarator(declarator))

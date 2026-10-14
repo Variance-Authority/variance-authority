@@ -151,6 +151,7 @@ const IDS: Readonly<Record<InstrumentMode, string>> = {
   entries: 'sense:instrument/entries-v4',
 };
 
+/** The probe identity emitted for `mode`, defaulting to presence. */
 export function instrumentationId(mode: InstrumentMode = 'presence'): string {
   return IDS[mode];
 }
