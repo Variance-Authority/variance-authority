@@ -4,7 +4,8 @@
  * The instrument is the one `@variance-authority/sense` already uses; only the
  * transport differs, which is the rule
  * [spec 0028](../../../docs/specs/0028-the-instrument.md) states. The preview is
- * built with `testSelectionProbes()`, the page counts block crossings, and this
+ * built with the package's addon, which adds the probes whichever builder runs
+ * it ([`preset.ts`](./preset.ts)), the page counts block crossings, and this
  * closes one window per story and joins them at the end of the run.
  *
  * A story is its own owner. Storybook is an execution surface this tool drives
@@ -63,8 +64,8 @@ export async function createStoryRecorder(
       subject: 'story',
       uninstrumented:
         '`tests` is on and the Storybook preview has no execution ' +
-        'collector in it — build it with `testSelectionProbes()` from ' +
-        '`@variance-authority/sense/journal`, or the next `--since` will run ' +
+        "collector in it — add `addons: ['@variance-authority/storybook-collector']` " +
+        'to its `.storybook/main.js` and build it again, or the next `--since` will run ' +
         'everything',
     },
     options,

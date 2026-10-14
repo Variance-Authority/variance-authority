@@ -124,6 +124,15 @@ describe('the Jest transformer over a module named unprobed', () => {
 
     expect(marking.getCacheKey!(PAGE, path, transformOptions(root))).not.toBe(probing.getCacheKey!(PAGE, path, transformOptions(root)));
   });
+
+  it('keys what it cached on where the probes go', async () => {
+    const root = await project('variance-jest-placement-key-');
+    const path = resolve(root, 'src/page.js');
+    const after = await createTransformer({ root });
+    const before = await createTransformer({ root, placement: 'before-transforms' });
+
+    expect(before.getCacheKey!(PAGE, path, transformOptions(root))).not.toBe(after.getCacheKey!(PAGE, path, transformOptions(root)));
+  });
 });
 
 /**

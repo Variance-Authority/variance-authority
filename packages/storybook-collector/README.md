@@ -361,11 +361,19 @@ Storybook loads the addon through its preset,
 yourself. The preset reads the builder Storybook runs. Under Vite it adds
 `testSelectionProbes()` from `@variance-authority/sense/journal`; under Rspack,
 through `rsbuildFinal`, and Webpack 5, through `webpackFinal`, it adds
-`testSelectionRule()`, a loader at `enforce: 'post'`. Either way the probes go
-in after every compiler your build runs, so an extractor such as
-`@compiled/react` reads your file as you wrote it, and each probe is
-placed where the source map says that code went. Leave the build writing source
-maps: a module that arrives with none stops the build and names it.
+`testSelectionRule()`, a loader at `enforce: 'post'`, first among the rules, so
+it runs after every post loader of yours. Either way the probes go in after
+every compiler your build runs, so an extractor such as `@compiled/react` reads
+your file as you wrote it, and each probe is placed where the source map says
+that code went. Where the build writes no map the loaders can read, as
+`storybook build --test` does, the preset sets `devtool` (Rsbuild's
+`output.sourceMap.js`) to `hidden-cheap-module-source-map`: the build then
+writes `.map` files next to the bundles, which no bundle names. A rule you add
+yourself with `testSelectionRule()` gets no such help, and a module that
+arrives there with no map stops the build and names it. If you added
+`testSelectionProbes()` or `testSelectionRule()` to the Storybook's builder
+config by hand, remove it: the addon adds it, and leaves a hand-added one in
+place rather than adding a second.
 
 Pass the probes' options as the addon's: `{ name:
 '@variance-authority/storybook-collector', options: { mode: 'entries' } }`.

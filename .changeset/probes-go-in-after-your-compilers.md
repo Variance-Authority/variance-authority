@@ -37,8 +37,8 @@ region.
 These stop a run that went through before, each with an error naming the file:
 
 - A file your transforms rewrote with a map that leads back to no source that
-  is the file, that carries a text for the file other than the file on disk, or
-  that holds no mappings. Have the transform write its map against the file it
+  is the file, that carries a text for the file other than the file on disk, or,
+  for a file with more regions than the module's own, that holds no mappings. Have the transform write its map against the file it
   was handed.
 - Under Vite or Vitest, a plugin ahead of the probes whose `transform` or
   `load` rewrote a file and returned no source map, named. Return its map, or

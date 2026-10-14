@@ -102,7 +102,9 @@ export function selectionPlugin(
     name: 'variance-authority:test-selection',
     // First, for the test files the run cuts: a case says which of its lines
     // was running, so the cut goes on the file as it is on disk, and Vite's own
-    // transforms — TypeScript, JSX, the mock hoisting — carry it along.
+    // transforms — TypeScript, JSX, the mock hoisting — carry it along. Under
+    // `before-transforms` this plugin also probes every module, as read, and
+    // the probes plugin passes them by.
     enforce: 'pre',
     // A command-line `--reporter` replaces the configured reporters rather
     // than adding to them, and an editor that runs a test from the gutter

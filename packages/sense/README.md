@@ -615,7 +615,10 @@ past the probes, so a stack trace points where it did before. A transformer
 that changes the text and returns no map is handed the probed text instead, as
 nothing carries a region into what it wrote. It then transforms each such
 module twice and reads the probes, and the run warns once for each such
-transformer, naming it. `setupFiles` keep their order and
+transformer, naming it. Vite and Rspack stop the build there instead: the
+wrapper calls your transformer itself and can hand it the probed text, while a
+plugin or loader ahead of the probes has already run and cannot be asked again.
+`setupFiles` keep their order and
 gain the counter factory at the start; `setupFilesAfterEnv` gain the journal
 writer at the end; reporters gain one at the end, and a configuration with no
 reporters keeps Jest's default.
@@ -779,7 +782,8 @@ runs without probes. A module `unprobed` names reaches your transformer without
 The wrapper compares `senseRecipe` with this package's recipe when Jest loads
 it, and refuses one built from other sources of the crate, naming both; a
 `senseRecipe` that answers nothing for the mode leaves the transformer a plain
-one, and the probes go into what it wrote.
+one, and the probes go into what it wrote. A transformer that places the probes
+itself does so as it compiles, so `placement` does not apply to it.
 
 ## Cut an Rstest run down to a diff
 

@@ -147,8 +147,8 @@ export interface StorybookCollectorOptions {
    * Record what each story executed, into the shared test-selection index.
    *
    * Off unless asked for, and it asks something of the build rather than of this
-   * package: the Storybook preview has to have been built with
-   * `testSelectionProbes()` from `@variance-authority/sense/journal`, which is
+   * package: the Storybook preview has to have been built with this package in
+   * its addons, `addons: ['@variance-authority/storybook-collector']`, which is
    * what puts probes in the source and writes down what their ordinals mean.
    * Without it a run records nothing and says so on stderr — the next selection
    * then runs everything, which is the direction every uncertainty here

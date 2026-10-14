@@ -11,9 +11,14 @@
  *
  * Storybook finds this file as the package's `preset` entry, and calls the hook
  * of the builder it runs: `viteFinal` adds `testSelectionProbes`,
- * `rsbuildFinal` and `webpackFinal` add `testSelectionRule`. Both probe after
- * every compiler the project configured, so a Compiled, Emotion or Linaria
- * extractor reads the file as written. The addon's options are the probes'
+ * `rsbuildFinal` and `webpackFinal` add `testSelectionRule`, first among the
+ * rules so it runs after every post loader. Both probe after every compiler the
+ * project configured, so a Compiled, Emotion or Linaria extractor reads the
+ * file as written. Where the build writes no map a loader can read, as
+ * `storybook build --test` does, the rule's hooks set
+ * `hidden-cheap-module-source-map`, which writes `.map` files no bundle names.
+ * A probes plugin or rule the config already holds is left alone, never
+ * doubled. The addon's options are the probes'
  * own, `root`, `mode`, `include` and `placement`, and `mode` has to be the one
  * the collector's `tests` reads.
  */
