@@ -60,6 +60,10 @@ export function createRouteRecorder(options: RouteExecutionOptions): RouteRecord
     },
 
     note: async (page, subjectId, complete, roots) => {
+      // FIXME: a page whose document never reached a named head (prerendered,
+      // a cache hit) keeps a complete row with browser code alone, so a later
+      // edit to its server code skips it. A head named and no report under the
+      // journey minted for this page should mark the row incomplete.
       const preconditions: CoveragePrecondition[] = [];
       for (const path of await readsOn(page, roots)) {
         // A file the page names and the checkout does not hold has no digest to

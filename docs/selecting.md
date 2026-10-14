@@ -892,10 +892,10 @@ document shares it would select every page for any one document. The attribute
 selects the pages that showed the file.
 
 Each page is recorded with the code it ran and every file an element on it
-named, with the digest of each file's text. A later
-`variance run --since origin/main --suite site` compares those digests, and a
-page whose named file changed is photographed. On a site of 142 pages, an edit
-to one paragraph of `docs/tests.md` prints:
+named, with the digest of each file's text. A later `variance run --since`
+compares those digests, and a page whose named file changed is photographed. On
+a site of 142 pages, an uncommitted edit to one paragraph of `docs/tests.md`
+and `variance run --since HEAD --suite site` print:
 
 ```
 `--since HEAD` ruled out 139 subjects: 0 by what the diff declares and reaches, 139 by what the last run recorded as covered.

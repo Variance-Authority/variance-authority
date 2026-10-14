@@ -23,6 +23,7 @@
       "kind": "e2e",
       "relations": false,
       "before": [
+        "packages/reads/src",
         "site/app/globals.css",
         "site/next.config.ts",
         "site/package.json",
