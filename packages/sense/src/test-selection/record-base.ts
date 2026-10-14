@@ -23,5 +23,7 @@ export function recordBase(previous: Uint8Array | undefined, commit: string | un
   const sections = caseSectionsOf(previous);
   const again = commit !== undefined && (lastCaseRunOf(sections)?.commit === commit || covered === commit);
   if (again && sections.base !== undefined) return sections.base;
+  // Not `digestBytes`: its `v1:` digest keeps 32 hex digits, and the base is
+  // the whole SHA-256 spelled `sha256:`, as `record_start.rs` reads it.
   return Buffer.from(`sha256:${createHash('sha256').update(previous).digest('hex')}`);
 }

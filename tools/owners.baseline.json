@@ -505,6 +505,11 @@
     "count": 1
   },
   {
+    "idiom": "digest",
+    "at": "packages/sense/src/test-selection/record-base.ts",
+    "count": 1
+  },
+  {
     "idiom": "atomic-write",
     "at": "packages/sense/src/test-selection/record-location.ts",
     "count": 1
