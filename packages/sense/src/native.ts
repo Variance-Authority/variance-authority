@@ -254,6 +254,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
     parts?: string[],
   ): NativeJourneyFoldResult;
   /** Union compressed journey artifacts while their crossing relation stays native. */
+  foldCoverageArtifacts?(files: string[]): { readonly bytes: Buffer; readonly tests: number; readonly modules: number };
   stitchJourneys?(files: string[]): NativeJourneyStitch;
   /** Union and write compressed journey artifacts without returning their bytes to JavaScript. */
   stitchJourneysTo?(files: string[], output: string): NativeJourneyStitchResult;

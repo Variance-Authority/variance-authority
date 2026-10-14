@@ -88,7 +88,7 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
     let mut shards = Vec::with_capacity(files.len());
     let mut inventories: HashMap<String, Vec<Inventory>> = HashMap::new();
     for file in files {
-        let bytes = fs::read(file).map_err(|error| format!("cannot read {file}: {error}"))?;
+        let bytes = journey_columns::recorded_cases(fs::read(file).map_err(|error| format!("cannot read {file}: {error}"))?);
         let shard = read_shard(&bytes, &mut inventories)
             .map_err(|error| format!("cannot read journey artifact {file}: {error}"))?;
         shards.push(shard);

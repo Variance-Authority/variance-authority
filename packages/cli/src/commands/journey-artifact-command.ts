@@ -5,7 +5,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { EXIT_CLEAN, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
-import { landJourneys } from './land.js';
+import { mergeJourneyArtifacts } from './merge-artifacts.js';
 import { formatLanding } from './journeys.js';
 
 type JourneyArtifactCommand = Extract<
@@ -16,10 +16,10 @@ type JourneyArtifactCommand = Extract<
 /** Finalize journals, stitch journey artifacts, or merge rich shard records. */
 export async function runJourneyArtifactCommand(
   parsed: JourneyArtifactCommand,
-  streams: { out(text: string): void },
+  streams: { out(text: string): void; progress?(label: string): void },
 ): Promise<ExitCode> {
   if (parsed.operation === 'merge') {
-    const result = await landJourneys(parsed.root, parsed.shards, parsed.into);
+    const result = await mergeJourneyArtifacts(parsed.root, parsed.shards, parsed.into, streams.progress);
     streams.out(`${formatLanding(result)}\n`);
     return EXIT_CLEAN;
   }

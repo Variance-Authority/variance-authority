@@ -10,10 +10,11 @@
 
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { layerBefore, layerCaseIndex } from './case-layer.js';
+import { layerCaseIndex } from './case-layer.js';
+import { CaseLayerState } from './case-layer-state.js';
 import { caseSectionsAt, type CaseSections } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
-import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
+import { encodeAsSetExecutionIndex, openSetExecutionIndex, type OpenedSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes, type EyesSection } from './eyes-record.js';
 import { editsBetween } from './region-edit.js';
 import type { TestCoverageView } from './format-view.js';
@@ -142,14 +143,25 @@ export function layCases(
   stands?: string,
   base?: { readonly index: Uint8Array; readonly texts?: ModuleTexts; readonly recorded?: ModuleTexts },
   cacheRoot?: string,
+  state?: CaseLayerState,
+  present: (file: string) => boolean = (file) => existsSync(resolve(root, file)),
+  opened?: OpenedSetExecutionIndex,
+  artifacts?: true,
 ): CaseSections {
   const ran = new Set(run.tests.map((test) => test.file));
   const recorded = textsOf(run);
   const edits = editsBetween(root, cacheRoot, [stands, run.commit]);
-  const { merged, cases, last, announced, before: retired, unlined } = layerCaseIndex(previous.index, fresh, {
+  const prior = lastCaseRunOf(previous);
+  const again = run.commit !== undefined && prior?.commit === run.commit;
+  const session = state ?? new CaseLayerState(previous.index, previous.before);
+  const ownFiles = new Set((opened ?? openSetExecutionIndex(fresh))?.tests.map((test) => test.file));
+  const unbasedShard = again && prior.began === true && !prior.files.some((test) => ran.has(test) || ownFiles.has(test)) && ![...ran, ...ownFiles].some((file) => session.hasFile(file));
+  const layers = layerCaseIndex(state === undefined ? previous.index : undefined, fresh, {
     ran,
     finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
-    present: (test) => existsSync(resolve(root, test)),
+    present,
+    ...(artifacts === undefined ? {} : { artifacts }),
+    ...(unbasedShard ? { unbased: true } : {}),
     edit: (file) => {
       const [from, to] = [held?.get(file), recorded.get(file)];
       return from === undefined || to === undefined ? undefined : edits(file, from, to);
@@ -162,19 +174,18 @@ export function layCases(
         return text !== undefined && text === base.texts?.get(file);
       })),
     }),
-  });
-  const prior = lastCaseRunOf(previous);
-  const again = run.commit !== undefined && prior?.commit === run.commit;
+  }, session, opened);
+  const { cases, last, announced, retired, unlined } = layers;
   // FIXME: a run at the same commit that is not a later shard of one landing
   // — a second local invocation, or a second landing — has only the index the
   // earlier run laid, whose modules that run recorded are cut to this commit's
   // text, so its before of them is not the base's. `beforeTexts` names that
   // text, and a reader leaves those modules unmeasured rather than compare
   // them; keeping the base's cut of every module would keep a second index.
-  const before = again ? layerBefore(previous.before, retired, ran) : retired;
+  const before = session.retire(state === undefined ? previous.before : undefined, retired, ran, again, unbasedShard);
   const beforeTexts = textsOfBefore(
-    before,
-    retired,
+    before?.files(),
+    retired?.modules.map((module) => module.file),
     base === undefined ? held : base.texts,
     again ? prior.beforeTexts : undefined,
     new Set(unlined),
@@ -201,13 +212,13 @@ export function layCases(
     cases: last,
   };
   const journals = layEyes(previous.eyes, eyes, cases, announced);
-  return {
-    index: merged,
+  const sections: CaseSections = {
+    get index() { return layers.merged; },
     last: spelledLast(named),
-    // Absent is not empty: with no index to take them from, there is no before.
-    ...(before === undefined ? {} : { before }),
     ...(journals === undefined ? {} : { eyes: journals }),
   };
+  if (before !== undefined) Object.defineProperty(sections, 'before', { enumerable: true, get: before.bytes });
+  return sections;
 }
 
 /**
@@ -221,18 +232,17 @@ export function layCases(
  * commit that kept it at those lines named a text they do not stand at.
  */
 function textsOfBefore(
-  before: Uint8Array | undefined,
-  retired: Uint8Array | undefined,
+  before: readonly string[] | undefined,
+  retired: readonly string[] | undefined,
   cut: ModuleTexts | undefined,
   kept: Readonly<Record<string, string>> | undefined,
   unlined: ReadonlySet<string>,
 ): Record<string, string> | undefined {
   if (before === undefined || (cut === undefined && kept === undefined)) return undefined;
-  const modules = openSetExecutionIndex(before)?.modules;
-  if (modules === undefined) return undefined;
-  const ownRegions = new Set(retired === undefined ? [] : openSetExecutionIndex(retired)?.modules.map((module) => module.file));
+  const modules = before;
+  const ownRegions = new Set(retired ?? []);
   const texts: Record<string, string> = {};
-  for (const { file } of modules) {
+  for (const file of modules) {
     const text = unlined.has(file) ? undefined : ownRegions.has(file) ? cut?.get(file) : kept?.[file];
     if (text !== undefined) texts[file] = text;
   }
@@ -310,6 +320,10 @@ export type CaseLanding =
  * is also where a text the landing did not keep is looked for, with `cacheRoot`
  * the layer the kept texts are in.
  *
+ * `present` supplies whether a held test path remains present. Artifact
+ * combination supplies a policy that keeps named records; source landing asks
+ * the checkout.
+ *
  * Nothing is written here. The landing writes the sections into the record it
  * writes, under that record's lock.
  */
@@ -321,7 +335,10 @@ export function landCases(
   held?: ModuleTexts,
   stands?: string,
   cacheRoot?: string,
+  present: (file: string) => boolean = (file) => existsSync(resolve(root, file)),
+  artifacts?: true,
 ): { readonly landing: CaseLanding; readonly sections: CaseSections } {
+  const state = new CaseLayerState(previous.index, previous.before);
   let sections = previous;
   const texts = new Map(held ?? []);
   const recorded = new Map<string, string>();
@@ -336,7 +353,7 @@ export function landCases(
     if (run === undefined) continue;
     if (fresh !== undefined) {
       // A section this build cannot read is laid as a shard that opened none.
-      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base && { ...base, recorded: new Map(recorded) }, cacheRoot);
+      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base && { ...base, recorded: new Map(recorded) }, cacheRoot, state, present, fresh.opened, artifacts);
       for (const [file, text] of textsOf(run)) {
         texts.set(file, text);
         recorded.set(file, text);
@@ -392,13 +409,14 @@ function indexRunOf(tests: readonly ExecutionTest[]): LaidRun {
  * `blocks.owner`, is laid with no owners, so a region born in it takes none
  * of its owner's cases.
  */
-function layableIndex(bytes: Uint8Array | undefined): { readonly bytes: Uint8Array; readonly tests: readonly ExecutionTest[] } | undefined {
+function layableIndex(bytes: Uint8Array | undefined): { readonly bytes: Uint8Array; readonly tests: readonly ExecutionTest[]; readonly opened: OpenedSetExecutionIndex } | undefined {
   if (bytes === undefined) return undefined;
   try {
     const opened = openSetExecutionIndex(bytes);
-    if (opened !== undefined) return { bytes, tests: opened.tests };
+    if (opened !== undefined) return { bytes, get tests() { return opened.tests; }, opened };
     const rows = decodeExecutionIndex(bytes);
-    return { bytes: encodeAsSetExecutionIndex(rows), tests: rows.tests };
+    const encoded = encodeAsSetExecutionIndex(rows);
+    return { bytes: encoded, tests: rows.tests, opened: openSetExecutionIndex(encoded)! };
   } catch {
     return undefined;
   }

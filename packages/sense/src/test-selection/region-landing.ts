@@ -65,6 +65,31 @@ export function cutAlike(held: Cut, recorded: Cut): boolean {
   return true;
 }
 
+/** The union of recorded cuts, without assuming either inventory is complete. */
+export function recordedCuts(held: SetExecutionModule, recorded: SetExecutionModule): {
+  readonly module: SetExecutionModule; readonly own: Int32Array; readonly held: Int32Array;
+} {
+  const paired = landing(recorded, held).slice();
+  const shape = (block: SetExecutionModule['blocks'][number]): string => JSON.stringify([block.kind, block.name, block.path, block.startLine, block.endLine, block.source]);
+  for (let block = 0; block < paired.length; block += 1) {
+    const from = paired[block]!;
+    if (from >= 0 && shape(recorded.blocks[block]!) !== shape(held.blocks[from]!)) paired[block] = -1;
+  }
+  const used = new Set(paired);
+  const extra = held.blocks.flatMap((_, block) => used.has(block) ? [] : [block]);
+  const blocks = [...recorded.blocks, ...extra.map((block) => held.blocks[block]!)];
+  const own = Int32Array.from(blocks, (_, block) => block < recorded.blocks.length ? block : -1);
+  const before = Int32Array.from([...paired, ...extra]);
+  const heldAt = new Map([...before].flatMap((from, block) => from < 0 ? [] : [[from, block] as const]));
+  const owner = held.owner === undefined && recorded.owner === undefined ? undefined : Uint32Array.from(blocks, (_, block) => {
+    if (own[block]! >= 0) return recorded.owner?.[own[block]!] ?? NO_OWNER;
+    const from = before[block]!;
+    const around = from < 0 ? NO_OWNER : held.owner?.[from] ?? NO_OWNER;
+    return around === NO_OWNER ? NO_OWNER : heldAt.get(around) ?? NO_OWNER;
+  });
+  return { module: { ...recorded, blocks, ...(owner === undefined ? {} : { owner }) }, own, held: before };
+}
+
 /** Whether some region of `held` lands on one of `recorded`: the two cuts hold an address in common. */
 export function sharesRegion(held: Cut, recorded: Cut): boolean {
   return landedOn(held, recorded).size > 0;

@@ -1,11 +1,12 @@
+import { CaseLayerState } from './case-layer-state.js';
 import type { SetId } from './crossing-sets.js';
 import { NO_OWNER } from './format-layout.js';
 import { openSetExecutionIndex, type OpenedSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import { LaidLines } from './case-layer-lines.js';
-import { HeldIndex, writeLaid, type CarriedModule, type LaidModule, type LaidTest } from './held-case-index.js';
+import { HeldIndex, type CarriedModule, type LaidTest } from './held-case-index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { heldAround } from './region-around.js';
-import { landedThrough, NO_EDIT, type EditOf } from './region-edit.js';
+import type { EditOf } from './region-edit.js';
 import { relined, strayed } from './region-landing.js';
 import type { ExecutionTest } from './reverse.js';
 import { EMPTY, Translation } from './set-translation.js';
@@ -18,6 +19,8 @@ export interface CaseRunFiles {
   readonly finished: ReadonlySet<string>;
   /** Whether a test file the index holds is still in the checkout. */
   readonly present: (file: string) => boolean;
+  /** Combine recorded cuts as artifacts, without a checkout edit or complete-inventory assumption. */
+  readonly artifacts?: true;
   /**
    * The edit between the text the index's regions of `file` were cut from and
    * the text the run recorded it from, as git's hunks between the two. Held
@@ -53,6 +56,8 @@ export interface CaseRunFiles {
    * this one has re-cut to the shards' text.
    */
   readonly base?: Uint8Array;
+  /** A run with no baseline whose files have not run before retires nothing. */
+  readonly unbased?: boolean;
 }
 
 export interface CaseLayers {
@@ -76,6 +81,8 @@ export interface CaseLayers {
    * there was no index to take them from.
    */
   readonly before?: Buffer;
+  /** The selected cut before it is serialized, for a landing that keeps laying shards. */
+  readonly retired?: OpenedSetExecutionIndex;
   /**
    * The modules of `before` cut at another text than the one they are named
    * at, whose lines nothing could carry onto it: a reader has no text to
@@ -128,52 +135,29 @@ export function layerCaseIndex(
   previous: Uint8Array | undefined,
   fresh: Uint8Array,
   files: CaseRunFiles,
+  state?: CaseLayerState,
+  opened?: OpenedSetExecutionIndex,
 ): CaseLayers {
-  const run = openSetExecutionIndex(fresh);
+  const run = opened ?? openSetExecutionIndex(fresh);
   if (run === undefined) throw new Error('a case fold wrote an index it cannot open');
-  const last = run.tests.map((test) => test.id);
-  const announced = run.tests.filter((test) => files.ran.has(test.file)).map((test) => test.id);
   const held = HeldIndex.open(previous);
-  const cut = files.base === undefined ? held : HeldIndex.open(files.base);
-  // FIXME: no index is read as no other cases, and a landing that removed the
-  // index leaves exactly that. The next local run then writes its own files'
-  // cases alone, and that partial index stands for the whole suite beside a
-  // snapshot that still holds every file — the state `seedTestCoverage` keeps a
-  // worktree's first run out of. An index that is absent beside a snapshot that
-  // is not should be laid only over what it can answer for.
-  if (held === undefined) return { merged: Buffer.from(fresh), cases: () => last, last, announced };
-
-  const { tests, fromHeld, fromRun, merged, heldAt, runAt } = layeredCases(held, run, files);
+  const cut = files.unbased === true ? undefined : files.base === undefined ? held : HeldIndex.open(files.base);
+  const session = state ?? new CaseLayerState(previous);
   const runModules = new Map(run.modules.map((module) => [module.file, module]));
-  const runModuleAt = new Map(run.modules.map((module, at) => [module, at]));
-  const lines = LaidLines.open(held.columns.testLines, run.lines, heldAt, runAt, tests.length);
-  const modules: LaidModule[] = [];
-  for (const { row, recorded } of moduleUnion(held, runModules)) {
-    if (recorded === undefined) {
-      const kept = carriedRow(held, row!, fromHeld, false);
-      if (kept !== undefined) {
-        lines?.carried(modules.length, row!);
-        modules.push(kept);
-      }
-      continue;
-    }
-    const before = row === undefined ? undefined : held.module(row);
-    // The held cases land through the edit from the text they were cut at to
-    // the text this run recorded: the regions it left alone, where it places them.
-    const lands = before === undefined ? undefined : landedThrough(before, recorded, (files.edit ?? (() => NO_EDIT))(recorded.file));
-    modules.push(laidOn(
-      recorded,
-      (block) => fromRun(recorded.called[block]!),
-      before === undefined ? undefined : { row: row!, module: before, lands: lands! },
-      { fromHeld, merged, lines, at: modules.length, runModule: runModuleAt.get(recorded)! },
-    ));
-  }
 
   const unlined: string[] = [];
+  const current = cut === undefined && files.unbased !== true && session.present ? session.currentCut(new Set([...files.ran, ...run.tests.map((test) => test.file)]), (module) => {
+    const recorded = runModules.get(module.file);
+    if (recorded === undefined || files.sameText?.(module.file) !== true) return undefined;
+    const lined = relined(module, recorded);
+    if (lined === undefined || (lined === module && strayed(module, recorded))) unlined.push(module.file);
+    return lined;
+  }) : undefined;
+  const { last, announced } = session.layIndex(run, files);
   const recordedRows = cut === undefined ? undefined : recordedIn(cut, runModules);
   const sameBefore = cut === undefined || files.base === undefined ? undefined : namedIn(cut, files.sameBeforeText ?? []);
-  const before = cut === undefined ? undefined : beforeRun(cut, new Set([...files.ran, ...run.tests.map((test) => test.file)]), (row) => {
-    const named = cut.columns.moduleFile[row]!;
+  const lined = (row: number): SetExecutionModule | undefined => {
+    const named = cut!.columns.moduleFile[row]!;
     let recorded: SetExecutionModule | undefined;
     if (sameBefore === undefined) {
       recorded = recordedRows!.get(named);
@@ -183,22 +167,32 @@ export function layerCaseIndex(
       if (file === undefined) return undefined;
       // A landing's earlier shard may have recorded what this one did not; the
       // index it laid, the one this run is laid over, stands at those lines.
-      recorded = recordedRows!.get(named) ?? heldModule(held, file);
+      recorded = recordedRows!.get(named) ?? (held === undefined ? session.module(file) : heldModule(held, file));
       if (recorded === undefined) return undefined;
     }
-    const module = cut.module(row);
+    const module = cut!.module(row);
     const lined = relined(module, recorded);
     if (lined === undefined || (lined === module && strayed(module, recorded))) unlined.push(recorded.file);
     return lined ?? module;
-  });
-  return {
-    merged: writeLaid(held, tests.map((test) => test.laid), modules, merged.pool(), lines?.finish()),
-    cases: () => tests.map((test) => (typeof test.laid === 'number' ? held.string(held.columns.testId[test.laid]!) : test.laid.id)),
+  };
+  const recuts = new Map<number, SetExecutionModule | undefined>();
+  for (const row of new Set([...(recordedRows?.keys() ?? []), ...(sameBefore?.keys() ?? [])].flatMap((file) => cut!.moduleOf(file) ?? []))) recuts.set(row, lined(row));
+  const retired = cut === undefined ? current : session.cut(files.base ?? previous!, cut).of(new Set([...files.ran, ...run.tests.map((test) => test.file)]), (row) => recuts.get(row));
+  let writtenBefore: Buffer | undefined;
+  const before = (): Buffer => {
+    if (writtenBefore === undefined) { const state = new CaseLayerState(); state.layIndex(retired!, { ran: new Set(), finished: new Set(), present: () => true }); writtenBefore = state.finish(); }
+    return writtenBefore;
+  };
+  const layers: CaseLayers = {
+    get merged() { return session.finish(); },
+    cases: () => session.cases(),
     last,
     announced,
-    ...(before === undefined ? {} : { before }),
+    ...(retired === undefined ? {} : { retired }),
     ...(unlined.length === 0 ? {} : { unlined }),
   };
+  if (retired !== undefined) Object.defineProperty(layers, 'before', { enumerable: true, get: before });
+  return layers;
 }
 
 /**
@@ -302,33 +296,6 @@ export function layeredCases(held: HeldIndex, run: OpenedSetExecutionIndex, file
  * The output's modules in code-unit order of path: each held row the run did
  * not record, and each module the run recorded with the held row of its path.
  */
-function moduleUnion(
-  held: HeldIndex,
-  runModules: ReadonlyMap<string, SetExecutionModule>,
-): { readonly row?: number; readonly recorded?: SetExecutionModule }[] {
-  const recorded = [...runModules.values()]
-    .map((module) => ({ module, key: held.key(module.file) }))
-    .sort((left, right) => left.key - right.key || codeUnitOrder(left.module.file, right.module.file));
-  const rows = held.moduleRows();
-  const union: { row?: number; recorded?: SetExecutionModule }[] = [];
-  let next = 0;
-  for (const row of rows) {
-    const key = 2 * held.columns.moduleFile[row]! + 1;
-    while (next < recorded.length && recorded[next]!.key < key) {
-      union.push({ recorded: recorded[next]!.module });
-      next += 1;
-    }
-    if (next < recorded.length && recorded[next]!.key === key) {
-      union.push({ row, recorded: recorded[next]!.module });
-      next += 1;
-      continue;
-    }
-    union.push({ row });
-  }
-  for (; next < recorded.length; next += 1) union.push({ recorded: recorded[next]!.module });
-  return union;
-}
-
 /**
  * The held region each region recorded now carries its cases and load flag
  * from: its landing, and for a region the held cut never had, the landing of
@@ -346,7 +313,7 @@ function moduleUnion(
  *
  * -1 where nothing is carried.
  */
-function carriedFrom(owners: Uint32Array | undefined, lands: Int32Array): (block: number) => number {
+export function carriedFrom(owners: Uint32Array | undefined, lands: Int32Array): (block: number) => number {
   if (owners === undefined || !lands.includes(-1) || !lands.some((from) => from >= 0)) return (block) => lands[block]!;
   return heldAround<number, number>(
     (block) => (owners[block] === NO_OWNER ? undefined : owners[block]),
@@ -384,39 +351,6 @@ export function layerBefore(
   return layerCaseIndex(kept, retired, { ran, finished: ran, present: () => true }).merged;
 }
 
-/**
- * The held index cut to the cases of the files a run announced.
- *
- * Regions keep the shape they were recorded with, and no region says it ran
- * while its module loaded: that flag belongs to every file that imported the
- * module, not to these cases, and a comparison of what these cases entered must
- * not read it as theirs. `lines` gives a module read at other lines, or nothing
- * for one carried as it is stored.
- */
-function beforeRun(
-  held: HeldIndex,
-  ran: ReadonlySet<string>,
-  lines: (row: number) => SetExecutionModule | undefined,
-): Buffer {
-  const { testId, testFile, moduleFile } = held.columns;
-  const ranFiles = namedIn(held, ran);
-  const tests: number[] = [];
-  for (let row = 0; row < testId.length; row += 1) if (ranFiles.has(testFile[row]!)) tests.push(row);
-  const at = new Map(tests.map((row, index) => [testId[row]!, index]));
-  const cut = new Translation(tests.length);
-  const from = cut.from(held.columns.sets, placed(testId, at, (row) => !ranFiles.has(testFile[row]!)));
-  const modules: { readonly file: number; readonly module: LaidModule }[] = [];
-  for (let row = 0; row < moduleFile.length; row += 1) {
-    const lined = lines(row);
-    const kept = lined === undefined
-      ? carriedRow(held, row, from, true)
-      : carried({ ...lined, loaded: new Uint8Array(lined.blocks.length) }, from);
-    if (kept !== undefined) modules.push({ file: moduleFile[row]!, module: kept });
-  }
-  modules.sort((left, right) => left.file - right.file);
-  return writeLaid(held, tests, modules.map(({ module }) => module), cut.pool());
-}
-
 /** A held row read at the regions it was stored with, or nothing when no case is left in it; `unloaded` clears its load flags. */
 export function carriedRow(held: HeldIndex, row: number, from: (set: SetId) => SetId, unloaded: boolean): CarriedModule | undefined {
   const { moduleBlocks, blockCalled, blockLoaded } = held.columns;
@@ -428,16 +362,6 @@ export function carriedRow(held: HeldIndex, row: number, from: (set: SetId) => S
     if (called[block] !== EMPTY || loaded[block] === 1) return { row, called, loaded };
   }
   return undefined;
-}
-
-/** A module object read at the regions it was recorded with, or nothing when no case is left in it. */
-function carried(module: SetExecutionModule, from: (set: SetId) => SetId): SetExecutionModule | undefined {
-  const called = module.called.map(from);
-  let entered = false;
-  for (let block = 0; block < called.length; block += 1) {
-    if (called[block] !== EMPTY || module.loaded[block] === 1) entered = true;
-  }
-  return entered ? { ...module, called } : undefined;
 }
 
 /**

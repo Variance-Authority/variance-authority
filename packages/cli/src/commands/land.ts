@@ -1,11 +1,10 @@
-import { randomUUID } from 'node:crypto';
-import { rename, rm } from 'node:fs/promises';
 import type { CommitRuns } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { said } from '../here.js';
 import type { LandedJourneys } from './journeys.js';
 import { isMissing, messageOf } from './resources.js';
 import { landingRecord } from './suite-record.js';
+import { stagedLanding } from './staged-landing.js';
 
 /**
  * N shard snapshots into the one this repository reads, and the reading points
@@ -133,11 +132,7 @@ export async function landJourneys(
   // A fix that removes them needs a floor like prune's `RUN_FLOOR_MS`, since a pid from another host, pid namespace or skewed file-system clock reads as dead,
   // and must report a removal it could not make without failing a landing that already landed.
   //
-  const runsAt = selection.commitRunsFile(at);
-  const stage = `${process.pid}-${randomUUID()}.tmp`;
-  const staged = `${at}.${stage}`;
-  const stagedRuns = `${runsAt}.${stage}`;
-  const locked = await selection.withIndexLock(at, async () => {
+  const { landed, cases } = await stagedLanding(at, async (staged, stagedRuns) => {
     let previous;
     try {
       previous = await selection.readTestCoverage(at);
@@ -175,32 +170,11 @@ export async function landJourneys(
     // Shards that measured nothing and kept no case this build reads, over no
     // coverage, leave nothing to write: the target stays as it was.
     const kept = landed !== undefined || Object.values(sections).some((part) => part !== undefined);
-    try {
-      if (landed !== undefined) await selection.writeTestCoverage(staged, landed, sections);
-      else if (kept) await selection.writeCoverageBytes(staged, selection.recordOfCases(sections));
-      if (runs !== undefined) await selection.writeCommitRuns(stagedRuns, runs);
-      if (kept) await rename(staged, at);
-      // FIXME: the snapshot and the runs record are two files, and nothing
-      // renames them together. A crash between these two renames, or this
-      // rename throwing, leaves the record as it was before the landing. The
-      // snapshot goes first because the other order is worse: at the same
-      // commit, a record renamed ahead of its snapshot says the shards ran on
-      // rows the snapshot does not hold yet. Landing again repairs the record:
-      // `commitRunsAfter` takes a snapshot ahead of its record for this, and
-      // carries the start and `standing` from the record the landing was laid
-      // over. What it cannot carry is a test only the interrupted landing ran:
-      // when the retry lands other shards, that test is listed where it stood
-      // before, an older commit than the one it last ran at, so `test:since`
-      // reads more of the change for it rather than less.
-      if (runs !== undefined) await rename(stagedRuns, runsAt);
-      return { landed, cases };
-    } finally {
-      await rm(staged, { force: true });
-      await rm(stagedRuns, { force: true });
-    }
+    if (landed !== undefined) await selection.writeTestCoverage(staged, landed, sections);
+    else if (kept) await selection.writeCoverageBytes(staged, selection.recordOfCases(sections));
+    if (runs !== undefined) await selection.writeCommitRuns(stagedRuns, runs);
+    return { kept, runs: runs !== undefined, value: { landed, cases } };
   });
-  if (!locked.held) throw busy(at, at);
-  const { landed, cases } = locked.value;
 
   return {
     at,
@@ -217,7 +191,7 @@ export async function landJourneys(
  * or none this can read, which is said on stderr: the landing then keeps no
  * install, and a later selection compares from the commit.
  */
-async function shardRuns(path: string): Promise<CommitRuns | undefined> {
+export async function shardRuns(path: string): Promise<CommitRuns | undefined> {
   const selection = await import('@variance-authority/sense/test-selection');
   try {
     return await selection.readCommitRuns(path);
@@ -227,15 +201,3 @@ async function shardRuns(path: string): Promise<CommitRuns | undefined> {
   }
 }
 
-/**
- * A landing that cannot take a lock is refused whole, and exits non-zero. The
- * lock already waits for the holder, and one held past that is a run still
- * writing, so a retry here would only wait longer for the same answer. Nothing
- * was written, so landing again once that run ends is an ordinary landing.
- */
-function busy(file: string, at: string): OperatorError {
-  return new OperatorError(
-    `nothing landed at ${said(at)}: another process is holding ${said(`${file}.lock`)}. ` +
-      'Land again once that run ends.',
-  );
-}

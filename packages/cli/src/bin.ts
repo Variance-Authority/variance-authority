@@ -10,6 +10,7 @@ import { CLI_VERSION } from './version.js';
 import { USAGE, parseArgs, type Parsed } from './parse.js';
 import { helpFor } from './usage.js';
 import { skillLine } from './skill.js';
+import { indexProgress, operationProgress } from './index-progress.js';
 
 /**
  * The program: one command in, one exit code out.
@@ -36,7 +37,7 @@ export { USAGE, parseArgs, type Parsed } from './parse.js';
  */
 export async function main(
   argv: readonly string[],
-  streams: { out(text: string): void; err(text: string): void; detach?: Detach },
+  streams: { out(text: string): void; err(text: string): void; detach?: Detach; progress?(label: string): void },
 ): Promise<ExitCode> {
   let parsed: Parsed;
   try {
@@ -120,13 +121,21 @@ function isProgram(entry: string): boolean {
  */
 const entry = process.argv[1];
 if (entry !== undefined && isProgram(entry)) {
-  process.exitCode = await main(process.argv.slice(2), {
-    out: (text) => process.stdout.write(text),
-    err: (text) => process.stderr.write(text),
-    // A CI job ends with its last step and saves its cache after it, so there
-    // nothing is left running: the step is the log, and the log is whole.
-    ...(isCI ? {} : { detach: relaunch }),
-  });
+  const argv = process.argv.slice(2);
+  const progress = argv[0] === 'index' ? indexProgress()
+    : argv[0] === 'journeys' && argv[1] === 'merge' ? operationProgress('combining shard records') : undefined;
+  try {
+    process.exitCode = await main(argv, {
+      progress: (label) => progress?.update(label),
+      out: (text) => process.stdout.write(text),
+      err: (text) => process.stderr.write(text),
+      // A CI job ends with its last step and saves its cache after it, so there
+      // nothing is left running: the step is the log, and the log is whole.
+      ...(isCI ? {} : { detach: relaunch }),
+    });
+  } finally {
+    await progress?.stop();
+  }
 }
 
 /**

@@ -3,8 +3,11 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
+import * as sense from '@variance-authority/sense';
+import { settleFollowUps } from './index-follow-ups.js';
 import { encodeExecutionIndex, readTestCoverage, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { main, parseArgs } from '../bin.js';
+import * as selection from '@variance-authority/sense/test-selection';
 import { distillRows } from './distill.js';
 import { readExecutionIndex } from './execution-input.js';
 import { recordedJourneys } from './resources.js';
@@ -16,6 +19,7 @@ vi.mock('./resources.js', async (original) => ({
 
 const temporary: string[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   vi.clearAllMocks();
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
@@ -67,6 +71,109 @@ describe('`journeys merge`', () => {
     expect((await distillRows({ root, execution: into })).rows).toEqual(before);
   });
 
+  it('combines only the named artifacts without decoding coverage or seeding a cache baseline', async () => {
+    const { root, shards, into } = await fixture();
+    await writeTestCoverage(into, { version: 3, instrumentation: 'fixture',
+      tests: [{ file: 'old.test.ts', complete: true, preconditions: [] }], modules: [] });
+    const decode = vi.spyOn(selection, 'readTestCoverage').mockImplementation(async () => { throw new Error('artifact merge must stay on stored columns'); });
+    const seed = vi.spyOn(selection, 'seedTestCoverage').mockImplementation(async () => { throw new Error('artifact merge must not seed a baseline'); });
+    let err = '';
+    const code = await main(['journeys', 'merge', ...shards, '--into', into, '--root', root], {
+      out: () => undefined, err: (text) => { err += text; },
+    });
+    expect({ code, err }).toEqual({ code: 0, err: '' });
+    expect(decode).not.toHaveBeenCalled();
+    expect(seed).not.toHaveBeenCalled();
+    decode.mockRestore();
+    expect((await readTestCoverage(into)).tests.map(({ file }) => file)).toEqual(['a.test.ts', 'b.test.ts']);
+  });
+
+  it('reports the planned work for coverage, cases and output separately', async () => {
+    const { root, shards, into } = await fixture();
+    const stages: string[] = [];
+    const code = await main(['journeys', 'merge', ...shards, '--into', into, '--root', root], {
+      out: () => undefined, err: () => undefined, progress: (label) => stages.push(label),
+    });
+    expect(code).toBe(0);
+    expect(stages).toEqual([
+      'reading metadata from 2 shard records', 'folding coverage from 2 shard records',
+      'combining cases from 2 shards (2 observations, 1 modules)', 'writing combined record (1 MiB)',
+    ]);
+  });
+
+  it('preserves recorded cases when their test files are absent from the current checkout', async () => {
+    const { root, shards, into } = await fixture();
+    await Promise.all(['a.test.ts', 'b.test.ts'].map((file) => rm(join(root, file))));
+    const code = await main(['journeys', 'merge', ...shards, '--into', into, '--root', root], {
+      out: () => undefined, err: () => undefined,
+    });
+    expect(code).toBe(0);
+    expect((await readExecutionIndex(into)).tests.map(({ id }) => id)).toEqual(['a.test.ts > greets', 'b.test.ts > greets']);
+  });
+
+  it('replaces an old output when every named artifact records an empty case index', async () => {
+    const { root, shards, into } = await fixture();
+    await writeTestCoverage(into, { version: 3, instrumentation: 'old', tests: [{ file: 'old.test.ts', complete: true, preconditions: [] }], modules: [] });
+    for (const path of shards) await selection.writeCoverageBytes(path, selection.recordOfCases({ index: encodeExecutionIndex({ tests: [], modules: [] }) }));
+    expect(await main(['journeys', 'merge', ...shards, '--into', into, '--root', root], { out: () => undefined, err: () => undefined })).toBe(0);
+    await expect(readTestCoverage(into)).rejects.toBeInstanceOf(selection.RecordWithoutCoverage);
+    expect((await readExecutionIndex(into)).tests).toEqual([]);
+  });
+
+  it('replaces stale output runs metadata when named artifacts supply only cases', async () => {
+    const { root, shards, into } = await fixture();
+    await selection.writeCommitRuns(selection.commitRunsFile(into), { commit: 'old-commit', first: 'then', latest: 'then', runs: 1, files: ['old.test.ts'] });
+    for (const path of shards) {
+      const index = selection.caseSectionsAt(path).index!;
+      await selection.writeCoverageBytes(path, selection.recordOfCases({ index }));
+    }
+    expect(await main(['journeys', 'merge', ...shards, '--into', into, '--root', root], { out: () => undefined, err: () => undefined })).toBe(0);
+    expect(await selection.readCommitRuns(into)).toBeUndefined();
+  });
+
+  it('combines case-only shard crossings without treating absent source digests as an edit', async () => {
+    const { root, shards, into } = await fixture();
+    for (const [at, path] of shards.entries()) {
+      const file = `${at === 0 ? 'a' : 'b'}.test.ts`;
+      const index = encodeExecutionIndex({ tests: [{ id: `${file} > greets`, file, name: 'greets' }], modules: [{ file: 'src/greet.ts', blocks: [{
+        kind: 'function', name: 'greet', path: 'greet', startLine: 1, endLine: 1, source: true, crossings: [{ test: 0, distance: 0 }],
+      }] }] });
+      await selection.writeCoverageBytes(path, selection.recordOfCases({ index }));
+    }
+    let err = '';
+    expect(await main(['journeys', 'merge', ...shards, '--into', into, '--root', root], { out: () => undefined, err: (text) => { err += text; } })).toBe(0);
+    expect(err).toBe('');
+    const joined = await readExecutionIndex(into);
+    expect(joined.modules[0]!.blocks[0]!.crossings.map(({ test }) => joined.tests[test]!.file)).toEqual(['a.test.ts', 'b.test.ts']);
+  });
+
+  it.each([0, 1])('combines an unknown digest with a named digest in either shard order: %s', async (caseOnly) => {
+    const { root, shards, into } = await fixture();
+    const index = selection.caseSectionsAt(shards[caseOnly]!).index!;
+    await selection.writeCoverageBytes(shards[caseOnly]!, selection.recordOfCases({ index }));
+    expect(await main(['journeys', 'merge', ...shards, '--into', into, '--root', root], { out: () => undefined, err: () => undefined })).toBe(0);
+    const joined = await readExecutionIndex(into);
+    expect(joined.modules[0]!.blocks[1]!.crossings.map(({ test }) => joined.tests[test]!.file)).toEqual(['a.test.ts', 'b.test.ts']);
+  });
+
+  it('preserves different partial case cuts when no source digest establishes an edit', async () => {
+    const { root, shards, into } = await fixture();
+    for (const [at, path] of shards.entries()) {
+      const file = `${at === 0 ? 'a' : 'b'}.test.ts`;
+      const index = encodeExecutionIndex({ tests: [{ id: `${file} > greets`, file, name: 'greets' }], modules: [{ file: 'src/greet.ts', blocks: [{
+        kind: 'function', name: 'greet', path: 'greet', startLine: at + 1, endLine: at + 1, source: true, crossings: [{ test: 0, distance: 0 }],
+      }] }] });
+      await selection.writeCoverageBytes(path, selection.recordOfCases({ index }));
+    }
+    let err = '';
+    expect(await main(['journeys', 'merge', ...shards, '--into', into, '--root', root], { out: () => undefined, err: (text) => { err += text; } })).toBe(0);
+    expect(err).toBe('');
+    const joined = await readExecutionIndex(into);
+    expect(joined.modules[0]!.blocks.map((block) => ({ line: block.startLine, files: block.crossings.map(({ test }) => joined.tests[test]!.file) }))).toEqual([
+      { line: 2, files: ['b.test.ts'] }, { line: 1, files: ['a.test.ts'] },
+    ]);
+  });
+
   it('defaults the source root to the working directory and resolves paths there', () => {
     expect(parseArgs(['journeys', 'merge', 'one.bin', '--into', 'all.bin'])).toMatchObject({
       command: 'journeys', operation: 'merge', root: process.cwd(), shards: [resolve('one.bin')], into: resolve('all.bin'),
@@ -90,5 +197,24 @@ describe('`journeys merge`', () => {
 
   it.each(['stitch', 'finalize', 'one.bin'])('refuses --root outside merge: %s', (operation) => {
     expect(() => parseArgs(['journeys', operation, '--root', '/repo'])).toThrow();
+  });
+});
+
+
+describe('journey artifact operations', () => {
+  it.each([
+    ['merge', 'one.bin', '--into', 'all.bin'],
+    ['finalize', 'one.bin'],
+    ['stitch', 'one.bin', '--into', 'all.bin'],
+  ])('does not consult an index before %s', async (...args) => {
+    const index = vi.spyOn(sense, 'sourceIndexPath').mockImplementation(() => {
+      throw new Error('artifact operations must not consult or prepare the source index');
+    });
+    const err = vi.fn();
+
+    await settleFollowUps(parseArgs(['journeys', ...args]), { err });
+
+    expect(index).not.toHaveBeenCalled();
+    expect(err).not.toHaveBeenCalled();
   });
 });

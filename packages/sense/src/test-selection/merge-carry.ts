@@ -30,8 +30,16 @@ export function crossedBlock(
   testFiles: Iterable<string>,
   loadedBy: Iterable<string>,
 ): CoverageBlock {
-  const early = [...new Set(loadedBy)].sort(codeUnitOrder);
-  const row: CoverageBlock = { ...block, testFiles: [...new Set(testFiles)].sort(codeUnitOrder) };
+  return orderedCrossingBlock(block, [...new Set(testFiles)].sort(codeUnitOrder), [...new Set(loadedBy)].sort(codeUnitOrder));
+}
+
+/** Replace crossing lists already made distinct and code-unit ordered by the fold. */
+export function orderedCrossingBlock(
+  block: CoverageBlock,
+  testFiles: readonly string[],
+  early: readonly string[],
+): CoverageBlock {
+  const row: CoverageBlock = { ...block, testFiles };
   if (early.length > 0) return { ...row, loadedBy: early };
   if (row.loadedBy === undefined) return row;
   return {

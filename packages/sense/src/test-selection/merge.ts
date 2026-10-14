@@ -14,6 +14,7 @@ import { editReaches, type EditReadings } from './edit-readings.js';
 import { decodeTestCoverage } from './format.js';
 import type { CoverageBlock, CoverageModule, CoverageTest, TestCoverage } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
+import { crossingUnion } from './fold-crossings.js';
 import {
   addressed,
   crossedBlock,
@@ -104,11 +105,12 @@ export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage
     }
   }
 
+  const union = crossingUnion();
   const modules = new Map<string, {
     module: CoverageModule;
     path: string;
-    entered: Map<number, Set<string>>;
-    loaded: Map<number, Set<string>>;
+    entered: Map<number, ReadonlySet<string>>;
+    loaded: Map<number, ReadonlySet<string>>;
   }>();
   for (const shard of shards) {
     for (const module of shard.coverage.modules) {
@@ -124,19 +126,15 @@ export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage
         modules.set(module.file, {
           module,
           path: shard.path,
-          entered: new Map(module.blocks.map((block) => [block.ordinal, new Set(block.testFiles)])),
-          loaded: new Map(module.blocks.map((block) => [block.ordinal, new Set(block.loadedBy)])),
+          entered: new Map(module.blocks.map((block) => [block.ordinal, union.join(undefined, block.testFiles)])),
+          loaded: new Map(module.blocks.map((block) => [block.ordinal, union.join(undefined, block.loadedBy)])),
         });
         continue;
       }
       if (!module.instrumented) continue;
       for (const block of module.blocks) {
-        const crossings = seen.entered.get(block.ordinal) ?? new Set<string>();
-        for (const test of block.testFiles) crossings.add(test);
-        seen.entered.set(block.ordinal, crossings);
-        const early = seen.loaded.get(block.ordinal) ?? new Set<string>();
-        for (const test of block.loadedBy ?? []) early.add(test);
-        seen.loaded.set(block.ordinal, early);
+        seen.entered.set(block.ordinal, union.join(seen.entered.get(block.ordinal), block.testFiles));
+        seen.loaded.set(block.ordinal, union.join(seen.loaded.get(block.ordinal), block.loadedBy));
       }
     }
   }
@@ -154,7 +152,7 @@ export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage
         sourceDigest: module.sourceDigest,
         instrumented: module.instrumented,
         blocks: module.blocks.map((block) =>
-          crossedBlock(block, entered.get(block.ordinal) ?? [], loaded.get(block.ordinal) ?? []),
+          union.block(block, entered.get(block.ordinal)!, loaded.get(block.ordinal)!),
         ),
       }))
       .sort((left, right) => codeUnitOrder(left.file, right.file)),

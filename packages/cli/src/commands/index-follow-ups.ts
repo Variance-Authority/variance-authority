@@ -151,6 +151,8 @@ const READS_THE_INDEX_ALONE: ReadonlySet<Parsed['command']> = new Set(['select']
  */
 export async function settleFollowUps(parsed: Parsed, streams: { err(text: string): void }): Promise<void> {
   if (parsed.command === 'index' && parsed.followUps === true) return;
+  // Artifact operations read their named records, never the source index.
+  if (parsed.command === 'journeys' && parsed.operation !== undefined) return;
   const indexing = parsed.command === 'index';
   const cwd = process.cwd();
   const index = sourceIndexPath(cwd);

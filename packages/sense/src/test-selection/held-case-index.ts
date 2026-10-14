@@ -1,7 +1,7 @@
-import { UNHEARD, preconditionStrings, preconditionWords } from './case-precondition-column.js';
+import { UNHEARD, preconditionStrings, preconditionWords, preconditionsFrom } from './case-precondition-column.js';
 import type { CaseLines } from './case-lines.js';
 import type { CrossingSetsPool } from './crossing-sets.js';
-import { durationColumn, stoppedColumn, type SetColumns } from './execution-set-columns.js';
+import { durationColumn, durationFrom, stoppedColumn, stoppedFrom, type SetColumns } from './execution-set-columns.js';
 import { moduleAt, openSetColumns, writeSetColumns, type SetExecutionModule } from './execution-set-format.js';
 import { below, mergedDictionary } from './format-dictionary.js';
 import { NO_DURATION, NO_OWNER } from './format-layout.js';
@@ -63,6 +63,14 @@ export class HeldIndex {
       this.#strings.set(id, found);
     }
     return found;
+  }
+
+  /** One case a before cut selected, without reading the cases it did not select. */
+  test(row: number): ExecutionTest {
+    const columns = this.columns;
+    return { id: this.string(columns.testId[row]!), file: this.string(columns.testFile[row]!), name: this.string(columns.testName[row]!),
+      ...stoppedFrom(columns.testStopped, row), ...durationFrom(columns.testDuration, row),
+      ...preconditionsFrom(columns.testPreconditions, row, (word) => this.string(word)) };
   }
 
   /**

@@ -492,3 +492,7 @@ export async function deviationOfTests(
 ): Promise<VariationDeviation> {
   return askCoverageFile(file, (coverage) => deviationFromView(coverage, options));
 }
+
+export { foldCoverageArtifacts } from './native-coverage-fold.js';
+
+export { openTestCoverage, type TestCoverageView } from './format-view.js';
