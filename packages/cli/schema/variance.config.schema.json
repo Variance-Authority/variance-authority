@@ -241,7 +241,7 @@
           "type": "integer",
           "minimum": 0,
           "default": 20,
-          "description": "Subjects to re-collect, at most. `0` turns the pass off, which is a decision and is reported differently from a collector that cannot do it. The cap exists because a token change makes everything differ, and a tool that gets slowest exactly when the diff is largest is a tool that gets switched off on the day it mattered."
+          "description": "Subjects to re-collect, at most: the first to change in the order the run takes its subjects, so the same ones at any `workers`. `0` turns the pass off, which is a decision and is reported differently from a collector that cannot do it. The cap exists because a token change makes everything differ, and a tool that gets slowest exactly when the diff is largest is a tool that gets switched off on the day it mattered."
         }
       }
     },
