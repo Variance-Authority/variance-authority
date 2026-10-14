@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { diffImage } from '@variance-authority/png';
+import { comparePngs, diffImage } from '@variance-authority/png';
 import { ARTIFACT_ROOT, REPOSITORY_ROOT, runReadmeCase } from '../scripts/run-case.mjs';
 
 const BROWSER_AVAILABLE = (() => {
@@ -90,13 +90,15 @@ describe.skipIf(!BROWSER_AVAILABLE)('the root README example', () => {
     expect(changedPixels).toBeGreaterThan(0);
   });
 
-  it('paints the recorded number of pixels on the platform that painted the artifacts', async (context) => {
-    const { changedPixels, raster } = JSON.parse(
-      await readFile(join(ARTIFACT_ROOT, 'provenance.json'), 'utf8'),
-    );
-    // One Chromium build rasterizes text differently on macOS and Linux, so a
-    // count painted on one is not a claim about the other.
-    if (raster !== process.platform) context.skip(`painted on ${raster}, running on ${process.platform}`);
-    expect(changedPixels).toBe(result!.comparison.changed.default);
+  it('records the number of pixels the comparison counts between the committed PNGs', async () => {
+    const [before, after, provenance] = await Promise.all([
+      readFile(join(ARTIFACT_ROOT, 'before.png')),
+      readFile(join(ARTIFACT_ROOT, 'after.png')),
+      readFile(join(ARTIFACT_ROOT, 'provenance.json'), 'utf8'),
+    ]);
+    // The count is a claim about the two committed images, not about this
+    // run's paint: one Chromium build rasterizes text differently on macOS and
+    // Linux, and on two Macs, by a glyph edge the default policy counts.
+    expect(JSON.parse(provenance).changedPixels).toBe(comparePngs(before, after).changed.default);
   });
 });

@@ -31,8 +31,10 @@ the source position of the component that drew the changed pixels.
 
 [`artifacts/provenance.json`](artifacts/provenance.json) records the engine that
 painted the two PNGs, the platform it ran on, and the one semantic delta between
-them. The same engine rasterizes text differently on macOS and Linux, so the
-changed-pixel count is checked only on the platform that painted it:
+them. The changed-pixel count is the one the comparison finds between the two
+committed PNGs, and it is checked against them on every platform. A fresh paint
+is not held to it: the same engine rasterizes text differently on macOS and
+Linux, and between two Macs by a glyph edge, which the default policy counts:
 
 ```json
 {
@@ -68,7 +70,7 @@ private and is not published; `generate` is its only script.
 The Vitest file re-runs the same comparison and checks the artifacts against it —
 that the semantic comparison finds exactly one paint-only `style-changed` delta,
 that `diff.png` is the diff actually derived from `before.png` and `after.png`,
-and that the committed report and images are the ones the repository README
+that `changedPixels` is the count the comparison finds between them, and that the committed report and images are the ones the repository README
 displays. From the repository root:
 
 ```bash
