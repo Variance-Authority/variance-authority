@@ -19,7 +19,7 @@ set still wins. Set `workers: 1` for a server under test that cannot take
 concurrent pages. A collector with no `openWorker` still collects in one world,
 and the run warns about it only when you set `workers`. Verdicts and the order
 of observations do not depend on the count, and the report's new `workers` field
-records it.
+records it. `variance collect` takes the same width.
 
 Each observation in the report also carries `steps` beside `costMs`: every
 phase the subject went through, in the order it ran, with its wall time. The

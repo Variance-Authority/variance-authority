@@ -2373,7 +2373,10 @@ The collector's phases come first under `collect.` (`collect.navigate`,
 (`inspect`, `settle`, `baseline`, `decode`, `compare`, `write`), and a painted
 subject adds the renderer's under `render.` (`render.load`,
 `render.screenshot`). A phase the subject skipped is absent, not zero: a settled
-subject has no `decode`. A settled route subject, with its steps cut to five:
+subject has no `decode`. A route read's `collect.transfer` is the remainder: the
+read's time less the steps the page timed itself, so it holds the crossing from
+the page and anything the page did not time. A settled route subject, with its
+steps cut to five:
 
 ```json
 {

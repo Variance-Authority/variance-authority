@@ -1,5 +1,4 @@
-import { availableParallelism } from 'node:os';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { workersOf } from './lanes.js';
 import { mergeReports } from './merge.js';
 import type { Collector, Plan } from './run.js';
@@ -13,6 +12,12 @@ import { collectorOf, configOf, documentFor, painter, runWith, storeAnswering, w
  * one subject in a world at a time, a file's stories in one world — plus the
  * one that makes the setting safe to change: the report does not move.
  */
+
+// The machine a run derives its width from has eight cores, whatever ran the tests.
+vi.mock('node:os', async (original) => ({
+  ...(await original<typeof import('node:os')>()),
+  availableParallelism: () => 8,
+}));
 
 function planOf(files: number, perFile: number): Plan {
   return {
@@ -137,9 +142,8 @@ describe('workers', () => {
     const { collector, worlds } = workingCollector(planOf(16, 1));
     const { report } = await runWith(configOf(), collector, storeAnswering(null));
 
-    const derived = Math.min(16, Math.max(1, Math.floor(availableParallelism() / 2)));
-    expect(worlds).toHaveLength(derived);
-    expect(report.workers).toBe(derived);
+    expect(worlds).toHaveLength(4);
+    expect(report.workers).toBe(4);
   });
 
   it('opens no world it has no file for', async () => {
