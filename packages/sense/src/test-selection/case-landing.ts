@@ -161,7 +161,7 @@ export function layCases(
     finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
     present,
     ...(artifacts === undefined ? {} : { artifacts }),
-    ...(unbasedShard ? { unbased: true } : {}),
+    ...(unbasedShard || artifacts === true ? { unbased: true } : {}),
     edit: (file) => {
       const [from, to] = [held?.get(file), recorded.get(file)];
       return from === undefined || to === undefined ? undefined : edits(file, from, to);
@@ -182,7 +182,7 @@ export function layCases(
   // text, so its before of them is not the base's. `beforeTexts` names that
   // text, and a reader leaves those modules unmeasured rather than compare
   // them; keeping the base's cut of every module would keep a second index.
-  const before = session.retire(state === undefined ? previous.before : undefined, retired, ran, again, unbasedShard);
+  const before = session.retire(state === undefined ? previous.before : undefined, retired, ran, again, unbasedShard || artifacts === true);
   const beforeTexts = textsOfBefore(
     before?.files(),
     retired?.modules.map((module) => module.file),
@@ -345,10 +345,13 @@ export function landCases(
   // Every shard's before is cut from the index the landing began with.
   const base = previous.index === undefined ? undefined : { index: previous.index, ...(held === undefined ? {} : { texts: held }) };
   let laid = 0;
+  const namedBefore: Uint8Array[] = [];
   const ran = new Set<string>();
   for (const shard of shards) {
     const kept = caseSectionsAt(shard.path);
+    if (artifacts === true && kept.before !== undefined) namedBefore.push(kept.before);
     const fresh = layableIndex(kept.index);
+    if (artifacts === true && kept.index !== undefined && fresh === undefined) throw new Error('cannot combine a recorded case index this build cannot read');
     const run = shard.coverage ?? lastRunOf(kept) ?? (fresh === undefined ? undefined : indexRunOf(fresh.tests));
     if (run === undefined) continue;
     if (fresh !== undefined) {
@@ -363,6 +366,20 @@ export function landCases(
     } else if (run.tests.some((test) => test.complete)) {
       const removed = Object.values(previous).some((part) => part !== undefined);
       return { landing: { unanswered: record, shard: shard.path, removed }, sections: {} };
+    }
+  }
+  if (artifacts === true) {
+    const { before: _before, ...current } = sections;
+    sections = current;
+    if (namedBefore.length === 1) sections = { ...sections, before: namedBefore[0]! };
+    else if (namedBefore.length > 1) {
+      const before = new CaseLayerState();
+      for (const bytes of namedBefore) {
+        const cut = layableIndex(bytes);
+        if (cut === undefined) throw new Error('cannot combine a recorded before case index this build cannot read');
+        before.layIndex(cut.opened ?? openSetExecutionIndex(cut.bytes)!, { ran: new Set(), finished: new Set(), present: () => true, artifacts: true });
+      }
+      sections = { ...sections, before: before.finish() };
     }
   }
   return { landing: { laid: record, shards: laid }, sections: laid > 1 ? lastOfEveryShard(sections, ran) : sections };

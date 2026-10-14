@@ -217,32 +217,37 @@ function collectTests(indexes: readonly ExecutionIndex[]): readonly ExecutionTes
   for (const index of indexes) {
     for (const test of index.tests) {
       const before = tests.get(test.id);
-      if (before !== undefined && (before.file !== test.file || before.name !== test.name)) {
-        throw new Error(`cannot assemble journey artifacts: test id ${JSON.stringify(test.id)} names two tests`);
-      }
-      const stopped = settledAcross(before?.stopped, test.stopped);
-      // Each artifact timed its own run of the case, so the case cost the sum;
-      // an artifact that did not time it leaves the sum unknown, not short.
-      const duration = before === undefined
-        ? test.duration
-        : before.duration === undefined || test.duration === undefined
-        ? undefined
-        : before.duration + test.duration;
-      const { stopped: _stopped, duration: _duration, preconditions: _preconditions, ...coordinate } = test;
-      tests.set(test.id, {
-        ...coordinate,
-        ...stopped,
-        ...(duration === undefined ? {} : { duration }),
-        ...(before === undefined
-          ? test.preconditions === undefined ? {} : { preconditions: test.preconditions }
-          : preconditionsAcross(before.preconditions, test.preconditions)),
-      });
+      tests.set(test.id, combineExecutionTest(before, test));
     }
   }
   return [...tests.values()].sort((left, right) =>
     codeUnitOrder(left.id, right.id) ||
     codeUnitOrder(left.file, right.file) ||
     codeUnitOrder(left.name, right.name));
+}
+
+/** One producer identity across independent recorded artifacts, retaining its known metadata. */
+export function combineExecutionTest(before: ExecutionTest | undefined, test: ExecutionTest): ExecutionTest {
+  if (before !== undefined && (before.file !== test.file || before.name !== test.name)) {
+    throw new Error(`cannot assemble journey artifacts: test id ${JSON.stringify(test.id)} names two tests`);
+  }
+  const stopped = settledAcross(before?.stopped, test.stopped);
+  // Each artifact timed its own run of the case, so the case cost the sum;
+  // an artifact that did not time it leaves the sum unknown, not short.
+  const duration = before === undefined
+    ? test.duration
+    : before.duration === undefined || test.duration === undefined
+    ? undefined
+    : before.duration + test.duration;
+  const { stopped: _stopped, duration: _duration, preconditions: _preconditions, ...coordinate } = test;
+  return {
+    ...coordinate,
+    ...stopped,
+    ...(duration === undefined ? {} : { duration }),
+    ...(before === undefined
+      ? test.preconditions === undefined ? {} : { preconditions: test.preconditions }
+      : preconditionsAcross(before.preconditions, test.preconditions)),
+  };
 }
 
 function withoutCrossings(block: ExecutionBlock): Shape {

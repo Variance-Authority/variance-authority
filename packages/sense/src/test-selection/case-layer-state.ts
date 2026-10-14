@@ -5,6 +5,7 @@ import { encodeSetExecutionIndex, openSetExecutionIndex, type OpenedSetExecution
 import { HeldIndex, writeLaid, type LaidModule } from './held-case-index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { landedThrough, NO_EDIT } from './region-edit.js';
+import { combineExecutionTest } from './execution-merge.js';
 import { recordedCuts } from './region-landing.js';
 import type { ExecutionTest } from './reverse.js';
 import { carriedFrom, type CaseRunFiles } from './case-layer.js';
@@ -40,6 +41,7 @@ export class CaseLayerState {
   readonly #cuts = new Map<Uint8Array, CaseCutPlan>();
   #next = 0;
   #step = 0;
+  #artifacts = false;
 
   constructor(previous?: Uint8Array, before?: Uint8Array) {
     this.#rawBefore = before;
@@ -85,10 +87,11 @@ export class CaseLayerState {
   /** Lay a selected before cut without serializing it between runs. */
   layIndex(run: OpenedSetExecutionIndex, files: CaseRunFiles): { readonly last: readonly string[]; readonly announced: readonly string[] } {
     this.#written = undefined;
+    this.#artifacts ||= files.artifacts === true;
     this.#step += 1;
-    for (const file of this.#check) if (!files.present(file)) this.#retire(file);
+    if (files.artifacts !== true) for (const file of this.#check) if (!files.present(file)) this.#retire(file);
     this.#check.clear();
-    for (const file of files.finished) this.#retire(file);
+    if (files.artifacts !== true) for (const file of files.finished) this.#retire(file);
     this.#add(run, files);
     return { last: run.tests.map((test) => test.id), announced: run.tests.filter((test) => files.ran.has(test.file)).map((test) => test.id) };
   }
@@ -148,7 +151,7 @@ export class CaseLayerState {
 
   /** The modules the final index holds, without writing their columns. */
   moduleFiles(): readonly string[] {
-    return [...this.#kept.values(), ...this.#modules.values()].filter((row) => row.touched === this.#step || row.loaded.some((loaded) => loaded === 1) || row.called.some((set) => this.#sets.has(set)))
+    return [...this.#kept.values(), ...this.#modules.values()].filter((row) => this.#artifacts || row.touched === this.#step || row.loaded.some((loaded) => loaded === 1) || row.called.some((set) => this.#sets.has(set)))
       .map((row) => row.file ?? this.#held!.string(this.#held!.columns.moduleFile[row.row!]!));
   }
 
@@ -181,7 +184,7 @@ export class CaseLayerState {
     const moduleKey = (row: ModuleRow): number => row.file === undefined ? 2 * this.#held!.columns.moduleFile[row.row!]! + 1 : this.#held?.key(row.file) ?? 0;
     for (const row of [...this.#kept.values(), ...this.#modules.values()].sort((left, right) => moduleKey(left) - moduleKey(right) || (moduleKey(left) % 2 === 0 ? codeUnitOrder(left.file!, right.file!) : 0))) {
       const called = row.called.map(from);
-      if (row.touched !== this.#step && !called.some((set) => set !== 0) && !row.loaded.some((loaded) => loaded === 1)) continue;
+      if (!this.#artifacts && row.touched !== this.#step && !called.some((set) => set !== 0) && !row.loaded.some((loaded) => loaded === 1)) continue;
       if (lined) moduleAt.set(row.file ?? this.#held!.string(this.#held!.columns.moduleFile[row.row!]!), modules.length);
       modules.push(row.module === undefined ? { row: row.row!, called, loaded: row.loaded } : { ...row.module, called, loaded: row.loaded });
     }
@@ -266,7 +269,7 @@ export class CaseLayerState {
           held.file = test.file;
           this.#check.add(test.file);
         }
-        held.test = test;
+        held.test = files?.artifacts === true ? combineExecutionTest(held.test ?? this.#held!.test(held.held!), test) : test;
         this.#ids.set(test.id, generation);
         if (line === undefined) delete held.lines;
       }
@@ -279,7 +282,7 @@ export class CaseLayerState {
       const previousRow = this.#row(recorded.file);
       const previous = previousRow === undefined ? undefined : this.#module(previousRow);
       const live = previous !== undefined && (previous.loaded.some((loaded) => loaded === 1) || previous.called.some((set) => this.#sets.has(set)));
-      const held = live ? previous : undefined;
+      const held = live || files?.artifacts === true ? previous : undefined;
       const cuts = files?.artifacts === true && held !== undefined ? recordedCuts(held, recorded) : undefined;
       const target = cuts?.module ?? recorded;
       const lands = held === undefined || files?.artifacts === true ? undefined : landedThrough(held, recorded, (files?.edit ?? (() => NO_EDIT))(recorded.file));

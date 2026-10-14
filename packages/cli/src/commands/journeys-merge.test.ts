@@ -131,6 +131,60 @@ describe('`journeys merge`', () => {
     expect(await selection.readCommitRuns(into)).toBeUndefined();
   });
 
+  it('refuses an unreadable recorded case index instead of treating it as absent', async () => {
+    const { root, shards, into } = await fixture();
+    const kept = selection.caseSectionsAt(shards[0]!);
+    await selection.writeCoverageBytes(shards[0]!, selection.recordOfCases({ ...kept, index: Uint8Array.of(1, 2, 3) }));
+    let err = '';
+    expect(await main(['journeys', 'merge', ...shards, '--into', into, '--root', root], { out: () => undefined, err: (text) => { err += text; } })).toBe(2);
+    expect(err).toContain('cannot combine a recorded case index');
+  });
+
+  it('retains unwalked regions and modules recorded by earlier artifacts', async () => {
+    const { root, shards, into } = await fixture();
+    const region = (name: string, crossings: readonly { test: number; distance: number }[]) => ({ kind: 'function', name, path: name, startLine: 1, endLine: 1, source: true, crossings });
+    await selection.writeCoverageBytes(shards[0]!, selection.recordOfCases({ index: encodeExecutionIndex({ tests: [], modules: [
+      { file: 'src/greet.ts', blocks: [region('unwalked', [])] }, { file: 'src/empty.ts', blocks: [region('only-before', [])] },
+    ] }) }));
+    await selection.writeCoverageBytes(shards[1]!, selection.recordOfCases({ index: encodeExecutionIndex({ tests: [{ id: 'case', file: 'same.test.ts', name: 'case' }], modules: [
+      { file: 'src/greet.ts', blocks: [region('walked', [{ test: 0, distance: 0 }])] },
+    ] }) }));
+    expect(await main(['journeys', 'merge', ...shards, '--into', into, '--root', root], { out: () => undefined, err: () => undefined })).toBe(0);
+    const joined = await readExecutionIndex(into);
+    expect(joined.modules.map((module) => [module.file, module.blocks.map((block) => block.name)])).toEqual([
+      ['src/empty.ts', ['only-before']], ['src/greet.ts', ['walked', 'unwalked']],
+    ]);
+  });
+
+  it.each(['absent', 'one', 'partial'])('carries only explicitly recorded before sections: %s', async (before) => {
+    const { root, shards, into } = await fixture();
+    for (const [at, path] of shards.entries()) {
+      const kept = selection.caseSectionsAt(path);
+      const cut = encodeExecutionIndex({ tests: [{ id: `old-${at}`, file: 'same.test.ts', name: `old-${at}` }], modules: [] });
+      await selection.writeCoverageBytes(path, selection.recordOfCases({ ...kept, ...(before === 'partial' || before === 'one' && at === 0 ? { before: cut } : {}) }));
+    }
+    expect(await main(['journeys', 'merge', ...shards, '--into', into, '--root', root], { out: () => undefined, err: () => undefined })).toBe(0);
+    const kept = selection.caseSectionsAt(into);
+    if (before === 'absent') expect(kept.before).toBeUndefined();
+    else expect(selection.decodeExecutionIndex(kept.before!)!.tests.map((test) => test.id)).toEqual(before === 'one' ? ['old-0'] : ['old-0', 'old-1']);
+  });
+
+  it.each(['same case', 'different cases'])('unions completed artifact shards from one test file: %s', async (identity) => {
+    const { root, shards, into } = await fixture();
+    for (const [at, path] of shards.entries()) {
+      const name = identity === 'same case' ? 'shared' : `case-${at}`;
+      const index = encodeExecutionIndex({ tests: [{ id: `same.test.ts > ${name}`, file: 'same.test.ts', name, duration: 10 + at, stopped: at === 0 }], modules: [{ file: 'src/greet.ts', blocks: [{
+        kind: 'function', name: `region-${at}`, path: `region-${at}`, startLine: at + 1, endLine: at + 1, source: true, crossings: [{ test: 0, distance: 0 }],
+      }] }] });
+      await selection.writeCoverageBytes(path, selection.recordOfCases({ index }));
+    }
+    expect(await main(['journeys', 'merge', ...shards, '--into', into, '--root', root], { out: () => undefined, err: () => undefined })).toBe(0);
+    const joined = await readExecutionIndex(into);
+    expect(joined.tests).toHaveLength(identity === 'same case' ? 1 : 2);
+    expect(joined.modules[0]!.blocks.map((block) => block.crossings.length)).toEqual([1, 1]);
+    if (identity === 'same case') expect(joined.tests[0]).toMatchObject({ duration: 21, stopped: false });
+  });
+
   it('combines case-only shard crossings without treating absent source digests as an edit', async () => {
     const { root, shards, into } = await fixture();
     for (const [at, path] of shards.entries()) {
