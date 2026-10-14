@@ -101,9 +101,9 @@ refuses with.
 **git-LFS is exercised as git-LFS.** The `lfs` job of `variance.yml` keeps the
 case's baselines in git-LFS on this repository's own pull requests: its label
 commits them back to the contributor's branch through the composite action and
-the real clean filter, and every run asserts that `doctor --baselines` exits 2
-on the checkout before git-lfs is installed, then fetches the objects and
-checks each against the digest its pointer names.
+the real clean filter. Once a branch holds them, every run asserts that
+`doctor --baselines` exits 2 on the checkout before git-lfs is installed, then
+fetches the objects and checks each against the digest its pointer names.
 
 **The render cache lands under the baseline root by default, and is therefore
 committed.** That is the correct behaviour rather than an oversight: it is what

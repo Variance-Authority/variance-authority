@@ -322,8 +322,9 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   built, and the missing half moved from "write it" to "wire it".
 - **The commit-back runs on this repository's pull requests, through
   git-LFS.** The `lfs` job of `variance.yml` commits the case's baselines to
-  the contributor's branch when its label is added, and every run asserts that
-  a checkout without git-lfs is refused with exit 2. What has not run is the
+  the contributor's branch when its label is added, and once a branch holds
+  them, every run asserts that a checkout without git-lfs is refused with
+  exit 2. What has not run is the
   commit-back's three refusals
   ([spec 0016](../specs/0016-ci-that-has-run.md)).
 - **Inspection has run against nothing anybody else wrote.** Nine rules, each

@@ -582,11 +582,16 @@ jobs:
       # without git-lfs holds pointers, and doctor names them before anything
       # compares. Either other answer fails the job, a 0 over pointers most of
       # all, since that is a gate that passes until somebody edits a component.
+      # The container runs as root over a workspace the runner's user owns, so
+      # git is told the workspace is safe first; otherwise `ls-files` refuses,
+      # and a refusal read as "nothing committed" would expect the wrong code.
       - name: refuse the pointers a checkout without git-lfs holds
         shell: bash
         run: |
           set -uo pipefail
-          if git ls-files -- 'cases/storybook-case/baselines/*.png' | grep -q .; then expected=2; else expected=0; fi
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          committed=$(git ls-files -- 'cases/storybook-case/baselines/*.png') || exit 1
+          if [ -n "$committed" ]; then expected=2; else expected=0; fi
           node packages/cli/dist/bin.js doctor \
             --config cases/storybook-case/variance.lfs.config.json --baselines
           code=$?
@@ -597,14 +602,12 @@ jobs:
 
       # The bytes back through the smudge filter, and `fsck` checks each one
       # against the digest its pointer names: what the commit-back cleaned is
-      # what this checkout reads. The container runs as root over a workspace
-      # the runner's user owns, so git is told the workspace is safe first.
+      # what this checkout reads.
       - name: fetch the baselines through git-lfs
         shell: bash
         run: |
           set -euo pipefail
           apt-get update -qq && apt-get install -y -qq --no-install-recommends git-lfs
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git lfs install --local
           git lfs pull
           git lfs fsck
@@ -649,9 +652,10 @@ jobs:
   # proves the service received what they would decide on; an approval made
   # by the job itself would be the recorder the header warns about.
   #
-  # One deployment for every run, so every run queues behind the one before
-  # it: a pull request's deploy replaces the service `main` deployed, and the
-  # next run on `main` deploys `main`'s back. The two tokens are minted for each
+  # One deployment for every run, so the runs take turns: a pull request's
+  # deploy replaces the service `main` deployed, and the next run on `main`
+  # deploys `main`'s back. GitHub keeps one pending run per concurrency group,
+  # so when a third run arrives while one waits, the waiting one is cancelled. The two tokens are minted for each
   # deploy and never stored, so the only secret is `CLOUDFLARE_API_TOKEN`; a
   # run without it fails, rather than passing on a service it never reached.
   # Not on a fork's pull request, which gets no secrets and could not deploy.
@@ -705,10 +709,10 @@ jobs:
           echo "::add-mask::$ingest"
           echo "::add-mask::$review"
           secrets="$RUNNER_TEMP/tribunal-secrets.json"
+          trap 'rm -f "$secrets"' EXIT
           printf '{"INGEST_TOKEN":"%s","REVIEW_TOKEN":"%s"}' "$ingest" "$review" > "$secrets"
           npx --yes wrangler@4.131.1 d1 migrations apply variance-tribunal-ci --remote --config "$PWD/wrangler.jsonc"
           npx --yes wrangler@4.131.1 deploy --config "$PWD/wrangler.jsonc" --secrets-file "$secrets"
-          rm "$secrets"
           {
             echo "VARIANCE_INGEST_TOKEN=$ingest"
             echo "VARIANCE_REVIEW_TOKEN=$review"
@@ -718,9 +722,10 @@ jobs:
         shell: bash
         run: yarn workspace @variance-authority/case-storybook build-storybook
 
-      # Compared against what the service holds as approved, which is nothing
-      # until somebody approves there, so every subject reads `new` and exits 0
-      # until then.
+      # Compared against what the service holds as approved, which is nothing:
+      # the review token is minted for this run and never handed to a person,
+      # so nobody approves on this deployment and every subject reads `new`.
+      # What the job proves is the deploy, the run, the push and the filing.
       - id: variance
         uses: ./.github/actions/variance
         with:
@@ -732,13 +737,14 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           report-page: 'true'
           image-ref-prefix: ${{ env.VARIANCE_IMAGES }}
-          to-accept: 'approve or reject each subject on the review service, then re-run this check.'
+          to-accept: 'nothing to accept: this deployment has no reviewer, and the job checks only that the service files the build.'
 
       - if: >-
           ${{
             !cancelled() &&
             (steps.variance.outputs.exit-code == '0' || steps.variance.outputs.exit-code == '1')
           }}
+        id: push
         name: put the build in front of a reviewer
         shell: bash
         env:
@@ -751,7 +757,8 @@ jobs:
       # The build by the id `variance push` files it under, asked for with the
       # review token, which the push never holds: what a reviewer opening the
       # service would get, rather than the push's own word that it was sent.
-      - name: the service filed the build
+      - if: ${{ !cancelled() && steps.push.outcome == 'success' }}
+        name: the service filed the build
         shell: bash
         run: |
           # shellcheck disable=SC2016 # the template literals are JavaScript's
