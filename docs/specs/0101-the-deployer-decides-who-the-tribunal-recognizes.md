@@ -156,7 +156,7 @@ verifier for it, and each mechanism is a declared instance:
 | Mechanism | Issuer | Audience | Claim |
 |---|---|---|---|
 | `access` | the team domain | `ACCESS_AUD` | `email`, read as the reviewer's name; Access has already decided who passes |
-| `github-actions` | `GITHUB_ACTIONS_ISSUER`, or the public issuer | `GITHUB_ACTIONS_AUDIENCE` | `repository`, checked against `GITHUB_ACTIONS_REPOSITORIES` |
+| `github-actions` | `GITHUB_ACTIONS_ISSUER`, or the public issuer | `GITHUB_ACTIONS_AUDIENCE` | `repository`, or `repository_owner` for an `Owner/*` entry, checked against `GITHUB_ACTIONS_REPOSITORIES` |
 
 ## Ingest from GitHub Actions: a trusted issuer and a claim allowlist
 
@@ -183,8 +183,9 @@ The checks:
    client pushes to, but the declaration is what counts.
 4. **Lifetime.** `exp` and `nbf`, with a skew of seconds, not minutes.
 5. **Repository.** `repository` is one of `GITHUB_ACTIONS_REPOSITORIES`,
-   `Owner/name`, comma-separated, compared case-insensitively because GitHub
-   treats those names that way.
+   `Owner/name`, comma-separated, or `repository_owner` is the owner of an
+   `Owner/*` entry, which admits every repository of that owner. Both are
+   compared case-insensitively because GitHub treats those names that way.
 
 What the token grants is `ingest`, and `ingest` is more than a proposal.
 ADR-0022 gives it builds, the render cache and history, and also two writes no
@@ -208,8 +209,7 @@ Two finer bindings are named and left out:
   optionally an environment. Here the environment is the counterpart of an
   environment secret, and a ref the counterpart of a protected branch: either
   would let a deployment say *only `main` writes a baseline*, which no token can
-  say today. Whether ingest should split so that a baseline write needs the
-  finer binding and a build does not is the owner's question (below).
+  say today. They are a later step.
 
 **Fork pull requests get no token.** GitHub withholds `id-token: write` from
 `pull_request` runs triggered from forks, exactly as it withholds secrets. A
@@ -264,7 +264,8 @@ body, where the API accepts any non-empty string from any caller holding
 `review`. Concerns carry a client-supplied `by` the same way. A named reviewer
 means `by` is written from the principal's name on both, and a body that names
 someone else is refused. The approval rows ingest appends carry a
-caller-supplied `approver` too; that is question 4.
+caller-supplied `approver` too, and keep it: rules for ingest's writes come
+later.
 
 ### Machines never review
 
@@ -277,8 +278,7 @@ work this way, and the split holds once machines are recognized without secrets:
 - **Capability** decides what a caller may do. It is where `github-actions` is
   verified, and the only capability that mechanism can produce is `ingest`.
   Ingest's direct baseline write and its approval rows (above) are ADR-0022's
-  line, older than this spec; whether a credential no person holds keeps them
-  is the owner's question.
+  line, older than this spec, and this spec leaves them where they are.
 
 Two things today let a caller with no proven name decide, and both go:
 
@@ -294,8 +294,8 @@ Two things today let a caller with no proven name decide, and both go:
   Declared as `loopback`, it names its reviewer from `VARIANCE_TRIBUNAL_REVIEWER`
   and stays the operator's word for the person at the machine. It is the one
   review mechanism that is not Access, kept on purpose: a tribunal on your own
-  machine has nobody to sign in. Whether an agent on that machine may still
-  approve is the owner's question (below). A local
+  machine has nobody to sign in. Who acts at that machine is the operator's
+  process, which the tribunal does not define. A local
   tribunal that CI starts declares no review credential, so CI cannot approve
   through it.
 
@@ -368,7 +368,7 @@ there is nothing to provision and the step disappears.
 5. **Write `by` from the principal** on decisions and concerns, and refuse a
    body that disagrees.
 6. **Retire the review token** on all three deployments, scripted approval
-   included, with the owner's answer on loopback agents.
+   included.
 7. **Provisioning**: generate the ingest token and hand it to one destination.
 8. **Update the charts.** The capability chart's responsibility says it decides
    "which of a deployment's secrets a caller presented", and its boundary that it
@@ -404,25 +404,20 @@ there is nothing to provision and the step disappears.
   record.
 - It does not change the share token.
 
-## Questions for the owner
+## Settled
 
-1. **Repository by name or by id?** By name is readable and open to a
-   re-registered name; by id is closed to it and unreadable in a diff.
-2. **Is the audience required?** This spec requires `GITHUB_ACTIONS_AUDIENCE`.
-   A fixed audience such as `variance-authority` would save one value per
-   deployment, and would let a token minted for one deployment be replayed at
-   another that trusts the same repository.
-3. **Finer claims?** Workflow file, ref or environment, as npm and PyPI allow.
-4. **How do ingest's baseline write and approval rows follow from machines
-   never reviewing?** `/baseline/put` and approval rows ride `ingest` today, and
-   an approval row names whatever `approver` the caller sent, so a
-   repository-grain credential can move a baseline and record a name nobody
-   proved. A ref or environment binding, a reviewer, or recording the approver
-   from a verified source are the candidates.
-5. **What does a deployment that declares nothing do after upgrading?** Refusing
-   it is the rule; reading it as `token` plus `access` is one release of grace
-   for every deployment that exists.
-6. **How does an agent on a loopback tribunal stop approving?** ADR-0087 says
-   it decides by sending no token, and machines never review. An agent driving
-   the operator's session sends what the operator sends, so loopback alone
-   cannot tell them apart.
+1. **The allowlist names repositories, or a whole owner.** An entry is
+   `Owner/name`, or `Owner/*` for every repository of that owner, matched
+   against `repository_owner`. A name stays readable in a diff; the
+   re-registered-name risk is accepted, and pinning by id is not built.
+2. **The audience is required.** No fixed default: a token minted for one
+   deployment is never accepted by another.
+3. **The repository is the grain.** Workflow, ref and environment bindings are
+   a later step, not this one.
+4. **Ingest keeps what ADR-0022 gives it.** The direct baseline write and the
+   approval rows stay on `ingest`, unchanged; rules for them come later.
+5. **No deployment exists to migrate.** Nothing declared is refusal from the
+   first release, with no grace.
+6. **Who acts at a machine is the operator's process.** The tribunal recognizes
+   a declared credential and defines no process around it; loopback names the
+   reviewer `VARIANCE_TRIBUNAL_REVIEWER` gives.
