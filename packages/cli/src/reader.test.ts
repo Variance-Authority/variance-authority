@@ -52,4 +52,19 @@ describe('writing to a reader that stops early', () => {
     expect(made).toBeLessThan(64);
   });
 
+  it('raises an error that is not the reader leaving, between two writes', () => {
+    const stream = new Writable({ write: (_chunk, _, done) => done() });
+    readerOf(stream);
+    expect(() => stream.emit('error', Object.assign(new Error('write EIO'), { code: 'EIO' }))).toThrow('write EIO');
+  });
+
+  it('raises an error that is not the reader leaving, while waiting for the reader', async () => {
+    const stream = new Writable({ highWaterMark: 1, write: () => undefined });
+    const reader = readerOf(stream);
+    stream.removeAllListeners('error');
+    reader.out('xx');
+    const waiting = reader.drained();
+    stream.destroy(Object.assign(new Error('write EIO'), { code: 'EIO' }));
+    await expect(waiting).rejects.toThrow('write EIO');
+  });
 });

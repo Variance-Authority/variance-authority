@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { recordOfCases, withCaseSections } from './case-record.js';
 import { encodeExecutionIndex } from './execution-format.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
@@ -138,5 +138,29 @@ describe('the coverage rows the addon and openTestCoverage read', () => {
 
     expect(() => decodeTestCoverage(broken)).toThrow();
     expect(() => readDistillRecords([withCaseSections(broken, { index: encodeAsSetExecutionIndex(cases) })])).toThrow();
+  });
+});
+
+describe('without the addon', () => {
+  // Cut at the addon: what is under test is the refusal, and the loader's own reasons are `native.test.ts`'s.
+  afterEach(() => {
+    vi.doUnmock('../addon.js');
+    vi.resetModules();
+  });
+
+  const absent = async () => {
+    vi.resetModules();
+    vi.doMock('../addon.js', () => ({ native: () => undefined, nativeRefusal: () => '@variance-authority/sense-linux-x64-gnu is not installed' }));
+    return import('./distill-native.js');
+  };
+
+  it('refuses to read records, naming why the addon did not load', async () => {
+    const { readDistillRecords: read } = await absent();
+    expect(() => read([])).toThrow('distill reads its records with the native addon, which is unavailable: @variance-authority/sense-linux-x64-gnu is not installed');
+  });
+
+  it('refuses to rank causes, naming why the addon did not load', async () => {
+    const { rankDistillCauses: rank } = await absent();
+    expect(() => rank([])).toThrow('distill reads its records with the native addon, which is unavailable: @variance-authority/sense-linux-x64-gnu is not installed');
   });
 });
