@@ -67,14 +67,15 @@ export function subjectIdFor(url: string): string {
  * plan gives it a name, and the site root `/` has no segment: the default
  * `{title}/{name}-{engine}` would render `-chromium`, which it refuses. The
  * root is named `index`, the file a server answers `/` with. The id stays `/`,
- * because the id is what an operator types back at `--subjects`.
+ * because the id is what an operator types back at `--subjects`. At a declared
+ * width the root is `index @1280`, filed as `index-1280`, beside `about-1280`.
  */
 export function plannedRoute(id: string): PlannedSubject {
-  return named({ subject: { id, kind: 'route' } });
+  return rootNamed({ subject: { id, kind: 'route' } });
 }
 
 /** The same naming over a planned subject the route collector did not plan itself. */
-export function named<S extends PlannedSubject>(planned: S): S {
+export function rootNamed<S extends PlannedSubject>(planned: S): S {
   return planned.subject.id === '/' && planned.name === undefined ? { ...planned, name: 'index' } : planned;
 }
 
