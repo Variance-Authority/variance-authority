@@ -31,10 +31,10 @@ every test file imports at its head: a test helper over a deep stack, which
 cases rarely enter. With no hub, the corpus has no stack deeper than a package
 and nothing every test file loads.
 
-Each command ran three times on the base and on the branch, from two separate
-builds, on an M4 Max with 64 GB and Node 24. Wall time and peak RSS are
-`/usr/bin/time -l`'s `real` and `maximum resident set size`; the figures below
-are rounded. Across three runs the spread was within a tenth.
+Each command ran three times on the base, commit `9ea33e20c`, and on the
+branch, from two separate builds, on an M4 Max with 64 GB and Node 24. Wall
+time and peak RSS are `/usr/bin/time -l`'s `real` and `maximum resident set
+size`; the figures below are rounded. Across three runs the spread was within a tenth.
 
 ```bash
 /usr/bin/time -l node packages/cli/dist/bin.js distill --root <dir>/repo \
@@ -42,8 +42,9 @@ are rounded. Across three runs the spread was within a tenth.
 cmp base.out branch.out
 ```
 
-Every output compared equal byte for byte with `cmp`: every command on the
-corpus without a hub, including `--file` in text, and json and jsonl with the
+The branch also charges a run at load differently, and none of the corpus's
+outputs moved with it. Every output compared equal byte for byte with `cmp`:
+every command on the corpus without a hub, including `--file` in text, and json and jsonl with the
 hub. Text with the hub was not compared: the base takes about as long as its
 json, a quarter of an hour, and the text is written from the same answer.
 

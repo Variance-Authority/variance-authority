@@ -71,6 +71,8 @@ export interface NativeDistillFile {
   readonly lazy: Uint8Array;
   /** How many test files load an import's importer. */
   readonly loading: Uint32Array;
+  /** The files the test file loads, as the graph lists them: its subject. Empty without a graph. */
+  readonly subjects: Uint32Array;
 }
 
 /** One region of an importer, read against one test file's cases. */
@@ -85,6 +87,8 @@ export interface NativeDistillRegion {
   readonly ran: boolean;
   /** The test files whose cases called it, as ids that only compare with each other. */
   readonly called: Uint32Array;
+  /** Some case ran it while its module loaded; the case index names no case for that. */
+  readonly loaded: boolean;
 }
 
 export interface NativeDistillRecords {

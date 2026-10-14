@@ -2,9 +2,12 @@
 //! files the record holds, and per module its regions and the test files whose
 //! cases ran its top level.
 //!
-//! `format-layout.ts` writes these columns and `format-view.ts` reads them in
-//! JavaScript; this is the same reading for a native consumer, checked the same
-//! way. Only the columns a row needs are decompressed, every bound is checked
+//! `format-layout.ts` writes these columns and `openTestCoverage` in
+//! `format-view.ts` reads them in JavaScript. That is the twin this must agree
+//! with: the same reading for a native consumer, checked the same way, refusing
+//! what it refuses. One fixture, "the coverage rows the addon and
+//! openTestCoverage read" in `distill-native.test.ts`, is read by both and pins
+//! them to each other. Only the columns a row needs are decompressed, every bound is checked
 //! against the column it indexes, and a loader set is expanded only when a
 //! caller asks for one block's. The layout constants below are the encoder's,
 //! and the tests that encode a record in JavaScript and read it here pin them.

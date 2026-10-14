@@ -1,5 +1,5 @@
 // compass: variance-authority/runtime/attention
-import { EDGE_KINDS, NODE_KINDS, idOf, type EdgeKind, type Relations } from '@variance-authority/core/relate';
+import type { Relations } from '@variance-authority/core/relate';
 import {
   rankDistillCauses,
   readDistillRecords,
@@ -158,7 +158,7 @@ export function distillFile(input: FileDistillInput): FileDistillation {
     loading: (importer) => loading.get(importer) ?? 0,
     regions: once((importer) => record.regions(file, importer)),
   });
-  const subjects = input.relations === undefined ? new Set<string>() : new Set(loadsOf(input.relations, file));
+  const subjects = new Set(Array.from(found.subjects, name));
   const charged = (cause: LoadCause): LoadCause => {
     if (cause.kind !== 'import' || cause.lazy === true) return cause;
     const reach = cause.importer === file ? 'test' : subjects.has(cause.importer) ? 'subject' : 'beyond';
@@ -207,22 +207,6 @@ function once<T>(ask: (file: string) => T): (file: string) => T {
     if (!asked.has(file)) asked.set(file, ask(file));
     return asked.get(file)!;
   };
-}
-
-/** The edges a runtime evaluates a module through on load. */
-const LOADING = new Set((['imports', 'reexports', 'asset'] as const satisfies readonly EdgeKind[]).map((kind) => EDGE_KINDS.indexOf(kind)));
-const FILE = NODE_KINDS.indexOf('file');
-
-/** The files `file` loads, read from the file graph: what the test file's subject is. */
-function loadsOf(relations: Relations, file: string): readonly string[] {
-  const id = idOf(relations, 'file', file);
-  if (id === undefined) return [];
-  const { offset, target, kind } = relations.depends;
-  const found: string[] = [];
-  for (let at = offset[id]!; at < offset[id + 1]!; at += 1) {
-    if (LOADING.has(kind[at]!) && relations.kinds[target[at]!] === FILE) found.push(relations.names[target[at]!]!);
-  }
-  return found;
 }
 
 /** How many cases a refusal names. */

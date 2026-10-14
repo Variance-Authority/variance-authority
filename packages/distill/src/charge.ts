@@ -13,7 +13,9 @@ import type { ImportReach } from './own.js';
  *
  * `never`: it references none of the import's names. `effect`: it imports the
  * module with no binding, `import './x'`, so loading it is the point. `load`: a
- * reference runs when the file loads, the first one named. `handed`: it re-exports a name
+ * reference runs when the file loads, the first one named, or sits in a
+ * function some case ran while the file loaded, which the case index keeps
+ * without naming the case. `handed`: it re-exports a name
  * from the import, so the use is its importers'. `ran`: a case of the test
  * file ran a function that references it, so the import was needed and nothing
  * called into it. `functions`: it is referenced only in functions no case of
@@ -91,8 +93,9 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
     const named = (block: Block) => ({ name: block.name || block.path, line: block.startLine });
     const ran = [...regions.keys()].filter((block) => block.ran);
     if (load !== undefined) return { kind: 'load', line: load.line, name: load.name };
-    // FIXME: a reference in a function the file calls while it loads is charged as one no case ran. The set spelling
-    // keeps a crossing made at load as the region's load flag, which names no case, so it cannot say this file's did.
+    // The case index names no case for a run at load, so any test file's reads as this one's: a load is never mocked.
+    const atLoad = [...regions].find(([block]) => block.loaded);
+    if (atLoad !== undefined) return { kind: 'load', line: atLoad[1].line, name: atLoad[1].name };
     if (found.passed.includes(imported)) return { kind: 'handed' };
     if (ran.length > 0) return { kind: 'ran', functions: ran.map(named) };
     if (unmeasured !== undefined) return { kind: 'unmeasured', line: unmeasured };

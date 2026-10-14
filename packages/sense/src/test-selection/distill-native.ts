@@ -16,7 +16,7 @@ import { native, nativeRefusal } from '../addon.js';
 import type { NativeDistillCause, NativeDistillFile, NativeDistillGraph, NativeDistillRecords, NativeDistillRegion, NativeDistillScope } from '../native-distill.js';
 import { caseSectionsOf, withCaseSections } from './case-record.js';
 import { decodeExecutionIndex, decodeExecutionTests, isRowSpelledExecutionIndex } from './execution-format.js';
-import { encodeOwnedSetExecutionIndex } from './execution-set-format.js';
+import { encodeAsSetExecutionIndex } from './execution-set-format.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { flatten } from './journey-native.js';
 import type { ExecutionTest } from './reverse.js';
@@ -74,11 +74,12 @@ const WITHOUT_COVERAGE = 'the record holds no coverage rows';
 function setSpelled(record: Uint8Array): Uint8Array {
   if (!isRowSpelledExecutionIndex(record)) return record;
   const rows = decodeExecutionIndex(record);
+  // The set spelling has no place for a depth and refuses an index that keeps one; `distill` reads none, so it is zeroed.
   const modules = rows.modules.map((module) => ({
     ...module,
     blocks: module.blocks.map((block) => ({ ...block, crossings: block.crossings.map((crossing) => ({ ...crossing, distance: 0 })) })),
   }));
-  return withCaseSections(record, { ...caseSectionsOf(record), index: encodeOwnedSetExecutionIndex({ ...rows, modules }, []) });
+  return withCaseSections(record, { ...caseSectionsOf(record), index: encodeAsSetExecutionIndex({ ...rows, modules }) });
 }
 
 /**

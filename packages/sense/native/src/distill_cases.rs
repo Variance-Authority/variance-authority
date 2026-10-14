@@ -7,8 +7,10 @@
 //! test file asks only the modules it loaded, and a charge asks a handful of
 //! importers' regions, all off the same reading. A crossing made while its
 //! module loaded is not a call: the set spelling keeps it as the region's load
-//! flag, which names no case, so nothing here can say which test file's case
-//! ran a region at load. A record whose index is in the row spelling is
+//! flag, which names no case. A region answers that flag as `loaded`, and a
+//! charge reads a reference in it as run at load, whichever test file's case
+//! loaded the module: the index cannot say, and a region run at load is never
+//! one to mock. A record whose index is in the row spelling is
 //! converted to the set spelling before it reaches here (`distill-native.ts`).
 
 use std::collections::HashMap;
@@ -39,6 +41,8 @@ pub struct DistillRegion {
     pub ran: bool,
     /// The test files whose cases called it, as ids that only compare with each other.
     pub called: Uint32Array,
+    /// Some case ran it while its module loaded; the index names no case for that.
+    pub loaded: bool,
 }
 
 /// A test file's cases, as the case index keeps them.
@@ -167,6 +171,7 @@ impl CaseIndex {
                 source: at.source,
                 ran: files.binary_search(&mine).is_ok(),
                 called: Uint32Array::new(files),
+                loaded: at.loaded,
             });
         }
         Ok(found)

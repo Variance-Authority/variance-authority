@@ -55,7 +55,7 @@ pub struct DistillCause {
 }
 
 /// The places of `causes` in the order a scope's spills are read in, each group under one test file.
-#[napi]
+#[napi(catch_unwind)]
 pub fn rank_distill_causes(causes: Vec<DistillCause>) -> Vec<u32> {
     fn ranked_of(cause: &DistillCause) -> Ranked<'_> {
         Ranked { kind: cause.kind, importer: &cause.importer, imported: &cause.imported, lazy: cause.lazy, lines: cause.lines as u64, files: 1 }

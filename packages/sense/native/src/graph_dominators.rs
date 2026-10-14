@@ -172,6 +172,40 @@ mod tests {
     }
 
     #[test]
+    fn a_chain_is_dominated_link_by_link() {
+        // test 0 -> a 1 -> b 2 -> c 3
+        let found = built(4, &[(0, 1), (1, 2), (2, 3)]);
+        assert_eq!((0..4).map(|node| found.idom(node)).collect::<Vec<_>>(), [0, 0, 1, 2]);
+        assert!(found.dominates(0, 3));
+        assert!(found.dominates(1, 3));
+    }
+
+    #[test]
+    fn parting_paths_meet_at_the_first_shared_node() {
+        // test 0 -> {a 1, b 2} -> shared 3 -> deep 4
+        let found = built(5, &[(0, 1), (0, 2), (1, 3), (2, 3), (3, 4)]);
+        assert_eq!((1..5).map(|node| found.idom(node)).collect::<Vec<_>>(), [0, 0, 0, 3]);
+        assert!(!found.dominates(1, 4));
+        assert!(found.dominates(3, 4));
+    }
+
+    #[test]
+    fn a_cycle_with_an_exit_keeps_the_chain_to_the_exit() {
+        // test 0 -> a 1 -> b 2 -> c 3 -> {a 1, d 4}
+        let found = built(5, &[(0, 1), (1, 2), (2, 3), (3, 1), (3, 4)]);
+        assert_eq!((1..5).map(|node| found.idom(node)).collect::<Vec<_>>(), [0, 1, 2, 3]);
+        assert!(found.dominates(1, 4));
+    }
+
+    #[test]
+    fn a_predecessor_settled_later_is_skipped_until_it_is() {
+        // test 0 -> a 1 -> b 2, and b 2 -> a 1 arrives before b has a dominator.
+        // A node the root does not reach is never handed in: the caller numbers only what its walk reached.
+        let found = built(3, &[(2, 1), (0, 1), (1, 2)]);
+        assert_eq!((0..3).map(|node| found.idom(node)).collect::<Vec<_>>(), [0, 0, 1]);
+    }
+
+    #[test]
     fn a_diamond_is_dominated_by_its_top() {
         // 0 -> 1 -> {2, 3} -> 4
         let found = built(5, &[(0, 1), (1, 2), (1, 3), (2, 4), (3, 4)]);

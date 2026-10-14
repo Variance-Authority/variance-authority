@@ -54,13 +54,13 @@ describe('readDistillRecords', () => {
     expect(rows.cases(FILE)).toEqual(sets.cases(FILE));
   });
 
-  it('reads an importer\'s regions against the file\'s cases', () => {
+  it('reads an importer\'s regions against the file\'s cases, and a run at load as a flag that names no case', () => {
     const sets = readDistillRecords([withCaseSections(encodeTestCoverage(COVERAGE), { index: encodeAsSetExecutionIndex(index(0)) })]);
     const region = { kind: 'function', name: 'run', path: 'run', startLine: 2, endLine: 2, source: true };
 
-    expect(sets.regions(FILE, 'src/used.ts')).toEqual([{ ...region, ran: true, called: expect.any(Uint32Array) }]);
+    expect(sets.regions(FILE, 'src/used.ts')).toEqual([{ ...region, ran: true, called: expect.any(Uint32Array), loaded: false }]);
     expect(sets.regions(FILE, 'src/used.ts')[0]!.called).toHaveLength(1);
-    expect(sets.regions(FILE, 'src/unused.ts')).toEqual([{ ...region, ran: false, called: new Uint32Array() }]);
+    expect(sets.regions(FILE, 'src/unused.ts')).toEqual([{ ...region, ran: false, called: new Uint32Array(), loaded: true }]);
     expect(sets.regions(FILE, 'src/absent.ts')).toEqual([]);
     expect(sets.cases(FILE).map(({ name }) => name)).toEqual(['one', 'two', 'three']);
     expect(sets.cases('test/absent.test.ts')).toEqual([]);

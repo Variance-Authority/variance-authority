@@ -93,6 +93,8 @@ pub struct DistillFile {
     pub lazy: Uint8Array,
     /// How many test files load the importer.
     pub loading: Uint32Array,
+    /// The files the test file loads, as the graph lists them: its subject. Empty without a graph.
+    pub subjects: Uint32Array,
 }
 
 /// The records' coverage rows and case indexes, read for distillation.
@@ -234,6 +236,7 @@ impl DistillRecords {
             lazy.push(u8::from(l));
             loading.push(loads);
         }
+        let subjects = graph.as_ref().map_or_else(Vec::new, |graph| graph.imports(id).iter().map(|file| names.id(&self.paths, *file)).collect());
         Ok(DistillFile {
             held: true,
             record: at as u32,
@@ -251,6 +254,7 @@ impl DistillRecords {
             imported: Uint32Array::new(imported),
             lazy: Uint8Array::new(lazy),
             loading: Uint32Array::new(loading),
+            subjects: Uint32Array::new(subjects),
             names: names.names,
         })
     }
@@ -259,7 +263,7 @@ impl DistillRecords {
 #[napi]
 impl DistillRecords {
     /// The record that holds `file`, by its place among the records; none when no record does.
-    #[napi]
+    #[napi(catch_unwind)]
     pub fn holder(&self, file: String) -> Option<u32> {
         let id = self.paths.id(&file)?;
         self.records.iter().position(|record| record.holds(id)).map(|at| at as u32)
@@ -295,6 +299,7 @@ impl DistillFile {
             imported: Uint32Array::new(vec![]),
             lazy: Uint8Array::new(vec![]),
             loading: Uint32Array::new(vec![]),
+            subjects: Uint32Array::new(vec![]),
         }
     }
 }

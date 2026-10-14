@@ -14,8 +14,9 @@ each record once into what the question needs — per test file the modules it
 loaded, per module how many of its cases entered it — and answers the scope,
 one test file, and the import behind each module no case entered, in columns.
 On a synthetic suite of that shape a whole-suite reading takes a few seconds
-in place of most of a minute, and every output is the same, byte for byte.
-`--file` still opens the whole record, a fifth of a second there, and reads the
+in place of most of a minute, and every output there is the same, byte for
+byte. Outputs change only where a function is run while its module loads, as
+the fix below says. `--file` still opens the whole record, a fifth of a second there, and reads the
 file graph, about a second more, only when a module no case entered needs its
 import named.
 
@@ -27,12 +28,18 @@ and the file graph as `relations`, in place of the decoded `coverage` and
 and makes each row as it is reached. They require the addon, and throw naming
 why where it did not install.
 
+Fixed: an import referenced in a function the importer calls while it loads
+is read as one used at load, and never proposed as a `jest.mock`. Over a record
+whose case index is in the set spelling, such a function was charged as if no
+case ran it, since that spelling keeps a run at load as a flag that names no
+case, and distill could propose a mock that breaks the test; the same held
+over the row spelling where only another test file's case ran it while
+loading. A run at load is now read as this test file's, whichever file's case
+made it.
+
 A record whose case index is in the row spelling, which no current writer
 emits, is converted to the set spelling as it is read, and needs nothing from
-you. The set spelling keeps a run at load as a flag that names no case, so over
-such a record an import referenced in a function the importer calls while it
-loads is charged as if no case ran it, as it already was over a set-spelled
-record. A record whose module says it was instrumented and has no regions, or
+you. Which spelling is written does not change. A record whose module says it was instrumented and has no regions, or
 the other way round, is refused, as reading its coverage already refused it.
 
 `readDistillRecords` and `rankDistillCauses` are exported from
