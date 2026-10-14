@@ -82,7 +82,7 @@ try {
   // The module's text ends in a newline, so the last element is the empty rest after it.
   const lines = code.length - 1;
   const expected = [
-    [recipe?.startsWith('sense:instrument/presence-v7+'), `a recipe under presence, not ${recipe}`],
+    [recipe?.startsWith('sense:instrument/presence-v6+'), `a recipe under presence, not ${recipe}`],
     [regions === '5', `5 regions (the module, f, both arms and what follows), not ${regions}`],
     [lines === 4 && code.at(-1) === '', `the module's 4 lines and nothing after, not ${lines}`],
     [code[0]?.includes('.r("src/f.ts@'), 'the header reporting under the module id'],

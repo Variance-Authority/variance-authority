@@ -138,7 +138,7 @@ export type { Block, BlockKind, InstrumentMode };
 export { cadence, columnBehindCut, type CutSourceMap, type CutTestFile } from './cadence.js';
 
 /** Changes whenever two instrumented block universes must not share observations. */
-export const INSTRUMENTATION_ID = 'sense:instrument/presence-v7';
+export const INSTRUMENTATION_ID = 'sense:instrument/presence-v6';
 
 /**
  * The recipe each mode emits under. One identity per mode, because the two
@@ -148,7 +148,7 @@ export const INSTRUMENTATION_ID = 'sense:instrument/presence-v7';
  */
 const IDS: Readonly<Record<InstrumentMode, string>> = {
   presence: INSTRUMENTATION_ID,
-  entries: 'sense:instrument/entries-v4',
+  entries: 'sense:instrument/entries-v3',
 };
 
 export function instrumentationId(mode: InstrumentMode = 'presence'): string {

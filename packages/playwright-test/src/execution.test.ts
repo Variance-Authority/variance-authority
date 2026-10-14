@@ -30,7 +30,7 @@ vi.mock('./preconditions.js', async (original) => ({
   enterDescribes: async () => {},
 }));
 
-const INSTRUMENTATION = 'sense:instrument/presence-v7';
+const INSTRUMENTATION = 'sense:instrument/presence-v6';
 
 /** A page that hands over whatever the test says it entered, once per drain. */
 function pageReporting(...journals: readonly (ExecutionJournal | undefined)[]): Page {

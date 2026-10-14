@@ -12,7 +12,7 @@ const GREET = moduleId(
   readFileSync(new URL('../src/greet.ts', import.meta.url), 'utf8'),
 );
 const COLLECTOR = `globalThis.__variance_authority_execution__ = {
-  drain: () => ({ instrumentation: 'sense:instrument/presence-v7', modules: [{ id: '${GREET}', hits: [0], shared: [] }] }),
+  drain: () => ({ instrumentation: 'sense:instrument/presence-v6', modules: [{ id: '${GREET}', hits: [0], shared: [] }] }),
 };`;
 
 test('greets by name', async ({ page }) => {
