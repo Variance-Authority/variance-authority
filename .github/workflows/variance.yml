@@ -559,6 +559,13 @@ jobs:
           token: ${{ secrets.VARIANCE_PUSH_TOKEN || github.token }}
           lfs: false
 
+      # The container runs as root over a workspace the runner's user owns, and
+      # git refuses such a repository until it is named safe: the build's cache
+      # key and the pointer check below both read it.
+      - name: mark the workspace safe for git
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: decide whether this run accepts
         id: accept
         shell: bash
@@ -582,14 +589,12 @@ jobs:
       # without git-lfs holds pointers, and doctor names them before anything
       # compares. Either other answer fails the job, a 0 over pointers most of
       # all, since that is a gate that passes until somebody edits a component.
-      # The container runs as root over a workspace the runner's user owns, so
-      # git is told the workspace is safe first; otherwise `ls-files` refuses,
-      # and a refusal read as "nothing committed" would expect the wrong code.
+      # A refusing `ls-files` fails the step rather than reading as "nothing
+      # committed", which would expect the wrong code.
       - name: refuse the pointers a checkout without git-lfs holds
         shell: bash
         run: |
           set -uo pipefail
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           committed=$(git ls-files -- 'cases/storybook-case/baselines/*.png') || exit 1
           if [ -n "$committed" ]; then expected=2; else expected=0; fi
           node packages/cli/dist/bin.js doctor \

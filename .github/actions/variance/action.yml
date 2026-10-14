@@ -210,6 +210,8 @@ inputs:
     default: ''
 
 outputs:
+  # The doctor step writes `exit-code` only when it refuses, so a run step it
+  # skipped leaves the run's answer empty and the doctor's 2 is the one read.
   exit-code:
     description: '0 nothing needs review, 1 changes need review, 2 the run did not happen.'
     value: ${{ steps.run.outputs.exit-code || steps.doctor.outputs.exit-code }}
@@ -562,8 +564,8 @@ runs:
         # One commit, containing image artifacts and the sidecars without which an
         # image is not a baseline — the sidecar carries the width, the scale, and
         # the document digest that `settle` compares against on the next run —
-        # and, under `lfs`, the `.gitattributes` the store writes on its first
-        # accept, without which the images are committed as blobs. A staged path
+        # and, under `lfs`, the `.gitattributes` the store writes when it is
+        # created, without which the images are committed as blobs. A staged path
         # that is none of them is a bug in this step, and it stops here rather
         # than riding into a contributor's branch.
         unexpected="$(git diff --cached --name-only | grep -Ev '(\.(png|json)|(^|/)\.gitattributes)$' || true)"
