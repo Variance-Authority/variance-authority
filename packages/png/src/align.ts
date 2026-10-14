@@ -103,13 +103,15 @@ export function alignRows(
  * substitution, and pairing on it shifts everything around it: a mark that went
  * from beside two lines of text becomes two whole lines compared against their
  * neighbours. So the pairing is weighed by what it leaves for the comparison:
- * every pixel that differs exactly between the rows it pairs, every pixel of an
- * after row it pairs with nothing, since that row is marked in full, and every
- * pixel of a before row it removes that is not white. Position counts the same
- * on the union box, white where an image has no row, so a row either side leaves
- * unpaired costs the same on both. A tie goes to whichever moved nothing: the
- * pairing when it shifted no row and only says where rows came or went, else
- * position. Rows in the shared head are equal under both and are not read.
+ * every pixel that differs exactly between the rows it pairs, and every pixel of
+ * a row it leaves unpaired, inserted or removed, white or not, since an inserted
+ * row is marked in full and a removal is weighed by its rows times the width.
+ * Charging a removed white row nothing would let a pairing remove one, grow a
+ * run one row lower and shift everything between for free. Position counts on
+ * the union box, every pixel that differs from the row at the same height, white
+ * where an image has no row. A tie goes to whichever moved nothing: the pairing
+ * when it shifted no row and only says where rows came or went, else position.
+ * Rows in the shared head are equal under both and are not read.
  */
 function explainsMore(
   rows: AlignedRows,
@@ -125,9 +127,7 @@ function explainsMore(
     const from = rows.source[y]!;
     paired += from < 0 ? width : differing(was, from, now, y, width);
   }
-  for (const span of rows.removed) {
-    for (let y = span.from; y < span.to; y += 1) paired += width - matching(was, y, WHITE, width);
-  }
+  for (const span of rows.removed) paired += (span.to - span.from) * width;
 
   let positional = 0;
   for (let y = head; y < Math.max(beforeHeight, afterHeight) && positional <= paired; y += 1) {

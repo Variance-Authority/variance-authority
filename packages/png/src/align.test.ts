@@ -129,6 +129,25 @@ describe('content that moved down the page', () => {
     expect(comparison.changed.strict).toBe(WIDTH + 1);
   });
 
+  it('compares a one-pixel rule that starts a row earlier by position', () => {
+    // A thin vertical rule beside nothing grew upward by one row. Removing the
+    // white row above it and growing the rule's run pairs every pixel away, but
+    // only by moving the rule.
+    const rule = (rows: readonly ('blank' | 'ruled')[]) => {
+      const image = column([1, ...rows.map(() => 0), 1]);
+      for (const [y, row] of rows.entries()) {
+        image.data.fill(255, (y + 1) * WIDTH * 4, (y + 2) * WIDTH * 4);
+        if (row === 'ruled') image.data.set([0, 0, 0, 255], ((y + 1) * WIDTH + 2) * 4);
+      }
+      return image;
+    };
+
+    const comparison = comparePixels(rule(['blank', 'ruled', 'ruled']), rule(['ruled', 'ruled', 'ruled']));
+
+    expect(comparison.alignment).toBeUndefined();
+    expect(comparison.changed.strict).toBe(1);
+  });
+
   it('names a row added at the bottom, which position explains as well', () => {
     const comparison = comparePixels(column([1, 2, 3]), column([1, 2, 3, 8]));
 

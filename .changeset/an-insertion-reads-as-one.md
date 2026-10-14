@@ -14,9 +14,9 @@ with the before row that shows the same content, and `pixelmatch` still judges
 every pairing; a row that moved, came or went is a change in itself, so no
 pairing makes a page read as unchanged. A section added to a long page marks that
 section, and the content it pushed down matches. A pairing is kept only when it
-leaves fewer pixels differing than position does, a removed row charged its
-pixels that are not white, so a line that changed in place is not shifted
-against its neighbours. Images of different widths, or an
+leaves fewer pixels differing than position does, a row it leaves unpaired
+charged in full, so a line that changed in place is not shifted against its
+neighbours. Images of different widths, or an
 edit longer than 2,000 runs of rows, are compared position by position on the
 union box, as before.
 

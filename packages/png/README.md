@@ -188,9 +188,9 @@ read as unchanged. The shortest edit counts runs of rows, not pixels, so a
 pairing is kept only when it leaves fewer pixels differing than position does:
 where a mark beside a line of text changed in place, a matching row at another
 height would otherwise shift the lines around it. The count charges what each
-side leaves: the pixels that differ between paired rows, an inserted row in
-full, and the pixels of a removed row that are not white, as position charges
-the rows past the shorter image. A tie goes to whichever moved nothing. A run of
+side leaves: the pixels that differ between paired rows, and a row the pairing
+leaves unpaired, inserted or removed, in full. A tie goes to whichever moved
+nothing. A run of
 identical rows that only grew, such as a white gap one row taller, pairs its
 extra rows with the run's own last row rather than marking them inserted; its
 crop is cut where the rows under it start to move. Rows rewritten between two
