@@ -367,9 +367,10 @@ every compiler your build runs, so an extractor such as `@compiled/react` reads
 your file as you wrote it, and each probe is placed where the source map says
 that code went. Where the build writes no map the loaders can read, as
 `storybook build --test` does, the preset hands the loaders their maps and the
-build still writes no `.map` file. Any other `storybook build`, the one you
-publish, gets nothing from the addon: build it with `--test` for the run that
-records. If you added `testSelectionRule()` to the Storybook's builder config
+build still writes no `.map` file. The preset asks Storybook which build it
+is: `test`, which `--test` sets, or `configType` of `DEVELOPMENT`, which a dev
+server sets. Any other `storybook build`, the one you publish, gets nothing
+from the addon: build it with `--test` for the run that records. If you added `testSelectionRule()` to the Storybook's builder config
 by hand, remove it: the addon cannot order a rule it did not add, so the build
 stops and says to. A `testSelectionProbes()` you added under Vite orders itself,
 and the addon adds no second one.

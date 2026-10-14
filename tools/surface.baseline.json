@@ -3620,7 +3620,7 @@
         "storybookCollector": "function"
       },
       "./preset": {
-        "PresetOptions": "type",
+        "PresetOptions": "interface",
         "rsbuildFinal": "function",
         "viteFinal": "function",
         "webpackFinal": "function"
