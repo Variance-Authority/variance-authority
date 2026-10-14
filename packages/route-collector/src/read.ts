@@ -4,6 +4,7 @@ import { normalize as normalizeCapture } from '@variance-authority/core/rules';
 import { acquireFromAgent, unresizable, unwidened } from '@variance-authority/playwright';
 import { suspenseRefusal } from '@variance-authority/react';
 import type { Collected, CollectorConfig, PlannedSubject } from './contract.js';
+import { operatorError } from './operator.js';
 import type { RouteCollectorOptions } from './options.js';
 import type { AcquireRequest, Acquired } from './page-agent.js';
 import type { RouteWorld } from './world.js';
@@ -23,6 +24,13 @@ import type { RouteWorld } from './world.js';
  */
 
 const DEFAULT_READY_TIMEOUT_MS = 10_000;
+
+/**
+ * Chromium's name for a connection nothing accepted. The world is always
+ * Chromium, and Playwright carries the browser's net error in its message,
+ * which is the one place this answer is held.
+ */
+const CONNECTION_REFUSED = 'net::ERR_CONNECTION_REFUSED';
 
 export interface RouteReading {
   readonly config: CollectorConfig;
@@ -128,12 +136,31 @@ export async function readRoute(
       });
     }
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    // A refused connection is the server gone, not this page failing: nothing
+    // is listening, and every route left would be refused the same way. Thrown
+    // rather than returned, because a returned failure is about one subject and
+    // the run asks for the next — fifty identical failures that bury the one
+    // line saying the server stopped, in a run that then exits as if it had
+    // found changes. An empty response or a reset stays this page's: the
+    // server answered, once, badly.
+    if (message.includes(CONNECTION_REFUSED)) {
+      throw operatorError(
+        `nothing is listening at ${new URL(url).origin}: the browser's connection was ` +
+          `refused while reading \`${id}\` (${url}), and every route left would be ` +
+          'refused the same way, so the read stops here. Start the server again, or ' +
+          'read its log for why it stopped.',
+        { cause: error },
+      );
+    }
+
     return {
       ok: false,
       because:
         `the route did not become ready at ${url}` +
         (readyFor(id) === undefined ? '' : ` (waiting for ${readyFor(id)})`) +
-        `: ${error instanceof Error ? error.message : String(error)}`,
+        `: ${message}`,
     };
   }
 

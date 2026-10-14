@@ -53,19 +53,30 @@ export async function acquire(input: AcquireInput): Promise<Acquisition> {
   // A shard that owns nothing opens nothing.
   if (input.queue.length === 0) return { compositions, warnings: [] };
 
+  // A collector that throws has said something about the run, not one subject:
+  // a route read whose server stopped answering is the case. Asked inside the
+  // lane's turn, because at any concurrency above one the next subjects are
+  // already queued on that turn, and each would otherwise be asked anyway.
+  let thrown = false;
   const { lanes, warnings } = await openLanes(input.collector, workersOf(input.config));
   await steal(lanes, input.queue, input.config, async (index, lane) => {
     const planned = plan.subjects[index]!;
     const id = planned.subject.id;
     const declined = declinedBy(id, input.skipped, input.scope);
     if (declined !== undefined) return input.passed(index, declined);
-    if (input.stopped?.() === true) return;
 
     let started: number | undefined;
     const collected = await lane.collecting(async () => {
+      if (thrown || input.stopped?.() === true) return undefined;
       started = elapsed?.();
-      return lane.collector.collect(planned);
+      try {
+        return await lane.collector.collect(planned);
+      } catch (error) {
+        thrown = true;
+        throw error;
+      }
     });
+    if (collected === undefined) return;
     if (!collected.ok) return input.passed(index, { subject: id, kind: 'failed', because: collected.because });
 
     for (const [component, refs] of Object.entries(collected.source ?? {})) locate(declared, component, refs);
