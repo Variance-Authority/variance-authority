@@ -322,8 +322,11 @@ export function indexStyleSheets(
   }
 }
 
+/** A CSS escape: up to six hex digits and one whitespace, or one character. */
+const ESCAPE = String.raw`\\(?:[0-9a-fA-F]{1,6}[ \t\n]?|.)`;
+
 /** The characters of an id or class: name characters, non-ASCII, or an escape. */
-const NAME = String.raw`(?:\\[0-9a-fA-F]{1,6}[ \t\n]?|\\.|[\w-]|[^\x00-\x7f])+`;
+const NAME = String.raw`(?:${ESCAPE}|[\w-]|[^\x00-\x7f])+`;
 
 /**
  * The rightmost simple selector, as a bucket key.
@@ -340,11 +343,16 @@ const NAME = String.raw`(?:\\[0-9a-fA-F]{1,6}[ \t\n]?|\\.|[\w-]|[^\x00-\x7f])+`;
 function rightmostKey(selector: string): string {
   const compound = outsideArguments(lastCompound(selector));
 
-  const id = new RegExp(`#(${NAME})`).exec(compound);
-  if (id) return `#${unescapeName(id[1]!)}`;
-
-  const className = new RegExp(`\\.(${NAME})`).exec(compound);
-  if (className) return `.${unescapeName(className[1]!)}`;
+  // An escape is consumed whole before a `#` or `.` can open a name, so the
+  // `\#` in `.accent-\[\#ff4a19\]` stays inside the class.
+  let id: string | undefined;
+  let className: string | undefined;
+  for (const [, sigil, name] of compound.matchAll(new RegExp(`${ESCAPE}|([#.])(${NAME})`, 'g'))) {
+    if (sigil === '#') id ??= name;
+    else if (sigil === '.') className ??= name;
+  }
+  if (id !== undefined) return `#${unescapeName(id)}`;
+  if (className !== undefined) return `.${unescapeName(className)}`;
 
   const tag = /^([a-z][\w-]*)/i.exec(compound);
   if (tag && !compound.startsWith(':')) return tag[1]!.toLowerCase();

@@ -74,4 +74,12 @@ describe('a rule reaches the element its rightmost compound names', () => {
     const css = '#a\\:b { color: red }';
     expect(matched(css, '<div id="a:b"></div>', 'div')).toEqual(['#a\\:b']);
   });
+
+  it('files a class holding an escaped # by the class, never as an id', () => {
+    // Tailwind's arbitrary colours, `accent-[#ff4a19]`, are written this way.
+    const css = '.accent-\\[\\#ff4a19\\] { color: red }';
+    expect(matched(css, '<div class="accent-[#ff4a19]"></div>', 'div')).toEqual([
+      '.accent-\\[\\#ff4a19\\]',
+    ]);
+  });
 });

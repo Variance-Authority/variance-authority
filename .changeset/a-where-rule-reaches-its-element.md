@@ -16,8 +16,8 @@ a pixel of its live height.
   `:where(.docs-content h2)` that compound was read inside the arguments, as
   `.docs-content`, so the rule was never tested against an `h2`. A rule is now
   filed by the compound outside any arguments or attribute values, and an
-  escaped character in a class or id, `\+` or the hex escape in
-  `.\32 xl\:p-4`, is part of the name.
+  escaped character in a class or id, `\+`, the hex escape in `.\32 xl\:p-4`
+  or the `\#` in `.accent-\[\#ff4a19\]`, is part of the name.
 - A shorthand whose value holds a `var()` is carried under the name it was
   declared with. Chromium leaves such a shorthand's longhands empty until the
   value is substituted and answers only for the shorthand, and the capture
@@ -38,7 +38,8 @@ a pixel of its live height.
   unlayered, so it beat a layered `body { padding-inline: 20px }`, and the
   container width carried was the parent's border box, so the subject painted
   40 pixels wider than it was laid out. The reset now sits in the inherited
-  values' layer, and the width carried is the parent's content box.
+  values' layer, and the width carried is the parent's own `width`, written
+  back on the same box in its own box sizing.
 
 A document captured from a page styled any of these ways changes its digest
 once, and its baseline renders again on the next run.

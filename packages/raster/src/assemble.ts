@@ -42,9 +42,10 @@ export function assemble(document: RenderDocument, options: AssembleOptions = {}
     // parent, the innermost ancestor or else the body, because that is the box a
     // percentage width resolves against. Without it a subject declaring
     // `width: 100%` renders at viewport width regardless of the panel it lived
-    // in. Inline and content-box, so no page rule on that box, its sizing
-    // included, moves it: Storybook pads a border-box body, and a width written
-    // on the body in the sheet lost its padding to that rule.
+    // in. The width is the parent's own, in its own box sizing, which the
+    // document's rules give it again. Inline and important, so no page rule on
+    // that box overrides it: a width written on the body in the sheet lost to
+    // Storybook's rule for its padded body.
     `<body${
       document.frame.ancestors.length === 0
         ? withWidth(document.frame.body, document.frame.containerWidth)
@@ -108,7 +109,7 @@ function withWidth(record: Readonly<Record<string, string>>, width: number | und
   const existing = record['style'];
   return attributes({
     ...record,
-    style: `${existing !== undefined ? `${existing};` : ''}box-sizing:content-box;width:${width}px`,
+    style: `${existing !== undefined ? `${existing};` : ''}width:${width}px !important`,
   });
 }
 
