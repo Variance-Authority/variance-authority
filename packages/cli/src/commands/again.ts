@@ -9,6 +9,7 @@ import {
 import type { Band } from '@variance-authority/core/compare';
 import {
   documentDigest,
+  timeOn,
   type ComponentHash,
   type SemanticSnapshot,
 } from '@variance-authority/core/format';
@@ -112,7 +113,9 @@ export async function again(
   // Through the collector's one lane, for the reason every other collection goes
   // through it: the world is a single standing page and two collections at once
   // render into the same one.
-  const second = await collecting(async () => deps.collector.collect(planned));
+  const second = await collecting(async () =>
+    timeOn(context.steps, 'again.collect', async () => deps.collector.collect(planned)),
+  );
 
   if (!second.ok) {
     // Not silence, and not a `failed` coverage entry either — the subject *was*

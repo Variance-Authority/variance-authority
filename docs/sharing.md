@@ -374,8 +374,8 @@ left out 2 image(s) the report names and this machine could not read, the first 
 
 The same publish gives the line `subject-costs-v1`: what each subject took to
 collect, under the same commit. `npx variance run --shard k/n` reads it back
-from the mainline to split the suite evenly, and a run with `workers` reads it
-to take the slowest files first. `npx variance ask costs` reads the same line to
+from the mainline to split the suite evenly, and a run reads it to give its
+slowest files to its [workers](../packages/cli#configuration) first. `npx variance ask costs` reads the same line to
 show you, or an agent, which files and subjects the suite spends its time on;
 see [the command-line questions](agent-cli.md#find-where-the-suites-time-goes).
 

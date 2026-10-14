@@ -1,10 +1,10 @@
 // compass: variance-authority.acquisition.collector-contract
 import { componentInstances, type SourceIndex, type SourceRef, type SubjectComposition } from '@variance-authority/core/attribute';
-import { canonicalize, type CanonicalValue } from '@variance-authority/core/format';
+import { canonicalize, stepClock, timeOn, type CanonicalValue, type StepClock } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Config } from '../config.js';
 import type { Collected, Collector, Plan, PlannedSubject } from './collector.js';
-import { closeLanes, openLanes, steal, workersOf, type Lane } from './lanes.js';
+import { closeLanes, openLanes, steal, type Lane } from './lanes.js';
 import type { NotObserved } from './run-report.js';
 import { declinedBy } from './shard.js';
 
@@ -35,7 +35,15 @@ export interface AcquireInput {
   /** Whether to stop taking subjects; `run` stops once its store has failed. */
   readonly stopped?: () => boolean;
   /** What the caller does with a subject that was read, in the lane that read it. */
-  readonly read?: (index: number, planned: PlannedSubject, collected: Read, lane: Lane, started: number | undefined) => Promise<void>;
+  readonly read?: (
+    index: number,
+    planned: PlannedSubject,
+    collected: Read,
+    lane: Lane,
+    started: number | undefined,
+    /** This subject's steps so far, on `elapsed`; absent without it. */
+    steps: StepClock | undefined,
+  ) => Promise<void>;
 }
 
 export interface Acquisition {
@@ -44,6 +52,8 @@ export interface Acquisition {
   /** Where the engines located the components they rendered, over every lane. */
   readonly declared?: SourceIndex;
   readonly warnings: readonly string[];
+  /** The worlds it collected in; absent when it owned nothing and opened none. */
+  readonly workers?: number;
 }
 
 export async function acquire(input: AcquireInput): Promise<Acquisition> {
@@ -53,7 +63,7 @@ export async function acquire(input: AcquireInput): Promise<Acquisition> {
   // A shard that owns nothing opens nothing.
   if (input.queue.length === 0) return { compositions, warnings: [] };
 
-  const { lanes, warnings } = await openLanes(input.collector, workersOf(input.config));
+  const { lanes, warnings } = await openLanes(input.collector, input.config, input.queue.length);
   await steal(lanes, input.queue, input.config, async (index, lane) => {
     const planned = plan.subjects[index]!;
     const id = planned.subject.id;
@@ -68,27 +78,34 @@ export async function acquire(input: AcquireInput): Promise<Acquisition> {
     });
     if (!collected.ok) return input.passed(index, { subject: id, kind: 'failed', because: collected.because });
 
+    // On the clock `started` was read from. The collector's steps first, under
+    // its own name: it timed them, and nothing here times them again.
+    const steps = elapsed === undefined ? undefined : stepClock(elapsed);
+    steps?.add(collected.steps, 'collect.');
+
     for (const [component, refs] of Object.entries(collected.source ?? {})) locate(declared, component, refs);
     // Per boundary rather than per component name, which is what makes it
     // comparable to another subject's: the instance list is the unit the suite's
     // own graph is folded from. Taken here, in the worker, because the snapshot
     // is not retained past this scope on the path that keeps no history.
-    if (collected.snapshot !== undefined) {
+    const snapshot = collected.snapshot;
+    if (snapshot !== undefined) {
       compositions[index] = {
         subject: id,
-        instances: componentInstances(collected.snapshot),
+        instances: await timeOn(steps, 'compose', () => componentInstances(snapshot)),
         // Carried so a divergence can name the input that moved. FIXME: it and
         // `readings` hold every tree to the end — 28.8 GB at 502 (spec 0052).
-        snapshot: collected.snapshot,
+        snapshot,
       };
     }
-    await input.read?.(index, planned, collected, lane, started);
+    await input.read?.(index, planned, collected, lane, started, steps);
   }).finally(async () => closeLanes(lanes));
 
   return {
     compositions,
     ...(declared.size === 0 ? {} : { declared: Object.fromEntries([...declared].sort(([l], [r]) => codeUnitOrder(l, r))) }),
     warnings,
+    workers: lanes.length,
   };
 }
 

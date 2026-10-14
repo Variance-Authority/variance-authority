@@ -1,4 +1,4 @@
-import { identityDigest } from '@variance-authority/core/format';
+import { identityDigest, totalsOf } from '@variance-authority/core/format';
 import type { LexiconField, LexiconReport, SubjectLexicon } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { isShardFilter, type CliRunReport, type NotObserved } from './run-report.js';
@@ -88,7 +88,7 @@ export function mergeReports(shards: readonly Shard[]): CliRunReport {
     retention: first.report.retention,
     ...(first.report.intent !== undefined ? { intent: first.report.intent } : {}),
     ...runOf(shards),
-    observations: observationsOf(shards),
+    ...withTotals(observationsOf(shards)),
     ...coverageOf(shards),
     ...warningsOf(shards, unmergeable(shards)),
     ...ignoresOf(shards),
@@ -234,6 +234,18 @@ function parse(shard: Shard): number {
  * keeping either one is a choice about which verdict is real. The operator wrote
  * the globs and is the only one who can say which shard should have had it.
  */
+/**
+ * The step totals are a fold over subjects, so they are taken again over the
+ * merged list rather than added up from each shard's. `workers` is not carried:
+ * every shard collected in its own, and no one number is the merged run's.
+ */
+function withTotals(
+  observations: CliRunReport['observations'],
+): Pick<CliRunReport, 'observations' | 'steps'> {
+  const steps = totalsOf(observations.map((observation) => observation.steps));
+  return { observations, ...(steps.length === 0 ? {} : { steps }) };
+}
+
 function observationsOf(shards: readonly Shard[]): CliRunReport['observations'] {
   const seen = new Map<string, string>();
   const merged: CliRunReport['observations'][number][] = [];

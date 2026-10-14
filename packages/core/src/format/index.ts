@@ -76,6 +76,9 @@ export type {
   ScreenshotOptions,
   SettleTarget,
 } from './stabilize.js';
+export type { Step, StepClock, StepTotal } from './steps.js';
+export { stepClock, timeOn, totalsOf } from './steps.js';
+
 export { DEFAULT_NOW, driveBeforeLoad, driveBeforeRead, featuresOf, forDriver } from './drive.js';
 export type { DriverState, DriverTarget, MotionPreference } from './intervention.js';
 

@@ -1,4 +1,4 @@
-import { profileById, type SemanticSnapshot } from '@variance-authority/core/format';
+import { profileById, totalsOf, type SemanticSnapshot } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { DEFAULT_ALONE_LIMIT } from '../config.js';
 import { OperatorError } from '../exit.js';
@@ -255,7 +255,7 @@ async function observeAll(
     // Once a store has failed the run is over, so later subjects stop rather
     // than each paying a render to reach the same conclusion.
     stopped: () => storeFailure !== undefined,
-    read: async (index, planned, collected, lane, started) => {
+    read: async (index, planned, collected, lane, started, steps) => {
       const id = planned.subject.id;
       // Retained here for the same reason the composition is taken here: the
       // snapshot does not outlive this scope on the path that keeps no history,
@@ -283,8 +283,9 @@ async function observeAll(
       }
 
       try {
-        const outcome = await observeOne(planned, collected, contextFor(context, lane), lane.collecting);
-        slots[index] = timed(outcome, started, deps.elapsed, planned.declaredIn);
+        const laned = contextFor(context, lane);
+        const outcome = await observeOne(planned, collected, steps === undefined ? laned : { ...laned, steps }, lane.collecting);
+        slots[index] = timed(outcome, started, deps.elapsed, planned.declaredIn, steps?.taken);
       } catch (error) {
         if (error instanceof RasterStoreError) {
           // Spec 0004: a store failure is not a verdict. Reporting an unreachable
@@ -314,7 +315,7 @@ async function observeAll(
       }
     },
   });
-  const { compositions, declared, warnings: laneWarnings } = acquired;
+  const { compositions, declared, warnings: laneWarnings, workers } = acquired;
 
   if (storeFailure !== undefined) throw storeFailure;
 
@@ -403,6 +404,7 @@ async function observeAll(
     ...(config.names !== undefined ? { names: config.names } : {}),
   });
 
+  const totals = totalsOf(observations.map((entry) => entry.steps));
   const regioned = observations.some((entry) => entry.changedPixels > 0);
   const unattributed = accumulated.layoutless !== undefined && regioned ? [accumulated.layoutless] : [];
 
@@ -420,6 +422,8 @@ async function observeAll(
       : {}),
     observations,
     notObserved,
+    ...(workers === undefined ? {} : { workers }),
+    ...(totals.length === 0 ? {} : { steps: totals }),
     ...(recorded.flakiness !== undefined ? { flakiness: recorded.flakiness } : {}),
     ...(recorded.churn !== undefined ? { churn: recorded.churn } : {}),
     ...(recorded.drift !== undefined ? { drift: recorded.drift } : {}),

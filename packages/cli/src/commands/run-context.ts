@@ -1,5 +1,6 @@
 import type { HistoryStore } from '@variance-authority/history';
 import type { SourceIndex } from '@variance-authority/core/attribute';
+import type { StepClock } from '@variance-authority/core/format';
 import type { Relations } from '@variance-authority/core/relate';
 import type { PngDecoder } from '@variance-authority/png';
 import type { RasterStore, Renderer } from '@variance-authority/raster';
@@ -273,6 +274,11 @@ export interface ObserveContext {
   readonly sweep?: boolean;
   /** Absent means `pngjs`. See `decoderFor`. */
   readonly decoder?: PngDecoder;
+  /**
+   * This subject's steps, on the run's injected clock. Absent when the run has
+   * no clock, and then nothing is timed: the same rule as `costMs`.
+   */
+  readonly steps?: StepClock;
 }
 
 export type Outcome =

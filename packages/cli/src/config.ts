@@ -293,12 +293,10 @@ export interface Config extends RestsOn, PageRegion {
   /**
    * How many subjects may be in the raster tier at once. Defaults to 1.
    *
-   * Only the expensive half goes wide. Collection stays strictly serial however
-   * high this is set, because the collector owns one standing world (ADR-0009)
-   * and mounting two subjects into one document would let each decide the
-   * other's verdict. What parallelises is rendering, decoding, comparing and
-   * writing — which is also where the time is, by roughly an order of magnitude
-   * over collecting.
+   * This widens rendering, decoding, comparing and writing, never collection:
+   * a standing world (ADR-0009) collects one subject at a time, and mounting two
+   * subjects into one document would let each decide the other's verdict. How
+   * many worlds collect side by side is `workers`.
    *
    * Each lane holds a browser page and the decoded pixels of two images, so
    * this is a memory decision as much as a speed one. The report does not
@@ -310,8 +308,15 @@ export interface Config extends RestsOn, PageRegion {
 
   /**
    * How many standing worlds collect at once, each from the collector's
-   * `openWorker` with its own serial lane. Defaults to 1. Files go to workers
-   * whole, longest recorded first, and a worker that finishes takes the next.
+   * `openWorker` with its own serial lane. Files go to workers whole, longest
+   * recorded first, and a worker that finishes takes the next.
+   *
+   * Absent, it is half the logical cores, at least one, as Playwright's default
+   * is: the other half is left to decoding, comparing and a local server under
+   * test. It never opens more worlds than there are files. A collector with no
+   * `openWorker` collects in one world, and warns only when this was declared.
+   * Set 1 for a server that cannot take concurrent pages. The report names the
+   * worlds it used; no verdict or observation order depends on the count.
    */
   readonly workers?: number;
 }
