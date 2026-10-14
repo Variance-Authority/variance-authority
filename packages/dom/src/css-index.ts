@@ -3,7 +3,7 @@ import { SHORTHAND_PROPERTIES } from '@variance-authority/core/rules';
 import { evaluateMedia, evaluateSupports, type ConditionEnvironment } from './media.js';
 import { splitSelectorList, specificityOf, type Specificity } from './specificity.js';
 import { items, propertyNames } from './dom-list.js';
-import { lastCompound, splitPseudoElement } from './selector-parts.js';
+import { lastCompound, outsideArguments, splitPseudoElement } from './selector-parts.js';
 import { STABILIZE_ATTRIBUTE } from './stabilize.js';
 import { faceOf, isFontFaceRule, type IndexedFace } from './font-faces.js';
 
@@ -297,9 +297,13 @@ export function indexStyleSheets(
  * to an id, class, or tag must land in the universal bucket, where it is tested
  * against everything. Putting it in a specific bucket would silently drop rules
  * — the failure mode that reads as `unchanged`.
+ *
+ * The key is read from the compound outside its arguments and attribute
+ * selectors. `:where(.docs-content h2)` names no class of the node it styles,
+ * and keying it by `.docs-content` tested it only against the ancestor.
  */
 function rightmostKey(selector: string): string {
-  const compound = lastCompound(selector);
+  const compound = outsideArguments(lastCompound(selector));
 
   const id = /#([\w-]+)/.exec(compound);
   if (id) return `#${id[1]}`;

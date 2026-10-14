@@ -1,0 +1,57 @@
+import { describe, expect, it } from 'vitest';
+import { JSDOM } from 'jsdom';
+import { indexStyleSheets, matchRulesFor } from './css.js';
+
+/**
+ * Which bucket a rule is filed under, asked through the only thing that reads
+ * the buckets: whether the rule reaches the element it matches.
+ *
+ * The index files each rule by its rightmost simple selector, and an element is
+ * tested only against the buckets its own id, classes and tag name key into. A
+ * key read from inside an argument or an attribute value names a different
+ * element than the rule styles, so the rule is never tested against the one it
+ * matches and the render paints the page without it. The images then disagree
+ * with the live page, and every region is placed against boxes the render does
+ * not have.
+ */
+
+const ENVIRONMENT = { width: 1280, height: 720, deviceScaleFactor: 1, colorScheme: 'light' as const };
+
+function matched(css: string, html: string, selector: string): readonly string[] {
+  const dom = new JSDOM(`<!doctype html><html><head><style>${css}</style></head><body>${html}</body></html>`);
+  const document = dom.window.document as unknown as Document;
+  const index = indexStyleSheets(document, ENVIRONMENT);
+  return matchRulesFor(document.querySelector(selector)!, index).matched.map((rule) => rule.selector);
+}
+
+describe('a rule reaches the element its rightmost compound names', () => {
+  it('files a :where() wrapping a descendant selector by what is outside the argument', () => {
+    const css = ':where(.docs-content h2) { margin-top: 3rem }';
+    expect(matched(css, '<main class="docs-content"><h2>Title</h2></main>', 'h2')).toEqual([
+      ':where(.docs-content h2)',
+    ]);
+  });
+
+  it('files an :is() argument the same way', () => {
+    const css = ':is(.docs-content :not(pre) > code) { font-size: 0.9em }';
+    expect(matched(css, '<main class="docs-content"><p><code>x</code></p></main>', 'code')).toEqual([
+      ':is(.docs-content :not(pre) > code)',
+    ]);
+  });
+
+  it('files a tag carrying a :not() by the tag, not by the class it excludes', () => {
+    const css = 'a:not(.plain) { text-decoration: underline }';
+    expect(matched(css, '<a href="/x">x</a>', 'a')).toEqual(['a:not(.plain)']);
+  });
+
+  it('reads no id or class out of an attribute value', () => {
+    const css = 'a[href="#top"] { color: red } a[href$=".pdf"] { color: blue }';
+    expect(matched(css, '<a href="#top">top</a>', 'a')).toEqual(['a[href="#top"]']);
+    expect(matched(css, '<a href="/x.pdf">pdf</a>', 'a')).toEqual(['a[href$=".pdf"]']);
+  });
+
+  it('still files an escaped class by the class', () => {
+    const css = '.md\\:w-\\[10px\\] { width: 10px }';
+    expect(matched(css, '<div class="md:w-[10px]"></div>', 'div')).toEqual(['.md\\:w-\\[10px\\]']);
+  });
+});

@@ -27,9 +27,41 @@ export function lastCompound(selector: string): string {
 }
 
 /**
+ * A compound with what its arguments and attribute selectors hold taken out:
+ * `a:not(.plain)` is `a:not()`, `:where(.docs-content h2)` is `:where()`, and
+ * `a[href="#top"]` is `a[]`.
+ *
+ * What is left is what the compound demands of the node by name. A class inside
+ * `:where()` belongs to an ancestor or to an alternative, and a `#` inside an
+ * attribute value is text, so neither names the node, and a key read from them
+ * files the rule where the node never looks.
+ */
+export function outsideArguments(compound: string): string {
+  let depth = 0;
+  let kept = '';
+
+  for (let index = 0; index < compound.length; index += 1) {
+    const char = compound[index]!;
+    if (char === '\\') {
+      if (depth === 0) kept += compound.slice(index, index + 2);
+      index += 1;
+      continue;
+    }
+    if (char === ')' || char === ']') depth -= 1;
+    if (depth === 0) kept += char;
+    if (char === '(' || char === '[') depth += 1;
+  }
+
+  return kept;
+}
+
+/**
  * The one walk: the index of the last combinator at depth zero, `-1` when there
  * is none, and the bracket depth the string ends at, which is not zero when it
  * stops inside a `[` or a `(`.
+ *
+ * An escaped character is a character of a name, never structure: `.w-\\[10px\\]`
+ * is one class.
  */
 function walk(selector: string): { readonly lastBreak: number; readonly depth: number } {
   let depth = 0;
@@ -37,7 +69,8 @@ function walk(selector: string): { readonly lastBreak: number; readonly depth: n
 
   for (let index = 0; index < selector.length; index += 1) {
     const char = selector[index]!;
-    if (char === '(' || char === '[') depth += 1;
+    if (char === '\\') index += 1;
+    else if (char === '(' || char === '[') depth += 1;
     else if (char === ')' || char === ']') depth -= 1;
     else if (depth === 0 && (char === ' ' || char === '>' || char === '+' || char === '~')) {
       lastBreak = index;
