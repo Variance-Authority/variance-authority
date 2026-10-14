@@ -1,21 +1,27 @@
 # Spec 0101 — the deployer decides who the tribunal recognizes
 
 **Missing:** a way for a deployment to say who it recognizes, and a way to
-recognize a machine without a shared secret. Today every deployment recognizes
-callers the same way: whoever holds `INGEST_TOKEN`, `REVIEW_TOKEN` or
-`SHARE_TOKEN`, and on the console whoever passes Cloudflare Access. So every
-consumer mints a token, a person carries it into a CI secret store, and a pull
+recognize a machine without a shared secret. Today each deployment hard-codes
+whom it recognizes: whoever holds `INGEST_TOKEN`, `REVIEW_TOKEN` or
+`SHARE_TOKEN`; on the console, whoever passes Cloudflare Access; and on a
+loopback Node process, whoever sends no token at all. So every consumer mints a
+token, a person carries it into a CI secret store, and a pull
 request that needs the tribunal waits until that person has done it.
-**Built on:** the capability split and its one refusal
-([ADR-0022](../context/adr/0022-deciding-is-not-writing.md)); the `authorize`
-hook `createTribunalRoutes` takes with no default; the Access verifier in
+**Built on:** the capability split
+([ADR-0022](../context/adr/0022-deciding-is-not-writing.md)); the packaged
+Worker's `grant` in `packages/tribunal/src/worker-auth.ts`; the `authorize` hook
+`createTribunalRoutes` takes with no default; the Access verifier in
 `tribunal-cloudflare/app/access.ts`; the Node process's loopback rule in
-`packages/tribunal/src/node/bin.ts`; and the client's `{ "env": … }` credential
-form in `packages/cli/src/config-values.ts`.
-**Relates to:** [0014](0014-hosted-who-the-caller-is-and-what-the-bill-counts.md),
-whose option 2 — machines carry tokens, people carry sessions — this spec takes
-as given for one deployment. Whether the credential also establishes the
-*project* stays 0014's question.
+`packages/tribunal/src/node/bin.ts`; and the client's deferred credential,
+`declaredSecret` in `packages/cli/src/config-values.ts`.
+**Amends:** ADR-0022's review secret, which this spec stops accepting from
+outside, and
+[ADR-0087](../context/adr/0087-the-share-token-reads-never-decides.md)'s
+consequence that an agent on a loopback machine decides by sending no token.
+**Takes over from:** [0014](0014-hosted-who-the-caller-is-and-what-the-bill-counts.md)
+its items 1 and 3 — option 2, machines carry tokens and people carry sessions,
+and an approval that requires a named subject — for one deployment. Whether the
+credential also establishes the *project* stays 0014's question.
 
 ## The rule
 
@@ -49,9 +55,9 @@ Each value names a mechanism, and each mechanism names what it needs:
 | Mechanism | Needs | Kind |
 |---|---|---|
 | `token` | `INGEST_TOKEN` | secret |
-| `github-actions` | `GITHUB_ACTIONS_REPOSITORIES`, `GITHUB_ACTIONS_AUDIENCE` | committed values |
+| `github-actions` | `GITHUB_ACTIONS_REPOSITORIES`, `GITHUB_ACTIONS_AUDIENCE`; `GITHUB_ACTIONS_ISSUER` only to replace the public issuer | committed values |
 | `access` | `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` | committed values |
-| `loopback` | a loopback bind, `VARIANCE_TRIBUNAL_REVIEWER` | committed values |
+| `loopback` | a loopback bind; the reviewer is `VARIANCE_TRIBUNAL_REVIEWER`, or the OS user as today | committed values |
 
 On Node every name carries the `VARIANCE_TRIBUNAL_` prefix the process already
 uses: `VARIANCE_TRIBUNAL_INGEST_CREDENTIALS`, and so on.
@@ -77,24 +83,39 @@ stays a token. Making it declarable the same way is not part of this spec.
   names the variable. On a Worker that is a 500 carrying the sentence, the shape
   construction failures already have; on Node it is the process exiting with the
   sentence on stderr.
-- **Nothing declared is refusal.** A question with no declared credential is
-  answered `null` for every request. An empty `REVIEW_CREDENTIALS` means no
+- **Nothing declared is refusal.** The deployment starts, and a question with
+  no declared credential is answered `null` for every request. An empty `REVIEW_CREDENTIALS` means no
   review surface, which is today's meaning of an empty `ACCESS_TEAM_DOMAIN`, now
   said on purpose.
 - **A valid credential of an undeclared kind is refused.** A correctly signed
   GitHub Actions token reaching a deployment that declared only `token` gets the
   same refusal as a wrong token.
-- **Configuration present for an undeclared mechanism is an error**, not a
-  dormant setting. `GITHUB_ACTIONS_REPOSITORIES` with `github-actions` absent
-  from `INGEST_CREDENTIALS` is a deployer who believes something is trusted that
-  is not.
-- **The caller still gets one sentence.** Missing, wrong, undeclared and expired
-  all answer with ADR-0022's single refusal. The reason — which mechanism looked,
-  and which claim failed with the value it saw — goes to the deployment's log.
-  The caller learns nothing it did not send.
+- **A committed value for an undeclared mechanism is an error**, not a dormant
+  setting. `GITHUB_ACTIONS_REPOSITORIES` with `github-actions` absent from
+  `INGEST_CREDENTIALS` is a deployer who believes something is trusted that is
+  not. A secret for an undeclared mechanism is logged and never read instead: a
+  secret outlives the deploy that stops declaring it, and removing it and
+  redeploying cannot happen in one step, so refusing would take the deployment
+  down between the two.
+- **The caller's refusal does not change.** Missing, wrong, undeclared and
+  expired all get the refusal each deployment gives today: the Worker's
+  `UNAUTHENTICATED` sentence, or the mount's 401. The reason — which mechanism
+  looked, and which claim failed with the value it saw — goes to the
+  deployment's log. The caller learns nothing it did not send.
 
-Today's deployments are `INGEST_CREDENTIALS=token` and
-`REVIEW_CREDENTIALS=access`, and declaring exactly that changes nothing they do.
+Each deployment ships declaring what it does today, less the review token:
+
+| Deployment | Declares | What stops working |
+|---|---|---|
+| The console | `INGEST_CREDENTIALS=token`, `REVIEW_CREDENTIALS=access` | A script approving with `REVIEW_TOKEN` |
+| The packaged Worker | `INGEST_CREDENTIALS=token`, nothing for review | Reviewing at all, until the deployer adds `access` |
+| Node | `INGEST_CREDENTIALS=token`, and `REVIEW_CREDENTIALS=loopback` on a loopback bind | Approving with `REVIEW_TOKEN`, on any bind |
+
+The packaged Worker and a networked Node process lose their only review path.
+That is the point — it was a path with no name on it — and the replacement is
+`access` in front of them. Per-person named tokens would be the other
+replacement, and are not proposed: a token names whoever holds it, which is not a
+person.
 
 ### One credential, one verifier
 
@@ -104,24 +125,54 @@ deployment routes by shape and never tries every verifier in turn:
 - A value that parses as a JWT goes to the one declared mechanism whose issuer
   matches its unverified `iss`. No match is refusal.
 - Anything else is a token, compared in constant time against `INGEST_TOKEN`
-  only if `token` is declared.
+  only if `token` is declared. Today only the packaged Worker compares in
+  constant time; the console and Node use `===`.
 
 Routing on an unverified `iss` is safe because it only picks which key set the
 signature is checked against. It never grants anything by itself.
 
+### What the policy hands the handler
+
+Today the console and Node mount answer `authorize`, then replace the request's
+`Authorization` header with `INGEST_TOKEN` or `REVIEW_TOKEN`, and the handler
+checks that token again. That seam carries a capability and nothing else, so it
+cannot carry a name, and it needs both tokens in every deployment's secret store
+whatever the deployment declared.
+
+The policy instead answers a principal — the capability, and for review the
+verified name — and `createTribunal` takes the policy where it takes the two
+tokens today. The mount passes the principal on rather than substituting a
+header, and the packaged Worker runs the same policy where it runs `grant`. So
+`INGEST_TOKEN` is read only when `token` is declared, `REVIEW_TOKEN` is no
+longer configuration anywhere, and the name a decision carries comes from the
+principal.
+
+### One issuer verifier
+
+`access` and `github-actions` are the same check: an issuer, the keys it
+publishes, an audience, a lifetime, and one claim. The package carries one
+verifier for it, and each mechanism is a declared instance:
+
+| Mechanism | Issuer | Audience | Claim |
+|---|---|---|---|
+| `access` | the team domain | `ACCESS_AUD` | `email`, read as the reviewer's name; Access has already decided who passes |
+| `github-actions` | `GITHUB_ACTIONS_ISSUER`, or the public issuer | `GITHUB_ACTIONS_AUDIENCE` | `repository`, checked against `GITHUB_ACTIONS_REPOSITORIES` |
+
 ## Ingest from GitHub Actions: a trusted issuer and a claim allowlist
 
 `github-actions` recognizes a workflow run by the OIDC token GitHub mints for it.
-No secret exists anywhere: the workflow asks for a token, the tribunal checks
+No secret exists for it: the workflow asks for a token, the tribunal checks
 it, and there is nothing to provision, carry or rotate.
 
 The checks:
 
-1. **Issuer.** `iss` is `https://token.actions.githubusercontent.com`.
+1. **Issuer.** `iss` is `https://token.actions.githubusercontent.com`, or
+   `GITHUB_ACTIONS_ISSUER` when the deployment declares one.
 2. **Signature.** RS256, against the key named by `kid` in the issuer's published
    key set, found through its OpenID discovery document. Keys are cached per
    isolate or process, as `published` already does for Access. An unknown `kid`
-   refetches at most once per interval, and a failed fetch is not cached. The
+   refetches at most once per interval, which `published` does not do today;
+   being one verifier, `access` gains it too. A failed fetch is not cached. The
    fetch is an outbound call the deployer declared by naming the mechanism, as
    the Access certs fetch already is; the standing constraint in the
    [index](README.md#standing-constraints) says so.
@@ -135,19 +186,30 @@ The checks:
    `Owner/name`, comma-separated, compared case-insensitively because GitHub
    treats those names that way.
 
-What the token grants is `ingest` and nothing else. A build written this way is
-a proposal a person reviews, so the repository is the grain that matters: a
-workflow in an allowlisted repository that writes nonsense produces a build
-nobody approves. Two finer bindings are named and left out:
+What the token grants is `ingest`, and `ingest` is more than a proposal.
+ADR-0022 gives it builds, the render cache and history, and also two writes no
+person reviews: `/baseline/put` writes a baseline directly, for a run whose
+baseline store is the tribunal, and the approvals route appends approval rows to
+history. So the grain of the allowlist decides who may write a baseline, not
+only who may propose one.
+
+The grain proposed is the repository, because it is exactly the grain of the
+secret it replaces. A repository secret is readable by every workflow, on every
+branch, in that repository — `pull_request_target` and `workflow_run` runs
+included, which execute in the base repository whatever code they check out. A
+`github-actions` allowlist of repositories admits the same runs, and no other.
+Two finer bindings are named and left out:
 
 - **Repository id.** A repository that is deleted and its name re-registered
   carries the same `repository` and a new `repository_id`. Pinning by id closes
-  that, at the price of an allowlist nobody can read. PyPI pins the id; this
-  spec leaves it to the owner (below).
+  that, at the price of an allowlist nobody can read in a diff. PyPI records the
+  owner's account id against the same attack.
 - **Workflow, ref and environment.** PyPI and npm bind a workflow file and
-  optionally an environment. Here that would stop a second workflow in the same
-  repository from pushing builds, which matters for publishing a package and
-  less for proposing one.
+  optionally an environment. Here the environment is the counterpart of an
+  environment secret, and a ref the counterpart of a protected branch: either
+  would let a deployment say *only `main` writes a baseline*, which no token can
+  say today. Whether ingest should split so that a baseline write needs the
+  finer binding and a build does not is the owner's question (below).
 
 **Fork pull requests get no token.** GitHub withholds `id-token: write` from
 `pull_request` runs triggered from forks, exactly as it withholds secrets. A
@@ -158,16 +220,23 @@ fork's run cannot push under `github-actions` any more than it can under
 issuer URL, an audience, a claim and an allowlist. GitLab CI
 (`https://gitlab.com`, claim `project_path`) and Bitbucket Pipelines fit the same
 shape and would arrive as a new value of `INGEST_CREDENTIALS` with its own
-prefixed variables. Neither is built until somebody needs it.
+prefixed variables. Neither is built until somebody needs it. Inside GitHub, an enterprise that
+switches to its own issuer
+(`https://token.actions.githubusercontent.com/<enterprise>`), or GitHub
+Enterprise Server on its own host, declares that issuer as
+`GITHUB_ACTIONS_ISSUER`; the claims are the same.
 
 ### The client asks for the token
 
-`variance push`, the share publish and every other ingest call today read a
-string from the config, resolved once when the config is parsed. A GitHub
-Actions token is fetched over HTTP from the runner — `ACTIONS_ID_TOKEN_REQUEST_URL`
-with `ACTIONS_ID_TOKEN_REQUEST_TOKEN` and `audience` — and expires within
-minutes, so it cannot be a string fixed at parse time. The credential becomes a
-third form beside `"…"` and `{ "env": … }`:
+The seam already exists for the two calls that matter. `review.token`, which
+`variance push` sends, and the share token are read through `declaredSecret`,
+which returns `() => string` and reads the environment when the request is made,
+not when the config is parsed. `history.token` and `baselines.token` are read
+eagerly. A GitHub Actions token is fetched over HTTP from the runner —
+`ACTIONS_ID_TOKEN_REQUEST_URL` with `ACTIONS_ID_TOKEN_REQUEST_TOKEN` and
+`audience` — and expires within minutes, so the seam has to become
+`() => Promise<string>`, and the two eager reads have to move onto it. The
+credential becomes a third form beside `"…"` and `{ "env": … }`:
 
 ```json
 "token": { "github-actions": { "audience": "https://tribunal.example/api" } }
@@ -190,10 +259,12 @@ pull requests" with no GitHub App, no OAuth client of ours and no password
 stored here.
 
 **A decision carries the name the credential proved.** Today the page passes the
-Access email to the client, and the client sends it back as `by` in the approval
+Access email to the client, and the client sends it back as `by` in the decision
 body, where the API accepts any non-empty string from any caller holding
-`review`. A named reviewer means the mount writes `by` from the verified identity
-and refuses a body that names someone else.
+`review`. Concerns carry a client-supplied `by` the same way. A named reviewer
+means `by` is written from the principal's name on both, and a body that names
+someone else is refused. The approval rows ingest appends carry a
+caller-supplied `approver` too; that is question 4.
 
 ### Machines never review
 
@@ -205,20 +276,26 @@ work this way, and the split holds once machines are recognized without secrets:
   Access service token, which carries no email, still gives no name.
 - **Capability** decides what a caller may do. It is where `github-actions` is
   verified, and the only capability that mechanism can produce is `ingest`.
+  Ingest's direct baseline write and its approval rows (above) are ADR-0022's
+  line, older than this spec; whether a credential no person holds keeps them
+  is the owner's question.
 
 Two things today let a caller with no proven name decide, and both go:
 
-- **`REVIEW_TOKEN` as an outside bearer.** The console accepts it as "a machine
-  acting for the operator — a script approving on `main`", and the packaged
-  Worker documents it as held by people. Either is a decision with no reviewer
-  behind it. `review` is not a value of `INGEST_CREDENTIALS` or
-  `REVIEW_CREDENTIALS`, and the review token survives only as what the mount
-  substitutes after a person was recognized.
+- **`REVIEW_TOKEN` as an outside bearer.** Every deployment grants it `review`.
+  The console documents it as "a machine acting for the operator — a script
+  approving on `main`"; the packaged Worker documents it as held by people; Node
+  accepts it on any bind. Each is a decision with no reviewer behind it, and the
+  scripted approval is removed on purpose. `review` is not a value of
+  `INGEST_CREDENTIALS` or `REVIEW_CREDENTIALS`, and with the policy handing the
+  handler a principal, nothing substitutes the token either: it stops existing.
 - **Loopback on Node** grants `review` to any request with no token, and
   ADR-0087 records that "an agent on that machine decides by sending none".
   Declared as `loopback`, it names its reviewer from `VARIANCE_TRIBUNAL_REVIEWER`
-  and stays the operator's word for the person at the machine. Whether an agent
-  on that machine may still approve is the owner's question (below). A local
+  and stays the operator's word for the person at the machine. It is the one
+  review mechanism that is not Access, kept on purpose: a tribunal on your own
+  machine has nobody to sign in. Whether an agent on that machine may still
+  approve is the owner's question (below). A local
   tribunal that CI starts declares no review credential, so CI cannot approve
   through it.
 
@@ -239,8 +316,10 @@ there is nothing to provision and the step disappears.
 
 - **npm trusted publishing** and **PyPI trusted publishers** verify the GitHub
   Actions OIDC token against a declared repository and workflow, and exchange it
-  for a short-lived upload credential. This repository's own npm release already
-  works this way ([ADR-0060](../context/adr/0060-a-release-is-one-version-and-a-pressed-button.md)).
+  for a short-lived upload credential. This repository's own npm release is
+  moving to it ([ADR-0060](../context/adr/0060-a-release-is-one-version-and-a-pressed-button.md));
+  its publish job still authenticates with `NPM_TOKEN` and uses its OIDC token
+  for provenance only.
   The tribunal skips the exchange: it holds no sessions, so it verifies the OIDC
   token on every request, and the token's minutes-long lifetime is the session.
 - **Cloud workload identity federation** (AWS, Google Cloud, Azure) is the
@@ -257,49 +336,62 @@ there is nothing to provision and the step disappears.
 
 | Area | Today | Missing |
 |---|---|---|
-| Policy | Each deployment hard-codes its own `authorize`: the console in `route.ts`, the packaged Worker in `worker-entry.ts`, Node in `authorizeFor`. | One policy built from `INGEST_CREDENTIALS` and `REVIEW_CREDENTIALS`, in the package, used by all three. |
-| Access | Verified only in `tribunal-cloudflare/app/access.ts`. An unset `ACCESS_*` silently means no surface. | The verifier in the package, so the packaged Worker and Node can declare it. A declared `access` without its values fails loudly. |
-| GitHub Actions | Nothing. | The verifier: discovery, key cache, the five checks, the log line on refusal. |
-| Client | A string, or `{ "env": … }`, resolved at parse time. | `{ "github-actions": { "audience": … } }`, fetched per request and refreshed near expiry. |
-| Decision name | `by` is whatever the approval body says. | `by` written from the verified identity. |
-| Review token | Accepted from outside as a reviewer on the console and the packaged Worker. | Only the mount's substitution. |
-| Loopback | Implicit on any loopback bind. | Declared as `loopback`, with its reviewer. |
+| Policy | Each deployment hard-codes its own: the console's `authorize` in `route.ts`, Node's `authorizeFor`, and the packaged Worker's `grant`, which runs inside `createTribunal` with no mount. | One policy built from `INGEST_CREDENTIALS` and `REVIEW_CREDENTIALS`, in the package, used by all three. |
+| Handler seam | The mount substitutes `INGEST_TOKEN` or `REVIEW_TOKEN`, and `createTribunal` requires both. | The handler takes the policy's principal: a capability and a name. |
+| Access | Verified only in `tribunal-cloudflare/app/access.ts`, with no refetch on an unknown `kid`. An unset `ACCESS_*` silently means no surface. | One issuer verifier in the package, so the packaged Worker and Node can declare it. A declared `access` without its values fails loudly. |
+| GitHub Actions | Nothing. | An instance of that verifier: discovery, the five checks, the log line on refusal. |
+| Client | A string, or `{ "env": … }`, read when the request is made for `review` and `share` and at parse time for `history` and `baselines`; synchronous either way. | `{ "github-actions": { "audience": … } }`, fetched asynchronously and refreshed near expiry. |
+| Decision name | `by` is whatever the decision or concern body says. | `by` written from the verified identity. |
+| Review token | Accepted from outside as a reviewer on every deployment. | Gone. |
+| Loopback | Implicit on any loopback bind, with a reviewer named by `VARIANCE_TRIBUNAL_REVIEWER` or the OS user. | Declared as `loopback`. |
 | Provisioning | `wrangler secret put`, typed by a person. | A generated ingest token handed to one destination. |
 
 ## What would discharge it
 
-1. **Move the Access verifier into `@variance-authority/tribunal`** and have the
-   console import it. No behaviour changes; it is the refactor the rest stands
-   on.
+1. **Move the Access verifier into `@variance-authority/tribunal`** as the one
+   issuer verifier, with the unknown-`kid` refetch, and have the console import
+   it. It is the refactor the rest stands on.
 2. **Build the policy from the declaration.** One function reads the two
    variables and the mechanisms' values, refuses missing or undeclared
-   configuration by name, and returns the `authorize` hook. The console, the
-   packaged Worker and Node all call it, and each ships declaring today's
-   behaviour.
-3. **Add `github-actions`** to the policy, with a test against a locally signed
+   configuration by name, and answers a principal. `createTribunal` takes it in
+   place of the two tokens; the console and Node pass it as their `authorize`
+   and hand its principal to the handler; the packaged Worker uses it in place
+   of `grant`. Each ships declaring what the table above says. `authorize` stays
+   a hook: the declared policy is what the shipped deployments pass to it, not a
+   default the package applies.
+3. **Add `github-actions`** as a second instance of the verifier, with a test against a locally signed
    token and a recorded discovery document: each of the five checks refused on
    its own, routing by `iss`, and an undeclared kind refused.
 4. **Add the client form**, with a test that a missing
    `ACTIONS_ID_TOKEN_REQUEST_URL` fails before any request and names the
    permission.
-5. **Write `by` from the verified identity**, and refuse a body that disagrees.
-6. **Retire the review token as an outside credential**, with the owner's answer
-   on loopback agents.
+5. **Write `by` from the principal** on decisions and concerns, and refuse a
+   body that disagrees.
+6. **Retire the review token** on all three deployments, scripted approval
+   included, with the owner's answer on loopback agents.
 7. **Provisioning**: generate the ingest token and hand it to one destination.
-8. **Update the capability chart.** Its boundary says it decides "which of a
-   deployment's secrets a caller presented". With `github-actions` it decides
-   which declared credential a caller presented, and one of them is not a secret.
-   The identity chart's boundary does not change.
+8. **Update the charts.** The capability chart's responsibility says it decides
+   "which of a deployment's secrets a caller presented", and its boundary that it
+   "ships no default policy for a hosted mount"; the review context's README and
+   `VIEWPORTS.md` repeat the two-secrets wording. With `github-actions` it
+   decides which declared credential a caller presented, and one of them is not
+   a secret. Its "Depends on: Nothing" changes too: an issuer verifier fetches
+   keys. The deployment-adapters chart's mount stops replacing the incoming
+   authorization with a token and passes the principal. The identity chart's
+   boundary does not change.
 9. **Write the ADRs** — trust is deployment configuration; machines never review —
-   and delete this file.
+   mark ADR-0022 and ADR-0087 as amended by them, update
+   [`checkpoint.md`](../context/checkpoint.md), and delete this file.
 
-### Follow-ups in this repository
+### Follow-ups
 
-- `example-tribunal` declares `INGEST_CREDENTIALS=github-actions` and
-  `REVIEW_CREDENTIALS=access`, and its repository then holds no tribunal secret.
-- The CI job pull request 340 proposes, `tribunal-service`, runs this commit's
-  tribunal locally under `token` with a token the job generates, declares no
-  review credential, and needs no Cloudflare secret.
+- The `example-tribunal` repository declares
+  `INGEST_CREDENTIALS=github-actions` and `REVIEW_CREDENTIALS=access`, and then
+  holds no tribunal secret.
+- This repository's `tribunal-service` CI job, proposed in pull request 340,
+  would run this commit's tribunal locally under `token` with a token the job
+  generates, declare no review credential, and need no Cloudflare secret. As
+  proposed it deploys to Cloudflare and mints both tokens.
 
 ## What it does not do
 
@@ -321,8 +413,16 @@ there is nothing to provision and the step disappears.
    deployment, and would let a token minted for one deployment be replayed at
    another that trusts the same repository.
 3. **Finer claims?** Workflow file, ref or environment, as npm and PyPI allow.
-4. **What does a deployment that declares nothing do after upgrading?** Refusing
+4. **How do ingest's baseline write and approval rows follow from machines
+   never reviewing?** `/baseline/put` and approval rows ride `ingest` today, and
+   an approval row names whatever `approver` the caller sent, so a
+   repository-grain credential can move a baseline and record a name nobody
+   proved. A ref or environment binding, a reviewer, or recording the approver
+   from a verified source are the candidates.
+5. **What does a deployment that declares nothing do after upgrading?** Refusing
    it is the rule; reading it as `token` plus `access` is one release of grace
    for every deployment that exists.
-5. **May an agent on a loopback tribunal still approve?** ADR-0087 says it may,
-   and this spec says machines never review.
+6. **How does an agent on a loopback tribunal stop approving?** ADR-0087 says
+   it decides by sending no token, and machines never review. An agent driving
+   the operator's session sends what the operator sends, so loopback alone
+   cannot tell them apart.
