@@ -243,6 +243,14 @@ jobs:
           ref: ${{ env.VARIANCE_REVIEW == 'git' && github.head_ref || '' }}
           token: ${{ env.VARIANCE_REVIEW == 'git' && secrets.VARIANCE_PUSH_TOKEN || github.token }}
 
+      # The Playwright image runs as a user that does not own the checkout, and
+      # git refuses a directory it does not trust. Everything after this asks
+      # git something: the build names the native scanner's tree by it, and a
+      # tree it cannot name restores another commit's scanner.
+      - name: trust the workspace
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       # Before anything is built, because it answers from the event and the API
       # alone, and because the label it removes should come off while the person
       # who added it is still looking.
@@ -492,6 +500,14 @@ jobs:
           persist-credentials: false
           fetch-depth: ${{ matrix.project == 'site' && 2 || 1 }}
 
+      # The Playwright image runs as a user that does not own the checkout, and
+      # git refuses a directory it does not trust. Everything after this asks
+      # git something: the build names the native scanner's tree by it, and a
+      # tree it cannot name restores another commit's scanner.
+      - name: trust the workspace
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: decide whether this run accepts
         id: accept
         shell: bash
@@ -513,11 +529,9 @@ jobs:
       # is built from or what photographs it; a push, a dispatch, the accept
       # label and a change it cannot read always run. What the site's files
       # reach is read from the source index, which CI refuses to build on
-      # demand, so `variance index` publishes it first. The checkout belongs to
-      # the runner, not to the container's user, and git refuses to read a
-      # directory it does not trust, so the workspace is trusted first, as in
-      # `check.yml`. Nothing after this runs for the site when it says `false`.
-      # Any failure here leaves a warning, and the site runs.
+      # demand, so `variance index` publishes it first. Nothing after this runs
+      # for the site when it says `false`. Any failure here leaves a warning,
+      # and the site runs.
       - name: decide whether this change reaches the site
         id: reach
         if: matrix.project == 'site'
@@ -529,7 +543,6 @@ jobs:
           VARIANCE_RUNNER: packages/cli/dist/bin.js
         run: |
           trap 'echo "::warning title=site reach not decided::this step failed, so the site runs."' ERR
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           node packages/cli/dist/bin.js index
           node tools/site-reach.mjs
 

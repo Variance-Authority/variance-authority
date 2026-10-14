@@ -127,6 +127,11 @@ jobs:
           fetch-depth: 0
           filter: tree:0
 
+      # For the reason written at the same step in `variance.yml`.
+      - name: trust the workspace
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - shell: bash
         run: corepack enable && yarn install --immutable
 
