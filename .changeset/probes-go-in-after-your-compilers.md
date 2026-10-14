@@ -27,6 +27,13 @@ runs ahead of the probes. The plugin's `transform` is now an object hook,
 Under Rstest the second loader's rule goes first among the rules, after
 `tools.rspack` has run, so it runs after every post loader of yours.
 
+A `vite build` that writes no source map, Vite's default, still places the
+probes where your code went. Vite reprints a module that reads
+`import.meta.env`, `process.env` or a `define`, and hands its map on only where
+the build writes maps, so `testSelectionProbes` turns maps on for the
+transforms, as `hidden`, and takes every `.map` file that wrote back out of the
+bundle: the build writes what it wrote without the probes.
+
 `instrument()` answers two more fields: `module`, whether the text imports or
 exports, and `headerAt`, where the header starts past the directive prologue.
 

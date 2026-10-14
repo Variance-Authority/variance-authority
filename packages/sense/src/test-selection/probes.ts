@@ -126,8 +126,22 @@ export interface InstrumentingPlugin {
     readonly command: string;
     readonly plugins: readonly { readonly name: string; transform?: unknown; load?: unknown }[];
   }) => void;
+  /**
+   * Turn a build's source maps on where it writes none, after every other
+   * plugin's `config`: Vite's own `vite:define` hands its map on only where
+   * the build writes maps.
+   */
+  readonly config: {
+    readonly order: 'post';
+    readonly handler: (
+      config: { readonly build?: { readonly sourcemap?: unknown } },
+      env: { readonly command: string },
+    ) => { build: { sourcemap: 'hidden' } } | undefined;
+  };
   /** Forget what an earlier build in watch mode noted. */
   readonly buildStart: () => void;
+  /** Take back the `.map` files a build wrote only because {@link config} turned its maps on. */
+  readonly generateBundle: (options: unknown, bundle: Record<string, unknown>) => void;
   readonly resolveId: (id: string) => string | null;
   readonly load: (id: string) => string | { code: string; map: object | null } | null;
   /**
@@ -154,16 +168,16 @@ const COLLECTOR = `\n;import ${JSON.stringify(VIRTUAL_COLLECTOR)};`;
  * Instrument a build.
  *
  * ```js
- * // .storybook/main.js
+ * // vite.config.ts
  * import { testSelectionProbes } from '@variance-authority/sense/journal';
  *
  * export default {
- *   viteFinal: (config) => ({
- *     ...config,
- *     plugins: [...config.plugins, testSelectionProbes()],
- *   }),
+ *   plugins: [testSelectionProbes()],
  * };
  * ```
+ *
+ * A Storybook takes it through `@variance-authority/storybook-collector` in
+ * its `addons`, which adds it under Vite.
  *
  * `enforce: 'post'`, so no transform of the project's reads a probe: a
  * compiler that reads syntax — a CSS-in-JS extractor, a memoising compiler —
@@ -171,7 +185,9 @@ const COLLECTOR = `\n;import ${JSON.stringify(VIRTUAL_COLLECTOR)};`;
  * ship. The regions are still the file's as it is on disk,
  * the text the join cuts again and a diff is written against; the composed
  * map says where each one's code went, and a region it carries nowhere fires
- * when the module loads. A plugin that rewrote the file and returned no map
+ * when the module loads. A `vite build` that writes no map has its maps turned
+ * on for the transforms, `hidden`, and every `.map` file taken back out of the
+ * bundle, so what it writes is what it wrote before. A plugin that rewrote the file and returned no map
  * stops the build, and the dev server, by name. `placement:
  * 'before-transforms'` runs it at `enforce: 'pre'` instead, on the file as
  * read, and none of that applies.
@@ -195,9 +211,16 @@ export function testSelectionProbes(
   const held = new Map<string, string>();
   /** What the plugins this build watches noted by module, its own and no other build's. */
   let notes: UnmappedNotes | undefined;
+  /** Whether this build writes maps only because the probes turned them on. */
+  let mapsOurs = false;
   return {
     name,
     enforce: before ? 'pre' : 'post',
+    // `hidden`, so no bundle names a map, and every `.map` it writes is taken back below.
+    config: { order: 'post', handler: (config, env) => {
+      mapsOurs = !before && env.command === 'build' && !config.build?.sourcemap;
+      return mapsOurs ? { build: { sourcemap: 'hidden' } } : undefined;
+    } },
     // A build hands each plugin its own context, so a step is noted by module there.
     configResolved: (config) => {
       serving = config.command === 'serve';
@@ -210,6 +233,10 @@ export function testSelectionProbes(
     buildStart: () => {
       notes?.clear();
       held.clear();
+    },
+    generateBundle: (_options, bundle) => {
+      if (!mapsOurs) return;
+      for (const file of Object.keys(bundle)) if (file.endsWith('.map')) delete bundle[file];
     },
     resolveId: (id) => (id === VIRTUAL_COLLECTOR || id === RESOLVED_COLLECTOR ? RESOLVED_COLLECTOR : null),
     load: (id) => {
