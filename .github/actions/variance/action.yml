@@ -489,6 +489,7 @@ runs:
         VARIANCE_COMMAND: ${{ inputs.command }}
         VARIANCE_CONFIG: ${{ inputs.config }}
         VARIANCE_BASELINES: ${{ steps.carry.outputs.baselines-root }}
+        VARIANCE_PATHSPECS: ${{ steps.carry.outputs.baselines-pathspecs }}
         VARIANCE_MESSAGE: ${{ inputs.commit-message }}
         VARIANCE_BRANCH: ${{ github.head_ref }}
       run: |
@@ -527,7 +528,32 @@ runs:
         $VARIANCE_COMMAND accept --config "$VARIANCE_CONFIG" --all \
           --message-file "$message" --message "$VARIANCE_MESSAGE"
 
-        git add -- "$VARIANCE_BASELINES"
+        # The paths `baselines.path` renders, never the root: collocated, the
+        # root is the repository. Listed first, because `git add` refuses a
+        # pathspec that matches nothing and the old layout's usually does not.
+        # `--cached` lists a pair `accept` retired, so it is staged as a
+        # deletion beside the file it moved to, and git shows a rename.
+        # A CLI older than this action prints no pathspecs, and an empty one
+        # matches the whole checkout, so that CLI's root is staged as before.
+        if [ -z "$VARIANCE_PATHSPECS" ]; then
+          git add -- "$VARIANCE_BASELINES"
+        else
+          # A read loop, not `mapfile`: a self-hosted macOS runner's bash is 3.2.
+          pathspecs=()
+          while IFS= read -r spec; do
+            if [ -n "$spec" ]; then pathspecs+=("$spec"); fi
+          done <<< "$VARIANCE_PATHSPECS"
+          listed="$(mktemp)"
+          if [ "${#pathspecs[@]}" -gt 0 ]; then
+            git ls-files -z --cached --others --exclude-standard -- "${pathspecs[@]}" > "$listed"
+          fi
+          # Only a list with something in it: `git add` given no pathspec at
+          # all stages the whole tree. Literal, because a listed file name is
+          # a name, and `Primary[1]` read as a pattern is another file.
+          if [ -s "$listed" ]; then
+            git --literal-pathspecs add -A --pathspec-from-file="$listed" --pathspec-file-nul
+          fi
+        fi
 
         if git diff --cached --quiet; then
           echo "no baseline changed; nothing to commit"
@@ -536,10 +562,11 @@ runs:
 
         # One commit, containing image artifacts and the sidecars without which an
         # image is not a baseline — the sidecar carries the width, the scale, and
-        # the document digest that `settle` compares against on the next run. A
-        # staged path that is neither is a bug in this step, and it stops here
+        # the document digest that `settle` compares against on the next run —
+        # and, for `lfs`, the `.gitattributes` line that tracks them. A staged
+        # path that is none of these is a bug in this step, and it stops here
         # rather than riding into a contributor's branch.
-        unexpected="$(git diff --cached --name-only | grep -Ev '\.(png|json)$' || true)"
+        unexpected="$(git diff --cached --name-only | grep -Ev '(\.(png|json)|(^|/)\.gitattributes)$' || true)"
         if [ -n "$unexpected" ]; then
           echo "::error::refusing to commit non-artifact paths staged under the baseline store"
           echo "$unexpected"

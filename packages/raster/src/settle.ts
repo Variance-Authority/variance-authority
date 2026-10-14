@@ -57,7 +57,7 @@ export type Settlement =
 /**
  * Decide whether this subject needs an image, from the baseline alone.
  *
- * Four answers, and the first is the one that pays for this whole design.
+ * Five answers, and the first is the one that pays for this whole design.
  *
  * **The document digest matches.** `documentDigest` covers the markup, the
  * applicable CSS in cascade order, the frame, the inherited floor, the viewport
@@ -90,6 +90,12 @@ export type Settlement =
  * cost is one render per such subject until one accepting run re-stamps it. A
  * baseline with no pixels is settled as before, since no region is joined
  * there.
+ *
+ * **The baseline was read from where an earlier layout kept it.** Rendered for
+ * the same reason: a settled subject produces no observation, accept moves only
+ * what an observation names, and the baseline would stay at a path no reviewer
+ * can read for as long as its document holds. The cost is one render per such
+ * subject until one accepting run moves it.
  *
  * **Anything else renders.** Including `new`, where the *verdict* is already
  * settled — there is no baseline, and no image changes that. It renders anyway,
@@ -157,6 +163,16 @@ export function settle(
       because:
         (mine === undefined ? undefined : identityCause(found.storedUnder, mine)?.because) ??
         `a baseline exists, painted under another identity (${describeIdentity(found.storedUnder)})`,
+    };
+  }
+
+  if (found.relocated !== undefined) {
+    return {
+      kind: 'render',
+      because:
+        `the baseline was read from ${found.relocated.from}, a directory named for its ` +
+        `renderer identity, so this run renders it for an accepting run to move it to ` +
+        `${found.relocated.to}, the path \`baselines.path\` names`,
     };
   }
 

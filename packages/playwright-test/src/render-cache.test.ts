@@ -73,8 +73,15 @@ const RASTER: Raster = {
 
 /** The worker fixture as Playwright invokes it. */
 const varianceStore = varianceFixtures.varianceStore as unknown as readonly [
-  (args: { varianceBaselines: string }, use: (store: RasterStore) => Promise<void>) => Promise<void>,
+  (
+    args: { varianceBaselines: string },
+    use: (store: RasterStore) => Promise<void>,
+    workerInfo: { config: { projects: readonly { name: string }[] } },
+  ) => Promise<void>,
 ];
+
+/** The worker's view of a config with one unnamed project, as Playwright passes it. */
+const workerInfo = { config: { projects: [{ name: '' }] } };
 
 describe('the worker store of the `variance` fixture', () => {
   it('paints into the checkout`s cache, and leaves the baseline root to baselines', async () => {
@@ -82,7 +89,7 @@ describe('the worker store of the `variance` fixture', () => {
 
     await varianceStore[0]({ varianceBaselines: baselines }, async (store) => {
       await store.renderCache.put(RASTER);
-    });
+    }, workerInfo);
 
     expect(await readdir(byDocument(join(cache, 'renders')))).toEqual([
       `${digestFileName('v1:fresh')}.json`,
@@ -94,7 +101,7 @@ describe('the worker store of the `variance` fixture', () => {
   it('bounds that cache when the worker tears down', async () => {
     await stale();
 
-    await varianceStore[0]({ varianceBaselines: join(root, 'baselines') }, async () => {});
+    await varianceStore[0]({ varianceBaselines: join(root, 'baselines') }, async () => {}, workerInfo);
 
     await expect(readdir(join(cache, 'renders'))).rejects.toThrow();
   });

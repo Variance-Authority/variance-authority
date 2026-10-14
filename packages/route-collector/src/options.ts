@@ -31,6 +31,10 @@ export interface RouteCollectorOptions {
    * config naming two is asking two lists to be one, and quietly merging them is
    * how a run watches a page nobody listed.
    *
+   * Every entry is visited on this sitemap's origin, with its own path and
+   * query: a site writes its sitemap for where it is published, and the copy a
+   * local server answers still names production.
+   *
    * A sitemap *index* is not followed. Fetching what a fetched document points at
    * is a crawler, and a crawler is a different product with a different failure
    * mode.

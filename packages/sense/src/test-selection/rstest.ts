@@ -27,7 +27,7 @@ import type { InstrumentMode } from '../instrument/index.js';
 import { defaultInclude } from './instrumented-modules.js';
 import { carriedJournal, reportedDuration, statusesComplete } from './finished-files.js';
 import { foldRun } from './selection-fold.js';
-import { removeSeamModules, reopenRun, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
+import { removeSeamModules, reopenRun, runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { attendingSource, browserSetupSource, caseGlobalsSource, setupSource } from './worker-source.js';
 import { recordFileFor } from './record-location.js';
 import { testFilesAt } from './test-files.js';
@@ -196,11 +196,7 @@ export function withTestSelection(
   const mode = options.mode ?? 'presence';
   const run = runFor(coverageFile, root, mode);
 
-  // Named for the run rather than for the seam, so two Rstest processes over
-  // one project — a watch run beside a CLI one — do not write each other's
-  // setup shim, which carries the directory its journals go to.
-  const stamp = runStamp(run);
-  const setupId = resolve(configRoot, `.variance-authority/test-selection-setup-${stamp}.mjs`);
+  const setupId = seamModuleId(configRoot, run, 'setup');
   run.shims.add(setupId);
 
   // A `globalSetup` file runs before any test environment exists, so the setup

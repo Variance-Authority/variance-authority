@@ -139,7 +139,7 @@ describe('the sequencer that drops what a selection may skip', () => {
     expect(lines).toEqual(['variance-authority: declined: no execution journal at /cache/unit.bin', '  run the suite once']);
   });
 
-  it('says none of M when every discovered file is skipped', async () => {
+  it('says none of M when every discovered file is skipped, and passes the run', async () => {
     const lines: string[] = [];
     const Sequencer = selectingSequencer(Reversing, {
       root,
@@ -147,11 +147,21 @@ describe('the sequencer that drops what a selection may skip', () => {
       selection: async () => selection(['a.test.ts', 'b.test.ts']),
       say: (line) => lines.push(line),
     });
+    const config: SequencerContext['config'] = {};
 
-    const sorted = await new Sequencer(context({}, ['a.test.ts', 'b.test.ts'])).sort(['a.test.ts', 'b.test.ts'].map(spec));
+    const sorted = await new Sequencer(context(config, ['a.test.ts', 'b.test.ts'])).sort(['a.test.ts', 'b.test.ts'].map(spec));
 
     expect(sorted).toEqual([]);
     expect(lines).toEqual(['variance-authority: selected none of 2']);
+    expect(config.passWithNoTests).toBe(true);
+  });
+
+  it('leaves the project\'s `passWithNoTests` alone when the selection skips nothing', async () => {
+    const Sequencer = selectingSequencer(Reversing, { root, configRoot: root, selection: async () => selection([]), say: () => {} });
+    const config: SequencerContext['config'] = { shard: { index: 2, count: 2 } };
+
+    expect(await new Sequencer(context(config)).sort([])).toEqual([]);
+    expect(config.passWithNoTests).toBeUndefined();
   });
 
   it('fails the run by name when the selection cannot be read', async () => {
@@ -200,6 +210,24 @@ describe('the sequencer under --shard', () => {
     const first = await new Sequencer(context({ shard: { index: 1, count: 2 } })).shard(files.map(spec));
 
     expect(names(first)).toEqual(['b.test.ts']);
+  });
+
+  it('passes the shard the selection left nothing to run, and only that one', async () => {
+    const Sequencer = selectingSequencer(Reversing, {
+      root,
+      configRoot: root,
+      selection: async () => selection(['a.test.ts', 'b.test.ts', 'c.test.ts']),
+      times,
+      say: () => {},
+    });
+    const shard = async (index: number) => {
+      const config: SequencerContext['config'] = { shard: { index, count: 2 } };
+      const sequencer = new Sequencer(context(config));
+      return { part: names(await sequencer.sort(await sequencer.shard(files.map(spec)))), passes: config.passWithNoTests };
+    };
+
+    expect(await shard(1)).toEqual({ part: ['d.test.ts'], passes: undefined });
+    expect(await shard(2)).toEqual({ part: [], passes: true });
   });
 
   it('hands the split to the project\'s sequencer when nothing is timed, and says so', async () => {

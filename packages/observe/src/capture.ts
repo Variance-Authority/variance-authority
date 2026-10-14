@@ -14,6 +14,7 @@ import {
   type CompareInputs,
   type Observation,
   withCause,
+  withRelocation,
 } from './observe.js';
 import { decideRasters } from './unpictured.js';
 
@@ -102,9 +103,13 @@ export async function observeCaptureAgainstBaseline(
     };
   }
 
-  return withCause(
-    await decideRasters(artifact.subject.id, found.raster, candidate, false, inputs, 'baseline'),
-    identityCause(found.storedUnder, candidate.identity),
+  return withRelocation(
+    withCause(
+      await decideRasters(artifact.subject.id, found.raster, candidate, false, inputs, 'baseline'),
+      identityCause(found.storedUnder, candidate.identity),
+      documentMoved(found.raster, candidate),
+    ),
+    found.relocated,
     documentMoved(found.raster, candidate),
   );
 }

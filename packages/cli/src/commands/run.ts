@@ -228,8 +228,9 @@ async function observeAll(
   );
 
   // After selection, because the saving is in not asking: a subject ruled out is
-  // a subject nothing looks up. A store on a disk has no such method and this is
-  // a no-op; a store across a hop turns the whole suite into one request.
+  // a subject nothing looks up. A store across a hop turns the whole suite into
+  // one request; a store on a disk refuses two subjects it would file at one
+  // path, here rather than after both are painted.
   deps.store.expect?.(
     plan.subjects
       .filter((planned, i) => !selected?.skipped.has(planned.subject.id) && !assignment.elsewhere.has(i))

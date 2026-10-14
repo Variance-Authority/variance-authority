@@ -1,4 +1,4 @@
-import { identityDigest, keepsSnapshot, type Digest, type Raster } from '@variance-authority/core/format';
+import { identityDigest, keepsSnapshot, type Raster, type RenderIdentity } from '@variance-authority/core/format';
 import {
   REFUSAL,
   RasterStoreError,
@@ -126,7 +126,7 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
 
     async find(key, identity): Promise<Found | null> {
       const mine = identityDigest(identity);
-      const row = await locate(db, project, key, mine);
+      const row = await locate(db, project, key, identity);
       if (row === null) return null;
 
       const sidecar = parseRow(row.sidecar, describeRow(project, key, row.identityDigest));
@@ -140,7 +140,7 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
 
     async describe(key, identity): Promise<Described | null> {
       const mine = identityDigest(identity);
-      const row = await locate(db, project, key, mine);
+      const row = await locate(db, project, key, identity);
       if (row === null) return null;
 
       const where = describeRow(project, key, row.identityDigest);
@@ -307,8 +307,15 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
 }
 
 /**
- * The row for this key under this identity, or the most recent one under any
- * other, or nothing.
+ * The most recent row for this key under this identity's engine family, or the
+ * most recent under any other family, or nothing.
+ *
+ * The last accept on the family, not this identity's own row. A file-backed
+ * store keeps one file per engine family, so when a laptop and CI both accept,
+ * the file holds whichever accepted last and both machines read it
+ * ([ADR-0016](../../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)):
+ * a row this machine wrote before CI's accept would answer `unchanged` where
+ * every file store answers with CI's image and names the machine.
  *
  * The lookup is deliberately *not* scoped to the caller's identity, which is the
  * `RasterStore` contract's own instruction: returning nothing for a baseline that
@@ -326,10 +333,14 @@ async function locate(
   db: D1Like,
   project: string,
   key: BaselineKey,
-  mine: Digest,
+  mine: RenderIdentity,
 ): Promise<{ readonly sidecar: SidecarRow; readonly identityDigest: string } | null> {
+  // FIXME: a row is keyed by subject and label and not by `key.project`, so
+  // two Playwright projects under `{project}` share one baseline here while a
+  // file-backed store keeps two (parity.test.ts holds the todo).
   const label = labelOf(key);
-  const where = describeRow(project, key, mine);
+  const where = describeRow(project, key, identityDigest(mine));
+  const engine = "json_extract(identity, '$.engine')";
 
   const row = await guardStore(
     () =>
@@ -339,10 +350,12 @@ async function locate(
                   components, finding_marks, snapshot, object_key, identity_digest
              FROM baselines
             WHERE project = ? AND subject = ? AND label = ?
-            ORDER BY (identity_digest = ?) DESC, at_ms DESC, identity_digest
+            ORDER BY (CASE WHEN instr(${engine}, '@') = 0 THEN ${engine}
+                           ELSE substr(${engine}, 1, instr(${engine}, '@') - 1) END = ?) DESC,
+                     at_ms DESC, identity_digest
             LIMIT 1`,
         )
-        .bind(project, key.subject, label, mine)
+        .bind(project, key.subject, label, engineFamily(mine.engine))
         .first<SidecarRow & { readonly identity_digest: string }>(),
     where,
   );
@@ -379,6 +392,12 @@ function halfAPair(where: string, objectKey: string, survivor: 'row' | 'object')
       `the other is a corrupted baseline rather than a missing one. ${REFUSAL}. Restore ` +
       `\`${objectKey}\` in the bucket, or delete the row to record the subject afresh.`,
   );
+}
+
+/** `chromium@131.0.0` is `chromium`, as the file-backed stores name a family. */
+function engineFamily(engine: string): string {
+  const at = engine.indexOf('@');
+  return at === -1 ? engine : engine.slice(0, at);
 }
 
 function describeRow(project: string, key: BaselineKey, identity: string): string {

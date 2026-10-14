@@ -98,12 +98,12 @@ Running 1 test using 1 worker
   1 passed (4.3s)
 ```
 
-The baseline directory now holds the image and its metadata, under a key for
-the renderer identity:
+The baseline directory now holds the image and its metadata, named for the
+subject and the engine:
 
 ```
-v1-09e74320ec70c26d7a5e40add47c455f/cart%2Fempty.png
-v1-09e74320ec70c26d7a5e40add47c455f/cart%2Fempty.json
+cart/empty-chromium.png
+cart/empty-chromium.json
 ```
 
 The image the run painted from the document is in `renders/` in the checkout's

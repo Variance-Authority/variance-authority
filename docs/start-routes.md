@@ -57,14 +57,14 @@ export default routeCollector({
 ```
 
 **The id is yours.** Choose one that survives a renamed route, and keep it out
-of the URL's shape. A `/` in it is not a namespace by default: under the default
-`flat` baseline layout the whole id, slashes and all, is percent-encoded into a
-single filename. It becomes a directory separator only under `layout: "beside"`,
-which places each image next to the code it is an image of — and that layout
-refuses an id that is absolute or contains a `.` or `..` segment, because it
-would write outside the baseline root. Ids are also what `ignore` rules glob
-over, so `checkout/empty` and `checkout/one-item` are both matched by
-`checkout/*`.
+of the URL's shape. The id is also the baseline's path: under the default
+`baselines.path`, `checkout/empty` is written as `checkout/empty-chromium.png`,
+each `/` a directory, so the folder you review reads like your list of routes.
+A site root, `/`, has no segment to name a file after, so it is
+written as `index-chromium.png`, the file a server answers `/` with, and at a
+declared width as `index-1280-chromium.png`.
+Ids are also what `ignore` rules glob over, so `checkout/empty` and
+`checkout/one-item` are both matched by `checkout/*`.
 
 **`roots` is an ordered list of CSS selectors, and the first one that matches is
 the subject.** It bounds what is read and compared, and it scopes the readiness
@@ -82,12 +82,13 @@ optional, and everything else works without it. The collector walks those
 directories once and builds an index from component name to the file and line
 the component is *declared* on, so a changed region in the report can show a
 source location instead of a bare name. Point it at the directories your
-components live in, relative to the config. If it is wrong, you do not get a
-wrong answer — a path that matches no files is refused by name rather than
-producing a report where every component resolves to nothing. One limit worth
-knowing: a route served by `vite dev`, `next dev` or another development server
-reports the exact line each element was written on, while a production build has
-nothing to read and falls back to the component's declaration line.
+components live in, absolute or relative to the directory you run `variance`
+from. If it is wrong, you do not get a wrong answer — a path that matches no
+files is refused by name rather than producing a report where every component
+resolves to nothing. One limit worth knowing: a route served by `vite dev`,
+`next dev` or another development server reports the exact line each element was
+written on, while a production build has nothing to read and falls back to the
+component's declaration line.
 
 ## Declare the same route in the run config
 
@@ -122,12 +123,12 @@ change what the run sees.
 | --- | --- |
 | `project` | Names this project in a shared history store. Required even with no history configured, because rows written under a project nobody chose cannot be re-attributed later. |
 | `profile` | Not a browser name — what the collector is *able* to observe. `chromium` resolves layout, computed style and pixels; `jsdom` sees structure, ARIA and declared style only, and cannot produce an image. A route run needs `chromium`. The engine is a separate optional `browser` key, one of `chromium`, `firefox` or `webkit`, defaulting to `chromium`. |
-| `viewport` | `width` and `height` are required; `deviceScaleFactor` and `colorScheme` (`light` or `dark`, default `light`) are optional. The scale factor partitions baselines. The colour scheme, like the size, does not: switching it compares against the same baseline and reports `changed`. |
+| `viewport` | `width` and `height` are required; `deviceScaleFactor` and `colorScheme` (`light` or `dark`, default `light`) are optional. Both compare against the same baseline when you switch them. The scale factor is part of the renderer identity the baseline records, so a change reports the scale as its cause; the colour scheme, like the size, is not, and reports `changed`. |
 | `timezoneId`, `locale` | The IANA timezone and BCP 47 language every route is read and painted in: `UTC` and `en-US` unless set here, whatever the collecting machine uses. A route painted under another pair names the moved pair as the cause of what it reports, and a route that formats a date or a number moved its document too. Review the changes and adopt them with `accept --all` ([the first review loop](#run-the-first-review-loop)). |
 | `retention` | `durable` stores the approved image and compares a later run against it. `ephemeral` renders both sides inside one run and keeps neither, so there is nothing to store and nothing to approve. Durable is what makes a first run report `new` and a second report `unchanged`. |
 | `subjects.kind` | Where the subject list comes from. `list` means the ids are written here; `collector` means the collector plans them (used by the sitemap and directory forms below); `storybook` reads a built Storybook index. |
 | `baselines.kind` | Where approved images live: `directory` (files you commit), `lfs` (the same files through the Git LFS filter), or `remote` (a store behind an endpoint and a token). Required under `durable`, and no default — the three fail in different directions. [Baseline placement](placement.md) chooses between them. |
-| `fonts` | Fonts you assert the rendering machine has, each written `family/weight/style/hash`; a bare family name is refused, because two cuts of one family paint differently. The list is part of the key a baseline is stored under, so editing it re-partitions baselines, and the renderer reports any family you asserted that it could not resolve. `[]` asserts nothing and is a complete config — you then have no font check, and `variance doctor` is what shows you what the machine actually resolves. |
+| `fonts` | Fonts you assert the rendering machine has, each written `family/weight/style/hash`; a bare family name is refused, because two cuts of one family paint differently. The list is part of the renderer identity a baseline records, so editing it compares every subject with the font list named as the cause, and the renderer reports any family you asserted that it could not resolve. `[]` asserts nothing and is a complete config — you then have no font check, and `variance doctor` is what shows you what the machine actually resolves. |
 | `report` | Where `run` writes its report, and where `report` and `accept` read it. |
 
 ### Commit the baselines
@@ -181,7 +182,9 @@ in it as it is:
 
 Discovered ids come from the URL path with leading and trailing slashes trimmed,
 and a sitemap listing two URLs whose paths collide is refused rather than
-resolved.
+resolved. Each page is visited on the server the sitemap came from, whatever
+host its entry names, so a local build whose sitemap lists your production URLs
+is still the build that gets photographed.
 
 For static output, `directory: './build'` serves the build and creates one
 subject per `.html` file. Prefer a real server when you have one: a file server

@@ -15,7 +15,7 @@ import { messageOf } from '../config-values.js';
 import type { CliRunReport } from './run-report.js';
 import { alreadyHeld, endpointOf } from './push-have.js';
 import type { ShareConfig } from '../config-share.js';
-import type { BaselinesConfig } from '../config-sections.js';
+import type { BaselinesConfig } from '../config-baselines.js';
 import { type Reached, baselinesAt, reach, shareAt, versionNote } from '../version.js';
 
 /**

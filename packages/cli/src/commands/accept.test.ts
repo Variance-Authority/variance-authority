@@ -444,19 +444,21 @@ describe('accepting a difference shape', () => {
 });
 
 /**
- * Where an accepted image is written, for a store that places by path.
+ * Where an accepted image is written, for a store that names it by path.
  *
  * `accept` never re-plans — it reads a report and the images beside it — so the
- * directory has to arrive in the report or not at all. Losing it here is silent
- * and total: every accepted baseline lands in the root, the next run looks in
- * the placement the config asked for, finds nothing, and reports `new`.
+ * file, title and name have to arrive in the report or not at all. Losing them
+ * here is silent and total: every accepted baseline is named off its id, the
+ * next run looks at the path the template renders from the plan, finds nothing,
+ * and reports `new`.
  */
 describe('the placement an acceptance carries', () => {
-  it('hands the store the directory the run recorded', async () => {
+  it('hands the store the file, title and name the run recorded', async () => {
     const { store, puts } = recordingStore();
+    const baselineKey = { file: 'src/ui/shell/HatBar.stories.tsx', title: 'Shell/HatBar', name: 'Accepted' };
 
     await accept({
-      report: reportOf([observation({ placement: 'src/ui/shell' })]),
+      report: reportOf([observation({ baselineKey })]),
       reportDir: '/reports',
       store,
       subjects: ['fixture:a'],
@@ -464,10 +466,10 @@ describe('the placement an acceptance carries', () => {
       read: async () => CANDIDATE,
     });
 
-    expect(puts[0]?.[0]).toEqual({ subject: 'fixture:a', path: 'src/ui/shell' });
+    expect(puts[0]?.[0]).toEqual({ subject: 'fixture:a', ...baselineKey });
   });
 
-  it('omits the path when the run recorded none, rather than inventing one', async () => {
+  it('keys by the subject alone when the run recorded nothing more, rather than inventing a file', async () => {
     const { store, puts } = recordingStore();
 
     await accept({
@@ -480,20 +482,5 @@ describe('the placement an acceptance carries', () => {
     });
 
     expect(puts[0]?.[0]).toEqual({ subject: 'fixture:a' });
-  });
-
-  it('carries a root placement as the root, which is not the same as none', async () => {
-    const { store, puts } = recordingStore();
-
-    await accept({
-      report: reportOf([observation({ placement: '' })]),
-      reportDir: '/reports',
-      store,
-      subjects: ['fixture:a'],
-      all: false,
-      read: async () => CANDIDATE,
-    });
-
-    expect(puts[0]?.[0]).toEqual({ subject: 'fixture:a', path: '' });
   });
 });

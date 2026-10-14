@@ -46,8 +46,9 @@ nightly, and the shards on demand only — sharding fourteen subjects across two
 installs saves nothing, and the shards find their pull-request comment by the
 same hidden HTML marker the gate uses, because the marker names the config's
 `project` and the two run one config, so on the same event the two would
-overwrite each other. The gate's two jobs run two configs, the case's Storybook
-and the review surface's, and keep a comment each.
+overwrite each other. The gate runs three configs, each its own check with its
+own comment and its own accept label: the case's Storybook, and a matrix over
+this project's own surfaces, the review surface's Storybook and the site.
 
 `check.yml` runs one job per harness — the repository's rules, the timed
 measurements, and the vitest suite — and a `check` job that turns their results
@@ -201,8 +202,8 @@ with `baselines.carry: actions-cache`. `variance.yml` writes it only on a run
 that accepts.
 
 A pull request and a push to `main` are both gates, both red when a subject
-moved. The cache key does not name the renderer, because the store already
-partitions by it: a baseline whose identity differs from the run's is compared
+moved. The cache key does not name the renderer, because the record beside
+each image already does: a baseline whose identity differs from the run's is compared
 with the moved identity named as the cause, so the worst an image bump does is
 make a check loud until the next accept.
 

@@ -11,7 +11,7 @@ import { readFinished, type FinishedFile } from './finished-files.js';
 import { browserSetupSource, caseRunnerSource, setupSource } from './worker-source.js';
 import { foldRun } from './selection-fold.js';
 import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
-import { removeSeamModules, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
+import { removeSeamModules, runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { recordFileFor, recordsAlone } from './record-location.js';
 import { testFilesAt } from './test-files.js';
 import { selectionReporter } from './vitest-reporter.js';
@@ -141,14 +141,8 @@ export function withTestSelection(
   const coverageFile = recordFileFor(root, configRoot, options);
   const mode = options.mode ?? 'presence';
   const run = runFor(coverageFile, root, mode);
-  // Named for the run rather than for the seam. These are files on disk now, so
-  // two Vitest processes over one project — a watch run beside a CLI one, or
-  // this repository's own integration tests — would otherwise write each other's
-  // setup shim, and a shim carries the directory its journals go to. The run
-  // directory already carries a pid and a uuid; the same stamp names the shim.
-  const stamp = runStamp(run);
-  const setupId = resolve(configRoot, `.variance-authority/test-selection-setup-${stamp}.mjs`);
-  const runnerId = resolve(configRoot, `.variance-authority/test-selection-case-runner-${stamp}.mjs`);
+  const setupId = seamModuleId(configRoot, run, 'setup');
+  const runnerId = seamModuleId(configRoot, run, 'case-runner');
   // A `globalSetup` file runs once, in the Vitest process, before any test
   // environment exists — the setup shim that installs `globalThis.__VA__` is a
   // `setupFiles` entry and has never run there. Instrumented, such a file

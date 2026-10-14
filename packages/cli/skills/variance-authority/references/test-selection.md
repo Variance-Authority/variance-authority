@@ -67,6 +67,24 @@ one answers.
   recording is treated as absent, and the suite runs whole, which cannot produce
   a wrong skip.
 
+## Combine CI shard records
+
+To combine records written by `withTestSelection` without computing a journey
+comparison, name every shard and an output file:
+
+```bash
+variance journeys merge shard-1/coverage.bin shard-2/coverage.bin \
+  --into artifacts/coverage.bin --root /work/checkout
+```
+
+No visual project configuration is needed. `--root` names the source checkout
+and defaults to the working directory; its test files must be present, or
+landing retires their cases. Shard and output paths resolve from the working
+directory. The existing output, when present, is layered under the shards.
+The merge preserves case sections for `distill` and refuses overlapping test
+files, different commits or different probe recipes. `journeys stitch` reads
+journey-only artifacts instead, which lack the per-file loads `distill` needs.
+
 ## From the command line
 
 These read only the `suites` and `cacheRoot` keys of the root
@@ -132,7 +150,8 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 - **Read the first stderr line.** `variance-authority: selected N of M` is the
   run you asked for. `declined:` means the selection could not be read and every
   file ran; the reason follows it. `selected none of M` means the edit reached
-  no recorded test: a type or comment edit, or a file no test ran.
+  no recorded test: a type or comment edit, or a file no test ran. Under
+  Vitest that run passes, with nothing run.
 - **Each run lands.** The next edit is measured from what each test last ran,
   so a test the near leg left out still runs in the far leg, and in the next
   run if you skip that.

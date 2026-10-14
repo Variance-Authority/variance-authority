@@ -13,6 +13,7 @@ import type { ReactElement } from 'react';
 import type { RegionRecord } from '@variance-authority/report';
 import type { SubjectView } from '../src/review-types.js';
 import { ActionBar, type Place } from '../src/ui/action-bar.js';
+import { createReviewClient, type ReviewClient } from '../src/ui/client.js';
 import { distanceFrom } from '../src/ui/distance.js';
 import { originsOf, type Appearance } from '../src/ui/grouping.js';
 import { causeOf } from '../src/ui/lead.js';
@@ -26,6 +27,19 @@ import { Viewer } from '../src/ui/viewer.js';
 import { BASE, buildOf, CHANGED, replayClient, replayed, subjectOf } from './replay.js';
 
 const client = replayClient();
+/**
+ * The replay, with every capture the page asks for by `fetch` answered as the
+ * service answers an image the build did not keep. The `<img>` sources still
+ * come from the recording, so only a mask the page computes fails.
+ */
+const refusing: ReviewClient = {
+  ...client,
+  imageBlob: createReviewClient({
+    endpoint: 'https://tribunal.invalid',
+    fetch: (async () =>
+      Response.json({ error: 'this build kept no such image' }, { status: 404 })) as typeof globalThis.fetch,
+  }).imageBlob,
+};
 const none = (): void => {};
 
 const composed = subjectOf(CHANGED, 'story:case-surface--composed');
@@ -164,9 +178,9 @@ const inMode =
     await decoded(context);
   };
 
-const view = (subject: SubjectView, play: Play = decoded, build = CHANGED): Story => ({
+const view = (subject: SubjectView, play: Play = decoded, build = CHANGED, using = client): Story => ({
   parameters: { width: 760 },
-  render: () => <Viewer client={client} build={build} subject={subject} sourced={sourced(build)} />,
+  render: () => <Viewer client={using} build={build} subject={subject} sourced={sourced(build)} />,
   play,
 });
 
@@ -174,6 +188,20 @@ export const ViewerRegions = view(composed);
 export const ViewerWipe = view(composed, inMode('wipe', '.va-seam-line'));
 export const ViewerSideBySide = view(composed, inMode('side by side', '.va-side-by-side img'));
 export const ViewerDifference = view(composed, inMode('difference', 'img[alt$="difference mask"]'));
+// The mask the page computes, from captures the service would not serve.
+export const ViewerDifferenceRefused = view(
+  composed,
+  async (context) => {
+    const root = context.canvasElement;
+    press(root, 'difference');
+    await when(root, 'the viewer saying why there is no mask', () =>
+      [...root.querySelectorAll('.va-note')].some((note) => note.textContent?.includes('could not compute') ?? false),
+    );
+    await decoded(context);
+  },
+  CHANGED,
+  refusing,
+);
 export const ViewerAtTwice = view(composed, inMode('2×', '.va-loupe img'));
 export const ViewerNew = view(first, decoded, BASE);
 export const ViewerNothingKept = view(loading);
@@ -264,11 +292,16 @@ const unbased = ({ baseline: _baseline, ...rest }: SubjectView): SubjectView => 
   has: { before: false, after: true, diff: false },
 });
 
-const strip = (appearances: readonly Appearance[], play: Play, openable = true): Story => ({
+const strip = (
+  appearances: readonly Appearance[],
+  play: Play,
+  openable = true,
+  using: ReviewClient = client,
+): Story => ({
   parameters: { width: 760 },
   render: () => (
     <Look
-      client={client}
+      client={using}
       build={CHANGED}
       component={button.component}
       appearances={appearances}
@@ -288,6 +321,23 @@ export const LookNoBaselineKept = strip(
   onLayer('baseline'),
 );
 export const LookNotOpenable = strip(button.appearances, onLayer('this build'), false);
+// The strip opens on the difference, and every mask it computes is refused.
+export const LookDifferenceRefused = strip(
+  button.appearances,
+  async (context) => {
+    const root = context.canvasElement;
+    await when(root, 'every crop saying its mask could not be computed', () => {
+      const crops = [...root.querySelectorAll('.va-crop')];
+      return (
+        crops.length > 0 &&
+        crops.every((crop) => crop.textContent?.includes('could not be computed') ?? false)
+      );
+    });
+    await decoded(context);
+  },
+  true,
+  refusing,
+);
 
 const raster = (kind: 'before' | 'after'): Story => ({
   parameters: { width: 380 },

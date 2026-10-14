@@ -1,9 +1,33 @@
-import { existsSync } from 'node:fs';
-import { chmod, mkdtemp, rm } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { existsSync, rmSync, writeFileSync } from 'node:fs';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { workingTreeChanges } from '../working-tree-changes.js';
 import { removeSeamModules, writeSeamModule } from './selection-run.js';
+
+// Where another run steps in between two steps of this one: before a file is
+// written, or after one is removed. Pass-through otherwise.
+const between = vi.hoisted(() => ({
+  beforeWrite: undefined as ((path: string) => void) | undefined,
+  afterRemove: undefined as ((path: string) => void) | undefined,
+}));
+
+vi.mock('node:fs', async (importOriginal) => {
+  const fs = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...fs,
+    writeFileSync: (...args: Parameters<typeof fs.writeFileSync>) => {
+      between.beforeWrite?.(String(args[0]));
+      fs.writeFileSync(...args);
+    },
+    rmSync: (...args: Parameters<typeof fs.rmSync>) => {
+      fs.rmSync(...args);
+      between.afterRemove?.(String(args[0]));
+    },
+  };
+});
 
 // A read-only parent is how a directory is refused here, and permission bits
 // bind neither the superuser nor Windows: there, nothing refuses.
@@ -34,4 +58,116 @@ it.runIf(refuses)('goes on past a directory it made that the platform will not l
   expect(existsSync(resolve(project, 'locked'))).toBe(false);
   expect(existsSync(project)).toBe(true);
   expect(run.made).toEqual(new Set());
+});
+
+/** A real repository with one commit; `.gitignore` files are the only ignore rules it reads. */
+function repository(): void {
+  vi.stubEnv('GIT_CONFIG_GLOBAL', '/dev/null');
+  vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
+  vi.stubEnv('XDG_CONFIG_HOME', project);
+  const git = (...args: string[]): void => {
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd: project, stdio: 'ignore' });
+  };
+  git('init', '--quiet');
+  git('commit', '--quiet', '--allow-empty', '-m', 'first');
+}
+
+describe('a module the seam writes into the checkout', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    between.beforeWrite = undefined;
+    between.afterRemove = undefined;
+  });
+
+  const shimIn = (directory: string): string => resolve(directory, '.variance-authority', 'test-selection-setup-1-a.mjs');
+
+  it.each([
+    ['at the top of the checkout', ''],
+    ['in a package below it', 'packages/app/'],
+  ])('is not a change to the checkout it lands in, %s', async (_, prefix) => {
+    repository();
+    const root = resolve(project, prefix);
+    await mkdir(root, { recursive: true });
+    await writeFile(resolve(root, 'edited.ts'), '');
+
+    writeSeamModule({ made: new Set<string>() }, shimIn(root), '');
+
+    expect(await workingTreeChanges(root, prefix)).toEqual({ changed: ['edited.ts'], gone: [] });
+  });
+
+  it('leaves a file the project keeps beside it a change, as it was before the run', async () => {
+    repository();
+    await mkdir(resolve(project, '.variance-authority'));
+    await writeFile(resolve(project, '.variance-authority', 'journeys.bin'), '');
+
+    writeSeamModule({ made: new Set<string>() }, shimIn(project), '');
+
+    expect(await workingTreeChanges(project, '')).toEqual({ changed: ['.variance-authority/journeys.bin'], gone: [] });
+  });
+
+  it('takes its ignore file off with the directory the run made for it', () => {
+    const run = { made: new Set<string>() };
+    const shim = writeSeamModule(run, shimIn(project), '');
+
+    removeSeamModules(run, [shim]);
+
+    expect(existsSync(dirname(shim))).toBe(false);
+  });
+
+  it('leaves a directory the project already had as it found it', async () => {
+    await mkdir(resolve(project, '.variance-authority'));
+    await writeFile(resolve(project, '.variance-authority', 'journeys.bin'), '');
+    const run = { made: new Set<string>() };
+    const shim = writeSeamModule(run, shimIn(project), '');
+
+    removeSeamModules(run, [shim]);
+
+    expect(await readdir(resolve(project, '.variance-authority'))).toEqual(['journeys.bin']);
+  });
+
+  it('keeps its ignore file while a module of another run is still beside it', () => {
+    const run = { made: new Set<string>() };
+    const shim = writeSeamModule(run, shimIn(project), '');
+    writeSeamModule({ made: new Set<string>() }, resolve(project, '.variance-authority', 'test-selection-setup-2-b.mjs'), '');
+
+    removeSeamModules(run, [shim]);
+
+    expect(existsSync(resolve(project, '.variance-authority', '.gitignore'))).toBe(true);
+  });
+
+  it('keeps an ignore file the project wrote there itself', async () => {
+    const ignore = resolve(project, '.variance-authority', '.gitignore');
+    await mkdir(dirname(ignore));
+    await writeFile(ignore, 'test-selection-*\n');
+    const run = { made: new Set<string>() };
+    const shim = writeSeamModule(run, shimIn(project), '');
+
+    removeSeamModules(run, [shim]);
+
+    expect(await readFile(ignore, 'utf8')).toBe('test-selection-*\n');
+  });
+
+  it('keeps its ignore file when the end of another run takes it off while the module is written', () => {
+    const ignore = resolve(project, '.variance-authority', '.gitignore');
+    between.beforeWrite = (path) => {
+      if (path === shimIn(project)) rmSync(ignore);
+    };
+
+    writeSeamModule({ made: new Set<string>() }, shimIn(project), '');
+
+    expect(existsSync(ignore)).toBe(true);
+  });
+
+  it('puts its ignore file back when a module of another run lands while it is taken off', () => {
+    const ignore = resolve(project, '.variance-authority', '.gitignore');
+    const run = { made: new Set<string>() };
+    const shim = writeSeamModule(run, shimIn(project), '');
+    between.afterRemove = (path) => {
+      if (path === ignore) writeFileSync(resolve(project, '.variance-authority', 'test-selection-setup-2-b.mjs'), '');
+    };
+
+    removeSeamModules(run, [shim]);
+
+    expect(existsSync(ignore)).toBe(true);
+  });
 });
