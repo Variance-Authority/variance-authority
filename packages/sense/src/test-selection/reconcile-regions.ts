@@ -12,9 +12,9 @@ type Shape = RegionShape;
  * region enclosing it, and on one region spanning the file only when nothing
  * does. That is where a changed line resolves: a shared region is in every
  * inventory and one inventory's regions nest, so every case that ran the line
- * is credited on the region the change will find. The native stitch applies
- * the same rule; this is its reading for indexes already in memory, and for the
- * readings of one file that one run's transforms cut.
+ * is credited on the region the change will find. The native fold applies
+ * the same rule to records; this is its reading for the readings of one file
+ * that one run's transforms cut.
  *
  * The blocks it keeps are the base inventory's own objects, so a caller whose
  * regions carry more than a shape finds them again by identity. `whole` makes

@@ -27,4 +27,16 @@ describe('reconcileRegions', () => {
       lands: [[1, 0], [1, 0]],
     });
   });
+
+  it('reads two cuts that agree as the one cut they are', () => {
+    const only: RegionShape[] = [module, outer];
+    expect(reconcileRegions([only, [...only]])).toEqual({ blocks: only, lands: [[0, 1], [0, 1]] });
+  });
+
+  it('keeps the same base whatever order two cuts that differ only by a name come in', () => {
+    const first: RegionShape[] = [module, { ...outer, name: 'a' }];
+    const second: RegionShape[] = [module, { ...outer, name: 'b' }];
+    expect(reconcileRegions([first, second])).toEqual({ blocks: [module], lands: [[0, 0], [0, 0]] });
+    expect(reconcileRegions([second, first])).toEqual({ blocks: [module], lands: [[0, 0], [0, 0]] });
+  });
 });
