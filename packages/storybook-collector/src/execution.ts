@@ -65,8 +65,8 @@ export async function createStoryRecorder(
       uninstrumented:
         '`tests` is on and the Storybook preview has no execution ' +
         "collector in it — add `addons: ['@variance-authority/storybook-collector']` " +
-        'to its `.storybook/main.js` and build it again, or the next `--since` will run ' +
-        'everything',
+        'to its `.storybook/main.js` and build it with `storybook build --test`, or the ' +
+        'next `--since` will run everything',
     },
     options,
   );

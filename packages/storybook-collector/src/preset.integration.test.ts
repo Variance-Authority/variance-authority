@@ -12,6 +12,9 @@ import { rspack, type Configuration } from '@rspack/core';
 import { afterAll, describe, expect, it } from 'vitest';
 import { rsbuildFinal, webpackFinal } from './preset.js';
 
+/** What Storybook hands the preset for `storybook build --test`. */
+const TEST = { configType: 'PRODUCTION', test: true } as const;
+
 const temporary: string[] = [];
 
 afterAll(async () => {
@@ -87,34 +90,50 @@ function rsbuildShaped(root: string, refuses: string, sourceMap: NonNullable<Rsb
   };
 }
 
+/** Every file the build wrote, by name, with the page's text. */
+async function written(directory: string, page = 'page.js'): Promise<{ files: string[]; page: string }> {
+  return { files: (await readdir(directory)).sort(), page: await readFile(resolve(directory, page), 'utf8') };
+}
+
 describe('webpackFinal in a real Rspack build', () => {
   it('runs the probes after a post loader the project lists, so it reads no probe', async () => {
     const { root, refuses } = await project();
-    await built(await webpackFinal(webpackShaped(root, refuses, 'source-map', 'development'), { root }));
+    await built(await webpackFinal(webpackShaped(root, refuses, 'source-map', 'development'), { root, configType: 'DEVELOPMENT' }));
     expect(await emitted(resolve(root, 'out'))).toMatch(/__va\(\d+\)/);
   }, 60_000);
 
-  it('turns source maps on in a production build that writes none', async () => {
+  it('hands the loaders maps in a production build that writes none, and still writes no map', async () => {
     const { root, refuses } = await project();
-    await built(await webpackFinal(webpackShaped(root, refuses, false, 'production'), { root }));
-    const out = resolve(root, 'out');
-    expect(await emitted(out)).toMatch(/__va\(\d+\)/);
-    expect(await emitted(out)).not.toMatch(/sourceMappingURL/);
+    await built(await webpackFinal(webpackShaped(root, refuses, false, 'production'), { root, ...TEST }));
+    const out = await written(resolve(root, 'out'));
+    // The probes land where they land in a build that writes its maps.
+    const mapped = await project();
+    await built(await webpackFinal(webpackShaped(mapped.root, mapped.refuses, 'hidden-source-map', 'production'), { root: mapped.root, ...TEST }));
+
+    expect(out.files).toEqual(['page.js']);
+    expect(out.page).not.toMatch(/sourceMappingURL/);
+    expect(out.page).toMatch(/__va\(\d+\)/);
+    expect(out.page).toBe((await written(resolve(mapped.root, 'out'))).page);
   }, 60_000);
 });
 
 describe('rsbuildFinal in a real Rsbuild build', () => {
   it('runs the probes after a post loader the project lists, so it reads no probe', async () => {
     const { root, refuses } = await project();
-    await rsbuilt(await rsbuildFinal(rsbuildShaped(root, refuses, true, 'development'), { root }), root);
+    await rsbuilt(await rsbuildFinal(rsbuildShaped(root, refuses, true, 'development'), { root, configType: 'DEVELOPMENT' }), root);
     expect(await emitted(resolve(root, 'out'))).toMatch(/__va\(\d+\)/);
   }, 60_000);
 
-  it('turns source maps on in a production build that writes none, as `storybook build --test` does', async () => {
+  it('hands the loaders maps in a production build that writes none, as `storybook build --test` does, and still writes no map', async () => {
     const { root, refuses } = await project();
-    await rsbuilt(await rsbuildFinal(rsbuildShaped(root, refuses, { js: false, css: false }, 'production'), { root }), root);
-    const out = resolve(root, 'out');
-    expect(await emitted(out)).toMatch(/__va\(\d+\)/);
-    expect(await emitted(out)).not.toMatch(/sourceMappingURL/);
+    await rsbuilt(await rsbuildFinal(rsbuildShaped(root, refuses, { js: false, css: false }, 'production'), { root, ...TEST }), root);
+    const out = await written(resolve(root, 'out'), 'index.js');
+    const mapped = await project();
+    await rsbuilt(await rsbuildFinal(rsbuildShaped(mapped.root, mapped.refuses, { js: 'hidden-source-map' }, 'production'), { root: mapped.root, ...TEST }), mapped.root);
+
+    expect(out.files.filter((file) => file.endsWith('.map'))).toEqual([]);
+    expect(out.page).not.toMatch(/sourceMappingURL/);
+    expect(out.page).toMatch(/__va\(\d+\)/);
+    expect(out.page).toBe((await written(resolve(mapped.root, 'out'), 'index.js')).page);
   }, 60_000);
 });

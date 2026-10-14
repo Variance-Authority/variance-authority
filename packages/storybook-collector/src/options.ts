@@ -148,8 +148,10 @@ export interface StorybookCollectorOptions {
    *
    * Off unless asked for, and it asks something of the build rather than of this
    * package: the Storybook preview has to have been built with this package in
-   * its addons, `addons: ['@variance-authority/storybook-collector']`, which is
-   * what puts probes in the source and writes down what their ordinals mean.
+   * its addons, `addons: ['@variance-authority/storybook-collector']`, and with
+   * `storybook build --test`, or served by a dev server. That is what puts
+   * probes in the source and writes down what their ordinals mean; any other
+   * `storybook build` is left as it was, for a team to publish.
    * Without it a run records nothing and says so on stderr — the next selection
    * then runs everything, which is the direction every uncertainty here
    * resolves.

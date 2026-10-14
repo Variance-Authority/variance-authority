@@ -13,14 +13,16 @@
  * of the builder it runs: `viteFinal` adds `testSelectionProbes`,
  * `rsbuildFinal` and `webpackFinal` add `testSelectionRule`, first among the
  * rules so it runs after every post loader. Both probe after every compiler the
- * project configured, so a Compiled, Emotion or Linaria extractor reads the
- * file as written. Where the build writes no map a loader can read, as
- * `storybook build --test` does, the rule's hooks set
- * `hidden-cheap-module-source-map`, which writes `.map` files no bundle names.
- * A probes plugin or rule the config already holds is left alone, never
- * doubled. The addon's options are the probes'
- * own, `root`, `mode`, `include` and `placement`, and `mode` has to be the one
- * the collector's `tests` reads.
+ * project configured, so a compiler that reads syntax, such as Compiled's
+ * extractor, reads the file as written. It probes the builds the collector drives,
+ * `storybook build --test` and a dev server, and adds nothing to any other
+ * `storybook build`, the one a team publishes. Where the build writes no map
+ * a loader can read, as `storybook build --test` does, the rule's hooks hand
+ * the loaders their maps and the build still writes none. A
+ * `testSelectionRule()` the config already holds stops the build, because the
+ * addon cannot order it. The addon's options are the probes' own, `root`,
+ * `mode`, `include` and `placement`, and `mode` has to be the one the
+ * collector's `tests` reads.
  */
 
 import {
@@ -30,7 +32,22 @@ import {
 } from '@variance-authority/sense/journal';
 
 /** The options an `addons` entry hands the preset, beside everything Storybook hands it. */
-export type PresetOptions = TestSelectionRuleOptions;
+export interface PresetOptions extends TestSelectionRuleOptions {
+  /** Storybook's: `DEVELOPMENT` for a dev server, `PRODUCTION` for `storybook build`. */
+  readonly configType?: string;
+  /** Storybook's: whether `storybook build` was given `--test`. */
+  readonly test?: boolean;
+}
+
+/**
+ * Whether this is a build the collector drives: a dev server, or
+ * `storybook build --test`. The collector's `tests` is read in a later
+ * process, against a Storybook already built, so the build cannot ask it;
+ * Storybook's own `--test` is how a build says it is for testing.
+ */
+function recorded(options: PresetOptions): boolean {
+  return options.configType === 'DEVELOPMENT' || options.test === true;
+}
 
 /** The probes' options alone, out of the options Storybook merges the addon's into. */
 function probesOptions(options: PresetOptions): TestSelectionRuleOptions {
@@ -50,6 +67,7 @@ interface ViteConfig {
 const PROBES_PLUGIN = 'variance-authority:test-selection-probes';
 
 export async function viteFinal<Config extends ViteConfig>(config: Config, options: PresetOptions): Promise<Config> {
+  if (!recorded(options)) return config;
   const plugins = config.plugins ?? [];
   if (plugins.flat(Infinity).some((plugin) => (plugin as { name?: unknown } | null)?.name === PROBES_PLUGIN)) return config;
   return { ...config, plugins: [...plugins, testSelectionProbes(probesOptions(options))] };
@@ -57,19 +75,28 @@ export async function viteFinal<Config extends ViteConfig>(config: Config, optio
 
 type Rule = ReturnType<typeof testSelectionRule>;
 
+/** Whether a rule runs `loader`, in any shape a rule names one: `loader`, or `use` as a string, an entry or a list. */
+function runs(listed: unknown, loader: string): boolean {
+  const rule = listed as { loader?: unknown; use?: unknown } | null;
+  if (rule?.loader === loader) return true;
+  const use = rule?.use;
+  return (Array.isArray(use) ? use : [use]).some((entry) => entry === loader || (entry as { loader?: unknown } | null)?.loader === loader);
+}
+
 /**
  * `rules` with the probes rule where it runs last of its phase. Loaders of one
  * phase run right to left, so a post rule goes first, after every other post
- * loader; a pre rule goes last, ahead of every other pre loader. A list that
- * already runs the probes loader is kept as it is.
+ * loader; a pre rule goes last, ahead of every other pre loader. A probes rule
+ * the config already holds stops the build: the addon cannot know where it
+ * runs, and behind a post loader of the project's it reads probes.
  */
 function withRule(rules: readonly unknown[], rule: Rule): unknown[] {
-  const loader = rule.use[0].loader;
-  const runs = rules.some((listed) => {
-    const use = (listed as { use?: unknown } | null)?.use;
-    return Array.isArray(use) && use.some((entry) => entry === loader || (entry as { loader?: unknown } | null)?.loader === loader);
-  });
-  if (runs) return [...rules];
+  if (rules.some((listed) => runs(listed, rule.use[0].loader))) {
+    throw new Error(
+      '@variance-authority/storybook-collector: the config already holds a `testSelectionRule()`, which the addon ' +
+        'cannot order after your post loaders: remove your testSelectionRule(); the addon places it',
+    );
+  }
   return rule.enforce === 'post' ? [rule, ...rules] : [...rules, rule];
 }
 
@@ -82,63 +109,59 @@ function handsLoadersMaps(devtool: unknown): boolean {
   return typeof devtool === 'string' && devtool.includes('source-map') && (devtool.includes('module') || !devtool.includes('cheap'));
 }
 
-/**
- * The `devtool` the preset sets where the build writes no map a loader can
- * read, as `storybook build --test` does: hidden, so no bundle names a map,
- * and cheap, so the map written beside each bundle holds lines alone.
- */
-const PROBES_DEVTOOL = 'hidden-cheap-module-source-map';
-
-type SourceMap = boolean | { readonly js?: unknown; readonly css?: unknown };
-
-interface RsbuildConfig {
-  readonly mode?: string;
-  readonly output?: { readonly sourceMap?: SourceMap };
-  readonly tools?: { readonly rspack?: unknown };
+interface Compiler {
+  readonly options: { readonly devtool?: unknown };
+  readonly webpack: { readonly SourceMapDevToolPlugin: new (options: { test: RegExp }) => { apply(compiler: Compiler): void } };
 }
 
-/** The `output.sourceMap` that hands the probes a map, or `undefined` where the config's already does. */
-function rsbuildSourceMap(config: RsbuildConfig): SourceMap | undefined {
-  const sourceMap = config.output?.sourceMap;
-  if (sourceMap === true) return undefined;
-  const js = typeof sourceMap === 'object' ? sourceMap.js : sourceMap;
-  // Rsbuild writes `cheap-module-source-map` where it is not told, outside production.
-  if (js === undefined && sourceMap !== false && (config.mode ?? process.env['NODE_ENV']) !== 'production') return undefined;
-  if (handsLoadersMaps(js)) return undefined;
-  return { ...(typeof sourceMap === 'object' ? sourceMap : {}), js: PROBES_DEVTOOL };
+/**
+ * Hands each loader the map of the loaders before it where the compiler's
+ * `devtool` does not, and writes no map: a `SourceMapDevToolPlugin` whose
+ * `test` no file matches. Rspack and webpack both turn loader maps on for it,
+ * and it writes a map only for a file its `test` matches. Read from the
+ * compiler, so it is the `devtool` the build ends with.
+ */
+const loaderMaps = {
+  name: 'variance-authority:loader-maps',
+  apply(compiler: Compiler): void {
+    if (handsLoadersMaps(compiler.options.devtool)) return;
+    new compiler.webpack.SourceMapDevToolPlugin({ test: /(?!)/ }).apply(compiler);
+  },
+};
+
+interface RsbuildConfig {
+  readonly tools?: { readonly rspack?: unknown };
 }
 
 /**
  * Rsbuild's `tools.rspack` is an object, a function or a list of either,
  * applied in order. The probes come in as a function at the end, so the rule
  * is placed among every rule Rsbuild and the config wrote. After the
- * transforms, the probes need each loader's map: where the build writes none,
- * `output.sourceMap.js` becomes `hidden-cheap-module-source-map`.
+ * transforms, the probes need each loader's map, which {@link loaderMaps}
+ * hands them where `output.sourceMap` does not.
  */
 export async function rsbuildFinal<Config extends RsbuildConfig>(config: Config, options: PresetOptions): Promise<Config> {
+  if (!recorded(options)) return config;
   const theirs = config.tools?.rspack;
   const listed = Array.isArray(theirs) ? theirs : theirs === undefined ? [] : [theirs];
   const rule = testSelectionRule(probesOptions(options));
-  const probes = (rspack: { module?: { rules?: unknown[] } }): void => {
+  const probes = (rspack: { module?: { rules?: unknown[] }; plugins?: unknown[] }): void => {
     rspack.module = { ...rspack.module, rules: withRule(rspack.module?.rules ?? [], rule) };
+    if (rule.enforce === 'post') rspack.plugins = [...(rspack.plugins ?? []), loaderMaps];
   };
-  const sourceMap = rule.enforce === 'post' ? rsbuildSourceMap(config) : undefined;
-  return {
-    ...config,
-    ...(sourceMap === undefined ? {} : { output: { ...config.output, sourceMap } }),
-    tools: { ...config.tools, rspack: [...listed, probes] },
-  };
+  return { ...config, tools: { ...config.tools, rspack: [...listed, probes] } };
 }
 
 interface WebpackConfig {
-  readonly devtool?: unknown;
   readonly module?: { readonly rules?: readonly unknown[] };
+  readonly plugins?: readonly unknown[];
 }
 
-/** After the transforms, a `devtool` that hands the loaders no map becomes `hidden-cheap-module-source-map`. */
+/** After the transforms, {@link loaderMaps} hands the loaders maps where `devtool` does not. */
 export async function webpackFinal<Config extends WebpackConfig>(config: Config, options: PresetOptions): Promise<Config> {
+  if (!recorded(options)) return config;
   const rule = testSelectionRule(probesOptions(options));
   const rules = withRule(config.module?.rules ?? [], rule);
-  const devtool = rule.enforce === 'post' && !handsLoadersMaps(config.devtool) ? { devtool: PROBES_DEVTOOL } : {};
-  return { ...config, ...devtool, module: { ...config.module, rules } };
+  const plugins = rule.enforce === 'post' ? { plugins: [...(config.plugins ?? []), loaderMaps] } : {};
+  return { ...config, ...plugins, module: { ...config.module, rules } };
 }

@@ -215,7 +215,7 @@ Everything below is passed to `storybookCollector(...)` in the module from step
 | `wiring` | Your preview's renderer is not React. | `true`. Reads props, context, hook cells and keys into a band of its own; turning it off changes no stored digest. |
 | `holdings` | Application values behind the nodes are evidence you want read. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 | `roots` | Your preview mounts somewhere other than the standard roots. | `['#storybook-root', '#root']`, tightest match first. |
-| `tests` | The next run should be able to skip stories whose code nothing touched. | `false`. Requires this package in the Storybook's `addons`; see below. |
+| `tests` | The next run should be able to skip stories whose code nothing touched. | `false`. Requires this package in the Storybook's `addons` and `storybook build --test`; see below. |
 
 A **band** is the severity category a change is filed under. Loudest first:
 `a11y`, `geometry`, `token`, `content`, `texture`. A role or accessible name that
@@ -345,7 +345,7 @@ for builds that already use Emotion, theme-ui or another custom JSX runtime.
 With `tests`, a run records which blocks of your code each story crossed, so the
 next run can skip a story whose code your diff did not reach. The recording is
 done by probes in the preview build, which this package adds as a Storybook
-addon:
+addon to `storybook build --test` and a dev server:
 
 ```js
 // .storybook/main.js
@@ -366,19 +366,20 @@ it runs after every post loader of yours. Either way the probes go in after
 every compiler your build runs, so an extractor such as `@compiled/react` reads
 your file as you wrote it, and each probe is placed where the source map says
 that code went. Where the build writes no map the loaders can read, as
-`storybook build --test` does, the preset sets `devtool` (Rsbuild's
-`output.sourceMap.js`) to `hidden-cheap-module-source-map`: the build then
-writes `.map` files next to the bundles, which no bundle names. A rule you add
-yourself with `testSelectionRule()` gets no such help, and a module that
-arrives there with no map stops the build and names it. If you added
-`testSelectionProbes()` or `testSelectionRule()` to the Storybook's builder
-config by hand, remove it: the addon adds it, and leaves a hand-added one in
-place rather than adding a second.
+`storybook build --test` does, the preset hands the loaders their maps and the
+build still writes no `.map` file. Any other `storybook build`, the one you
+publish, gets nothing from the addon: build it with `--test` for the run that
+records. If you added `testSelectionRule()` to the Storybook's builder config
+by hand, remove it: the addon cannot order a rule it did not add, so the build
+stops and says to. A `testSelectionProbes()` you added under Vite orders itself,
+and the addon adds no second one.
 
 Pass the probes' options as the addon's: `{ name:
 '@variance-authority/storybook-collector', options: { mode: 'entries' } }`.
 `include` decides which modules are your source, every file outside
-`node_modules` and `dist` that is not a test or a config by default; `root` is a
+`node_modules` and `dist` that is not a test or a config by default; keep it a
+pure function of the file name, since under Rspack and webpack its source text
+keys the build's cache; `root` is a
 directory in the repository, the cwd by default. `placement:
 'before-transforms'` places the probes in each file as read, ahead of every
 compiler; a Storybook that runs an extractor keeps the default.
