@@ -440,7 +440,8 @@ jobs:
         run: |
           set -euo pipefail
           projects='[
-            {"project": "tribunal", "config": "packages/tribunal/variance.config.json", "label": "variance: accept tribunal"}
+            {"project": "tribunal", "config": "packages/tribunal/variance.config.json", "label": "variance: accept tribunal"},
+            {"project": "site", "config": "site/variance.config.json", "label": "variance: accept site"}
           ]'
           if [ "$VARIANCE_EVENT_ACTION" = labeled ]; then
             projects=$(jq --arg label "$VARIANCE_LABEL" 'map(select(.label == $label))' <<< "$projects")
@@ -505,6 +506,30 @@ jobs:
         run: |
           yarn workspace @variance-authority/tribunal stories:record
           yarn workspace @variance-authority/tribunal build-storybook
+
+      # The site is its own install, outside the workspaces, and its build reads
+      # `docs/` and the packages' READMEs from this checkout. It is observed as
+      # built, served by the same worker it deploys as, so a page that differs
+      # between the build and production is not this check's to find. The
+      # server stays up for the rest of the job; the gate reads its sitemap.
+      - name: build what this project observes
+        if: matrix.project == 'site'
+        shell: bash
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          set -euo pipefail
+          cd site
+          yarn install --immutable
+          yarn build
+          nohup yarn start > "$RUNNER_TEMP/site.log" 2>&1 &
+          for _ in $(seq 60); do
+            if node -e "fetch('http://localhost:8787/sitemap.xml').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"; then exit 0; fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/site.log" >&2
+          echo "::error::the site did not answer on localhost:8787 within a minute"
+          exit 1
 
       - id: variance
         uses: ./.github/actions/variance

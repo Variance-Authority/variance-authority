@@ -37,6 +37,21 @@ yarn start       # wrangler dev against dist/server/wrangler.json; build first
 yarn deploy      # build first, and wrangler login; deploys to Cloudflare
 ```
 
+## What the visual review watches
+
+Every page `sitemap.xml` lists is a subject of the `site` check in
+`.github/workflows/variance.yml`, read from the build `yarn start` serves:
+`variance.config.json` here, and the collector in `variance/routes.mjs`. A page
+added to `NAVIGATION` is watched without an edit there. To run it against your
+own build, start the server and, from `site/`:
+
+```bash
+node ../packages/cli/dist/bin.js run --config variance.config.json
+```
+
+A change it finds is accepted on the pull request with the `variance: accept
+site` label.
+
 ## What the edge serves
 
 Every `page.tsx` and `route.ts` declares `export const revalidate`. That
