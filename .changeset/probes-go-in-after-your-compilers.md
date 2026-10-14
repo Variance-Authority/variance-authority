@@ -22,7 +22,13 @@ the transformed text where the transforms' combined map carries each region.
 A plugin of yours whose `transform` is ordered `post` and listed after
 `testSelectionProbes` still runs after the probes, and the configuration now
 warns with its name; list it before. A plain `transform` at `enforce: 'post'`
-runs ahead of the probes.
+runs ahead of the probes. The plugin's `transform` is now an object hook,
+`{ order, handler }`: code that calls it directly calls `transform.handler`.
+Under Rstest the second loader's rule goes first among the rules, after
+`tools.rspack` has run, so it runs after every post loader of yours.
+
+`instrument()` answers two more fields: `module`, whether the text imports or
+exports, and `headerAt`, where the header starts past the directive prologue.
 
 A region can now be recorded as running when it did not. A region the map
 gives no code of its own is recorded running when the function holding the
