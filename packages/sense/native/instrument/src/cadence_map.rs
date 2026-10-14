@@ -96,7 +96,7 @@ impl Mappings {
 
 const DIGITS: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-fn vlq(text: &mut String, value: i64) {
+pub(crate) fn vlq(text: &mut String, value: i64) {
     let mut rest = if value < 0 { ((-value) << 1) | 1 } else { value << 1 } as u64;
     loop {
         let mut digit = (rest & 31) as usize;

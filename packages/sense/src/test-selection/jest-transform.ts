@@ -1,11 +1,13 @@
 /**
- * The Jest transformer: probes on the project's text, then the project's own transform.
+ * The Jest transformer: the project's own transform, then probes on what it wrote.
  *
  * Named in a configuration by the Jest wrappers, and loaded by Jest once per
  * worker. It wraps whatever transformer the configuration named — `@swc/jest`,
  * `ts-jest`, `babel-jest`, anything with Jest's transformer shape — and never
- * chooses one: the probes land on the file as Jest read it, and the project's
- * transformer runs on that, with the project's options.
+ * chooses one: the project's transformer runs on the file as Jest read it, with
+ * the project's options, and the probes of that file's regions go into what it
+ * wrote, through the map it returned ({@link probedAfter}). A test file is cut
+ * first instead, and the transformer runs on the cut.
  *
  * Jest's transform cache decides what it costs: the text this returns is
  * stored on disk under `getCacheKey`, shared by every worker and every later
@@ -15,8 +17,8 @@
  * what the probes mean is written: the reporter cuts the module again from the
  * file and the digest its probes report.
  *
- * A module the instrumenter cannot read, and one `unprobed` names, reaches the
- * inner transformer as it is with one mark after its last line.
+ * A module the instrumenter cannot read, and one `unprobed` names, leaves the
+ * inner transformer with one mark after its last line.
  *
  * A transformer that places the probes itself — a Rust pipeline linking the
  * instrumenter crate the package ships — says so with `senseRecipe`, and is
@@ -38,8 +40,9 @@ import { behindCut, inlineBehindCut } from './cut-map.js';
 import { probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { markUnplaced, placeModule, planModule } from './captured-modules.js';
 import { defaultInclude } from './instrumented-modules.js';
+import { probedAfter } from './jest-after.js';
 import type { SelectionTransformerConfig } from './jest.js';
-import type { TransformSourceMap } from './source-lines.js';
+import { namesItsMap, type TransformSourceMap } from './source-lines.js';
 
 /** The fields of Jest's project configuration this reads. */
 export interface JestProjectConfig {
@@ -191,7 +194,8 @@ export async function createTransformer(
       if (innerProcessAsync === undefined) return bare(root, path, options, text, how, cut);
       const handed = places ? handOver(root, path, forInner(options), text, how) : undefined;
       if (handed !== undefined) return behind(marked(await innerProcessAsync(text, path, handed), handed), cut);
-      return behind(await innerProcessAsync(place(root, path, options, text, how), path, forInner(options)), cut);
+      if (!after(path, options, how, source)) return behind(await innerProcessAsync(place(root, path, options, text, how), path, forInner(options)), cut);
+      return probedAfter(root, path, source, await innerProcessAsync(text, path, forInner(options)), how.mode, how.unprobed);
     },
   };
   const innerProcess = inner?.process?.bind(inner);
@@ -202,7 +206,8 @@ export async function createTransformer(
       if (innerProcess === undefined) return bare(root, path, options, text, how, cut);
       const handed = places ? handOver(root, path, forInner(options), text, how) : undefined;
       if (handed !== undefined) return behind(marked(innerProcess(text, path, handed), handed), cut);
-      return behind(innerProcess(place(root, path, options, text, how), path, forInner(options)), cut);
+      if (!after(path, options, how, source)) return behind(innerProcess(place(root, path, options, text, how), path, forInner(options)), cut);
+      return probedAfter(root, path, source, innerProcess(text, path, forInner(options)), how.mode, how.unprobed);
     };
   }
   return transformer;
@@ -247,8 +252,22 @@ function place(
   source: string,
   { mode, excluded, unprobed }: Placing,
 ): string {
-  if (excluded.has(resolve(path)) || isTestFile(path, options.config)) return source;
+  if (!probes(path, options, { excluded })) return source;
   return placeModule(root, path, source, defaultInclude, unprobed, mode, originalOf(path, source))?.code ?? source;
+}
+
+/**
+ * Whether a module's probes go into what the inner transformer wrote: one that
+ * gets probes, unless the file names its own map, a build's output, whose
+ * transformer reads that map and answers in the build's sources, never the file.
+ */
+function after(path: string, options: JestTransformRequest, how: Placing, source: string): boolean {
+  return probes(path, options, how) && !namesItsMap(source);
+}
+
+/** Whether a module gets probes, rather than a cut or nothing: neither excluded nor a test. */
+function probes(path: string, options: JestTransformRequest, { excluded }: Pick<Placing, 'excluded'>): boolean {
+  return !excluded.has(resolve(path)) && !isTestFile(path, options.config);
 }
 
 /**

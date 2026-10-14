@@ -77,6 +77,10 @@
       "types": "./dist/test-selection/rstest.d.ts",
       "default": "./dist/test-selection/rstest.js"
     },
+    "./rstest-after-loader": {
+      "types": "./dist/test-selection/rstest-after-loader.d.ts",
+      "default": "./dist/test-selection/rstest-after-loader.js"
+    },
     "./rstest-loader": {
       "types": "./dist/test-selection/rstest-loader.d.ts",
       "default": "./dist/test-selection/rstest-loader.js"

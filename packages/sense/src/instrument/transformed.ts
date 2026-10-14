@@ -8,6 +8,8 @@ export interface InstrumentedTransformed extends Instrumented {
   readonly unplaced: readonly number[];
   /** The `mappings` from `code` back to the transformed text, when it has one. */
   readonly mappings?: string;
+  /** With `carry`, `map.mappings` moved onto `code`: its sources and names as they were. */
+  readonly carried?: string;
 }
 
 /**
@@ -20,18 +22,19 @@ export interface InstrumentedTransformed extends Instrumented {
  * cuts it. Each region of `transformed` fires the regions of `source` its code
  * came from; one only the transforms wrote fires none. A region of `source`
  * nothing fires is in `unplaced`, and the caller refuses the module by name.
+ * With `options.carry`, `carried` is `map.mappings` moved onto `code`.
  */
 export function instrumentTransformed(
   source: string,
   transformed: string,
   map: { readonly file: string; readonly mappings: string; readonly source: number },
   id: ModuleId = map.file,
-  options: InstrumentOptions = {},
+  options: InstrumentOptions & { readonly carry?: boolean } = {},
 ): InstrumentedTransformed | undefined {
   const mode = options.mode ?? 'presence';
-  const answer = placed(source, transformed, map, mode, id);
+  const answer = placed(source, transformed, map, mode, id, options.carry);
   if (answer === undefined) return undefined;
-  const { code, sourceDigest, blocks, unplaced, mappings } = answer;
+  const { code, sourceDigest, blocks, unplaced, mappings, carried } = answer;
   return {
     code,
     sourceDigest,
@@ -39,5 +42,6 @@ export function instrumentTransformed(
     blocks,
     unplaced,
     ...(mappings === undefined ? {} : { mappings }),
+    ...(carried === undefined ? {} : { carried }),
   };
 }

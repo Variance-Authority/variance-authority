@@ -133,6 +133,7 @@ export interface NativePlaced {
   readonly instrumented: NativeInstrumented;
   readonly unplaced: Uint32Array;
   readonly mappings: string | null;
+  readonly carried: string | null;
 }
 
 const NONE = 0xffffffff;
@@ -180,12 +181,19 @@ export interface Placed extends Spliced {
   readonly unplaced: readonly number[];
   /** The map from `code` back to the transformed text, when it has one. */
   readonly mappings?: string;
+  /**
+   * With `carry`, the composed map's `mappings` moved onto `code`: its sources
+   * and names as they were, each column past the probes in front of it.
+   */
+  readonly carried?: string;
 }
 
 /**
  * The regions of `authored`, numbered, named and digested as {@link spliced}
  * cuts them, with their probes in `transformed` where `mappings` — the composed
  * map from it to its sources, `authored` being number `source` — carries them.
+ * With `carry`, the answer holds that map moved onto the probed text, for a
+ * runner no bundler composes maps for.
  */
 export function placed(
   authored: string,
@@ -193,12 +201,13 @@ export function placed(
   map: { readonly file: string; readonly mappings: string; readonly source: number },
   mode: InstrumentMode,
   module: string,
+  carry = false,
 ): Placed | undefined {
   const addon = instrumenter();
   if (!(authored as WellFormed).isWellFormed() || !(transformed as WellFormed).isWellFormed()) return undefined;
   let answer: NativePlaced | null;
   try {
-    answer = addon.place(authored, transformed, map.file, map.mappings, map.source, mode === 'entries', module);
+    answer = addon.place(authored, transformed, map.file, map.mappings, map.source, mode === 'entries', module, carry);
   } catch (error) {
     throw new Error(`instrument: the native walk failed on ${map.file}: ${(error as Error).message}`, { cause: error });
   }
@@ -207,6 +216,7 @@ export function placed(
     ...columns(answer.instrumented),
     unplaced: [...answer.unplaced],
     ...(answer.mappings === null ? {} : { mappings: answer.mappings }),
+    ...(answer.carried === null ? {} : { carried: answer.carried }),
   };
 }
 

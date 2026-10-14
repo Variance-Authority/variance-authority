@@ -157,11 +157,23 @@ export interface ComposedMap {
 
 /** A module whose probes a transform placed after the project's own, and the map from its text back to theirs. */
 export interface CapturedAfter extends Captured {
+  /** The map from `code` back to the text it was handed, one source. */
   readonly mappings?: string;
+  /** With `carry`, the composed map's `mappings` moved onto `code`, its sources and names as they were. */
+  readonly carried?: string;
+}
+
+/** What {@link captureAfter} is told beyond the text and its map. */
+export interface AfterOptions {
+  /** The modules marked as loaded rather than probed, as {@link placeModule} reads it. */
+  readonly unprobed?: ((file: string) => boolean) | undefined;
+  /** Answer the composed map moved onto the probed text, for a runner no bundler composes maps for. */
+  readonly carry?: boolean;
+  readonly original?: (path: string) => string;
 }
 
 /**
- * Cut one module as {@link captureModule} cuts it, from the file on disk, and
+ * Cut one module as {@link placeModule} cuts it, from the file on disk, and
  * place its probes in `code`, the text every transform before this one wrote.
  *
  * A compiler that reads syntax reads probes too, so they go in last: regions,
@@ -169,7 +181,7 @@ export interface CapturedAfter extends Captured {
  * and `map` says which code in `code` each one became. A region `map` carries
  * nowhere is an error that names it, because recording without it would
  * record that it never ran. Where `code` is the file, or the map cannot be
- * had, this is {@link captureModule}.
+ * had, this is {@link placeModule}.
  */
 export function captureAfter(
   root: string,
@@ -178,8 +190,9 @@ export function captureAfter(
   include: (file: string) => boolean,
   mode: InstrumentMode | undefined,
   map: (() => ComposedMap | undefined) | undefined,
-  original: (path: string) => string = readOriginal,
+  options: AfterOptions = {},
 ): CapturedAfter | undefined {
+  const { unprobed, carry = false, original = readOriginal } = options;
   let disk: string | undefined;
   try {
     disk = original(path);
@@ -187,13 +200,19 @@ export function captureAfter(
     disk = undefined;
   }
   if (disk === undefined || map === undefined || handedTexts(disk).includes(code)) {
-    return captureModule(root, path, code, include, mode, original);
+    return placeModule(root, path, code, include, unprobed, mode, original);
   }
-  const plan = planModule(root, path, disk, include, original);
+  const plan = planModule(root, path, disk, include, original, unprobed);
   if (plan === undefined) return undefined;
   const { frame, file, id } = plan;
+  const unread = { file, id, sourceDigest: frame.sourceDigest, instrumented: false, blocks: [] };
   const composed = map();
-  const source = composed?.sources.findIndex(
+  // The mark follows the last line, so no column the map names moves.
+  if (plan.marked) return { module: unread, code: markLoaded(code, id), ...(carry && composed ? { carried: composed.mappings } : {}) };
+  // A text with no code in it, such as what a module of types compiles to, has
+  // no map to name the file in: the probe of loading it is all it can hold.
+  const blank = !/\S/.test(code);
+  const source = blank ? 0 : composed?.sources.findIndex(
     (name) => name !== null && resolve(dirname(path), composed.sourceRoot ?? '', name) === path,
   ) ?? -1;
   if (composed === undefined || source === -1) {
@@ -202,9 +221,9 @@ export function captureAfter(
         'so no region of it can be placed in what they wrote. Have them write a source map, or leave the file out of `include`.',
     );
   }
-  const done = instrumentTransformed(disk, code, { file, mappings: composed.mappings, source }, id, mode === undefined ? {} : { mode });
+  const done = instrumentTransformed(disk, code, { file, mappings: blank ? '' : composed.mappings, source }, id, { ...(mode === undefined ? {} : { mode }), carry });
   if (done === undefined) {
-    return { module: { file, id, sourceDigest: frame.sourceDigest, instrumented: false, blocks: [] }, code: markLoaded(code, id) };
+    return { module: unread, code: markLoaded(code, id), ...(carry ? { carried: composed.mappings } : {}) };
   }
   if (done.unplaced.length > 0) {
     const names = done.unplaced.map((ordinal) => {
@@ -217,9 +236,10 @@ export function captureAfter(
     );
   }
   return {
-    module: { file, id, sourceDigest: frame.sourceDigest, instrumented: true, blocks: recordedBlocks(done.blocks, frame, disk, mode ?? 'presence') },
+    module: { ...unread, instrumented: true, blocks: recordedBlocks(done.blocks, frame, disk, mode ?? 'presence') },
     code: done.code,
     ...(done.mappings === undefined ? {} : { mappings: done.mappings }),
+    ...(done.carried === undefined ? {} : { carried: done.carried }),
   };
 }
 

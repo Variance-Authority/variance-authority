@@ -53,6 +53,10 @@ pub struct Placed {
     /// The map from `instrumented.code` back to `transformed`, or `null` when
     /// the header took a line of its own.
     pub mappings: Option<String>,
+    /// With `carry`, the composed map moved onto `instrumented.code`, its
+    /// sources and names as they were; `null` without it, or when the header
+    /// took a line of its own.
+    pub carried: Option<String>,
 }
 
 /// `null` when either text does not parse.
@@ -66,9 +70,15 @@ pub fn place_module(
     source: u32,
     entries: bool,
     module: String,
+    carry: bool,
 ) -> Option<Placed> {
-    let placed = place(&authored, &transformed, &file, &mappings, source, &module, entries)?;
-    Some(Placed { instrumented: columns(placed.cut), unplaced: Uint32Array::new(placed.unplaced), mappings: placed.mappings })
+    let placed = place(&authored, &transformed, &file, &mappings, source, &module, entries, carry)?;
+    Some(Placed {
+        instrumented: columns(placed.cut),
+        unplaced: Uint32Array::new(placed.unplaced),
+        mappings: placed.mappings,
+        carried: placed.carried,
+    })
 }
 
 fn columns(out: Cut) -> Instrumented {

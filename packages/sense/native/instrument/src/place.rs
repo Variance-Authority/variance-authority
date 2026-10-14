@@ -44,13 +44,19 @@ pub struct Placed {
     /// The map from `cut.code` back to the transformed text, one source, or
     /// nothing when the header needed a line of its own.
     pub mappings: Option<String>,
+    /// With `carry`, the project's composed map moved onto `cut.code`: the
+    /// same sources and names, each generated column past the probes in front
+    /// of it. Nothing when the header needed a line of its own.
+    pub carried: Option<String>,
 }
 
 /// Place the probes of `authored`'s regions in `transformed`.
 ///
 /// `mappings` is the composed map from `transformed` to its sources, and
 /// `source` the index of `authored` among them. Nothing when either text does
-/// not parse.
+/// not parse. With `carry`, [`Placed::carried`] is the composed map moved
+/// onto the probed text, for a runner no bundler composes maps for.
+#[allow(clippy::too_many_arguments)]
 pub fn place(
     authored: &str,
     transformed: &str,
@@ -59,6 +65,7 @@ pub fn place(
     source: u32,
     module: &str,
     entries: bool,
+    carry: bool,
 ) -> Option<Placed> {
     let mut cut = cut::cut(authored, file, entries)?;
     let allocator = Allocator::new();
@@ -77,7 +84,8 @@ pub fn place(
             block.end = table.at(block.end);
         }
     }
-    let segments = segments(mappings, source, &starts(transformed), &starts(authored));
+    let units: [Vec<u16>; 2] = [transformed.encode_utf16().collect(), authored.encode_utf16().collect()];
+    let segments = segments(mappings, source, &starts(transformed), &starts(authored), &units);
     let fires = fired(&cut.blocks, &regions, &segments);
 
     let mut fired_any = vec![false; cut.blocks.len()];
@@ -90,16 +98,20 @@ pub fn place(
     let mut spliced = cut::splice(transformed, program, walker, true);
     let head = header(module, cut.blocks.len());
     spliced.code.insert_str(spliced.header_byte, &head);
-    let mappings = (!spliced.edits.iter().any(|(_, text)| text.contains('\n'))).then(|| {
+    let one_line = !spliced.edits.iter().any(|(_, text)| text.contains('\n'));
+    let (mappings, carried) = if one_line {
         let mut edits = spliced.edits;
         let at = edits.partition_point(|(offset, _)| *offset < spliced.header_source);
         edits.insert(at, (spliced.header_source, head));
-        crate::cadence_map::mappings(transformed, &edits).0
-    });
+        let (own, shifts) = crate::cadence_map::mappings(transformed, &edits);
+        (Some(own), carry.then(|| crate::carry::carried(mappings, &shifts)))
+    } else {
+        (None, None)
+    };
     cut.code = spliced.code;
     cut.header_at = spliced.header_at;
     cut.header_byte = spliced.header_byte;
-    Some(Placed { cut, unplaced, mappings })
+    Some(Placed { cut, unplaced, mappings, carried })
 }
 
 /// A mapped position: generated and original offsets, in UTF-16 code units.
@@ -123,7 +135,12 @@ fn starts(text: &str) -> Vec<u32> {
 }
 
 /// The segments of `mappings` whose source is `source`, ordered by generated offset.
-fn segments(mappings: &str, source: u32, generated: &[u32], original: &[u32]) -> Vec<Segment> {
+///
+/// A segment that starts in whitespace and names a token's origin — esbuild maps
+/// column 0 of an indented line to its first token — is read where the token
+/// after the whitespace starts, so the region enclosing the indentation does not
+/// take the token's origin. `units` are the transformed and authored texts.
+fn segments(mappings: &str, source: u32, generated: &[u32], original: &[u32], units: &[Vec<u16>; 2]) -> Vec<Segment> {
     let mut out = Vec::new();
     let (mut from, mut original_line, mut original_column) = (0i64, 0i64, 0i64);
     for (index, text) in mappings.split(';').enumerate() {
@@ -144,11 +161,22 @@ fn segments(mappings: &str, source: u32, generated: &[u32], original: &[u32]) ->
             else {
                 continue;
             };
-            out.push(Segment { generated: g + column as u32, original: o + original_column as u32 });
+            let (mut at, from) = (g + column as u32, o + original_column as u32);
+            if !blank(&units[1], from) {
+                while blank(&units[0], at) {
+                    at += 1;
+                }
+            }
+            out.push(Segment { generated: at, original: from });
         }
     }
     out.sort_by_key(|it| it.generated);
     out
+}
+
+/// Whether a text holds a space or a tab at a UTF-16 offset.
+fn blank(units: &[u16], at: u32) -> bool {
+    matches!(units.get(at as usize), Some(&0x20 | &0x09))
 }
 
 /// One segment's fields, or nothing when it is not Base64 VLQ.
@@ -320,133 +348,5 @@ impl Walker {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// A map from `(generated line, column, original line, column)` points,
-    /// all of source 0, in generated order.
-    fn map(points: &[(u32, u32, u32, u32)]) -> String {
-        let mut out = String::new();
-        let (mut line, mut column, mut original_line, mut original_column) = (0u32, 0i64, 0i64, 0i64);
-        for &(g_line, g_column, o_line, o_column) in points {
-            while line < g_line {
-                out.push(';');
-                line += 1;
-                column = 0;
-            }
-            if !out.is_empty() && !out.ends_with(';') {
-                out.push(',');
-            }
-            out.push_str(&vlq(g_column as i64 - column));
-            out.push('A');
-            out.push_str(&vlq(o_line as i64 - original_line));
-            out.push_str(&vlq(o_column as i64 - original_column));
-            (column, original_line, original_column) = (g_column as i64, o_line as i64, o_column as i64);
-        }
-        out
-    }
-
-    /// The identity map of a text, one point per character.
-    fn identity(text: &str) -> String {
-        let mut points = Vec::new();
-        for (line, content) in text.split('\n').enumerate() {
-            for column in 0..content.chars().count() as u32 {
-                points.push((line as u32, column, line as u32, column));
-            }
-        }
-        map(&points)
-    }
-
-    fn vlq(value: i64) -> String {
-        let mut text = String::new();
-        let mut rest = if value < 0 { ((-value) << 1) | 1 } else { value << 1 } as u64;
-        loop {
-            let mut digit = (rest & 31) as usize;
-            rest >>= 5;
-            if rest > 0 {
-                digit |= 32;
-            }
-            text.push(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"[digit] as char);
-            if rest == 0 {
-                return text;
-            }
-        }
-    }
-
-    #[test]
-    fn a_text_no_transform_changed_is_placed_as_it_is_cut() {
-        let source = "export function f(x) {\n  if (x) return 1;\n  return 0;\n}\n";
-        let placed = place(source, source, "f.js", &identity(source), 0, "f.js@00", false).expect("it parses");
-        assert!(placed.unplaced.is_empty());
-        let mut cut = cut::cut(source, "f.js", false).expect("it parses");
-        cut.code.insert_str(cut.header_byte, &header("f.js@00", cut.blocks.len()));
-        assert_eq!(placed.cut.code, cut.code);
-    }
-
-    #[test]
-    fn a_type_the_transform_erased_keeps_its_regions_on_the_authored_text() {
-        let authored = "export function f(x: number): number {\n  if (x) return 1;\n  return 0;\n}\n";
-        let transformed = "export function f(x) {\n  if (x) return 1;\n  return 0;\n}\n";
-        let mut points = vec![(0, 0, 0, 0), (0, 21, 0, 37)];
-        for line in 1..4 {
-            for column in 0..20 {
-                points.push((line, column, line, column));
-            }
-        }
-        let placed = place(authored, transformed, "f.ts", &map(&points), 0, "f.ts@00", false).expect("it parses");
-        assert!(placed.unplaced.is_empty(), "{:?}", placed.unplaced);
-        let cut = cut::cut(authored, "f.ts", false).expect("it parses");
-        assert_eq!(placed.cut.blocks.len(), cut.blocks.len());
-        assert_eq!(placed.cut.source_digest, cut.source_digest);
-        let mut expected = cut::cut(transformed, "f.js", false).expect("it parses");
-        expected.code.insert_str(expected.header_byte, &header("f.ts@00", cut.blocks.len()));
-        assert_eq!(placed.cut.code, expected.code);
-    }
-
-    #[test]
-    fn code_only_the_transform_wrote_carries_no_probe() {
-        let authored = "export const a = 1;\n";
-        let transformed = "export const a = 1;\nfunction helper() { return 2 }\n";
-        let placed = place(authored, transformed, "a.js", "AAAA", 0, "a.js@00", false).expect("it parses");
-        assert!(placed.cut.code.contains("function helper() {void 0; return 2 }"), "{}", placed.cut.code);
-        assert_eq!(placed.cut.blocks.len(), 1);
-    }
-
-    #[test]
-    fn a_region_nothing_maps_into_is_unplaced() {
-        let authored = "export function f() { return 1 }\nexport function g() { return 2 }\n";
-        let transformed = "export function f() { return 1 }\n";
-        // Only the module's start is mapped, in front of both functions, so both
-        // are carried by the region holding it: the module fires them.
-        let placed = place(authored, transformed, "a.js", "AAAA", 0, "a.js@00", false).expect("it parses");
-        assert!(placed.unplaced.is_empty());
-        let none = place(authored, transformed, "a.js", "", 0, "a.js@00", false).expect("it parses");
-        assert_eq!(none.unplaced, vec![1, 2]);
-    }
-
-    #[test]
-    fn an_awaited_resume_fires_each_authored_one_and_none_for_its_own() {
-        let authored = "export async function f(p) { return await p }\n";
-        let placed = place(authored, authored, "a.js", &identity(authored), 0, "a.js@00", false).expect("it parses");
-        assert!(placed.cut.code.contains("__vaR(await p,2)"), "{}", placed.cut.code);
-        let helper = "export async function f(p) { return await p }\nasync function h(q) { await q }\n";
-        let placed = place(authored, helper, "a.js", &identity(authored), 0, "a.js@00", false).expect("it parses");
-        assert!(placed.cut.code.contains("(await q)"), "{}", placed.cut.code);
-        assert!(!placed.cut.code.contains("__vaR(await q"), "{}", placed.cut.code);
-    }
-
-    #[test]
-    fn the_map_back_names_the_transformed_columns() {
-        let source = "export const a = () => 1;\n";
-        let placed = place(source, source, "a.js", &identity(source), 0, "a.js@00", false).expect("it parses");
-        assert!(placed.mappings.is_some_and(|it| it.starts_with("AAAA")));
-    }
-
-    #[test]
-    fn segments_read_only_the_named_source() {
-        // Two segments on line 0: source 1 at column 0, then source 0 at column 4.
-        let found = segments("ACAA,IDAA", 0, &[0], &[0]);
-        assert_eq!(found.len(), 1);
-        assert_eq!(found[0].generated, 4);
-    }
-}
+#[path = "place_tests.rs"]
+mod tests;

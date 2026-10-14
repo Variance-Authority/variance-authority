@@ -58,7 +58,7 @@ until that data feeds the diff-based selection stage in
 
 | Need | Seam |
 |---|---|
-| instrument | regions cut from the file on disk; in a build (`testSelectionProbes`) the probes are written at `enforce: 'post'` into the transformed text, where the combined map carries each region; the test-runner seams probe the file first |
+| instrument | regions cut from the file on disk; the probes are written into what the project's transforms wrote, where the combined map carries each region: Vite and Vitest at `enforce: 'post'`, Jest around the configured transformer, Rstest in a second loader at `enforce: 'post'`; a file that names its own source map is probed before the transforms |
 | configuration | the user adds the integration to the runner configuration or CI job |
 | coverage owner | the test file that the runner executes |
 | selection output | test-file paths for the runner to execute |
@@ -73,10 +73,14 @@ crossing uses a transport before its coverage joins its test file.
 
 - A build-time compiler that reads syntax — a CSS-in-JS extractor, a macro, a
   GraphQL tag, React Compiler — fails or compiles differently on probed text,
-  so in a build no transform of the project's reads a probe. The cut stays on
-  the file on disk; only placement reads the transformed text, and a region
-  the combined map carries to no code, or a rewritten file with no map back,
-  stops the build by file and region rather than dropping the region.
+  so no transform of the project's reads a probe, in a build or under a
+  runner. The cut stays on the file on disk; only placement reads the
+  transformed text, and a region the combined map carries to no code, or a
+  rewritten file with no map back, stops the run by file and region rather
+  than dropping the region. A region whose own code the map names no origin
+  for fires with the code holding the nearest origin in front of it: it can be
+  reported present when it did not run, which over-selects, and never missing
+  when it ran.
 - vitest hoists `vi.mock` calls in its own transform. The module probe must be
   inserted at the **first executable statement after the hoisted block**, never
   at offset 0 — a probe above a hoisted mock changes evaluation order.

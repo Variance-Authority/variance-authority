@@ -26,6 +26,8 @@
 
 mod cadence;
 mod cadence_map;
+#[cfg_attr(not(feature = "addon"), allow(dead_code))]
+mod carry;
 mod crossing;
 mod cut;
 mod dialect;

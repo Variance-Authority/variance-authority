@@ -50,6 +50,9 @@ here, and are covered below.
 
 Wrap the configuration once. `withTestSelection` keeps your plugins, setup
 files, and reporters, and adds instrumentation, collection, and persistence.
+The probes go in after your plugins, as they do in
+[a build](#record-what-a-driven-page-executed), so a compiler that reads
+syntax compiles the same output under the suite as it ships.
 
 ```ts
 // vitest.config.ts
@@ -565,11 +568,12 @@ export default {
 
 ## Cut a Jest run down to a diff
 
-Wrap the configuration once. Each `transform` entry is wrapped: the probes go
-into the text you wrote, and your own transformer — `@swc/jest`, `ts-jest`,
-`babel-jest`, any module with Jest's transformer shape — then compiles it, on its
-own pattern with its own options. The probes keep every line where it was, so
-a stack trace points where it did before. `setupFiles` keep their order and gain
+Wrap the configuration once. Each `transform` entry is wrapped: your own
+transformer — `@swc/jest`, `ts-jest`, `babel-jest`, any module with Jest's
+transformer shape — compiles the file as Jest read it, on its own pattern with
+its own options, and the probes go into what it wrote, where the map it returns
+carries each region of your file. The map handed on to Jest is that map moved
+past the probes, so a stack trace points where it did before. `setupFiles` keep their order and gain
 the counter factory at the start; `setupFilesAfterEnv` gain the journal writer
 at the end; reporters gain one at the end, and a configuration with no reporters
 keeps Jest's default.
@@ -675,7 +679,7 @@ modules by path, and you can name them yourself:
 
 ### Place the probes from your own Rust transform
 
-Wrapped as above, the probes go into the text before your transformer sees it.
+Wrapped as above, the probes go into what your transformer wrote.
 When that transformer is your own Rust — over swc, oxc or anything else — it can
 place them itself, inside its own pipeline. The package ships the instrumenter
 as a Rust crate, the code its own addon runs, so a project that installed sense
@@ -756,8 +760,9 @@ export default defineConfig(withTestSelection({
 The second argument accepts `root`, `suite`, `coverageFile`, `include`,
 `unprobed`, `preconditions`, `mode`, `continuations`, and `cadence`, with the meanings above. Rstest
 does not report which config file it loaded, so name it in `preconditions`. The
-loader runs ahead of SWC, on the text you wrote, so the lines a record carries
-are the ones you edited.
+regions are cut from the text you wrote, so the lines a record carries are the
+ones you edited, and a second loader at `enforce: 'post'` writes the probes into
+what SWC and your loaders wrote, where their map carries each region.
 
 Recording per case needs nothing from the configuration. Rstest has no runner option, so
 the per-case bracket goes around `it` and `test` themselves — on the realm when
@@ -772,9 +777,10 @@ layout needs. A project that sets `name` keeps its setup files and
 `preconditions` for its own tests. A project Rstest names by default is named
 after the wrap has run, so its files are preconditions of every test.
 
-To assemble a configuration by hand instead, `withTestSelection` names one
-module by path, and you can name it yourself:
-`@variance-authority/sense/rstest-loader`.
+To assemble a configuration by hand instead, `withTestSelection` names two
+loaders by path, and you can name them yourself:
+`@variance-authority/sense/rstest-loader` with `enforce: 'pre'`, and
+`@variance-authority/sense/rstest-after-loader` with `enforce: 'post'`.
 
 ## Record a runner this package has no seam for
 
@@ -938,7 +944,9 @@ the source, on the source's lines: `ui/dist/Button.js` counts as
 `ui/src/Button.ts`. Anything else is recorded under its own name, if `include`
 accepts that: an inline map, a bundle's map of many sources, a map or source
 that cannot be read. A Vite dev server and `vite build` decide alike, and so do
-the Vitest, Jest and Rstest seams.
+the Vitest, Jest and Rstest seams. A module that names its own map is probed
+before your transforms: they compose that map, so what they hand back maps to
+its sources rather than to the file.
 
 A module reports the id it was instrumented under: its repository-relative path
 and a digest of the text the regions were cut from, `src/cart/total.ts@<digest>`.
@@ -2273,7 +2281,7 @@ same under every host:
 | `@variance-authority/sense/precondition` | `variancePrecondition`, to record the state the running case ran under | nothing; a call outside a recording does nothing |
 | `@variance-authority/sense/case-journey` | the running case's journey id, to put on a request to a service | a case recorded by `withJourneyCoverage` |
 | `@variance-authority/sense/rstest` | the same as an Rspack loader and a reporter, for a suite Rstest bundles | Rstest `^0.12.0` and product tests |
-| `@variance-authority/sense/rstest-loader` | the loader `withTestSelection` names by path, for a configuration assembled by hand | Rstest `^0.12.0` |
+| `@variance-authority/sense/rstest-loader`, `/rstest-after-loader` | the two loaders `withTestSelection` names by path, for a configuration assembled by hand | Rstest `^0.12.0` |
 | `@variance-authority/sense/runner` | recording from a runner with no seam: opening and folding the run, instrumenting what it loads, and bracketing each test file and case | Node 22.15 or newer, and one test file at a time per process |
 | `@variance-authority/sense/test-selection` | selecting from a diff, placing a selection by distance, reading, folding and writing the snapshot, measuring deviation, and `coveringTests` | the snapshot a runner or journal seam wrote; an import graph for the distance and asset walks |
 | `@variance-authority/sense/cache-root` | `cacheRootFor`, the checkout's cache directory, without loading the parser and resolver | a checkout |

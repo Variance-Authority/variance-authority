@@ -292,6 +292,15 @@ export function handedTexts(disk: string): readonly string[] {
   return blanked === disk ? [disk] : [disk, blanked];
 }
 
+/**
+ * Whether the file whose contents are `disk` names its own map: a build's
+ * output. A host that reads that map composes every map after it onto it, so
+ * the map at the end names the files the build was made from, never this one.
+ */
+export function namesItsMap(disk: string): boolean {
+  return handedTexts(disk).length > 1;
+}
+
 /** The comments Vite blanks: `convert-source-map`'s `mapFileCommentRegex`, as Vite's load applies it. */
 const MAP_COMMENTS =
   /(?:\/\/[@#][ \t]+?sourceMappingURL=([^\s'"`]+?)[ \t]*?$)|(?:\/\*[@#][ \t]+sourceMappingURL=([^*]+?)[ \t]*?(?:\*\/){1}[ \t]*?$)/gm;

@@ -3,9 +3,10 @@
  * Vitest seam, arranged for a runner that bundles the suite before it runs it.
  *
  * Rstest builds with Rspack, so the two halves are an
- * [`enforce: 'pre'` loader](./rstest-loader.ts) and a reporter. Both live in
- * the process Rstest was started in — the loader runs in the main process, not
- * in a worker — so they are joined the way the Vitest seam joins its plugin to
+ * [`enforce: 'pre'` loader](./rstest-loader.ts) for the test files it cuts, an
+ * [`enforce: 'post'` loader](./rstest-after-loader.ts) for every other module,
+ * and a reporter. All live in the process Rstest was started in — the loaders
+ * run in the main process, not in a worker — so they are joined the way the Vitest seam joins its plugin to
  * its reporter, through the run registry in
  * [`selection-run.ts`](./selection-run.ts). A loader cannot be handed the run
  * object, only options the bundler may carry as data, so it is given the one
@@ -168,6 +169,9 @@ function projectKey(name: string): string {
 /** The loader an Rstest configuration names, by absolute path. */
 export const SELECTION_LOADER = fileURLToPath(new URL('./rstest-loader.js', import.meta.url));
 
+/** The loader that probes what the project's loaders wrote, by absolute path. */
+export const PROBES_LOADER = fileURLToPath(new URL('./rstest-after-loader.js', import.meta.url));
+
 /**
  * Rstest's API, which is an injected object rather than a resolvable module.
  *
@@ -306,11 +310,17 @@ export function withTestSelection(
             rules: [
               {
                 test: /\.[cm]?[jt]sx?$/,
-                // Before SWC and the project's own loaders, so the probes land
-                // on the file as it is on disk, and every loader after carries
-                // them along with the code they sit in.
+                // Before SWC and the project's own loaders, so a test file's
+                // probes and cut land on the file as it is on disk.
                 enforce: 'pre',
                 use: [{ loader: SELECTION_LOADER, options: { coverageFile } }],
+              },
+              {
+                test: /\.[cm]?[jt]sx?$/,
+                // After them, so a compiler that reads syntax never reads a
+                // probe, and the probes go where their map says the file went.
+                enforce: 'post',
+                use: [{ loader: PROBES_LOADER, options: { coverageFile } }],
               },
             ],
           },

@@ -2,9 +2,15 @@
  * The recording half of the Rstest seam, as an Rspack loader.
  *
  * Rstest builds the suite with Rspack and runs what it built, so the place a
- * module can be instrumented is a loader rather than a plugin hook. Declared
- * `enforce: 'pre'`, it receives the file as it is on disk, before SWC — the
- * same text the Vite and Jest seams instrument, cut by {@link placeModule}.
+ * module can be instrumented is a loader rather than a plugin hook. This one is
+ * declared `enforce: 'pre'`, so it receives the file as it is on disk, before
+ * SWC, and it cuts the test files the run cuts, on that text, so a case says
+ * which of their lines was running. A module gets its probes from the
+ * [`enforce: 'post'` loader](./rstest-after-loader.ts), after the project's
+ * own loaders, so a compiler that reads syntax never reads them, unless its
+ * file names its own map, a build's output: a loader that reads that map
+ * answers in the build's sources, never the file, so its probes go in here, by
+ * {@link placeModule}.
  *
  * A loader is loaded by path and given options, never handed the object the
  * configuration built, so the run it belongs to cannot be closed over. It is
@@ -21,7 +27,8 @@
 import { cadence, type CutSourceMap } from '../instrument/cadence.js';
 import { placeModule } from './captured-modules.js';
 import { cleanId } from './instrumented-modules.js';
-import { runOf } from './selection-run.js';
+import { namesItsMap } from './source-lines.js';
+import { runOf, type SelectionRun } from './selection-run.js';
 
 /** What the loader asks of the options its rule carries. */
 export interface SelectionLoaderOptions {
@@ -38,35 +45,35 @@ export interface SelectionLoaderContext {
 }
 
 /**
- * Place probes on one module Rspack is about to bundle, and record what they
- * mean.
+ * Cut one test file Rspack is about to bundle, and probe one whose file names
+ * its own map.
  *
- * A test file is cut as well, unless the run turns cuts off. A module this
- * run has no business in — the seam's own setup shim, anything the `include`
- * and `unprobed` predicates both refuse, a build whose snapshot names no run —
- * is otherwise handed back exactly as it arrived.
+ * Any other module — one the run does not cut, the seam's own setup shim, a
+ * build whose snapshot names no run — is handed back exactly as it arrived.
  */
 function instrumentModule(this: SelectionLoaderContext, code: string): void {
   const file = cleanId(this.resourcePath);
   const run = runOf(this.getOptions().coverageFile);
-  // This seam's own setup module installs the probe log; instrumented,
-  // its own header would ask for the log before the module has installed
-  // it. It is a file under the project root like any other, so it is excluded
-  // by path rather than by the shape of its name.
-  if (run === undefined || run.shims.has(file)) {
+  // This seam's own setup module is a file under the project root like any
+  // other, so it is excluded by path rather than by the shape of its name.
+  const first = run !== undefined && namesItsMap(code);
+  if (run === undefined || run.shims.has(file) || (!first && !cutting(run, file))) {
     this.callback(null, code);
     return;
   }
-  const captured = placeModule(run.root, file, code, run.include, run.unprobed, run.mode);
+  const captured = first ? placeModule(run.root, file, code, run.include, run.unprobed, run.mode) : undefined;
   if (captured !== undefined) run.modules.set(captured.module.id, captured.module);
   const probed = captured?.code ?? code;
-  // A test file is then cut, so its case also says which of its lines was
-  // running. Every probe and cut sits on the line it reports, so SWC's map from
-  // this text names the file's lines; the cut's map moves its columns back, so
-  // an inline snapshot is written into the call the test wrote.
-  const cut = run.cases && run.cadence?.(file) === true ? cadence(probed, file) : undefined;
+  // The cut keeps every line where it was, and its map moves the columns
+  // back, so an inline snapshot is written into the call the test wrote.
+  const cut = cutting(run, file) ? cadence(probed, file) : undefined;
   if (cut === undefined) this.callback(null, probed);
   else this.callback(null, cut.code, cut.map);
+}
+
+/** Whether the run cuts `file`: a test file, while cuts are on. */
+function cutting(run: SelectionRun, file: string): boolean {
+  return run.cases && run.cadence?.(file) === true;
 }
 
 // Named here and exported as the default, because a loader is named by path:

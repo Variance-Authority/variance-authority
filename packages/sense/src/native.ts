@@ -127,7 +127,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    */
   instrument(source: string, file: string, entries: boolean, module?: string): NativeInstrumented | null;
   /** `authored`'s regions placed in `transformed` through `mappings`: `native/instrument/src/place.rs`. */
-  place(...args: [string, string, string, string, number, boolean, string]): NativePlaced | null;
+  place(...args: [string, string, string, string, number, boolean, string, boolean]): NativePlaced | null;
   /** The header one module carries: `native/instrument/src/header.rs`. */
   probeHeader(module: string, count: number): string;
   /** The instrumenter crate's `recipe()` for `presence`, or for `entries`. */
