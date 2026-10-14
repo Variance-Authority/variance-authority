@@ -129,7 +129,7 @@ export async function dispatch(
           config: effective,
           ...(parsed.subjects !== undefined ? { subjects: parsed.subjects } : {}),
           ...(parsed.shard !== undefined ? { shard: parsed.shard } : {}),
-          ...(await costsToPlace(effective, parsed.shard !== undefined)),
+          ...(await costsToPlace(effective)),
           ...(parsed.intent !== undefined ? { intent: parsed.intent } : {}),
           ...(parsed.flakes ? { flakes: true } : {}),
           ...(identity !== undefined ? { identity } : {}),

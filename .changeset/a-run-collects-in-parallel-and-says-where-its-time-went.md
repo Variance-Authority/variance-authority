@@ -26,12 +26,18 @@ first. A worker opens no clean world of its own, so the run asked the worker and
 reported "not re-run alone: collector has no `collectAlone`"; it now asks the
 collector that can open one.
 
+The `alone.limit` budget now goes to the first subjects to change in the order
+the run takes them. It went to whichever changed subjects reached it first, so
+with more changed subjects than the limit, which ones carried `again` and
+`alone` evidence depended on the number of worlds and on timing.
+
 Each observation in the report also carries `steps` beside `costMs`: every
 phase the subject went through, in the order it ran, with its wall time. The
 collector's phases are named `collect.*` (`collect.navigate`,
-`collect.wait-for-fonts`, `collect.capture`), the run's own are `inspect`,
-`settle`, `baseline`, `decode`, `compare` and `write`, and a painted subject adds
-the renderer's under `render.*`. The report's `steps` sums each phase over the
+`collect.wait-for-fonts`, `collect.capture`), the run's own are `compose`,
+`inspect`, `settle`, `baseline`, `cache.get`, `cache.put`, `decode`, `compare`,
+`write`, `again.collect` and `alone.collect`, and a painted subject adds the
+renderer's under `render.*`. The report's `steps` sums each phase over the
 subjects that ran it and counts them. A phase a subject skipped is absent, not
 zero. Timings are part of no digest, so images, records and baselines do not
 move when only timing does.
@@ -42,9 +48,10 @@ it. The route page agent and `readRoute` always return the steps they took.
 `stepClock`, `timeOn` and `totalsOf` are exported from
 `@variance-authority/core/format`.
 
-On a machine with four or more cores, a run that is not sharded now reads the
-mainline's subject costs to hand its slowest files out first, as a run with
-`workers` set always did.
+A run that is not sharded now reads the mainline's subject costs at every
+width, as a sharded run always did, and takes its slowest files first. One
+world takes its subjects in the same order as several, so the budget above
+reaches the same subjects.
 
 `concurrency` is shared across the worlds, with at least one subject per world,
 so by default the raster tier is as wide as the number of worlds.

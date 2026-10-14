@@ -16,6 +16,7 @@ import { assign, placedElsewhere } from './shard.js';
 import { costsOf } from './costs-entry.js';
 import { contextFor, timed } from './lanes.js';
 import { acquire } from './acquire.js';
+import { budgetOf } from './budget.js';
 import type { ObserveContext, Outcome, RunOptions } from './run-context.js';
 import { selectionFor } from './run-select.js';
 import { unplannedNotes } from './unplanned.js';
@@ -130,7 +131,6 @@ export async function run(options: RunOptions): Promise<CliRunReport> {
   const renderer = await deps.renderer();
 
   try {
-    const budget = { remaining: config.alone?.limit ?? DEFAULT_ALONE_LIMIT };
     const decoder = await decoderFor(config);
 
     return await observeAll(
@@ -139,7 +139,6 @@ export async function run(options: RunOptions): Promise<CliRunReport> {
         config,
         deps,
         renderer,
-        budget,
         ...(options.flakes === true ? { sweep: true } : {}),
         ...(decoder !== undefined ? { decoder } : {}),
       },
@@ -166,7 +165,7 @@ export async function run(options: RunOptions): Promise<CliRunReport> {
 /** The loop, extracted only so `run` can own the renderer's lifetime in one place. */
 async function observeAll(
   plan: Plan,
-  context: ObserveContext,
+  context: Omit<ObserveContext, 'budget'>,
   options: RunOptions,
   accumulated: {
     observations: CliObservationRecord[];
@@ -210,6 +209,10 @@ async function observeAll(
   for (const [index, entry] of placedElsewhere(plan.subjects, assignment, options)) {
     slots[index] = { kind: 'not-observed', entry };
   }
+
+  // Over this shard's queue, because the order it is taken in is what decides
+  // which changed subjects the budget reaches, whatever the width.
+  const budget = budgetOf(config.alone?.limit ?? DEFAULT_ALONE_LIMIT, assignment.queue);
 
   let storeFailure: unknown;
 
@@ -255,6 +258,7 @@ async function observeAll(
     // Once a store has failed the run is over, so later subjects stop rather
     // than each paying a render to reach the same conclusion.
     stopped: () => storeFailure !== undefined,
+    settled: (index) => budget.settle(index),
     read: async (index, planned, collected, lane, started, steps) => {
       const id = planned.subject.id;
       // Retained here for the same reason the composition is taken here: the
@@ -283,7 +287,7 @@ async function observeAll(
       }
 
       try {
-        const laned = contextFor(context, lane);
+        const laned = contextFor({ ...context, budget: budget.of(index) }, lane);
         const outcome = await observeOne(planned, collected, steps === undefined ? laned : { ...laned, steps }, lane.collecting);
         slots[index] = timed(outcome, started, deps.elapsed, planned.declaredIn, steps?.taken);
       } catch (error) {

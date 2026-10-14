@@ -107,8 +107,12 @@ export async function again(
   // asked for the sweep asked about the suite, and a run that answered for the
   // first twenty subjects while printing a whole-suite heading would be the
   // silently-partial answer this tool refuses everywhere else.
+  //
+  // A subject the budget reaches spends one share of it, whichever of this pass
+  // and `alone` reaches a finding: `alone` asks the same share and gets the same
+  // answer. A sweep asks nothing here, so the clean-world pass keeps its budget.
   if (limit === 0) return {};
-  if (!sweep && budget.remaining <= 0) return {};
+  if (!sweep && !(await budget.claim())) return {};
 
   // Through the collector's one lane, for the reason every other collection goes
   // through it: the world is a single standing page and two collections at once
@@ -122,7 +126,6 @@ export async function again(
     // observed, once. A collector that produced this subject and then could not
     // produce it again has already answered the question this pass asks, and the
     // answer is the loudest form of yes.
-    if (!sweep) budget.remaining -= 1;
     return {
       unstable: {
         components: [],
@@ -136,13 +139,6 @@ export async function again(
   }
 
   if (documentDigest(collected.document) === documentDigest(second.document)) return {};
-
-  // Charged here rather than in `alone`, because `alone` is about to be skipped
-  // and this subject must still count against the run's cap. Every investigated
-  // subject spends exactly one, whichever of the two passes reached a finding.
-  // A sweep charges nothing: it is not spending a red build's investigation
-  // budget, and letting it do so would leave the clean-world pass with none.
-  if (!sweep) budget.remaining -= 1;
 
   const moved = movedBetween(collected.snapshot, second.snapshot, collected.source);
 

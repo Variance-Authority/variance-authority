@@ -75,6 +75,38 @@ function workingCollector(plan: Plan, options: { readonly lanes?: boolean } = {}
   return { collector: worldCollector('main'), worlds };
 }
 
+/**
+ * A suite whose shared worlds paint every subject dark and whose clean world
+ * paints it white: every subject changes against a white baseline, and
+ * matches it when run alone. A worker is a standing world and opens nothing
+ * alone; the clean world is the run's collector's to open, as it is for the
+ * shipped collectors.
+ */
+function leaking(plan: Plan): Collector & { readonly aloneCalls: string[] } {
+  const dark = (id: string) => documentFor(id, '<div data-va-path="0" data-paint="dark">x</div>');
+  const aloneCalls: string[] = [];
+  const world = (): Collector => ({
+    async plan() {
+      return plan;
+    },
+    async collect(planned) {
+      return { ok: true, document: dark(planned.subject.id) };
+    },
+    async close() {
+      /* nothing to release */
+    },
+  });
+  return {
+    ...world(),
+    aloneCalls,
+    async collectAlone(planned) {
+      aloneCalls.push(planned.subject.id);
+      return { ok: true, document: documentFor(planned.subject.id) };
+    },
+    openWorker: async () => world(),
+  };
+}
+
 describe('workers', () => {
   it('collects in every world, one subject at a time in each, and never splits a file', async () => {
     const { collector, worlds } = workingCollector(planOf(6, 3));
@@ -133,33 +165,10 @@ describe('workers', () => {
   });
 
   it('runs a changed subject alone from whichever world read it, and says the same of it at any width', async () => {
-    // A worker is a standing world and opens nothing alone; the clean world is
-    // the run's collector's to open, as it is for the shipped collectors.
-    function leaking(): Collector {
-      const dark = (id: string) => documentFor(id, '<div data-va-path="0" data-paint="dark">x</div>');
-      const world = (): Collector => ({
-        async plan() {
-          return planOf(4, 1);
-        },
-        async collect(planned) {
-          return { ok: true, document: dark(planned.subject.id) };
-        },
-        async close() {
-          /* nothing to release */
-        },
-      });
-      return {
-        ...world(),
-        async collectAlone(planned) {
-          return { ok: true, document: documentFor(planned.subject.id) };
-        },
-        openWorker: async () => world(),
-      };
-    }
     const baseline = whiteBaselineOf(documentFor('fixture:f0-s0'));
     const [one, three] = await Promise.all(
       [1, 3].map(async (workers) =>
-        runWith(configOf({ workers }), leaking(), storeAnswering(baseline), { renderer: painter() }),
+        runWith(configOf({ workers }), leaking(planOf(4, 1)), storeAnswering(baseline), { renderer: painter() }),
       ),
     );
 
@@ -167,6 +176,32 @@ describe('workers', () => {
     expect(one!.report.observations.map((o) => o.alone?.because)).toEqual(
       Array.from({ length: 4 }, () => expect.stringContaining('matches its baseline when run alone')),
     );
+    expect(three!.report.observations).toEqual(one!.report.observations);
+  });
+
+  it('spends the budget on the same subjects at any width: the first to change in the order they were taken', async () => {
+    // Three files of two, a budget of two. One world reaches both of the first
+    // file's subjects before the second file's; three worlds finish the first
+    // subject of every file before the second of any.
+    const baseline = whiteBaselineOf(documentFor('fixture:f0-s0'));
+    const [one, three] = await Promise.all(
+      [1, 3].map(async (workers) => {
+        const collector = leaking(planOf(3, 2));
+        const { report } = await runWith(configOf({ workers, alone: { limit: 2 } }), collector, storeAnswering(baseline), {
+          renderer: painter(),
+        });
+        return { report, alone: [...collector.aloneCalls].sort() };
+      }),
+    );
+
+    expect(three!.report.workers).toBe(3);
+    expect(one!.alone).toEqual(['fixture:f0-s0', 'fixture:f0-s1']);
+    expect(three!.alone).toEqual(one!.alone);
+    expect(one!.report.observations.map((o) => o.alone?.because)).toEqual([
+      expect.stringContaining('matches its baseline when run alone'),
+      expect.stringContaining('matches its baseline when run alone'),
+      ...Array.from({ length: 4 }, () => expect.stringContaining('budget of 2 subjects spent')),
+    ]);
     expect(three!.report.observations).toEqual(one!.report.observations);
   });
 

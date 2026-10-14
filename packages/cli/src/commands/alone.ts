@@ -78,7 +78,7 @@ export async function alone(
     };
   }
 
-  if (budget.remaining <= 0) {
+  if (!(await budget.claim())) {
     return {
       alone: {
         reproduced: true,
@@ -87,10 +87,10 @@ export async function alone(
     };
   }
 
-  budget.remaining -= 1;
-
-  // Through the same lane as `collect`, because a clean world is still built out
-  // of the collector's one browser: two of these at once is the identical hazard.
+  // Through the lane's serializer like `collect`, so a world reads one subject
+  // at a time whatever a collector's clean world is built from. The shipped
+  // collectors build each one as a browser of its own, so clean worlds from
+  // several lanes run side by side without sharing a page.
   const collectAlone = deps.collector.collectAlone.bind(deps.collector);
   const fresh = await collecting(async () => timeOn(context.steps, 'alone.collect', async () => collectAlone(planned)));
   if (!fresh.ok) {

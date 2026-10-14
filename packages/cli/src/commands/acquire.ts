@@ -34,6 +34,8 @@ export interface AcquireInput {
   readonly passed: (index: number, entry: NotObserved) => void;
   /** Whether to stop taking subjects; `run` stops once its store has failed. */
   readonly stopped?: () => boolean;
+  /** Every index the queue holds, once it is done with, however it ended. */
+  readonly settled?: (index: number) => void;
   /** What the caller does with a subject that was read, in the lane that read it. */
   readonly read?: (
     index: number,
@@ -64,7 +66,7 @@ export async function acquire(input: AcquireInput): Promise<Acquisition> {
   if (input.queue.length === 0) return { compositions, warnings: [] };
 
   const { lanes, warnings } = await openLanes(input.collector, input.config, input.queue.length);
-  await steal(lanes, input.queue, input.config, async (index, lane) => {
+  const readOne = async (index: number, lane: Lane): Promise<void> => {
     const planned = plan.subjects[index]!;
     const id = planned.subject.id;
     const declined = declinedBy(id, input.skipped, input.scope);
@@ -79,7 +81,8 @@ export async function acquire(input: AcquireInput): Promise<Acquisition> {
     if (!collected.ok) return input.passed(index, { subject: id, kind: 'failed', because: collected.because });
 
     // On the clock `started` was read from. The collector's steps first, under
-    // its own name: it timed them, and nothing here times them again.
+    // its own name: it timed them on its own clock, and only their durations
+    // cross over, so nothing here times them again.
     const steps = elapsed === undefined ? undefined : stepClock(elapsed);
     steps?.add(collected.steps, 'collect.');
 
@@ -99,6 +102,13 @@ export async function acquire(input: AcquireInput): Promise<Acquisition> {
       };
     }
     await input.read?.(index, planned, collected, lane, started, steps);
+  };
+  await steal(lanes, input.queue, input.config, async (index, lane) => {
+    try {
+      await readOne(index, lane);
+    } finally {
+      input.settled?.(index);
+    }
   }).finally(async () => closeLanes(lanes));
 
   return {
