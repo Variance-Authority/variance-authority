@@ -8,6 +8,7 @@
 
 use std::collections::{HashMap, HashSet};
 use oxc_ast::ast::*;
+use oxc_ast::AstKind;
 use oxc_ast_visit::{walk, Visit};
 use oxc_semantic::Semantic;
 use oxc_syntax::{scope::ScopeFlags, symbol::SymbolId};
@@ -32,7 +33,7 @@ pub fn callbacks<'a>(program: &'a Program<'a>, semantic: &Semantic<'a>) -> HashS
             }
         }
     }
-    let mut sites = Sites { semantic, styles, found: HashSet::new() };
+    let mut sites = Sites { semantic, styles, found: HashSet::new(), followed: HashSet::new() };
     sites.visit_program(program);
     sites.found
 }
@@ -41,6 +42,7 @@ struct Sites<'s, 'a> {
     semantic: &'s Semantic<'a>,
     styles: HashMap<SymbolId, String>,
     found: HashSet<(u32, u32)>,
+    followed: HashSet<(u32, u32)>,
 }
 
 impl Sites<'_, '_> {
@@ -62,7 +64,7 @@ impl<'a> Visit<'a> for Sites<'_, 'a> {
     fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
         if self.style(&call.callee).is_some_and(|name| name != "styled") {
             for argument in &call.arguments {
-                let mut functions = Functions { found: &mut self.found, semantic: self.semantic };
+                let mut functions = Functions { found: &mut self.found, semantic: self.semantic, followed: &mut self.followed };
                 functions.visit_argument(argument);
             }
         }
@@ -71,7 +73,7 @@ impl<'a> Visit<'a> for Sites<'_, 'a> {
 
     fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
         if self.style(&tagged.tag).is_some() {
-            Functions { found: &mut self.found, semantic: self.semantic }.visit_template_literal(&tagged.quasi);
+            Functions { found: &mut self.found, semantic: self.semantic, followed: &mut self.followed }.visit_template_literal(&tagged.quasi);
         }
         walk::walk_tagged_template_expression(self, tagged);
     }
@@ -80,10 +82,22 @@ impl<'a> Visit<'a> for Sites<'_, 'a> {
 struct Functions<'s, 'a> {
     found: &'s mut HashSet<(u32, u32)>,
     semantic: &'s Semantic<'a>,
+    followed: &'s mut HashSet<(u32, u32)>,
 }
 impl<'a> Visit<'a> for Functions<'_, 'a> {
     fn visit_identifier_reference(&mut self, id: &IdentifierReference<'a>) {
-        self.found.extend(crate::crossing::bound(self.semantic, id));
+        match crate::crossing::bound_declaration(self.semantic, id) {
+            Some(AstKind::VariableDeclarator(declarator))
+                if matches!(declarator.id, BindingPattern::BindingIdentifier(_)) => {
+                if self.followed.insert((declarator.span.start, declarator.span.end)) {
+                    if let Some(value) = &declarator.init { self.visit_expression(value); }
+                }
+            }
+            Some(AstKind::Function(function)) if function.body.is_some() => {
+                self.found.insert((function.span.start, function.span.end));
+            }
+            _ => {}
+        }
     }
     fn visit_function(&mut self, function: &Function<'a>, _: ScopeFlags) {
         self.found.insert((function.span.start, function.span.end));

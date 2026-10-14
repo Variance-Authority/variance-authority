@@ -129,14 +129,19 @@ fn function_span(expression: &Expression) -> Option<(u32, u32)> {
     }
 }
 
-/// The function a name's binding holds, when this module declares one.
-pub(super) fn bound(semantic: &Semantic, id: &IdentifierReference) -> Option<(u32, u32)> {
+/// The immutable declaration a name resolves to in this module.
+pub(super) fn bound_declaration<'a>(semantic: &Semantic<'a>, id: &IdentifierReference) -> Option<AstKind<'a>> {
     let scoping = semantic.scoping();
     let symbol = scoping.get_reference(id.reference_id.get()?).symbol_id()?;
     if scoping.symbol_is_mutated(symbol) {
         return None;
     }
-    match semantic.nodes().kind(scoping.symbol_declaration(symbol)) {
+    Some(semantic.nodes().kind(scoping.symbol_declaration(symbol)))
+}
+
+/// The function held by an immutable local binding, when it is a function.
+pub(super) fn bound(semantic: &Semantic, id: &IdentifierReference) -> Option<(u32, u32)> {
+    match bound_declaration(semantic, id)? {
         AstKind::Function(function) if function.body.is_some() => Some((function.span.start, function.span.end)),
         AstKind::VariableDeclarator(declarator) if matches!(declarator.id, BindingPattern::BindingIdentifier(_)) => {
             declarator.init.as_ref().and_then(|init| function_span(bare(init)))
@@ -168,6 +173,14 @@ mod tests {
     fn compiled_style_callbacks_are_compiler_input() {
         let source = "import { styled as design, css } from '@compiled/react';\nconst Button = design.button({ width: p => p.small ? '24px' : '32px' }, p => p.active && css({ color: 'red' }));\n";
         assert_eq!(crossing_text(source), ["p => p.small ? '24px' : '32px'", "p => p.active && css({ color: 'red' })"]);
+    }
+
+    #[test]
+    fn compiled_named_style_objects_follow_their_declarations() {
+        let source = "import { styled } from '@compiled/react'; const dimensions = { width: p => p.small ? '24px' : '32px' }; const styles = { '&:hover': dimensions }; styled.button(styles); list.map(p => p.small);";
+        assert_eq!(crossing_text(source), ["p => p.small ? '24px' : '32px'"]);
+        let source = "import { styled } from '@compiled/react'; const a = { x: b }; const b = { x: a, width: p => p.width }; styled.button(a);";
+        assert_eq!(crossing_text(source), ["p => p.width"]);
     }
 
     #[test]
