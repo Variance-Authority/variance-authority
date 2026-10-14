@@ -95,9 +95,11 @@ describe('React Compiler ahead of the probes', () => {
     // Every region has a probe, each on the path that runs it: the branch's
     // inside the compiled branch, the callback's inside the callback it moved
     // into a cache check, and the branch the author left implicit in an
-    // `else` of its own.
+    // `else` of its own. The cache check that builds the callback maps to the
+    // callback, but a cache hit skips it, so the callback is also charged
+    // where the author's branch opens: over-selection, never a miss.
     const then = badge.slice(badge.indexOf('if (count > 9) {'), badge.indexOf('return t2;'));
-    expect(then).toMatch(/^if \(count > 9\) \{\s+__va\(1\), __va\(2\);/);
+    expect(then).toMatch(/^if \(count > 9\) \{\s+__va\(1\), __va\(2\), __va\(3\);/);
     expect(then).not.toContain('__va(4)');
     expect(badge).toMatch(/=> \(__va\(3\), console\.log\(label\)\)/);
     expect(badge).toMatch(/return t2;\s+\} else \{\s+__va\(4\);\s+\}/);
@@ -111,13 +113,19 @@ describe('React Compiler ahead of the probes', () => {
     // extra selection; no test that ran one goes unrecorded.
     expect(badge).toMatch(/^function Badge\(t0\) \{\s+__va\(0\), __va\(1\), __va\(5\);/);
 
-    // Rendered, each branch is recorded on the render that took it. The cache
-    // check that builds the callback maps to the callback, so a render that
-    // builds it is charged with it though nothing clicked: over-selection again.
+    // Rendered, each branch is recorded on the render that took it, and a
+    // render that takes the branch is charged with the callback though nothing
+    // clicked. The cache lives across renders, as React keeps it
+    // for one mounted component, so a second render with the same props reads
+    // it and skips every check the compiler wrote — and still records what it
+    // ran.
     const sentinel = Symbol.for('react.memo_cache_sentinel');
+    let cache: unknown[] | undefined;
     const runtime: Record<string, unknown> = {
       react: { useState: (value: unknown) => [value, () => undefined] },
-      'react/compiler-runtime': { c: (size: number) => Array.from({ length: size }, () => sentinel) },
+      'react/compiler-runtime': {
+        c: (size: number) => (cache ??= Array.from({ length: size }, () => sentinel)),
+      },
     };
     const page = createContext({ h: () => null, exports: {}, require: (name: string) => runtime[name] });
     runInContext(code!, page);
@@ -129,7 +137,11 @@ describe('React Compiler ahead of the probes', () => {
       const hits = journal.modules.find((it) => it.id === id)!.hits;
       return module!.blocks.flatMap((block, ordinal) => (hits.includes(ordinal) ? [`${block.name}/${block.path}`] : []));
     };
-    expect(render(12)).toEqual(['/module', 'Badge/entry', 'Badge/if#0/then', 'Badge/anon#0/entry', 'Badge/if#0/after']);
-    expect(render(3)).toEqual(['/module', 'Badge/entry', 'Badge/if#0/else', 'Badge/if#0/after']);
+    const branch = ['/module', 'Badge/entry', 'Badge/if#0/then', 'Badge/anon#0/entry', 'Badge/if#0/after'];
+    expect(render(12)).toEqual(branch);
+    expect(render(12)).toEqual(branch);
+    const after = ['/module', 'Badge/entry', 'Badge/if#0/else', 'Badge/if#0/after'];
+    expect(render(3)).toEqual(after);
+    expect(render(3)).toEqual(after);
   });
 });

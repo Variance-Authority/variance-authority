@@ -258,5 +258,29 @@ fn a_branch_with_no_origin_fires_at_its_function_s_entry_not_a_compiler_s_branch
     let mut points: Vec<_> = (0..23).map(|column| (0, column, 0, column)).collect();
     points.extend((32..37).map(|column| (0, column, 0, column - 9)));
     let placed = place(authored, transformed, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
-    assert!(placed.cut.code.contains("function f(v) {__va(1),__va(2),__va(3),__va(4); if ($) {__va(1); g(v); } else{void 0;}"), "{}", placed.cut.code);
+    assert!(placed.cut.code.contains("function f(v) {__va(1),__va(2),__va(3),__va(4); if ($) {void 0; g(v); } else{void 0;}"), "{}", placed.cut.code);
+}
+
+#[test]
+fn code_a_compiler_s_branch_holds_fires_at_the_function_s_entry() {
+    // Only `g(v)` is mapped, and it sits in a memoising compiler's branch that a
+    // cache hit skips. Fired there, a render that hit the cache would record `f`
+    // as not running; fired at `f`'s entry, every call records it.
+    let authored = "export function f(v) { g(v) }\n";
+    let transformed = "export function f(v) { if ($) { g(v) } }\n";
+    let points: Vec<_> = (32..36).map(|column| (0, column, 0, column - 9)).collect();
+    let placed = place(authored, transformed, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
+    assert!(placed.cut.code.contains("function f(v) {__va(1); if ($) {void 0; g(v) }"), "{}", placed.cut.code);
+}
+
+#[test]
+fn a_compiler_s_branch_inside_the_author_s_fires_at_the_author_s() {
+    // The compiler's `if ($)` holds code from the author's `if (v)`, as the
+    // author's `if (v)` itself does: it stands for no branch of its own.
+    let authored = "export function f(v) { if (v) { g(v) } }\n";
+    let transformed = "export function f(v) { if (v) { if ($) { g(v) } } }\n";
+    let mut points: Vec<_> = (0..32).map(|column| (0, column, 0, column)).collect();
+    points.extend((41..45).map(|column| (0, column, 0, column - 9)));
+    let placed = place(authored, transformed, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
+    assert!(placed.cut.code.contains("if (v) {__va(2); if ($) {void 0; g(v) }"), "{}", placed.cut.code);
 }

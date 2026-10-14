@@ -12,9 +12,14 @@
 //! The transformed text is walked as the authored one is, and each region of it
 //! fires the authored regions its code came from:
 //!
-//! 1. every mapped position in a transformed region fires the innermost
-//!    authored region its origin sits in, through the innermost transformed
-//!    region holding it;
+//! 1. every mapped position fires the innermost authored region its origin
+//!    sits in, through the innermost transformed region holding it that the
+//!    author wrote: a function, or a branch, loop or case some code directly in
+//!    which came from one of the same kind no region around it stands for. A
+//!    compiler's own branch — a
+//!    memoising compiler's `if ($[0] !== v)`, skipped on a cache hit — runs
+//!    less often than the code it holds was written to, so that code fires at
+//!    the region around the compiler's;
 //! 2. a region with no text of its own — the `else` or `default` the walk adds
 //!    — fires the authored one of the same kind and step whose siblings, the
 //!    `then` or the cases of the same decision, its own siblings fire;
@@ -281,9 +286,48 @@ fn fired(authored: &[Block], transformed: &[Block], segments: &[Segment]) -> Vec
     let mut reached = vec![false; authored.len()];
     let into = innermost(transformed, &segments.iter().map(|it| it.generated).collect::<Vec<_>>());
     let from = innermost(authored, &segments.iter().map(|it| it.original).collect::<Vec<_>>());
+    // A branch, loop or case is the author's when code directly in it came from
+    // one of the same kind that no region around it already stands for. One
+    // that is not — a memoising compiler's `if ($[0] !== v)`, skipped on a cache
+    // hit — vouches for nothing it holds: that code fires where the region
+    // holding the compiler's runs.
+    let mut kinds: Vec<Vec<u32>> = vec![Vec::new(); transformed.len()];
     for (to, from) in into.iter().zip(&from) {
         if let (Some(to), Some(from)) = (to, from) {
-            fires[*to as usize].push(*from);
+            if transformed[*to as usize].kind == authored[*from as usize].kind {
+                kinds[*to as usize].push(*from);
+            }
+        }
+    }
+    for list in &mut kinds {
+        list.sort_unstable();
+        list.dedup();
+    }
+    let own: Vec<bool> = (0..transformed.len())
+        .map(|at| {
+            kinds[at].iter().any(|origin| {
+                let mut around = transformed[at].owner;
+                while let Some(outer) = around {
+                    if kinds[outer as usize].binary_search(origin).is_ok() {
+                        return false;
+                    }
+                    around = transformed[outer as usize].owner;
+                }
+                true
+            })
+        })
+        .collect();
+    let lift = |mut at: u32| loop {
+        let block = &transformed[at as usize];
+        if own[at as usize] || matches!(block.kind, Kind::Module | Kind::Function | Kind::Resume) {
+            return at;
+        }
+        at = block.owner.unwrap_or(0);
+    };
+    for (to, from) in into.iter().zip(&from) {
+        if let (Some(to), Some(from)) = (to, from) {
+            let to = lift(*to);
+            fires[to as usize].push(*from);
             reached[*from as usize] = true;
         }
     }
