@@ -3237,7 +3237,8 @@
         "JestTransformedSource": "interface",
         "JestTransformer": "interface",
         "SenseProbes": "interface",
-        "createTransformer": "function"
+        "createTransformer": "function",
+        "default": "object"
       },
       "./jest-reporter": {
         "JestRunResults": "interface",

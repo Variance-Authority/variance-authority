@@ -161,7 +161,7 @@ variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev|instant>]
-variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
+variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file> | merge <record.bin>... --into <record> [--root <checkout>]
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>] [--baselines]
@@ -1587,6 +1587,20 @@ folded 3 snapshots into <cache>/test-selection/1f3a…/coverage.bin
 app/src/components/CartCard.tsx  3 observers
   …
 ```
+
+For a CI job that only combines records, `journeys merge` writes the record
+and its counts without computing a journey comparison:
+
+```bash
+variance journeys merge shard-1/coverage.bin shard-2/coverage.bin \
+  --into artifacts/coverage.bin --root /work/checkout
+```
+
+It needs no visual project configuration. `--root` defaults to the working
+directory and names the source checkout the records came from; keep its test
+files present, because landing retires cases whose files were deleted. Shard
+and output paths resolve from the working directory, independently of `--root`.
+The case index and the rules for landing below apply to both commands.
 
 The fold refuses shards that were not one run, naming both files: recorded under
 different probe recipes, or at different commits — and a shard recorded outside

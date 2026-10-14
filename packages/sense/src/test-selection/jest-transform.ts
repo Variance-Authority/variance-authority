@@ -386,3 +386,7 @@ function resolveTransformer(root: string, name: string): string {
     return createRequire(fromProject.resolve('jest-config')).resolve(name);
   }
 }
+
+// Jest unwraps `default` when a host loader transpiles this module to CommonJS
+// with `__esModule`. Keep the named factory for callers that import it directly.
+export default { createTransformer };

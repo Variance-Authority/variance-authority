@@ -83,6 +83,9 @@ export interface PlannedSubject {
    */
   readonly tags?: readonly string[];
 
+  /** The name a baseline is filed under, when the id's last segment cannot be one. */
+  readonly name?: string;
+
   /** What declares the subject; every width of one route shares its route. */
   readonly declaredIn?: string;
 }
