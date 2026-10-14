@@ -246,7 +246,8 @@ export function rawFrame(
   if (read === undefined && (!NODE_MODULES.test(file) || readable(original, file) === undefined)) return undefined;
   const frame = recordedFrame(code, undefined, file, original);
   if (disk === undefined) return read === undefined ? frame : { ...frame, changed: true };
-  return frame.text !== code ? frame : { ...frame, sourceDigest: digestString(disk), text: disk };
+  // Handed the file as it is, the frame already holds its digest: the text is digested once.
+  return frame.text !== code || disk === code ? frame : { ...frame, sourceDigest: digestString(disk), text: disk };
 }
 
 /** A {@link RecordedFrame} as {@link rawFrame} cuts it. */

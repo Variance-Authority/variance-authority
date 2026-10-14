@@ -8,7 +8,7 @@
  */
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { readFileSync } from 'node:fs';
-import { captureAfter, type ComposedMap, placeModule } from './captured-modules.js';
+import { captureAfter, heldOriginal, type ComposedMap, placeModule } from './captured-modules.js';
 import { cleanId, defaultInclude } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
 import { shifted } from './map-segments.js';
@@ -169,6 +169,12 @@ export function testSelectionProbes(
   let serving = false;
   /** The modules a dev server loaded probed, because their files name their own maps. */
   const first = new Set<string>();
+  /**
+   * The file a dev server's `load` read for each module, until its transform
+   * takes it: a module is read from disk once. Taken by the transform, and
+   * dropped when a build starts again, so nothing is held from one to the next.
+   */
+  const held = new Map<string, string>();
   /** What the plugins this build watches noted by module, its own and no other build's. */
   let notes: UnmappedNotes | undefined;
   return {
@@ -181,7 +187,10 @@ export function testSelectionProbes(
       warnTransformsAfter(config.plugins, name);
     },
     // A build in watch mode starts again: what an earlier one noted is stale.
-    buildStart: () => notes?.clear(),
+    buildStart: () => {
+      notes?.clear();
+      held.clear();
+    },
     resolveId: (id) => (id === VIRTUAL_COLLECTOR || id === RESOLVED_COLLECTOR ? RESOLVED_COLLECTOR : null),
     load: (id) => {
       if (id !== RESOLVED_COLLECTOR) return serving ? probedFirst(id) : null;
@@ -196,6 +205,8 @@ export function testSelectionProbes(
     transform(code, specifier) {
       const source = cleanId(specifier);
       if (source === RESOLVED_COLLECTOR) return null;
+      const text = held.get(specifier);
+      held.delete(specifier);
       if (first.delete(specifier)) return { code: `${COLLECTOR}${code}`, map: null };
       // Vite hands every transform its context; a caller that calls this by hand has none.
       const context = this as InstrumentingContext | undefined;
@@ -204,6 +215,7 @@ export function testSelectionProbes(
       const captured = captureAfter(root, source, code, include, options.mode, map, {
         unmapped: unmappedSteps(context, specifier, notes),
         variant: specifier !== source,
+        original: heldOriginal(source, text),
       });
       if (captured === undefined) return null;
 
@@ -237,8 +249,11 @@ export function testSelectionProbes(
     } catch {
       return null;
     }
-    if (!namesItsMap(disk)) return null;
-    const captured = placeModule(root, file, handedTexts(disk).at(-1)!, include, undefined, options.mode);
+    if (!namesItsMap(disk)) {
+      held.set(id, disk);
+      return null;
+    }
+    const captured = placeModule(root, file, handedTexts(disk).at(-1)!, include, undefined, options.mode, heldOriginal(file, disk));
     if (captured === undefined) return null;
     first.add(id);
     return { code: captured.code, map: builtMap(disk, file, (path) => readFileSync(path, 'utf8')) ?? null };

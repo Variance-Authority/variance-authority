@@ -216,13 +216,15 @@ export function captureAfter(
   map: (() => ComposedMap | undefined) | undefined,
   options: AfterOptions = {},
 ): CapturedAfter | undefined {
-  const { unprobed, carry = false, original = readOriginal, unmapped = [], remedy = REMEDY, variant = false } = options;
+  const { unprobed, carry = false, original: read = readOriginal, unmapped = [], remedy = REMEDY, variant = false } = options;
   let disk: string | undefined;
   try {
-    disk = original(path);
+    disk = read(path);
   } catch {
     disk = undefined;
   }
+  // The file is read once: every step below that asks for it again is handed this text.
+  const original = disk === undefined ? read : heldOriginal(path, disk, read);
   if (disk === undefined || handedTexts(disk).includes(code)) {
     return placeModule(root, path, code, include, unprobed, mode, original);
   }
@@ -323,6 +325,19 @@ export function carriesTheFile(map: ComposedMap, source: number, texts: readonly
 
 function readOriginal(path: string): string {
   return readFileSync(path, 'utf8');
+}
+
+/**
+ * The reader of files that answers `path` with `text`, already read, and reads
+ * any other: how a seam's half that read the file hands it to the half that
+ * places its probes, so a module is read from disk once.
+ */
+export function heldOriginal(
+  path: string,
+  text: string | undefined,
+  other: (at: string) => string = readOriginal,
+): (at: string) => string {
+  return text === undefined ? other : (at) => (at === path ? text : other(at));
 }
 
 /** The id the probes on `code`, read from `path`, report. */
@@ -450,7 +465,7 @@ async function deriveModule(
   }
   // Every name the transform could have accepted, because it did accept one:
   // the module reported, so it was instrumented or marked under one of them.
-  const original = (at: string) => (at === path ? disk : readFileSync(at, 'utf8'));
+  const original = heldOriginal(path, disk);
   const captured = marked === MARKED
     ? markModule(root, path, code, () => true, original)
     : captureModule(root, path, code, () => true, mode, original);

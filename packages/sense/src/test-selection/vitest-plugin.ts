@@ -7,7 +7,7 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { cadence, type CutSourceMap } from '../instrument/cadence.js';
 import type { InstrumentMode } from '../instrument/index.js';
-import { pathOf, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
+import { heldOriginal, pathOf, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
 import { cleanId, projectPath } from './instrumented-modules.js';
 import { readFinished, type FinishedFile } from './finished-files.js';
 import { browserSetupSource } from './worker-source.js';
@@ -63,13 +63,14 @@ export function selectionPlugin(
   globalSetup: ReadonlySet<string>,
   run: SelectionRun,
   { capture, after }: {
-    readonly capture: (file: string, code: string) => Captured | undefined;
+    readonly capture: (file: string, code: string, original: (at: string) => string) => Captured | undefined;
     readonly after: (
       file: string,
       code: string,
       map: () => ComposedMap,
       unmapped: readonly UnmappedStep[],
       variant: boolean,
+      original: (at: string) => string,
     ) => CapturedAfter | undefined;
   },
   mode: InstrumentMode,
@@ -86,6 +87,12 @@ export function selectionPlugin(
   const cutting = (id: string, file: string): boolean => cut !== undefined && id === file && run.cases && cut(file);
   /** The modules probed first because their files name their own maps, until the probes plugin passes them by. */
   const first = new Set<string>();
+  /**
+   * The file each module's cut read, by module, until the probes take it: a
+   * module is read from disk once. Taken when the probes reach the module, and
+   * dropped when its file changes, so nothing is held from one run to the next.
+   */
+  const held = new Map<string, string>();
   /** What the plugins ahead of the probes noted by module: each `load` with no map. */
   let notes: UnmappedNotes | undefined;
   return [{
@@ -149,6 +156,7 @@ export function selectionPlugin(
     // its cache, and a reading of it is the text that runs.
     watchChange(id) {
       const changed = projectPath(root, cleanId(id));
+      for (const moduleId of held.keys()) if (projectPath(root, cleanId(moduleId)) === changed) held.delete(moduleId);
       for (const [moduleId, module] of modules) {
         if (pathOf(moduleId) === changed || module.file === changed) modules.delete(moduleId);
       }
@@ -185,16 +193,17 @@ export function selectionPlugin(
       // through the map back to the file, or marked as loaded where none
       // leads back.
       if (id !== file && !inPage) return null;
+      const text = id === file && !inPage ? disk(file) : undefined;
       if (id === file && !inPage) {
-        const text = disk(file);
-        if (!namesItsMap(text)) {
+        if (text === undefined || !namesItsMap(text)) {
           // A case says which line of the file on disk was running, so a test
           // file a `load` hook changed has no line of the author's to cut.
           // Any other file goes on to the probes, which place it through the
           // map the hook returned, or name the hook that returned none.
-          if (cuts && text !== '' && !handedTexts(text).includes(code)) {
+          if (cuts && text !== undefined && !handedTexts(text).includes(code)) {
             throw changedOnArrival(root, file, (notes?.get(id) ?? []).map((step) => step.plugin));
           }
+          if (text !== undefined) held.set(id, text);
           return cutOf(code) ?? null;
         }
         first.add(id);
@@ -203,7 +212,7 @@ export function selectionPlugin(
       // its build both answer to the name, each with its own regions, and the
       // fold joins them (see `joinReadings`). Vitest re-transforms every run in
       // this process, so the modules stay in this map.
-      const captured = capture(file, code);
+      const captured = capture(file, code, heldOriginal(file, text));
       if (captured === undefined) return cutOf(code) ?? null;
       // Only the file itself: any query, such as `?raw`, asks for a module built
       // from it. In a page, `vi.mock` loads its mock under the file's name.
@@ -231,8 +240,11 @@ export function selectionPlugin(
     },
     transform: { order: 'post', handler(code, id) {
       const file = cleanId(id);
+      const text = held.get(id);
+      held.delete(id);
       if (own(file) || inPage || first.delete(id)) return null;
-      const captured = after(file, code, () => this.getCombinedSourcemap(), unmappedSteps(this, id, notes), id !== file);
+      const original = heldOriginal(file, text);
+      const captured = after(file, code, () => this.getCombinedSourcemap(), unmappedSteps(this, id, notes), id !== file, original);
       if (captured === undefined) return null;
       modules.set(captured.module.id, captured.module);
       return {
@@ -257,11 +269,11 @@ function changedOnArrival(root: string, file: string, loaders: readonly string[]
 }
 
 /** The file on disk, or nothing when it cannot be read: a module no file holds. */
-function disk(file: string): string {
+function disk(file: string): string | undefined {
   try {
     return readFileSync(file, 'utf8');
   } catch {
-    return '';
+    return undefined;
   }
 }
 

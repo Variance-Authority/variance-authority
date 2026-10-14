@@ -136,8 +136,8 @@ export function withTestSelection(
   const marked = options.unprobed;
   const unprobed = marked === undefined ? undefined : (file: string): boolean => !globalSetup.has(file) && marked(file);
   // A module `unprobed` names runs as it is, marked as loaded at its end, whatever `include` says.
-  const capture = (file: string, code: string): Captured | undefined =>
-    placeModule(root, file, code, include, unprobed, mode);
+  const capture = (file: string, code: string, original: (at: string) => string): Captured | undefined =>
+    placeModule(root, file, code, include, unprobed, mode, original);
   // A module's probes go in after every transform, through the map Vite
   // composed back to the file, so a compiler that reads syntax reads none.
   const after = (
@@ -146,7 +146,8 @@ export function withTestSelection(
     map: () => ComposedMap,
     unmapped: readonly UnmappedStep[],
     variant: boolean,
-  ): CapturedAfter | undefined => captureAfter(root, file, code, include, mode, map, { unprobed, unmapped, variant });
+    original: (at: string) => string,
+  ): CapturedAfter | undefined => captureAfter(root, file, code, include, mode, map, { unprobed, unmapped, variant, original });
   const setupFiles = array(config.test?.setupFiles);
   // What the author declared is declared for the tests this configuration
   // governs, which for the one that describes the run is every test.

@@ -12,7 +12,7 @@
  */
 
 import type { InstrumentMode } from '../instrument/index.js';
-import { captureAfter, type CapturedAfter, type ComposedMap } from './captured-modules.js';
+import { captureAfter, heldOriginal, type CapturedAfter, type ComposedMap } from './captured-modules.js';
 
 /** A map as a loader receives one: an object, its JSON, or none. */
 export type HandedMap = (ComposedMap & Record<string, unknown>) | string | null | undefined;
@@ -26,6 +26,8 @@ export interface LoaderPlacement {
   /** Which modules are marked as loaded rather than probed; absent marks none. */
   readonly unprobed?: ((file: string) => boolean) | undefined;
   readonly mode: InstrumentMode | undefined;
+  /** The file's text, where the loader already read it, so the placement reads it no second time. */
+  readonly disk?: string | undefined;
   /** How this seam's project has its loaders hand a map on, for the refusal of a module that arrived with none. */
   readonly remedy: string;
 }
@@ -51,6 +53,7 @@ export function probeHanded(file: string, code: string, handed: HandedMap, place
     unprobed: placement.unprobed,
     carry: true,
     remedy: placement.remedy,
+    original: heldOriginal(file, placement.disk),
   });
   if (captured === undefined) return undefined;
   return { captured, map: map && (captured.carried === undefined ? map : { ...map, mappings: captured.carried }) };

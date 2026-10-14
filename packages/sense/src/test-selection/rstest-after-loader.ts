@@ -39,13 +39,19 @@ function probeAfter(this: AfterLoaderContext, code: string, handed?: HandedMap):
   const file = cleanId(this.resourcePath);
   const run = runOf(this.getOptions().coverageFile);
   run?.awaiting.delete(file);
-  if (run === undefined || run.shims.has(file) || namesItsMap(disk(file))) {
+  if (run === undefined || run.shims.has(file)) {
+    this.callback(null, code, handed);
+    return;
+  }
+  // Read once: the placement is handed the text rather than reading the file again.
+  const text = disk(file);
+  if (text !== undefined && namesItsMap(text)) {
     this.callback(null, code, handed);
     return;
   }
   let probed;
   try {
-    probed = probeHanded(file, code, handed, { root: run.root, include: run.include, unprobed: run.unprobed, mode: run.mode, remedy: REMEDY });
+    probed = probeHanded(file, code, handed, { root: run.root, include: run.include, unprobed: run.unprobed, mode: run.mode, disk: text, remedy: REMEDY });
   } catch (error) {
     this.callback(error as Error);
     return;
@@ -64,12 +70,12 @@ function probeAfter(this: AfterLoaderContext, code: string, handed?: HandedMap):
  */
 const REMEDY = 'Leave Rspack\'s `devtool` writing source maps, as Rstest sets it, and have every loader ahead of the probes hand its map on';
 
-/** The file on disk, or nothing when it cannot be read. */
-function disk(file: string): string {
+/** The file on disk, or nothing when it cannot be read: a module no file holds. */
+function disk(file: string): string | undefined {
   try {
     return readFileSync(file, 'utf8');
   } catch {
-    return '';
+    return undefined;
   }
 }
 
