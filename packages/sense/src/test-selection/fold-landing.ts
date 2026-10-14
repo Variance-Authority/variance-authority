@@ -9,9 +9,9 @@
  * module was cut from, the commit — is a few columns.
  */
 
-import { native, nativeRefusal } from '../addon.js';
 import type { TestCoverageView } from './format-view.js';
 import type { LaidRun } from './case-landing.js';
+import { layRecord } from './format-layer.js';
 import type { TestCoverage } from './index.js';
 
 /** A record's run, as the runs record and the case landing read it. */
@@ -35,29 +35,13 @@ export function recordedRun(coverage: TestCoverageView): RecordedRun {
   };
 }
 
-/** A record where it lies, and its coverage. */
-export interface LyingRecord {
-  readonly path: string;
-  readonly bytes: Uint8Array;
-  readonly coverage: TestCoverageView;
-}
-
 /**
  * The coverage `fold` lands as over `previous`, the record already at the
- * target, as a runner's teardown lays its run over the record it found:
- * `fold` itself over nothing, or over a record under other probes, which it
- * replaces. The addon lays one over the other column to column; neither is
- * decoded.
- *
- * Both are records this build opens; a `previous` the lay cannot read throws,
- * and the caller refuses it.
+ * target, both as bytes: the one lay a runner's teardown goes through
+ * ({@link layRecord}), so `fold` itself over nothing, and a refusal, with the
+ * reason, over a record this build cannot read or one under other probes.
+ * Neither is decoded.
  */
-export function landedCoverage(previous: LyingRecord | undefined, fold: LyingRecord): Uint8Array {
-  if (previous === undefined || previous.coverage.instrumentation !== fold.coverage.instrumentation) return fold.bytes;
-  const lay = native()?.layRecords;
-  if (lay === undefined) {
-    throw new Error(`landing over a record requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `layRecords`'}`);
-  }
-  const bytes = (record: Uint8Array): Buffer => Buffer.from(record.buffer, record.byteOffset, record.byteLength);
-  return lay(bytes(previous.bytes), bytes(fold.bytes)) ?? fold.bytes;
+export function landedCoverage(previous: Uint8Array | undefined, fold: Uint8Array): Uint8Array {
+  return previous === undefined ? fold : layRecord(previous, fold);
 }

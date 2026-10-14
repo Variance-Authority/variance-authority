@@ -37,6 +37,8 @@ pub struct Levels {
 #[serde(rename_all = "camelCase")]
 pub struct Coverage {
     pub format: u8,
+    /// The layout before the case parts: a record that kept no cases.
+    pub uncased: u8,
     /// The layout before `tests.duration`, which the JVM agent writes.
     pub untimed: u8,
     pub no_duration: u32,
@@ -64,11 +66,11 @@ impl Coverage {
         }
     }
 
-    /// The layouts a reader opens: the current one, and the untimed one the
-    /// JVM agent writes. Every shard of a combine was written by one build, so
-    /// no other is read.
+    /// The layouts a reader opens: the current one, the one before the case
+    /// parts, and the untimed one the JVM agent writes. `readableFormat` in
+    /// `format-layout.ts` opens the same three.
     pub fn readable(&self, version: u8) -> bool {
-        version == self.format || version == self.untimed
+        version == self.format || version == self.uncased || version == self.untimed
     }
 }
 
@@ -115,7 +117,8 @@ mod tests {
         assert!(LAYOUT.coverage.sections.contains(&LAYOUT.coverage.duration));
         assert_eq!(LAYOUT.coverage.part("index"), "cases");
         assert!(LAYOUT.coverage.readable(LAYOUT.coverage.untimed));
-        assert!(!LAYOUT.coverage.readable(LAYOUT.coverage.untimed + 1));
+        assert!(LAYOUT.coverage.readable(LAYOUT.coverage.uncased));
+        assert!(!LAYOUT.coverage.readable(LAYOUT.coverage.untimed - 1));
         assert!(!LAYOUT.coverage.readable(LAYOUT.coverage.format + 1));
     }
 }

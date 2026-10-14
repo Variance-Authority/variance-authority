@@ -35,11 +35,11 @@ export interface NativeRecords {
    */
   combineRecords?(paths: string[], output: string, starts?: (string | null)[]): NativeCombinedRecord;
   /**
-   * The record `current` laid over the record `previous`; `null` where `current` replaces it whole.
+   * The record `current` laid over the record `previous`; `null` where `previous` measured nothing.
+   * A `previous` this build cannot read, or one under other probes, throws the reason.
    * `recut` is the modules whose text moved on disk, cut again in it: a record under `current`'s probes,
    * with no tests. `readings` says, per edit keyed by `editKey`, what it reached; an edit with no reading
-   * reaches every region whose text moved. `replaceUnreadable` replaces a `previous` this build cannot
-   * read by `current` rather than refusing it.
+   * reaches every region whose text moved.
    */
   layRecords?(
     previous: Buffer,
@@ -47,7 +47,6 @@ export interface NativeRecords {
     options?: {
       readonly recut?: Buffer;
       readonly readings?: Readonly<Record<string, 'none' | 'bodies' | 'load'>>;
-      readonly replaceUnreadable?: boolean;
     },
   ): Buffer | null;
   /** Several inventories of one source text, read at the regions they all hold. */

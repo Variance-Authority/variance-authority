@@ -158,20 +158,17 @@ describe('landJourneys — N shard records into the one this repository reads', 
     expect(await left()).toEqual(['coverage.bin']);
   });
 
-  it('refuses to lay over a snapshot the lay cannot read, as one it cannot open, and leaves it as it was', async () => {
-    // The layout before the case index: the reader opens it, the lay does not.
-    await writeTestCoverage(into, shardOf('story:local'));
+  it('refuses to lay over a snapshot under other probes, naming them, and leaves it as it was', async () => {
+    // One build records under one set of probes: a snapshot under others is another build's.
+    await writeTestCoverage(into, { ...shardOf('story:local'), instrumentation: 'other-probes' });
     const held = await readFile(into);
-    const header = held.subarray(4, 4 + held.readUInt32LE(0));
-    const at = header.indexOf('"version":10');
-    expect(at).toBeGreaterThan(-1);
-    header.write('"version":9 ', at);
-    await writeFile(into, held);
     const shards = await written(shardOf('story:a'));
 
     const landing = landJourneys(home, shards, into);
     await expect(landing).rejects.toBeInstanceOf(OperatorError);
-    await expect(landing).rejects.toThrow(new RegExp(`^the snapshot already at ${into} could not be read: .*Delete it and land again`, 'su'));
+    await expect(landing).rejects.toThrow(
+      new RegExp(`^the shards cannot be laid over the snapshot already at ${into}: .*\`other-probes\`.*\`fixture\`.*delete it and land again`, 'su'),
+    );
     expect(Buffer.compare(await readFile(into), held)).toBe(0);
   });
 });

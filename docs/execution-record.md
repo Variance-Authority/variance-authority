@@ -953,9 +953,11 @@ crossings cannot all be placed is one a later run may not skip. The fold is
 O(hits) over every subject's journal plus O(modules reported) to build the
 rows.
 
-**Merge with the previous record.** `mergeCoverage` brings forward what the run
-did not observe. When the instrumentation id differs the previous record is
-dropped whole. A test the run observed replaces its previous row. A test the
+**Lay over the previous record.** The native addon's lay brings forward what
+the run did not observe, column to column, without decoding either record. A
+previous record under another instrumentation id, or one this build cannot
+read, is refused with the reason and left where it is: one build records under
+one set of probes and reads what it wrote, so either is another build's. A test the run observed replaces its previous row. A test the
 run did not observe keeps its row, unless no region it crossed survives in the
 new table or a region it crossed has a new digest, in which case it is demoted
 to incomplete and re-runs on its next selection. An unobserved module whose text on disk changed has its rows

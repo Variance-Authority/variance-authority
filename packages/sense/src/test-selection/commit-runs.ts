@@ -47,9 +47,10 @@ import { editsBetween } from './region-edit.js';
 import { layCases, textsIn, type FreshCases, type ModuleTexts } from './case-landing.js';
 import { casesRecordedOver, recordOfCases, withCaseSections } from './case-record.js';
 import { askCoverageFile } from './coverage-file.js';
-import { layeredCoverage } from './format-layer.js';
+import { anotherBuilds, layeredCoverage } from './format-layer.js';
+import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage } from './format-view.js';
-import { codeUnitOrder } from './instrumented-modules.js';
+import { codeUnitOrder, isMissing } from './instrumented-modules.js';
 import type { TestCoverage } from './index.js';
 import { installAfter, installKey, keepRecordedInstall, keptInstallOf, type KeptInstall } from './kept-install.js';
 import { keepRecordedTexts, landedTree } from './kept-texts.js';
@@ -234,14 +235,26 @@ async function landUncovered(coverageFile: string, root: string, cases: FreshCas
   return writeCoverageBytes(coverageFile, recordOfCases(laid));
 }
 
-/** The record at `coverageFile` when it holds coverage this build opens; `undefined` when it is missing, unreadable or without coverage. */
+/**
+ * The record at `coverageFile` when it holds coverage; `undefined` when it is
+ * missing or holds none. One this build cannot open is refused, as a covered
+ * run refuses it ({@link anotherBuilds}): writing the cases alone over it would
+ * drop its evidence.
+ */
 async function coveredRecord(coverageFile: string): Promise<Buffer | undefined> {
+  let bytes: Buffer;
   try {
-    const bytes = await readFile(coverageFile);
+    bytes = await readFile(coverageFile);
+  } catch (error) {
+    if (isMissing(error)) return undefined;
+    throw error;
+  }
+  try {
     openTestCoverage(bytes);
     return bytes;
-  } catch {
-    return undefined;
+  } catch (error) {
+    if (error instanceof RecordWithoutCoverage) return undefined;
+    throw anotherBuilds(coverageFile, error);
   }
 }
 
@@ -250,8 +263,9 @@ async function coveredRecord(coverageFile: string): Promise<Buffer | undefined> 
  * `held` is the record beside that snapshot.
  *
  * The test files are `current`'s own, as its runner recorded them. Nothing here
- * works them out again. A snapshot under other probes is replaced rather than
- * laid over, so it is no base: the record then names none.
+ * works them out again. A snapshot under other probes is no base, so the record
+ * then names none; a run refuses to lay over one ({@link landRun}), and only a
+ * caller that passes it reaches here with it.
  *
  * {@link landRun} reads both inputs off the disk. A landing of shard snapshots
  * has already read the snapshot to merge over it, and passes that.

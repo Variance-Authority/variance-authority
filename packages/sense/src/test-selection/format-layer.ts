@@ -9,19 +9,42 @@ import { editReadings, type EditReadings } from './edit-readings.js';
 import type { CoverageModule, TestCoverage } from './index.js';
 
 /**
- * `current` laid over the record `previous`, as the bytes to put back: the
- * addon's lay, the one every writer lays through, read and written column to
- * column so a run that re-recorded ten modules of two hundred thousand never
- * makes the other rows objects.
+ * The record `current` laid over the record `previous`, both as bytes, through
+ * the addon's lay: the one lay every writer goes through, a runner's teardown
+ * and a landing alike, read and written column to column so a run that
+ * re-recorded ten modules of two hundred thousand never makes the other rows
+ * objects. A `previous` that measured nothing is nothing to lay over, and
+ * `current` lands as it is.
+ *
+ * One build reads what it wrote and records under one set of probes. So a
+ * `previous` this build cannot read, or one under other probes, is another
+ * build's, and the lay refuses it with the reason rather than drop its
+ * evidence: the error names neither file, and the caller says which it was.
+ */
+export function layRecord(
+  previous: Uint8Array,
+  current: Uint8Array,
+  options: { readonly recut?: Buffer; readonly readings?: EditReadings } = {},
+): Buffer {
+  const lay = native()?.layRecords;
+  if (lay === undefined) {
+    throw new Error(`laying a run over a record requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `layRecords`'}`);
+  }
+  const bytes = (record: Uint8Array): Buffer => Buffer.from(record.buffer, record.byteOffset, record.byteLength);
+  return lay(bytes(previous), bytes(current), {
+    ...(options.recut === undefined ? {} : { recut: options.recut }),
+    ...(options.readings === undefined ? {} : { readings: Object.fromEntries(options.readings) }),
+  }) ?? bytes(current);
+}
+
+/**
+ * `current` laid over the record `previous`, as the bytes to put back
+ * ({@link layRecord}); `current` itself over nothing.
  *
  * `onDisk` is the text each carried module has now where it moved
  * (`carriedSources`); those modules are cut again in it here, under the
  * snapshot's own recipe, and the lay carries their crossings onto the fresh
  * regions. `readings` says what each edit reached ({@link editReadings}).
- *
- * A `previous` this build cannot read is replaced by `current`, the bargain
- * `existingCoverage` makes on this path: refusing would let a truncated write
- * stop every later run from recording anything.
  */
 export function layCoverage(
   previous: Uint8Array | undefined,
@@ -31,16 +54,10 @@ export function layCoverage(
 ): Buffer {
   const encoded = encodeTestCoverage(current);
   if (previous === undefined) return encoded;
-  const lay = native()?.layRecords;
-  if (lay === undefined) {
-    throw new Error(`laying a run over a record requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `layRecords`'}`);
-  }
-  const laid = lay(Buffer.from(previous.buffer, previous.byteOffset, previous.byteLength), encoded, {
+  return layRecord(previous, encoded, {
     ...(onDisk.size === 0 ? {} : { recut: encodeTestCoverage(recut(current, onDisk)) }),
-    ...(readings === undefined ? {} : { readings: Object.fromEntries(readings) }),
-    replaceUnreadable: true,
+    ...(readings === undefined ? {} : { readings }),
   });
-  return laid ?? encoded;
 }
 
 /**
@@ -61,13 +78,9 @@ function recut(current: TestCoverage, onDisk: ReadonlyMap<string, string>): Test
 
 /**
  * The read-modify-write a run ends with: the index on disk, this run laid over
- * it, and the bytes to put back.
- *
- * A file that is not there, or is not one this build can read, is nothing to
- * lay over. That is `existingCoverage`'s bargain and the reasoning is its own:
- * refusing would let a truncated write stop every later run from recording
- * anything, and this is a runner's teardown, where the sentence is easiest to
- * miss.
+ * it, and the bytes to put back. A file that is not there is nothing to lay
+ * over. One this build cannot read, or one under other probes, fails the run
+ * with the reason and the file ({@link layRecord}).
  *
  * The edits the run was recorded over are read here too ({@link editReadings}),
  * so a body edit demotes the tests that entered the body and not every loader.
@@ -81,9 +94,27 @@ export async function layeredCoverage(
   let previous: Buffer;
   try {
     previous = await readFile(file);
-  } catch {
-    return encodeTestCoverage(current);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return encodeTestCoverage(current);
+    throw error;
   }
-  const onDisk = await carriedSources(root, previous, current);
-  return layCoverage(previous, current, onDisk, await editReadings(root, previous, current, onDisk, cacheRoot));
+  try {
+    const onDisk = await carriedSources(root, previous, current);
+    return layCoverage(previous, current, onDisk, await editReadings(root, previous, current, onDisk, cacheRoot));
+  } catch (error) {
+    throw anotherBuilds(file, error);
+  }
+}
+
+/**
+ * The record at `file` refused by a run that would lay over it: one this build
+ * cannot read, or one under other probes, is another build's, and a run
+ * neither replaces it nor drops its evidence. Deleting it is the operator's.
+ */
+export function anotherBuilds(file: string, error: unknown): Error {
+  return new Error(
+    `this run cannot be laid over the record at ${file}: ${error instanceof Error ? error.message : String(error)}. ` +
+      'It was written by another build; delete it and run again.',
+    { cause: error },
+  );
 }

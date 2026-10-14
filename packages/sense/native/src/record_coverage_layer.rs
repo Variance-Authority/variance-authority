@@ -5,7 +5,8 @@
 //!
 //! The rule, `current` over `previous`:
 //!
-//! - Under other probes, `current` replaces `previous` whole.
+//! - Under other probes, the lay is refused: one build records under one set
+//!   of probes, so a record under others is another build's.
 //! - A test `current` recorded complete retires its previous crossings, and so
 //!   does one it recorded incomplete under other preconditions; an incomplete
 //!   one under the same preconditions keeps them.
@@ -54,13 +55,11 @@ pub struct LayOptions {
     /// it reached: `none`, `bodies` or `load`. An edit with no reading reaches
     /// every region whose text moved.
     pub readings: Option<std::collections::HashMap<String, String>>,
-    /// Whether a `previous` this build cannot read is replaced by `current`
-    /// rather than refused.
-    pub replace_unreadable: Option<bool>,
 }
 
 /// Lay `current` over `previous`: the coverage record that lands, or `None`
-/// where `current` replaces `previous` whole.
+/// where `previous` measured nothing and `current` lands as it is. A `previous`
+/// this build cannot read, or one under other probes, is refused with the reason.
 #[napi(catch_unwind)]
 pub fn lay_records(previous: Buffer, current: Buffer, options: Option<LayOptions>) -> napi::Result<Option<Buffer>> {
     laid(&previous, &current, options.unwrap_or_default()).map(|bytes| bytes.map(Buffer::from)).map_err(napi::Error::from_reason)
@@ -71,22 +70,17 @@ fn laid(previous: &[u8], current: &[u8], options: LayOptions) -> Result<Option<V
     // A record that measured nothing holds nothing to lay over. The records
     // are let go before the output is encoded.
     let columns = {
-        let held = match read(previous) {
-            Ok(held) => held,
-            Err(_) if options.replace_unreadable == Some(true) => return Ok(None),
-            Err(error) => return Err(error),
-        };
-        let Some(held) = held else { return Ok(None) };
+        let Some(held) = read(previous)? else { return Ok(None) };
         let laid = read(current)?.ok_or("the record laid holds no coverage")?;
         let recut = options.recut.as_deref().map(read).transpose()?.flatten();
         lay(held, laid, recut, &options.readings.unwrap_or_default())?
     };
-    columns.map(|columns| journey_columns::encode(columns, LAYOUT.coverage.format)).transpose()
+    journey_columns::encode(columns, LAYOUT.coverage.format).map(Some)
 }
 
-/// `current` laid over `previous`, as coverage sections; `None` under other probes.
-fn lay(previous: Coverage, current: Coverage, recut: Option<Coverage>, readings: &Readings) -> Result<Option<Vec<Column>>, String> {
-    let Some(Written { merged, mut out, pool, instrumentation, commit }) = written(&previous, &current, recut.as_ref(), readings)? else { return Ok(None) };
+/// `current` laid over `previous`, as coverage sections.
+fn lay(previous: Coverage, current: Coverage, recut: Option<Coverage>, readings: &Readings) -> Result<Vec<Column>, String> {
+    let Written { merged, mut out, pool, instrumentation, commit } = written(&previous, &current, recut.as_ref(), readings)?;
     // Every row is written, and the dictionaries are all that is read from here.
     let strings: Vec<_> = [Some(previous), Some(current), recut].into_iter().flatten().map(Coverage::into_strings).collect();
     let texts = strings.iter().map(|strings| strings.text()).collect::<Result<Vec<_>, _>>()?;
@@ -97,7 +91,7 @@ fn lay(previous: Coverage, current: Coverage, recut: Option<Coverage>, readings:
     let Spelled { blob, offsets, rank } = merged.spelled(&texts, &used);
     drop(used);
     out.renumber(&rank);
-    out.encoded(blob, offsets, rank[instrumentation as usize], commit.map(|commit| rank[commit as usize]), &pool).map(Some)
+    out.encoded(blob, offsets, rank[instrumentation as usize], commit.map(|commit| rank[commit as usize]), &pool)
 }
 
 /// The rows of `current` laid over `previous`, strings as ranks of both dictionaries at once.
@@ -109,11 +103,14 @@ struct Written {
     commit: Option<u32>,
 }
 
-fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, readings: &Readings) -> Result<Option<Written>, String> {
+fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, readings: &Readings) -> Result<Written, String> {
     let (ps, cs) = (previous.text()?, current.text()?);
     let fs = fresh.map(Coverage::text).transpose()?;
-    if ps.at(previous.instrumentation) != cs.at(current.instrumentation) {
-        return Ok(None);
+    let (before, now) = (ps.at(previous.instrumentation), cs.at(current.instrumentation));
+    if before != now {
+        return Err(format!(
+            "the record was written under the probes `{before}` and the run under `{now}`, so the run cannot be laid over it: one build records under one set of probes"
+        ));
     }
     let rerecorded: FxHashMap<&str, usize> = (0..current.tests()).map(|test| (cs.at(current.test_path[test]), test)).collect();
     let held: FxHashMap<&str, usize> = (0..previous.tests()).map(|test| (ps.at(previous.test_path[test]), test)).collect();
@@ -365,7 +362,7 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
     }
 
     let (instrumentation, commit) = (now[current.instrumentation as usize], current.commit.map(|commit| now[commit as usize]));
-    Ok(Some(Written { merged, out, pool, instrumentation, commit }))
+    Ok(Written { merged, out, pool, instrumentation, commit })
 }
 
 /// A row of the output, by where it is read from.

@@ -154,9 +154,9 @@ fn reads_the_untimed_layout_the_jvm_agent_writes() {
 
 #[test]
 fn refuses_a_version_or_a_section_this_build_does_not_read() {
-    for version in [7, LAYOUT.coverage.format - 1] {
+    for version in [7, LAYOUT.coverage.format + 1] {
         let refused_version = refused(&[&journey_columns::encode(Vec::new(), version).unwrap()]);
-        assert!(refused_version.contains(&format!("unsupported record version: {version}; this build reads versions 8 and 10")), "{refused_version}");
+        assert!(refused_version.contains(&format!("unsupported record version: {version}; this build reads versions 8, 9 and 10")), "{refused_version}");
     }
     let mut held = spec(vec![test("a.test.ts")], Vec::new());
     held.parts.push(("index", Vec::new()));

@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -361,10 +361,9 @@ describe('a browser run records what it executed', () => {
     });
   });
 
-  it('records over an index it can no longer read', async () => {
-    // Refusing would take the index lock inside a runner's teardown and stop
-    // every later run from recording anything until somebody deleted the file
-    // by hand. What is lost is evidence this machine could not read anyway.
+  it('refuses an index it cannot read, naming it, rather than recording over it', async () => {
+    // One build reads what it wrote, so an index it cannot read is another
+    // build's: recording over it would drop that build's evidence unseen.
     await inRoot(async (root) => {
       const cacheRoot = resolve(root, 'cache');
       const coverageFile = resolve(root, 'coverage.bin');
@@ -378,17 +377,15 @@ describe('a browser run records what it executed', () => {
       const journal = realm.collector.drain();
       await writeFile(coverageFile, 'half a copy of something else', 'utf8');
 
-      const recorded = await recordExecution({
+      const recording = recordExecution({
         root,
         cacheRoot,
         coverageFile,
         subjects: [{ owner: 'story:price--premium', journal }],
       });
 
-      expect(recorded).toMatchObject({ recorded: true, subjects: 1 });
-      expect(await selectTestFiles(coverageFile, diffAt('price.js', PREMIUM_LINE))).toEqual([
-        'story:price--premium',
-      ]);
+      await expect(recording).rejects.toThrow(new RegExp(`${coverageFile}.*delete it and run again`, 'su'));
+      expect(await readFile(coverageFile, 'utf8')).toBe('half a copy of something else');
     });
   });
 

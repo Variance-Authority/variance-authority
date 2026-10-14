@@ -199,22 +199,22 @@ describe.each(['presence', 'entries'] as const)('landedCoverage under the %s rec
       const held = await written(`${name}.previous.bin`, under(previous));
       const fold = await written(`${name}.fold.bin`, under(current));
 
-      const landed = Buffer.from(landedCoverage(held, fold));
+      const landed = Buffer.from(landedCoverage(held.bytes, fold.bytes));
 
       expect(landed.equals(encodeTestCoverage(mergeCoverage(decodeTestCoverage(held.bytes), decodeTestCoverage(fold.bytes))))).toBe(true);
     });
   }
 
-  it('lands the fold itself over a record under another recipe', async () => {
+  it('refuses a record under another recipe, naming both', async () => {
     const held = await written(`${mode}-other.previous.bin`, { ...CASES['another test re-recording the module']!.previous, instrumentation: 'another-recipe' });
     const fold = await written(`${mode}-other.fold.bin`, under(CASES['another test re-recording the module']!.current));
 
-    expect(Buffer.from(landedCoverage(held, fold)).equals(fold.bytes)).toBe(true);
+    expect(() => landedCoverage(held.bytes, fold.bytes)).toThrow(/`another-recipe`/);
   });
 
   it('lands the fold itself over nothing', async () => {
     const fold = await written(`${mode}-nothing.fold.bin`, under(CASES['another test re-recording the module']!.current));
 
-    expect(Buffer.from(landedCoverage(undefined, fold)).equals(fold.bytes)).toBe(true);
+    expect(Buffer.from(landedCoverage(undefined, fold.bytes)).equals(fold.bytes)).toBe(true);
   });
 });

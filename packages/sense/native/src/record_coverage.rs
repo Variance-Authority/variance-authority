@@ -64,8 +64,8 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Record, String> {
     let layout = &LAYOUT.coverage;
     if !layout.readable(version) {
         return Err(format!(
-            "unsupported record version: {version}; this build reads versions {} and {}",
-            layout.untimed, layout.format
+            "unsupported record version: {version}; this build reads versions {}, {} and {}",
+            layout.untimed, layout.uncased, layout.format
         ));
     }
     let names = decoded.names();

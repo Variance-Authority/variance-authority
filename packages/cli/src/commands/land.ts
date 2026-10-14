@@ -20,18 +20,16 @@ import { landingRecord } from './suite-record.js';
  * have written, beside the target. This lands that record where the runner
  * would have put it, as the one run it is, and says so.
  *
- * Landing is a *layer*, not a replacement, and by the runner's own rule. A
- * snapshot already at the target — the local runs of a laptop, or last week's
- * fold — is what the fold is merged over with `mergeCoverage`, so the result
- * stands at the fold's commit, retires every observation the fold re-recorded
- * whole, and keeps the ones it did not. That is how a fetched baseline lands
- * under local evidence rather than deleting it, and how a full run on the
- * default branch becomes the floor every local run stands on. The runs record
- * beside it names the local snapshot's commit as the one the fold was laid
- * over, whatever the history between the two: a fetched baseline is usually
- * older than the local runs, and whether that commit is where a change starts
- * is asked of git by the review that reads it, not here, where the landing may
- * run outside the checkout or before the other commit was fetched.
+ * Landing is a *layer*, not a replacement, and by the runner's own rule: a
+ * snapshot already at the target — the local runs of a laptop over the record
+ * the build cached — is what the fold is laid over, through the lay a runner's
+ * teardown goes through (`landedCoverage`), so the result stands at the fold's
+ * commit, retires every observation the fold re-recorded whole, and keeps the
+ * ones it did not. The runs record beside it names the local snapshot's commit
+ * as the one the fold was laid over, whatever the history between the two:
+ * whether that commit is where a change starts is asked of git by the review
+ * that reads it, not here, where the landing may run outside the checkout or
+ * before the other commit was fetched.
  *
  * The cases travel in the record (spec 0094): each shard's seam kept its own in
  * the shard's record, the combine folds them into one index, and that is laid
@@ -45,11 +43,11 @@ import { landingRecord } from './suite-record.js';
  * laid with the others', its files finished as its last run ran them. Landed alone where no coverage stands, it writes a
  * record of cases and no coverage, which narrows no later selection.
  *
- * A target that exists and cannot be read is refused rather than replaced. The
- * runner replaces, because it reaches that file from inside a teardown where a
- * refusal is easiest to miss; an operator who typed this command is at the
- * keyboard, and a sentence naming the file is worth more than the evidence a
- * silent overwrite would cost.
+ * A target that exists and cannot be read, or one under other probes, is
+ * refused rather than replaced, as the runner refuses it: one build reads what
+ * it wrote under one set of probes, so either is another build's, and a
+ * sentence naming the file is worth more than the evidence a silent overwrite
+ * would cost.
  */
 export async function landJourneys(
   root: string,
@@ -149,12 +147,11 @@ async function landCombined(
     }
 
     // The coverage is laid first, while nothing else the landing reads is held.
-    // A snapshot the lay cannot read is one the landing cannot read either.
     let bytes: Uint8Array | undefined;
     try {
-      bytes = fold === undefined ? previous?.bytes : selection.landedCoverage(previous, fold);
+      bytes = fold === undefined ? previous?.bytes : selection.landedCoverage(previous?.bytes, fold.bytes);
     } catch (error) {
-      throw unreadable(at, error);
+      throw unlaid(at, error);
     }
     const landed = bytes === undefined ? undefined : selection.openTestCoverage(bytes);
     const folded = fold === undefined ? undefined : selection.recordedRun(fold.coverage);
@@ -240,11 +237,6 @@ async function landCombined(
   };
 }
 
-/**
- * The runs record beside the shard at `path`, or `undefined` when it has none
- * or none this can read, which is said on stderr: the landing then keeps no
- * install, and a later selection compares from the commit.
- */
 /** A record and its coverage, opened where it lies. */
 interface Opened {
   readonly path: string;
@@ -252,11 +244,6 @@ interface Opened {
   readonly coverage: TestCoverageView;
 }
 
-/**
- * `bytes` opened, or `undefined` when the record holds cases and no coverage.
- * A record this build cannot read throws, here and not at the first column a
- * later step reads.
- */
 /** The snapshot at `at` cannot be read, and is left for the operator to delete. */
 function unreadable(at: string, error: unknown): OperatorError {
   return new OperatorError(
@@ -267,6 +254,23 @@ function unreadable(at: string, error: unknown): OperatorError {
   );
 }
 
+/**
+ * The snapshot at `at` is another build's — one this build cannot lay over, or
+ * one under other probes — and is left for the operator to delete.
+ */
+function unlaid(at: string, error: unknown): OperatorError {
+  return new OperatorError(
+    `the shards cannot be laid over the snapshot already at ${said(at)}: ${messageOf(error)}. ` +
+      'It was written by another build; delete it and land again.',
+    { cause: error },
+  );
+}
+
+/**
+ * `bytes` opened, or `undefined` when the record holds cases and no coverage.
+ * A record this build cannot read throws, here and not at the first column a
+ * later step reads.
+ */
 function opened(selection: Selection, path: string, bytes: Uint8Array): Opened | undefined {
   try {
     const coverage = selection.openTestCoverage(bytes);
@@ -278,6 +282,11 @@ function opened(selection: Selection, path: string, bytes: Uint8Array): Opened |
   }
 }
 
+/**
+ * The runs record beside the shard at `path`, or `undefined` when it has none
+ * or none this can read, which is said on stderr: the landing then keeps no
+ * install, and a later selection compares from the commit.
+ */
 async function shardRuns(path: string): Promise<CommitRuns | undefined> {
   const selection = await import('@variance-authority/sense/test-selection');
   try {

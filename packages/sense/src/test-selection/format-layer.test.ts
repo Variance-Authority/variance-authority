@@ -253,10 +253,6 @@ const CASES: Readonly<Record<string, Case>> = {
     previous: timed(at(BASELINE, 'test/alpha.test.ts'), 30),
     current: timed(at(LOCAL, 'test/alpha.test.ts'), 41.5),
   },
-  'a baseline recorded under another probe recipe': {
-    previous: { ...at(BASELINE, 'test/alpha.test.ts'), instrumentation: 'another-recipe' },
-    current: at(LOCAL, 'test/beta.test.ts'),
-  },
   'a run that re-recorded the module it found': {
     previous: at(BASELINE, 'test/alpha.test.ts'),
     current: at(LOCAL, 'test/beta.test.ts'),
@@ -426,12 +422,17 @@ describe('layCoverage', () => {
     expect(layered.tests.every((test) => test.complete)).toBe(true);
   });
 
-  it('treats a file it cannot decode as one that is not there', () => {
-    const current = at(LOCAL, 'test/beta.test.ts');
+  it('refuses a record it cannot read, with the reason', () => {
+    // One build reads what it wrote. A record it cannot read is another
+    // build's, and laying over it as if it were absent would drop its evidence.
+    expect(() => layCoverage(Buffer.from('not a snapshot'), at(LOCAL, 'test/beta.test.ts'))).toThrow(/not a variance-authority journey artifact/);
+  });
 
-    expect(layCoverage(Buffer.from('not a snapshot'), current).equals(
-      encodeTestCoverage(current),
-    )).toBe(true);
+  it('refuses a record under other probes, naming both', () => {
+    const previous = { ...at(BASELINE, 'test/alpha.test.ts'), instrumentation: 'another-recipe' };
+
+    expect(() => layCoverage(encodeTestCoverage(previous), at(LOCAL, 'test/beta.test.ts')))
+      .toThrow(/`another-recipe`.*`fixture-instrumentation`/);
   });
 
   it('carries strings no comparison of bytes could order', () => {

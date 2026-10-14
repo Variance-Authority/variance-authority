@@ -55,7 +55,7 @@ export function caseSectionsOf(record: Uint8Array): CaseSections {
 /**
  * A record holding a section this build cannot name: a fold over it would drop
  * that section, so it refuses instead. Distinct from a record that does not
- * read at all, which a run records over.
+ * read at all, which the lay of its coverage refuses.
  */
 export class UnknownSection extends Error {
   constructor(readonly section: string) {
@@ -65,8 +65,9 @@ export class UnknownSection extends Error {
 
 /**
  * The case sections a run lays its own over: none when the record at
- * `coverageFile` is missing or does not read, as `layeredCoverage` records over
- * such a record, and a refusal when it holds a section this build would drop.
+ * `coverageFile` is missing or its cases do not read, and a refusal when it
+ * holds a section this build would drop. A record that does not read at all
+ * is refused by the lay of its coverage (`anotherBuilds`), not here.
  */
 export function casesRecordedOver(coverageFile: string): CaseSections {
   try {
