@@ -76,8 +76,8 @@ export default storybookCollector({
 });
 ```
 
-`source.dirs` is a list of directory paths — not globs — resolved against the
-directory you run `variance` from. The scan reads `.tsx`, `.jsx`, `.ts` and
+`source.dirs` is a list of directory paths — not globs — each absolute or
+resolved against the directory you run `variance` from. The scan reads `.tsx`, `.jsx`, `.ts` and
 `.js`, skips `node_modules`, `dist`, `storybook-static` and any path containing
 `.test.`, `.spec.` or `.stories.`, and indexes where each component is
 *declared*. Without it the report still names components and resolves none of

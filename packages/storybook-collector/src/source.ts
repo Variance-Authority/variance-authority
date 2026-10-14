@@ -48,9 +48,10 @@ function walk(dir: string, into: string[]): string[] {
   try {
     entries = readdirSync(dir, { withFileTypes: true });
   } catch {
-    // A directory that is not there is a configuration mistake worth reporting,
-    // and reporting it is `scanSource`'s job — it can say which of several was
-    // missing, and this one cannot.
+    // A directory that is not there contributes nothing; `scanSource` refuses
+    // only when no entry yields a file.
+    // FIXME: one missing entry among several is skipped silently; it should be
+    // named, and only `scanSource` knows which of several it was.
     return into;
   }
 
