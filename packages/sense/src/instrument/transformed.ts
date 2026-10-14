@@ -4,8 +4,6 @@ import { placed } from './spliced.js';
 
 /** A module whose probes another transform's text carries: {@link instrumentTransformed}. */
 export interface InstrumentedTransformed extends Instrumented {
-  /** The ordinals of `blocks` nothing in the transformed text fires. */
-  readonly unplaced: readonly number[];
   /** The `mappings` from `code` back to the transformed text. */
   readonly mappings: string;
   /** With `carry`, `map.mappings` moved onto `code`: its sources and names as they were. */
@@ -20,8 +18,8 @@ export interface InstrumentedTransformed extends Instrumented {
  * number `map.source` among them, and `map.file` the name `source` is read
  * under. Ordinals, names, digests and offsets are `source`'s, as `instrument`
  * cuts it. Each region of `transformed` fires the regions of `source` its code
- * came from; one only the transforms wrote fires none. A region of `source`
- * nothing fires is in `unplaced`, and the caller refuses the module by name.
+ * came from; one only the transforms wrote fires none, and one of `source`
+ * nothing vouches for fires when the module loads.
  * With `options.carry`, `carried` is `map.mappings` moved onto `code`.
  */
 export function instrumentTransformed(
@@ -34,13 +32,12 @@ export function instrumentTransformed(
   const mode = options.mode ?? 'presence';
   const answer = placed(source, transformed, map, mode, id, options.carry);
   if (answer === undefined) return undefined;
-  const { code, sourceDigest, blocks, unplaced, mappings, carried } = answer;
+  const { code, sourceDigest, blocks, mappings, carried } = answer;
   return {
     code,
     sourceDigest,
     instrumentation: instrumentationId(mode),
     blocks,
-    unplaced,
     mappings,
     ...(carried === undefined ? {} : { carried }),
   };

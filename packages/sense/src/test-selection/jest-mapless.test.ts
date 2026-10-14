@@ -59,10 +59,64 @@ describe('a Jest transformer that returns no map', () => {
     expect(handed[1]).toContain('__va(');
     expect(warn).toHaveBeenCalledTimes(1);
     const [message] = warn.mock.calls[0] as [string];
-    expect(message).toContain(`\`${path}\` returned no source map for \`src/a.js\``);
+    expect(message).toContain(`\`${path}\` returned no source map back to \`src/a.js\``);
     expect(message).toContain('transforms each such module twice');
     expect(message).toContain('A compiler that reads syntax');
     expect(message).toContain('return a source map');
+  });
+});
+
+/** A transformer in `root` that runs esbuild with `options`, an object literal's text, and returns its map. */
+async function esbuild(root: string, options: string): Promise<string> {
+  const require = createRequire(import.meta.url);
+  const path = resolve(root, 'esbuild.cjs');
+  await writeFile(
+    path,
+    `const { transformSync } = require(${JSON.stringify(require.resolve('esbuild'))});
+module.exports = {
+  handed: [],
+  process: (source, path) => {
+    module.exports.handed.push(source);
+    const done = transformSync(source, { loader: 'ts', format: 'cjs', sourcefile: path, ...${options} });
+    return { code: done.code, map: done.map || null };
+  },
+};
+`,
+  );
+  return path;
+}
+
+describe('a Jest transformer whose map leads back to another file', () => {
+  it('runs again on the probed module, as one with no map does, and says so', async () => {
+    const root = await project();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const path = await esbuild(root, "{ sourcemap: 'external', sourcefile: 'elsewhere.ts' }");
+    const transformer = await createTransformer({ root, transformer: path });
+
+    const done = transformer.process!('export function a(on: boolean) {\n  return on ? 1 : 2;\n}\n', resolve(root, 'src/a.ts'), transformOptions(root));
+
+    expect(done.code).toContain('globalThis.__VA__');
+    const { handed } = createRequire(import.meta.url)(path) as { handed: string[] };
+    expect(handed).toHaveLength(2);
+    expect(handed[1]).toContain('__va(');
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toContain('returned no source map back to `src/a.ts`');
+  });
+});
+
+describe('a Jest transformer that returns its map and leaves it inline too', () => {
+  it('hands Jest the map it returned, carried onto the probed text, and drops the inline one, which names the text before the probes', async () => {
+    const root = await project();
+    const file = resolve(root, 'src/boom.ts');
+    const transformer = await createTransformer({ root, transformer: await esbuild(root, "{ sourcemap: 'both' }") });
+
+    const done = transformer.process!("export function boom(n: number): number {\n  if (n > 1) {\n    throw new Error('boom');\n  }\n  return n;\n}\n", file, transformOptions(root));
+
+    expect(done.code).toContain('__va(');
+    expect(done.code).not.toContain('sourceMappingURL');
+    const map = (typeof done.map === 'string' ? JSON.parse(done.map) : done.map) as TransformSourceMap;
+    const offset = done.code.indexOf('throw');
+    expect(sourceLines(done.code, map, file)(offset, offset)?.[0]).toBe(3);
   });
 });
 

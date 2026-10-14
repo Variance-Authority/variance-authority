@@ -190,7 +190,7 @@ export async function createTransformer(
       warned = true;
       const name = typeof config.transformer === 'string' ? config.transformer : config.transformer?.[0] ?? 'the transformer';
       console.warn(
-        `variance-authority: \`${name}\` returned no source map for \`${projectPath(root, path)}\`, so the probes cannot ` +
+        `variance-authority: \`${name}\` returned no source map back to \`${projectPath(root, path)}\`, so the probes cannot ` +
           'be placed in what it wrote, and it transforms each such module twice: once to read, once on the probed file. ' +
           'A compiler that reads syntax, such as a CSS-in-JS extractor or a memoising compiler, then reads the probes too. ' +
           `Have \`${name}\` return a source map to transform once, with the probes out of its reading.`,

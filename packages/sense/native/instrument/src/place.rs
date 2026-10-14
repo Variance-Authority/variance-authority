@@ -16,22 +16,23 @@
 //!    authored region its origin sits in, through the innermost transformed
 //!    region holding it;
 //! 2. a region with no text of its own — the `else` or `default` the walk adds
-//!    — fires the authored one of the same kind and step, under an owner its
-//!    own owner fires, nearest to the origin of the code in front of it;
+//!    — fires the authored one of the same kind and step whose siblings, the
+//!    `then` or the cases of the same decision, its own siblings fire;
 //! 3. an authored region no origin falls in — an extractor that moved a
 //!    function's text maps what it wrote to the declaration — is fired by the
-//!    deepest transformed regions holding the nearest origin in front of it
-//!    that sits in the code of a region enclosing it. That code runs on every
-//!    entry into the enclosing region before the region can run, so a test that
-//!    ran the region ran it too — unless the region is a function called
-//!    before that code is reached: a declaration hoisted above it, or one the
-//!    enclosing code handed out while an earlier test ran. A test that ran only
-//!    that code is reported running the region. With no such origin in front
-//!    of it, it is unplaced.
+//!    entry of the transformed function holding the nearest origin in front of
+//!    it that sits in the code of a region enclosing it in the same function.
+//!    That code runs on every call that can run the region, so a test that ran
+//!    the region ran it too. A region with no such origin — a function, which
+//!    can be called before any code in front of it runs: hoisted above it, or
+//!    handed out while an earlier test ran — is module code, fired when the
+//!    module loads and so charged to every test that loaded it.
 //!
+//! A region that ran is never recorded as not running; some are over-charged.
 //! A transformed region that fires none was written by the project and carries
-//! no probe. An authored region nothing fires is answered in
-//! [`Placed::unplaced`], and the seam refuses the module by name.
+//! no probe.
+
+use std::collections::HashMap;
 
 use oxc_allocator::Allocator;
 use oxc_parser::Parser;
@@ -40,15 +41,13 @@ use oxc_span::GetSpan;
 use crate::cut::{self, Cut, Utf16};
 use crate::dialect::dialect;
 use crate::header::header;
-use crate::walk::{Block, Walker};
+use crate::walk::{Block, Kind, Walker};
 
 /// One module's probes, placed on its transformed text.
 pub struct Placed {
     /// The authored text's cut, with `code` the transformed text carrying the
     /// header and the probes.
     pub cut: Cut,
-    /// The authored ordinals no transformed region fires.
-    pub unplaced: Vec<u32>,
     /// The map from `cut.code` back to the transformed text, one source.
     pub mappings: String,
     /// With `carry`, the project's composed map moved onto `cut.code`: the
@@ -112,12 +111,6 @@ pub fn place(
     segments.retain(|segment| kept.next().unwrap_or(false) || !in_import(segment));
     let fires = fired(&cut.blocks, &regions, &segments);
 
-    let mut fired_any = vec![false; cut.blocks.len()];
-    for authored in fires.iter().flatten() {
-        fired_any[*authored as usize] = true;
-    }
-    let unplaced = (0..cut.blocks.len() as u32).filter(|it| !fired_any[*it as usize]).collect();
-
     // The module's own probe is the header's: an authored region the module's
     // code carries fires once the header has run.
     let mut head = header(module, cut.blocks.len());
@@ -135,7 +128,7 @@ pub fn place(
     cut.code = spliced.code;
     cut.header_at = spliced.header_at;
     cut.header_byte = spliced.header_byte;
-    Some(Placed { cut, unplaced, mappings: own, carried })
+    Some(Placed { cut, mappings: own, carried })
 }
 
 /// A mapped position: generated and original offsets, in UTF-16 code units.
@@ -264,6 +257,20 @@ fn innermost(blocks: &[Block], offsets: &[u32]) -> Vec<Option<u32>> {
     out
 }
 
+/// The decision a region belongs to: its owner, and its path without the last step.
+fn label(block: &Block) -> (Option<u32>, &str) {
+    (block.owner, block.path.rsplit_once('/').map_or("", |it| it.0))
+}
+
+/// The regions with text of their own, by the decision they belong to.
+fn decisions(blocks: &[Block]) -> HashMap<(Option<u32>, &str), Vec<u32>> {
+    let mut out: HashMap<(Option<u32>, &str), Vec<u32>> = HashMap::new();
+    for (index, block) in blocks.iter().enumerate().filter(|(_, it)| it.start != it.end) {
+        out.entry(label(block)).or_default().push(index as u32);
+    }
+    out
+}
+
 fn step(path: &str) -> &str {
     path.rsplit('/').next().unwrap_or(path)
 }
@@ -285,19 +292,25 @@ fn fired(authored: &[Block], transformed: &[Block], segments: &[Segment]) -> Vec
         list.dedup();
     }
 
-    // 2. The regions the walk adds with no text: an `else`, a `default`.
+    // 2. The regions the walk adds with no text: an `else`, a `default`. One
+    // stands for the authored one whose own siblings — the `then`, the cases —
+    // its siblings fire: the decision the project compiled from the author's.
+    let (ours, theirs) = (decisions(authored), decisions(transformed));
+    let candidates: Vec<usize> = (0..authored.len()).filter(|it| authored[*it].start == authored[*it].end).collect();
     for (ordinal, region) in transformed.iter().enumerate() {
         if region.start != region.end {
             continue;
         }
         let in_front = segments.partition_point(|it| it.generated <= region.start);
         let Some(origin) = in_front.checked_sub(1).map(|it| segments[it].original) else { continue };
-        let owners = &fires[region.owner.unwrap_or(0) as usize];
-        let nearest = authored
+        let mut fired: Vec<u32> =
+            theirs.get(&label(region)).into_iter().flatten().flat_map(|it| fires[*it as usize].iter().copied()).collect();
+        fired.sort_unstable();
+        let nearest = candidates
             .iter()
-            .enumerate()
-            .filter(|(_, it)| it.start == it.end && it.kind == region.kind && step(&it.path) == step(&region.path))
-            .filter(|(_, it)| it.owner.is_some_and(|owner| owners.binary_search(&owner).is_ok()))
+            .map(|it| (*it, &authored[*it]))
+            .filter(|(_, it)| it.kind == region.kind && step(&it.path) == step(&region.path))
+            .filter(|(_, it)| ours.get(&label(it)).into_iter().flatten().any(|it| fired.binary_search(it).is_ok()))
             .min_by_key(|(index, it)| (it.start.abs_diff(origin), *index));
         if let Some((index, _)) = nearest {
             fires[ordinal].push(index as u32);
@@ -312,26 +325,55 @@ fn fired(authored: &[Block], transformed: &[Block], segments: &[Segment]) -> Vec
     }
 
     // 3. An authored region no origin falls in: the nearest origin in front of
-    // it whose own region encloses it, so the code it names runs on every
-    // entry into what holds the region before the region can run.
+    // it whose own region encloses it, within the same function, so the code it
+    // names runs on every call that can run the region. Its probe is the entry
+    // of the transformed function holding that code, not a branch a compiler
+    // wrapped around it. A region across a function from any such origin — a
+    // declaration hoisted above it, a callback handed out — is module code.
     let mut by_origin: Vec<usize> = (0..segments.len()).collect();
     by_origin.sort_by_key(|it| (segments[*it].original, *it));
+    let entry = |mut at: u32| loop {
+        let block = &transformed[at as usize];
+        if matches!(block.kind, Kind::Module | Kind::Function | Kind::Resume) {
+            return at;
+        }
+        at = block.owner.unwrap_or(0);
+    };
     for (index, region) in authored.iter().enumerate() {
         if reached[index] {
             continue;
         }
-        let behind = by_origin.partition_point(|it| segments[*it].original <= region.start);
-        let encloses = |it: &usize| {
-            from[*it].is_some_and(|holder| {
-                let holder = &authored[holder as usize];
-                holder.start <= region.start && region.end <= holder.end
-            })
+        let local = |holder: u32| {
+            let mut at = index as u32;
+            loop {
+                if at == holder {
+                    return true;
+                }
+                let block = &authored[at as usize];
+                if block.kind == Kind::Function {
+                    return false;
+                }
+                match block.owner {
+                    Some(owner) => at = owner,
+                    None => return false,
+                }
+            }
         };
-        let Some(last) = by_origin[..behind].iter().rposition(encloses) else { continue };
+        let behind = by_origin.partition_point(|it| segments[*it].original <= region.start);
+        let encloses = |it: &usize| from[*it].is_some_and(local);
+        let Some(last) = by_origin[..behind].iter().rposition(encloses) else {
+            if let Some(module) = fires.first_mut() {
+                module.push(index as u32);
+            }
+            continue;
+        };
         let origin = segments[by_origin[last]].original;
         let first = by_origin.partition_point(|it| segments[*it].original < origin);
-        let mut holders: Vec<u32> =
-            by_origin[first..behind].iter().filter(|it| segments[**it].original == origin).filter_map(|it| into[*it]).collect();
+        let mut holders: Vec<u32> = by_origin[first..behind]
+            .iter()
+            .filter(|it| segments[**it].original == origin)
+            .filter_map(|it| into[*it].map(entry))
+            .collect();
         holders.sort_unstable();
         holders.dedup();
         let inside = |outer: &Block, inner: &Block| {

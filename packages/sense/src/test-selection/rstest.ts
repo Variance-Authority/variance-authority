@@ -22,10 +22,10 @@
  */
 
 import { existsSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import type { InstrumentMode } from '../instrument/index.js';
-import { defaultInclude, projectPath } from './instrumented-modules.js';
+import { defaultInclude } from './instrumented-modules.js';
+import { PROBES_LOADER, SELECTION_LOADER, unprobedFiles } from './rstest-loader.js';
 import { carriedJournal, reportedDuration, statusesComplete } from './finished-files.js';
 import { foldRun } from './selection-fold.js';
 import { removeSeamModules, reopenRun, runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
@@ -166,27 +166,15 @@ function projectKey(name: string): string {
   return `project:${name}`;
 }
 
-/** The loader an Rstest configuration names, by absolute path. */
-export const SELECTION_LOADER = fileURLToPath(new URL('./rstest-loader.js', import.meta.url));
-
-/** The loader that probes what the project's loaders wrote, by absolute path. */
-export const PROBES_LOADER = fileURLToPath(new URL('./rstest-after-loader.js', import.meta.url));
-
 /**
  * The refusal of a run whose first loader passed modules on that the probes
- * loader never reached: a configuration put together by hand, carrying
- * {@link SELECTION_LOADER} without {@link PROBES_LOADER}. Folded, it would
- * record that no test ran a line of them.
+ * loader never reached: {@link unprobedFiles}.
  */
 function unprobedAtEnd(run: SelectionRun): Promise<never> | undefined {
   if (run.awaiting.size === 0) return undefined;
-  const files = [...run.awaiting].map((file) => `\`${projectPath(run.root, file)}\``).sort();
+  const error = unprobedFiles(run.root, run.awaiting);
   run.awaiting.clear();
-  return Promise.reject(new Error(
-    `variance-authority: ${files.join(', ')} went through \`${basename(SELECTION_LOADER)}\` and never reached ` +
-      `\`${basename(PROBES_LOADER)}\`, so no probe was placed in ${files.length === 1 ? 'it' : 'them'} and nothing was recorded. ` +
-      `Add a rule with \`enforce: 'post'\` that runs \`@variance-authority/sense/rstest-after-loader\` on the same files, or build the configuration with \`withTestSelection\`.`,
-  ));
+  return Promise.reject(error);
 }
 
 /**
@@ -386,3 +374,4 @@ function array<T>(value: T | readonly T[] | undefined): T[] {
 }
 
 export { mergeCoverage } from './merge.js';
+export { PROBES_LOADER, SELECTION_LOADER } from './rstest-loader.js';

@@ -131,7 +131,6 @@ const KINDS: readonly BlockKind[] = [
 /** The addon's answer for a transformed text: `native/instrument/src/place.rs`. */
 export interface NativePlaced {
   readonly instrumented: NativeInstrumented;
-  readonly unplaced: Uint32Array;
   readonly mappings: string;
   readonly carried: string | null;
 }
@@ -177,8 +176,6 @@ export function spliced(source: string, file: string, mode: InstrumentMode, modu
 
 /** A text some other transform wrote, with the probes of the regions it came from. */
 export interface Placed extends Spliced {
-  /** The authored ordinals nothing in the text fires. */
-  readonly unplaced: readonly number[];
   /** The map from `code` back to the transformed text. */
   readonly mappings: string;
   /**
@@ -214,7 +211,6 @@ export function placed(
   if (answer === null) return undefined;
   return {
     ...columns(answer.instrumented),
-    unplaced: [...answer.unplaced],
     mappings: answer.mappings,
     ...(answer.carried === null ? {} : { carried: answer.carried }),
   };

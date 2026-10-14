@@ -63,12 +63,22 @@ describe('a module whose probes go in after the transforms', () => {
     expect(after.code.endsWith('\n\n')).toBe(true);
   });
 
-  it('names every region the map carries nowhere', async () => {
+  it('fires every region the map carries nowhere when the module loads, so a test that ran one is never recorded as not running it', async () => {
     const { root, file } = await checkout(SOURCE);
     const map = () => ({ sources: ['src-cart.js'], mappings: '' });
+    const after = captureAfter(root, file, `${SOURCE}\n`, defaultInclude, undefined, map)!;
+
+    expect(after.module).toEqual(captureModule(root, file, SOURCE, defaultInclude, undefined)!.module);
+    // `total`'s entry, region 1, goes in with the probe of loading, not in `total`.
+    expect(after.code).toMatch(/__va\(1\);export function total\(items\) \{void 0;/);
+  });
+
+  it('is refused where the map names no source that resolves to the file', async () => {
+    const { root, file } = await checkout(SOURCE);
+    const map = () => ({ sources: ['elsewhere.js'], mappings: 'AAAA;AACA;AACA' });
 
     expect(() => captureAfter(root, file, `${SOURCE}\n`, defaultInclude, undefined, map)).toThrow(
-      /`src-cart\.js`: .* back to total\/entry,/,
+      /`src-cart\.js`: the transforms ahead of the probes rewrote the file and left no map back to it/,
     );
   });
 

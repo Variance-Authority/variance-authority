@@ -13,7 +13,7 @@
 
 import { readFileSync } from 'node:fs';
 import type { InstrumentMode } from '../instrument/index.js';
-import { captureAfter, type ComposedMap } from './captured-modules.js';
+import { captureAfter, type ComposedMap, mapsBack } from './captured-modules.js';
 import { inlineMap } from './cut-map.js';
 import { defaultInclude } from './instrumented-modules.js';
 import type { JestTransformedSource } from './jest-transform.js';
@@ -22,8 +22,12 @@ import type { JestTransformedSource } from './jest-transform.js';
  * `done`, what the project's transformer wrote from `source`, with the probes
  * of `source`'s regions in it. A module `defaultInclude` and `unprobed` both
  * refuse is `done` as it came. A transformer that changed the text and returned
- * no map leaves nothing to place the regions through, so the answer is nothing,
- * and the caller hands that transformer the probed text instead.
+ * no map, or a map that leads back to no source that is the file, as `@swc/jest`
+ * writes one without `inputSourceMap`, leaves nothing to place the regions
+ * through, so the answer is nothing, and the caller hands that transformer the
+ * probed text instead. A map left inline as well as returned is dropped from
+ * the text: the one returned is moved onto the probed text, and an inline one
+ * would name the positions before the probes went in.
  */
 export function probedAfter(
   root: string,
@@ -34,11 +38,11 @@ export function probedAfter(
   unprobed: ((file: string) => boolean) | undefined,
 ): JestTransformedSource | undefined {
   const given = done.map == null || done.map === '' ? undefined : done.map;
-  const inline = given === undefined ? inlineMap(done.code) : undefined;
+  const inline = inlineMap(done.code);
   const code = inline?.code ?? done.code;
-  const text = typeof given === 'string' ? given : inline?.map;
+  const text = typeof given === 'string' ? given : given === undefined ? inline?.map : undefined;
   const map = (text === undefined ? given : JSON.parse(text)) as (ComposedMap & Record<string, unknown>) | undefined;
-  if (map === undefined && code !== source) return undefined;
+  if (code !== source && (map === undefined || mapsBack(path, code, map) === undefined)) return undefined;
   const captured = captureAfter(root, path, code, defaultInclude, mode, map && (() => map), {
     unprobed,
     carry: true,

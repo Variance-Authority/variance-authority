@@ -7,9 +7,11 @@
  * cuts that text again to learn what each ordinal means.
  */
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
-import { captureAfter, type ComposedMap } from './captured-modules.js';
+import { readFileSync } from 'node:fs';
+import { captureAfter, type ComposedMap, placeModule } from './captured-modules.js';
 import { cleanId, defaultInclude } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
+import { builtMap, handedTexts, namesItsMap } from './source-lines.js';
 import { unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
@@ -111,13 +113,13 @@ export interface InstrumentedMap {
 export interface InstrumentingPlugin {
   readonly name: string;
   readonly enforce: 'post';
-  /** Under the dev server, watch every other plugin for a rewrite with no map: {@link watchUnmapped}. */
+  /** Watch every other plugin for a rewrite with no map: {@link watchUnmapped}. */
   readonly configResolved: (config: {
     readonly command: string;
     readonly plugins: readonly { readonly name: string; transform?: unknown }[];
   }) => void;
   readonly resolveId: (id: string) => string | null;
-  readonly load: (id: string) => string | null;
+  readonly load: (id: string) => string | { code: string; map: object | null } | null;
   readonly transform: (
     this: unknown,
     code: string,
@@ -127,6 +129,8 @@ export interface InstrumentingPlugin {
 
 const VIRTUAL_COLLECTOR = 'variance-authority:execution-collector';
 const RESOLVED_COLLECTOR = `\0${VIRTUAL_COLLECTOR}`;
+/** What every probed module opens with, so the collector loads ahead of its probes. */
+const COLLECTOR = `import ${JSON.stringify(VIRTUAL_COLLECTOR)};`;
 
 /**
  * Instrument a build.
@@ -148,9 +152,9 @@ const RESOLVED_COLLECTOR = `\0${VIRTUAL_COLLECTOR}`;
  * would refuse probed code, or compile it into something the project does not
  * ship. The regions are still the file's as it is on disk,
  * the text the join cuts again and a diff is written against; the composed
- * map says where each one's code went, and a region it carries nowhere stops
- * the build by name. So does a plugin that rewrote the file under the dev
- * server and returned no map, which Vite would compose as moving nothing.
+ * map says where each one's code went, and a region it carries nowhere fires
+ * when the module loads. A plugin that rewrote the file and returned no map
+ * stops the build, and the dev server, by name.
  */
 export function testSelectionProbes(
   options: TestSelectionProbeOptions = {},
@@ -159,17 +163,20 @@ export function testSelectionProbes(
   const include = options.include ?? defaultInclude;
 
   const name = 'variance-authority:test-selection-probes';
+  let serving = false;
+  /** The modules a dev server loaded probed, because their files name their own maps. */
+  const first = new Set<string>();
   return {
     name,
     enforce: 'post',
-    // A build composes a rewrite with no map to nothing, which the placement
-    // refuses by region; the dev server composes it as moving nothing.
+    // A build hands each plugin its own context, so a step is noted by module there.
     configResolved: (config) => {
-      if (config.command === 'serve') watchUnmapped(config.plugins, name);
+      serving = config.command === 'serve';
+      watchUnmapped(config.plugins, name, serving ? 'context' : 'module');
     },
     resolveId: (id) => (id === VIRTUAL_COLLECTOR || id === RESOLVED_COLLECTOR ? RESOLVED_COLLECTOR : null),
     load: (id) => {
-      if (id !== RESOLVED_COLLECTOR) return null;
+      if (id !== RESOLVED_COLLECTOR) return serving ? probedFirst(id) : null;
       const collector = executionCollectorSource(options.mode);
       if (options.journeys !== true) return collector;
       // Imports evaluate first, so the head owns `__VA__` before this module's
@@ -181,25 +188,50 @@ export function testSelectionProbes(
     transform(code, specifier) {
       const source = cleanId(specifier);
       if (source === RESOLVED_COLLECTOR) return null;
+      if (first.delete(specifier)) return { code: `${COLLECTOR}${code}`, map: null };
       // Vite hands every transform its context; a caller that calls this by hand has none.
       const context = this as InstrumentingContext | undefined;
       const combined = context?.getCombinedSourcemap;
       const map = typeof combined === 'function' ? () => combined.call(context) : undefined;
-      const captured = captureAfter(root, source, code, include, options.mode, map, { unmapped: unmappedSteps(context) });
+      const captured = captureAfter(root, source, code, include, options.mode, map, { unmapped: unmappedSteps(context, specifier) });
       if (captured === undefined) return null;
 
       // Hoisted in front of everything the module imports, and on the first line,
       // so line numbers survive the way every other insertion in this package
       // preserves them. An instrumented module whose collector arrived late would
       // throw at its own module probe.
-      const collector = `import ${JSON.stringify(VIRTUAL_COLLECTOR)};`;
-      const mappings = captured.mappings === undefined ? undefined : shifted(captured.mappings, collector.length);
+      const mappings = captured.mappings === undefined ? undefined : shifted(captured.mappings, COLLECTOR.length);
       return {
-        code: `${collector}${captured.code}`,
+        code: `${COLLECTOR}${captured.code}`,
         map: mappings === undefined ? null : { version: 3, sources: [source], names: [], mappings },
       };
     },
   };
+
+  /**
+   * A file that names its own map, a build's output, loaded probed by a dev
+   * server. A dev server starts the composed map from that map, so it names
+   * the build's sources and never the file, and no placement after the
+   * transforms could join the file's regions; a build starts from the file's
+   * text, and places it after them as it does every module. The probed text
+   * is the one a dev server hands its plugins, with the comment blanked, and
+   * the file's own map goes on with it, as the dev server would have read it.
+   */
+  function probedFirst(id: string): { code: string; map: object | null } | null {
+    const file = cleanId(id);
+    if (id !== file) return null;
+    let disk: string;
+    try {
+      disk = readFileSync(file, 'utf8');
+    } catch {
+      return null;
+    }
+    if (!namesItsMap(disk)) return null;
+    const captured = placeModule(root, file, handedTexts(disk).at(-1)!, include, undefined, options.mode);
+    if (captured === undefined) return null;
+    first.add(id);
+    return { code: captured.code, map: builtMap(disk, file, (path) => readFileSync(path, 'utf8')) ?? null };
+  }
 }
 
 const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';

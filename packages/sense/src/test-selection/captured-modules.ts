@@ -185,9 +185,10 @@ const REMEDY = 'Have them write a source map';
  * A compiler that reads syntax reads probes too, so they go in last: regions,
  * ordinals and the id are the file's, as they are when the probes go in first,
  * and `map` says which code in `code` each one became. A region `map` carries
- * nowhere is an error that names it, because recording without it would
- * record that it never ran, and so is a rewrite with no map, or one a plugin
- * returned no map for. Where `code` is the file, this is {@link placeModule}.
+ * nowhere fires when the module loads, charged to every test that loaded it,
+ * rather than recorded as never running. A rewrite with no map, one whose map
+ * names no source that resolves to the file, or one a plugin returned no map
+ * for, is an error. Where `code` is the file, this is {@link placeModule}.
  */
 export function captureAfter(
   root: string,
@@ -224,32 +225,16 @@ export function captureAfter(
         `Have ${unmapped.length === 1 ? 'it' : 'each'} return the map of what it wrote, or leave the file out of \`include\`.`,
     );
   }
-  // A text with no code in it, or code the map carries to nothing, such as what
-  // a module of types compiles to, has no map to name the file in: the probe of
-  // loading it is all it can hold, and a region of the file is refused by name.
-  const blank = !/\S/.test(code) || (composed !== undefined && !/[^;,]/.test(composed.mappings));
-  const source = blank ? 0 : composed?.sources.findIndex(
-    (name) => name !== null && resolve(dirname(path), composed.sourceRoot ?? '', name) === path,
-  ) ?? -1;
-  if (!blank && (composed === undefined || source === -1)) {
+  const source = mapsBack(path, code, composed);
+  if (source === undefined) {
     throw new Error(
       `\`${named}\`: the transforms ahead of the probes rewrote the file and left no map back to it, ` +
         `so no region of it can be placed in what they wrote. ${remedy}, or leave the file out of \`include\`.`,
     );
   }
-  const done = instrumentTransformed(disk, code, { file, mappings: blank ? '' : composed!.mappings, source }, id, { ...(mode === undefined ? {} : { mode }), carry });
+  const done = instrumentTransformed(disk, code, { file, mappings: source === -1 ? '' : composed!.mappings, source: Math.max(source, 0) }, id, { ...(mode === undefined ? {} : { mode }), carry });
   if (done === undefined) {
     return { module: unread, code: markLoaded(code, id), ...(carry && composed ? { carried: composed.mappings } : {}) };
-  }
-  if (done.unplaced.length > 0) {
-    const names = done.unplaced.map((ordinal) => {
-      const block = done.blocks[ordinal]!;
-      return `${block.name}${block.path === '' ? '' : `/${block.path}`}`;
-    });
-    throw new Error(
-      `\`${named}\`: the transforms ahead of the probes left no code their map carries back to ${names.join(', ')}, ` +
-        'so a test that ran it would be recorded as not running it. Leave the file out of `include`, or have the transform map what it wrote.',
-    );
   }
   return {
     module: { ...unread, instrumented: true, blocks: recordedBlocks(done.blocks, frame, disk, mode ?? 'presence') },
@@ -257,6 +242,20 @@ export function captureAfter(
     mappings: done.mappings,
     ...(done.carried === undefined ? {} : { carried: done.carried }),
   };
+}
+
+/**
+ * Which of `map`'s sources is `path`, the file `code` was written from; `-1`
+ * where nothing need be placed through it, and `undefined` where nothing
+ * leads back. A text with no code in it, or code the map carries to nothing,
+ * such as what a module of types compiles to, has no map to name the file in:
+ * the probe of loading it is all it can hold, and every region of the file
+ * fires with it.
+ */
+export function mapsBack(path: string, code: string, map: ComposedMap | undefined): number | undefined {
+  if (!/\S/.test(code) || (map !== undefined && !/[^;,]/.test(map.mappings))) return -1;
+  const source = map?.sources.findIndex((name) => name !== null && resolve(dirname(path), map.sourceRoot ?? '', name) === path) ?? -1;
+  return source === -1 ? undefined : source;
 }
 
 function readOriginal(path: string): string {

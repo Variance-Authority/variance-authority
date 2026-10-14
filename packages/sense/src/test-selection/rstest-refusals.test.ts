@@ -1,8 +1,9 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { transformSync } from 'esbuild';
 import { afterEach, describe, expect, it } from 'vitest';
-import instrumentModule from './rstest-loader.js';
+import instrumentModule, { PROBES_LOADER, SELECTION_LOADER } from './rstest-loader.js';
 import probeAfter from './rstest-after-loader.js';
 import { withTestSelection, type RstestFileResult } from './rstest.js';
 
@@ -31,14 +32,22 @@ async function seam(): Promise<Seam & { source: string }> {
   return { root, coverageFile, source, reporter: (config.reporters as Seam['reporter'][]).at(-1)! };
 }
 
-/** What one loader hands on for `file`: its error, or its text. */
-function loaded(loader: typeof probeAfter, file: string, coverageFile: string, code: string): { error: Error | null; code?: string } {
-  let answer: { error: Error | null; code?: string } = { error: null };
+/** What one loader hands on for `file`: its error, or its text. `loaders` are the ones Rspack says run on it. */
+function loaded(
+  loader: typeof probeAfter,
+  file: string,
+  coverageFile: string,
+  code: string,
+  loaders?: readonly string[],
+  map?: object,
+): { error: Error | null; code?: string; map?: unknown } {
+  let answer: { error: Error | null; code?: string; map?: unknown } = { error: null };
   loader.call({
     resourcePath: file,
+    ...(loaders === undefined ? {} : { loaders: loaders.map((path) => ({ path })) }),
     getOptions: () => ({ coverageFile }),
-    callback: (error, next) => (answer = { error, ...(next === undefined ? {} : { code: next }) }),
-  }, code);
+    callback: (error, next, handed) => (answer = { error, ...(next === undefined ? {} : { code: next }), ...(handed == null ? {} : { map: handed }) }),
+  }, code, map as never);
   return answer;
 }
 
@@ -51,6 +60,13 @@ describe('an Rstest module the probes cannot be placed in', () => {
     expect(error?.message).toMatch(/Rspack's `devtool` writing source maps/);
   });
 
+  it('refuses a module whose map leads back to no source that is the file', async () => {
+    const { coverageFile, source } = await seam();
+    const map = { version: 3, sources: ['elsewhere.js'], names: [], mappings: 'AAAA' };
+    const { error } = loaded(probeAfter, source, coverageFile, `\n${PRICE}`, undefined, map);
+    expect(error?.message).toMatch(/`src\/price\.js`: the transforms ahead of the probes rewrote the file and left no map back to it/);
+  });
+
   it('fails the run at its end, naming the loader, where a hand-built config carries the first loader and not the probes loader', async () => {
     const { coverageFile, source, reporter } = await seam();
     expect(loaded(instrumentModule, source, coverageFile, PRICE).error).toBeNull();
@@ -59,10 +75,49 @@ describe('an Rstest module the probes cannot be placed in', () => {
     );
   });
 
+  it('fails the run at its end for a file `include` leaves out, where the probes loader never ran at all', async () => {
+    const { root, coverageFile, reporter } = await seam();
+    const outside = resolve(root, 'helper.js');
+    await writeFile(outside, PRICE);
+    expect(loaded(instrumentModule, outside, coverageFile, PRICE).error).toBeNull();
+    await expect(reporter.onTestRunEnd({ results: [] })).rejects.toThrow(/`helper\.js` went through `rstest-loader\.js`/);
+  });
+
+  it('refuses the first file, before the run, where Rspack names the loaders it runs through and the probes loader is not one', async () => {
+    const { coverageFile, source } = await seam();
+    const { error } = loaded(instrumentModule, source, coverageFile, PRICE, [SELECTION_LOADER]);
+    expect(error?.message).toMatch(/`src\/price\.js` went through `rstest-loader\.js` and never reached `rstest-after-loader\.js`/);
+  });
+
+  it('passes a file on where Rspack names the probes loader among the loaders it runs through', async () => {
+    const { coverageFile, source } = await seam();
+    expect(loaded(instrumentModule, source, coverageFile, PRICE, [SELECTION_LOADER, PROBES_LOADER]).error).toBeNull();
+  });
+
   it('ends the run as usual where the probes loader reached every module the first loader passed on', async () => {
     const { coverageFile, source, reporter } = await seam();
     loaded(instrumentModule, source, coverageFile, PRICE);
     expect(loaded(probeAfter, source, coverageFile, PRICE).error).toBeNull();
     await expect(reporter.onTestRunEnd({ results: [] })).resolves.toBeUndefined();
+  });
+});
+
+describe('an Rstest module the probes go into', () => {
+  it('reads a map handed on as its JSON text, as one handed on as an object', async () => {
+    const { root, coverageFile, source } = await seam();
+    const written = transformSync(PRICE, { format: 'cjs', sourcemap: 'external', sourcefile: source });
+    const { error, code, map: handed } = loaded(probeAfter, source, coverageFile, written.code, undefined, written.map as never);
+    expect(error).toBeNull();
+    expect(code).toMatch(/if \(amount > 10\) \{\s*__va\(\d+\);/);
+    expect(handed).toMatchObject({ sources: [source] });
+  });
+
+  it('hands the map on as it came where the loaders before it changed nothing', async () => {
+    const { coverageFile, source } = await seam();
+    const map = { version: 3, sources: [source], names: [], mappings: 'AAAA' };
+    const { error, code, map: handed } = loaded(probeAfter, source, coverageFile, PRICE, undefined, map);
+    expect(error).toBeNull();
+    expect(code).toMatch(/\.r\("src\/price\.js@[0-9a-f]{32}"/);
+    expect(handed).toBe(map);
   });
 });

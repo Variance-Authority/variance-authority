@@ -61,26 +61,34 @@ source map. A map that would place a probe on the wrong code is never used.**
    statement's end, so the region after an early `return` fires at entry. An
    extra selection is a cost; a missed one is a wrong answer.
 
-3. **What cannot be placed is refused, by name.** A rewritten file with no map
-   back, or a region nothing fires, stops the run with the file's
-   project-relative path and each region. Vite's dev server composes a plugin
-   that rewrote a file and returned no map as identity, which names the wrong
-   code, so each plugin's `transform` is watched and such a plugin is refused
+3. **A map that names the wrong code is refused, by name.** Every region is
+   placed: one with no origin fires at the entry of the code in front of it,
+   or at module load. What stops the run is a map that cannot be believed. A
+   rewrite whose map leads back to no source that is the file stops it with
+   the file's project-relative path. Vite composes a plugin that rewrote a file
+   and returned no map as identity under a dev server and as an empty map in a
+   build, so each plugin's `transform` is watched and such a plugin is refused
    by name; `map: null` says nothing moved and is believed. Rstest refuses a
-   file that reaches the second loader with no map, and, when the run ends, a
-   file that went through the first loader and never reached the second.
+   file that reaches the second loader with no map, a configuration whose
+   loaders leave the second out, and, when Rspack lists no loaders, at the
+   run's end, a file that went through the first loader and never reached the
+   second.
 
 4. **Four cases still meet the probes, or the case marks, before the
-   transforms.** A file that names its own source map, because the composed map
-   names the build's sources and not the file. A Jest transformer that returns
-   no map, which is handed the probed text, transforms twice and is warned
+   transforms.** A file that names its own source map under a Vite dev server,
+   Vitest or Rstest, because each composes from that map and names the build's
+   sources, not the file; a Vite build and Jest place it after. A Jest
+   transformer that returns no map, or one leading back to no source that is
+   the file, which is handed the probed text, transforms twice and is warned
    about once by name. Vitest browser mode, because `vi.mock` loads a mock under
    the file's name from no text a map carries back. A test file, cut for its
    cases first so its case marks sit on the author's lines.
 
 5. **A new recipe id.** The probes a module carries moved, so a recording made
-   before is read by `sense:instrument/presence-v7` and `entries-v4` as
-   stale: it opens, and is recorded again.
+   before names another id. Selection reads it as it stands, since the regions
+   are cut alike; a journal or page report naming another is refused; the next
+   run that writes a record replaces it rather than merging, so the first run
+   after upgrading should be the full suite.
 
 ## Consequences
 
@@ -91,9 +99,10 @@ source map. A map that would place a probe on the wrong code is never used.**
 - A test can be selected for a region it did not run. It is never left
   unselected for one it ran, except a function called before the enclosing code
   in front of it, a hoisted declaration or one handed out earlier.
-- A project whose plugin returns no map under Vite, or whose Rstest config
-  turned `devtool` off, fails where it ran before. The error names the plugin or
-  the setting.
+- A project whose plugin returns no map under Vite, whose rewrite maps back to
+  another file, or whose Rstest config turned `devtool` off or left out the
+  second loader, fails where it ran before. The error names the plugin, the
+  file or the setting.
 
 ## What this forecloses
 

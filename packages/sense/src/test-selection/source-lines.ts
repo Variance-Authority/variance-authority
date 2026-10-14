@@ -269,7 +269,7 @@ function onDisk(file: string, original: (path: string) => string): string | unde
 }
 
 /** The map the file on disk points at. */
-function builtMap(disk: string, file: string, original: (path: string) => string): TransformSourceMap | undefined {
+export function builtMap(disk: string, file: string, original: (path: string) => string): TransformSourceMap | undefined {
   try {
     const pointer = SOURCE_MAPPING_URL.exec(disk);
     if (pointer === null) return undefined;

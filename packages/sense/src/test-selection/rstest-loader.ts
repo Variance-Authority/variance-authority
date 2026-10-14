@@ -24,9 +24,11 @@
  * reporter's empty-record note is what the user reads.
  */
 
+import { basename } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { cadence, type CutSourceMap } from '../instrument/cadence.js';
 import { placeModule } from './captured-modules.js';
-import { cleanId } from './instrumented-modules.js';
+import { cleanId, projectPath } from './instrumented-modules.js';
 import { namesItsMap } from './source-lines.js';
 import { runOf, type SelectionRun } from './selection-run.js';
 
@@ -40,8 +42,30 @@ export interface SelectionLoaderOptions {
 export interface SelectionLoaderContext {
   /** The file on disk, without a bundler's query suffix. */
   readonly resourcePath: string;
+  /** Every loader that runs on this file, by absolute path, where the bundler says. */
+  readonly loaders?: readonly { readonly path: string }[];
   readonly getOptions: () => SelectionLoaderOptions;
-  readonly callback: (error: null, code: string, map?: CutSourceMap) => void;
+  readonly callback: (error: Error | null, code?: string, map?: CutSourceMap) => void;
+}
+
+/** This loader, by absolute path. */
+export const SELECTION_LOADER = fileURLToPath(new URL('./rstest-loader.js', import.meta.url));
+
+/** The loader that probes what the project's loaders wrote, by absolute path. */
+export const PROBES_LOADER = fileURLToPath(new URL('./rstest-after-loader.js', import.meta.url));
+
+/**
+ * The refusal of `files`, which went through {@link SELECTION_LOADER} and not
+ * {@link PROBES_LOADER}: a configuration put together by hand, carrying one
+ * without the other. Run, they would record that no test ran a line of them.
+ */
+export function unprobedFiles(root: string, files: Iterable<string>): Error {
+  const named = [...files].map((file) => `\`${projectPath(root, file)}\``).sort();
+  return new Error(
+    `variance-authority: ${named.join(', ')} went through \`${basename(SELECTION_LOADER)}\` and never reached ` +
+      `\`${basename(PROBES_LOADER)}\`, so no probe was placed in ${named.length === 1 ? 'it' : 'them'} and nothing was recorded. ` +
+      "Add a rule with `enforce: 'post'` that runs `@variance-authority/sense/rstest-after-loader` on the same files, or build the configuration with `withTestSelection`.",
+  );
 }
 
 /**
@@ -61,9 +85,14 @@ function instrumentModule(this: SelectionLoaderContext, code: string): void {
     this.callback(null, code);
     return;
   }
-  // Every other module is the probes loader's, after the project's own: a
-  // configuration that carries this loader without it fails at the run's end.
-  if (!first && run.include(file)) run.awaiting.add(file);
+  // Every module is the probes loader's to reach, after the project's own: a
+  // configuration that carries this loader without it fails here, where Rspack
+  // names the loaders a file runs through, and otherwise at the run's end.
+  if (this.loaders !== undefined && !this.loaders.some((loader) => loader.path === PROBES_LOADER)) {
+    this.callback(unprobedFiles(run.root, [file]));
+    return;
+  }
+  run.awaiting.add(file);
   if (!first && !cutting(run, file)) {
     this.callback(null, code);
     return;

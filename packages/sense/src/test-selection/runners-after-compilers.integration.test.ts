@@ -14,7 +14,8 @@ import { decodeTestCoverage } from './format.js';
 // condition between two strings, and moves every column after the call. Under
 // every runner seam the probes go in after it, through the maps it and the
 // runner's own transform return; the suite passes, and the record is the
-// file's own.
+// file's own. `shade`'s `then` never runs, so no test is charged with it,
+// while its sibling, the code after the `if`, is.
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -53,13 +54,17 @@ describe.each(Object.entries(runners))('a module a syntax-reading compiler rewri
       (candidate) => candidate.file === named('src/tone.ts'),
     );
     const tests = [named('test/tone.case.ts')];
-    expect(module?.blocks.map((block) => [block.name, block.startLine, block.endLine, block.testFiles])).toEqual([
-      ['', 1, 8, tests],
-      ['css.arg0', 2, 2, tests],
-      ['label', 3, 6, tests],
-      ['label', 4, 4, tests],
-      ['label', 4, 4, tests],
-      ['label', 5, 5, tests],
+    expect(module?.blocks.map((block) => [block.name, block.path, block.startLine, block.endLine, block.testFiles])).toEqual([
+      ['', 'module', 1, 12, tests],
+      ['css.arg0', 'entry', 2, 2, tests],
+      ['label', 'entry', 3, 6, tests],
+      ['label', 'if#0/then', 4, 4, tests],
+      ['label', 'if#0/else', 4, 4, tests],
+      ['label', 'if#0/after', 5, 5, tests],
+      ['shade', 'entry', 7, 10, tests],
+      ['shade', 'if#0/then', 8, 8, []],
+      ['shade', 'if#0/else', 8, 8, tests],
+      ['shade', 'if#0/after', 9, 9, tests],
     ]);
     expect(module?.sourceDigest).toBe(digestString(await readFile(resolve(fixture, 'src/tone.ts'), 'utf8')));
   }, 60_000);

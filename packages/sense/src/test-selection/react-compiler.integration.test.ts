@@ -1,11 +1,12 @@
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { createContext, runInContext } from 'node:vm';
 import { transformAsync } from '@babel/core';
 import { build, type Plugin } from 'vite';
 import { afterEach, describe, expect, it } from 'vitest';
 import { deriveModules } from './captured-modules.js';
-import { testSelectionProbes } from './probes.js';
+import { EXECUTION_GLOBAL, type ExecutionJournal, testSelectionProbes } from './probes.js';
 
 /**
  * React Compiler, run through Babel ahead of Vite's own transforms the way
@@ -57,7 +58,7 @@ describe('React Compiler ahead of the probes', () => {
     temporary.push(root);
     await mkdir(resolve(root, 'src'), { recursive: true });
     await writeFile(resolve(root, 'src/Badge.jsx'), SOURCE);
-    await writeFile(resolve(root, 'src/main.js'), "import { Badge } from './Badge.jsx';\nconsole.log(Badge);\n");
+    await writeFile(resolve(root, 'src/main.js'), "import { Badge } from './Badge.jsx';\nglobalThis.Badge = Badge;\n");
     const output = await build({
       root,
       configFile: false,
@@ -67,7 +68,11 @@ describe('React Compiler ahead of the probes', () => {
       build: {
         write: false,
         minify: false,
-        rollupOptions: { input: resolve(root, 'src/main.js'), external: ['react', 'react/compiler-runtime'] },
+        rollupOptions: {
+          input: resolve(root, 'src/main.js'),
+          external: ['react', 'react/compiler-runtime'],
+          output: { format: 'cjs' },
+        },
       },
     });
     const [bundle] = Array.isArray(output) ? output : [output];
@@ -86,7 +91,7 @@ describe('React Compiler ahead of the probes', () => {
     ]);
     const badge = code!.slice(code!.indexOf('function Badge('));
     // The compiler wrote its cache: the probes went in after it.
-    expect(badge).toMatch(/const \$ = c\(\d+\);/);
+    expect(badge).toMatch(/const \$ = (?:\w+\.)?c\(\d+\);/);
     // Every region has a probe, each on the path that runs it: the branch's
     // inside the compiled branch, the callback's inside the callback it moved
     // into a cache check, and the branch the author left implicit in an
@@ -100,8 +105,31 @@ describe('React Compiler ahead of the probes', () => {
     // The compiler maps the component's closing brace to the end of its last
     // statement, in the region after the branch, and that brace is the
     // component's own code: so that region also fires where the component
-    // opens. A test that returned early is recorded running it, an extra
-    // selection; no test that ran it goes unrecorded.
+    // opens. The cache it reads first, `c()`, maps to the import, module code,
+    // so the module's region fires on every render too. Both are intended
+    // over-selection: a test that returned early is recorded running them, an
+    // extra selection; no test that ran one goes unrecorded.
     expect(badge).toMatch(/^function Badge\(t0\) \{\s+__va\(0\), __va\(1\), __va\(5\);/);
+
+    // Rendered, each branch is recorded on the render that took it. The cache
+    // check that builds the callback maps to the callback, so a render that
+    // builds it is charged with it though nothing clicked: over-selection again.
+    const sentinel = Symbol.for('react.memo_cache_sentinel');
+    const runtime: Record<string, unknown> = {
+      react: { useState: (value: unknown) => [value, () => undefined] },
+      'react/compiler-runtime': { c: (size: number) => new Array(size).fill(sentinel) },
+    };
+    const page = createContext({ h: () => null, exports: {}, require: (name: string) => runtime[name] });
+    runInContext(code!, page);
+    const collector = `globalThis[${JSON.stringify(EXECUTION_GLOBAL)}]`;
+    runInContext(`${collector}.reset()`, page);
+    const render = (count: number): string[] => {
+      runInContext(`Badge({ count: ${count}, label: 'mail' })`, page);
+      const journal = JSON.parse(runInContext(`JSON.stringify(${collector}.drain())`, page)) as ExecutionJournal;
+      const hits = journal.modules.find((it) => it.id === id)!.hits;
+      return module!.blocks.flatMap((block, ordinal) => (hits.includes(ordinal) ? [`${block.name}/${block.path}`] : []));
+    };
+    expect(render(12)).toEqual(['/module', 'Badge/entry', 'Badge/if#0/then', 'Badge/anon#0/entry', 'Badge/if#0/after']);
+    expect(render(3)).toEqual(['/module', 'Badge/entry', 'Badge/if#0/else', 'Badge/if#0/after']);
   });
 });

@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,6 +42,25 @@ describe('a run whose reporters were replaced on the command line', () => {
     expect(coveringTests(index, { file: cased('src/decide.ts'), line: 3 }).map((test) => test.name))
       .toEqual(['decide > takes the alpha branch']);
     // Nothing the run staged is left beside the record.
+    expect((await readdir(directory)).filter((name) => name.startsWith('.run-'))).toEqual([]);
+  }, 20_000);
+
+  // With the project's own runner no worker writes which files passed, and a
+  // journal alone cannot say it: a record that called every file complete
+  // would be wrong, so none is written, and the run says why.
+  it('writes no record, and says why, where the runner is the project\'s own', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+
+    const { stderr } = await execute(
+      process.execPath,
+      [vitest, 'run', '--reporter', 'dot', '--config', resolve(fixture, 'vitest.own-runner.config.ts')],
+      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory } },
+    );
+
+    expect(stderr).toContain('variance-authority: this run recorded nothing.');
+    expect(existsSync(coverageFile)).toBe(false);
     expect((await readdir(directory)).filter((name) => name.startsWith('.run-'))).toEqual([]);
   }, 20_000);
 });

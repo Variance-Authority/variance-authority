@@ -48,8 +48,6 @@ pub fn instrument_module(source: String, file: String, entries: bool, module: Op
 #[napi(object)]
 pub struct Placed {
     pub instrumented: Instrumented,
-    /// The authored ordinals nothing in `transformed` fires.
-    pub unplaced: Uint32Array,
     /// The map from `instrumented.code` back to `transformed`.
     pub mappings: String,
     /// With `carry`, the composed map moved onto `instrumented.code`, its
@@ -73,7 +71,6 @@ pub fn place_module(
     let placed = place(&authored, &transformed, &file, &mappings, source, &module, entries, carry)?;
     Some(Placed {
         instrumented: columns(placed.cut),
-        unplaced: Uint32Array::new(placed.unplaced),
         mappings: placed.mappings,
         carried: placed.carried,
     })
