@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 import { mergeSourceIndexes, type SourceIndex } from '@variance-authority/core/attribute';
 import { indexDeclarations } from '@variance-authority/sense';
 
@@ -48,9 +48,10 @@ function walk(dir: string, into: string[]): string[] {
   try {
     entries = readdirSync(dir, { withFileTypes: true });
   } catch {
-    // A directory that is not there is a configuration mistake worth reporting,
-    // and reporting it is `scanSource`'s job — it can say which of several was
-    // missing, and this one cannot.
+    // A directory that is not there contributes nothing; `scanSource` refuses
+    // only when no entry yields a file.
+    // FIXME: one missing entry among several is skipped silently; it should be
+    // named, and only `scanSource` knows which of several it was.
     return into;
   }
 
@@ -66,17 +67,20 @@ export function scanSource(root: string, scan: SourceScan): SourceIndex {
   const extensions = scan.extensions ?? EXTENSIONS;
   const exclude = scan.exclude ?? EXCLUDE;
 
-  const files = scan.dirs
-    .flatMap((dir) => walk(join(root, dir), []))
+  const dirs = scan.dirs.map((dir) => (isAbsolute(dir) ? dir : join(root, dir)));
+  const files = dirs
+    .flatMap((dir) => walk(dir, []))
     .filter((file) => extensions.some((extension) => file.endsWith(extension)))
     .filter((file) => !exclude.some((fragment) => file.includes(fragment)));
 
   // Empty is reported rather than returned. An index with nothing in it produces
   // a report whose every component resolves to no file — which reads exactly like
-  // a project whose components are anonymous, and is instead a mistyped path.
+  // a project whose components are anonymous, and is instead a mistyped path. The
+  // message names the directories as walked, so it answers "relative to what"
+  // whichever way each entry was spelled.
   if (files.length === 0) {
     throw operatorError(
-      `no source files under ${scan.dirs.join(', ')} (from ${root}) matching ` +
+      `no source files under ${dirs.join(', ')} matching ` +
         `${extensions.join(', ')}; every component would resolve to no file`,
     );
   }
