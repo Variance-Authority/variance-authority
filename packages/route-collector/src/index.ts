@@ -19,7 +19,7 @@ export type {
 import type { Collected, Collector, CollectorContext, Plan, PlannedSubject } from './contract.js';
 export type { RouteCollectorOptions } from './options.js';
 import type { RouteCollectorOptions } from './options.js';
-import { declaredOnce, discover, routesFromFiles } from './sitemap.js';
+import { declaredOnce, discover, plannedRoute, rootNamed, routesFromFiles } from './sitemap.js';
 import { pagesIn, serveStatic, type StaticServer } from './serve.js';
 
 /**
@@ -251,9 +251,7 @@ export function routeCollector(
 
           return widthsOf(
             {
-              subjects: Object.keys(resolved).map((id) => ({
-                subject: { id, kind: 'route' as const },
-              })),
+              subjects: Object.keys(resolved).map((id) => plannedRoute(id)),
               notObserved: [],
               warnings: [
                 `planned ${Object.keys(resolved).length} subject(s) from ${from}. ` +
@@ -274,7 +272,7 @@ export function routeCollector(
               'or `sitemap`, with `subjects.kind: "collector"`, to discover one',
           );
         }
-        return widthsOf(plan, options.widths, config.viewport);
+        return widthsOf({ ...plan, subjects: plan.subjects.map(rootNamed) }, options.widths, config.viewport);
       },
 
       async collect(planned: PlannedSubject): Promise<Collected> {
