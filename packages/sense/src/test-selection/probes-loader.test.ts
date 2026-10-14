@@ -91,6 +91,24 @@ describe('the rule', () => {
     expect(testSelectionRule({ include }).use[0].options.include).toBe(rule.use[0].options.include);
   });
 
+  it('keys `include` by its source, so the key is the same whichever rule registered first', () => {
+    const include = (file: string) => file.includes('/keyed-by-source/');
+    const key = testSelectionRule({ include }).use[0].options.include!;
+    // The same text, a different function: a rule built again in a second run, or in another order.
+    const again = (file: string) => file.includes('/keyed-by-source/');
+
+    expect(key).toMatch(/^include-v1:[0-9a-f]+$/);
+    expect(testSelectionRule({ include: again }).use[0].options.include).toBe(`${key}-2`);
+    expect(includeOf(key)).toBe(include);
+    expect(includeOf(`${key}-2`)).toBe(again);
+  });
+
+  it('leaves `node_modules` to the loaders where `include` is the default, and to `include` where it is given', () => {
+    expect(testSelectionRule().exclude).toEqual(/[\\/]node_modules[\\/]/);
+    expect(testSelectionRule().exclude!.test('/repo/node_modules/react/index.js')).toBe(true);
+    expect(testSelectionRule({ include: () => true }).exclude).toBeUndefined();
+  });
+
   it('refuses a key no rule in this process registered, as a loader in a worker would hold', () => {
     expect(() => includeOf('include-0')).toThrow(/worker/);
   });

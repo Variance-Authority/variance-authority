@@ -6,17 +6,23 @@
  * project configured, so a compiler that reads syntax never reads a probe; the
  * placement is the one every Rspack seam shares
  * ([`loader-probes.ts`](./loader-probes.ts)). With `placement:
- * 'before-transforms'` it runs at `enforce: 'pre'` on the file as read. Each probed module opens with an
- * import of the page collector, served by the same loader, as
- * `testSelectionProbes` opens each with its virtual module under Vite.
+ * 'before-transforms'` it runs at `enforce: 'pre'` on the file as read. Each
+ * probed module opens with the page collector, served by the same loader — an
+ * `import`, or a `require` in a CommonJS script — as `testSelectionProbes`
+ * opens each with its virtual module under Vite.
  */
 
 import { fileURLToPath } from 'node:url';
+import { digestString } from '../digest.js';
 import type { InstrumentMode } from '../instrument/index.js';
 import type { ProbePlacement } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
 
-/** What `testSelectionRule` takes: where names start, which modules are yours, and the probe recipe. */
+/**
+ * What `testSelectionRule` takes: where names start, which modules are yours,
+ * the probe recipe, and where the probes go — after the project's loaders,
+ * or ahead of them.
+ */
 export interface TestSelectionRuleOptions {
   /**
    * A directory inside the repository; defaults to the current directory.
@@ -48,6 +54,8 @@ export interface ProbesLoaderOptions {
 /** A rule for `module.rules`, in the shape Rspack and webpack both read. */
 export interface TestSelectionRule {
   readonly test: RegExp;
+  /** `node_modules`, where `include` is the default and would refuse every file in it: Rspack then never hands one over. */
+  readonly exclude?: RegExp;
   readonly enforce: 'pre' | 'post';
   readonly use: readonly [{ readonly loader: string; readonly options: ProbesLoaderOptions }];
 }
@@ -66,9 +74,13 @@ export const COLLECTOR_FILE = fileURLToPath(new URL('./probes-collector.js', imp
  * import { testSelectionRule } from '@variance-authority/sense/journal';
  *
  * export default {
- *   module: { rules: [...yourRules, testSelectionRule()] },
+ *   module: { rules: [testSelectionRule(), ...yourRules] },
  * };
  * ```
+ *
+ * Loaders of one `enforce` run right to left, so the rule goes first: a
+ * project's `post` loader listed ahead of it would run after the probes and
+ * read them. With the default `include`, it excludes `node_modules`.
  *
  * Leave `devtool` writing source maps: the probes go where the map the loaders
  * hand on says each region of the file went, and a module that arrives with no
@@ -84,7 +96,9 @@ export function testSelectionRule(options: TestSelectionRuleOptions = {}): TestS
     ...(options.placement === undefined ? {} : { placement: options.placement }),
   };
   const enforce = options.placement === 'before-transforms' ? 'pre' : 'post';
-  return { test: /\.[cm]?[jt]sx?$/, enforce, use: [{ loader: PROBES_LOADER, options: loaderOptions }] };
+  const test = /\.[cm]?[jt]sx?$/;
+  const use = [{ loader: PROBES_LOADER, options: loaderOptions }] as const;
+  return options.include === undefined ? { test, exclude: /[\\/]node_modules[\\/]/, enforce, use } : { test, enforce, use };
 }
 
 /** Every `include` a rule in this realm carries, by key. Global, so two copies of this module share it. */
@@ -95,12 +109,23 @@ function includes(): Map<string, (file: string) => boolean> {
   return (realm[INCLUDES] ??= new Map());
 }
 
+/**
+ * The key `include` is carried under: its source's digest, which is the same in
+ * every run whatever registered first, so Rspack's cache, keyed by the
+ * loader's options, holds across runs. Two functions of one text, closing over
+ * different values, take the digest and the digest with a count.
+ */
 function registered(include: (file: string) => boolean): string {
   const known = includes();
-  for (const [key, value] of known) if (value === include) return key;
-  const key = `include-${known.size + 1}`;
-  known.set(key, include);
-  return key;
+  const base = `include-${digestString(include.toString())}`;
+  for (let count = 1; ; count++) {
+    const key = count === 1 ? base : `${base}-${count}`;
+    const held = known.get(key);
+    if (held === include) return key;
+    if (held !== undefined) continue;
+    known.set(key, include);
+    return key;
+  }
 }
 
 /** The `include` a rule registered under `key`; throws where this realm holds none. */

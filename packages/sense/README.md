@@ -1022,7 +1022,7 @@ one `module.rules` entry, in the shape both read:
 import { testSelectionRule } from '@variance-authority/sense/journal';
 
 export default {
-  module: { rules: [...yourRules, testSelectionRule({ root: process.cwd() })] },
+  module: { rules: [testSelectionRule({ root: process.cwd() }), ...yourRules] },
 };
 ```
 
@@ -1031,11 +1031,16 @@ does; at `'before-transforms'` the rule runs at `enforce: 'pre'`. Its
 loader, `@variance-authority/sense/probes-loader`, which the rule names for you,
 runs at `enforce: 'post'`, after SWC, Babel and every loader you
 configured, so a compiler that reads syntax, such as Compiled's or Linaria's
-loader, reads your file without probes in it. The regions are the file's on
+loader, reads your file without probes in it. Loaders of one `enforce` run right
+to left, so list the rule first: a `post` loader of yours listed ahead of it
+runs after the probes and reads them. Under `'before-transforms'`, list it last.
+With the default `include`, the rule excludes `node_modules`, and Rspack never
+hands it a package's file. The regions are the file's on
 disk, placed where the map your loaders handed on says each one went. Leave
 `devtool` writing source maps: a module that arrives with no map stops the
-build and names the file. Each probed module imports the page collector on its
-first line, so no line moves. A module with no file on disk, such as a
+build and names the file. Each probed module opens with the page collector on
+its first line, so no line moves: an `import` in a module, a `require` in a
+CommonJS script, which an `import` would turn into a module. A module with no file on disk, such as a
 builder's virtual entry, is not probed.
 
 `include` is a function, and Rspack hands loader options to its core as data,
