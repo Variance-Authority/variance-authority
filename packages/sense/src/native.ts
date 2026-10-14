@@ -15,7 +15,7 @@
 import type { EdgeKind, FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
 import type { Parsed } from './cache.js';
 import type { Digest } from './digest.js';
-import type { NativeInstrumented } from './instrument/spliced.js';
+import type { NativeInstrumented, NativePlaced } from './instrument/spliced.js';
 import { keyFor, parseWay } from './files.js';
 import { type ResolveOptions } from './resolve.js';
 import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
@@ -126,6 +126,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * parse. With a `module`, the header reporting under it is in the text.
    */
   instrument(source: string, file: string, entries: boolean, module?: string): NativeInstrumented | null;
+  /** `authored`'s regions placed in `transformed` through `mappings`: `native/instrument/src/place.rs`. */
+  place(...args: [string, string, string, string, number, boolean, string]): NativePlaced | null;
   /** The header one module carries: `native/instrument/src/header.rs`. */
   probeHeader(module: string, count: number): string;
   /** The instrumenter crate's `recipe()` for `presence`, or for `entries`. */

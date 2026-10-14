@@ -145,7 +145,7 @@ that shares a coverage file needs the same `mode`: a record cut by one mode is
 discarded when the other merges over it.
 
 The build writes nothing beside its output. Each probe reports the module's
-repository-relative file and a digest of the text the probe was placed on, and
+repository-relative file and a digest of the text its regions were cut from, and
 the driver reads that file from your checkout and cuts it into regions again. A
 file whose text no longer matches the digest is recorded as not instrumented,
 so a preview built from an older checkout widens selection instead of

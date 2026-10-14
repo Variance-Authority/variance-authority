@@ -594,7 +594,7 @@ the digest it must still have for its blocks to mean anything.
 
 **Module id.** A probe reports its module as `path@digest`: the
 repository-relative path of the file the transform was handed, and the first 32
-hexadecimal characters of the SHA-256 of the text the probes were placed on.
+hexadecimal characters of the SHA-256 of the text the regions were cut from.
 `moduleId(path, code)` from `@variance-authority/sense/journal` builds it, for a
 driver that writes its own journal. The build writes nothing else down.
 Placing probes is deterministic, so one text, one path and one recipe give one

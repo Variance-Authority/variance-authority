@@ -128,6 +128,13 @@ const KINDS: readonly BlockKind[] = [
   'handler',
 ];
 
+/** The addon's answer for a transformed text: `native/instrument/src/place.rs`. */
+export interface NativePlaced {
+  readonly instrumented: NativeInstrumented;
+  readonly unplaced: Uint32Array;
+  readonly mappings: string | null;
+}
+
 const NONE = 0xffffffff;
 
 /** ES2024, on every Node this package supports and in no `lib` it compiles against. */
@@ -164,6 +171,46 @@ export function spliced(source: string, file: string, mode: InstrumentMode, modu
   }
   if (answer === null) return undefined;
 
+  return columns(answer);
+}
+
+/** A text some other transform wrote, with the probes of the regions it came from. */
+export interface Placed extends Spliced {
+  /** The authored ordinals nothing in the text fires. */
+  readonly unplaced: readonly number[];
+  /** The map from `code` back to the transformed text, when it has one. */
+  readonly mappings?: string;
+}
+
+/**
+ * The regions of `authored`, numbered, named and digested as {@link spliced}
+ * cuts them, with their probes in `transformed` where `mappings` — the composed
+ * map from it to its sources, `authored` being number `source` — carries them.
+ */
+export function placed(
+  authored: string,
+  transformed: string,
+  map: { readonly file: string; readonly mappings: string; readonly source: number },
+  mode: InstrumentMode,
+  module: string,
+): Placed | undefined {
+  const addon = instrumenter();
+  if (!(authored as WellFormed).isWellFormed() || !(transformed as WellFormed).isWellFormed()) return undefined;
+  let answer: NativePlaced | null;
+  try {
+    answer = addon.place(authored, transformed, map.file, map.mappings, map.source, mode === 'entries', module);
+  } catch (error) {
+    throw new Error(`instrument: the native walk failed on ${map.file}: ${(error as Error).message}`, { cause: error });
+  }
+  if (answer === null) return undefined;
+  return {
+    ...columns(answer.instrumented),
+    unplaced: [...answer.unplaced],
+    ...(answer.mappings === null ? {} : { mappings: answer.mappings }),
+  };
+}
+
+function columns(answer: NativeInstrumented): Spliced {
   const blocks: Block[] = [];
   for (let ordinal = 0; ordinal < answer.starts.length; ordinal++) {
     const owner = answer.owners[ordinal]!;

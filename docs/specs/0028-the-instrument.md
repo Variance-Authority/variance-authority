@@ -58,7 +58,7 @@ until that data feeds the diff-based selection stage in
 
 | Need | Seam |
 |---|---|
-| instrument | a Vite plugin at `enforce: 'post'`, so probes land on JS after TS is stripped |
+| instrument | regions cut from the file on disk; in a build (`testSelectionProbes`) the probes are written at `enforce: 'post'` into the transformed text, where the combined map carries each region; the test-runner seams probe the file first |
 | configuration | the user adds the integration to the runner configuration or CI job |
 | coverage owner | the test file that the runner executes |
 | selection output | test-file paths for the runner to execute |
@@ -69,12 +69,17 @@ coverage against each test file. Storybook is different: because the tool owns
 that execution surface, it may select an individual story. A Playwright page
 crossing uses a transport before its coverage joins its test file.
 
-**5. Four hazards that are silent when wrong.**
+**5. Five hazards that are silent when wrong.**
 
-- vitest hoists `vi.mock` calls in its own transform, and `enforce: 'post'` runs
-  after that hoisting. The module probe must be inserted at the **first
-  executable statement after the hoisted block**, never at offset 0 — a probe
-  above a hoisted mock changes evaluation order.
+- A build-time compiler that reads syntax — a CSS-in-JS extractor, a macro, a
+  GraphQL tag, React Compiler — fails or compiles differently on probed text,
+  so in a build no transform of the project's reads a probe. The cut stays on
+  the file on disk; only placement reads the transformed text, and a region
+  the combined map carries to no code, or a rewritten file with no map back,
+  stops the build by file and region rather than dropping the region.
+- vitest hoists `vi.mock` calls in its own transform. The module probe must be
+  inserted at the **first executable statement after the hoisted block**, never
+  at offset 0 — a probe above a hoisted mock changes evaluation order.
 - `Function.prototype.toString` returns instrumented text. Anything comparing
   function source, and any framework reading parameter names from it, sees the
   probe.

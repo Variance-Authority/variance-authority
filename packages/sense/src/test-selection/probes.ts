@@ -7,7 +7,7 @@
  * cuts that text again to learn what each ordinal means.
  */
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
-import { captureModule } from './captured-modules.js';
+import { captureAfter, type ComposedMap } from './captured-modules.js';
 import { cleanId, defaultInclude } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
 import probeLists from '../instrument/probe-lists.cjs';
@@ -93,13 +93,30 @@ export interface TestSelectionProbeOptions {
   readonly journeys?: boolean;
 }
 
+/** The part of a Vite transform's context this reads. */
+export interface InstrumentingContext {
+  readonly getCombinedSourcemap?: () => ComposedMap;
+}
+
+/** The map a transform returns: Vite's `SourceMapInput`, one source. */
+export interface InstrumentedMap {
+  readonly version: 3;
+  readonly sources: readonly string[];
+  readonly names: readonly string[];
+  readonly mappings: string;
+}
+
 /** The subset of Vite's plugin surface this uses, so nothing here needs Vite. */
 export interface InstrumentingPlugin {
   readonly name: string;
-  readonly enforce: 'pre';
+  readonly enforce: 'post';
   readonly resolveId: (id: string) => string | null;
   readonly load: (id: string) => string | null;
-  readonly transform: (code: string, id: string) => { code: string; map: null } | null;
+  readonly transform: (
+    this: unknown,
+    code: string,
+    id: string,
+  ) => { code: string; map: InstrumentedMap | null } | null;
 }
 
 const VIRTUAL_COLLECTOR = 'variance-authority:execution-collector';
@@ -120,10 +137,13 @@ const RESOLVED_COLLECTOR = `\0${VIRTUAL_COLLECTOR}`;
  * };
  * ```
  *
- * `enforce: 'pre'` for the reason the Vitest seam has it: probes land on the
- * file as it is on disk, which is the text the join cuts again and the text a
- * diff is written against, and every transform after it carries the probes
- * along with the code they sit in.
+ * `enforce: 'post'`, so no transform of the project's reads a probe: a
+ * compiler that reads syntax — a CSS-in-JS extractor, a macro, a memoising
+ * compiler — would refuse probed code, or compile it into something the
+ * project does not ship. The regions are still the file's as it is on disk,
+ * the text the join cuts again and a diff is written against; the composed
+ * map says where each one's code went, and a region it carries nowhere stops
+ * the build by name.
  */
 export function testSelectionProbes(
   options: TestSelectionProbeOptions = {},
@@ -133,7 +153,7 @@ export function testSelectionProbes(
 
   return {
     name: 'variance-authority:test-selection-probes',
-    enforce: 'pre',
+    enforce: 'post',
     resolveId: (id) => (id === VIRTUAL_COLLECTOR || id === RESOLVED_COLLECTOR ? RESOLVED_COLLECTOR : null),
     load: (id) => {
       if (id !== RESOLVED_COLLECTOR) return null;
@@ -148,16 +168,51 @@ export function testSelectionProbes(
     transform(code, specifier) {
       const source = cleanId(specifier);
       if (source === RESOLVED_COLLECTOR) return null;
-      const captured = captureModule(root, source, code, include, options.mode);
+      // Vite hands every transform its context; a caller that calls this by hand has none.
+      const context = this as InstrumentingContext | undefined;
+      const combined = context?.getCombinedSourcemap;
+      const map = typeof combined === 'function' ? () => combined.call(context) : undefined;
+      const captured = captureAfter(root, source, code, include, options.mode, map);
       if (captured === undefined) return null;
 
       // Hoisted in front of everything the module imports, and on the first line,
       // so line numbers survive the way every other insertion in this package
       // preserves them. An instrumented module whose collector arrived late would
       // throw at its own module probe.
-      return { code: `import ${JSON.stringify(VIRTUAL_COLLECTOR)};${captured.code}`, map: null };
+      const collector = `import ${JSON.stringify(VIRTUAL_COLLECTOR)};`;
+      const mappings = captured.mappings === undefined ? undefined : shifted(captured.mappings, collector.length);
+      return {
+        code: `${collector}${captured.code}`,
+        map: mappings === undefined ? null : { version: 3, sources: [source], names: [], mappings },
+      };
     },
   };
+}
+
+const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+/** `mappings` with every column of its first line moved `by` to the right: the first segment's is the only absolute one. */
+function shifted(mappings: string, by: number): string {
+  let value = 0;
+  let shift = 0;
+  let at = 0;
+  for (; at < mappings.length; at++) {
+    const digit = BASE64.indexOf(mappings[at]!);
+    if (digit === -1) return mappings;
+    value += (digit & 31) << shift;
+    shift += 5;
+    if ((digit & 32) === 0) break;
+  }
+  if (at === mappings.length) return mappings;
+  let rest = ((value & 1) === 1 ? -(value >> 1) : value >> 1) + by;
+  rest = rest < 0 ? (-rest << 1) | 1 : rest << 1;
+  let field = '';
+  do {
+    const digit = rest & 31;
+    rest >>= 5;
+    field += BASE64[rest > 0 ? digit | 32 : digit];
+  } while (rest > 0);
+  return field + mappings.slice(at + 1);
 }
 
 /**

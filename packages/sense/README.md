@@ -912,13 +912,21 @@ export default {
 modules are product source, `mode`, and `journeys` with `label`, which install
 a journey head for a service bundle under that name (`build` by default).
 
-`testSelectionProbes` runs at `enforce: 'pre'`, ahead of Vite's own plugins
-and every plugin without `enforce: 'pre'`. List it first in `plugins` so it
-also runs ahead of the other `pre` plugins: the probes then go into the text
-you wrote, and each module is named after that file, digested as its text and
-placed on its lines. TypeScript, JSX,
-decorators and `vi.mock` hoisting are compiled after the probes, so a region a
-compiler writes is never recorded.
+`testSelectionProbes` runs at `enforce: 'post'`, after every transform of
+yours, so a compiler that reads the syntax it compiles — a CSS-in-JS extractor,
+a macro, a GraphQL tag, React Compiler — reads the text it reads without
+recording and compiles the same output. The regions are still the file's own:
+each module is cut from the file on disk, named after it, digested as its text
+and placed on its lines, and the probes are written into the transformed text
+where the transforms' combined map carries each region. Code a compiler wrote
+that the map carries to no region gets no probe, so a decorator helper or a
+generated constructor is never recorded.
+
+Where the transforms ahead of the probes rewrote a file and left no map back to
+it, or left a region of it with no code the map carries back, the build stops
+and names the file and the region. A region a compiler folded into a
+neighbour, such as a style function inlined into its component, is carried by
+the code the map attributes it to.
 
 ### A library loaded from its build
 
@@ -933,7 +941,7 @@ that cannot be read. A Vite dev server and `vite build` decide alike, and so do
 the Vitest, Jest and Rstest seams.
 
 A module reports the id it was instrumented under: its repository-relative path
-and a digest of the text the probes were placed on, `src/cart/total.ts@<digest>`.
+and a digest of the text the regions were cut from, `src/cart/total.ts@<digest>`.
 The build writes nothing else down. `recordExecution` reads that file from your
 checkout and cuts it into regions again, the same cut the transform made, so a
 preview built yesterday and driven today is joined against the checkout as it

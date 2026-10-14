@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EVALUATING } from '../instrument/index.js';
-import { captureModule, deriveModules, markModule, pathOf, planModule } from './captured-modules.js';
+import { captureAfter, captureModule, deriveModules, markModule, pathOf, planModule } from './captured-modules.js';
 import { defaultInclude } from './instrumented-modules.js';
 
 /** The most reads the derivation had in flight at once. */
@@ -47,6 +47,29 @@ describe('the module the probes name', () => {
 
     expect(captured.module.id).toMatch(/^src-cart\.js@[0-9a-f]{32}$/);
     expect(pathOf(captured.module.id)).toBe('src-cart.js');
+  });
+});
+
+describe('a module whose probes go in after the transforms', () => {
+  it('reports the id and the regions the file on disk is cut into', async () => {
+    const { root, file } = await checkout(SOURCE);
+    const transformed = `${SOURCE}\n`;
+    // Every line to itself, from its first column.
+    const map = () => ({ sources: ['src-cart.js'], mappings: 'AAAA;AACA;AACA' });
+    const after = captureAfter(root, file, transformed, defaultInclude, undefined, map)!;
+    const before = captureModule(root, file, SOURCE, defaultInclude, undefined)!;
+
+    expect(after.module).toEqual(before.module);
+    expect(after.code.endsWith('\n\n')).toBe(true);
+  });
+
+  it('names every region the map carries nowhere', async () => {
+    const { root, file } = await checkout(SOURCE);
+    const map = () => ({ sources: ['src-cart.js'], mappings: '' });
+
+    expect(() => captureAfter(root, file, `${SOURCE}\n`, defaultInclude, undefined, map)).toThrow(
+      /`src-cart\.js`: .* back to total\/entry,/,
+    );
   });
 });
 

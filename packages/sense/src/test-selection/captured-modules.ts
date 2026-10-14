@@ -14,9 +14,10 @@
 
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrument, probeRuntime, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { instrumentTransformed } from '../instrument/transformed.js';
 import { recordedBlocks } from './coverage-rows.js';
 import { insideRoot, isMissing, projectPath, type CapturedModule } from './instrumented-modules.js';
 import { handedTexts, rawFrame, type RawFrame } from './source-lines.js';
@@ -144,6 +145,81 @@ export function placeModule(
       : { file, id, sourceDigest, instrumented: true, blocks: recordedBlocks(done.blocks, frame, code, mode ?? 'presence') },
     code: done?.code ?? markLoaded(code, id),
     ...changed,
+  };
+}
+
+/** The map a transform at the end of a pipeline is handed back to every source it came from: Vite's `getCombinedSourcemap()`. */
+export interface ComposedMap {
+  readonly sources: readonly (string | null)[];
+  readonly sourceRoot?: string;
+  readonly mappings: string;
+}
+
+/** A module whose probes a transform placed after the project's own, and the map from its text back to theirs. */
+export interface CapturedAfter extends Captured {
+  readonly mappings?: string;
+}
+
+/**
+ * Cut one module as {@link captureModule} cuts it, from the file on disk, and
+ * place its probes in `code`, the text every transform before this one wrote.
+ *
+ * A compiler that reads syntax reads probes too, so they go in last: regions,
+ * ordinals and the id are the file's, as they are when the probes go in first,
+ * and `map` says which code in `code` each one became. A region `map` carries
+ * nowhere is an error that names it, because recording without it would
+ * record that it never ran. Where `code` is the file, or the map cannot be
+ * had, this is {@link captureModule}.
+ */
+export function captureAfter(
+  root: string,
+  path: string,
+  code: string,
+  include: (file: string) => boolean,
+  mode: InstrumentMode | undefined,
+  map: (() => ComposedMap | undefined) | undefined,
+  original: (path: string) => string = readOriginal,
+): CapturedAfter | undefined {
+  let disk: string | undefined;
+  try {
+    disk = original(path);
+  } catch {
+    disk = undefined;
+  }
+  if (disk === undefined || map === undefined || handedTexts(disk).includes(code)) {
+    return captureModule(root, path, code, include, mode, original);
+  }
+  const plan = planModule(root, path, disk, include, original);
+  if (plan === undefined) return undefined;
+  const { frame, file, id } = plan;
+  const composed = map();
+  const source = composed?.sources.findIndex(
+    (name) => name !== null && resolve(dirname(path), composed.sourceRoot ?? '', name) === path,
+  ) ?? -1;
+  if (composed === undefined || source === -1) {
+    throw new Error(
+      `\`${projectPath(root, path)}\`: the transforms ahead of the probes rewrote the file and left no map back to it, ` +
+        'so no region of it can be placed in what they wrote. Have them write a source map, or leave the file out of `include`.',
+    );
+  }
+  const done = instrumentTransformed(disk, code, { file, mappings: composed.mappings, source }, id, mode === undefined ? {} : { mode });
+  if (done === undefined) {
+    return { module: { file, id, sourceDigest: frame.sourceDigest, instrumented: false, blocks: [] }, code: markLoaded(code, id) };
+  }
+  if (done.unplaced.length > 0) {
+    const names = done.unplaced.map((ordinal) => {
+      const block = done.blocks[ordinal]!;
+      return `${block.name}${block.path === '' ? '' : `/${block.path}`}`;
+    });
+    throw new Error(
+      `\`${file}\`: the transforms ahead of the probes left no code their map carries back to ${names.join(', ')}, ` +
+        'so a test that ran it would be recorded as not running it. Leave the file out of `include`, or have the transform map what it wrote.',
+    );
+  }
+  return {
+    module: { file, id, sourceDigest: frame.sourceDigest, instrumented: true, blocks: recordedBlocks(done.blocks, frame, disk, mode ?? 'presence') },
+    code: done.code,
+    ...(done.mappings === undefined ? {} : { mappings: done.mappings }),
   };
 }
 
