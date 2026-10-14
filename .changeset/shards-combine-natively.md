@@ -62,13 +62,18 @@ the largest of them, not their sum.
   record or drop it silently. Such a record was written by another build;
   delete it and run again. Every record 0.15.0 reads is still read: format
   10, 9 (no cases) and 8 (no durations).
-- A run whose shards started from different records fails the build: two
-  commits, two before layers, one file on two texts before them, two records
-  their runs split the suite by, or one shard that found no record beside
-  one that found it. The cached base moved while the shards ran, so each
-  shard split the suite against another plan and a test may have run in no
-  shard. The message names both shards and both records. Run every shard
-  again against one record.
+- Every record a run writes names the record it started from, in a new
+  `run.base` part: `none` when the run was laid over no record, and otherwise
+  the `sha256` digest of the record the first run at its commit was laid
+  over. 0.15.0 cannot read a record that holds the part. A run whose shards
+  started from different records fails the build: two bases, two commits,
+  two before layers, one that began over no case index beside one that did
+  not, or one file on two texts before them. The message names the shards and the
+  records they started from, and says to run the whole build again so that
+  every shard restores the same cached record through the `actions/cache`
+  step. A shard that names no record it started from, as one written by
+  0.15.0 or by the JVM agent does, is refused: record it again with this
+  build.
 - Combining refuses, naming the shards, where a landing used to fold
   silently or drop what it could not read:
   - a case index, before layer or last-run layer the combine cannot read;

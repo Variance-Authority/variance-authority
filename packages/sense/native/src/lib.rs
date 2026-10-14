@@ -130,6 +130,7 @@ mod record_coverage_recut;
 mod record_fixture;
 mod record_layout;
 mod record_parts;
+mod record_start;
 mod resolve;
 mod seed;
 mod segment;

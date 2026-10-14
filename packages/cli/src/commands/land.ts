@@ -135,9 +135,10 @@ async function landCombined(
   const staged = `${at}.${stage}`;
   const stagedRuns = `${runsAt}.${stage}`;
   const locked = await selection.withIndexLock(at, async () => {
-    let previous: Opened | undefined;
+    let [previous, over]: [Opened | undefined, Buffer | undefined] = [undefined, undefined];
     try {
-      previous = opened(selection, at, await readFile(at));
+      over = await readFile(at);
+      previous = opened(selection, at, over);
     } catch (error) {
       // A record whose run instrumented nothing has no coverage to fold over,
       // and its cases are laid under the shards' below.
@@ -195,9 +196,11 @@ async function landCombined(
     // Shards that measured nothing and kept no case this build reads, over no
     // coverage, leave nothing to write: the target stays as it was.
     const kept = bytes !== undefined || Object.values(sections).some((part) => part !== undefined);
+    // The record names the one the landing was laid over, as a run's does.
+    const based = { ...sections, base: selection.recordBase(over, combined.commit ?? undefined, before?.commit) };
     try {
-      if (bytes !== undefined) await selection.writeCoverageBytes(staged, selection.withCaseSections(bytes, sections));
-      else if (kept) await selection.writeCoverageBytes(staged, selection.recordOfCases(sections));
+      if (bytes !== undefined) await selection.writeCoverageBytes(staged, selection.withCaseSections(bytes, based));
+      else if (kept) await selection.writeCoverageBytes(staged, selection.recordOfCases(based));
       if (runs !== undefined) await selection.writeCommitRuns(stagedRuns, runs);
       if (kept) await rename(staged, at);
       // FIXME: the snapshot and the runs record are two files, and nothing

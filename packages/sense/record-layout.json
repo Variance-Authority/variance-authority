@@ -65,6 +65,10 @@
       [
         "eyes",
         "eyes"
+      ],
+      [
+        "base",
+        "run.base"
       ]
     ],
     "blockKinds": [

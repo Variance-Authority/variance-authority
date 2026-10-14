@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { commitRunsFile, readTestCoverage, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { readTestCoverage, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { landJourneys } from './land.js';
 
@@ -134,18 +134,18 @@ describe('landJourneys — N shard records into the one this repository reads', 
     expect(await left()).toEqual([]);
   });
 
-  it('fails when the shards split the suite by different records, though the landing discards their layers', async () => {
-    const shards = await written(shardOf('story:a'), shardOf('story:b'));
-    for (const [first, second] of [['base1', 'base2'], ['base2', 'base1']] as const) {
-      for (const [shard, over] of [[shards[0]!, first], [shards[1]!, second]] as const) {
-        await writeFile(commitRunsFile(shard), JSON.stringify({ commit: 'c0ffee', over, first: '1', latest: '1', runs: 1, files: [] }));
-      }
+  it('fails when the shards started from different cached records, though the landing discards their layers', async () => {
+    const [one, two] = ['0123456789ab'.repeat(5) + '0123', 'fedcba987654'.repeat(5) + 'fedc'].map((hex) => `sha256:${hex}`);
+    const shards = [join(home, 'shard-1.bin'), join(home, 'shard-2.bin')];
+    for (const [first, second] of [[one!, two!], [two!, one!]] as const) {
+      await writeTestCoverage(shards[0]!, shardOf('story:a'), { base: Buffer.from(first) });
+      await writeTestCoverage(shards[1]!, shardOf('story:b'), { base: Buffer.from(second) });
 
       await expect(landJourneys(home, [...shards].reverse(), into)).rejects.toThrow(
-        `the build failed because the sharding was unstable: ${shards[0]} started from the record of commit \`${first}\`, ` +
-          `and ${shards[1]} from the record of commit \`${second}\`. Each shard split the suite against the record it started from, ` +
-          'so the split may have left tests that ran in no shard. Run every shard again against one record.',
+        `the build failed because the sharding was unstable: ${shards[0]} started from the record ${first.slice(0, 19)}, ` +
+          `and ${shards[1]} from the record ${second.slice(0, 19)}. `,
       );
+      await expect(landJourneys(home, shards, into)).rejects.toThrow('Run the whole build again, so that every shard restores the same cached record');
       expect(await left()).toEqual([]);
     }
   });

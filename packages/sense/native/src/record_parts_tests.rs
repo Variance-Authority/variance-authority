@@ -51,7 +51,7 @@ fn fails_the_build_when_the_shards_started_from_different_records() {
             let message = folded_last(&shards, &[none(), none()]).err().unwrap();
             assert!(message.starts_with("the build failed because the sharding was unstable: one started from "), "{message}");
             assert!(message.contains(&format!("one started from {}, and two from {}.", named[0], named[1])), "{message}");
-            assert!(message.contains("the split may have left tests that ran in no shard. Run every shard again against one record."), "{message}");
+            assert!(message.contains("the split may have left tests that ran in no shard. Run the whole build again, so that every shard restores the same cached record"), "{message}");
         }
     };
     let at = |commit: &str| last(&format!(r#"{{"commit":"{commit}","at":"1","files":[],"cases":[]}}"#));

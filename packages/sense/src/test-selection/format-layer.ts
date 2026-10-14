@@ -91,13 +91,28 @@ export async function layeredCoverage(
   root: string,
   cacheRoot?: string,
 ): Promise<Buffer> {
-  let previous: Buffer;
+  return layeredOver(file, await recordBytes(file), current, root, cacheRoot);
+}
+
+/** The bytes of the record at `file`; `undefined` when there is none. */
+export async function recordBytes(file: string): Promise<Buffer | undefined> {
   try {
-    previous = await readFile(file);
+    return await readFile(file);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return encodeTestCoverage(current);
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
     throw error;
   }
+}
+
+/** {@link layeredCoverage} over `previous`, the bytes already read off `file`. */
+export async function layeredOver(
+  file: string,
+  previous: Buffer | undefined,
+  current: TestCoverage,
+  root: string,
+  cacheRoot?: string,
+): Promise<Buffer> {
+  if (previous === undefined) return encodeTestCoverage(current);
   try {
     const onDisk = await carriedSources(root, previous, current);
     return layCoverage(previous, current, onDisk, await editReadings(root, previous, current, onDisk, cacheRoot));

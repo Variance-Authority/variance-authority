@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,10 +8,16 @@ import { layCases } from './case-landing.js';
 import { caseSectionsOf } from './case-record.js';
 import { encodeRecordedEyes } from './eyes-record.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
-import { combineRecords, commitRunsFile, writeTestCoverage } from './index.js';
+import { landRun } from './commit-runs.js';
+import { combineRecords, writeTestCoverage } from './index.js';
 
 const source = 'export function greet() { return "hello"; }\n';
 const durations: Readonly<Record<string, number>> = { 'a.test.ts': 120, 'b.test.ts': 340 };
+/** `src/greet.ts` as a run of `file` alone entered it. */
+const moduleOf = (file: string) => ({
+  file: 'src/greet.ts', sourceDigest: digestString(source), instrumented: true,
+  blocks: [{ ordinal: 0, kind: 'module' as const, digest: 'module', name: '', path: '', startLine: 1, endLine: 1, source: true, testFiles: [file] }],
+});
 
 let root: string;
 beforeEach(async () => {
@@ -96,22 +103,31 @@ describe('combineRecords against the TypeScript writers', () => {
     })).toString());
   });
 
-  // A shard's runs record names the record its run was laid over, which is the
-  // record it read its times from and split the suite by.
+  // Each shard restores the cached record and runs over it; a shard's record
+  // names the record its run was laid over, which it split the suite by.
   it('fails the build when the shards split the suite by different records, in either order', async () => {
-    const shards = [await recordOf('a.bin', ['a.test.ts']), await recordOf('b.bin', ['b.test.ts'])];
-    const over = async (shard: string, commit: string) =>
-      writeFile(commitRunsFile(shard), JSON.stringify({ commit: 'c0ffee', over: commit, first: '1', latest: '1', runs: 1, files: [] }));
-    for (const [first, second] of [['base1', 'base2'], ['base2', 'base1']] as const) {
-      await over(shards[0]!, first);
-      await over(shards[1]!, second);
-      expect(() => combineRecords([...shards].reverse(), join(root, 'combined.bin'))).toThrow(
-        `the build failed because the sharding was unstable: ${shards[0]} started from the record of commit \`${first}\`, ` +
-          `and ${shards[1]} from the record of commit \`${second}\`.`,
+    // Two cached records that hold no test file either shard runs, so neither
+    // shard carries a row the other one records.
+    const cached = async (name: string, sourceDigest: string) => {
+      const path = join(root, name);
+      await writeTestCoverage(path, { version: 3, instrumentation: 'fixture', commit: 'cached', tests: [], modules: [{ file: 'src/c.ts', sourceDigest, instrumented: false, blocks: [] }] });
+      return readFile(path);
+    };
+    const [one, two] = [await cached('one.bin', 'yesterday'), await cached('two.bin', 'today')];
+    const shardsOver = async (restored: readonly Buffer[]) =>
+      Promise.all(['a.test.ts', 'b.test.ts'].map(async (file, at) => {
+        const shard = join(root, `shard-${at}.bin`);
+        await writeFile(shard, restored[at]!);
+        await landRun(shard, { version: 3, instrumentation: 'fixture', commit: 'c0ffee', tests: [{ file, complete: true, preconditions: [] }], modules: [moduleOf(file)] }, root);
+        return shard;
+      }));
+    const named = (bytes: Buffer) => `the record sha256:${createHash('sha256').update(bytes).digest('hex').slice(0, 12)}`;
+    for (const [first, second] of [[one, two], [two, one]] as const) {
+      const shards = await shardsOver([first, second]);
+      expect(() => combineRecords(shards, join(root, 'combined.bin'))).toThrow(
+        `the build failed because the sharding was unstable: ${shards[0]} started from ${named(first)}, and ${shards[1]} from ${named(second)}.`,
       );
     }
-    await over(shards[1]!, 'base2');
-    await over(shards[0]!, 'base2');
-    expect(combineRecords(shards, join(root, 'combined.bin')).shards).toHaveLength(2);
+    expect(combineRecords(await shardsOver([two, two]), join(root, 'combined.bin')).shards).toHaveLength(2);
   });
 });

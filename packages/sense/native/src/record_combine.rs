@@ -24,6 +24,7 @@ use crate::record_coverage::{self, Parts};
 use crate::record_coverage_fold::Fold;
 use crate::record_layout::LAYOUT;
 use crate::record_parts;
+use crate::record_start::Starts;
 
 #[napi(object)]
 pub struct CombinedShard {
@@ -59,74 +60,6 @@ pub(crate) struct Combined {
     pub result: CombinedRecord,
 }
 
-/// What every shard of one run says alike, and the first shard that said it.
-/// Heard by `hear`, absent is a value: a shard that names none disagrees with
-/// one that names one. Heard by `hear_some`, absent says nothing.
-///
-/// Shards that disagree about how they were made, the instrumentation, are
-/// refused: they are not shards of one run. Shards that disagree about where
-/// they started, `Agreed::start`, fail the build as [`unstable`]: they are one
-/// run whose split moved under it.
-pub(crate) struct Agreed {
-    what: &'static str,
-    held: Option<(String, Option<String>)>,
-    start: bool,
-}
-
-/// The failure of a run whose shards started from different records: the
-/// cached base was replaced while they ran, so each shard split the suite
-/// against another plan. Names both shards and the record each started from.
-pub(crate) fn unstable(first: &str, from_first: &str, second: &str, from_second: &str) -> String {
-    format!(
-        "the build failed because the sharding was unstable: {first} started from {from_first}, and {second} from {from_second}. \
-         Each shard split the suite against the record it started from, so the split may have left tests that ran in no shard. \
-         Run every shard again against one record."
-    )
-}
-
-impl Agreed {
-    pub fn new(what: &'static str) -> Self {
-        Agreed { what, held: None, start: false }
-    }
-
-    /// What every shard started from: shards that name two fail as [`unstable`].
-    pub fn start(what: &'static str) -> Self {
-        Agreed { what, held: None, start: true }
-    }
-
-    /// `shard` says `value`; shards are heard in code-unit order of their names.
-    pub fn hear(&mut self, shard: &str, value: Option<&str>) -> Result<(), String> {
-        match &self.held {
-            None => {
-                self.held = Some((shard.to_owned(), value.map(str::to_owned)));
-                Ok(())
-            }
-            Some((_, held)) if held.as_deref() == value => Ok(()),
-            Some((first, held)) if self.start => {
-                let named = |value: Option<&str>| value.map_or_else(|| format!("no {}", self.what), |value| format!("{} `{value}`", self.what));
-                Err(unstable(first, &named(held.as_deref()), shard, &named(value)))
-            }
-            Some((first, held)) => Err(format!(
-                "{first} and {shard} disagree about the {} (`{}` against `{}`), so they are not shards of one run and cannot be folded into one.",
-                self.what,
-                held.as_deref().unwrap_or("(none)"),
-                value.unwrap_or("(none)")
-            )),
-        }
-    }
-
-    /// `shard` says `value`, or says nothing when it names none: a shard that
-    /// names no commit disagrees with nobody.
-    pub fn hear_some(&mut self, shard: &str, value: Option<&str>) -> Result<(), String> {
-        value.map_or(Ok(()), |value| self.hear(shard, Some(value)))
-    }
-
-    /// The value every shard heard said, if any said one.
-    pub fn value(&self) -> Option<&str> {
-        self.held.as_ref().and_then(|(_, value)| value.as_deref())
-    }
-}
-
 /// A shard once its coverage is folded: what the other folds still need.
 struct Held {
     path: String,
@@ -144,10 +77,8 @@ struct Held {
     parts: Parts,
 }
 
-/// The records at `paths` folded into one record's bytes. `starts` names, by
-/// the same position, the commit of the record each shard's run was laid over
-/// and split the suite by, where its runs record names one.
-pub(crate) fn combine(paths: &[String], starts: &[Option<String>]) -> Result<Combined, String> {
+/// The records at `paths` folded into one record's bytes.
+pub(crate) fn combine(paths: &[String]) -> Result<Combined, String> {
     let failed = |path: &str, error: std::io::Error| match error.kind() {
         std::io::ErrorKind::NotFound => format!("there is no record at {path}"),
         _ => format!("cannot read {path}: {error}"),
@@ -165,20 +96,20 @@ pub(crate) fn combine(paths: &[String], starts: &[Option<String>]) -> Result<Com
         file.take(prefix as u64).read_to_end(&mut bytes).map_err(|error| failed(path, error))?;
         Ok((Cow::Owned(bytes), length))
     };
-    combined(paths, starts, load)
+    combined(paths, load)
 }
 
 /// The records `named`, each `(path, bytes)`, folded into one record's bytes.
 #[cfg(test)]
-pub(crate) fn combine_bytes(named: &[(String, Vec<u8>)], starts: &[Option<String>]) -> Result<Combined, String> {
+pub(crate) fn combine_bytes(named: &[(String, Vec<u8>)]) -> Result<Combined, String> {
     let paths: Vec<String> = named.iter().map(|(path, _)| path.clone()).collect();
     let load = |at: usize, _: Option<usize>| Ok((Cow::Borrowed(named[at].1.as_slice()), named[at].1.len()));
-    combined(&paths, starts, load)
+    combined(&paths, load)
 }
 
 /// The records `paths` names folded, each read by `load`: whole, or its first
 /// bytes when a limit is given, with its length either way.
-fn combined<'a>(paths: &[String], starts: &[Option<String>], load: impl Fn(usize, Option<usize>) -> Result<(Cow<'a, [u8]>, usize), String>) -> Result<Combined, String> {
+fn combined<'a>(paths: &[String], load: impl Fn(usize, Option<usize>) -> Result<(Cow<'a, [u8]>, usize), String>) -> Result<Combined, String> {
     if paths.is_empty() {
         return Err("no records were named to combine".to_owned());
     }
@@ -196,8 +127,7 @@ fn combined<'a>(paths: &[String], starts: &[Option<String>], load: impl Fn(usize
     }
 
     let mut fold = Fold::new(universe);
-    let (mut measured, mut commit) = (Agreed::start("commit"), Agreed::start("commit"));
-    let mut based = Agreed::start("the record of commit");
+    let mut starts = Starts::new();
     let mut inventories: HashMap<String, Vec<Inventory>> = HashMap::new();
     let mut held: Vec<(usize, Held)> = Vec::with_capacity(paths.len());
     let mut folded_files: Vec<usize> = Vec::new();
@@ -226,24 +156,10 @@ fn combined<'a>(paths: &[String], starts: &[Option<String>], load: impl Fn(usize
             }
             None => None,
         };
-        // Coverage measured at no commit is a value among the measured shards,
-        // as the layering rule holds it. A shard that measured nothing speaks
-        // for the commit through its last run, and one whose last run names no
-        // commit disagrees with nobody. A measured shard's last run may name a
-        // later commit than its coverage, when a run that instrumented nothing
-        // was laid over it; the last-run layers agree among themselves.
         // The start is where the shard's split came from, so a shard that
         // observed nothing split by it too.
-        based.hear_some(path, starts.get(at).and_then(Option::as_deref))?;
-        if !empty {
-            match &covered {
-                Some(named) => {
-                    measured.hear(path, named.as_deref())?;
-                    commit.hear_some(path, named.as_deref())?;
-                }
-                None => commit.hear_some(path, last.as_ref().and_then(|(named, _)| named.as_deref()))?,
-            }
-        }
+        let last_commit = last.as_ref().and_then(|(named, _)| named.as_deref());
+        starts.hear(path, record.parts.base.as_deref(), covered.as_ref().map(Option::as_deref), last_commit, empty)?;
         if let (Some(coverage), false) = (&record.coverage, empty) {
             fold.add(path, coverage)?;
             folded_files.push(held.len());
@@ -319,6 +235,9 @@ fn combined<'a>(paths: &[String], starts: &[Option<String>], load: impl Fn(usize
     if !eyes.is_empty() {
         columns.push(Column::Plain(LAYOUT.coverage.part("eyes"), record_parts::fold_eyes(&eyes, cases.is_some().then_some(&ids))?));
     }
+    if let Some(base) = starts.base() {
+        columns.push(Column::Plain(LAYOUT.coverage.part("base"), base.as_bytes().to_vec()));
+    }
 
     let mut result = CombinedRecord {
         shards: Vec::new(),
@@ -326,7 +245,7 @@ fn combined<'a>(paths: &[String], starts: &[Option<String>], load: impl Fn(usize
         modules: 0,
         crossings: 0.0,
         cases,
-        commit: commit.value().map(str::to_owned),
+        commit: starts.commit().map(str::to_owned),
         renumbered,
     };
     let mut shards: Vec<(usize, CombinedShard)> = held
@@ -340,7 +259,7 @@ fn combined<'a>(paths: &[String], starts: &[Option<String>], load: impl Fn(usize
         }))
         .collect();
     if !folded_files.is_empty() {
-        let folded = fold.finish(measured.value())?;
+        let folded = fold.finish(starts.measured())?;
         for (shard, files) in folded_files.into_iter().zip(folded.files) {
             shards[shard].1.files = files;
         }
@@ -380,12 +299,10 @@ fn fold_index(read: Vec<case_shard::Shard>, inventories: HashMap<String, Vec<Inv
     case_fold::fold(read, inventories, true)
 }
 
-/// Fold the records at `paths` and write the one record at `output`. `starts`
-/// names, by position, the commit each shard's runs record says its run was
-/// laid over, `None` where it names none.
+/// Fold the records at `paths` and write the one record at `output`.
 #[napi(catch_unwind)]
-pub fn combine_records(paths: Vec<String>, output: String, starts: Option<Vec<Option<String>>>) -> napi::Result<CombinedRecord> {
-    let combined = combine(&paths, &starts.unwrap_or_default()).map_err(napi::Error::from_reason)?;
+pub fn combine_records(paths: Vec<String>, output: String) -> napi::Result<CombinedRecord> {
+    let combined = combine(&paths).map_err(napi::Error::from_reason)?;
     journey_output::replace(&output, &combined.bytes).map_err(napi::Error::from_reason)?;
     Ok(combined.result)
 }

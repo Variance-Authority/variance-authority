@@ -58,7 +58,7 @@ describe('landJourneys and the cases in the record', () => {
 
     // The snapshot now says `test/total.test.ts` runs nothing in `src/total.ts`,
     // and the index already there says one of its cases runs `applyDiscount`.
-    expect(caseSectionsAt(record)).toEqual({});
+    expect(caseSectionsAt(record)).toEqual({ base: expect.any(Uint8Array) });
     await expect(recordedExecutionFile(dir, 'unit')).rejects.toMatchObject({ kind: 'unrecorded' });
     expect(landed.cases).toEqual({ unanswered: record, shards: [shard], removed: true });
   });
@@ -162,7 +162,7 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
   async function uncoveredShard(commit: string, index: Uint8Array, name = 'shard-uncovered.bin'): Promise<string> {
     const shard = join(home, name);
     const last = { commit, at: '2026-01-01T00:00:00.000Z', files: ['test/total.test.ts'], began: true, cases: [] };
-    await writeFile(shard, recordOfCases({ index, last: Buffer.from(JSON.stringify(last)) }));
+    await writeFile(shard, recordOfCases({ index, last: Buffer.from(JSON.stringify(last)), base: Buffer.from('none') }));
     expect(withoutCoverage(shard)).toBe(true);
     return shard;
   }
@@ -202,11 +202,11 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
   });
 
   it('lays the cases of one that names no last run, for the files those cases are of', async () => {
-    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const { dir } = await published(home, { publish: false, record: wholeRecord });
     const record = testCoverageFile(dir, { suite: 'unit' });
-    // A shard that crossed a checkout keeps its index and drops the run that wrote it.
+    // A shard that keeps its index and names no run that wrote it, as one that crossed a checkout does.
     const shard = join(home, 'shard-shared.bin');
-    await writeFile(shard, sharedRecord(await readFile(await uncoveredShard(first, caseSectionsAt(record).index!))));
+    await writeFile(shard, recordOfCases({ index: caseSectionsAt(record).index!, base: Buffer.from('none') }));
     expect(caseSectionsAt(shard).last).toBeUndefined();
 
     const landed = await landJourneys(dir, [shard], record);
@@ -289,7 +289,9 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     await expect(landJourneys(dir, [other, at], record)).rejects.toThrow(new Error(
       `the build failed because the sharding was unstable: ${at} started from commit \`${first}\`, and ${other} from commit \`${'b'.repeat(40)}\`. ` +
         'Each shard split the suite against the record it started from, so the split may have left tests that ran in no shard. ' +
-        'Run every shard again against one record.',
+        'Run the whole build again, so that every shard restores the same cached record: ' +
+        'the `actions/cache` step keyed `variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}` restores it, ' +
+        'and a shard that restored another, or none, starts apart again.',
     ));
     expect(await readFile(record)).toEqual(before);
   });

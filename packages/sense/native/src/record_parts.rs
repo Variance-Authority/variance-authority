@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
 use crate::order;
-use crate::record_combine::{unstable, Agreed};
+use crate::record_start::{last_started, LastStart};
 
 /// The last-run layer, its fields in the order `LastCaseRun` spells them.
 #[derive(Deserialize, Serialize)]
@@ -80,48 +80,26 @@ pub(crate) fn fold_last(shards: &[(&str, &[u8], &HashMap<String, String>)]) -> R
         .iter()
         .map(|(name, bytes, renames)| read_last(bytes).map(|last| (*name, last, *renames)).map_err(|error| format!("{name}: {error}")))
         .collect::<Result<_, _>>()?;
-    if read.is_empty() {
-        return Err("folding last-run layers needs at least one".to_owned());
-    }
-    let (mut commit, mut before) = (Agreed::start("commit"), Agreed::start("the before layer of commit"));
-    for (name, last, _) in &read {
-        commit.hear_some(name, last.commit.as_deref())?;
-        // A shard that began over no record names no before commit.
-        before.hear_some(name, last.before.as_deref())?;
-    }
-    let began = |last: &Last| last.began == Some(true);
-    let (first, held) = (read[0].0, &read[0].1);
-    if let Some((name, last, _)) = read.iter().find(|(_, last, _)| began(last) != began(held)) {
-        let start = |last: &Last| match (began(last), &last.before) {
-            (true, _) => "no record".to_owned(),
-            (false, Some(before)) => format!("the before layer of commit `{before}`"),
-            (false, None) => "a record".to_owned(),
-        };
-        return Err(unstable(first, &start(held), name, &start(last)));
-    }
-    let mut texts: BTreeMap<String, (String, &str)> = BTreeMap::new();
-    for (name, last, _) in &read {
-        for (file, text) in last.before_texts.iter().flatten() {
-            match texts.get(file) {
-                Some((held, by)) if held != text => {
-                    return Err(unstable(by, &format!("`{file}` at text `{held}`"), name, &format!("`{file}` at text `{text}`")));
-                }
-                Some(_) => {}
-                None => {
-                    texts.insert(file.clone(), (text.clone(), name));
-                }
-            }
-        }
-    }
+    let starts: Vec<LastStart> = read
+        .iter()
+        .map(|(name, last, _)| LastStart {
+            shard: name,
+            commit: last.commit.as_deref(),
+            before: last.before.as_deref(),
+            began: last.began == Some(true),
+            texts: last.before_texts.as_ref(),
+        })
+        .collect();
+    let started = last_started(&starts)?;
     let unbased = sorted(read.iter().flat_map(|(_, last, _)| last.unbased.iter().flatten().cloned()));
     let folded = Last {
-        commit: commit.value().map(str::to_owned),
-        before: before.value().map(str::to_owned),
+        commit: started.commit,
+        before: started.before,
         at: read.iter().map(|(_, last, _)| last.at.as_str()).max_by(|left, right| order::code_unit(left, right)).unwrap_or_default().to_owned(),
         files: sorted(read.iter().flat_map(|(_, last, _)| last.files.iter().cloned())),
         unbased: (!unbased.is_empty()).then_some(unbased),
-        before_texts: (!texts.is_empty()).then(|| texts.into_iter().map(|(file, (text, _))| (file, text)).collect()),
-        began: began(held).then_some(true),
+        before_texts: (!started.texts.is_empty()).then_some(started.texts),
+        began: started.began.then_some(true),
         cases: sorted(read.iter().flat_map(|(_, last, renames)| last.cases.iter().map(|id| renamed(renames, id).to_owned()))),
     };
     let mut bytes = serde_json::to_vec_pretty(&folded).map_err(|error| error.to_string())?;

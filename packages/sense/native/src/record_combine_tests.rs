@@ -9,7 +9,7 @@ fn named(records: &[&[u8]]) -> Vec<(String, Vec<u8>)> {
 }
 
 fn combined(records: &[&[u8]]) -> Result<Combined, String> {
-    combine_bytes(&named(records), &[])
+    combine_bytes(&named(records))
 }
 
 fn refused(records: &[&[u8]]) -> String {
@@ -58,23 +58,6 @@ fn unions_the_regions_of_a_module_two_shards_ran() {
     assert_eq!(folded.result.shards[0].files, files(&["c.test.ts"]));
     assert_eq!(folded.result.shards[1].files, files(&["a.test.ts", "b.test.ts"]));
     assert_eq!(folded.result.commit.as_deref(), Some("c0ffee"));
-}
-
-#[test]
-fn fails_the_build_when_the_shards_split_by_different_records() {
-    let one = fixture::write(&spec(vec![test("a.test.ts")], Vec::new()));
-    let other = fixture::write(&spec(vec![test("b.test.ts")], Vec::new()));
-    let starts = |first: &str, second: &str| [Some(first.to_owned()), Some(second.to_owned())];
-    for (first, second) in [("base1", "base2"), ("base2", "base1")] {
-        let message = combine_bytes(&named(&[&one, &other]), &starts(first, second)).err().unwrap();
-        let started = format!(
-            "the build failed because the sharding was unstable: shard-0.bin started from the record of commit `{first}`, and shard-1.bin from the record of commit `{second}`."
-        );
-        assert!(message.starts_with(&started), "{message}");
-    }
-    // A shard whose runs record names no start disagrees with nobody.
-    assert!(combine_bytes(&named(&[&one, &other]), &[Some("base1".to_owned()), None]).is_ok());
-    assert!(combine_bytes(&named(&[&one, &other]), &starts("base1", "base1")).is_ok());
 }
 
 #[test]
@@ -286,6 +269,7 @@ fn writes_a_record_of_cases_alone_when_no_shard_measured_coverage() {
         let columns = vec![
             Column::Plain(LAYOUT.coverage.part("index"), cases(file, "1")),
             Column::Plain(LAYOUT.coverage.part("last"), last("c0ffee", &[file], &[])),
+            unbased(),
         ];
         journey_columns::encode(columns, LAYOUT.coverage.format).unwrap()
     };
@@ -299,9 +283,14 @@ fn writes_a_record_of_cases_alone_when_no_shard_measured_coverage() {
     assert!(!folded.result.shards[1].measured);
 }
 
+/// The base part of a run that started from no record.
+fn unbased() -> Column {
+    Column::Plain(LAYOUT.coverage.part("base"), b"none".to_vec())
+}
+
 /// A record of `index` as its cases, and no coverage.
 fn cases_alone(index: Vec<u8>, file: &str) -> Vec<u8> {
-    let columns = vec![Column::Plain(LAYOUT.coverage.part("index"), index), Column::Plain(LAYOUT.coverage.part("last"), last("c0ffee", &[file], &[]))];
+    let columns = vec![Column::Plain(LAYOUT.coverage.part("index"), index), Column::Plain(LAYOUT.coverage.part("last"), last("c0ffee", &[file], &[])), unbased()];
     journey_columns::encode(columns, LAYOUT.coverage.format).unwrap()
 }
 
@@ -345,7 +334,7 @@ fn refuses_lines_on_a_file_two_shards_cut_differently_by_the_shard_and_the_file(
 fn a_record_that_is_not_there_is_refused_by_name() {
     let missing = std::env::temp_dir().join(format!("variance-combine-missing-{}.bin", std::process::id()));
     let path = missing.to_string_lossy().into_owned();
-    let error = combine(&[path.clone()], &[]).err().expect("the combine is refused");
+    let error = combine(&[path.clone()]).err().expect("the combine is refused");
     assert_eq!(error, format!("there is no record at {path}"));
 }
 
@@ -374,7 +363,7 @@ fn a_shard_that_measured_nothing_at_no_commit_disagrees_with_nobody() {
     // nothing against the commit the measured shard names.
     let unnamed = br#"{"at":"2026-01-01T00:00:00.000Z","files":["b.test.ts"],"cases":[]}"#.to_vec();
     let alone = journey_columns::encode(
-        vec![Column::Plain(LAYOUT.coverage.part("index"), cases("b.test.ts", "1")), Column::Plain(LAYOUT.coverage.part("last"), unnamed)],
+        vec![Column::Plain(LAYOUT.coverage.part("index"), cases("b.test.ts", "1")), Column::Plain(LAYOUT.coverage.part("last"), unnamed), unbased()],
         LAYOUT.coverage.format,
     )
     .unwrap();

@@ -42,6 +42,9 @@ pub struct Spec {
     pub modules: Vec<Module>,
     /// Case parts, `(part, bytes)`, in the order a record holds them.
     pub parts: Vec<(&'static str, Vec<u8>)>,
+    /// The record its run started from, as the `base` part holds it: `none`
+    /// unless a test names one, and no part at all for `None`.
+    pub base: Option<&'static str>,
 }
 
 pub fn test(file: &'static str) -> Test {
@@ -57,7 +60,7 @@ pub fn module(file: &'static str, blocks: Vec<Block>) -> Module {
 }
 
 pub fn spec(tests: Vec<Test>, modules: Vec<Module>) -> Spec {
-    Spec { version: LAYOUT.coverage.format, instrumentation: "istanbul", commit: Some("c0ffee"), tests, modules, parts: Vec::new() }
+    Spec { version: LAYOUT.coverage.format, instrumentation: "istanbul", commit: Some("c0ffee"), tests, modules, parts: Vec::new(), base: Some("none") }
 }
 
 #[derive(Default)]
@@ -155,6 +158,9 @@ pub fn write(spec: &Spec) -> Vec<u8> {
     ]);
     for (part, bytes) in &spec.parts {
         columns.push(Column::Plain(LAYOUT.coverage.part(part), bytes.clone()));
+    }
+    if let Some(base) = spec.base {
+        columns.push(Column::Plain(LAYOUT.coverage.part("base"), base.as_bytes().to_vec()));
     }
     journey_columns::encode(columns, spec.version).unwrap()
 }

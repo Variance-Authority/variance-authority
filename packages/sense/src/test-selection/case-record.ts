@@ -20,7 +20,9 @@ import { LAYOUT } from './record-layout.js';
  *   landed, the base an edit to a test is compared against;
  * - `cases.last` names that run, as JSON;
  * - `eyes` holds the Eyes journals of the cases that kept one, by case and
- *   attempt (`eyes-record.ts`).
+ *   attempt (`eyes-record.ts`);
+ * - `run.base` names the record the run started from (`record-base.ts`), so
+ *   shards of one build that restored two records refuse to combine.
  *
  * FIXME: `cases` and `cases.before` each carry a module and block table of
  * their own, re-encoding the files and blocks the record's coverage sections
@@ -35,6 +37,7 @@ export interface CaseSections {
   readonly before?: Uint8Array;
   readonly last?: Uint8Array;
   readonly eyes?: Uint8Array;
+  readonly base?: Uint8Array;
 }
 
 const PARTS = Object.fromEntries(LAYOUT.coverage.parts) as Readonly<Record<keyof CaseSections, string>>;
@@ -217,8 +220,8 @@ export function withCaseSections(record: Uint8Array, cases: CaseSections): Buffe
 
 /**
  * `record` as another checkout takes it: the case index and its Eyes journals
- * kept, and the parts that name this checkout's last run dropped, because that
- * run is not the taker's. Every crossing — a seed, a fetch, a share — goes
+ * kept, and the parts that name this checkout's last run and the record it
+ * started from dropped, because that run is not the taker's. Every crossing — a seed, a fetch, a share — goes
  * through here.
  *
  * The journals cross because every crossing is one a person made: a seed is
@@ -228,9 +231,9 @@ export function withCaseSections(record: Uint8Array, cases: CaseSections): Buffe
  * so no run over the taken record meets it.
  */
 export function sharedRecord(record: Uint8Array): Uint8Array {
-  const { index, before, last, eyes } = caseSectionsOf(record);
+  const { index, before, last, eyes, base } = caseSectionsOf(record);
   const readable = eyes !== undefined && readableEyes(eyes) !== undefined;
-  if (before === undefined && last === undefined && (eyes === undefined || readable)) return record;
+  if (before === undefined && last === undefined && base === undefined && (eyes === undefined || readable)) return record;
   return withCaseSections(record, {
     ...(index === undefined ? {} : { index }),
     ...(readable ? { eyes } : {}),

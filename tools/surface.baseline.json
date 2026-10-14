@@ -3055,6 +3055,7 @@
         "readableTestCoverage": "function",
         "readingFrom": "function",
         "readingLines": "function",
+        "recordBase": "function",
         "recordFileFor": "function",
         "recordOfCases": "function",
         "recordedCases": "function",

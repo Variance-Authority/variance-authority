@@ -31,9 +31,9 @@ export interface NativeCombinedRecord {
 export interface NativeRecords {
   /**
    * Fold shard records into the one record at `output`: coverage, cases and their parts, and nothing else.
-   * `starts` names, by position, the commit each shard's runs record says its run was laid over.
+   * Shards whose records name two records their runs started from fail as unstable sharding.
    */
-  combineRecords?(paths: string[], output: string, starts?: (string | null)[]): NativeCombinedRecord;
+  combineRecords?(paths: string[], output: string): NativeCombinedRecord;
   /**
    * The record `current` laid over the record `previous`; `null` where `previous` measured nothing.
    * A `previous` this build cannot read, or one under other probes, throws the reason.

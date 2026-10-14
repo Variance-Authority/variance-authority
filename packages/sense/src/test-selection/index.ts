@@ -12,6 +12,7 @@ import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { writeCoverageBytes } from './record-location.js';
 import { withCaseSections, type CaseSections } from './case-record.js';
 import { askCoverageFile } from './coverage-file.js';
+import { NO_BASE } from './record-base.js';
 import type {
   SourceAudience,
   SourceAudienceTest,
@@ -166,6 +167,7 @@ export {
 // A run laid over the record at a path: the columns of the file it is about to
 // write over, carried, with this run's rows on top.
 export { layeredCoverage } from './format-layer.js';
+export { recordBase } from './record-base.js';
 // A snapshot read where it lies, for a caller asking several questions of one
 // file and not wanting the seventy megabytes the answers do not touch. The
 // file-taking queries below are this plus a `finally`.
@@ -390,12 +392,12 @@ export { decodeTestCoverage };
  * is the caller's knowledge, and a writer that laid on its own would make the
  * second one impossible.
  *
- * `cases` are the case sections the record carries; none when not given.
+ * `cases` are the case sections the record carries; none when not given. The
+ * record names the one its run started from as `cases.base`, and as none when
+ * not given, since what it writes was laid over nothing (`record-base.ts`).
  */
 export async function writeTestCoverage(file: string, coverage: TestCoverage, cases: CaseSections = {}): Promise<void> {
-  const bytes = encodeTestCoverage(coverage);
-  const cased = Object.values(cases).some((part) => part !== undefined);
-  await writeCoverageBytes(file, cased ? withCaseSections(bytes, cases) : bytes);
+  await writeCoverageBytes(file, withCaseSections(encodeTestCoverage(coverage), { base: Buffer.from(NO_BASE), ...cases }));
 }
 
 /**

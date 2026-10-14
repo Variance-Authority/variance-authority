@@ -47,14 +47,15 @@ import { editsBetween } from './region-edit.js';
 import { layCases, textsIn, type FreshCases, type ModuleTexts } from './case-landing.js';
 import { casesRecordedOver, recordOfCases, withCaseSections } from './case-record.js';
 import { askCoverageFile } from './coverage-file.js';
-import { anotherBuilds, layeredCoverage } from './format-layer.js';
+import { anotherBuilds, layeredOver, recordBytes } from './format-layer.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage } from './format-view.js';
-import { codeUnitOrder, isMissing } from './instrumented-modules.js';
+import { codeUnitOrder } from './instrumented-modules.js';
 import type { TestCoverage } from './index.js';
 import { installAfter, installKey, keepRecordedInstall, keptInstallOf, type KeptInstall } from './kept-install.js';
 import { keepRecordedTexts, landedTree } from './kept-texts.js';
 import { ownLayerAfter, readOwnLayer, workingTree, writeOwnLayer } from './own-layer.js';
+import { recordBase } from './record-base.js';
 import { writeCoverageBytes } from './record-location.js';
 
 /**
@@ -182,11 +183,12 @@ export async function landRun(
   const laid = cases === undefined
     ? previous
     : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules }, cases.eyes, texts, before?.commit, undefined, cacheRoot);
-  const coverage = await layeredCoverage(coverageFile, current, root, cacheRoot);
+  const over = await recordBytes(coverageFile);
+  const coverage = await layeredOver(coverageFile, over, current, root, cacheRoot);
   // The rows of a module this run did not record may have been re-cut to the
   // text on disk; the cases held for it are laid onto the same cut.
   const followed = laid.index === undefined ? laid : followRowsIn(laid, openTestCoverage(coverage), texts, editsBetween(root, cacheRoot, [before?.commit, current.commit]));
-  const bytes = Object.values(followed).every((part) => part === undefined) ? coverage : withCaseSections(coverage, followed);
+  const bytes = withCaseSections(coverage, { ...followed, base: recordBase(over, current.commit, before?.commit) });
   await writeCoverageBytes(coverageFile, bytes);
   // The snapshot's rows are coordinates in the texts on disk now, and the
   // commit it names holds none of the edited ones. Kept after the write, so a
@@ -229,26 +231,22 @@ export async function landRun(
 async function landUncovered(coverageFile: string, root: string, cases: FreshCases | undefined): Promise<void> {
   if (cases === undefined) return;
   const stands = (await recordedSnapshot(coverageFile))?.commit;
+  const over = await recordBytes(coverageFile);
   const laid = layCases(casesRecordedOver(coverageFile), cases.fresh, root, cases.run, cases.eyes, undefined, stands);
-  const held = await coveredRecord(coverageFile);
-  if (held !== undefined) return writeCoverageBytes(coverageFile, withCaseSections(held, laid));
-  return writeCoverageBytes(coverageFile, recordOfCases(laid));
+  const held = coveredRecord(coverageFile, over);
+  const based = { ...laid, base: recordBase(over, cases.run.commit, stands) };
+  if (held !== undefined) return writeCoverageBytes(coverageFile, withCaseSections(held, based));
+  return writeCoverageBytes(coverageFile, recordOfCases(based));
 }
 
 /**
- * The record at `coverageFile` when it holds coverage; `undefined` when it is
- * missing or holds none. One this build cannot open is refused, as a covered
+ * `bytes`, the record at `coverageFile`, when it holds coverage; `undefined`
+ * when it is missing or holds none. One this build cannot open is refused, as a covered
  * run refuses it ({@link anotherBuilds}): writing the cases alone over it would
  * drop its evidence.
  */
-async function coveredRecord(coverageFile: string): Promise<Buffer | undefined> {
-  let bytes: Buffer;
-  try {
-    bytes = await readFile(coverageFile);
-  } catch (error) {
-    if (isMissing(error)) return undefined;
-    throw error;
-  }
+function coveredRecord(coverageFile: string, bytes: Buffer | undefined): Buffer | undefined {
+  if (bytes === undefined) return undefined;
   try {
     openTestCoverage(bytes);
     return bytes;

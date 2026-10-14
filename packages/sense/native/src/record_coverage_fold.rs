@@ -26,7 +26,7 @@ use crate::case_shard;
 use crate::journey_columns::Column;
 use crate::journey_format::SetPool;
 use crate::order;
-use crate::record_combine::Agreed;
+use crate::record_start::Agreed;
 use crate::record_coverage::{Coverage, Text};
 use crate::record_coverage_columns::{Columns, Region};
 use crate::record_coverage_dictionary::{Dictionary, Spelled};
