@@ -35,7 +35,7 @@ async function instrumented() {
   // a bundler would have emitted, at the line numbers the inventory recorded.
   const built = resolve(root, 'node_modules/.variance-case/pricing.mjs');
   await mkdir(dirname(built), { recursive: true });
-  await writeFile(built, transformed.code.replace(/^import "[^"]+";/, ''), 'utf8');
+  await writeFile(built, transformed.code.replace(/\n;import "[^"]+";$/, ''), 'utf8');
   return import(pathToFileURL(built).href);
 }
 

@@ -11,7 +11,6 @@ import { readFileSync } from 'node:fs';
 import { captureAfter, heldOriginal, type ComposedMap, placeModule } from './captured-modules.js';
 import { cleanId, defaultInclude, type ProbePlacement } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
-import { shifted } from './map-segments.js';
 import { builtMap, handedTexts, namesItsMap } from './source-lines.js';
 import { type UnmappedNotes, unmappedSteps, warnTransformsAfter, watchUnmapped } from './unmapped-transforms.js';
 import probeLists from '../instrument/probe-lists.cjs';
@@ -148,8 +147,8 @@ export interface InstrumentingPlugin {
 
 const VIRTUAL_COLLECTOR = 'variance-authority:execution-collector';
 const RESOLVED_COLLECTOR = `\0${VIRTUAL_COLLECTOR}`;
-/** What every probed module opens with, so the collector loads ahead of its probes. */
-const COLLECTOR = `import ${JSON.stringify(VIRTUAL_COLLECTOR)};`;
+/** What every probed module ends with: an import, hoisted, so the collector loads ahead of its probes. */
+const COLLECTOR = `\n;import ${JSON.stringify(VIRTUAL_COLLECTOR)};`;
 
 /**
  * Instrument a build.
@@ -227,13 +226,13 @@ export function testSelectionProbes(
       const source = cleanId(specifier);
       if (source === RESOLVED_COLLECTOR) return null;
       if (before) {
-        // The collector import is on line 1, where nothing ahead of it moves a line.
+        // The collector import follows the last line, as below, so no line moves.
         const captured = placeModule(root, source, code, include, undefined, options.mode);
-        return captured === undefined ? null : { code: `${COLLECTOR}${captured.code}`, map: null };
+        return captured === undefined ? null : { code: `${captured.code}${COLLECTOR}`, map: null };
       }
       const text = held.get(specifier);
       held.delete(specifier);
-      if (first.delete(specifier)) return { code: `${COLLECTOR}${code}`, map: null };
+      if (first.delete(specifier)) return { code: `${code}${COLLECTOR}`, map: null };
       // Vite hands every transform its context; a caller that calls this by hand has none.
       const context = this as InstrumentingContext | undefined;
       const combined = context?.getCombinedSourcemap;
@@ -245,14 +244,15 @@ export function testSelectionProbes(
       });
       if (captured === undefined) return null;
 
-      // Hoisted in front of everything the module imports, and on the first line,
-      // so line numbers survive the way every other insertion in this package
-      // preserves them. An instrumented module whose collector arrived late would
-      // throw at its own module probe.
-      const mappings = captured.mappings === undefined ? undefined : shifted(captured.mappings, COLLECTOR.length);
+      // After the last line, so no position in the module moves and its
+      // directive prologue stays first: `"use client"` is a directive only
+      // there. An import is hoisted from wherever it is written, so the
+      // collector still evaluates before this module's body, which is where its
+      // first probe is. The module's other imports evaluate first, and every
+      // one of them that carries a probe imports the collector itself.
       return {
-        code: `${COLLECTOR}${captured.code}`,
-        map: mappings === undefined ? null : { version: 3, sources: [source], names: [], mappings },
+        code: `${captured.code}${COLLECTOR}`,
+        map: captured.mappings === undefined ? null : { version: 3, sources: [source], names: [], mappings: captured.mappings },
       };
     } },
   };

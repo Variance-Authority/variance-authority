@@ -307,11 +307,11 @@ made it.
    reach, reported once as shared; a lazy import under an unused static
    import, owned by the static one; an `import()` whose specifier is not a
    quoted string still read as unseen.
-   **Discharged but for the line.** `causesOf` in
-   `@variance-authority/distill` walks the `lazy` edges it is handed beside
-   the static ones, and marks an owning import that is dynamic only
-   `lazy: true`. `variance distill` hands it the file graph's `dynamic`
-   edges and prints that import as `lazily imports`. Fixtures in
+   **Discharged but for the line.** The owner walk in the sense addon
+   (`packages/sense/native/src/distill_own.rs`) walks the file graph's
+   `dynamic` edges beside the static ones, and marks an owning import that
+   is dynamic only `lazy: true`. `variance distill` prints that import as
+   `lazily imports`. Fixtures in
    `own.test.ts`, and, read through the file graph in the CLI's file
    reading, a `React.lazy` modal and an `import()` of a specifier built
    at run time that stays unseen. Spec 0092's hole names a non-literal dynamic import.

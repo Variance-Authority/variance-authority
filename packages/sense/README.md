@@ -1080,10 +1080,11 @@ is gone is left out, and the subjects that ran it are recorded incomplete, so
 the next run selects them. Nothing allocates an id and no build has to have
 ended for it to mean something.
 
-Two sibling packages do the draining for you, and each installs separately:
+Three sibling packages do the draining for you, and each installs separately:
 
 ```bash
 npm install --save-dev @variance-authority/storybook-collector
+npm install --save-dev @variance-authority/route-collector
 npm install --save-dev @variance-authority/playwright-test @playwright/test
 ```
 
@@ -1091,11 +1092,23 @@ npm install --save-dev @variance-authority/playwright-test @playwright/test
   records with `tests: true`. A story is its own owner, because it shows one
   story at a time. It declares no Storybook version and drives the built preview
   through Playwright.
+- [`@variance-authority/route-collector`](https://variance-authority.dev/reference/packages/route-collector)
+  records with `tests`. A page is its own owner: what its browser ran, what
+  each head in `heads` rendered for it under its journey, and the files its
+  root names in `data-variance-reads`.
 - [`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test)
   records with the `varianceExecution` fixture option, or `tests` on
   `createVariance`. It requires `@playwright/test >=1.49 <2`. Every observation
   in one spec file joins that file, because the runner's unit of execution is
   the file.
+
+The two collectors keep one row per subject through `createSubjectRecorder`,
+exported from `@variance-authority/sense/journal` for a driver of your own:
+`join` mints a subject's journey as the cookies its browser carries, `note`
+closes its window with what it read, and `close` stitches every head's reports
+and records the run once. `driveJourneys`, which all three use, is the journey
+half alone: it listens for the heads' reports, mints, and waits for every
+request a subject started to settle.
 
 To drive it yourself: evaluate `executionCollectorSource()` in the page if the
 build does not hoist it, call `drainExecution(page)` to close one **subject**'s

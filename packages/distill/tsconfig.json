@@ -8,7 +8,7 @@
     "types": ["node"]
   },
   "include": ["src/**/*"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.measure.ts"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.measure.ts", "src/**/*.fixture.ts"],
   "references": [
     { "path": "../core" },
     { "path": "../eyes" },

@@ -18,6 +18,23 @@
         "packages/route-collector/src/page-agent-entry.ts",
         "packages/storybook-collector/src/page-agent-entry.ts"
       ]
+    },
+    "site": {
+      "kind": "e2e",
+      "relations": false,
+      "before": [
+        "packages/reads/src",
+        "site/app/globals.css",
+        "site/next.config.ts",
+        "site/package.json",
+        "site/postcss.config.mjs",
+        "site/public",
+        "site/tsconfig.json",
+        "site/variance",
+        "site/vite.config.ts",
+        "site/wrangler.jsonc",
+        "site/yarn.lock"
+      ]
     }
   },
   "share": {
@@ -132,6 +149,9 @@
       "src/index.ts"
     ],
     "packages/react": [
+      "src/index.ts"
+    ],
+    "packages/reads": [
       "src/index.ts"
     ],
     "packages/remote": [

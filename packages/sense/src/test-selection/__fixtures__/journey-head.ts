@@ -54,7 +54,7 @@ const unevaluated: Currency = () => Promise.reject(new Error('the module has not
 
 /** Evaluate the transformed module the way a service's loader would. */
 export function evaluate(transformed: string): Currency {
-  new Function(transformed.replace(/^import "[^"]+";/, ''))();
+  new Function(transformed.replace(/\n;import "[^"]+";$/, ''))();
   return (globalThis as unknown as Record<string, unknown>)['__head_test_currency'] as Currency;
 }
 

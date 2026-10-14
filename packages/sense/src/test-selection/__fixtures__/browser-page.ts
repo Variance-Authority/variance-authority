@@ -101,7 +101,7 @@ export function evaluate(transformed: string, mode?: InstrumentMode): Realm {
   try {
     new Function(executionCollectorSource(mode))();
     page = Object.getOwnPropertyDescriptor(globalThis, '__VA__')!;
-    new Function(transformed.replace(/^import "[^"]+";/, ''))();
+    new Function(transformed.replace(/\n;import "[^"]+";$/, ''))();
   } finally {
     asRunner();
   }

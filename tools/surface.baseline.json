@@ -625,7 +625,6 @@
         "closureOf": "function",
         "dependenciesOf": "function",
         "dependentsOf": "function",
-        "dominatorsOf": "function",
         "driftedBetween": "function",
         "explain": "function",
         "idOf": "function",
@@ -2124,6 +2123,34 @@
       }
     }
   },
+  "@variance-authority/reads": {
+    "declared": {
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        }
+      },
+      "files": [
+        "dist",
+        "!dist/**/*.d.ts.map",
+        "mark.svg"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "names": {
+      ".": {
+        "READS_ATTRIBUTE": "const",
+        "ReadsProps": "type",
+        "reads": "function"
+      }
+    }
+  },
   "@variance-authority/remote": {
     "declared": {
       "type": "module",
@@ -2363,6 +2390,7 @@
         "Plan": "interface",
         "PlannedSubject": "interface",
         "RouteCollectorOptions": "interface",
+        "RouteExecutionOptions": "type",
         "SourceScan": "interface",
         "locationsIn": "function",
         "routeCollector": "function",
@@ -2847,6 +2875,7 @@
         "DeviationOptions": "interface",
         "DistanceGroup": "interface",
         "DistanceOptions": "interface",
+        "DistillRecords": "interface",
         "EXECUTION_FORMAT": "const",
         "Entrypoints": "type",
         "EntrypointsError": "class",
@@ -2896,6 +2925,10 @@
         "NameGrammarError": "class",
         "NameIndex": "interface",
         "NamedAxis": "interface",
+        "NativeDistillCause": "interface",
+        "NativeDistillFile": "interface",
+        "NativeDistillRegion": "interface",
+        "NativeDistillScope": "interface",
         "ObservedEyes": "interface",
         "OutsideVocabulary": "interface",
         "OwnLayer": "interface",
@@ -3051,7 +3084,9 @@
         "pruneWhenDue": "function",
         "prunedLine": "function",
         "ranWhileLoading": "function",
+        "rankDistillCauses": "function",
         "readCommitRuns": "function",
+        "readDistillRecords": "function",
         "readFetchedMainline": "function",
         "readJourneyChange": "function",
         "readOwnLayer": "function",
@@ -3119,6 +3154,9 @@
         "ExecutionRecord": "interface",
         "InstrumentMode": "type",
         "InstrumentingPlugin": "interface",
+        "JourneyCookie": "interface",
+        "JourneyDriver": "interface",
+        "MintedJourney": "interface",
         "ModuleId": "type",
         "ObservedCase": "interface",
         "ObservedEyes": "interface",
@@ -3128,13 +3166,20 @@
         "ProbePlacement": "type",
         "ProbesLoaderOptions": "interface",
         "RecordExecutionOptions": "interface",
+        "SETTLING_MS": "const",
         "STAGE_VARIABLE": "const",
         "StagedExecution": "interface",
+        "SubjectNote": "interface",
+        "SubjectRecorder": "interface",
+        "SubjectRecording": "interface",
+        "SubjectSurface": "interface",
         "TestSelectionProbeOptions": "interface",
         "TestSelectionRule": "interface",
         "TestSelectionRuleOptions": "interface",
         "closeStage": "function",
+        "createSubjectRecorder": "function",
         "drainExecution": "function",
+        "driveJourneys": "function",
         "enterModules": "function",
         "enteredModules": "function",
         "executionCollectorSource": "function",
@@ -3570,7 +3615,7 @@
         "Plan": "interface",
         "PlannedSubject": "interface",
         "SourceScan": "interface",
-        "StoryExecutionOptions": "interface",
+        "StoryExecutionOptions": "type",
         "StorybookCollectorOptions": "interface",
         "storybookCollector": "function"
       },
