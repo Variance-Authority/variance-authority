@@ -60,7 +60,7 @@ describe('landJourneys and the cases in the record', () => {
     // and the index already there says one of its cases runs `applyDiscount`.
     expect(caseSectionsAt(record)).toEqual({});
     await expect(recordedExecutionFile(dir, 'unit')).rejects.toMatchObject({ kind: 'unrecorded' });
-    expect(landed.cases).toEqual({ unanswered: record, shard, removed: true });
+    expect(landed.cases).toEqual({ unanswered: record, shards: [shard], removed: true });
   });
 
   it('leaves the cases as they were when no shard finished a test file', async () => {
@@ -248,17 +248,17 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     expect(await readFile(record)).toEqual(before);
   });
 
-  it('refuses one whose cases are spelled as rows, by name, and says to record it again', async () => {
+  it('refuses one whose case index is at another version, by name', async () => {
     const { dir, first } = await published(home, { publish: false, record: wholeRecord });
     const record = testCoverageFile(dir, { suite: 'unit' });
     await ranWhole(record, first);
     const before = await readFile(record);
-    // The spelling of an index before cases were sets: one row per case and region.
+    // An index at another version: one row per case and region.
     const rows = encodeExecutionIndex(await readExecutionIndex(record));
     const shard = await uncoveredShard(first, rows, 'shard-rows.bin');
 
     await expect(landJourneys(dir, [shard], record)).rejects.toThrow(
-      new RegExp(`cannot read the case index of ${shard}: .*version 5.*\\. Record it again with this version\\.$`),
+      new RegExp(`cannot read the case index of ${shard}: .*it is written at version 5, and this build reads version 3$`),
     );
     expect(await readFile(record)).toEqual(before);
   });
@@ -277,7 +277,7 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     expect(await readFile(record)).toEqual(before);
   });
 
-  it('refuses shards whose runs name different commits, as a fold of measured ones does, and writes nothing', async () => {
+  it('fails when the shards started from different commits, as a fold of measured ones does, and writes nothing', async () => {
     const { dir, first } = await published(home, { publish: false, record: wholeRecord });
     const record = testCoverageFile(dir, { suite: 'unit' });
     const before = await readFile(record);
@@ -287,7 +287,9 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
 
     // The combine hears the shards in code-unit order of their paths, whatever order they are named in.
     await expect(landJourneys(dir, [other, at], record)).rejects.toThrow(new Error(
-      `${at} and ${other} disagree about the commit (\`${first}\` against \`${'b'.repeat(40)}\`), so they are not shards of one run and cannot be folded into one.`,
+      `the build failed because the sharding was unstable: ${at} started from commit \`${first}\`, and ${other} from commit \`${'b'.repeat(40)}\`. ` +
+        'Each shard split the suite against the record it started from, so the split may have left tests that ran in no shard. ' +
+        'Run every shard again against one record.',
     ));
     expect(await readFile(record)).toEqual(before);
   });

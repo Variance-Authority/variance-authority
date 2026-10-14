@@ -338,7 +338,7 @@ export async function existingCoverage(file: string): Promise<TestCoverage | und
   }
 }
 
-export function samePreconditions(left: CoverageTest, right: CoverageTest): boolean {
+function samePreconditions(left: CoverageTest, right: CoverageTest): boolean {
   const keys = (test: CoverageTest): ReadonlySet<string> =>
     new Set(test.preconditions.map((input) => `${input.name}\0${input.digest}`));
   const leftKeys = keys(left);

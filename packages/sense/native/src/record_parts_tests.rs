@@ -38,35 +38,34 @@ fn folds_last_run_layers_into_the_one_run_they_were() {
 }
 
 #[test]
-fn began_only_when_every_shard_began_and_unbased_where_some_did() {
+fn began_when_every_shard_began() {
     let began = last(r#"{"at":"1","files":["a.ts"],"began":true,"cases":[]}"#);
-    let based = last(r#"{"at":"1","files":["b.ts"],"cases":[]}"#);
-    let mixed = folded_last(&[&began, &based], &[none(), none()]).unwrap();
-    assert_eq!((mixed.get("began"), &mixed["unbased"]), (None, &serde_json::json!(["a.ts"])));
     let all = folded_last(&[&began, &began], &[none(), none()]).unwrap();
     assert_eq!((&all["began"], all.get("unbased")), (&serde_json::json!(true), None));
 }
 
 #[test]
-fn a_began_spelled_false_is_a_run_that_did_not_begin() {
-    // No writer spells it; a reader that meets it reads what `began === true` reads.
-    let unbegun = last(r#"{"at":"1","files":["a.ts"],"began":false,"cases":[]}"#);
-    let began = last(r#"{"at":"1","files":["b.ts"],"began":true,"cases":[]}"#);
-    let folded = folded_last(&[&unbegun, &began], &[none(), none()]).unwrap();
-    assert_eq!((folded.get("began"), &folded["unbased"]), (None, &serde_json::json!(["b.ts"])));
-}
-
-#[test]
-fn refuses_last_run_layers_of_two_runs() {
+fn fails_the_build_when_the_shards_started_from_different_records() {
+    let unstable = |first: &[u8], second: &[u8], records: [&str; 2]| {
+        for (shards, named) in [([first, second], records), ([second, first], [records[1], records[0]])] {
+            let message = folded_last(&shards, &[none(), none()]).err().unwrap();
+            assert!(message.starts_with("the build failed because the sharding was unstable: one started from "), "{message}");
+            assert!(message.contains(&format!("one started from {}, and two from {}.", named[0], named[1])), "{message}");
+            assert!(message.contains("the split may have left tests that ran in no shard. Run every shard again against one record."), "{message}");
+        }
+    };
     let at = |commit: &str| last(&format!(r#"{{"commit":"{commit}","at":"1","files":[],"cases":[]}}"#));
-    let message = folded_last(&[&at("c"), &at("d")], &[none(), none()]).err().unwrap();
-    assert!(message.contains("one and two disagree about the last-run layer's commit (`c` against `d`)"), "{message}");
+    unstable(&at("c"), &at("d"), ["commit `c`", "commit `d`"]);
     let text = |value: &str| last(&format!(r#"{{"at":"1","files":[],"beforeTexts":{{"a.ts":"{value}"}},"cases":[]}}"#));
-    let message = folded_last(&[&text("t1"), &text("t2")], &[none(), none()]).err().unwrap();
-    assert!(message.contains("`a.ts` stood on different text"), "{message}");
+    unstable(&text("t1"), &text("t2"), ["`a.ts` at text `t1`", "`a.ts` at text `t2`"]);
     let over = |before: &str| last(&format!(r#"{{"at":"1","before":"{before}","files":[],"cases":[]}}"#));
-    let message = folded_last(&[&over("b1"), &over("b2")], &[none(), none()]).err().unwrap();
-    assert!(message.contains("one and two disagree about the before layer's commit (`b1` against `b2`)"), "{message}");
+    unstable(&over("b1"), &over("b2"), ["the before layer of commit `b1`", "the before layer of commit `b2`"]);
+    // A shard that found no record split the suite against no plan, beside one that split against the record.
+    let began = last(r#"{"at":"1","files":["a.ts"],"began":true,"cases":[]}"#);
+    unstable(&began, &over("b1"), ["no record", "the before layer of commit `b1`"]);
+    // `began` spelled false is a run that did not begin: no writer spells it, and it reads as absent.
+    let unbegun = last(r#"{"at":"1","files":["b.ts"],"began":false,"cases":[]}"#);
+    unstable(&began, &unbegun, ["no record", "a record"]);
     assert!(folded_last(&[b"not json"], &[none()]).err().unwrap().contains("one: its last-run layer"));
 }
 

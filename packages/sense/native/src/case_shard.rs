@@ -7,7 +7,7 @@ use crate::case_id;
 use crate::case_preconditions;
 use crate::journey_columns::{self, Decoded};
 use crate::journey_format::{self, Gaps};
-use crate::journey_journal::{self, Test};
+use crate::journey_journal::Test;
 use crate::journey_record::{Block, NO_OWNER};
 use crate::record_layout::LAYOUT;
 
@@ -41,14 +41,13 @@ pub(crate) struct Inventory {
     pub owners: Option<Vec<u32>>,
 }
 
-/// The case index in `bytes`, its cuts added to `inventories`. Both set
-/// spellings read: the current one, where a region flags whether it ran while
-/// its module evaluated, and the one before, where it named a set of tests.
+/// The case index in `bytes`, its cuts added to `inventories`. Every shard of a
+/// combine was written by one build, so an index at another version is refused.
 pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inventory>>) -> Result<Shard, String> {
     let (version, decoded) = journey_columns::decode_any(bytes)?;
     let cases = &LAYOUT.cases;
-    if version != cases.format && version != cases.loaded_sets {
-        return Err(format!("it is written at version {version}, and this build reads versions {} and {}", cases.loaded_sets, cases.format));
+    if version != cases.format {
+        return Err(format!("it is written at version {version}, and this build reads version {}", cases.format));
     }
     let strings = strings(&decoded)?;
     let ids = decoded.words("tests.id")?;
@@ -56,8 +55,7 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     let names = decoded.words("tests.name")?;
     let count = ids.len();
     let optional_words = |name: &str| if decoded.has(name) { decoded.words(name).map(Some) } else { Ok(None) };
-    // A shard written before cases carried how they settled says nothing.
-    let settled = decoded.bytes("tests.stopped").ok();
+    let settled = decoded.bytes("tests.stopped")?;
     let said = optional_words(case_preconditions::COLUMN)?;
     let runners = optional_words(case_id::COLUMN)?;
     let projects = optional_words(case_id::PROJECT_COLUMN)?;
@@ -65,7 +63,7 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     let lines = if decoded.has(&cases.lines) { Some((decoded.bytes(&cases.lines)?, decoded.words(&cases.lines_offsets)?)) } else { None };
     if files.len() != count
         || names.len() != count
-        || settled.as_ref().is_some_and(|column| column.len() != count)
+        || settled.len() != count
         || [&said, &runners, &projects, &durations].into_iter().flatten().any(|column| column.len() != count)
         || lines.as_ref().is_some_and(|(_, offsets)| offsets.len() != count + 1)
     {
@@ -79,7 +77,7 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
             // No column, or `UNNAMED` in it, is a case no named project ran.
             project: projects.as_ref().map(|column| column[at]).filter(|word| *word != case_id::UNNAMED).map(|word| string(&strings, word).map(str::to_owned)).transpose()?,
             runner: runners.as_ref().map(|column| string(&strings, column[at]).map(str::to_owned)).transpose()?,
-            settled: settled.as_ref().map_or(journey_journal::UNSETTLED, |column| column[at]),
+            settled: settled[at],
             preconditions: match said.as_ref().map(|column| column[at]) {
                 None | Some(case_preconditions::UNHEARD) => None,
                 Some(word) => Some(case_preconditions::unspelled(string(&strings, word)?)?),
@@ -106,15 +104,7 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     let module_files = decoded.words("modules.file")?;
     let module_blocks = decoded.words("modules.blocks")?;
     let called = decoded.words("blocks.calledSet")?;
-    let loaded: Vec<bool> = if version == cases.loaded_sets {
-        // A region that named any test loading it ran while its module evaluated.
-        let sets = decoded.words("blocks.loadedSet")?;
-        sets.iter()
-            .map(|set| set_slice(&set_bytes, &set_offsets, *set).and_then(|held| decode_set(held, count)).map(|members| !members.is_empty()))
-            .collect::<Result<_, String>>()?
-    } else {
-        decoded.held("blocks.loaded")?.iter().map(|flag| *flag == 1).collect()
-    };
+    let loaded: Vec<bool> = decoded.held("blocks.loaded")?.iter().map(|flag| *flag == 1).collect();
     let kinds = decoded.words("blocks.kind")?;
     let block_names = decoded.words("blocks.name")?;
     let paths = decoded.words("blocks.path")?;

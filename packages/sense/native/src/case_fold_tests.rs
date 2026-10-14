@@ -1,5 +1,5 @@
 use super::*;
-use crate::journey_columns::{self, Column};
+use crate::journey_columns;
 use crate::journey_journal::{FINISHED, STOPPED};
 use crate::record_layout::LAYOUT;
 
@@ -43,7 +43,7 @@ fn shard(tests: &[Test], extras: &CaseExtras, modules: &[(&str, Vec<Vec<u32>>)])
 fn folded(files: &[&[u8]]) -> Result<Folded, String> {
     let mut inventories = HashMap::new();
     let shards = files.iter().map(|bytes| case_shard::read_shard(bytes, &mut inventories)).collect::<Result<Vec<_>, _>>()?;
-    fold(shards, inventories)
+    fold(shards, inventories, true)
 }
 
 fn read(bytes: &[u8]) -> Shard {
@@ -103,11 +103,25 @@ fn joins_a_case_two_shards_ran_at_its_longest_duration_and_how_it_settled() {
 }
 
 #[test]
-fn refuses_one_case_with_two_lines() {
+fn joins_a_case_two_shards_hold_at_the_lines_they_recorded() {
+    // One build cuts a file one way, so two shards that hold a case hold its lines alike.
     let one = |lines: Vec<u8>| shard(&[case("a.test.ts", "adds", "1", FINISHED)], &CaseExtras { durations: Vec::new(), lines: vec![lines], ..CaseExtras::default() }, &[]);
-    let refused = folded(&[&one(vec![1, 7]), &one(vec![1, 8])]).err().unwrap();
-    assert!(refused.contains("different lines"), "{refused}");
-    assert!(folded(&[&one(vec![1, 7]), &one(Vec::new())]).is_ok());
+    assert_eq!(read(&folded(&[&one(vec![1, 7]), &one(vec![1, 7])]).unwrap().bytes).lines, [vec![1, 7]]);
+    assert_eq!(read(&folded(&[&one(Vec::new()), &one(vec![1, 7])]).unwrap().bytes).lines, [vec![1, 7]]);
+}
+
+#[test]
+fn writes_a_duration_column_only_where_asked_or_a_case_was_timed() {
+    let untimed = shard(&[case("a.test.ts", "adds", "1", FINISHED)], &CaseExtras::default(), &[]);
+    let fold_of = |always_timed: bool| {
+        let mut inventories = HashMap::new();
+        let shards = vec![case_shard::read_shard(&untimed, &mut inventories).unwrap()];
+        let bytes = fold(shards, inventories, always_timed).unwrap().bytes;
+        journey_columns::decode_any(&bytes).unwrap().1.has("tests.duration")
+    };
+    // A record's case index always carries the column; a journey artifact only where a case was timed.
+    assert!(fold_of(true));
+    assert!(!fold_of(false));
 }
 
 #[test]
@@ -123,32 +137,11 @@ fn renames_a_case_its_shard_numbered_after_another_of_its_name() {
 }
 
 #[test]
-fn reads_an_index_that_spells_load_time_as_sets() {
-    let (first, _) = two();
-    let (_, current) = journey_columns::decode_any(&first).unwrap();
-    // Version 2: the set of cases that loaded each region, where version 3 holds a flag.
-    let columns = |name: &'static str| Column::Words(name, current.words(name).unwrap());
-    let mut held = vec![
-        Column::Blob("strings.blob", current.held("strings.blob").unwrap().to_vec(), current.words("strings.off").unwrap()),
-        columns("strings.off"),
-    ];
-    held.extend(["tests.id", "tests.file", "tests.name", "modules.file", "modules.blocks", "blocks.kind", "blocks.name", "blocks.path", "blocks.start", "blocks.end"].map(columns));
-    held.push(Column::Bytes("blocks.source", current.bytes("blocks.source").unwrap()));
-    // The pool is rebuilt beside the shard's own sets, so called sets keep their ids.
-    let mut sets = SetPool::new(2);
-    let called: Vec<u32> = current.words("blocks.calledSet").unwrap().iter()
-        .map(|set| sets.intern(&case_shard::decode_set(case_shard::set_slice(&current.bytes("sets.blob").unwrap(), &current.words("sets.off").unwrap(), *set).unwrap(), 2).unwrap()))
-        .collect();
-    let (empty, loaded) = (sets.intern(&[]), sets.intern(&[0]));
-    let loaded_sets = vec![loaded, empty, empty];
-    held.push(Column::Words("blocks.calledSet", called));
-    held.push(Column::Words("blocks.loadedSet", loaded_sets));
-    held.push(Column::Blob("sets.blob", sets.bytes().to_vec(), sets.offsets().to_vec()));
-    held.push(Column::Words("sets.off", sets.offsets().to_vec()));
-    let older = journey_columns::encode(held, LAYOUT.cases.loaded_sets).unwrap();
-    let shard = read(&older);
-    let flags: Vec<Vec<bool>> = shard.modules.iter().map(|module| module.loaded.clone()).collect();
-    assert_eq!(flags, [vec![true, false], vec![false]]);
-    let refused = case_shard::read_shard(&journey_columns::encode(Vec::new(), 5).unwrap(), &mut HashMap::new()).err().unwrap();
-    assert!(refused.contains("it is written at version 5, and this build reads versions 2 and 3"), "{refused}");
+fn refuses_an_index_at_another_version() {
+    // Every shard of a combine was written by one build: the index before
+    // `blocks.loaded`, which spelled load time as sets, is another build's.
+    for version in [LAYOUT.cases.format - 1, 5] {
+        let refused = case_shard::read_shard(&journey_columns::encode(Vec::new(), version).unwrap(), &mut HashMap::new()).err().unwrap();
+        assert!(refused.contains(&format!("it is written at version {version}, and this build reads version 3")), "{refused}");
+    }
 }

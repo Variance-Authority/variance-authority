@@ -1,12 +1,4 @@
-//! A framed file's columns decoded, each into a buffer an earlier decode left.
-//!
-//! A reader of many records of one shape — a fold of shards — decodes one,
-//! lets it go, and decodes the next, of a little more or less than the last.
-//! Freed and taken again at a slightly different size, the large blocks are
-//! what an allocator holds on to rather than hand back: macOS's kept every
-//! shard's columns resident, and sixteen shards held twice the fold's live
-//! state. Kept and reused instead, a column's buffer is allocated once and
-//! grows to the largest file the reader decodes.
+//! A framed file's columns decoded, each into a buffer of its own.
 
 use std::collections::HashMap;
 
@@ -15,58 +7,12 @@ use rayon::prelude::*;
 use super::{decompress, runs, runs_any, unvarints, word_run_limit, Decoded, Placed, Plain};
 use crate::record_layout::LAYOUT;
 
-/// The buffers a decode may fill, by the column they last held. Empty, every
-/// column is allocated as it decodes.
-#[derive(Default)]
-pub(crate) struct Spare {
-    held: HashMap<String, Plain>,
-}
-
-impl Spare {
-    /// `words`, column `name`'s, given back for the next decode of `name`.
-    pub fn words(&mut self, name: &str, words: Vec<u32>) {
-        self.held.insert(name.to_owned(), Plain::Words(words));
-    }
-
-    /// `bytes`, column `name`'s, given back for the next decode of `name`.
-    pub fn bytes(&mut self, name: &str, bytes: Vec<u8>) {
-        self.held.insert(name.to_owned(), Plain::Bytes(1, bytes));
-    }
-
-    fn take_words(&mut self, name: &str) -> Vec<u32> {
-        match self.held.remove(name) {
-            Some(Plain::Words(mut words)) => {
-                words.clear();
-                words
-            }
-            _ => Vec::new(),
-        }
-    }
-
-    fn take_bytes(&mut self, name: &str) -> Vec<u8> {
-        match self.held.remove(name) {
-            Some(Plain::Bytes(_, mut bytes)) => {
-                bytes.clear();
-                bytes
-            }
-            _ => Vec::new(),
-        }
-    }
-}
-
-pub(super) fn decode_placed(bytes: &[u8], placed: Vec<Placed>, spare: &mut Spare) -> Result<Decoded, String> {
-    let placed: Vec<(Placed, Vec<u32>, Vec<u8>)> = placed
-        .into_iter()
-        .map(|column| {
-            let words = if column.width == 4 { spare.take_words(&column.name) } else { Vec::new() };
-            let held = if column.width == 4 { Vec::new() } else { spare.take_bytes(&column.name) };
-            (column, words, held)
-        })
-        .collect();
+pub(super) fn decode_placed(bytes: &[u8], placed: Vec<Placed>) -> Result<Decoded, String> {
     // Columns decode apart, so a record's are decoded at once.
     let plain: Vec<(String, Plain)> = placed
         .into_par_iter()
-        .map(|(column, mut words, mut held)| {
+        .map(|column| {
+            let (mut words, mut held) = (Vec::new(), Vec::new());
             let stored = &bytes[column.stored];
             let plain = match column.rows {
                 None if column.width == 4 && stored.len() % 4 == 0 => {
@@ -99,8 +45,7 @@ pub(super) fn decode_placed(bytes: &[u8], placed: Vec<Placed>, spare: &mut Spare
 // its run table is found, so it is filled in place rather than copied as it
 // grows, which would hold every column of a record twice while they decode at
 // once; the reservation is only asked for, and a refusal leaves the column to
-// grow. Pages it never fills are never touched. `out` comes empty, holding
-// whatever capacity an earlier decode gave it.
+// grow. Pages it never fills are never touched.
 
 fn unpack_words(stored: &[u8], rows: usize, mut out: Vec<u32>) -> Result<Vec<u32>, String> {
     let run = LAYOUT.run;

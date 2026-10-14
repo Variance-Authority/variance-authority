@@ -1,4 +1,4 @@
-import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -123,8 +123,13 @@ describe('a worktree that has not run', () => {
       tests: [{ file: 'test/third.test.ts', complete: true, preconditions: [] }],
       modules: [],
     });
+    const base = testCoverageFile(primary, { suite: 'unit' });
+    const held = await readFile(base);
 
     const landed = await landJourneys(worktree, [shard]);
+
+    // The landing is a layer over the cached base: the base itself is read, never written.
+    expect((await readFile(base)).equals(held)).toBe(true);
 
     const own = testCoverageFile(worktree, { suite: 'unit' });
     expect(landed.at).toBe(own);
@@ -138,7 +143,7 @@ describe('a worktree that has not run', () => {
     // so the cases copied with the primary checkout's record cannot answer for it.
     expect(keepsCases(own)).toBe(false);
     await expect(recordedExecutionFile(worktree, 'unit')).rejects.toMatchObject({ kind: 'unrecorded' });
-    expect(landed.cases).toEqual({ unanswered: own, shard, removed: true });
+    expect(landed.cases).toEqual({ unanswered: own, shards: [shard], removed: true });
     expect(keepsCases(testCoverageFile(primary, { suite: 'unit' }))).toBe(true);
   });
 

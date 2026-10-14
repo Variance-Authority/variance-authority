@@ -125,6 +125,7 @@ mod record_coverage_columns;
 mod record_coverage_dictionary;
 mod record_coverage_fold;
 mod record_coverage_layer;
+mod record_coverage_recut;
 #[cfg(test)]
 mod record_fixture;
 mod record_layout;

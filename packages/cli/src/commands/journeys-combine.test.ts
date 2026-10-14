@@ -1,10 +1,11 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { writeFileSync } from 'node:fs';
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { sourceIndexPath } from '@variance-authority/sense';
-import { encodeAsSetExecutionIndex, readTestCoverage, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { combineRecords, encodeAsSetExecutionIndex, readTestCoverage, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { main, parseArgs } from '../bin.js';
 import { distillRows } from './distill.js';
 import { readExecutionIndex } from './execution-input.js';
@@ -15,6 +16,11 @@ vi.mock('./resources.js', async (original) => ({
   ...await original<typeof import('./resources.js')>(),
   recordedJourneys: vi.fn(() => { throw new Error('combine must not compute a journey comparison'); }),
 }));
+
+vi.mock('@variance-authority/sense/test-selection', async (original) => {
+  const actual = await original<typeof import('@variance-authority/sense/test-selection')>();
+  return { ...actual, combineRecords: vi.fn(actual.combineRecords) };
+});
 
 const temporary: string[] = [];
 afterEach(async () => {
@@ -96,14 +102,15 @@ describe('`journeys combine`', () => {
     expect(Buffer.compare(await readFile(into), await readFile(swapped))).toBe(0);
   });
 
-  it('refuses shards of two runs by name, and writes nothing', async () => {
+  it('fails on shards that started from different commits, by name, and writes nothing', async () => {
     const { root, shards, into } = await fixture();
     const other = join(root, 'other.bin');
     await writeTestCoverage(other, { version: 3, instrumentation: 'fixture', commit: 'elsewhere', tests: [{ file: 'c.test.ts', complete: true, preconditions: [] }], modules: [] });
     let err = '';
     const code = await main(['journeys', 'combine', shards[0]!, other, '--into', into], { out: () => {}, err: (text) => { err += text; } });
     expect(code).not.toBe(0);
-    expect(err).toContain('disagree about the commit');
+    expect(err).toContain('the build failed because the sharding was unstable');
+    expect(err).toContain(`${other} from commit \`elsewhere\``);
     await expect(readFile(into)).rejects.toThrow();
   });
 
@@ -121,6 +128,22 @@ describe('`journeys combine`', () => {
     const { shards, into } = await fixture();
     await writeFile(into, 'kept');
     await refused(shards, into);
+  });
+
+  it('leaves an --into made while the shards combine as it was, and leaves nothing beside it', async () => {
+    const { root, shards, into } = await fixture();
+    const actual = vi.mocked(combineRecords).getMockImplementation()!;
+    vi.mocked(combineRecords).mockImplementationOnce((named, output) => {
+      const result = actual(named, output);
+      writeFileSync(into, 'made meanwhile');
+      return result;
+    });
+    let err = '';
+    const code = await main(['journeys', 'combine', ...shards, '--into', into], { out: () => {}, err: (text) => { err += text; } });
+    expect(code).not.toBe(0);
+    expect(err).toContain(`${into} is already there`);
+    expect(await readFile(into, 'utf8')).toBe('made meanwhile');
+    expect((await readdir(root)).filter((name) => name.startsWith('combined.bin'))).toEqual(['combined.bin']);
   });
 
   it('refuses an --into that is one of the shards, so no shard is written over', async () => {

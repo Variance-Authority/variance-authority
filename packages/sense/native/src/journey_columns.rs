@@ -7,7 +7,6 @@ use crate::record_layout::LAYOUT;
 
 #[path = "journey_columns_decode.rs"]
 mod decode;
-pub(crate) use decode::Spare;
 
 /// A column as it goes to the file. `Bytes`, `Words` and `Blob` are stored as
 /// runs when that pays (`record-layout.json` says when); `Plain` holds bytes of
@@ -206,21 +205,14 @@ pub(crate) fn recorded_cases(bytes: Vec<u8>) -> Vec<u8> {
 }
 
 pub fn decode(bytes: &[u8], version: u8) -> Result<Decoded, String> {
-    decode::decode_placed(bytes, place(bytes, version)?, &mut Spare::default())
+    decode::decode_placed(bytes, place(bytes, version)?)
 }
 
 /// Every column of a framed file at whatever version its header states, with
 /// that version: the caller decides which it reads.
 pub fn decode_any(bytes: &[u8]) -> Result<(u8, Decoded), String> {
     let (version, placed) = framed(bytes)?;
-    Ok((version, decode::decode_placed(bytes, placed, &mut Spare::default())?))
-}
-
-/// [`decode_any`] into the buffers `spare` holds from an earlier decode, so a
-/// reader of many files of one shape decodes each into the last one's columns.
-pub(crate) fn decode_any_reusing(bytes: &[u8], spare: &mut Spare) -> Result<(u8, Decoded), String> {
-    let (version, placed) = framed(bytes)?;
-    Ok((version, decode::decode_placed(bytes, placed, spare)?))
+    Ok((version, decode::decode_placed(bytes, placed)?))
 }
 
 fn store(column: Column) -> Result<Stored, String> {

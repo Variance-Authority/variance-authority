@@ -16,9 +16,9 @@ fold ran out of heap. `variance journeys <shard.bin>...` combines the same
 way, then lands the combined record as the one run it was, reading its
 columns rather than decoding it: the same sixteen shards land in about 4 s
 under 600 MiB. Over the record a previous run left, the addon lays the
-combined record over it, reading both records' columns and writing the result
-in one pass, and the landing takes under 5 s and 600 MiB, where it ran out of
-heap.
+combined record over it in one pass, and the landing takes under 5 s and
+600 MiB, where it ran out of heap. The landing lays over that record and
+never rewrites the cached base a worktree reads through.
 
 `combineRecords(paths, output)` in `@variance-authority/sense/test-selection`
 writes the record and returns `CombinedRecord`: the counts, the commit, the
@@ -26,13 +26,13 @@ files two shards' indexes cut differently, and one `CombinedShard` per shard
 named, with its path, commit, files, and whether it measured coverage and
 kept cases. A shard that observed nothing, as a shard job that ran no test
 writes, is neutral: it agrees with every other shard.
-`openTestCoverage` and `TestCoverageView`, `recordedRun` and `landedCoverage`,
-and `followRowsIn` are exported for a landing that reads a combined record's
-columns instead of decoding it.
+`openTestCoverage` and `TestCoverageView`, `recordedRun`, `RecordedRun` and
+`landedCoverage`, and `followRowsIn` are exported for a landing that reads a
+combined record's columns instead of decoding it.
 
-Stitching journey artifacts writes each case's duration, the longest any
-shard measured, and the case's lines, and refuses a case whose lines stand on
-a file two shards cut into different regions.
+Every writer lays a run over a record through the addon: the runner's
+teardown, the milestone repin and the shard landing. Recording coverage over
+an existing record now needs the native addon.
 
 On macOS and Linux the addon returns freed blocks of 4 MiB or more to the
 system, so a native call that decodes large buffers one after another holds
@@ -45,22 +45,27 @@ the largest of them, not their sum.
   shards included. To lay shards over a record that is there, run
   `variance journeys <shard.bin>... --into <record>`.
 - `foldTestCoverage`, `CoverageShard` and `mergeExecutionIndexes` are removed
-  from `@variance-authority/sense/test-selection`. Use `combineRecords`.
+  from `@variance-authority/sense/test-selection`. `combineRecords` replaces
+  all three: it takes the shard records' paths and writes the combined
+  record, coverage and case index together.
+- `layerTestCoverage` is removed from the same entry point. Use
+  `layeredCoverage(file, coverage, root)`, which reads the record at `file`
+  and returns the laid bytes.
+- A run whose shards started from different records fails the build: two
+  commits, two before layers, one file on two texts before them, two records
+  their runs split the suite by, or one shard that found no record beside
+  one that found it. The cached base moved while the shards ran, so each
+  shard split the suite against another plan and a test may have run in no
+  shard. The message names both shards and both records. Run every shard
+  again against one record.
 - Combining refuses, naming the shards, where a landing used to fold
   silently or drop what it could not read:
-  - no records named;
-  - a shard that is not there (`there is no record at <path>`), or a case
-    index, before layer or last-run layer this build cannot read, the row
-    spelling among them: record it again with this version;
-  - shards that disagree about the commit or the instrumentation, a file
-    built from different source, or a region described differently;
-  - a test file two shards recorded;
+  - a case index, before layer or last-run layer the combine cannot read;
+  - a region two shards describe differently;
   - a shard that kept cases beside one that kept none, or a case test file
     two shards ran;
-  - shards that started from different records: before layers at different
-    commits, or one file on different text before each;
   - an Eyes section that is not version 1, two different Eyes journals for
     one case and attempt, or an Eyes journal of a case the combined index
-    does not hold, none kept among them;
+    does not hold;
   - a case whose lines stand on a file two shards cut into different
-    regions: record every shard with one build.
+    regions.

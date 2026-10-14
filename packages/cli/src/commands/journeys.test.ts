@@ -245,7 +245,11 @@ describe('formatLanding', () => {
     expect(lines({ laid: '/tmp/coverage.bin', shards: 0 })).toEqual([
       '  case index at /tmp/coverage.bin left as it was: no snapshot finished a test file',
     ]);
-    expect(lines({ unanswered: '/tmp/coverage.bin', shard: '/ci/shard-1.bin', removed: true })).toEqual([
+    expect(lines({ unanswered: '/tmp/coverage.bin', shards: ['/ci/shard-1.bin', '/ci/shard-2.bin'], removed: false })).toEqual([
+      '  no case index at /tmp/coverage.bin: /ci/shard-1.bin and /ci/shard-2.bin ran test files to the end, and ' +
+        'their records keep no case index this build can read',
+    ]);
+    expect(lines({ unanswered: '/tmp/coverage.bin', shards: ['/ci/shard-1.bin'], removed: true })).toEqual([
       '  case index removed at /tmp/coverage.bin: /ci/shard-1.bin ran a test file to the end, and ' +
         'its record keeps no case index this build can read, so no index can say which of ' +
         "that file's cases run a line. Record cases in the runs that write the shards, or run the suite here, to write one.",

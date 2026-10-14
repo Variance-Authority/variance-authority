@@ -1,7 +1,7 @@
 //! `layRecords`: one record's coverage laid over the record already at the
-//! target, as a runner's teardown lays its run over the record it found, read
-//! and written column to column. A landing reads no checkout, so nothing is
-//! re-cut from text on disk and every edit is taken to reach what it touched.
+//! target, read and written column to column. A runner's teardown lays its run
+//! over the record it found, and a landing lays a combined record over the one
+//! at `--into`; both lay through here.
 //!
 //! The rule, `current` over `previous`:
 //!
@@ -16,64 +16,85 @@
 //!   were measured, the kinds agree, and the text is the same or the cut
 //!   seated its counters where the old one did. A region it has no carried
 //!   crossings for reads them off the nearest region around it that has.
+//! - Rows nobody claimed are carried, less retired crossings; one whose text
+//!   moved on disk is cut again in the text it has now
+//!   ([`crate::record_coverage_recut`]).
 //! - A previous test that `current` did not record, and whose crossings were
-//!   lost or land on a region whose text moved, is no longer complete.
-//! - Rows nobody claimed are carried as they are, less retired crossings.
+//!   lost or land on a region an edit reached, is no longer complete. An edit
+//!   reaches every region whose text moved, unless the caller's reading of it
+//!   says otherwise: `none` reaches nothing, `bodies` every region but a
+//!   module's own.
 //!
-//! The output is a function of the two records' contents only: read and
-//! written in one pass, in code-unit order, rows of one path re-recorded
-//! first, through the writer the fold of shards writes with.
-
-use std::fs;
+//! The output is a function of the records' contents only: read and written in
+//! one pass, in code-unit order, rows of one path re-recorded first, through
+//! the writer the fold of shards writes with.
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::case_shard;
-use crate::journey_columns::{self, Column, Spare};
+use crate::journey_columns::{self, Column};
 use crate::order;
 use crate::record_coverage::{self, Coverage, Text};
 use crate::journey_format::SetPool;
 use crate::record_coverage_columns::{Columns, Region};
 use crate::record_coverage_dictionary::{Merged, Spelled};
+use crate::record_coverage_recut::{reaches, recut, write_cut, Readings, Recut};
 use crate::record_layout::LAYOUT;
 
-/// Lay the record at `current` over the record at `previous`: the coverage
-/// record that lands, or `None` where `current` replaces `previous` whole.
-#[napi(catch_unwind)]
-pub fn lay_records(previous: String, current: String) -> napi::Result<Option<Buffer>> {
-    laid(&previous, &current).map(|bytes| bytes.map(Buffer::from)).map_err(napi::Error::from_reason)
+/// What a lay reads besides the two records.
+#[napi(object)]
+#[derive(Default)]
+pub struct LayOptions {
+    /// The modules whose text moved on disk, cut again in the text they have
+    /// now: a record under `current`'s probes, with no tests.
+    pub recut: Option<Buffer>,
+    /// Per edit, keyed `path\0from\0to` by the digests of the two texts, what
+    /// it reached: `none`, `bodies` or `load`. An edit with no reading reaches
+    /// every region whose text moved.
+    pub readings: Option<std::collections::HashMap<String, String>>,
+    /// Whether a `previous` this build cannot read is replaced by `current`
+    /// rather than refused.
+    pub replace_unreadable: Option<bool>,
 }
 
-fn laid(previous: &str, current: &str) -> Result<Option<Vec<u8>>, String> {
-    let read = |path: &str| -> Result<Option<Coverage>, String> {
-        let bytes = fs::read(path).map_err(|error| format!("cannot read {path}: {error}"))?;
-        let record = record_coverage::read_reusing(&bytes, &mut Spare::default())
-            .map_err(|error| format!("cannot read the record {path}: {error}. Record it again with this version."))?;
-        Ok(record.coverage)
-    };
-    // A record that measured nothing holds nothing to lay over. Both records
+/// Lay `current` over `previous`: the coverage record that lands, or `None`
+/// where `current` replaces `previous` whole.
+#[napi(catch_unwind)]
+pub fn lay_records(previous: Buffer, current: Buffer, options: Option<LayOptions>) -> napi::Result<Option<Buffer>> {
+    laid(&previous, &current, options.unwrap_or_default()).map(|bytes| bytes.map(Buffer::from)).map_err(napi::Error::from_reason)
+}
+
+fn laid(previous: &[u8], current: &[u8], options: LayOptions) -> Result<Option<Vec<u8>>, String> {
+    let read = |bytes: &[u8]| record_coverage::read(bytes).map(|record| record.coverage);
+    // A record that measured nothing holds nothing to lay over. The records
     // are let go before the output is encoded.
     let columns = {
-        let Some(held) = read(previous)? else { return Ok(None) };
-        let laid = read(current)?.ok_or_else(|| format!("{current} holds no coverage to lay over {previous}"))?;
-        lay(held, laid)?
+        let held = match read(previous) {
+            Ok(held) => held,
+            Err(_) if options.replace_unreadable == Some(true) => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let Some(held) = held else { return Ok(None) };
+        let laid = read(current)?.ok_or("the record laid holds no coverage")?;
+        let recut = options.recut.as_deref().map(read).transpose()?.flatten();
+        lay(held, laid, recut, &options.readings.unwrap_or_default())?
     };
     columns.map(|columns| journey_columns::encode(columns, LAYOUT.coverage.format)).transpose()
 }
 
 /// `current` laid over `previous`, as coverage sections; `None` under other probes.
-fn lay(previous: Coverage, current: Coverage) -> Result<Option<Vec<Column>>, String> {
-    let Some(Written { merged, mut out, pool, instrumentation, commit }) = written(&previous, &current)? else { return Ok(None) };
+fn lay(previous: Coverage, current: Coverage, recut: Option<Coverage>, readings: &Readings) -> Result<Option<Vec<Column>>, String> {
+    let Some(Written { merged, mut out, pool, instrumentation, commit }) = written(&previous, &current, recut.as_ref(), readings)? else { return Ok(None) };
     // Every row is written, and the dictionaries are all that is read from here.
-    let (previous, current) = (previous.into_strings(), current.into_strings());
-    let (ps, cs) = (previous.text()?, current.text()?);
+    let strings: Vec<_> = [Some(previous), Some(current), recut].into_iter().flatten().map(Coverage::into_strings).collect();
+    let texts = strings.iter().map(|strings| strings.text()).collect::<Result<Vec<_>, _>>()?;
     let mut used = vec![false; merged.len()];
     used[instrumentation as usize] = true;
     commit.into_iter().for_each(|commit| used[commit as usize] = true);
     out.name_in(&mut used);
-    let Spelled { blob, offsets, rank } = merged.spelled(ps, cs, &used);
+    let Spelled { blob, offsets, rank } = merged.spelled(&texts, &used);
     drop(used);
     out.renumber(&rank);
     out.encoded(blob, offsets, rank[instrumentation as usize], commit.map(|commit| rank[commit as usize]), &pool).map(Some)
@@ -88,8 +109,9 @@ struct Written {
     commit: Option<u32>,
 }
 
-fn written(previous: &Coverage, current: &Coverage) -> Result<Option<Written>, String> {
+fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, readings: &Readings) -> Result<Option<Written>, String> {
     let (ps, cs) = (previous.text()?, current.text()?);
+    let fs = fresh.map(Coverage::text).transpose()?;
     if ps.at(previous.instrumentation) != cs.at(current.instrumentation) {
         return Ok(None);
     }
@@ -122,8 +144,12 @@ fn written(previous: &Coverage, current: &Coverage) -> Result<Option<Written>, S
 
     // Strings are ranks in both records' dictionaries at once, so none is
     // copied; tests are numbered as the output numbers them, by path.
-    let merged = Merged::new(ps, cs);
-    let (before, now) = (&merged.previous, &merged.current);
+    let merged = Merged::new(&[Some(ps), Some(cs), fs].into_iter().flatten().collect::<Vec<_>>());
+    let (before, now) = (&merged.ranks[0], &merged.ranks[1]);
+    let cut = fresh.zip(fs).map(|(fresh, fs)| {
+        let rows: FxHashMap<&str, usize> = (0..fresh.modules()).map(|module| (fs.at(fresh.module_path[module]), module)).collect();
+        (fresh, fs, &merged.ranks[2], rows)
+    });
     let mut written: Vec<(u32, Row)> = (0..current.tests()).map(|test| (now[current.test_path[test] as usize], Row::Current(test))).collect();
     written.extend((0..previous.tests()).filter(|test| !again[*test]).map(|test| (before[previous.test_path[test] as usize], Row::Previous(test))));
     written.sort_unstable_by_key(|(path, _)| *path);
@@ -209,8 +235,43 @@ fn written(previous: &Coverage, current: &Coverage) -> Result<Option<Written>, S
     for (path, row) in rows {
         let module = match row {
             Row::Current(module) => module,
-            // A row nobody claimed, as it is, less retired crossings.
+            // A row nobody claimed: cut again where its text moved, else as it
+            // is, less retired crossings.
             Row::Previous(row) => {
+                let file = ps.at(previous.module_path[row]);
+                if let Some((fresh, fs, again_ranks, rows)) = &cut {
+                    if let Some(module) = rows.get(file).copied() {
+                        let (from, to) = (ps.at(previous.module_source[row]), fs.at(fresh.module_source[module]));
+                        match recut((previous, ps), row, (fresh, *fs), module, |kind| reaches(readings, file, from, to, kind)) {
+                            Recut::Kept => {}
+                            Recut::Mislaid => {
+                                for block in previous.blocks(row) {
+                                    lose(previous.block_set[block], &mut stale)?;
+                                }
+                            }
+                            Recut::Cut { from, owed } => {
+                                for held in owed {
+                                    lose(previous.block_set[held], &mut stale)?;
+                                }
+                                // A crosser the new text holds no region for has nowhere a diff could reach it.
+                                let mut kept = FxHashSet::default();
+                                for held in from.iter().flatten() {
+                                    kept.extend(previous_members(previous.block_set[*held])?);
+                                }
+                                for held in previous.blocks(row) {
+                                    for test in previous_members(previous.block_set[held])? {
+                                        stale[test as usize] |= !kept.contains(&test) && !again[test as usize];
+                                    }
+                                }
+                                write_cut(&mut out, path, (fresh, again_ranks), module, from, |held, loaded| match held {
+                                    Some(held) => remap(&mut pool, if loaded { previous.block_loaded_set[held] } else { previous.block_set[held] }),
+                                    None => Ok(pool.intern(&[])),
+                                })?;
+                                continue;
+                            }
+                        }
+                    }
+                }
                 out.module(path, before[previous.module_source[row] as usize], previous.module_instrumented[row] == 1);
                 for block in previous.blocks(row) {
                     out.region(Region {
@@ -253,7 +314,10 @@ fn written(previous: &Coverage, current: &Coverage) -> Result<Option<Written>, S
                 match addressed.get(&(at.0, at.1, nth)) {
                     Some(block) if placeable && measured && previous.block_kind[held] == current.block_kind[*block] => {
                         surviving[*block - blocks.start] = Some(held);
-                        if held_source != source && before[previous.block_digest[held] as usize] != now[current.block_digest[*block] as usize] {
+                        if held_source != source
+                            && before[previous.block_digest[held] as usize] != now[current.block_digest[*block] as usize]
+                            && reaches(readings, cs.at(current.module_path[module]), ps.at(previous.module_source[row]), cs.at(current.module_source[module]), previous.block_kind[held])
+                        {
                             lose(previous.block_set[held], &mut stale)?;
                         }
                     }
@@ -376,7 +440,7 @@ fn around(coverage: &Coverage, blocks: std::ops::Range<usize>, own: &[Option<usi
 
 /// Whether two cuts of a module seated their counters alike: every site both
 /// number holds the same seats in each.
-fn same_numbering(before: impl Iterator<Item = (String, String)>, after: impl Iterator<Item = (String, String)>) -> bool {
+pub(crate) fn same_numbering(before: impl Iterator<Item = (String, String)>, after: impl Iterator<Item = (String, String)>) -> bool {
     let now = sites(after);
     sites(before).into_iter().all(|(site, taken)| now.get(&site).is_none_or(|holds| *holds == taken))
 }

@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
-import { layerTestCoverage } from './format-layer.js';
+import { layCoverage } from './format-layer.js';
 import { encodeTestCoverage } from './format.js';
 import { coverageBlock } from './coverage-rows.js';
 import { recutRows } from './merge-carry.js';
@@ -213,7 +213,7 @@ describe('mergeCoverage over a renumbered carry', () => {
   });
 });
 
-describe('layerTestCoverage over a renumbered carry', () => {
+describe('layCoverage over a renumbered carry', () => {
   it('writes the same bytes the merge writes', () => {
     // The layer is the merge with the decode and most of the encode removed, so
     // a rule the merge learned and the layer did not fails here rather than in
@@ -222,7 +222,7 @@ describe('layerTestCoverage over a renumbered carry', () => {
     const current = nothingLoaded(LOCAL);
     const onDisk = new Map([['src/pick.ts', FIRST_GONE]]);
 
-    expect(layerTestCoverage(encodeTestCoverage(previous), current, onDisk)).toEqual(
+    expect(layCoverage(encodeTestCoverage(previous), current, onDisk)).toEqual(
       encodeTestCoverage(mergeCoverage(previous, current, onDisk)),
     );
   });

@@ -6,11 +6,13 @@ import { LAYOUT, type RecordLayout } from './record-layout.js';
 
 describe('the record layout both sides read', () => {
   it('numbers every block kind the instrumenter names, and nothing else', () => {
-    // A record of every kind: a kind added to `BlockKind` fails the build here until it is listed.
+    // A record of every kind, in the order their numbers were given: a kind
+    // added to `BlockKind` fails the build here until it is listed, and the
+    // list only grows at its end, since a kind's number is its place in it.
     const every: Record<BlockKind, null> = {
       module: null, function: null, branch: null, continuation: null, resume: null, loop: null, case: null, handler: null,
     };
-    expect([...BLOCK_KINDS].sort()).toEqual(Object.keys(every).sort());
+    expect(BLOCK_KINDS).toEqual(Object.keys(every));
   });
 
   it('is where the format constants come from', () => {

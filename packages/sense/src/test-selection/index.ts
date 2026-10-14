@@ -166,7 +166,7 @@ export {
 } from './prune.js';
 // The write path's counterpart to `mergeCoverage`: the same fold, over the
 // columns of the file it is about to write over, not over a decoded model.
-export { layerTestCoverage, layeredCoverage } from './format-layer.js';
+export { layeredCoverage } from './format-layer.js';
 // A snapshot read where it lies, for a caller asking several questions of one
 // file and not wanting the seventy megabytes the answers do not touch. The
 // file-taking queries below are this plus a `finally`.

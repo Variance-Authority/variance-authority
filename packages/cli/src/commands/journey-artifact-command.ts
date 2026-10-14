@@ -1,4 +1,5 @@
-import { existsSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { linkSync, rmSync } from 'node:fs';
 import {
   combineRecords,
   finalizeJestJourneys,
@@ -23,19 +24,30 @@ export async function runJourneyArtifactCommand(
   if (parsed.operation === 'combine') {
     // A combine writes a record of its own shards and nothing else. Over a
     // record that is there it would discard that record, and over a shard the
-    // shard: landing over a record is the reading's job.
-    if (existsSync(parsed.into)) {
-      throw new OperatorError(
-        `${parsed.into} is already there, and \`journeys combine\` writes a new record. ` +
-          'To land the shards over it, run `variance journeys <shards> --into <record>`; ' +
-          'to combine, name a path nothing is at yet.',
-      );
-    }
+    // shard: landing over a record is the reading's job. The record is written
+    // beside `--into` and linked to it, which fails when anything is there by
+    // then, so nothing made after the command started is written over.
+    const staged = `${parsed.into}.${process.pid}-${randomUUID()}.tmp`;
     let result: CombinedRecord;
     try {
-      result = combineRecords(parsed.shards, parsed.into);
-    } catch (error) {
-      throw new OperatorError(messageOf(error), { cause: error });
+      try {
+        result = combineRecords(parsed.shards, staged);
+      } catch (error) {
+        throw new OperatorError(messageOf(error), { cause: error });
+      }
+      try {
+        linkSync(staged, parsed.into);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+        throw new OperatorError(
+          `${parsed.into} is already there, and \`journeys combine\` writes a new record. ` +
+            'To land the shards over it, run `variance journeys <shards> --into <record>`; ' +
+            'to combine, name a path nothing is at yet.',
+          { cause: error },
+        );
+      }
+    } finally {
+      rmSync(staged, { force: true });
     }
     streams.out(`${combinedLine(result, parsed.into)}\n`);
     streams.out(renumbered(result));

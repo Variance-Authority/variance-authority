@@ -29,10 +29,27 @@ export interface NativeCombinedRecord {
 
 /** What the addon answers about records: combining shards, laying one over another, and joining one file's regions. */
 export interface NativeRecords {
-  /** Fold shard records into the one record at `output`: coverage, cases and their parts, and nothing else. */
-  combineRecords?(paths: string[], output: string): NativeCombinedRecord;
-  /** The record at `current` laid over the record at `previous`; `null` where `current` replaces it whole. */
-  layRecords?(previous: string, current: string): Buffer | null;
+  /**
+   * Fold shard records into the one record at `output`: coverage, cases and their parts, and nothing else.
+   * `starts` names, by position, the commit each shard's runs record says its run was laid over.
+   */
+  combineRecords?(paths: string[], output: string, starts?: (string | null)[]): NativeCombinedRecord;
+  /**
+   * The record `current` laid over the record `previous`; `null` where `current` replaces it whole.
+   * `recut` is the modules whose text moved on disk, cut again in it: a record under `current`'s probes,
+   * with no tests. `readings` says, per edit keyed by `editKey`, what it reached; an edit with no reading
+   * reaches every region whose text moved. `replaceUnreadable` replaces a `previous` this build cannot
+   * read by `current` rather than refusing it.
+   */
+  layRecords?(
+    previous: Buffer,
+    current: Buffer,
+    options?: {
+      readonly recut?: Buffer;
+      readonly readings?: Readonly<Record<string, 'none' | 'bodies' | 'load'>>;
+      readonly replaceUnreadable?: boolean;
+    },
+  ): Buffer | null;
   /** Several inventories of one source text, read at the regions they all hold. */
   reconcileRegions?(inventories: NativeRegion[][]): NativeReconciledRegions;
 }

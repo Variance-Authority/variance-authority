@@ -3,12 +3,12 @@
 //! and its case parts as bytes. Nothing is turned into objects; a string is a
 //! slice of the record's own dictionary.
 //!
-//! The layouts read are the ones `record-layout.json` calls readable: the
-//! current one, the one before the case parts (read as a record that kept no
-//! cases), and the one before `tests.duration` (read as one whose runner
-//! reported none).
+//! The layouts read are the current one and the one before `tests.duration`,
+//! which the JVM agent writes and which reads as a run whose runner reported no
+//! durations. Every shard of a combine was written by one build, so a record
+//! at any other version is refused by its version.
 
-use crate::journey_columns::{self, Decoded, Spare};
+use crate::journey_columns::{self, Decoded};
 use crate::record_layout::LAYOUT;
 
 pub(crate) struct Coverage {
@@ -58,21 +58,14 @@ pub(crate) struct Record {
 }
 
 /// `bytes` read as a record, refused with the reason when it is not one this
-/// build reads. The combine reads through [`read_reusing`]; the tests read one
-/// record at a time.
-#[cfg(test)]
+/// build reads.
 pub(crate) fn read(bytes: &[u8]) -> Result<Record, String> {
-    read_reusing(bytes, &mut Spare::default())
-}
-
-/// `bytes` read as a record into the columns `spare` holds, which [`Coverage::spare`] gives back.
-pub(crate) fn read_reusing(bytes: &[u8], spare: &mut Spare) -> Result<Record, String> {
-    let (version, mut decoded) = journey_columns::decode_any_reusing(bytes, spare)?;
+    let (version, mut decoded) = journey_columns::decode_any(bytes)?;
     let layout = &LAYOUT.coverage;
     if !layout.readable(version) {
         return Err(format!(
-            "unsupported record version: {version}; this build reads versions {}, {} and {}",
-            layout.untimed, layout.uncased, layout.format
+            "unsupported record version: {version}; this build reads versions {} and {}",
+            layout.untimed, layout.format
         ));
     }
     let names = decoded.names();
@@ -81,7 +74,7 @@ pub(crate) fn read_reusing(bytes: &[u8], spare: &mut Spare) -> Result<Record, St
     }
     let mut part = |part: &str| -> Result<Option<Vec<u8>>, String> {
         let name = layout.part(part);
-        if version == layout.uncased || !decoded.has(name) {
+        if !decoded.has(name) {
             return Ok(None);
         }
         decoded.take_bytes(name).map(Some)
@@ -213,45 +206,6 @@ impl Coverage {
                     .map_err(|_| "a record string is not UTF-8".to_owned())
             })
             .collect()
-    }
-
-    /// Every column given back to `spare`, for the next record read into it.
-    pub fn spare(self, spare: &mut Spare) {
-        for (name, words) in [
-            ("strings.off", self.offsets),
-            ("tests.path", self.test_path),
-            ("tests.preconditions", self.test_preconditions),
-            ("preconditions.name", self.precondition_name),
-            ("preconditions.digest", self.precondition_digest),
-            ("modules.path", self.module_path),
-            ("modules.source", self.module_source),
-            ("modules.blocks", self.module_blocks),
-            ("blocks.ordinal", self.block_ordinal),
-            ("blocks.owner", self.block_owner),
-            ("blocks.digest", self.block_digest),
-            ("blocks.name", self.block_name),
-            ("blocks.path", self.block_path),
-            ("blocks.start", self.block_start),
-            ("blocks.end", self.block_end),
-            ("blocks.set", self.block_set),
-            ("blocks.loadedSet", self.block_loaded_set),
-            ("sets.off", self.set_offsets),
-        ] {
-            spare.words(name, words);
-        }
-        if let Some(duration) = self.test_duration {
-            spare.words(&LAYOUT.coverage.duration, duration);
-        }
-        for (name, bytes) in [
-            ("strings.blob", self.blob),
-            ("tests.complete", self.test_complete),
-            ("modules.instrumented", self.module_instrumented),
-            ("blocks.kind", self.block_kind),
-            ("blocks.source", self.block_source),
-            ("sets.blob", self.set_bytes),
-        ] {
-            spare.bytes(name, bytes);
-        }
     }
 
     /// The blocks of module `module`, as a range of block rows.

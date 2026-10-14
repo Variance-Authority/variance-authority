@@ -49,7 +49,8 @@ export interface LyingRecord {
  * replaces. The addon lays one over the other column to column; neither is
  * decoded.
  *
- * Both are records this build opens; the caller has refused one it cannot.
+ * Both are records this build opens; a `previous` the lay cannot read throws,
+ * and the caller refuses it.
  */
 export function landedCoverage(previous: LyingRecord | undefined, fold: LyingRecord): Uint8Array {
   if (previous === undefined || previous.coverage.instrumentation !== fold.coverage.instrumentation) return fold.bytes;
@@ -57,5 +58,6 @@ export function landedCoverage(previous: LyingRecord | undefined, fold: LyingRec
   if (lay === undefined) {
     throw new Error(`landing over a record requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `layRecords`'}`);
   }
-  return lay(previous.path, fold.path) ?? fold.bytes;
+  const bytes = (record: Uint8Array): Buffer => Buffer.from(record.buffer, record.byteOffset, record.byteLength);
+  return lay(bytes(previous.bytes), bytes(fold.bytes)) ?? fold.bytes;
 }

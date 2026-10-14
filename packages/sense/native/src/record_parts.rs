@@ -3,9 +3,9 @@
 //! with every case named by the id the folded index gives it.
 //!
 //! Both are JSON, written as `case-landing.ts` and `eyes-record.ts` write them,
-//! so a record the fold writes reads exactly as one a landing wrote. A part a
-//! shard holds and this build cannot read is refused: the fold says what the
-//! shards said, or nothing.
+//! so a record the fold writes reads exactly as one a landing wrote. A part
+//! that does not parse is refused: the fold says what the shards said, or
+//! nothing.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
 use crate::order;
-use crate::record_combine::Agreed;
+use crate::record_combine::{unstable, Agreed};
 
 /// The last-run layer, its fields in the order `LastCaseRun` spells them.
 #[derive(Deserialize, Serialize)]
@@ -70,8 +70,11 @@ fn read_last(bytes: &[u8]) -> Result<Last, String> {
 /// The shards' last-run layers as the one run they were. Each shard is
 /// `(name, layer, renamed)`. The shards ran at one commit over one before
 /// layer; together they ran every file any ran, and recorded every case any
-/// recorded. The fold began over no index only when every shard did; a file
-/// of a shard that began is then a file the before layer cannot answer for.
+/// recorded. The fold began over no index when every shard did, and a shard
+/// that began over none beside one that began over a record split the suite
+/// against another plan, so it fails as [`unstable`] too.
+/// Shards that ran at two commits, over two before layers, or over two texts
+/// of one module started from different records, and fail as [`unstable`].
 pub(crate) fn fold_last(shards: &[(&str, &[u8], &HashMap<String, String>)]) -> Result<Vec<u8>, String> {
     let read: Vec<(&str, Last, &HashMap<String, String>)> = shards
         .iter()
@@ -80,21 +83,28 @@ pub(crate) fn fold_last(shards: &[(&str, &[u8], &HashMap<String, String>)]) -> R
     if read.is_empty() {
         return Err("folding last-run layers needs at least one".to_owned());
     }
-    let (mut commit, mut before) = (Agreed::new("last-run layer's commit"), Agreed::new("before layer's commit"));
+    let (mut commit, mut before) = (Agreed::start("commit"), Agreed::start("the before layer of commit"));
     for (name, last, _) in &read {
         commit.hear_some(name, last.commit.as_deref())?;
         // A shard that began over no record names no before commit.
         before.hear_some(name, last.before.as_deref())?;
     }
-    let every_began = read.iter().all(|(_, last, _)| last.began == Some(true));
+    let began = |last: &Last| last.began == Some(true);
+    let (first, held) = (read[0].0, &read[0].1);
+    if let Some((name, last, _)) = read.iter().find(|(_, last, _)| began(last) != began(held)) {
+        let start = |last: &Last| match (began(last), &last.before) {
+            (true, _) => "no record".to_owned(),
+            (false, Some(before)) => format!("the before layer of commit `{before}`"),
+            (false, None) => "a record".to_owned(),
+        };
+        return Err(unstable(first, &start(held), name, &start(last)));
+    }
     let mut texts: BTreeMap<String, (String, &str)> = BTreeMap::new();
     for (name, last, _) in &read {
         for (file, text) in last.before_texts.iter().flatten() {
             match texts.get(file) {
                 Some((held, by)) if held != text => {
-                    return Err(format!(
-                        "`{file}` stood on different text before {by} and before {name}, so they are not shards of one run and cannot be folded into one."
-                    ));
+                    return Err(unstable(by, &format!("`{file}` at text `{held}`"), name, &format!("`{file}` at text `{text}`")));
                 }
                 Some(_) => {}
                 None => {
@@ -103,10 +113,7 @@ pub(crate) fn fold_last(shards: &[(&str, &[u8], &HashMap<String, String>)]) -> R
             }
         }
     }
-    let unbased = sorted(read.iter().flat_map(|(_, last, _)| {
-        let began = !every_began && last.began == Some(true);
-        last.unbased.iter().flatten().chain(last.files.iter().filter(move |_| began)).cloned()
-    }));
+    let unbased = sorted(read.iter().flat_map(|(_, last, _)| last.unbased.iter().flatten().cloned()));
     let folded = Last {
         commit: commit.value().map(str::to_owned),
         before: before.value().map(str::to_owned),
@@ -114,7 +121,7 @@ pub(crate) fn fold_last(shards: &[(&str, &[u8], &HashMap<String, String>)]) -> R
         files: sorted(read.iter().flat_map(|(_, last, _)| last.files.iter().cloned())),
         unbased: (!unbased.is_empty()).then_some(unbased),
         before_texts: (!texts.is_empty()).then(|| texts.into_iter().map(|(file, (text, _))| (file, text)).collect()),
-        began: every_began.then_some(true),
+        began: began(held).then_some(true),
         cases: sorted(read.iter().flat_map(|(_, last, renames)| last.cases.iter().map(|id| renamed(renames, id).to_owned()))),
     };
     let mut bytes = serde_json::to_vec_pretty(&folded).map_err(|error| error.to_string())?;

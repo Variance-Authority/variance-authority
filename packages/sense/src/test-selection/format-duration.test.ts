@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { isTestCoverageFile } from './coverage-file.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
-import { layerTestCoverage } from './format-layer.js';
+import { layCoverage } from './format-layer.js';
 import {
   DURATION,
   FORMAT,
@@ -105,9 +105,17 @@ describe('what the runner said a test file cost', () => {
 
   it('layers a run over that older snapshot into the current layout, timing only what the run timed', () => {
     const untimed = relaid(encodeTestCoverage(coverage([])), UNTIMED_FORMAT, [DURATION]);
-    const run: TestCoverage = { ...coverage([]), tests: [{ ...coverage([]).tests[1]!, duration: 21.7 }] };
+    const whole = coverage([]);
+    const run: TestCoverage = {
+      ...whole,
+      tests: [{ ...whole.tests[1]!, duration: 21.7 }],
+      modules: whole.modules.map((module) => ({
+        ...module,
+        blocks: module.blocks.map((block) => ({ ...block, testFiles: [TESTS[1]!] })),
+      })),
+    };
 
-    const layered = layerTestCoverage(untimed, run);
+    const layered = layCoverage(untimed, run);
 
     expect(headerOf(layered).header.version).toBe(FORMAT);
     expect(decodeTestCoverage(layered).tests.map((test) => [test.file, test.duration])).toEqual([

@@ -7,7 +7,7 @@ import { layCases } from './case-landing.js';
 import { caseSectionsOf } from './case-record.js';
 import { encodeRecordedEyes } from './eyes-record.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
-import { combineRecords, writeTestCoverage } from './index.js';
+import { combineRecords, commitRunsFile, writeTestCoverage } from './index.js';
 
 const source = 'export function greet() { return "hello"; }\n';
 const durations: Readonly<Record<string, number>> = { 'a.test.ts': 120, 'b.test.ts': 340 };
@@ -94,5 +94,24 @@ describe('combineRecords against the TypeScript writers', () => {
       watched: ['a.test.ts > greets', 'b.test.ts > greets'],
       journals: ['a.test.ts', 'b.test.ts'].map((file) => ({ case: `${file} > greets`, attempt: 1, journal: { shots: [`${file}.png`], closed: true } })),
     })).toString());
+  });
+
+  // A shard's runs record names the record its run was laid over, which is the
+  // record it read its times from and split the suite by.
+  it('fails the build when the shards split the suite by different records, in either order', async () => {
+    const shards = [await recordOf('a.bin', ['a.test.ts']), await recordOf('b.bin', ['b.test.ts'])];
+    const over = async (shard: string, commit: string) =>
+      writeFile(commitRunsFile(shard), JSON.stringify({ commit: 'c0ffee', over: commit, first: '1', latest: '1', runs: 1, files: [] }));
+    for (const [first, second] of [['base1', 'base2'], ['base2', 'base1']] as const) {
+      await over(shards[0]!, first);
+      await over(shards[1]!, second);
+      expect(() => combineRecords([...shards].reverse(), join(root, 'combined.bin'))).toThrow(
+        `the build failed because the sharding was unstable: ${shards[0]} started from the record of commit \`${first}\`, ` +
+          `and ${shards[1]} from the record of commit \`${second}\`.`,
+      );
+    }
+    await over(shards[1]!, 'base2');
+    await over(shards[0]!, 'base2');
+    expect(combineRecords(shards, join(root, 'combined.bin')).shards).toHaveLength(2);
   });
 });

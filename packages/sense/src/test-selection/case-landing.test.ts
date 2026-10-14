@@ -276,7 +276,7 @@ describe('landCases', () => {
       { path: join(root, 'shard-2.bin'), coverage: { commit: 'c0ffee', tests: [whole('c.test.ts')] } },
     ]);
 
-    expect(landing).toEqual({ unanswered: record, shard: first, removed: true });
+    expect(landing).toEqual({ unanswered: record, shards: [first], removed: true });
     expect(sections).toEqual({});
   });
 
@@ -325,7 +325,7 @@ describe('landCases', () => {
 
     const { landing, sections } = landCases(record, {}, root, [{ path: at, coverage: { tests: [whole('b.test.ts')] } }]);
 
-    expect(landing).toEqual({ unanswered: record, shard: at, removed: false });
+    expect(landing).toEqual({ unanswered: record, shards: [at], removed: false });
     expect(sections).toEqual({});
   });
 });

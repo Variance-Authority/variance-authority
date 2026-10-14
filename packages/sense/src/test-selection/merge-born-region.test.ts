@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
 import { encodeTestCoverage } from './format.js';
-import { layerTestCoverage } from './format-layer.js';
+import { layCoverage } from './format-layer.js';
 import { openTestCoverage } from './format-view.js';
 import type { CoverageBlock, TestCoverage } from './index.js';
 import { coverageBlock } from './coverage-rows.js';
@@ -200,12 +200,12 @@ describe('a region born between two runs', () => {
     const baseline = (): Uint8Array => encodeTestCoverage(recorded(BEFORE, BASELINE, [CART, CHECKOUT]));
 
     it.each(INSIDE)('carries a re-cut module onto line %i', (line) => {
-      const bytes = layerTestCoverage(baseline(), ranOnly(OTHER, LOCAL), new Map([[PRICE, AFTER]]));
+      const bytes = layCoverage(baseline(), ranOnly(OTHER, LOCAL), new Map([[PRICE, AFTER]]));
       expect(asked(bytes, edit(line)).entered).toEqual([CART, CHECKOUT]);
     });
 
     it.each(INSIDE)('keeps the carried crosser on line %i of a re-recorded module', (line) => {
-      const bytes = layerTestCoverage(baseline(), recorded(AFTER, LOCAL, [CHECKOUT]), new Map());
+      const bytes = layCoverage(baseline(), recorded(AFTER, LOCAL, [CHECKOUT]), new Map());
       expect(asked(bytes, edit(line)).entered).toEqual([CART, CHECKOUT]);
     });
   });

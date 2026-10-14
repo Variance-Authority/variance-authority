@@ -36,7 +36,7 @@
  */
 
 import { writeFileSync, readFileSync, statSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
-import { layerTestCoverage } from '../dist/test-selection/format-layer.js';
+import { layCoverage } from '../dist/test-selection/format-layer.js';
 import { openTestCoverage } from '../dist/test-selection/format-view.js';
 import { selectTestFilesFromView } from '../dist/test-selection/select.js';
 import { crossingsOf } from '../dist/test-selection/instrumented-modules.js';
@@ -102,7 +102,7 @@ if (MODE === 'layer') {
   console.log(`read: ${mb(statSync(FILE).size)} snapshot`);
   const current = rerecorded(MODULES * BLOCKS);
   const laying = Date.now();
-  const out = layerTestCoverage(previous, current);
+  const out = layCoverage(previous, current);
   watch();
   console.log(
     `layered: ${count(RERECORDED)} of ${count(MODULES)} modules re-recorded, ` +

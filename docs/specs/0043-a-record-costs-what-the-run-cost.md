@@ -37,8 +37,8 @@ is not a slow path. It is an impossible one:
   40,000-module shape cost 2.5 GB; five hundred exhaust a twelve-gigabyte heap.
   The shipped reporters call it: `packages/sense/src/test-selection/selection-fold.ts:83` and `packages/sense/src/test-selection/jest-reporter.ts:97`.
 - **Publishing.** `layeredCoverage` no longer decodes the snapshot to that
-  model — `packages/sense/src/test-selection/format-layer.ts:238-260` copies an untouched module's rows column to
-  column as integers, and `:335-350` remaps each carried crossing set once per
+  model — `packages/sense/native/src/record_coverage_layer.rs:188` copies an untouched module's rows column to
+  column as integers, and `:225-233` remaps each carried crossing set once per
   distinct set rather than once per region. What it still does is open and
   rewrite *every* column and re-intern the *whole* pool to replace ten modules
   of 200,000, which costs 3.1 s and 1,111 MB. The defect is that the cost is
@@ -97,7 +97,7 @@ both halves are needed. *Across* test files the reader unions: a test file the
 overlay does not mention keeps the snapshot's answer, and a test file neither
 holds is unknown and runs. *Within* one test file the overlay supersedes — a
 later recording of a test file is the truth about that file, which is what
-layering already does at `packages/sense/src/test-selection/format-layer.ts:262-266`. Nothing is subtracted in
+layering already does at `packages/sense/native/src/record_coverage_layer.rs:120-127`. Nothing is subtracted in
 either direction, so an overlay lost between the run and the query costs a full
 run and can never cost a skipped test.
 
@@ -141,9 +141,9 @@ journal.
 bounds the cost of a *run*. Nothing bounds the cost of the *file*. A module
 deleted from the repository is carried verbatim with all of its crossings —
 `packages/sense/src/test-selection/merge.ts:264` carries it because nothing at the path says the rows are about a
-file that is gone, and `packages/sense/src/test-selection/format-layer.ts:248` pushes every unclaimed row onward —
+file that is gone, and `packages/sense/native/src/record_coverage_layer.rs:188` pushes every unclaimed row onward —
 and a test file that no longer exists keeps its row and its `complete` flag
-(`packages/sense/src/test-selection/format-layer.ts:263-265`). So the snapshot is monotonically non-shrinking over
+(`packages/sense/native/src/record_coverage_layer.rs:355-362`). So the snapshot is monotonically non-shrinking over
 a repository's life, and the 600 MB ceiling is approached from this side too,
 by a repository that never grew.
 

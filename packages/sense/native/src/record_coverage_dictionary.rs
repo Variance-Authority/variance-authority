@@ -2,10 +2,10 @@
 //! dictionary.
 //!
 //! A fold of shards learns its strings one shard at a time and lets each shard
-//! go, so it keeps them: [`Dictionary`]. A layering holds both records it reads
+//! go, so it keeps them: [`Dictionary`]. A layering holds every record it reads
 //! until it has written, and every string it names is in one of their
-//! dictionaries, so it keeps none: [`Merged`] ranks the two in one walk, and
-//! the output's dictionary is spelled from the records themselves.
+//! dictionaries, so it keeps none: [`Merged`] ranks them in one walk, and the
+//! output's dictionary is spelled from the records themselves.
 
 use rustc_hash::FxHashMap;
 
@@ -67,46 +67,42 @@ impl Dictionary {
     }
 }
 
-/// Two records' dictionaries as one: every string of either, ranked in
-/// code-unit order, a string both hold one rank. The ranks are the fold's ids.
+/// Several records' dictionaries as one: every string of any, ranked in
+/// code-unit order, a string more than one holds one rank. The ranks are the
+/// fold's ids.
 pub(crate) struct Merged {
-    /// The rank of each string of the previous record, by its id there.
-    pub previous: Vec<u32>,
-    /// The rank of each string of the current record, by its id there.
-    pub current: Vec<u32>,
-    /// Per rank, where it is spelled: an id of the previous record, or the
-    /// previous record's length plus an id of the current one.
-    spelling: Vec<u32>,
+    /// Per record, in the order they were given, the rank of each of its
+    /// strings by its id there.
+    pub ranks: Vec<Vec<u32>>,
+    /// Per rank, where it is spelled: a record's place and an id there.
+    spelling: Vec<(u32, u32)>,
 }
 
 impl Merged {
-    pub fn new(previous: Text, current: Text) -> Self {
-        let (before, now) = (Sorted::of(previous), Sorted::of(current));
+    pub fn new(texts: &[Text]) -> Self {
+        let sorted: Vec<Sorted> = texts.iter().map(|text| Sorted::of(*text)).collect();
         let mut merged = Merged {
-            previous: vec![u32::MAX; previous.len()],
-            current: vec![u32::MAX; current.len()],
-            spelling: Vec::with_capacity(previous.len().max(current.len())),
+            ranks: texts.iter().map(|text| vec![u32::MAX; text.len()]).collect(),
+            spelling: Vec::with_capacity(texts.iter().map(Text::len).max().unwrap_or(0)),
         };
-        let (mut left, mut right) = (0, 0);
-        while left < before.len() || right < now.len() {
-            let value = match (before.get(left), now.get(right)) {
-                (Some(held), Some(read)) => std::cmp::min_by(previous.at(held), current.at(read), |a, b| order::code_unit(a, b)),
-                (Some(held), None) => previous.at(held),
-                (None, Some(read)) => current.at(read),
-                (None, None) => break,
+        let mut heads = vec![0_usize; texts.len()];
+        loop {
+            let head = |record: usize, heads: &[usize]| sorted[record].get(heads[record]).map(|id| texts[record].at(id));
+            let Some(value) = (0..texts.len())
+                .filter_map(|record| head(record, &heads))
+                .min_by(|a, b| order::code_unit(a, b))
+            else {
+                break;
             };
             let rank = merged.spelling.len() as u32;
             let mut spelled = None;
             // A record that holds a string twice gives both ids the one rank.
-            while let Some(held) = before.get(left).filter(|held| previous.at(*held) == value) {
-                merged.previous[held as usize] = rank;
-                spelled.get_or_insert(held);
-                left += 1;
-            }
-            while let Some(read) = now.get(right).filter(|read| current.at(*read) == value) {
-                merged.current[read as usize] = rank;
-                spelled.get_or_insert(previous.len() as u32 + read);
-                right += 1;
+            for record in 0..texts.len() {
+                while let Some(id) = sorted[record].get(heads[record]).filter(|id| texts[record].at(*id) == value) {
+                    merged.ranks[record][id as usize] = rank;
+                    spelled.get_or_insert((record as u32, id));
+                    heads[record] += 1;
+                }
             }
             merged.spelling.push(spelled.unwrap_or_default());
         }
@@ -117,10 +113,10 @@ impl Merged {
         self.spelling.len()
     }
 
-    /// The ranks `used` names, spelled from the two records.
-    pub fn spelled(&self, previous: Text, current: Text, used: &[bool]) -> Spelled {
-        let split = previous.len() as u32;
-        let spell = |at: u32| if at < split { previous.at(at) } else { current.at(at - split) };
+    /// The ranks `used` names, spelled from the records, given in the order
+    /// [`Merged::new`] was.
+    pub fn spelled(&self, texts: &[Text], used: &[bool]) -> Spelled {
+        let spell = |(record, id): (u32, u32)| texts[record as usize].at(id);
         Spelled::of(
             || (0..self.spelling.len() as u32).filter(|rank| used[*rank as usize]).map(|rank| (spell(self.spelling[rank as usize]), rank)),
             used.len(),
@@ -150,13 +146,6 @@ impl Sorted {
         match self {
             Sorted::Already(len) => (at < *len).then_some(at as u32),
             Sorted::Ids(ids) => ids.get(at).copied(),
-        }
-    }
-
-    fn len(&self) -> usize {
-        match self {
-            Sorted::Already(len) => *len,
-            Sorted::Ids(ids) => ids.len(),
         }
     }
 }

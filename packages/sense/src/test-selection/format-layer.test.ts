@@ -1,17 +1,17 @@
-// The layer against the composition it replaces, case by case.
+// The addon's lay against the model's merge, case by case.
 //
-// `layerTestCoverage` is `encodeTestCoverage(mergeCoverage(decode(bytes), …))`
-// with the decode and most of the encode removed, and it is only worth having
-// while the two are the same bytes. So every case the merge distinguishes is
-// run through both and compared as a buffer: not the model it decodes to, the
-// file. A rule added to the merge and not to the layer fails here rather than
-// in an index somebody has already written.
+// `layCoverage` lays a run over a record column to column, and
+// `encodeTestCoverage(mergeCoverage(decode(bytes), …))` decides the same rule
+// over objects. Every case the merge distinguishes is run through both and
+// compared as a buffer: not the model it decodes to, the file. A rule added to
+// the merge and not to the lay fails here rather than in an index somebody has
+// already written.
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { INSTRUMENTATION_ID } from '../instrument/index.js';
 import { editKey, type EditReading } from './edit-readings.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
-import { layerTestCoverage } from './format-layer.js';
+import { layCoverage } from './format-layer.js';
 import { mergeCoverage } from './merge.js';
 import type { CoverageBlock, TestCoverage } from './index.js';
 
@@ -404,13 +404,13 @@ const CASES: Readonly<Record<string, Case>> = {
   },
 };
 
-describe('layerTestCoverage', () => {
+describe('layCoverage', () => {
   for (const [what, { previous, current, onDisk, readings }] of Object.entries(CASES)) {
     it(`writes the same file as decode, merge and encode: ${what}`, () => {
       const bytes = previous === undefined ? undefined : encodeTestCoverage(previous);
       const expected = encodeTestCoverage(mergeCoverage(previous, current, onDisk, readings));
 
-      expect(layerTestCoverage(bytes, current, onDisk, readings).equals(expected)).toBe(true);
+      expect(layCoverage(bytes, current, onDisk, readings).equals(expected)).toBe(true);
     });
   }
 
@@ -418,7 +418,7 @@ describe('layerTestCoverage', () => {
     // The layer is what CI writes with: a one-file shard that loaded the
     // `dist` build of a module, layered over a mainline that holds the `src`
     // build of the same text, must not send the mainline's tests back to run.
-    const layered = decodeTestCoverage(layerTestCoverage(
+    const layered = decodeTestCoverage(layCoverage(
       encodeTestCoverage(at(BASELINE, 'test/alpha.test.ts')),
       rebuilt(at(LOCAL, 'test/beta.test.ts')),
     ));
@@ -426,43 +426,10 @@ describe('layerTestCoverage', () => {
     expect(layered.tests.every((test) => test.complete)).toBe(true);
   });
 
-  it('decodes no precondition of a test the run did not touch', () => {
-    // A test's preconditions are its module closure: a hundred and more
-    // digests a test, against the one file a local run lands. The run's own
-    // tests are compared on theirs; every other test is carried, and a carried
-    // precondition is an integer the dictionary renumbers. What more of them
-    // cost is the search for the run's names going a few levels deeper, which
-    // stays under one string for each test the run did not touch.
-    const untouched = Array.from({ length: 30 }, (_, test) => `test/untouched-${test}.test.ts`);
-    const decoded = (each: number): number => {
-      const previous: TestCoverage = {
-        ...at(BASELINE, 'test/alpha.test.ts'),
-        tests: ['test/alpha.test.ts', ...untouched].map((file) => ({
-          file,
-          complete: true,
-          preconditions: Array.from({ length: each }, (_, input) => ({
-            name: `${file}/input-${input}`,
-            digest: `${file}/digest-${input}`,
-          })),
-        })),
-      };
-      const bytes = encodeTestCoverage(previous);
-      const decode = vi.spyOn(TextDecoder.prototype, 'decode');
-      try {
-        layerTestCoverage(bytes, at(LOCAL, 'test/alpha.test.ts'));
-        return decode.mock.calls.length;
-      } finally {
-        decode.mockRestore();
-      }
-    };
-
-    expect(decoded(40) - decoded(1)).toBeLessThan(untouched.length);
-  });
-
   it('treats a file it cannot decode as one that is not there', () => {
     const current = at(LOCAL, 'test/beta.test.ts');
 
-    expect(layerTestCoverage(Buffer.from('not a snapshot'), current).equals(
+    expect(layCoverage(Buffer.from('not a snapshot'), current).equals(
       encodeTestCoverage(current),
     )).toBe(true);
   });
@@ -475,7 +442,7 @@ describe('layerTestCoverage', () => {
     const previous = at(BASELINE, 'test/alpha.test.ts', ['src/\u{1f600}.ts', 'src/.ts']);
     const current = at(LOCAL, 'test/beta.test.ts', ['src/decide.ts']);
 
-    expect(layerTestCoverage(encodeTestCoverage(previous), current).equals(
+    expect(layCoverage(encodeTestCoverage(previous), current).equals(
       encodeTestCoverage(mergeCoverage(previous, current)),
     )).toBe(true);
   });

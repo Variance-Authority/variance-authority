@@ -142,7 +142,7 @@ describe('nothing grows into a monster', () => {
    * stays given back. Why an entry is still here is a marker on the entry.
    */
   const OVERSIZE = new Map<string, number>([
-    // FIXME: `journey.rs` is 6 lines over the limit, holding the fold's entry
+    // FIXME: `journey.rs` is 4 lines over the limit, holding the fold's entry
     // points, its replay visitors and its bit-set helpers in one file. Moving one
     // of those groups into a module of its own closes this.
     ['packages/sense/native/src/journey.rs', 504],

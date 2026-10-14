@@ -76,15 +76,17 @@ shard's worth per shard.
 
 Pre-sizing the buffers made it worse, about 2 GiB, because every shard then asked
 for its largest size up front. Keeping each column's buffer and reusing it for
-the next shard, grown to the largest shard, is what the combine does now, and
-it is not enough alone: 1.55 GiB. A decode frees more than its columns, and
-those blocks go to the same cache. With the cache turned off
+the next shard, grown to the largest shard, was not enough alone: 1.55 GiB. A
+decode frees more than its columns, and those blocks go to the same cache. With the cache turned off
 (`MallocLargeCache=0`), the same code peaks at 478 MiB, which says the cache is
 the whole difference.
 
 The addon's global allocator maps any block of 4 MiB or more with `mmap` and
 unmaps it on free. Smaller blocks go to the system allocator as before. A large
-block costs one system call each way and arrives as fresh zeroed pages. Every
+block costs one system call each way and arrives as fresh zeroed pages. With
+it, the buffer reuse buys nothing and is gone: interleaved, four runs each, the
+combine and both landings take the same CPU time with and without it on macOS
+and on Linux, and peak within 30 MiB of each other, every one under 600 MiB. Every
 native path gets this, so the scan was measured too, cold `scanRelations` over
 a 28,000-file repository:
 

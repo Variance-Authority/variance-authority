@@ -67,7 +67,7 @@ read-modify-write-and-rename with no expected-prior check
 (`packages/sense/src/immutable-log.ts:122-140`).
 
 **4. A demotion carries its reason.** Two sites write `{ ...test, complete:
-false }` and drop why: `packages/sense/src/test-selection/merge.ts:205` and `packages/sense/src/test-selection/format-layer.ts:124`. The
+false }` and drop why: `packages/sense/src/test-selection/merge.ts:205` and `packages/sense/native/src/record_coverage_layer.rs:361`. The
 reason is computed — `stitchJourneys` builds a `because` string — and reaches
 stderr once, then is gone.
 
@@ -91,15 +91,13 @@ fan-in this whole feature exists for is the one place in the system with no
 ceiling**, and it is the same object model [0043](0043-a-record-costs-what-the-run-cost.md)
 indicts, N times over.
 
-**7. The two implementations of the merge agree or become one.**
-`layerTestCoverage` is documented as byte-identical to
-`encodeTestCoverage(mergeCoverage(decodeTestCoverage(bytes), current, onDisk))`
-and reimplements its rules over columns. `retired` and the multi-row claim are
-each written twice, and the `sameNumbering` gate present in the object path has
-no counterpart in the columnar one — so a re-recorded module whose regions were
-reseated is carried by one and mislaid by the other. The equivalence is asserted
-by fixtures. It needs to be a property the two are checked against, over
-generated inputs, or the second implementation needs to go.
+**7. The model merge and the lay agree over generated inputs.**
+Every writer lays through one implementation, the addon's `layRecords`
+(`packages/sense/native/src/record_coverage_layer.rs`): the runner's teardown,
+the milestone repin and `variance land`. `mergeCoverage` stays as the model it
+is checked against, and the check is fixtures
+(`fold-landing.test.ts`, `format-layer.test.ts`). It needs to be a property the
+two are checked against, over generated inputs.
 
 **8. Three disagreements that are decisions nobody has made.**
 

@@ -12,7 +12,7 @@ import type { TestCoverageView } from './format-view.js';
  *
  * The dictionary underneath them is sorted the same way, by both of the things
  * that write one — `dictionary()` in `format.ts` sorts, and
- * `layeredDictionary()` merges two runs that are already in order — so a path
+ * `mergedDictionary()` merges two runs that are already in order — so a path
  * can be turned into the integer it was interned under before any column is
  * touched. That is what lets a question about a name be asked in integers.
  *

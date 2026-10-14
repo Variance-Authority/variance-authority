@@ -1,8 +1,9 @@
-import { mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { readTestCoverage, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { commitRunsFile, readTestCoverage, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { OperatorError } from '../exit.js';
 import { landJourneys } from './land.js';
 
 /**
@@ -78,7 +79,7 @@ describe('landJourneys — N shard records into the one this repository reads', 
     // No shard kept cases in its record, and there are none here to drop.
     expect(landed).toEqual({
       at: into, shards: 2, commit: 'c0ffee', observations: 2, modules: 1,
-      cases: { unanswered: into, shard: shards.join(', '), removed: false },
+      cases: { unanswered: into, shards, removed: false },
     });
     const record = await readTestCoverage(into);
     expect(record.tests.map((test) => test.file)).toEqual(['story:a', 'story:b']);
@@ -123,13 +124,30 @@ describe('landJourneys — N shard records into the one this repository reads', 
     expect(await left()).toEqual([]);
   });
 
-  it('refuses shards that were not one run, in the combine\'s own words', async () => {
+  it('fails when the shards started from different records, in the combine\'s own words', async () => {
     const shards = await written(shardOf('story:a', 'c0ffee'), shardOf('story:b', 'decaf0'));
 
     await expect(landJourneys(home, shards, into)).rejects.toThrow(
-      /shard-[12]\.bin and .*shard-[12]\.bin disagree about the commit/,
+      `the build failed because the sharding was unstable: ${shards[0]} started from commit \`c0ffee\`, ` +
+        `and ${shards[1]} from commit \`decaf0\`.`,
     );
     expect(await left()).toEqual([]);
+  });
+
+  it('fails when the shards split the suite by different records, though the landing discards their layers', async () => {
+    const shards = await written(shardOf('story:a'), shardOf('story:b'));
+    for (const [first, second] of [['base1', 'base2'], ['base2', 'base1']] as const) {
+      for (const [shard, over] of [[shards[0]!, first], [shards[1]!, second]] as const) {
+        await writeFile(commitRunsFile(shard), JSON.stringify({ commit: 'c0ffee', over, first: '1', latest: '1', runs: 1, files: [] }));
+      }
+
+      await expect(landJourneys(home, [...shards].reverse(), into)).rejects.toThrow(
+        `the build failed because the sharding was unstable: ${shards[0]} started from the record of commit \`${first}\`, ` +
+          `and ${shards[1]} from the record of commit \`${second}\`. Each shard split the suite against the record it started from, ` +
+          'so the split may have left tests that ran in no shard. Run every shard again against one record.',
+      );
+      expect(await left()).toEqual([]);
+    }
   });
 
   it('refuses to write over a snapshot it cannot read, rather than replacing it', async () => {
@@ -138,5 +156,22 @@ describe('landJourneys — N shard records into the one this repository reads', 
 
     await expect(landJourneys(home, shards, into)).rejects.toThrow(`the snapshot already at ${into} could not be read`);
     expect(await left()).toEqual(['coverage.bin']);
+  });
+
+  it('refuses to lay over a snapshot the lay cannot read, as one it cannot open, and leaves it as it was', async () => {
+    // The layout before the case index: the reader opens it, the lay does not.
+    await writeTestCoverage(into, shardOf('story:local'));
+    const held = await readFile(into);
+    const header = held.subarray(4, 4 + held.readUInt32LE(0));
+    const at = header.indexOf('"version":10');
+    expect(at).toBeGreaterThan(-1);
+    header.write('"version":9 ', at);
+    await writeFile(into, held);
+    const shards = await written(shardOf('story:a'));
+
+    const landing = landJourneys(home, shards, into);
+    await expect(landing).rejects.toBeInstanceOf(OperatorError);
+    await expect(landing).rejects.toThrow(new RegExp(`^the snapshot already at ${into} could not be read: .*Delete it and land again`, 'su'));
+    expect(Buffer.compare(await readFile(into), held)).toBe(0);
   });
 });

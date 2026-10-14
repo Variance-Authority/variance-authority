@@ -144,17 +144,18 @@ async function landCombined(
       // A record whose run instrumented nothing has no coverage to fold over,
       // and its cases are laid under the shards' below.
       if (!isMissing(error) && !(error instanceof selection.RecordWithoutCoverage)) {
-        throw new OperatorError(
-          `the snapshot already at ${said(at)} could not be read: ${messageOf(error)}. ` +
-            'Delete it and land again; a fold written over it would have replaced evidence ' +
-            'nobody could see.',
-          { cause: error },
-        );
+        throw unreadable(at, error);
       }
     }
 
     // The coverage is laid first, while nothing else the landing reads is held.
-    const bytes = fold === undefined ? previous?.bytes : selection.landedCoverage(previous, fold);
+    // A snapshot the lay cannot read is one the landing cannot read either.
+    let bytes: Uint8Array | undefined;
+    try {
+      bytes = fold === undefined ? previous?.bytes : selection.landedCoverage(previous, fold);
+    } catch (error) {
+      throw unreadable(at, error);
+    }
     const landed = bytes === undefined ? undefined : selection.openTestCoverage(bytes);
     const folded = fold === undefined ? undefined : selection.recordedRun(fold.coverage);
     // The one run the shards were: what the coverage recorded, and every file a
@@ -185,10 +186,12 @@ async function landCombined(
     );
     // The landing laid at most one record, the combine's, and that record's
     // cases are those of every shard the combine folded a case index from.
+    // Where it kept none, every shard it folded kept none: the combine
+    // refuses shards of which only some kept cases.
     const cased = combined.shards.filter((shard) => shard.cased).length;
     const cases = 'laid' in landing
       ? { ...landing, shards: landing.shards === 0 ? 0 : cased }
-      : { ...landing, shard: shards.join(', ') };
+      : { ...landing, shards: [...shards] };
     const sections = landed === undefined
       ? laid
       : selection.followRowsIn(laid, landed, texts, selection.editsBetween(root, undefined, [before?.commit, landed.commit]));
@@ -254,6 +257,16 @@ interface Opened {
  * A record this build cannot read throws, here and not at the first column a
  * later step reads.
  */
+/** The snapshot at `at` cannot be read, and is left for the operator to delete. */
+function unreadable(at: string, error: unknown): OperatorError {
+  return new OperatorError(
+    `the snapshot already at ${said(at)} could not be read: ${messageOf(error)}. ` +
+      'Delete it and land again; a fold written over it would have replaced evidence ' +
+      'nobody could see.',
+    { cause: error },
+  );
+}
+
 function opened(selection: Selection, path: string, bytes: Uint8Array): Opened | undefined {
   try {
     const coverage = selection.openTestCoverage(bytes);

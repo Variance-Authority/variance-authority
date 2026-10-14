@@ -3022,7 +3022,6 @@
         "lastCaseRunOf": "function",
         "lastFetchedMainline": "function",
         "layFetchedMainline": "function",
-        "layerTestCoverage": "function",
         "layeredCoverage": "function",
         "layeredFiles": "function",
         "machineOwners": "function",

@@ -331,7 +331,10 @@ function casesLine(cases: CaseLanding): string {
       ? `  case index at ${cases.laid} left as it was: no snapshot finished a test file`
       : `  cases of ${many(cases.shards, 'snapshot')} laid over ${cases.laid}`;
   }
-  const why = `${cases.shard} ran a test file to the end, and its record keeps no case index this build can read`;
+  const why = cases.shards.length === 1
+    ? `${cases.shards[0]} ran a test file to the end, and its record keeps no case index this build can read`
+    : `${cases.shards.slice(0, -1).join(', ')} and ${cases.shards.at(-1)} ran test files to the end, and ` +
+      'their records keep no case index this build can read';
   return cases.removed
     ? `  case index removed at ${cases.unanswered}: ${why}, so no index can say which of that file's cases run a line. ` +
         'Record cases in the runs that write the shards, or run the suite here, to write one.'

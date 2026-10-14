@@ -9,7 +9,7 @@ fn named(records: &[&[u8]]) -> Vec<(String, Vec<u8>)> {
 }
 
 fn combined(records: &[&[u8]]) -> Result<Combined, String> {
-    combine_bytes(&named(records))
+    combine_bytes(&named(records), &[])
 }
 
 fn refused(records: &[&[u8]]) -> String {
@@ -61,6 +61,23 @@ fn unions_the_regions_of_a_module_two_shards_ran() {
 }
 
 #[test]
+fn fails_the_build_when_the_shards_split_by_different_records() {
+    let one = fixture::write(&spec(vec![test("a.test.ts")], Vec::new()));
+    let other = fixture::write(&spec(vec![test("b.test.ts")], Vec::new()));
+    let starts = |first: &str, second: &str| [Some(first.to_owned()), Some(second.to_owned())];
+    for (first, second) in [("base1", "base2"), ("base2", "base1")] {
+        let message = combine_bytes(&named(&[&one, &other]), &starts(first, second)).err().unwrap();
+        let started = format!(
+            "the build failed because the sharding was unstable: shard-0.bin started from the record of commit `{first}`, and shard-1.bin from the record of commit `{second}`."
+        );
+        assert!(message.starts_with(&started), "{message}");
+    }
+    // A shard whose runs record names no start disagrees with nobody.
+    assert!(combine_bytes(&named(&[&one, &other]), &[Some("base1".to_owned()), None]).is_ok());
+    assert!(combine_bytes(&named(&[&one, &other]), &starts("base1", "base1")).is_ok());
+}
+
+#[test]
 fn refuses_a_test_file_two_shards_recorded() {
     let one = fixture::write(&spec(vec![test("a.test.ts")], Vec::new()));
     let other = fixture::write(&spec(vec![test("a.test.ts"), test("b.test.ts")], Vec::new()));
@@ -75,10 +92,14 @@ fn refuses_shards_of_two_commits_or_two_recipes() {
         held.instrumentation = instrumentation;
         fixture::write(&held)
     };
-    let message = refused(&[&at(Some("c0ffee"), "istanbul"), &at(Some("beef"), "istanbul")]);
-    assert!(message.contains("disagree about the commit"), "{message}");
-    let message = refused(&[&at(Some("c0ffee"), "istanbul"), &at(None, "istanbul")]);
-    assert!(message.contains("(`c0ffee` against `(none)`)") || message.contains("(`(none)` against `c0ffee`)"), "{message}");
+    // Shards at two commits started from two records: the build fails, naming both, in either order.
+    for (first, second) in [(Some("c0ffee"), Some("beef")), (Some("beef"), Some("c0ffee")), (Some("c0ffee"), None)] {
+        let message = refused(&[&at(first, "istanbul"), &at(second, "istanbul")]);
+        assert!(message.starts_with("the build failed because the sharding was unstable"), "{message}");
+        let named = |commit: Option<&str>| commit.map_or("no commit".to_owned(), |commit| format!("commit `{commit}`"));
+        let started = format!("shard-0.bin started from {}, and shard-1.bin from {}.", named(first), named(second));
+        assert!(message.contains(&started), "{message}");
+    }
     let mut other = spec(vec![test("b.test.ts")], Vec::new());
     other.instrumentation = "v8";
     let message = refused(&[&at(Some("c0ffee"), "istanbul"), &fixture::write(&other)]);
@@ -121,12 +142,11 @@ fn answers_a_module_from_the_shards_that_measured_it() {
 }
 
 #[test]
-fn reads_the_layouts_before_durations_and_before_cases() {
+fn reads_the_untimed_layout_the_jvm_agent_writes() {
     let mut untimed = spec(vec![test("a.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]);
     untimed.version = LAYOUT.coverage.untimed;
-    let mut uncased = spec(vec![test("b.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]);
-    uncased.version = LAYOUT.coverage.uncased;
-    let folded = combined(&[&fixture::write(&untimed), &fixture::write(&uncased)]).unwrap();
+    let timed = spec(vec![test("b.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]);
+    let folded = combined(&[&fixture::write(&untimed), &fixture::write(&timed)]).unwrap();
     let (tests, _) = fixture::read(&folded.bytes);
     assert_eq!(tests, [("a.test.ts".to_owned(), true, None), ("b.test.ts".to_owned(), true, Some(9))]);
     assert_eq!(journey_columns::decode_any(&folded.bytes).unwrap().0, LAYOUT.coverage.format);
@@ -134,8 +154,10 @@ fn reads_the_layouts_before_durations_and_before_cases() {
 
 #[test]
 fn refuses_a_version_or_a_section_this_build_does_not_read() {
-    let refused_version = refused(&[&journey_columns::encode(Vec::new(), 7).unwrap()]);
-    assert!(refused_version.contains("unsupported record version: 7"), "{refused_version}");
+    for version in [7, LAYOUT.coverage.format - 1] {
+        let refused_version = refused(&[&journey_columns::encode(Vec::new(), version).unwrap()]);
+        assert!(refused_version.contains(&format!("unsupported record version: {version}; this build reads versions 8 and 10")), "{refused_version}");
+    }
     let mut held = spec(vec![test("a.test.ts")], Vec::new());
     held.parts.push(("index", Vec::new()));
     let mut bytes = fixture::write(&held);
@@ -302,10 +324,10 @@ fn refuses_a_case_file_two_shards_ran_by_both_names_whatever_their_order() {
 }
 
 #[test]
-fn refuses_an_index_this_build_cannot_read_and_says_to_record_it_again() {
+fn refuses_an_index_it_cannot_read_with_the_reader_s_own_reason() {
     let message = refused(&[&cases_alone(vec![0xff; 16], "a.test.ts")]);
-    assert!(message.contains("cannot read the case index of shard-0.bin"), "{message}");
-    assert!(message.ends_with("Record it again with this version."), "{message}");
+    let reason = case_shard::read_shard(&[0xff; 16], &mut HashMap::new()).err().unwrap();
+    assert_eq!(message, format!("cannot read the case index of shard-0.bin: {reason}"));
 }
 
 #[test]
@@ -323,7 +345,7 @@ fn refuses_lines_on_a_file_two_shards_cut_differently_by_the_shard_and_the_file(
 fn a_record_that_is_not_there_is_refused_by_name() {
     let missing = std::env::temp_dir().join(format!("variance-combine-missing-{}.bin", std::process::id()));
     let path = missing.to_string_lossy().into_owned();
-    let error = combine(&[path.clone()]).err().expect("the combine is refused");
+    let error = combine(&[path.clone()], &[]).err().expect("the combine is refused");
     assert_eq!(error, format!("there is no record at {path}"));
 }
 
@@ -391,10 +413,10 @@ fn based(file: &'static str, before: Vec<u8>) -> Vec<u8> {
 }
 
 #[test]
-fn a_shard_that_found_no_record_combines_beside_shards_that_found_one() {
-    // A shard job that restored no record lays its cases over nothing: its
-    // last-run layer begins, and it holds no before layer and names no before
-    // commit. Its files are ones the others' before layer cannot answer for.
+fn fails_the_build_when_one_shard_found_no_record_and_another_found_one() {
+    // A shard job that restored no record split the suite against no plan,
+    // and one that restored the record split it against that record's: a test
+    // may have run in neither. The build fails, naming both, in either order.
     let mut found = cased("a.test.ts", "1");
     found.parts = vec![
         ("index", cases("a.test.ts", "1")),
@@ -404,22 +426,21 @@ fn a_shard_that_found_no_record_combines_beside_shards_that_found_one() {
     let mut began = cased("b.test.ts", "1");
     began.parts[1] = ("last", br#"{"commit":"c0ffee","at":"1","files":["b.test.ts"],"began":true,"cases":["b.test.ts > adds"]}"#.to_vec());
     let (found, began) = (fixture::write(&found), fixture::write(&began));
-    let folded = combined(&[&began, &found]).unwrap();
-    assert_eq!(folded.bytes, combined(&[&found, &began]).unwrap().bytes);
-    let record = record_coverage::read(&folded.bytes).unwrap();
-    assert!(record.parts.before.is_some());
-    let last: serde_json::Value = serde_json::from_slice(record.parts.last.as_deref().unwrap()).unwrap();
-    assert_eq!(
-        (&last["before"], last.get("began"), &last["unbased"]),
-        (&serde_json::json!("beef"), None, &serde_json::json!(["b.test.ts"]))
-    );
+    for (records, started) in [
+        ([&began, &found], "shard-0.bin started from no record, and shard-1.bin from the before layer of commit `beef`."),
+        ([&found, &began], "shard-0.bin started from the before layer of commit `beef`, and shard-1.bin from no record."),
+    ] {
+        let message = refused(&[records[0], records[1]]);
+        assert!(message.starts_with("the build failed because the sharding was unstable: "), "{message}");
+        assert!(message.contains(started), "{message}");
+    }
 }
 
 #[test]
-fn refuses_a_before_layer_this_build_cannot_read_and_says_to_record_it_again() {
+fn refuses_a_before_layer_it_cannot_read_with_the_reader_s_own_reason() {
     let message = refused(&[&based("a.test.ts", vec![0xff; 16]), &based("b.test.ts", cases("b.test.ts", "1"))]);
-    assert!(message.starts_with("cannot read the before layer of shard-0.bin: "), "{message}");
-    assert!(message.ends_with("Record it again with this version."), "{message}");
+    let reason = case_shard::read_shard(&[0xff; 16], &mut HashMap::new()).err().unwrap();
+    assert_eq!(message, format!("cannot read the before layer of shard-0.bin: {reason}"));
 }
 
 #[test]

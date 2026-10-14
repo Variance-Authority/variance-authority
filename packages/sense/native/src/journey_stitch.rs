@@ -57,7 +57,7 @@ fn stitch(files: &[String]) -> Result<(Folded, u32), String> {
             .map_err(|error| format!("cannot read journey artifact {file}: {error}"))?;
         shards.push(shard);
     }
-    let folded = case_fold::fold(shards, inventories).map_err(|error| format!("cannot stitch journey artifacts: {error}"))?;
+    let folded = case_fold::fold(shards, inventories, false).map_err(|error| format!("cannot stitch journey artifacts: {error}"))?;
     Ok((folded, files.len() as u32))
 }
 

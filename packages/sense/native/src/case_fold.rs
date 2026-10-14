@@ -39,7 +39,9 @@ pub(crate) struct Folded {
 type Key = (String, String, String, Option<String>);
 
 /// Fold `shards`, whose cuts `case_shard::read_shard` gathered in `inventories`.
-pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inventory>>) -> Result<Folded, String> {
+/// `always_timed` writes the duration column where no case was timed, as a
+/// record's case index carries it.
+pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inventory>>, always_timed: bool) -> Result<Folded, String> {
     if shards.is_empty() {
         return Err("no case indexes were named".to_owned());
     }
@@ -131,7 +133,7 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
         landings.push(lands);
     }
     let rows: HashMap<&str, usize> = modules.iter().enumerate().map(|(at, module)| (module.file.as_str(), at)).collect();
-    let mut extras = CaseExtras { durations: vec![None; tests.len()], lines: vec![Vec::new(); tests.len()], always_timed: true };
+    let mut extras = CaseExtras { durations: vec![None; tests.len()], lines: vec![Vec::new(); tests.len()], always_timed };
     for shard in &mut shards {
         for module in &mut shard.modules {
             module.inventory = placed[&module.file][module.inventory];
@@ -159,12 +161,8 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
                     shard.name, tests[global].id
                 )
             })?;
-            let held = &mut extras.lines[global];
-            if held.is_empty() {
-                *held = lines;
-            } else if *held != lines {
-                return Err(format!("two shards recorded different lines for case {:?}", tests[global].id));
-            }
+            // One build cuts a file one way: a case two shards hold has the same lines in both.
+            extras.lines[global] = lines;
         }
         shard.modules.sort_by(|left, right| order::code_unit(&left.file, &right.file));
     }
