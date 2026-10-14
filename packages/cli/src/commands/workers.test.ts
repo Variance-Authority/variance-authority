@@ -132,6 +132,44 @@ describe('workers', () => {
     expect(report.warnings).toContainEqual(expect.stringMatching(/supplies no `openWorker`/));
   });
 
+  it('runs a changed subject alone from whichever world read it, and says the same of it at any width', async () => {
+    // A worker is a standing world and opens nothing alone; the clean world is
+    // the run's collector's to open, as it is for the shipped collectors.
+    function leaking(): Collector {
+      const dark = (id: string) => documentFor(id, '<div data-va-path="0" data-paint="dark">x</div>');
+      const world = (): Collector => ({
+        async plan() {
+          return planOf(4, 1);
+        },
+        async collect(planned) {
+          return { ok: true, document: dark(planned.subject.id) };
+        },
+        async close() {
+          /* nothing to release */
+        },
+      });
+      return {
+        ...world(),
+        async collectAlone(planned) {
+          return { ok: true, document: documentFor(planned.subject.id) };
+        },
+        openWorker: async () => world(),
+      };
+    }
+    const baseline = whiteBaselineOf(documentFor('fixture:f0-s0'));
+    const [one, three] = await Promise.all(
+      [1, 3].map(async (workers) =>
+        runWith(configOf({ workers }), leaking(), storeAnswering(baseline), { renderer: painter() }),
+      ),
+    );
+
+    expect(three!.report.workers).toBe(3);
+    expect(one!.report.observations.map((o) => o.alone?.because)).toEqual(
+      Array.from({ length: 4 }, () => expect.stringContaining('matches its baseline when run alone')),
+    );
+    expect(three!.report.observations).toEqual(one!.report.observations);
+  });
+
   it('takes half the machine when no width was declared, and exactly the width that was', () => {
     expect([16, 4, 3, 2, 1].map((cores) => workersOf(configOf(), cores))).toEqual([8, 2, 1, 1, 1]);
     expect(workersOf(configOf({ workers: 1 }), 16)).toBe(1);

@@ -80,10 +80,28 @@ export async function closeLanes(lanes: readonly Lane[]): Promise<void> {
   await Promise.all(lanes.slice(1).map(async (lane) => lane.collector.close()));
 }
 
-/** The context a lane's subjects are decided in: second readings stay in its world. */
+/**
+ * The context a lane's subjects are decided in: a second reading stays in its
+ * world, and a reading alone is opened by whichever collector can open one.
+ *
+ * A worker is a standing world and opens nothing alone; the clean world is the
+ * run's collector's to build, from the same recipe. Without it a subject's
+ * evidence would depend on the world it drew: the same change read alone in
+ * one world and "not re-run alone" in another.
+ */
 export function contextFor(context: ObserveContext, lane: Lane): ObserveContext {
-  if (lane.collector === context.deps.collector) return context;
-  return { ...context, deps: { ...context.deps, collector: lane.collector } };
+  const own = context.deps.collector;
+  const worker = lane.collector;
+  if (worker === own) return context;
+  const isolated = worker.collectAlone === undefined ? own : worker;
+  const collector: Collector = {
+    plan: async () => worker.plan(),
+    collect: async (planned) => worker.collect(planned),
+    ...(worker.callSites !== undefined ? { callSites: worker.callSites } : {}),
+    ...(isolated.collectAlone !== undefined ? { collectAlone: isolated.collectAlone.bind(isolated) } : {}),
+    close: async (costs) => worker.close(costs),
+  };
+  return { ...context, deps: { ...context.deps, collector } };
 }
 
 /**

@@ -21,6 +21,11 @@ and the run warns about it only when you set `workers`. Verdicts and the order
 of observations do not depend on the count, and the report's new `workers` field
 records it. `variance collect` takes the same width.
 
+A changed subject read in a second world is now run alone like one read in the
+first. A worker opens no clean world of its own, so the run asked the worker and
+reported "not re-run alone: collector has no `collectAlone`"; it now asks the
+collector that can open one.
+
 Each observation in the report also carries `steps` beside `costMs`: every
 phase the subject went through, in the order it ran, with its wall time. The
 collector's phases are named `collect.*` (`collect.navigate`,
