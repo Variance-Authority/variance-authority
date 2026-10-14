@@ -26,4 +26,16 @@ describe('scanSource', () => {
       Button: [{ file: join('src', 'Button.tsx'), line: 4, via: 'function' }],
     });
   });
+
+  it('refuses a dirs list that matches no source file, as the operator’s to fix', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-source-'));
+    made.push(root);
+
+    expect(() => scanSource(root, { dirs: ['missing'] })).toThrow(
+      expect.objectContaining({
+        message: expect.stringContaining(`no source files under missing (from ${root})`),
+        varianceOperatorError: true,
+      }),
+    );
+  });
 });
