@@ -1,4 +1,4 @@
-//! The functions a module hands to another realm as text.
+//! Function syntax consumed by another realm or by a compile-time DSL.
 //!
 //! `page.evaluate(fn)` does not call `fn`: it sends `fn.toString()` to the
 //! page and the page compiles it there, where nothing this module declares
@@ -55,17 +55,18 @@ pub const CROSSINGS: [(&str, usize); 8] = [
 
 /// The span of every function `program` hands to another realm.
 ///
-/// Scope analysis is built only for a module that names a function at a
-/// crossing call; most modules write theirs at the call or cross nothing.
+/// Scope analysis is built only for named crossing arguments or Compiled
+/// imports; most modules write theirs at the call or cross nothing.
 pub fn crossing<'a>(program: &'a Program<'a>) -> HashSet<(u32, u32)> {
     let mut sites = Sites { found: HashSet::new(), named: false, semantic: None };
     sites.visit_program(program);
-    if !sites.named {
+    if !sites.named && !crate::compiled::has_styles(program) {
         return sites.found;
     }
     let built = SemanticBuilder::new().with_build_nodes(true).build(program);
     let mut sites = Sites { found: sites.found, named: false, semantic: Some(&built.semantic) };
     sites.visit_program(program);
+    sites.found.extend(crate::compiled::callbacks(program, &built.semantic));
     sites.found
 }
 
@@ -129,7 +130,7 @@ fn function_span(expression: &Expression) -> Option<(u32, u32)> {
 }
 
 /// The function a name's binding holds, when this module declares one.
-fn bound(semantic: &Semantic, id: &IdentifierReference) -> Option<(u32, u32)> {
+pub(super) fn bound(semantic: &Semantic, id: &IdentifierReference) -> Option<(u32, u32)> {
     let scoping = semantic.scoping();
     let symbol = scoping.get_reference(id.reference_id.get()?).symbol_id()?;
     if scoping.symbol_is_mutated(symbol) {
@@ -161,6 +162,27 @@ mod tests {
         let mut spans: Vec<_> = crossing(program).into_iter().collect();
         spans.sort_unstable();
         spans.into_iter().map(|(start, end)| source[start as usize..end as usize].to_string()).collect()
+    }
+
+    #[test]
+    fn compiled_style_callbacks_are_compiler_input() {
+        let source = "import { styled as design, css } from '@compiled/react';\nconst Button = design.button({ width: p => p.small ? '24px' : '32px' }, p => p.active && css({ color: 'red' }));\n";
+        assert_eq!(crossing_text(source), ["p => p.small ? '24px' : '32px'", "p => p.active && css({ color: 'red' })"]);
+    }
+
+    #[test]
+    fn compiled_named_styles_cross_but_the_component_is_runtime() {
+        let source = "import { styled } from '@compiled/react'; const style = p => p.active; const Button = styled(p => render(p))(style);";
+        assert_eq!(crossing_text(source), ["p => p.active"]);
+        let source = "import { styled } from '@compiled/react'; const Button = styled.button`color: ${p => p.color}`;";
+        assert_eq!(crossing_text(source), ["p => p.color"]);
+    }
+
+    #[test]
+    fn unrelated_and_shadowed_style_names_keep_their_probes() {
+        let source = "import { styled } from '@compiled/react';\nfunction runtime(styled) { return styled.button(p => p.active); }\nlist.map(p => p.active);\n";
+        assert!(crossing_text(source).is_empty());
+        assert!(crossing_text("import { styled } from 'styled-components'; const B = styled.button(p => p.active);").is_empty());
     }
 
     #[test]
