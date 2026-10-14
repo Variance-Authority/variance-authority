@@ -85,7 +85,10 @@ Set to a ref, it also names the base for a snapshot that names no commit.
 and a value that is not a range fails the run. Before the first file starts,
 stderr shows one line: `selected 12 of 340`, `selected none of 340`, or
 `declined:` and the reason the selection could not be read, in which case
-every file runs. A test file the snapshot has never seen runs.
+every file runs. A test file the snapshot has never seen runs. A run the
+selection leaves nothing to run — `selected none`, or a shard that took none of
+the files kept — passes: the seam sets `passWithNoTests` for that run. A run
+that drops nothing keeps your setting.
 
 The files are removed in a `sequence.sequencer` that wraps the one your
 configuration names, before it shards and sorts, so every shard divides the

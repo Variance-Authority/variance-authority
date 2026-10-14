@@ -132,7 +132,8 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 - **Read the first stderr line.** `variance-authority: selected N of M` is the
   run you asked for. `declined:` means the selection could not be read and every
   file ran; the reason follows it. `selected none of M` means the edit reached
-  no recorded test: a type or comment edit, or a file no test ran.
+  no recorded test: a type or comment edit, or a file no test ran. Under
+  Vitest that run passes, with nothing run.
 - **Each run lands.** The next edit is measured from what each test last ran,
   so a test the near leg left out still runs in the far leg, and in the next
   run if you skip that.
