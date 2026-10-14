@@ -16,7 +16,8 @@ import { EXECUTION_GLOBAL, recordExecution, type ExecutionCollector } from './jo
 // extractor that reads `css()`'s arrow and fails on anything but a condition
 // between two strings. The build passes, the page it ships runs, and what the
 // page ran is recorded under the regions the author wrote; the virtual entry,
-// which no file holds, is not among them.
+// which no file holds, is not among them. With `placement:
+// 'before-transforms'` the rule runs first, and the extractor reads the probes.
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -61,5 +62,18 @@ describe('a page Rspack built, a syntax-reading compiler among its loaders', () 
       ['shade', 'if#0/after', 9, 9, []],
     ]);
     expect(module?.sourceDigest).toBe(digestString(await readFile(resolve(fixture, 'src/tone.ts'), 'utf8')));
+  }, 60_000);
+
+  it('places the probes ahead of the loaders with `placement: \'before-transforms\'`, where the extractor reads them', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-rspack-'));
+    temporary.push(directory);
+    const failed = await execute(process.execPath, [resolve(fixture, 'rspack.build.mjs'), resolve(directory, 'out')], {
+      cwd: fixture,
+      env: { ...process.env, VARIANCE_AUTHORITY_PLACEMENT: 'before-transforms' },
+    }).then(
+      () => undefined,
+      (error: { stdout: string; stderr: string }) => `${error.stdout}${error.stderr}`,
+    );
+    expect(failed).toMatch(/extractor: `[^`]*__va\([^`]*` is unable to have its styles extracted/);
   }, 60_000);
 });

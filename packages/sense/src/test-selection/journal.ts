@@ -100,6 +100,9 @@ export { moduleId } from './captured-modules.js';
 /** The probe recipe both halves of this seam have to agree on. */
 export type { InstrumentMode };
 
+/** Where the probes go: after the project's transforms, or ahead of them. */
+export type { ProbePlacement } from './instrumented-modules.js';
+
 // What a driver observed, and how a run recorded by several processes is
 // joined: both are the journal seam's surface, and neither is this file's
 // subject, which is the one call that turns a journal into the index.

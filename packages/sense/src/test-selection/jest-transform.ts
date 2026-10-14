@@ -41,7 +41,7 @@ import { cadence, type CutTestFile } from '../instrument/cadence.js';
 import { behindCut, inlineBehindCut } from './cut-map.js';
 import { probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { markUnplaced, placeModule, planModule } from './captured-modules.js';
-import { defaultInclude, projectPath } from './instrumented-modules.js';
+import { defaultInclude, projectPath, type ProbePlacement } from './instrumented-modules.js';
 import { probedAfter } from './jest-after.js';
 import type { SelectionTransformerConfig } from './jest.js';
 import { namesItsMap, type TransformSourceMap } from './source-lines.js';
@@ -145,7 +145,7 @@ export async function createTransformer(
     );
   }
   const excluded = new Set((config.exclude ?? []).map((file) => resolve(file)));
-  const how: Placing = { mode, excluded, unprobed: unprobedMatcher(config.unprobed) };
+  const how: Placing = { mode, excluded, unprobed: unprobedMatcher(config.unprobed), placement: config.placement ?? 'after-transforms' };
   const cuts = config.cadence !== false;
   const cutOf = (source: string, path: string, options: JestTransformRequest): CutTestFile | undefined =>
     cuts && isTestFile(path, options.config) ? cadence(source, path) : undefined;
@@ -179,6 +179,8 @@ export async function createTransformer(
       .update(JSON.stringify(config.unprobed ?? null))
       .update('\0')
       .update(cuts ? 'cadence' : '')
+      .update('\0')
+      .update(how.placement)
       .digest('hex')
       .slice(0, 32);
   // A transformer that rewrote a module and returned no map leaves nothing to
@@ -242,6 +244,7 @@ interface Placing {
   readonly mode: InstrumentMode;
   readonly excluded: ReadonlySet<string>;
   readonly unprobed: ((file: string) => boolean) | undefined;
+  readonly placement: ProbePlacement;
 }
 
 /** What no wrapped transformer touches: the probes, or the cut and its map. */
@@ -282,13 +285,13 @@ function place(
 
 /**
  * Whether a module's probes go into what the inner transformer wrote: every
- * one that gets probes. A file that names its own map, a build's output, is
+ * one that gets probes, unless the run places them `before-transforms`. A file that names its own map, a build's output, is
  * placed after too wherever its transformer's map leads back to it, as
  * `babel-jest` does reading no map from a file beside it; one that composed
  * the build's map answers in the build's sources, and is probed first.
  */
 function after(path: string, options: JestTransformRequest, how: Placing): boolean {
-  return probes(path, options, how);
+  return how.placement === 'after-transforms' && probes(path, options, how);
 }
 
 /** Whether a module gets probes, rather than a cut or nothing: neither excluded nor a test. */

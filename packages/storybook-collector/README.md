@@ -371,7 +371,9 @@ Pass the probes' options as the addon's: `{ name:
 '@variance-authority/storybook-collector', options: { mode: 'entries' } }`.
 `include` decides which modules are your source, every file outside
 `node_modules` and `dist` that is not a test or a config by default; `root` is a
-directory in the repository, the cwd by default.
+directory in the repository, the cwd by default. `placement:
+'before-transforms'` places the probes in each file as read, ahead of every
+compiler; a Storybook that runs an extractor keeps the default.
 
 ```js
 // variance/storybook.mjs

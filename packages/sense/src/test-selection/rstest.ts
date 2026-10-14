@@ -24,7 +24,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { InstrumentMode } from '../instrument/index.js';
-import { defaultInclude } from './instrumented-modules.js';
+import { defaultInclude, type ProbePlacement } from './instrumented-modules.js';
 import { PROBES_LOADER, SELECTION_LOADER, unprobedFiles } from './rstest-loaders.js';
 import { carriedJournal, reportedDuration, statusesComplete } from './finished-files.js';
 import { foldRun } from './selection-fold.js';
@@ -76,6 +76,14 @@ export interface RstestTestSelectionOptions {
    * ran before the file's first test.
    */
   readonly mode?: InstrumentMode;
+  /**
+   * Where the probes go. `after-transforms`, the default, places them after
+   * the project's loaders, through the map Rspack hands on, so a compiler
+   * that reads syntax reads none. `before-transforms` places them in the file
+   * as read, ahead of every loader, one parse and no map: for a suite whose
+   * loaders only strip types or JSX.
+   */
+  readonly placement?: ProbePlacement;
   /**
    * Follow each case through the async context, and name the cases whose work
    * outlived them.
@@ -217,6 +225,7 @@ export function withTestSelection(
   run.include = (file: string): boolean => !globalSetup.has(file) && chosen(file);
   const marked = options.unprobed;
   run.unprobed = marked === undefined ? undefined : (file: string): boolean => !globalSetup.has(file) && marked(file);
+  run.placement = options.placement ?? 'after-transforms';
   run.cadence = options.cadence === false
     ? undefined
     : testFilesAt(configRoot, undefined, config['include'] as readonly string[] | undefined);

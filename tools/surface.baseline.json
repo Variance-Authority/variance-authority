@@ -3125,6 +3125,7 @@
         "ObservedSubject": "interface",
         "PreconditionListener": "interface",
         "PreconditionStanding": "type",
+        "ProbePlacement": "type",
         "ProbesLoaderOptions": "interface",
         "RecordExecutionOptions": "interface",
         "STAGE_VARIABLE": "const",

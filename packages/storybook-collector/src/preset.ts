@@ -14,8 +14,8 @@
  * `rsbuildFinal` and `webpackFinal` add `testSelectionRule`. Both probe after
  * every compiler the project configured, so a Compiled, Emotion or Linaria
  * extractor reads the file as written. The addon's options are the probes'
- * own, `root`, `mode` and `include`, and `mode` has to be the one the
- * collector's `tests` reads.
+ * own, `root`, `mode`, `include` and `placement`, and `mode` has to be the one
+ * the collector's `tests` reads.
  */
 
 import {
@@ -33,6 +33,7 @@ function probesOptions(options: PresetOptions): TestSelectionRuleOptions {
     ...(options.root === undefined ? {} : { root: options.root }),
     ...(options.mode === undefined ? {} : { mode: options.mode }),
     ...(options.include === undefined ? {} : { include: options.include }),
+    ...(options.placement === undefined ? {} : { placement: options.placement }),
   };
 }
 

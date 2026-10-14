@@ -39,6 +39,11 @@ describe('rsbuildFinal', () => {
     const config = (await rsbuildFinal({}, { mode: 'entries' })) as { tools: { rspack: unknown[] } };
     expect(rulesOf(config.tools.rspack)[0]?.use[0]?.options['mode']).toBe('entries');
   });
+
+  it('hands the probes the placement the addon was given', async () => {
+    const config = (await rsbuildFinal({}, { placement: 'before-transforms' })) as { tools: { rspack: unknown[] } };
+    expect(rulesOf(config.tools.rspack)[0]?.enforce).toBe('pre');
+  });
 });
 
 describe('webpackFinal', () => {

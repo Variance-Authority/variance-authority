@@ -4,7 +4,7 @@ import type { UserConfig } from 'vitest/config';
 import type { InstrumentMode } from '../instrument/index.js';
 import { captureAfter, placeModule, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
 import type { UnmappedStep } from './unmapped-transforms.js';
-import { defaultInclude } from './instrumented-modules.js';
+import { defaultInclude, type ProbePlacement } from './instrumented-modules.js';
 import { writeCut } from './case-cut.js';
 import { caseRunnerSource, setupSource } from './worker-source.js';
 import { foldRun } from './selection-fold.js';
@@ -58,6 +58,14 @@ export interface TestSelectionOptions {
    * ran before the file's first test.
    */
   readonly mode?: InstrumentMode;
+  /**
+   * Where the probes go. `after-transforms`, the default, places them in what
+   * the project's transforms wrote, through the map Vite composes, so a
+   * compiler that reads syntax reads none. `before-transforms` places them in
+   * the file as read, one parse and no map: for a suite whose transforms only
+   * strip types or JSX.
+   */
+  readonly placement?: ProbePlacement;
   /**
    * Follow each case through the async context, and name the cases whose work
    * outlived them.
@@ -182,7 +190,7 @@ export function withTestSelection(
   }
 
   const cut = options.cadence === false ? undefined : testFiles(config, configRoot);
-  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { capture, after }, mode, declared, settle, cut);
+  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms');
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
   const continuations = options.continuations === true;

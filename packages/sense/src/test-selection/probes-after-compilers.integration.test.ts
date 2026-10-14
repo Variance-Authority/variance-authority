@@ -150,6 +150,17 @@ describe('a compiler that reads the syntax it compiles', () => {
     ]);
   });
 
+  it('places the probes in the file as read with `placement: \'before-transforms\'`, where the extractor reads them', async () => {
+    const root = await workspace();
+    await expect(build({
+      root,
+      configFile: false,
+      logLevel: 'silent',
+      plugins: [testSelectionProbes({ root, placement: 'before-transforms' }), extractor()],
+      build: { write: false, rollupOptions: { input: resolve(root, 'src/main.js') } },
+    })).rejects.toThrow(/extractor: `[^`]*__va\([^`]*` is unable to have its styles extracted/);
+  });
+
   it('stops the build, naming the plugin, where a transform rewrote the file and returned no map at all', async () => {
     const root = await workspace();
     // Every line moves down one, and the result carries no `map`.

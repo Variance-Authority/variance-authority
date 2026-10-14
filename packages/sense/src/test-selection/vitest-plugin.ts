@@ -8,7 +8,7 @@ import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { cadence, type CutSourceMap } from '../instrument/cadence.js';
 import type { InstrumentMode } from '../instrument/index.js';
 import { heldOriginal, pathOf, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
-import { cleanId, projectPath } from './instrumented-modules.js';
+import { cleanId, projectPath, type ProbePlacement } from './instrumented-modules.js';
 import { readFinished, type FinishedFile } from './finished-files.js';
 import { browserSetupSource } from './worker-source.js';
 import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
@@ -77,10 +77,13 @@ export function selectionPlugin(
   declared: readonly string[],
   settle: (files: readonly FinishedFile[]) => Promise<void>,
   cut: ((file: string) => boolean) | undefined,
+  placement: ProbePlacement,
 ): [VitePlugin, ProbesPlugin] {
   const { modules } = run;
   let closing: Promise<void> | undefined;
   let inPage = false;
+  /** Probes go in ahead of every transform, here, and the probes plugin passes every module by. */
+  const before = placement === 'before-transforms';
   /** The modules of this seam's own, and a `globalSetup` file, which no probe may sit in. */
   const own = (file: string): boolean => file === setupId || file === runnerId || globalSetup.has(file);
   /** A test file the run cuts: the file itself only, since a query asks for a module built from it. */
@@ -192,9 +195,11 @@ export function selectionPlugin(
       // single-file component's block: probed after the transforms, below,
       // through the map back to the file, or marked as loaded where none
       // leads back.
-      if (id !== file && !inPage) return null;
-      const text = id === file && !inPage ? disk(file) : undefined;
-      if (id === file && !inPage) {
+      // With `before-transforms`, every module is probed here, on the text as read.
+      const late = !inPage && !before;
+      if (id !== file && late) return null;
+      const text = id === file && late ? disk(file) : undefined;
+      if (id === file && late) {
         if (text === undefined || !namesItsMap(text)) {
           // A case says which line of the file on disk was running, so a test
           // file a `load` hook changed has no line of the author's to cut.
@@ -234,6 +239,8 @@ export function selectionPlugin(
     // nothing, so every other plugin is watched for one.
     enforce: 'post',
     configResolved(config) {
+      // Ahead of every transform, no map is read, so no step is watched for one.
+      if (before) return;
       const { plugins } = config as unknown as { plugins: readonly { name: string; transform?: unknown }[] };
       notes = watchUnmapped(plugins, PROBES);
       warnTransformsAfter(plugins, PROBES);
@@ -242,7 +249,7 @@ export function selectionPlugin(
       const file = cleanId(id);
       const text = held.get(id);
       held.delete(id);
-      if (own(file) || inPage || first.delete(id)) return null;
+      if (own(file) || inPage || before || first.delete(id)) return null;
       const original = heldOriginal(file, text);
       const captured = after(file, code, () => this.getCombinedSourcemap(), unmappedSteps(this, id, notes), id !== file, original);
       if (captured === undefined) return null;

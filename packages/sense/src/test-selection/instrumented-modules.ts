@@ -15,6 +15,18 @@ import type { CoverageBlock } from './index.js';
 
 export type { ModuleId };
 
+/**
+ * Where a module's probes go, on every seam that places them.
+ *
+ * `after-transforms`, the default, places them in what the project's
+ * transforms wrote, through the map back to the file, so a compiler that reads
+ * syntax never reads a probe. `before-transforms` places them in the file as
+ * read, ahead of every transform: one parse and no map, for a run whose
+ * transforms only strip types or JSX. A compiler that reads syntax, such as
+ * Compiled or the React Compiler, then reads the probes too.
+ */
+export type ProbePlacement = 'after-transforms' | 'before-transforms';
+
 /** One module the transform saw, whether or not it could read it. */
 export interface CapturedModule {
   /** Repository-relative, forward-slashed: the same path a coverage row carries. */

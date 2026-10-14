@@ -5,13 +5,15 @@
  * The loader runs at `enforce: 'post'`, after SWC, Babel and every loader the
  * project configured, so a compiler that reads syntax never reads a probe; the
  * placement is the one every Rspack seam shares
- * ([`loader-probes.ts`](./loader-probes.ts)). Each probed module opens with an
+ * ([`loader-probes.ts`](./loader-probes.ts)). With `placement:
+ * 'before-transforms'` it runs at `enforce: 'pre'` on the file as read. Each probed module opens with an
  * import of the page collector, served by the same loader, as
  * `testSelectionProbes` opens each with its virtual module under Vite.
  */
 
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
+import type { ProbePlacement } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
 
 /** What `testSelectionRule` takes: where names start, which modules are yours, and the probe recipe. */
@@ -25,6 +27,12 @@ export interface TestSelectionRuleOptions {
   readonly include?: (file: string) => boolean;
   /** The probe recipe, as `testSelectionProbes` takes it: one answer for every seam that shares a coverage file. */
   readonly mode?: InstrumentMode;
+  /**
+   * Where the probes go: after the project's loaders, the default, or ahead of
+   * them, one parse and no map, for a build whose loaders only strip types or
+   * JSX. A compiler that reads syntax then reads the probes.
+   */
+  readonly placement?: ProbePlacement;
 }
 
 /** What the loader reads: data only, since Rspack hands loader options to its core and back. */
@@ -34,12 +42,13 @@ export interface ProbesLoaderOptions {
   readonly mode?: InstrumentMode;
   /** The key {@link testSelectionRule} registered `include` under, in this realm. */
   readonly include?: string;
+  readonly placement?: ProbePlacement;
 }
 
 /** A rule for `module.rules`, in the shape Rspack and webpack both read. */
 export interface TestSelectionRule {
   readonly test: RegExp;
-  readonly enforce: 'post';
+  readonly enforce: 'pre' | 'post';
   readonly use: readonly [{ readonly loader: string; readonly options: ProbesLoaderOptions }];
 }
 
@@ -72,8 +81,10 @@ export function testSelectionRule(options: TestSelectionRuleOptions = {}): TestS
     root: repositoryRoot(options.root ?? process.cwd()),
     ...(options.mode === undefined ? {} : { mode: options.mode }),
     ...(options.include === undefined ? {} : { include: registered(options.include) }),
+    ...(options.placement === undefined ? {} : { placement: options.placement }),
   };
-  return { test: /\.[cm]?[jt]sx?$/, enforce: 'post', use: [{ loader: PROBES_LOADER, options: loaderOptions }] };
+  const enforce = options.placement === 'before-transforms' ? 'pre' : 'post';
+  return { test: /\.[cm]?[jt]sx?$/, enforce, use: [{ loader: PROBES_LOADER, options: loaderOptions }] };
 }
 
 /** Every `include` a rule in this realm carries, by key. Global, so two copies of this module share it. */

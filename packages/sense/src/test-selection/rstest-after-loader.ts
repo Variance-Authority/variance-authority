@@ -14,8 +14,9 @@
  *
  * The test files the run cuts were cut before SWC, by the
  * [`enforce: 'pre'` loader](./rstest-loader.ts), and their map carries the
- * cut. A module whose file names its own map was probed there too, and passes
- * here untouched, as do the seam's own setup shim and a build whose snapshot
+ * cut. A module whose file names its own map was probed there too, as is
+ * every module of a run that places its probes `before-transforms`, and
+ * passes here untouched, as do the seam's own setup shim and a build whose snapshot
  * names no run.
  */
 
@@ -39,7 +40,8 @@ function probeAfter(this: AfterLoaderContext, code: string, handed?: HandedMap):
   const file = cleanId(this.resourcePath);
   const run = runOf(this.getOptions().coverageFile);
   run?.awaiting.delete(file);
-  if (run === undefined || run.shims.has(file)) {
+  // With `before-transforms`, the first loader placed them.
+  if (run === undefined || run.shims.has(file) || run.placement === 'before-transforms') {
     this.callback(null, code, handed);
     return;
   }

@@ -346,7 +346,7 @@ and each name selects the tests recorded under it.
 ### Options on the Vitest seam
 
 The optional second argument accepts `root`, `suite`, `coverageFile`,
-`include`, `unprobed`, `preconditions`, `mode`, `continuations`, `cadence`, and `selection`.
+`include`, `unprobed`, `preconditions`, `mode`, `placement`, `continuations`, `cadence`, and `selection`.
 
 | option | default | use it when |
 |---|---|---|
@@ -357,6 +357,7 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | `unprobed` | none | product source a probe cannot sit in, such as a module whose functions you hand to `page.evaluate`, where the first probe throws. It is asked under the same names as `include`, and wins over it; the module runs unprobed with a mark at the end of its text, and a change to it selects every test that loaded it. A module you build into a bundle and inject into a page is not loaded by any test, so no mark reaches it: name the bundle's entry in the [`before`](https://variance-authority.dev/docs/changes-before-and-beyond#how-a-change-before-reach-is-declared) of the suite that injects it |
 | `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings or a fixture read with `fs` |
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them |
+| `placement` | `'after-transforms'` | `'before-transforms'` places the probes in the file as read, ahead of your transforms, for a run whose transforms only strip types or JSX ([below](#place-the-probes-ahead-of-your-transforms)) |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
 | `cadence` | on | `false` leaves test files as you wrote them, and the record without the test line that reached each region ([below](#record-which-test-line-reached-a-region)) |
 | `selection` | read from `@variance-authority/cli` when `VARIANCE_AUTHORITY_SINCE` is set | you compute the selection yourself: a function returning the `SuiteSelection` whose `skip` the run removes |
@@ -393,6 +394,33 @@ A root-only wrap is the shape that looks right and records nothing: the reporter
 runs, the file is written, and it lists no source under any test. That run
 prints a warning on the way out — `instrumented 0 modules across N test
 file(s)`.
+
+### Place the probes ahead of your transforms
+
+By default every seam places the probes after your transforms: each module is
+read once from disk, its regions are cut from that text, and the probes go into
+what your transforms wrote, where their map carries each region. A compiler
+that reads the syntax it compiles, such as Compiled, Linaria or React Compiler,
+then reads your file without probes in it. That costs a second parse, of the
+transformed text, and the map that leads back to the file.
+
+A unit-test run whose transforms only strip types or JSX has nothing that
+reads syntax, and can skip both. Set `placement: 'before-transforms'` and the
+probes go into the file as read, ahead of every transform: one parse, no map
+asked for, and no refusal for a transform that left none. The recorded regions
+are the same, since they were always cut from the file.
+
+```ts
+withTestSelection(config, { placement: 'before-transforms' });
+```
+
+The option has one name and one meaning on every seam that places probes: the
+Vitest, Jest and Rstest `withTestSelection`, `testSelectionProbes` and
+`testSelectionRule`. Nothing detects a syntax-reading compiler for you: React
+Compiler runs inside another plugin's Babel options, and each bundler names
+Compiled's step differently, so a check would miss as often as it caught. With a
+compiler like that in the run, the compiler reads the probes too, and its output
+changes or its extractor stops: keep the default.
 
 ## Record Jest journeys without selecting tests
 
@@ -606,7 +634,9 @@ export default withTestSelection({
 ```
 
 The second argument accepts `root`, `suite`, `coverageFile`, `preconditions`,
-`unprobed`, `mode`, `continuations`, `cadence`, and `selection`, with the meanings above. Jest does not report which
+`unprobed`, `mode`, `placement`, `continuations`, `cadence`, and `selection`, with the meanings above.
+With `placement: 'before-transforms'` the probes go into the file as Jest read
+it, and your transformer compiles the probed text. Jest does not report which
 config file it loaded, so name it in `preconditions`. `unprobed` is a list of
 globs rather than a function, because Jest hands its transformer options as
 data; relative globs resolve against `root`, as `preconditions` do, and a glob
@@ -773,7 +803,7 @@ export default defineConfig(withTestSelection({
 ```
 
 The second argument accepts `root`, `suite`, `coverageFile`, `include`,
-`unprobed`, `preconditions`, `mode`, `continuations`, and `cadence`, with the meanings above. Rstest
+`unprobed`, `preconditions`, `mode`, `placement`, `continuations`, and `cadence`, with the meanings above. Rstest
 does not report which config file it loaded, so name it in `preconditions`. The
 regions are cut from the text you wrote, so the lines a record carries are the
 ones you edited, and a second loader at `enforce: 'post'` writes the probes into
@@ -781,7 +811,8 @@ what SWC and your loaders wrote, where their map carries each region. A loader
 of yours that rewrites a file is handed the map so far and returns it composed
 with its own. A file that reaches the second loader with no map stops the run,
 naming the file: leave Rspack's `devtool` writing source maps, as Rstest sets
-it.
+it. With `placement: 'before-transforms'` the first loader writes the probes
+itself and the second passes each file through.
 
 Recording per case needs nothing from the configuration. Rstest has no runner option, so
 the per-case bracket goes around `it` and `test` themselves — on the realm when
@@ -936,7 +967,9 @@ export default {
 ```
 
 `testSelectionProbes` also takes `include`, which decides which transformed
-modules are product source, `mode`, and `journeys` with `label`, which install
+modules are product source, `mode`, `placement`, which at `'before-transforms'`
+runs it at `enforce: 'pre'` and places the probes in the file as read
+([above](#place-the-probes-ahead-of-your-transforms)), and `journeys` with `label`, which install
 a journey head for a service bundle under that name (`build` by default).
 
 `testSelectionProbes` runs at `enforce: 'post'`, after your transforms, so a
@@ -993,7 +1026,8 @@ export default {
 };
 ```
 
-It takes `root`, `include` and `mode`, as `testSelectionProbes` does. Its
+It takes `root`, `include`, `mode` and `placement`, as `testSelectionProbes`
+does; at `'before-transforms'` the rule runs at `enforce: 'pre'`. Its
 loader, `@variance-authority/sense/probes-loader`, which the rule names for you,
 runs at `enforce: 'post'`, after SWC, Babel and every loader you
 configured, so a compiler that reads syntax, such as Compiled's or Linaria's

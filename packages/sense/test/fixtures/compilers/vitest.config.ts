@@ -13,6 +13,8 @@ const root = fileURLToPath(new URL('.', import.meta.url));
 const source = resolve(root, 'src');
 const coverageFile = process.env['VARIANCE_AUTHORITY_COVERAGE'];
 if (coverageFile === undefined) throw new Error('VARIANCE_AUTHORITY_COVERAGE is required');
+// Where the probes go: after the project's transforms unless the test asks for before.
+const placement = process.env['VARIANCE_AUTHORITY_PLACEMENT'] as 'after-transforms' | 'before-transforms' | undefined;
 
 // After Vite's TypeScript transform, as a project's normal plugin runs.
 const extract: Plugin = {
@@ -22,5 +24,5 @@ const extract: Plugin = {
 
 export default withTestSelection(
   defineConfig({ root, plugins: [extract], test: { include: ['test/*.case.ts'], globals: true } }),
-  { coverageFile, include: (file) => file.startsWith(source) },
+  { coverageFile, include: (file) => file.startsWith(source), ...(placement === undefined ? {} : { placement }) },
 );

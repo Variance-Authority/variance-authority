@@ -147,6 +147,18 @@ are still probed, or marked, before the transforms:
   reads a test file's syntax reads the case marks. The cut keeps every line, and
   its map moves the columns back.
 
+**A run can choose the earlier placement.** Every seam that places probes
+takes `placement`: `'after-transforms'`, the default, places as the table
+says; `'before-transforms'` places them in the file as read, ahead of every
+transform, through `instrument` alone. `testSelectionProbes` and
+`testSelectionRule` then sit at `enforce: 'pre'`, the Vitest and Rstest second
+halves pass each file through, and the Jest wrapper probes before the wrapped
+transformer. No map is read, so nothing in the Refused column fires. It is for
+a run whose transforms only strip types or JSX, such as a unit-test suite.
+Nothing detects a syntax-reading compiler under it: React Compiler sits inside
+another plugin's Babel options, and each bundler names Compiled's step
+differently, so the README says to keep the default with one in the run.
+
 The integration does not replace a runner or select individual test cases. It
 uses the runner’s normal configuration surface to instrument modules and records
 coverage against each test file. Storybook is different: because the tool owns
@@ -290,5 +302,7 @@ of the composed map, O(module length + mappings); a seam also reads the file
 from disk and asks the bundler for the composed map. Rounded, on an M4 Max: a
 Vite dev transform pays about 0.4 ms a module over the transforms alone, and a
 Jest transform about 0.07 ms, once per content version through Jest's cache.
+Under `placement: 'before-transforms'` every seam pays `instrument`'s cost
+alone.
 Instrumenting is done per module per process that bundles, and the runtime records a hit in O(1): one
 array read, one write, no allocation after the first resolution.

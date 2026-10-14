@@ -9,7 +9,7 @@
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { readFileSync } from 'node:fs';
 import { captureAfter, heldOriginal, type ComposedMap, placeModule } from './captured-modules.js';
-import { cleanId, defaultInclude } from './instrumented-modules.js';
+import { cleanId, defaultInclude, type ProbePlacement } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
 import { shifted } from './map-segments.js';
 import { builtMap, handedTexts, namesItsMap } from './source-lines.js';
@@ -85,6 +85,14 @@ export interface TestSelectionProbeOptions {
    */
   readonly mode?: InstrumentMode;
   /**
+   * Where the probes go. `after-transforms`, the default, runs at
+   * `enforce: 'post'` and places them through the composed map;
+   * `before-transforms` runs at `enforce: 'pre'` and places them in the file
+   * as read, one parse and no map, for a build whose transforms only strip
+   * types or JSX: a compiler that reads syntax then reads the probes.
+   */
+  readonly placement?: ProbePlacement;
+  /**
    * Install the journey head before anything this build instrumented runs.
    *
    * For a service bundle, such as a Worker, whose modules are all evaluated
@@ -113,7 +121,7 @@ export interface InstrumentedMap {
 /** The subset of Vite's plugin surface this uses, so nothing here needs Vite. */
 export interface InstrumentingPlugin {
   readonly name: string;
-  readonly enforce: 'post';
+  readonly enforce: 'pre' | 'post';
   /** Watch every other plugin for a rewrite with no map: {@link watchUnmapped}. */
   readonly configResolved: (config: {
     readonly command: string;
@@ -157,13 +165,16 @@ const COLLECTOR = `import ${JSON.stringify(VIRTUAL_COLLECTOR)};`;
  * the text the join cuts again and a diff is written against; the composed
  * map says where each one's code went, and a region it carries nowhere fires
  * when the module loads. A plugin that rewrote the file and returned no map
- * stops the build, and the dev server, by name.
+ * stops the build, and the dev server, by name. `placement:
+ * 'before-transforms'` runs it at `enforce: 'pre'` instead, on the file as
+ * read, and none of that applies.
  */
 export function testSelectionProbes(
   options: TestSelectionProbeOptions = {},
 ): InstrumentingPlugin {
   const root = repositoryRoot(options.root ?? process.cwd());
   const include = options.include ?? defaultInclude;
+  const before = options.placement === 'before-transforms';
 
   const name = 'variance-authority:test-selection-probes';
   let serving = false;
@@ -179,10 +190,12 @@ export function testSelectionProbes(
   let notes: UnmappedNotes | undefined;
   return {
     name,
-    enforce: 'post',
+    enforce: before ? 'pre' : 'post',
     // A build hands each plugin its own context, so a step is noted by module there.
     configResolved: (config) => {
       serving = config.command === 'serve';
+      // Ahead of every transform, no map is read, so no step is watched for one.
+      if (before) return;
       notes = watchUnmapped(config.plugins, name, serving ? 'context' : 'module');
       warnTransformsAfter(config.plugins, name);
     },
@@ -193,7 +206,7 @@ export function testSelectionProbes(
     },
     resolveId: (id) => (id === VIRTUAL_COLLECTOR || id === RESOLVED_COLLECTOR ? RESOLVED_COLLECTOR : null),
     load: (id) => {
-      if (id !== RESOLVED_COLLECTOR) return serving ? probedFirst(id) : null;
+      if (id !== RESOLVED_COLLECTOR) return serving && !before ? probedFirst(id) : null;
       const collector = executionCollectorSource(options.mode);
       if (options.journeys !== true) return collector;
       // Imports evaluate first, so the head owns `__VA__` before this module's
@@ -205,6 +218,11 @@ export function testSelectionProbes(
     transform(code, specifier) {
       const source = cleanId(specifier);
       if (source === RESOLVED_COLLECTOR) return null;
+      if (before) {
+        // The collector import is on line 1, where nothing ahead of it moves a line.
+        const captured = placeModule(root, source, code, include, undefined, options.mode);
+        return captured === undefined ? null : { code: `${COLLECTOR}${captured.code}`, map: null };
+      }
       const text = held.get(specifier);
       held.delete(specifier);
       if (first.delete(specifier)) return { code: `${COLLECTOR}${code}`, map: null };

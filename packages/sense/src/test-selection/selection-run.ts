@@ -17,7 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
-import { defaultInclude, type CapturedModule } from './instrumented-modules.js';
+import { defaultInclude, type CapturedModule, type ProbePlacement } from './instrumented-modules.js';
 
 export interface SelectionRun {
   readonly root: string;
@@ -66,6 +66,8 @@ export interface SelectionRun {
    * them, carried for the same reason as `include`; absent cuts nothing.
    */
   cadence: ((file: string) => boolean) | undefined;
+  /** Where the loaders place the probes, carried for the same reason as `include`. */
+  placement: ProbePlacement;
   /** Files this seam generated, which no transform may instrument. */
   readonly shims: Set<string>;
   /**
@@ -140,6 +142,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     include: defaultInclude,
     unprobed: undefined,
     cadence: undefined,
+    placement: 'after-transforms',
     shims: new Set<string>(),
     made: new Set<string>(),
     awaiting: new Set<string>(),

@@ -49,7 +49,7 @@ export interface SelectionLoaderContext {
 
 /**
  * Cut one test file Rspack is about to bundle, and probe one whose file names
- * its own map.
+ * its own map, or every module the run probes `before-transforms`.
  *
  * Any other module — one the run does not cut, the seam's own setup shim, a
  * build whose snapshot names no run — is handed back exactly as it arrived.
@@ -59,7 +59,8 @@ function instrumentModule(this: SelectionLoaderContext, code: string): void {
   const run = runOf(this.getOptions().coverageFile);
   // This seam's own setup module is a file under the project root like any
   // other, so it is excluded by path rather than by the shape of its name.
-  const first = run !== undefined && namesItsMap(code);
+  // So does every module, with `before-transforms`: no loader ahead of this one has read it.
+  const first = run !== undefined && (run.placement === 'before-transforms' || namesItsMap(code));
   if (run === undefined || run.shims.has(file)) {
     this.callback(null, code);
     return;

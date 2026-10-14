@@ -10,6 +10,8 @@ import { testSelectionRule } from '@variance-authority/sense/journal';
 const root = fileURLToPath(new URL('.', import.meta.url));
 const output = process.argv[2];
 if (output === undefined) throw new Error('the output directory is required');
+// Where the probes go: after the project's loaders unless the test asks for before.
+const placement = process.env['VARIANCE_AUTHORITY_PLACEMENT'];
 
 const compiler = rspack({
   mode: 'development',
@@ -29,7 +31,7 @@ const compiler = rspack({
         ],
       },
       // A function: it crosses into Rspack's core as data, so the rule carries a key to it.
-      testSelectionRule({ root, include: (file) => file.startsWith(root) }),
+      testSelectionRule({ root, include: (file) => file.startsWith(root), ...(placement === undefined ? {} : { placement }) }),
     ],
   },
   plugins: [

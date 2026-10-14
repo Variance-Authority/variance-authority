@@ -7,11 +7,13 @@
  * through the map they handed on ([`loader-probes.ts`](./loader-probes.ts)),
  * and opens the module with an import of the collector, on its first line so no
  * line moves, the map's first line moved with it. A module it does not probe
- * passes untouched.
+ * passes untouched. With `placement: 'before-transforms'` it runs ahead of
+ * the loaders and places the probes in the text it is handed, as read.
  */
 
 import type { InstrumentMode } from '../instrument/index.js';
 import { cleanId, defaultInclude } from './instrumented-modules.js';
+import { placeModule, type Captured } from './captured-modules.js';
 import { probeHanded, type HandedMap } from './loader-probes.js';
 import { shifted } from './map-segments.js';
 import { executionCollectorSource } from './probes.js';
@@ -48,17 +50,25 @@ function probesLoader(this: ProbesLoaderContext, code: string, handed?: HandedMa
 
 /** `code` probed, opened with the collector, and the map moved with it; as handed where it is not a module to probe. */
 function probed(context: ProbesLoaderContext, options: ProbesLoaderOptions, code: string, handed: HandedMap): { code: string; map?: HandedMap } {
-  const placed = probeHanded(cleanId(context.resourcePath), code, handed, {
-    root: repositoryRoot(options.root ?? context.rootContext ?? process.cwd()),
-    include: options.include === undefined ? defaultInclude : includeOf(options.include),
-    mode: options.mode,
-    remedy: REMEDY,
-  });
+  const file = cleanId(context.resourcePath);
+  const root = repositoryRoot(options.root ?? context.rootContext ?? process.cwd());
+  const include = options.include === undefined ? defaultInclude : includeOf(options.include);
+  // Ahead of the loaders, every line is where the file has it: the handed map, if any, still holds.
+  const placed = options.placement === 'before-transforms'
+    ? ahead(placeModule(root, file, code, include, undefined, options.mode), handed)
+    : probeHanded(file, code, handed, { root, include, mode: options.mode, remedy: REMEDY });
   if (placed === undefined) return { code, map: handed };
   // `!!`: the collector goes through this loader alone, never the project's.
   const opening = `import ${JSON.stringify(`!!${PROBES_LOADER}?collector=${options.mode ?? 'presence'}!${COLLECTOR_FILE}`)};`;
   const map = placed.map && { ...placed.map, mappings: shifted(placed.map.mappings, opening.length) };
   return { code: `${opening}${placed.captured.code}`, map };
+}
+
+/** What {@link placeModule} placed ahead of the loaders, with the map it was handed. */
+function ahead(captured: Captured | undefined, handed: HandedMap) {
+  if (captured === undefined) return undefined;
+  const map = (typeof handed === 'string' ? JSON.parse(handed) : (handed ?? undefined)) as Exclude<HandedMap, string | null> | undefined;
+  return { captured, map };
 }
 
 function recipe(mode: string): InstrumentMode {

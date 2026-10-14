@@ -107,10 +107,23 @@ source map. A map that would place a probe on the wrong code is never used.**
    moved, and Jest's transform cache keys on the recipe, which digests the
    instrumenter's sources, so nothing it cached is served across the change.
 
+6. **The earlier placement stays as an option.** `placement:
+   'before-transforms'` on every seam that places probes (the Vitest, Jest and
+   Rstest `withTestSelection`, `testSelectionProbes`, `testSelectionRule`)
+   places them in the file as read, through `instrument` and nothing else: one
+   parse, no map, no refusal. A unit-test run whose transforms only strip types
+   or JSX has no compiler that reads syntax, and pays nothing for one. The
+   option names where the probes go, not whether a feature is on, and the
+   default is this decision. Nothing warns when a run that sets it has a
+   compiler that reads syntax: React Compiler sits inside another plugin's
+   Babel options and each bundler names Compiled's step differently, so a
+   check would be a list of names that misses. The README says to keep the
+   default with one in the run.
+
 ## Consequences
 
 - A build-time compiler compiles the same output under a recorded run as it
-  ships, outside the four cases.
+  ships, outside the four cases and outside `placement: 'before-transforms'`.
 - The placement pays a second parse and a map read: about 0.4 ms a module under
   a Vite dev server and 0.07 ms under Jest, rounded, on one machine.
 - A test can be selected for a region it did not run. It is never left
