@@ -292,7 +292,7 @@ renders, and a control that changes nothing any subject reaches. It proves:
   change's branch, listing the four changed product-card subjects;
 - after the label on `example-storybook` and `example-static-site` the check is
   green, and on `example-static-site` the commit the label made touches only
-  the changed page's images.
+  the changed page's baseline image and its report.
 
 Then it closes both pull requests unmerged and deletes their branches, whatever
 happened.
@@ -303,8 +303,8 @@ cache scope, which no other branch reads, and the LFS flow's accept commits to
 that pull request's branch. An approval on the tribunal is not scoped to a
 branch: it replaces the baseline `main` and every other branch compare against,
 which is a merge, so the tribunal flow leaves its check red and its build
-unreviewed. The deployment's retention sweep, `POST /review/sweep`, removes it
-once it is older than the retention it keeps.
+unreviewed. The build stays on the deployment until something calls its
+retention sweep, `POST /review/sweep`.
 
 These label accepts are made by a job, not a person, and they are the only ones
 in this repository that are. The expectations live in
@@ -317,8 +317,8 @@ fails after a release reaches an example, or after an example changes, never on
 a pull request here.
 
 Every wait is bounded, and so is the flow as a whole: all its waits share twice
-one wait's minutes. The flow step's timeout is the longest flow's budget, and
-the job gives the settle step ten minutes after it. A failing flow, or one its
+one wait's minutes. The flow step's timeout is the longest flow's budget plus
+ten minutes for requests, and the job gives the settle step ten minutes after it. A failing flow, or one its
 timeout stopped, opens an issue labelled `outer-loop-e2e` here, or comments on
 the one already open, and the next run that passes closes it. A dispatched run
 somebody cancels files nothing. To run it on demand, for one flow or all three:
