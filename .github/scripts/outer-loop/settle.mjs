@@ -6,7 +6,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { branchPrefix, needsRestore, restore } from './drive.mjs';
+import { branchPrefix } from './drive.mjs';
 import { FLOWS } from './flows.mjs';
 import { client, Refusal } from './github.mjs';
 
@@ -57,11 +57,6 @@ export async function settle(name, outcome, env, log = console.log) {
   if (env.VARIANCE_PUSH_TOKEN) {
     const gh = client({ base: api, token: env.VARIANCE_PUSH_TOKEN, secret: 'VARIANCE_PUSH_TOKEN' });
     await attempt(`sweeping ${flow.repository}`, () => sweep(gh, flow.repository, name, log, attempt));
-    if (needsRestore(env, name)) {
-      await attempt(`restoring ${flow.repository}`, () =>
-        restore({ flow, repo: flow.repository, gh, env, name, log, wait: { seconds: 0, every: 0 } }, { waitFor: false }),
-      );
-    }
   }
 
   if (outcome === 'success') await attempt('reporting', () => report(home(), env, name, outcome, log));

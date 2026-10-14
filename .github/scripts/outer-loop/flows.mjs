@@ -73,9 +73,11 @@ export const FLOWS = {
       'Set VARIANCE_PUSH_TOKEN there to a token with contents: write on that repository',
   },
 
-  // The deployment owns the baselines and the review; a decision on its API
-  // accepts. Its approvals are not scoped to a branch, so the flow ends by
-  // giving `main` its own render back.
+  // The deployment owns the baselines and the review. An approval there is not
+  // scoped to a branch: it replaces the baseline `main` and every branch compare
+  // against, so it is a merge, and the outer loop makes none. The flow ends at
+  // what a reviewer would open — the build on the deployment, the check red —
+  // and declares no accept.
   tribunal: {
     repository: 'Variance-Authority/example-tribunal',
     minutes: 40,
@@ -87,7 +89,6 @@ export const FLOWS = {
     checks: ['variance'],
     gate: 'variance',
     docket: ['product-card--control'],
-    accept: 'decision',
     endpoint: 'https://tribunal-example.variance-authority.dev',
     subjects: [
       'story:product-card--control',
@@ -95,6 +96,5 @@ export const FLOWS = {
       'story:product-card--sale',
       'story:product-card--sale-dark',
     ],
-    restore: { workflow: 'variance.yml', inputs: { accept: 'true' } },
   },
 };

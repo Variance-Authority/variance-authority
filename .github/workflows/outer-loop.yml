@@ -3,17 +3,19 @@ name: outer loop
 # The three review flows, driven end to end the way a consumer meets them, each
 # against the example repository that carries it:
 #
-#   cache     Variance-Authority/example-storybook   a label accepts
-#   lfs       Variance-Authority/example-static-site the label's run commits the images
-#   tribunal  Variance-Authority/example-tribunal    a decision on the deployment accepts
+#   cache     Variance-Authority/example-storybook   a label accepts on the pull request
+#   lfs       Variance-Authority/example-static-site the label's run commits the images to its branch
+#   tribunal  Variance-Authority/example-tribunal    the deployment holds the build; nothing accepts
 #
 # Per flow, `.github/scripts/outer-loop.mjs` opens two pull requests there: one
 # that changes what a subject renders, and a control that changes nothing any
 # subject reaches. It waits for their checks, holds what they posted against
-# `outer-loop/flows.mjs`, accepts the change the way the flow accepts, waits for
-# the check to turn green, and closes both pull requests and deletes their
-# branches whatever happened. Every expectation is in the script and its tests,
-# none of it here.
+# `outer-loop/flows.mjs`. For cache and lfs it then adds the label, whose accept
+# lands only on that pull request, and waits for the check to turn green. It
+# closes both pull requests and deletes their branches whatever happened. It
+# never approves and never merges: a tribunal approval replaces the baseline
+# every branch compares against, so that flow ends at the build and the red
+# check. Every expectation is in the script and its tests, none of it here.
 #
 # A failing flow opens an issue labelled `outer-loop-e2e` here, or comments on
 # the one already open, and the next run that passes closes it.
@@ -37,8 +39,8 @@ permissions:
   contents: read
   issues: write
 
-# One outer loop at a time: two would race each other's approvals on the
-# tribunal deployment and each other's label runs in the examples.
+# One outer loop at a time: two would race each other's label runs in the
+# examples.
 concurrency:
   group: outer-loop
   cancel-in-progress: false
@@ -53,7 +55,7 @@ jobs:
     runs-on: ubuntu-24.04
     # The flow step's minutes and ten for settle, so settle always gets to sweep
     # and file after the flow step is stopped. A test holds both numbers.
-    timeout-minutes: 140
+    timeout-minutes: 100
     steps:
       - uses: actions/checkout@v4
         with:
@@ -64,16 +66,13 @@ jobs:
 
       - id: flow
         name: drive the flow
-        # The tribunal's budget (two 40-minute waits), its restore (one more) and
-        # ten minutes for requests: `jobMinutes` in the script. A flow stopped
-        # here is a failure, filed by settle.
-        timeout-minutes: 130
+        # The tribunal's budget (two 40-minute waits) and ten minutes for
+        # requests: `jobMinutes` in the script. A flow stopped here is a
+        # failure, filed by settle.
+        timeout-minutes: 90
         env:
           OUTER_LOOP_FLOW: ${{ matrix.flow }}
           VARIANCE_PUSH_TOKEN: ${{ secrets.VARIANCE_PUSH_TOKEN }}
-          # A decision on the deployment is the tribunal flow's accept; no other
-          # flow is handed the token.
-          VARIANCE_REVIEW_TOKEN: ${{ matrix.flow == 'tribunal' && secrets.VARIANCE_REVIEW_TOKEN || '' }}
         run: node .github/scripts/outer-loop.mjs run
 
       # Runs after a failure and after a cancel too: it closes what a cancelled

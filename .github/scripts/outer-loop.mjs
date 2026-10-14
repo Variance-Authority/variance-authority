@@ -2,8 +2,9 @@
 //
 // The outer loop: a review flow driven end to end against the example that
 // carries it, the way a consumer meets it — a pull request opened, a check gone
-// red, a comment read, an accept made, a check gone green, the pull request
-// closed. `outer-loop.yml` runs it weekly, once per flow.
+// red, a comment read, an accept made where the flow has one, a check gone
+// green, the pull request closed. It never approves and never merges.
+// `outer-loop.yml` runs it weekly, once per flow.
 //
 //   node .github/scripts/outer-loop.mjs run      drive OUTER_LOOP_FLOW
 //   node .github/scripts/outer-loop.mjs settle   sweep, then open or close its issue

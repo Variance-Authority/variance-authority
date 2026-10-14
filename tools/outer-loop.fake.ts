@@ -6,8 +6,8 @@ import { ACCEPT_LABEL, DOCKET_MARKER, FLOWS, NEEDS_REVIEW } from '../.github/scr
 /**
  * A local GitHub holding one example repository, and the review deployment
  * beside it, that answer the outer loop the way the example's workflow does:
- * a pull request gets its checks and comments as it opens, the label starts a
- * run, a re-run reads the deployment's decisions, a dispatch runs on `main`.
+ * a pull request gets its checks and comments as it opens, its build lands on
+ * the deployment, the label starts a run. The deployment answers reads only.
  * `this repository`'s issues live here too, under `o/r`.
  *
  * Every reaction is immediate, so a wait ends on its first probe. What a
@@ -23,10 +23,8 @@ export interface Behaviour {
   unchecked?: boolean;
   /** The token may not see the example: every request for it is a 404. */
   denied?: boolean;
-  /** The example refuses the dispatch that gives `main` its render back. */
-  undispatchable?: boolean;
-  /** The dispatched accept on `main` runs, and fails. */
-  unrestored?: boolean;
+  /** The deployment records no build for the pull request's run. */
+  unbuilt?: boolean;
 }
 
 type Json = Record<string, any>;
@@ -36,8 +34,6 @@ export interface Fake {
   requests: string[];
   pulls: Map<number, Json>;
   refs: Map<string, string>;
-  decisions: Json[];
-  dispatches: Json[];
   issues: Json[];
   labels: string[];
 }
@@ -59,8 +55,6 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
     requests: [],
     pulls: new Map(),
     refs: new Map([['main', BASE]]),
-    decisions: [],
-    dispatches: [],
     issues: [],
     labels: [],
   };
@@ -68,16 +62,13 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
   const runs = new Map<string, Json[]>();
   const annotations = new Map<number, Json[]>();
   const logs = new Map<number, string>();
-  const jobs = new Map<number, number>();
   const comments = new Map<number, Json[]>();
   const builds: Json[] = [];
-  const workflowRuns: Json[] = [];
   let next = 1;
   let shas = 0;
 
-  const check = (sha: string, check: string, conclusion: string, pull: number, said: string[] = []) => {
+  const check = (sha: string, check: string, conclusion: string, said: string[] = []) => {
     const id = next++;
-    jobs.set(id, 900 + pull);
     annotations.set(id, said.map((message) => ({ message })));
     runs.set(sha, [...(runs.get(sha) ?? []), { id, name: check, status: 'completed', conclusion, head_sha: sha }]);
     return id;
@@ -89,7 +80,7 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
     const sha = pull.head.sha;
     if (behaviour.silent) return;
     const gate = change ? (behaviour.changeGate ?? 'failure') : 'success';
-    check(sha, flow.gate, gate, pull.number, gate === 'failure' ? [`${NEEDS_REVIEW}; the docket is in the pull request comment.`] : []);
+    check(sha, flow.gate, gate, gate === 'failure' ? [`${NEEDS_REVIEW}; the docket is in the pull request comment.`] : []);
     comment(
       pull.number,
       change && gate === 'failure'
@@ -98,14 +89,14 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
     );
     if (flow.unit !== undefined) {
       const unit = flow.unit;
-      const id = check(sha, unit.check, 'success', pull.number);
+      const id = check(sha, unit.check, 'success');
       const row = `| 🟢 | \`Panel\` | modified | [\`${unit.file}:3-10\`](x) | 1 | 1 | \`${unit.tests[0]}\` |`;
       const prose = `Not compared: \`${unit.untouched[0]}\` ran nothing this change touched.`;
       comment(pull.number, `${unit.might}\n### 🧭 What this change might do\n\n| | | | | | | |\n${change ? row : ''}\n\n${prose}\n`);
       comment(pull.number, `${unit.evidence}\n### Test evidence\n\n${change ? row : ''}\n\n${prose}\n`);
       logs.set(id, change ? `${unit.selected}\n ✓ ${unit.tests[0]} (1 test)\n` : 'variance-authority: selected none of 2\n');
     }
-    if (flow.subjects !== undefined) {
+    if (flow.subjects !== undefined && !behaviour.unbuilt) {
       builds.push({
         build: `build-${pull.number}`,
         branch: pull.head.ref,
@@ -122,10 +113,10 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
     pull.labels = pull.labels.filter((l: Json) => l.name !== ACCEPT_LABEL);
     const sha = pull.head.sha;
     if (flow.accept === 'label') {
-      check(sha, flow.gate, 'success', pull.number);
+      check(sha, flow.gate, 'success');
       return;
     }
-    check(sha, flow.gate, 'failure', pull.number, [`${NEEDS_REVIEW}; the docket is in the pull request comment.`]);
+    check(sha, flow.gate, 'failure', [`${NEEDS_REVIEW}; the docket is in the pull request comment.`]);
     const back = `${'c'.repeat(39)}${++shas}`;
     const digest = '0123456789abcdef'.repeat(2);
     commits.set(back, {
@@ -137,17 +128,7 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
     });
     pull.head.sha = back;
     state.refs.set(pull.head.ref, back);
-    if (!behaviour.unchecked) check(back, flow.gate, 'success', pull.number);
-  };
-
-  const rerun = (runId: number) => {
-    const pull = state.pulls.get(runId - 900)!;
-    const build = builds.find((b) => b.pull === pull.number)!;
-    const changed = build.subjects.filter((s: Json) => s.verdict === 'changed');
-    const approved = changed.every((s: Json) =>
-      state.decisions.some((d) => d.subject === s.subject && d.decision === 'approved'),
-    );
-    check(pull.head.sha, flow.gate, approved ? 'success' : 'failure', pull.number);
+    if (!behaviour.unchecked) check(back, flow.gate, 'success');
   };
 
   const server = createServer(async (request, response) => {
@@ -169,11 +150,6 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
     if (path.startsWith('/review/')) {
       if (method === 'GET' && path === '/review/builds') return reply(200, { builds });
       if (method === 'GET' && (m = at('/review/builds/([^/]+)'))) return reply(200, builds.find((b) => b.build === m![1]));
-      if (method === 'POST' && (m = at('/review/builds/([^/]+)/subjects/([^/]+)/decision'))) {
-        if (request.headers.authorization !== 'Bearer review-token') return reply(401, { error: 'review token' });
-        state.decisions.push({ build: m[1], subject: m[2], ...body });
-        return reply(200, { ok: true });
-      }
       return reply(404, { message: 'Not Found' });
     }
     if (!path.startsWith(repo) || behaviour.denied) return reply(404, { message: 'Not Found' });
@@ -221,24 +197,6 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
       return reply(200, pull.labels);
     }
     if (method === 'GET' && (m = r('/actions/jobs/(\\d+)/logs'))) return reply(200, logs.get(Number(m[1])) ?? '');
-    if (method === 'GET' && (m = r('/actions/jobs/(\\d+)'))) return reply(200, { id: Number(m[1]), run_id: jobs.get(Number(m[1])) });
-    if (method === 'POST' && (m = r('/actions/runs/(\\d+)/rerun'))) {
-      rerun(Number(m[1]));
-      return reply(201, {});
-    }
-    if (method === 'GET' && (m = r('/actions/runs/(\\d+)'))) return reply(200, workflowRuns.find((w) => w.id === Number(m![1])));
-    if (method === 'GET' && (m = r('/actions/workflows/([^/]+)/runs'))) return reply(200, { workflow_runs: workflowRuns });
-    if (method === 'POST' && (m = r('/actions/workflows/([^/]+)/dispatches'))) {
-      if (behaviour.undispatchable) return reply(403, { message: 'Resource not accessible by integration' });
-      state.dispatches.push({ workflow: m[1], ...body });
-      workflowRuns.push({
-        id: 5000 + workflowRuns.length,
-        status: 'completed',
-        conclusion: behaviour.unrestored ? 'failure' : 'success',
-        html_url: 'run',
-      });
-      return reply(204);
-    }
     if (method === 'GET' && (m = r('/git/matching-refs/heads/(.+)'))) {
       return reply(200, [...state.refs.keys()].filter((ref) => ref.startsWith(m![1])).map((ref) => ({ ref: `refs/heads/${ref}` })));
     }

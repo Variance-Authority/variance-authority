@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -55,7 +54,6 @@ async function outerLoop(
     OUTER_LOOP_BUDGET_SECONDS: '10',
     OUTER_LOOP_POLL_SECONDS: '0.1',
     VARIANCE_PUSH_TOKEN: 'push-token',
-    VARIANCE_REVIEW_TOKEN: 'review-token',
     ...extra,
   };
   const child = spawn(process.execPath, [SCRIPT, command], { env, cwd: ROOT });
@@ -80,13 +78,12 @@ function leftOpen(github: Awaited<ReturnType<typeof fake>>) {
 }
 
 describe('the outer loop against a healthy example', () => {
-  it.each(['cache', 'lfs', 'tribunal'] as const)('drives the %s flow to green and leaves nothing open', async (flow) => {
-    const { github, code, out, temp } = await drive(flow);
+  it.each(['cache', 'lfs'] as const)('drives the %s flow to green and leaves nothing open', async (flow) => {
+    const { github, code, out } = await drive(flow);
     expect(out).toContain('the change is red for review and the control is green');
     expect(code).toBe(0);
     expect(github.pulls.size).toBe(2);
     expect(leftOpen(github)).toEqual({ pulls: [], branches: [] });
-    expect(existsSync(join(temp, `outer-loop-${flow}.restore`))).toBe(false);
   });
 
   it('accepts the cache flow with the label', async () => {
@@ -95,11 +92,24 @@ describe('the outer loop against a healthy example', () => {
     expect(github.requests.filter((r) => r.includes('/issues/2/labels'))).toEqual([]);
   });
 
-  it('approves every changed subject on the deployment, then gives main its render back', async () => {
-    const { github } = await drive('tribunal');
-    expect(github.decisions.map((d) => d.subject).toSorted()).toEqual(FLOWS.tribunal.subjects.toSorted());
-    expect(github.decisions.every((d) => d.decision === 'approved' && d.by === 'outer-loop')).toBe(true);
-    expect(github.dispatches).toEqual([{ workflow: 'variance.yml', ref: 'main', inputs: { accept: 'true' } }]);
+  // An approval on the deployment replaces the baseline `main` and every branch
+  // compare against, so it is a merge: the flow reads the build and the red
+  // check, and closes.
+  it('observes the tribunal flow, never approves, and leaves nothing open', async () => {
+    const { github, code, out } = await drive('tribunal');
+    expect(out).toContain('the change is red for review and the control is green');
+    expect(out).toContain('the deployment holds one build for the change');
+    expect(code).toBe(0);
+    expect(github.requests.filter((r) => r.includes('/review/') && !r.startsWith('GET '))).toEqual([]);
+    expect(github.requests.filter((r) => /\/rerun$|\/dispatches$|\/labels$|\/merge$/.test(r))).toEqual([]);
+    expect(leftOpen(github)).toEqual({ pulls: [], branches: [] });
+  });
+
+  it('fails the tribunal flow when the deployment holds no build for the change, and still closes', async () => {
+    const { github, code, out } = await drive('tribunal', { unbuilt: true });
+    expect(code).toBe(1);
+    expect(out).toMatch(/holds 0 builds for outer-loop\/tribunal\/change-42-1, not one/);
+    expect(leftOpen(github)).toEqual({ pulls: [], branches: [] });
   });
 });
 
@@ -148,40 +158,19 @@ describe('the outer loop against an example that breaks a promise', () => {
     const { code, out } = await drive('cache', { denied: true });
     expect(code).toBe(1);
     expect(out).toContain(
-      'VARIANCE_PUSH_TOKEN needs contents, pull requests and actions: write on Variance-Authority/example-storybook',
+      'VARIANCE_PUSH_TOKEN needs contents and pull requests: write, and actions: read, on Variance-Authority/example-storybook',
     );
   });
 
-  it('refuses before asking anything when a secret is missing', async () => {
-    const push = await drive('cache', {}, { VARIANCE_PUSH_TOKEN: '' });
-    expect(push.code).toBe(1);
-    expect(push.out).toContain('::error::VARIANCE_PUSH_TOKEN is not set');
-    expect(push.github.requests).toEqual([]);
-
-    const review = await drive('tribunal', {}, { VARIANCE_REVIEW_TOKEN: '' });
-    expect(review.code).toBe(1);
-    expect(review.out).toContain('::error::VARIANCE_REVIEW_TOKEN is not set');
-    expect(review.github.requests).toEqual([]);
+  it('refuses before asking anything when the push token is missing', async () => {
+    const { github, code, out } = await drive('cache', {}, { VARIANCE_PUSH_TOKEN: '' });
+    expect(code).toBe(1);
+    expect(out).toContain('::error::VARIANCE_PUSH_TOKEN is not set');
+    expect(github.requests).toEqual([]);
   });
 });
 
 describe('settling a flow', () => {
-  it('keeps the restore marker when the dispatch is refused, so settle gives main back', async () => {
-    const { github, code, out, temp } = await drive('tribunal', { undispatchable: true });
-    expect(code).toBe(1);
-    expect(out).toContain('restoring');
-    expect(github.dispatches).toEqual([]);
-    expect(existsSync(join(temp, 'outer-loop-tribunal.restore'))).toBe(true);
-  });
-
-  it('keeps the restore marker when the dispatched accept fails, so settle tries again', async () => {
-    const { github, code, out, temp } = await drive('tribunal', { unrestored: true });
-    expect(code).toBe(1);
-    expect(out).toContain('concluded failure');
-    expect(github.dispatches).toHaveLength(1);
-    expect(existsSync(join(temp, 'outer-loop-tribunal.restore'))).toBe(true);
-  });
-
   it('files a failure before it sweeps, so the job timeout cannot take the report', async () => {
     const github = await fake('cache', {}, servers);
     await outerLoop('settle', 'cache', github.url, { OUTER_LOOP_OUTCOME: 'failure' });
@@ -212,22 +201,18 @@ describe('settling a flow', () => {
     expect(github.issues[0].state_reason).toBe('completed');
   });
 
-  it('files nothing for a cancelled run, but closes what it left open and gives main back', async () => {
+  it('files nothing for a cancelled run, and closes only what the flow left open', async () => {
     const github = await fake('tribunal', {}, servers);
     github.refs.set('outer-loop/tribunal/change-7-1', 'a'.repeat(40));
     github.pulls.set(1, { number: 1, state: 'open', labels: [], head: { ref: 'outer-loop/tribunal/change-7-1' } });
     github.pulls.set(2, { number: 2, state: 'open', labels: [], head: { ref: 'somebody-else' } });
-    const temp = await mkdtemp(join(tmpdir(), 'outer-loop-'));
-    made.push(temp);
-    await writeFile(join(temp, 'outer-loop-tribunal.restore'), 'run\n');
 
-    const { code } = await outerLoop('settle', 'tribunal', github.url, { OUTER_LOOP_OUTCOME: 'cancelled' }, temp);
+    const { code } = await outerLoop('settle', 'tribunal', github.url, { OUTER_LOOP_OUTCOME: 'cancelled' });
     expect(code).toBe(0);
     expect(github.pulls.get(1)!.state).toBe('closed');
     expect(github.pulls.get(2)!.state).toBe('open');
     expect([...github.refs.keys()]).toEqual(['main']);
-    expect(github.dispatches).toHaveLength(1);
-    expect(existsSync(join(temp, 'outer-loop-tribunal.restore'))).toBe(false);
+    expect(github.requests.filter((r) => r.endsWith('/dispatches'))).toEqual([]);
     expect(github.issues).toEqual([]);
   });
 
