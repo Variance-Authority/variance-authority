@@ -76,6 +76,17 @@ chromium_('a built directory as a suite', () => {
     expect(plan.warnings.join(' ')).toContain('stops being watched');
   }, 120_000);
 
+  it('names the root page `index`, as a server serves it, so its baseline has a file name', async () => {
+    // `/` is the id a person types back, and it has no letter or digit for a
+    // baseline path's `{name}` to carry: a file-backed store refuses it. Every
+    // site has a root, so every first run over a site would stop there. A page
+    // with a path of its own is filed by that path, which the id already is.
+    const plan = await collector!.plan();
+    const names = Object.fromEntries(plan.subjects.map((planned) => [planned.subject.id, planned.name]));
+
+    expect(names).toEqual({ '/': 'index', about: undefined });
+  }, 120_000);
+
   it('serves them, rather than opening them off the disk', async () => {
     const plan = await collector!.plan();
     const home = plan.subjects.find((planned) => planned.subject.id === '/');

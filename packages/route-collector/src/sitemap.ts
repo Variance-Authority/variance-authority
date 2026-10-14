@@ -38,6 +38,9 @@ export function locationsIn(xml: string): readonly string[] {
   return found;
 }
 
+/** The site root's id. */
+const ROOT = '/';
+
 /**
  * A URL as a subject id: its path, without the leading slash.
  *
@@ -56,7 +59,31 @@ export function subjectIdFor(url: string): string {
   }
 
   const trimmed = path.replace(/\/+$/, '');
-  return trimmed === '' ? '/' : trimmed.replace(/^\/+/, '');
+  return trimmed === '' ? ROOT : trimmed.replace(/^\/+/, '');
+}
+
+
+/**
+ * A plan whose root route is named `index`, the name a server and a static
+ * build give the page at `/`.
+ *
+ * The id stays `/`: it is what a person types back at `--subjects` and
+ * `variance accept`, and what the report and history key on. A baseline path
+ * renders the subject's name, and `/` has no letter or digit to render, so a
+ * file-backed store refuses it — on the first run over any site. Every other
+ * route is named by its id, which is already its path. A route whose own id is
+ * `index` is a second subject on the root's file, and the store refuses the
+ * pair by name.
+ *
+ * Named before the widths split the plan, so each width's name carries it.
+ */
+export function rootNamed<S extends { readonly subject: { readonly id: string }; readonly name?: string }, P extends { readonly subjects: readonly S[] }>(plan: P): P {
+  return {
+    ...plan,
+    subjects: plan.subjects.map((planned) =>
+      planned.subject.id === ROOT && planned.name === undefined ? { ...planned, name: 'index' } : planned,
+    ),
+  };
 }
 
 /**

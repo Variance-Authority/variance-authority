@@ -85,6 +85,12 @@ export interface PlannedSubject {
 
   /** What declares the subject; every width of one route shares its route. */
   readonly declaredIn?: string;
+
+  /**
+   * What a baseline is filed by, when the id cannot say it: the site root's
+   * `index`. Absent for every other route, whose id is its path.
+   */
+  readonly name?: string;
 }
 
 export interface Plan {

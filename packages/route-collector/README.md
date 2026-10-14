@@ -278,7 +278,8 @@ per `.html` file. Ids drop
 the extension and `index.html` resolves to its directory, so `cart/empty.html` is
 the subject `cart/empty` and `about/index.html` is `about` — the name you type
 back at `--subjects` and `variance accept`. The root `index.html` has no
-directory above it to be named after, so its id is `/`. Two files that would
+directory above it to be named after, so its id is `/`, and its baseline file is
+named `index`, as a server names that page. Two files that would
 answer to one id — `cart/empty.html` beside `cart/empty/index.html` — are
 refused by name rather than resolved.
 

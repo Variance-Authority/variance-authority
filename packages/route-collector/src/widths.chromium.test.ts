@@ -114,6 +114,25 @@ chromium_('one route at several widths', () => {
     expect(plan.subjects[0]?.viewport?.height).toBe(600);
   });
 
+  it('names the root page `index` at each width, so each width keeps a file of its own', async () => {
+    // The root's name is given before the widths split it, so the width is
+    // spelled after it — `index @375` — the way it is after a story's name.
+    const root = await routeCollector({ routes: { '/': `${base}/` }, roots: ['#app'], widths: [375, 1280] })({
+      config: { viewport: { width: 800, height: 600, deviceScaleFactor: 1, colorScheme: 'light' } },
+      plan: { subjects: [{ subject: { id: '/', kind: 'route' } }], notObserved: [], warnings: [] },
+    });
+
+    try {
+      const plan = await root.plan();
+      expect(plan.subjects.map((planned) => [planned.subject.id, planned.name])).toEqual([
+        ['/@375', 'index @375'],
+        ['/@1280', 'index @1280'],
+      ]);
+    } finally {
+      await root.close();
+    }
+  }, 120_000);
+
   it('lays the page out at each width rather than recording that it did', async () => {
     // The failure this is written against: three baselines of one picture, each
     // carrying a key that describes a render that never happened. Three green
