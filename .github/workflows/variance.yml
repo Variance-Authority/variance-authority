@@ -514,8 +514,8 @@ jobs:
       # label and a change it cannot read always run. What the site's files
       # reach is read from the source index, which CI refuses to build on
       # demand, so `variance index` publishes it first. Nothing after this runs
-      # for the site when it says `false`. A failure here says nothing, so the
-      # site runs.
+      # for the site when it says `false`. Any failure here leaves a warning,
+      # and the site runs.
       - name: decide whether this change reaches the site
         id: reach
         if: matrix.project == 'site'
@@ -526,6 +526,7 @@ jobs:
           # The command the variance step below runs.
           VARIANCE_RUNNER: packages/cli/dist/bin.js
         run: |
+          trap 'echo "::warning title=site reach not decided::this step failed, so the site runs."' ERR
           node packages/cli/dist/bin.js index
           node tools/site-reach.mjs
 

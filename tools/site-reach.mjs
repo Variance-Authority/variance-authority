@@ -17,17 +17,18 @@
 //   enumerate every import of is a change nobody can read, and runs.
 // - **What photographs it**: the workspace packages the run loads, which are
 //   the one holding the runner (`VARIANCE_RUNNER`, the command the variance
-//   step runs) and everything it depends on. These are judged by package, not
-//   by import: the run also loads the native scanner, the page-agent bundles and
-//   the skills, which nothing imports. A file in one of them counts when it
+//   step runs), every one the site's configured collector reaches, and
+//   everything those depend on. These are judged by package, not by import:
+//   the run also loads the native scanner, the page-agent bundles and the
+//   skills, which nothing imports. A file in one of them counts when it
 //   counts as a change of that package to changesets: `.changeset/config.json`'s
 //   `changedFilePatterns` already says that a test, a fixture or a README is not
 //   the package.
 // - **What runs it**: this workflow, the actions and the script its steps use,
-//   the configs the job reads, this file, the root's install, and every file a
-//   step of the root build reaches. The first ones are written down, because
-//   nothing in the repository says which of its files a workflow job runs; they
-//   are what the job's own text names.
+//   the configs the job reads, this file, the root's checkout attributes and
+//   install, and every file a step of the root build reaches. The first ones
+//   are written down, because nothing in the repository says which of its
+//   files a workflow job runs; they are what the job's own text names.
 //
 // The change is the pull request's whole, its merge commit against the base it
 // merges into, not the last push: a test-only push to a branch that already
@@ -46,7 +47,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
+import { affectedBy, dependenciesOf, idOf, nodeAt, relationsOfFiles } from '@variance-authority/core/relate';
 import { publishedSources } from '@variance-authority/sense';
 import ciInfo from 'ci-info';
 import picomatch from 'picomatch';
@@ -65,8 +66,16 @@ const MACHINERY = [
   'tools/site-reach.mjs',
 ];
 
-/** The root's install. Its build is read from `scripts.build`. */
-const INSTALL = ['package.json', 'yarn.lock', '.yarnrc.yml', '.yarn/**', 'tsconfig.json', 'tsconfig.base.json'];
+/** The root's checkout and install. Its build is read from `scripts.build`. */
+const INSTALL = [
+  '.gitattributes',
+  '.yarn/**',
+  '.yarnrc.yml',
+  'package.json',
+  'tsconfig.base.json',
+  'tsconfig.json',
+  'yarn.lock',
+];
 
 const git = (root, ...args) =>
   execFileSync('git', ['-c', 'core.quotePath=false', ...args], {
@@ -144,17 +153,31 @@ export async function siteReach(root, changed, runner) {
   const { relations, unread } = await graphOf(root);
   if (unread.length > 0) throw new Error(`not every import of ${unread.join(', ')} could be read`);
 
+  // The deepest directory first, so `packages/sense/npm/x` is not `packages/sense`.
+  const owners = [...packages].sort(([, a], [, b]) => b.dir.length - a.dir.length);
+  const ownerOf = (file) => owners.find(([, { dir }]) => file.startsWith(`${dir}/`))?.[0];
+
+  // The run loads the runner's package, and every package the site's collector
+  // reaches: the routes collector's runs a page agent in every page it
+  // photographs, which it loads by path rather than by import.
+  const { subjects } = JSON.parse(readFileSync(resolve(root, 'site/variance.config.json'), 'utf8'));
+  const collector = idOf(relations, 'file', `site/${subjects?.collector ?? ''}`);
+  if (collector === undefined) throw new Error('the source index holds no collector for `site/variance.config.json`');
+  const sited = dependenciesOf(relations, [collector]);
+  const seeds = new Set([...packages].filter(([, { dir }]) => runner.startsWith(`${dir}/`)).map(([name]) => name));
+  for (const id of sited.nodes) {
+    const node = nodeAt(relations, id);
+    const name = node?.kind === 'package' ? node.name : node?.kind === 'file' ? ownerOf(node.name) : undefined;
+    if (name !== undefined && packages.has(name)) seeds.add(name);
+  }
+
   const run = new Set();
-  for (const pending = [...packages].filter(([, { dir }]) => runner.startsWith(`${dir}/`)).map(([name]) => name);
-    pending.length > 0; ) {
+  for (const pending = [...seeds]; pending.length > 0; ) {
     const name = pending.pop();
     if (run.has(name)) continue;
     run.add(name);
     for (const next of packages.get(name).loads) if (packages.has(next)) pending.push(next);
   }
-  // The deepest directory first, so `packages/sense/npm/x` is not `packages/sense`.
-  const owners = [...packages].sort(([, a], [, b]) => b.dir.length - a.dir.length);
-
   const { changedFilePatterns = ['**'] } = JSON.parse(readFileSync(resolve(root, '.changeset/config.json'), 'utf8'));
   const counts = picomatch(
     changedFilePatterns.filter((pattern) => !pattern.startsWith('!')),
@@ -174,7 +197,6 @@ export async function siteReach(root, changed, runner) {
       if (run.has(name) && counts(file.slice(dir.length + 1))) {
         return { observe: true, because: `\`${file}\` changes \`${name}\`, which the run loads.` };
       }
-      continue;
     }
     if (job(file)) return { observe: true, because: `\`${file}\` is part of the job that photographs the site.` };
     const step = reached.find((path) => build.includes(path)) ?? (build.includes(file) ? file : undefined);

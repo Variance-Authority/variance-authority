@@ -38,6 +38,7 @@ describe('what reaches the site', () => {
     ['a package the run loads', 'packages/core/src/judge/scope.ts'],
     ['a package the site imports', 'packages/route-collector/src/read.ts'],
     ['what decides which routes are photographed', 'packages/route-collector/src/sitemap.ts'],
+    ['what the routes collector runs inside every page, by path', 'packages/route-collector/src/page-agent-entry.ts'],
     ['the scanner the run loads to name components', 'packages/sense/native/src/read.rs'],
     ['the workflow that runs it', '.github/workflows/variance.yml'],
     ['the action that photographs it', '.github/actions/variance/action.yml'],
