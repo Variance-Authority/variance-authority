@@ -1,5 +1,5 @@
 import { CaseCutPlan } from './case-cut-plan.js';
-import { CaseLinesBuilder, linesOf, valueAt, type CaseLines, type Segment } from './case-lines.js';
+import { CaseLinesBuilder, firstEntryAcross, linesOf, valueAt, type CaseLines, type Segment } from './case-lines.js';
 import { CrossingSets, type SetId } from './crossing-sets.js';
 import { encodeSetExecutionIndex, openSetExecutionIndex, type OpenedSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import { HeldIndex, writeLaid, type LaidModule } from './held-case-index.js';
@@ -298,6 +298,14 @@ export class CaseLayerState {
         if (segment === undefined) segments.set(generation, segment = { values: [], starts: [] });
         if (segment.values.at(-1) !== value) { segment.values.push(value); segment.starts.push(segment.starts.length === 0 ? 0 : block); }
       };
+      const heldValue = (generation: number, block: number): number | undefined => {
+        const row = this.#cases.get(generation)!;
+        if (!heldValues.has(generation)) heldValues.set(generation, row.lines?.segments.get(recorded.file));
+        const segment = heldValues.get(generation);
+        if (segment === undefined) return row.lines?.fallback;
+        let at = 0; while (at + 1 < segment.starts.length && segment.starts[at + 1]! <= block) at += 1;
+        return segment.values[at];
+      };
       for (let block = 0; block < called.length; block += 1) {
         const ownBlock = cuts === undefined ? block : cuts.own[block]!;
         const mine = ownBlock < 0 ? 0 : from(recorded.called[ownBlock]!);
@@ -308,18 +316,22 @@ export class CaseLayerState {
         // Without line cuts the crossing product is never expanded here.
         if (!lined) continue;
         const own = new Set(this.#sets.members(mine));
-        for (const generation of own) if (this.#cases.get(generation)?.lines !== undefined) addLine(generation, block, valueAt(ownLines[runAt.get(generation)!]!, moduleAt, ownBlock));
-        for (const generation of this.#sets.members(carried)) {
-          if (own.has(generation)) continue;
-          const row = this.#cases.get(generation)!;
-          if (!heldValues.has(generation)) heldValues.set(generation, row.lines?.segments.get(recorded.file));
-          const segment = heldValues.get(generation);
-          let value = row.lines?.fallback;
-          if (segment !== undefined) { let at = 0; while (at + 1 < segment.starts.length && segment.starts[at + 1]! <= before) at += 1; value = segment.values[at]; }
+        const prior = this.#sets.members(carried);
+        const shared = files?.artifacts === true ? new Set(prior) : undefined;
+        for (const generation of own) if (this.#cases.get(generation)?.lines !== undefined) {
+          let value = valueAt(ownLines[runAt.get(generation)!]!, moduleAt, ownBlock);
+          if (value === undefined) throw new Error('not a variance-authority execution index');
+          if (shared?.has(generation)) {
+            const from = heldValue(generation, before);
+            if (from === undefined) throw new Error('not a variance-authority execution index');
+            value = firstEntryAcross(from, value);
+            if (value === undefined) { delete this.#cases.get(generation)!.lines; continue; }
+          }
           addLine(generation, block, value);
         }
+        for (const generation of prior) if (!own.has(generation)) addLine(generation, block, heldValue(generation, before));
       }
-      for (const [generation, segment] of segments) this.#cases.get(generation)!.lines!.segments.set(recorded.file, segment);
+      for (const [generation, segment] of segments) this.#cases.get(generation)?.lines?.segments.set(recorded.file, segment);
       if (previousRow?.row !== undefined) this.#kept.delete(this.#held!.columns.moduleFile[previousRow.row]!);
       this.#modules.set(recorded.file, { file: recorded.file, module: { ...target, called, loaded }, called, loaded, touched: this.#step });
     }

@@ -130,6 +130,17 @@ export function layEyes(
   return watched.length === 0 && journals.length === 0 ? undefined : encodeRecordedEyes({ watched, journals });
 }
 
+/** Independent recorded sections, retaining every collected watch and attempt. */
+export function combineRecordedEyes(sections: readonly Uint8Array[], cases: () => readonly string[]): Uint8Array | undefined {
+  if (sections.length === 0) return undefined;
+  const rows = sections.map(decodeRecordedEyes);
+  const held = new Set(cases());
+  for (const row of rows) for (const id of [...row.watched, ...row.journals.map((journal) => journal.case)]) {
+    if (!held.has(id)) throw new Error(`an Eyes journal names a case the artifacts do not hold: ${id}`);
+  }
+  return encodeRecordedEyes({ watched: rows.flatMap((row) => row.watched), journals: rows.flatMap((row) => row.journals) });
+}
+
 /** One attempt's journal as a driver hands it over, before the run has named the case. */
 export interface ObservedEyes {
   /** Which run of the case this is, counted from 1. */

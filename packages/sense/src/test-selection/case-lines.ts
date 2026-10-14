@@ -61,6 +61,18 @@ export function lineValue(line: number, ambient: boolean): number {
   return line * 2 + (ambient ? 1 : 0);
 }
 
+/**
+ * The first-entry value across independent observations. Own case statements
+ * outrank ambient hooks; conflicting equally ranked values have no recorded
+ * chronology, so their aggregate is unknown, never an empty entry.
+ */
+export function firstEntryAcross(first: number | undefined, second: number | undefined): number | undefined {
+  if (first === undefined || second === undefined) return undefined;
+  if (first === second) return first;
+  if (first % 2 !== second % 2) return first % 2 === 0 ? first : second;
+  return undefined;
+}
+
 /** The line a region of `module` was first reached at, for a region the case crossed. */
 export function lineAt(lines: CaseLines, module: number, block: number): { readonly line: number; readonly ambient: boolean } | undefined {
   const value = valueAt(lines, module, block);

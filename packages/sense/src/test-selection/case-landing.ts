@@ -8,6 +8,8 @@
  * last run and its before layer as the same run recorded there would have.
  */
 
+import { combineCaseRuns, lastCaseRunOf, spelledLast, type LastCaseRun } from './case-last.js';
+export { lastCaseRunOf, type LastCaseRun } from './case-last.js';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { layerCaseIndex } from './case-layer.js';
@@ -15,7 +17,7 @@ import { CaseLayerState } from './case-layer-state.js';
 import { caseSectionsAt, type CaseSections } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex, type OpenedSetExecutionIndex } from './execution-set-format.js';
-import { layEyes, readableEyes, type EyesSection } from './eyes-record.js';
+import { combineRecordedEyes, layEyes, readableEyes, type EyesSection } from './eyes-record.js';
 import { editsBetween } from './region-edit.js';
 import type { TestCoverageView } from './format-view.js';
 import { codeUnitOrder } from './instrumented-modules.js';
@@ -53,50 +55,6 @@ export interface FreshCases {
   readonly run: LaidRun;
   /** The cases that opened Eyes journals and the journals they handed over; absent when no case composed Eyes. */
   readonly eyes?: EyesSection;
-}
-
-/**
- * The run that wrote the case index last. Its cases are in the index itself,
- * as that run left them, so this names them and holds nothing else.
- */
-export interface LastCaseRun {
-  readonly commit?: string;
-  /**
-   * The commit the cases in the before layer were recorded at: the commit of
-   * the run that wrote the index before the first run at this one, or, when
-   * the record crossed a checkout and names no such run, the commit its
-   * snapshot stands at. Absent when neither names one, and when a run at this
-   * commit ran a file again, because that file's before is then this commit's
-   * own.
-   */
-  readonly before?: string;
-  readonly at: string;
-  /** Every test file the runs at this commit announced, so a run can tell whether it ran one again. */
-  readonly files: readonly string[];
-  /**
-   * Files of `files` the before layer cannot answer for: a run at this commit
-   * laid them over no index, or over one that began at this commit, and none
-   * has run them since. What came before them is not known, which is not the
-   * same as no case. Absent when every file has a base.
-   */
-  readonly unbased?: readonly string[];
-  /**
-   * The text each module of the before layer was cut from, by file, as the
-   * coverage beside the index it was cut from named it. A reader compares it
-   * with the text at `before` and reads no region of a module cut from another
-   * text, since those regions stand on lines that commit does not have. A
-   * module it does not name was cut from a text nobody here knew. Absent when
-   * no run named one, which says nothing either way.
-   */
-  readonly beforeTexts?: Readonly<Record<string, string>>;
-  /**
-   * True when the first run at this commit was laid over no index, so every
-   * case in it began at this commit and a file first run here has no base.
-   * Absent when an earlier commit's index was under it.
-   */
-  readonly began?: true;
-  /** The cases the last run recorded, by id. */
-  readonly cases: readonly string[];
 }
 
 /**
@@ -146,7 +104,6 @@ export function layCases(
   state?: CaseLayerState,
   present: (file: string) => boolean = (file) => existsSync(resolve(root, file)),
   opened?: OpenedSetExecutionIndex,
-  artifacts?: true,
 ): CaseSections {
   const ran = new Set(run.tests.map((test) => test.file));
   const recorded = textsOf(run);
@@ -160,8 +117,7 @@ export function layCases(
     ran,
     finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
     present,
-    ...(artifacts === undefined ? {} : { artifacts }),
-    ...(unbasedShard || artifacts === true ? { unbased: true } : {}),
+    ...(unbasedShard ? { unbased: true } : {}),
     edit: (file) => {
       const [from, to] = [held?.get(file), recorded.get(file)];
       return from === undefined || to === undefined ? undefined : edits(file, from, to);
@@ -182,7 +138,7 @@ export function layCases(
   // text, so its before of them is not the base's. `beforeTexts` names that
   // text, and a reader leaves those modules unmeasured rather than compare
   // them; keeping the base's cut of every module would keep a second index.
-  const before = session.retire(state === undefined ? previous.before : undefined, retired, ran, again, unbasedShard || artifacts === true);
+  const before = session.retire(state === undefined ? previous.before : undefined, retired, ran, again, unbasedShard);
   const beforeTexts = textsOfBefore(
     before?.files(),
     retired?.modules.map((module) => module.file),
@@ -247,16 +203,6 @@ function textsOfBefore(
     if (text !== undefined) texts[file] = text;
   }
   return texts;
-}
-
-/** The run that wrote the case index last, or `undefined` when none named itself or its name cannot be read. */
-export function lastCaseRunOf(sections: CaseSections): LastCaseRun | undefined {
-  if (sections.last === undefined) return undefined;
-  try {
-    return JSON.parse(Buffer.from(sections.last).toString('utf8')) as LastCaseRun;
-  } catch {
-    return undefined;
-  }
 }
 
 /**
@@ -338,8 +284,9 @@ export function landCases(
   present: (file: string) => boolean = (file) => existsSync(resolve(root, file)),
   artifacts?: true,
 ): { readonly landing: CaseLanding; readonly sections: CaseSections } {
-  const state = new CaseLayerState(previous.index, previous.before);
-  let sections = previous;
+  const state = new CaseLayerState(artifacts === true ? undefined : previous.index, artifacts === true ? undefined : previous.before);
+  let sections: CaseSections = artifacts === true ? {} : previous;
+  const recordedSections: CaseSections[] = [];
   const texts = new Map(held ?? []);
   const recorded = new Map<string, string>();
   // Every shard's before is cut from the index the landing began with.
@@ -349,14 +296,23 @@ export function landCases(
   const ran = new Set<string>();
   for (const shard of shards) {
     const kept = caseSectionsAt(shard.path);
+    if (artifacts === true) recordedSections.push(kept);
     if (artifacts === true && kept.before !== undefined) namedBefore.push(kept.before);
     const fresh = layableIndex(kept.index);
     if (artifacts === true && kept.index !== undefined && fresh === undefined) throw new Error('cannot combine a recorded case index this build cannot read');
+    if (artifacts === true) {
+      if (fresh !== undefined) {
+        state.layIndex(fresh.opened, { ran: new Set(), finished: new Set(), present: () => true, artifacts: true });
+        sections = { get index() { return state.finish(); } };
+        laid += 1;
+      }
+      continue;
+    }
     const run = shard.coverage ?? lastRunOf(kept) ?? (fresh === undefined ? undefined : indexRunOf(fresh.tests));
     if (run === undefined) continue;
     if (fresh !== undefined) {
       // A section this build cannot read is laid as a shard that opened none.
-      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base && { ...base, recorded: new Map(recorded) }, cacheRoot, state, present, fresh.opened, artifacts);
+      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base && { ...base, recorded: new Map(recorded) }, cacheRoot, state, present, fresh.opened);
       for (const [file, text] of textsOf(run)) {
         texts.set(file, text);
         recorded.set(file, text);
@@ -381,8 +337,13 @@ export function landCases(
       }
       sections = { ...sections, before: before.finish() };
     }
+    let ids: readonly string[] | undefined;
+    const cases = () => ids ??= state.cases();
+    const last = combineCaseRuns(recordedSections, cases);
+    const eyes = combineRecordedEyes(recordedSections.flatMap((part) => part.eyes === undefined ? [] : [part.eyes]), cases);
+    sections = { ...sections, ...(last === undefined ? {} : { last }), ...(eyes === undefined ? {} : { eyes }) };
   }
-  return { landing: { laid: record, shards: laid }, sections: laid > 1 ? lastOfEveryShard(sections, ran) : sections };
+  return { landing: { laid: record, shards: laid }, sections: artifacts !== true && laid > 1 ? lastOfEveryShard(sections, ran) : sections };
 }
 
 /**
@@ -397,11 +358,6 @@ function lastOfEveryShard(sections: CaseSections, ran: ReadonlySet<string>): Cas
   const index = openSetExecutionIndex(sections.index!)!;
   const cases = index.tests.flatMap((test) => (ran.has(test.id) ? [test.id] : []));
   return { ...sections, last: spelledLast({ ...last, cases }) };
-}
-
-/** The last-run section's bytes. */
-function spelledLast(named: LastCaseRun): Buffer {
-  return Buffer.from(`${JSON.stringify(named, null, 2)}\n`);
 }
 
 /** The run a shard's own last-run section names, every file of it finished; `undefined` when it names none. */

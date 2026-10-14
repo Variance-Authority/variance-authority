@@ -82,12 +82,37 @@ export function recordedCuts(held: SetExecutionModule, recorded: SetExecutionMod
   const before = Int32Array.from([...paired, ...extra]);
   const heldAt = new Map([...before].flatMap((from, block) => from < 0 ? [] : [[from, block] as const]));
   const owner = held.owner === undefined && recorded.owner === undefined ? undefined : Uint32Array.from(blocks, (_, block) => {
-    if (own[block]! >= 0) return recorded.owner?.[own[block]!] ?? NO_OWNER;
+    if (own[block]! >= 0 && recorded.owner !== undefined) return recorded.owner[own[block]!]!;
     const from = before[block]!;
     const around = from < 0 ? NO_OWNER : held.owner?.[from] ?? NO_OWNER;
     return around === NO_OWNER ? NO_OWNER : heldAt.get(around) ?? NO_OWNER;
   });
-  return { module: { ...recorded, blocks, ...(owner === undefined ? {} : { owner }) }, own, held: before };
+  if (owner === undefined || owner.every((around, block) => around === NO_OWNER || around < block)) {
+    return { module: { ...recorded, blocks, ...(owner === undefined ? {} : { owner }) }, own, held: before };
+  }
+  // A partial fresh cut can leave a recorded owner in the appended inventory.
+  // Put that parent before its child, preserving the stored index's invariant.
+  const order = ownerOrder(owner);
+  const positions = new Uint32Array(order.length);
+  for (const [at, block] of order.entries()) positions[block] = at;
+  return {
+    module: { ...recorded, blocks: order.map((block) => blocks[block]!), owner: Uint32Array.from(order, (block) => owner[block] === NO_OWNER ? NO_OWNER : positions[owner[block]!]!) },
+    own: Int32Array.from(order, (block) => own[block]!), held: Int32Array.from(order, (block) => before[block]!),
+  };
+}
+
+/** A stable region order with every recorded owner preceding its children. */
+function ownerOrder(owner: Uint32Array): number[] {
+  const seen = new Uint8Array(owner.length);
+  const order: number[] = [];
+  for (let block = 0; block < owner.length; block += 1) {
+    const path: number[] = [];
+    let at = block;
+    while (at !== NO_OWNER && seen[at] === 0) { path.push(at); seen[at] = 1; at = owner[at]!; }
+    if (at !== NO_OWNER && seen[at] === 1) throw new Error('recorded region ownership contains a cycle');
+    while (path.length > 0) { const own = path.pop()!; seen[own] = 2; order.push(own); }
+  }
+  return order;
 }
 
 /** Whether some region of `held` lands on one of `recorded`: the two cuts hold an address in common. */

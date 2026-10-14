@@ -10,6 +10,7 @@ import { main, parseArgs } from '../bin.js';
 import * as selection from '@variance-authority/sense/test-selection';
 import { distillRows } from './distill.js';
 import { readExecutionIndex } from './execution-input.js';
+import { runsWrote } from './covering-motion.js';
 import { recordedJourneys } from './resources.js';
 
 vi.mock('./resources.js', async (original) => ({
@@ -138,6 +139,15 @@ describe('`journeys merge`', () => {
     let err = '';
     expect(await main(['journeys', 'merge', ...shards, '--into', into, '--root', root], { out: () => undefined, err: (text) => { err += text; } })).toBe(2);
     expect(err).toContain('cannot combine a recorded case index');
+  });
+
+  it('leaves recorded before provenance usable by the comparison reader', async () => {
+    const { root, shards, into } = await fixture();
+    const index = selection.caseSectionsAt(shards[0]!).index!;
+    const named = { commit: 'head', before: 'base', at: '2020-01-01T00:00:00.000Z', files: ['a.test.ts'], cases: ['a.test.ts > greets'], beforeTexts: { 'src/greet.ts': 'recorded' } };
+    await selection.writeCoverageBytes(shards[0]!, selection.recordOfCases({ index, before: index, last: Buffer.from(JSON.stringify(named)) }));
+    expect(await main(['journeys', 'merge', shards[0]!, '--into', into, '--root', root], { out: () => undefined, err: () => undefined })).toBe(0);
+    expect(await runsWrote(into, { commit: 'head', first: 'then', latest: 'then', runs: 1, files: ['a.test.ts'] })).toEqual({ compared: new Set(['a.test.ts']), at: 'base', unwritten: [] });
   });
 
   it('retains unwalked regions and modules recorded by earlier artifacts', async () => {
