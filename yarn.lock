@@ -5559,6 +5559,7 @@ __metadata:
     "@variance-authority/sense-win32-x64-msvc": "workspace:*"
     "@variance-authority/wire": "workspace:^"
     jest: "npm:^30.5.1"
+    jest-util: "npm:^30.5.1"
     oxc-parser: "npm:^0.144.0"
     oxc-resolver: "npm:^11.24.2"
     picomatch: "npm:^4.0.7"
@@ -8680,7 +8681,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jest-util@npm:30.5.1":
+"jest-util@npm:30.5.1, jest-util@npm:^30.5.1":
   version: 30.5.1
   resolution: "jest-util@npm:30.5.1"
   dependencies:
