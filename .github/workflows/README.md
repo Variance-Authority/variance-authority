@@ -47,8 +47,11 @@ same hidden HTML marker the gate uses, because the marker names the config's
 `project` and the two run one config, so on the same event the two would
 overwrite each other. The gate runs three configs, each its own check with its
 own comment and its own accept label: the case's Storybook, and a matrix over
-this project's own surfaces, the review surface's Storybook and the site. Two
-more jobs run the case's Storybook under the other two ways of keeping a
+this project's own surfaces, the review surface's Storybook and the site. The
+site's check photographs on a pull request only when the change reaches what
+the site is built from or photographed with, which `tools/site-reach.mjs`
+reads out of the checkout; otherwise it ends green and its summary says why.
+Two more jobs run the case's Storybook under the other two ways of keeping a
 baseline, each with its own config, label and comment: `lfs` commits the
 baselines to the pull request's branch through git-LFS, and `tribunal-service`
 deploys this commit's review service to workers.dev and pushes the build to it.

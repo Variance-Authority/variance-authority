@@ -36,7 +36,11 @@ runs:
       id: native
       shell: bash
       run: |
-        echo "tree=$(git rev-parse HEAD:packages/sense/native)" >> "$GITHUB_OUTPUT"
+        # On its own line, so a git that refuses the checkout fails the step:
+        # inside `echo` it would key the cache on an empty tree, which restores
+        # whichever scanner was saved under that key first.
+        tree=$(git rev-parse HEAD:packages/sense/native)
+        echo "tree=$tree" >> "$GITHUB_OUTPUT"
         # `awk` reads to the end: a `head` would close the pipe on `ldd`, which
         # `pipefail` then reports as the step failing with SIGPIPE.
         libc=$(ldd --version 2>/dev/null | awk 'NR == 1 { print $NF }' || true)
