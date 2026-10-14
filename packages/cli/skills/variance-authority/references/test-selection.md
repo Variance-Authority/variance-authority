@@ -84,8 +84,8 @@ is the same bytes whatever order the shards are named in. It keeps the case
 sections for `distill`, keeps each test file's longest measured duration, and
 treats a shard with no test files as absent. It refuses, by shard, overlapping
 test files or case files, different commits, different probe recipes, a shard
-that kept cases beside one that kept none, a before layer beside none, different
-Eyes journals for one case attempt or a journal of a case the index does not
+that kept cases beside one that kept none, before layers that started from
+different records, different Eyes journals for one case attempt or a journal of a case the index does not
 record, a case index this build cannot read (record it again with this
 version), and lines on a file two shards cut into different regions (record
 every shard with one build). Land the result with

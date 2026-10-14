@@ -1631,9 +1631,11 @@ recorded again with this version. A case whose lines stand on a file two
 shards cut into different regions is refused, because its lines name regions
 by their order; record every shard with one build. Two shards that hold
 different Eyes journals for one attempt of one case, or a journal of a case
-the combined index does not record, are refused by name. So is a shard that
-holds a before layer beside one that holds none: the shards of one run all
-start from one index.
+the combined index does not record, are refused by name. So are shards that
+started from different records — before layers at different commits, or one
+file standing on different text before each: the shards of one run start from
+one record. A shard that found no record to start from starts from nothing,
+and the files it ran are the ones that record cannot answer for.
 
 Where it lands is this checkout's own cache, the file every run on this
 machine layers over — the record of the suite `--suite` names, when the root

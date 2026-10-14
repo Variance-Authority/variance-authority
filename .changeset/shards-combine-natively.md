@@ -11,9 +11,11 @@ index, last-run layer and Eyes, folded in the Sense native addon from the
 shards alone. It reads no checkout and waits on no source index. The record
 is the same bytes whatever order you name the shards in, and the same bytes
 the TypeScript writers give for the unsharded run. Sixteen shards of a
-200,000-module suite combine in about 4 s under 600 MB, where the JavaScript
+200,000-module suite combine in about 4 s under 600 MiB, where the JavaScript
 fold ran out of heap. `variance journeys <shard.bin>...` combines the same
-way, then lands the combined record over the target as the one run it was.
+way, then lands the combined record as the one run it was, reading its
+columns rather than decoding it: the same sixteen shards land on an empty
+cache in about 4.5 s under 600 MiB.
 
 `combineRecords(paths, output)` in `@variance-authority/sense/test-selection`
 writes the record and returns `CombinedRecord`: the counts, the commit, the
@@ -21,14 +23,17 @@ files two shards' indexes cut differently, and one `CombinedShard` per shard
 named, with its path, commit, files, and whether it measured coverage and
 kept cases. A shard that observed nothing, as a shard job that ran no test
 writes, is neutral: it agrees with every other shard.
+`openTestCoverage` and `TestCoverageView`, `recordedRun` and `landedCoverage`,
+and `followRowsIn` are exported for a landing that reads a combined record's
+columns instead of decoding it.
 
 Stitching journey artifacts writes each case's duration, the longest any
 shard measured, and the case's lines, and refuses a case whose lines stand on
 a file two shards cut into different regions.
 
-The addon now returns freed blocks of 4 MB or more to the system, so a
-native call that decodes large buffers one after another holds the largest
-of them, not their sum.
+On macOS the addon returns freed blocks of 4 MiB or more to the system, so
+a native call that decodes large buffers one after another holds the largest
+of them, not their sum. Linux's allocator already does.
 
 **Breaking:**
 
@@ -47,9 +52,12 @@ of them, not their sum.
   - shards that disagree about the commit or the instrumentation, a file
     built from different source, or a region described differently;
   - a test file two shards recorded;
-  - a shard that kept cases beside one that kept none, or a before layer
-    beside none;
-  - two different Eyes journals for one case and attempt, or an Eyes journal
-    of a case the combined index does not hold;
+  - a shard that kept cases beside one that kept none, or a case test file
+    two shards ran;
+  - shards that started from different records: before layers at different
+    commits, or one file on different text before each;
+  - an Eyes section that is not version 1, two different Eyes journals for
+    one case and attempt, or an Eyes journal of a case the combined index
+    does not hold, none kept among them;
   - a case whose lines stand on a file two shards cut into different
     regions: record every shard with one build.

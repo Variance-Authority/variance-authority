@@ -40,7 +40,9 @@ pub struct Coverage {
     pub uncased: u8,
     pub untimed: u8,
     pub no_duration: u32,
-    /// The owner a block with no owner carries.
+    /// The owner a block with no owner carries. The fold carries owners as
+    /// they are; only a test writes a block without one.
+    #[cfg(test)]
     pub no_owner: u32,
     /// Every coverage section, in the order a record holds them.
     pub sections: Vec<String>,

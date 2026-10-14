@@ -1,10 +1,13 @@
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
 
-use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::record_layout::LAYOUT;
+
+#[path = "journey_columns_decode.rs"]
+mod decode;
+pub(crate) use decode::Spare;
 
 /// A column as it goes to the file. `Bytes`, `Words` and `Blob` are stored as
 /// runs when that pays (`record-layout.json` says when); `Plain` holds bytes of
@@ -202,41 +205,21 @@ pub(crate) fn recorded_cases(bytes: Vec<u8>) -> Vec<u8> {
 }
 
 pub fn decode(bytes: &[u8], version: u8) -> Result<Decoded, String> {
-    decode_placed(bytes, place(bytes, version)?)
+    decode::decode_placed(bytes, place(bytes, version)?, &mut Spare::default())
 }
 
 /// Every column of a framed file at whatever version its header states, with
 /// that version: the caller decides which it reads.
 pub fn decode_any(bytes: &[u8]) -> Result<(u8, Decoded), String> {
     let (version, placed) = framed(bytes)?;
-    Ok((version, decode_placed(bytes, placed)?))
+    Ok((version, decode::decode_placed(bytes, placed, &mut Spare::default())?))
 }
 
-fn decode_placed(bytes: &[u8], placed: Vec<Placed>) -> Result<Decoded, String> {
-    // Columns decode apart, so a record's are decoded at once.
-    let plain: Vec<(String, Plain)> = placed
-        .into_par_iter()
-        .map(|column| {
-            let stored = &bytes[column.stored];
-            let plain = match column.rows {
-                None if column.width == 4 && stored.len() % 4 == 0 => Plain::Words(
-                    stored.chunks_exact(4).map(|word| u32::from_le_bytes(word.try_into().unwrap_or_default())).collect(),
-                ),
-                None => Plain::Bytes(column.width, stored.to_vec()),
-                Some(rows) if column.width == 4 => Plain::Words(unpack_words(stored, rows)?),
-                Some(rows) if column.name.ends_with(".blob") => Plain::Bytes(column.width, unpack_blob(stored, rows)?),
-                Some(rows) => Plain::Bytes(column.width, unpack_bytes(stored, rows)?),
-            };
-            Ok((column.name, plain))
-        })
-        .collect::<Result<_, String>>()?;
-    let mut columns = HashMap::with_capacity(plain.len());
-    for (name, plain) in plain {
-        if columns.insert(name, plain).is_some() {
-            return Err("journey artifact repeats a column".to_owned());
-        }
-    }
-    Ok(Decoded { columns })
+/// [`decode_any`] into the buffers `spare` holds from an earlier decode, so a
+/// reader of many files of one shape decodes each into the last one's columns.
+pub(crate) fn decode_any_reusing(bytes: &[u8], spare: &mut Spare) -> Result<(u8, Decoded), String> {
+    let (version, placed) = framed(bytes)?;
+    Ok((version, decode::decode_placed(bytes, placed, spare)?))
 }
 
 fn store(column: Column) -> Result<Stored, String> {
@@ -337,46 +320,6 @@ fn compress(bytes: &[u8], level: i32) -> Result<Vec<u8>, String> {
 /// The most bytes one run of words can decode to: a varint is at most five bytes.
 pub(crate) fn word_run_limit() -> usize {
     LAYOUT.run * 5
-}
-
-// No reservation below is sized by a count the file states: a count is checked
-// against what the runs decode to, and what they decode to is bounded by
-// `decompress`'s limit, so a hostile header costs what its bytes cost.
-
-fn unpack_words(stored: &[u8], rows: usize) -> Result<Vec<u32>, String> {
-    let run = LAYOUT.run;
-    let runs = runs(stored, rows.div_ceil(run))?;
-    let mut out = Vec::new();
-    let mut remaining = rows;
-    for held in runs {
-        out.extend(unvarints(&decompress(held, word_run_limit())?, remaining.min(run))?);
-        remaining = remaining.saturating_sub(run);
-    }
-    Ok(out)
-}
-
-fn unpack_bytes(stored: &[u8], rows: usize) -> Result<Vec<u8>, String> {
-    let runs = runs(stored, rows.div_ceil(LAYOUT.run))?;
-    let mut out = Vec::new();
-    for held in runs {
-        out.extend_from_slice(&decompress(held, LAYOUT.run)?);
-    }
-    if out.len() != rows {
-        return Err("journey byte column has the wrong length".to_owned());
-    }
-    Ok(out)
-}
-
-fn unpack_blob(stored: &[u8], rows: usize) -> Result<Vec<u8>, String> {
-    let mut out = Vec::new();
-    for held in runs_any(stored)? {
-        let limit = rows.saturating_sub(out.len());
-        out.extend_from_slice(&decompress(held, limit)?);
-    }
-    if out.len() != rows {
-        return Err("journey blob column has the wrong length".to_owned());
-    }
-    Ok(out)
 }
 
 pub(crate) fn runs(stored: &[u8], expected: usize) -> Result<Vec<&[u8]>, String> {

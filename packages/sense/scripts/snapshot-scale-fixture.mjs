@@ -29,7 +29,7 @@ const COHORTS = 16;
 const RERAN = 20;
 const RERECORDED = 10;
 
-const mb = (bytes) => `${(bytes / 1_048_576).toFixed(1)} MB`;
+const mb = (bytes) => `${(bytes / 1_048_576).toFixed(1)} MiB`;
 const count = (n) => n.toLocaleString();
 const secs = (ms) => `${(ms / 1000).toFixed(1)}s`;
 

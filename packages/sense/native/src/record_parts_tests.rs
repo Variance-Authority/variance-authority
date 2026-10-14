@@ -48,13 +48,25 @@ fn began_only_when_every_shard_began_and_unbased_where_some_did() {
 }
 
 #[test]
+fn a_began_spelled_false_is_a_run_that_did_not_begin() {
+    // No writer spells it; a reader that meets it reads what `began === true` reads.
+    let unbegun = last(r#"{"at":"1","files":["a.ts"],"began":false,"cases":[]}"#);
+    let began = last(r#"{"at":"1","files":["b.ts"],"began":true,"cases":[]}"#);
+    let folded = folded_last(&[&unbegun, &began], &[none(), none()]).unwrap();
+    assert_eq!((folded.get("began"), &folded["unbased"]), (None, &serde_json::json!(["b.ts"])));
+}
+
+#[test]
 fn refuses_last_run_layers_of_two_runs() {
     let at = |commit: &str| last(&format!(r#"{{"commit":"{commit}","at":"1","files":[],"cases":[]}}"#));
     let message = folded_last(&[&at("c"), &at("d")], &[none(), none()]).err().unwrap();
-    assert!(message.contains("one and two disagree about the commit (`c` against `d`)"), "{message}");
+    assert!(message.contains("one and two disagree about the last-run layer's commit (`c` against `d`)"), "{message}");
     let text = |value: &str| last(&format!(r#"{{"at":"1","files":[],"beforeTexts":{{"a.ts":"{value}"}},"cases":[]}}"#));
     let message = folded_last(&[&text("t1"), &text("t2")], &[none(), none()]).err().unwrap();
     assert!(message.contains("`a.ts` stood on different text"), "{message}");
+    let over = |before: &str| last(&format!(r#"{{"at":"1","before":"{before}","files":[],"cases":[]}}"#));
+    let message = folded_last(&[&over("b1"), &over("b2")], &[none(), none()]).err().unwrap();
+    assert!(message.contains("one and two disagree about the before layer's commit (`b1` against `b2`)"), "{message}");
     assert!(folded_last(&[b"not json"], &[none()]).err().unwrap().contains("one: its last-run layer"));
 }
 
@@ -72,8 +84,8 @@ fn folds_eyes_into_every_case_watched_and_each_attempt_once() {
     let two = eyes(r#"{"version":1,"watched":[],"journals":[{"case":"a","attempt":1,"journal":{"z":1}},{"case":"a","attempt":2,"journal":{}}]}"#);
     let renamed = HashMap::from([("b".to_owned(), "b 2".to_owned())]);
     let known = cases(&["a", "b 2"]);
-    let forward = fold_eyes(&[("one", &one, &renamed), ("two", &two, &none())], &known).unwrap();
-    let backward = fold_eyes(&[("two", &two, &none()), ("one", &one, &renamed)], &known).unwrap();
+    let forward = fold_eyes(&[("one", &one, &renamed), ("two", &two, &none())], Some(&known)).unwrap();
+    let backward = fold_eyes(&[("two", &two, &none()), ("one", &one, &renamed)], Some(&known)).unwrap();
     assert_eq!(forward, backward);
     assert_eq!(
         String::from_utf8(forward).unwrap(),
@@ -88,7 +100,7 @@ fn refuses_two_journals_of_one_attempt_naming_both_shards_in_path_order() {
     let empty = none();
     for shards in [[("b.bin", &one), ("a.bin", &two)], [("a.bin", &two), ("b.bin", &one)]] {
         let named: Vec<(&str, &[u8], &HashMap<String, String>)> = shards.iter().map(|(name, bytes)| (*name, bytes.as_slice(), &empty)).collect();
-        let message = fold_eyes(&named, &cases(&["a"])).err().unwrap();
+        let message = fold_eyes(&named, Some(&cases(&["a"]))).err().unwrap();
         assert!(message.contains("a.bin and b.bin hold different Eyes journals for `a` attempt 1"), "{message}");
     }
 }
@@ -96,8 +108,18 @@ fn refuses_two_journals_of_one_attempt_naming_both_shards_in_path_order() {
 #[test]
 fn refuses_a_journal_of_a_case_the_index_does_not_record() {
     let one = eyes(r#"{"version":1,"watched":[],"journals":[{"case":"gone","attempt":1,"journal":{}}]}"#);
-    let message = fold_eyes(&[("one", &one, &none())], &cases(&["a"])).err().unwrap();
+    let message = fold_eyes(&[("one", &one, &none())], Some(&cases(&["a"]))).err().unwrap();
     assert!(message.contains("one: its eyes section holds a journal of `gone`, a case the combined index does not record"), "{message}");
+}
+
+#[test]
+fn refuses_a_journal_when_no_shard_kept_cases_and_says_so() {
+    let one = eyes(r#"{"version":1,"watched":[],"journals":[{"case":"a","attempt":1,"journal":{}}]}"#);
+    let message = fold_eyes(&[("one", &one, &none())], None).err().unwrap();
+    assert_eq!(
+        message,
+        "one: its eyes section holds a journal of `a`, and no shard kept cases, so the combined record has no case index to name it. Record the shards again with cases kept."
+    );
 }
 
 #[test]
@@ -109,6 +131,16 @@ fn refuses_an_eyes_section_this_build_does_not_read() {
         r#"{"version":1,"watched":[],"journals":[{"case":"a","attempt":1,"journal":3}]}"#,
         "[",
     ] {
-        assert!(fold_eyes(&[("one", section.as_bytes(), &none())], &cases(&["a"])).is_err(), "{section}");
+        assert!(fold_eyes(&[("one", section.as_bytes(), &none())], Some(&cases(&["a"]))).is_err(), "{section}");
+    }
+}
+
+#[test]
+fn a_last_run_at_no_commit_takes_the_commit_the_others_name() {
+    let named = last(r#"{"commit":"c","at":"1","files":["a.ts"],"cases":[]}"#);
+    let unnamed = last(r#"{"at":"1","files":["b.ts"],"cases":[]}"#);
+    for layers in [[&unnamed, &named], [&named, &unnamed]] {
+        let folded = folded_last(&[layers[0], layers[1]], &[none(), none()]).unwrap();
+        assert_eq!(folded["commit"], serde_json::json!("c"));
     }
 }

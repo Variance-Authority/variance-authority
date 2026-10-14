@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { rename, rm } from 'node:fs/promises';
-import type { CommitRuns, TestCoverage } from '@variance-authority/sense/test-selection';
+import { readFile, rename, rm } from 'node:fs/promises';
+import type { CommitRuns, TestCoverageView } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { said } from '../here.js';
 import type { LandedJourneys } from './journeys.js';
@@ -84,12 +84,10 @@ async function landCombined(
   } catch (error) {
     throw new OperatorError(messageOf(error), { cause: error });
   }
-  let folded: TestCoverage | undefined;
-  try {
-    folded = await selection.readTestCoverage(combinedAt);
-  } catch (error) {
-    if (!(error instanceof selection.RecordWithoutCoverage)) throw error;
-  }
+  // The record is read off its columns, never decoded: over nothing it is the
+  // coverage the landing writes, and what else is asked of it is a few columns.
+  const fold = opened(selection, await readFile(combinedAt));
+  const folded = fold === undefined ? undefined : selection.recordedRun(fold.coverage);
   const measured = combined.shards.filter((shard) => shard.measured);
   const unmeasured = combined.shards.flatMap((shard) => (shard.measured ? [] : shard.files));
   // The one run the shards were: what the coverage recorded, and every file a
@@ -105,6 +103,8 @@ async function landCombined(
   // Each shard's own landing kept the install it ran on in the runs record
   // beside its snapshot, where that shard ran, and the fold ran on it only when
   // every shard names the same one. A record that cannot be read names none.
+  // A shard that recorded no test file ran no test the install could speak for,
+  // so it names nothing either way and is left out.
   // FIXME: the texts a shard's install names are kept in the cache of the
   // machine it ran on, and nothing carries them here, so a shard that ran over
   // an uncommitted install elsewhere is compared from its commit after all.
@@ -112,7 +112,7 @@ async function landCombined(
     ? undefined
     : selection.shardsInstall(
         await Promise.all(
-          measured.map(async (shard) => ({
+          measured.filter((shard) => shard.files.length > 0).map(async (shard) => ({
             tests: { ...(shard.commit == null ? {} : { commit: shard.commit }), tests: shard.files.map((file) => ({ file })) },
             runs: await shardRuns(shard.path),
           })),
@@ -147,9 +147,9 @@ async function landCombined(
   const staged = `${at}.${stage}`;
   const stagedRuns = `${runsAt}.${stage}`;
   const locked = await selection.withIndexLock(at, async () => {
-    let previous;
+    let previous: Opened | undefined;
     try {
-      previous = await selection.readTestCoverage(at);
+      previous = opened(selection, await readFile(at));
     } catch (error) {
       // A record whose run instrumented nothing has no coverage to fold over,
       // and its cases are laid under the shards' below.
@@ -167,18 +167,20 @@ async function landCombined(
     // runner's `landRun` does: refusing would leave the operator to delete it
     // and land again, which writes the same record.
     const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
-    const landed = folded === undefined ? previous : selection.mergeCoverage(previous, folded);
-    const runs = folded === undefined ? undefined : selection.commitRunsAfter(previous, held, folded, installed);
+    const before = previous === undefined ? undefined : selection.recordedRun(previous.coverage);
+    const bytes = fold === undefined ? previous?.bytes : selection.landedCoverage(previous, fold);
+    const landed = bytes === undefined ? undefined : selection.openTestCoverage(bytes);
+    const runs = folded === undefined ? undefined : selection.commitRunsAfter(before, held, folded, installed);
     // The index beside the snapshot was cut from the texts the snapshot names,
     // and a module no shard recorded is laid onto the cut its rows landed at.
-    const texts = selection.textsOf(previous);
+    const texts = selection.textsOf(before);
     const { landing, sections: laid } = selection.landCases(
       at,
       selection.caseSectionsAt(at),
       root,
       [{ path: combinedAt, ...(run === undefined ? {} : { coverage: run }) }],
       texts,
-      previous?.commit,
+      before?.commit,
     );
     // The landing laid at most one record, the combine's, and that record's
     // cases are those of every shard the combine folded a case index from.
@@ -186,12 +188,14 @@ async function landCombined(
     const cases = 'laid' in landing
       ? { ...landing, shards: landing.shards === 0 ? 0 : cased }
       : { ...landing, shard: shards.join(', ') };
-    const sections = selection.followRows(laid, landed, texts, selection.editsBetween(root, undefined, [previous?.commit, landed?.commit]));
+    const sections = landed === undefined
+      ? laid
+      : selection.followRowsIn(laid, landed, texts, selection.editsBetween(root, undefined, [before?.commit, landed.commit]));
     // Shards that measured nothing and kept no case this build reads, over no
     // coverage, leave nothing to write: the target stays as it was.
-    const kept = landed !== undefined || Object.values(sections).some((part) => part !== undefined);
+    const kept = bytes !== undefined || Object.values(sections).some((part) => part !== undefined);
     try {
-      if (landed !== undefined) await selection.writeTestCoverage(staged, landed, sections);
+      if (bytes !== undefined) await selection.writeCoverageBytes(staged, selection.withCaseSections(bytes, sections));
       else if (kept) await selection.writeCoverageBytes(staged, selection.recordOfCases(sections));
       if (runs !== undefined) await selection.writeCommitRuns(stagedRuns, runs);
       if (kept) await rename(staged, at);
@@ -208,7 +212,12 @@ async function landCombined(
       // before, an older commit than the one it last ran at, so `test:since`
       // reads more of the change for it rather than less.
       if (runs !== undefined) await rename(stagedRuns, runsAt);
-      return { landed, cases };
+      return {
+        landed: landed === undefined
+          ? undefined
+          : { commit: landed.commit, tests: landed.testPath.length, modules: landed.modulePath.length },
+        cases,
+      };
     } finally {
       await rm(staged, { force: true });
       await rm(stagedRuns, { force: true });
@@ -221,8 +230,8 @@ async function landCombined(
     at,
     shards: shards.length,
     ...(landed?.commit === undefined ? {} : { commit: landed.commit }),
-    observations: landed?.tests.length ?? 0,
-    modules: landed?.modules.length ?? 0,
+    observations: landed?.tests ?? 0,
+    modules: landed?.modules ?? 0,
     cases,
   };
 }
@@ -232,6 +241,28 @@ async function landCombined(
  * or none this can read, which is said on stderr: the landing then keeps no
  * install, and a later selection compares from the commit.
  */
+/** A record and its coverage, opened where it lies. */
+interface Opened {
+  readonly bytes: Uint8Array;
+  readonly coverage: TestCoverageView;
+}
+
+/**
+ * `bytes` opened, or `undefined` when the record holds cases and no coverage.
+ * A record this build cannot read throws, here and not at the first column a
+ * later step reads.
+ */
+function opened(selection: Selection, bytes: Uint8Array): Opened | undefined {
+  try {
+    const coverage = selection.openTestCoverage(bytes);
+    void coverage.instrumentation;
+    return { bytes, coverage };
+  } catch (error) {
+    if (error instanceof selection.RecordWithoutCoverage) return undefined;
+    throw error;
+  }
+}
+
 async function shardRuns(path: string): Promise<CommitRuns | undefined> {
   const selection = await import('@variance-authority/sense/test-selection');
   try {

@@ -27,8 +27,10 @@ mod case_owner;
 mod case_preconditions;
 mod case_shard;
 mod compact;
+#[cfg(target_os = "macos")]
 mod large_alloc;
 
+#[cfg(target_os = "macos")]
 #[global_allocator]
 static ALLOCATOR: large_alloc::Mapped = large_alloc::Mapped;
 mod conditions;

@@ -1,12 +1,14 @@
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
+import { sourceIndexPath } from '@variance-authority/sense';
 import { encodeAsSetExecutionIndex, readTestCoverage, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { main, parseArgs } from '../bin.js';
 import { distillRows } from './distill.js';
 import { readExecutionIndex } from './execution-input.js';
+import { followUpsLogPath, holdFollowUps, releaseFollowUps } from './index-follow-ups.js';
 import { recordedJourneys } from './resources.js';
 
 vi.mock('./resources.js', async (original) => ({
@@ -65,6 +67,24 @@ describe('`journeys combine`', () => {
     expect((await readTestCoverage(into)).modules[0]!.blocks[0]!.loadedBy).toEqual(['a.test.ts', 'b.test.ts']);
     expect((await readExecutionIndex(into)).tests.map((test) => test.id)).toEqual(['a.test.ts > greets', 'b.test.ts > greets']);
     expect((await distillRows({ root, execution: into })).rows).toEqual(before);
+  });
+
+  it('runs past a live process still making what `variance index` left to it, since it reads none of it', async () => {
+    const { root, shards, into } = await fixture();
+    const cwd = process.cwd();
+    const index = sourceIndexPath(root);
+    await mkdir(dirname(index), { recursive: true });
+    // This process is live and never lets the lock go, so a command that waits on it never returns.
+    holdFollowUps(index, { pid: process.pid, log: followUpsLogPath(index) });
+    try {
+      process.chdir(root);
+      let err = '';
+      const code = await main(['journeys', 'combine', ...shards, '--into', into], { out: () => {}, err: (text) => { err += text; } });
+      expect({ code, err }).toEqual({ code: 0, err: '' });
+    } finally {
+      releaseFollowUps(index, process.pid);
+      process.chdir(cwd);
+    }
   });
 
   it('writes the same bytes whatever order the shards are named in', async () => {

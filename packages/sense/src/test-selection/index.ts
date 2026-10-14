@@ -171,6 +171,9 @@ export { layerTestCoverage, layeredCoverage } from './format-layer.js';
 // file and not wanting the seventy megabytes the answers do not touch. The
 // file-taking queries below are this plus a `finally`.
 export { askCoverageFile, isTestCoverageFile, openCoverageFile, type CoverageFile } from './coverage-file.js';
+export { openTestCoverage, type TestCoverageView } from './format-view.js';
+// What a landing of shards reads of the record they combined into, and the coverage it lands.
+export { landedCoverage, recordedRun, type RecordedRun } from './fold-landing.js';
 export { BLOCK_KINDS } from './format-layout.js';
 export { sharedPreconditions, testsGovernedBy } from './lookup.js';
 // The runs that wrote the case index and the snapshot, and what they were laid over.
@@ -178,7 +181,7 @@ export { sharedPreconditions, testsGovernedBy } from './lookup.js';
 export { withIndexLock } from './index-lock.js';
 export { landCases, lastCaseRunOf, textsOf, type CaseLanding, type LaidRun, type LandedShard, type LastCaseRun, type ModuleTexts } from './case-landing.js';
 export { casesCutApart, type IndexedCut } from './case-index-cut.js';
-export { followRows } from './case-cuts.js';
+export { followRows, followRowsIn } from './case-cuts.js';
 export { editsBetween } from './region-edit.js';
 export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordOfCases, recordedCases, recordedEyesAt, recordedEyesOf, sharedRecord, withCaseSections, withoutCoverage, type CaseSections } from './case-record.js';
 export { collectedRecord } from './collected-record.js';

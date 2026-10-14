@@ -17,7 +17,7 @@ use napi_derive::napi;
 
 use crate::case_fold;
 use crate::case_shard::{self, Inventory};
-use crate::journey_columns::{self, Column};
+use crate::journey_columns::{self, Column, Spare};
 use crate::journey_output;
 use crate::order;
 use crate::record_coverage::{self, Parts};
@@ -60,7 +60,8 @@ pub(crate) struct Combined {
 }
 
 /// What every shard of one run says alike, and the first shard that said it.
-/// Absent is a value: a shard that names none disagrees with one that names one.
+/// Heard by `hear`, absent is a value: a shard that names none disagrees with
+/// one that names one. Heard by `hear_some`, absent says nothing.
 pub(crate) struct Agreed {
     what: &'static str,
     held: Option<(String, Option<String>)>,
@@ -86,6 +87,12 @@ impl Agreed {
                 value.unwrap_or("(none)")
             )),
         }
+    }
+
+    /// `shard` says `value`, or says nothing when it names none: a shard that
+    /// names no commit disagrees with nobody.
+    pub fn hear_some(&mut self, shard: &str, value: Option<&str>) -> Result<(), String> {
+        value.map_or(Ok(()), |value| self.hear(shard, Some(value)))
     }
 
     /// The value every shard heard said, if any said one.
@@ -161,14 +168,16 @@ fn combined<'a>(paths: &[String], load: impl Fn(usize, Option<usize>) -> Result<
     }
 
     let mut fold = Fold::new(universe);
-    let mut commit = Agreed::new("commit");
+    // Each shard is decoded into the columns the one before it let go.
+    let mut spare = Spare::default();
+    let (mut measured, mut commit) = (Agreed::new("commit"), Agreed::new("commit"));
     let mut inventories: HashMap<String, Vec<Inventory>> = HashMap::new();
     let mut held: Vec<(usize, Held)> = Vec::with_capacity(paths.len());
     let mut folded_files: Vec<usize> = Vec::new();
     for at in order {
         let path = &paths[at];
         let (bytes, _) = load(at, None)?;
-        let mut record = record_coverage::read(&bytes).map_err(|error| unreadable(path, error))?;
+        let mut record = record_coverage::read_reusing(&bytes, &mut spare).map_err(|error| unreadable(path, error))?;
         drop(bytes);
         let last = record.parts.last.as_deref().map(record_parts::last_run).transpose().map_err(|error| format!("{path}: {error}"))?;
         let index = record
@@ -190,24 +199,35 @@ fn combined<'a>(paths: &[String], load: impl Fn(usize, Option<usize>) -> Result<
             }
             None => None,
         };
+        // Coverage measured at no commit is a value among the measured shards,
+        // as the layering rule holds it. A shard that measured nothing speaks
+        // for the commit through its last run, and one whose last run names no
+        // commit disagrees with nobody. A measured shard's last run may name a
+        // later commit than its coverage, when a run that instrumented nothing
+        // was laid over it; the last-run layers agree among themselves.
         if !empty {
-            if let Some(named) = &covered {
-                commit.hear(path, named.as_deref())?;
-            }
-            if let Some((named, _)) = &last {
-                commit.hear(path, named.as_deref())?;
+            match &covered {
+                Some(named) => {
+                    measured.hear(path, named.as_deref())?;
+                    commit.hear_some(path, named.as_deref())?;
+                }
+                None => commit.hear_some(path, last.as_ref().and_then(|(named, _)| named.as_deref()))?,
             }
         }
         if let (Some(coverage), false) = (&record.coverage, empty) {
             fold.add(path, coverage)?;
             folded_files.push(held.len());
         }
+        let measured_any = record.coverage.is_some();
+        if let Some(coverage) = record.coverage.take() {
+            coverage.spare(&mut spare);
+        }
         let (named, ran) = last.unwrap_or_default();
         held.push((at, Held {
             path: path.clone(),
             commit: covered.flatten().or(named),
-            files: if record.coverage.is_some() { Vec::new() } else { ran },
-            measured: record.coverage.is_some(),
+            files: if measured_any { Vec::new() } else { ran },
+            measured: measured_any,
             empty,
             cased: index.is_some() && !empty,
             index,
@@ -228,13 +248,9 @@ fn combined<'a>(paths: &[String], load: impl Fn(usize, Option<usize>) -> Result<
                 cased.path, uncased.path, uncased.path, cased.path
             ));
         }
-        if let Some(before) = observed.iter().map(shard).find(|shard| shard.parts.before.is_some()) {
-            if let Some(without) = observed.iter().map(shard).find(|shard| shard.parts.before.is_none()) {
-                return Err(format!(
-                    "{} holds a before layer and {} holds none, so they are not shards of one run over one index.",
-                    before.path, without.path
-                ));
-            }
+        // A shard that found no record holds no before layer: its cases began
+        // over nothing, and the last-run fold names its files unbased.
+        if observed.iter().map(shard).any(|shard| shard.parts.before.is_some()) {
             let mut inventories = HashMap::new();
             let layers = held
                 .iter()
@@ -273,7 +289,7 @@ fn combined<'a>(paths: &[String], load: impl Fn(usize, Option<usize>) -> Result<
     }
     let eyes = parts(|parts| parts.eyes.as_deref());
     if !eyes.is_empty() {
-        columns.push(Column::Plain(LAYOUT.coverage.part("eyes"), record_parts::fold_eyes(&eyes, &ids)?));
+        columns.push(Column::Plain(LAYOUT.coverage.part("eyes"), record_parts::fold_eyes(&eyes, cases.is_some().then_some(&ids))?));
     }
 
     let mut result = CombinedRecord {
@@ -296,7 +312,7 @@ fn combined<'a>(paths: &[String], load: impl Fn(usize, Option<usize>) -> Result<
         }))
         .collect();
     if !folded_files.is_empty() {
-        let folded = fold.finish(result.commit.as_deref())?;
+        let folded = fold.finish(measured.value())?;
         for (shard, files) in folded_files.into_iter().zip(folded.files) {
             shards[shard].1.files = files;
         }

@@ -1,13 +1,20 @@
-//! The addon's allocator: the system's, except that a block of
+//! The addon's allocator on macOS: the system's, except that a block of
 //! [`LARGE`] bytes or more is mapped from the kernel and unmapped when freed.
 //!
 //! macOS's allocator keeps freed large blocks resident in a cache, and reuses
 //! one only for a request of nearly its size. A fold decodes each shard into
 //! columns of a little more or less than the last shard's, frees them, and
 //! decodes the next: the cache missed and grew by every shard it heard, so
-//! sixteen shards held well over twice the fold's live state. A mapping that is
-//! returned on free costs one zero-filled page per page touched, which the
-//! decode that fills the block pays many times over.
+//! sixteen shards held well over twice the fold's live state. Reusing the
+//! columns' buffers across shards does not stop it, because what a decode
+//! frees is not only its columns. A mapping that is returned on free costs one
+//! zero-filled page per page touched, which the decode that fills the block
+//! pays many times over.
+//!
+//! macOS only, because only macOS's allocator needs it. glibc returns a freed
+//! block above its mapping threshold to the kernel already and reuses the rest
+//! from its heap: there the combine peaks at what it peaks at here, and mapping
+//! every large block costs it a sixth of its time in page faults and copies.
 
 use std::alloc::{GlobalAlloc, Layout, System};
 
@@ -18,28 +25,16 @@ const LARGE: usize = 4 << 20;
 pub struct Mapped;
 
 fn mapped(layout: &Layout) -> bool {
-    cfg!(unix) && layout.size() >= LARGE && layout.align() <= 4096
+    layout.size() >= LARGE && layout.align() <= 4096
 }
 
-#[cfg(unix)]
 unsafe fn map(size: usize) -> *mut u8 {
     let at = libc::mmap(std::ptr::null_mut(), size, libc::PROT_READ | libc::PROT_WRITE, libc::MAP_PRIVATE | libc::MAP_ANON, -1, 0);
     if at == libc::MAP_FAILED { std::ptr::null_mut() } else { at.cast() }
 }
 
-#[cfg(unix)]
 unsafe fn unmap(at: *mut u8, size: usize) {
     libc::munmap(at.cast(), size);
-}
-
-#[cfg(not(unix))]
-unsafe fn map(_: usize) -> *mut u8 {
-    unreachable!()
-}
-
-#[cfg(not(unix))]
-unsafe fn unmap(_: *mut u8, _: usize) {
-    unreachable!()
 }
 
 unsafe impl GlobalAlloc for Mapped {

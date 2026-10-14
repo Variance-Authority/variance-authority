@@ -345,3 +345,87 @@ fn an_empty_shard_changes_nothing_whatever_it_says_of_its_run() {
     let (first, second) = two();
     assert_eq!(combined(&[&first, &empty, &second]).unwrap().bytes, combined(&[&first, &second]).unwrap().bytes);
 }
+
+#[test]
+fn a_shard_that_measured_nothing_at_no_commit_disagrees_with_nobody() {
+    // Its last run names no commit: the run was made outside one, and says
+    // nothing against the commit the measured shard names.
+    let unnamed = br#"{"at":"2026-01-01T00:00:00.000Z","files":["b.test.ts"],"cases":[]}"#.to_vec();
+    let alone = journey_columns::encode(
+        vec![Column::Plain(LAYOUT.coverage.part("index"), cases("b.test.ts", "1")), Column::Plain(LAYOUT.coverage.part("last"), unnamed)],
+        LAYOUT.coverage.format,
+    )
+    .unwrap();
+    let measured = fixture::write(&cased("a.test.ts", "1"));
+    for shards in [[measured.as_slice(), alone.as_slice()], [alone.as_slice(), measured.as_slice()]] {
+        let folded = combined(&shards).unwrap();
+        assert_eq!(folded.result.commit.as_deref(), Some("c0ffee"));
+        let last: serde_json::Value = serde_json::from_slice(record_coverage::read(&folded.bytes).unwrap().parts.last.as_deref().unwrap()).unwrap();
+        assert_eq!((&last["commit"], &last["files"]), (&serde_json::json!("c0ffee"), &serde_json::json!(["a.test.ts", "b.test.ts"])));
+    }
+}
+
+#[test]
+fn a_record_whose_last_run_measured_nothing_at_a_later_commit_combines_as_it_is() {
+    // A run that instrumented nothing, laid over a record, leaves the coverage
+    // where it stood and writes its own commit into the last-run layer. The
+    // record is one run's coverage and a later run's cases, and stays so.
+    let mut held = cased("a.test.ts", "1");
+    held.parts[1] = ("last", last("beef", &["a.test.ts"], &["a.test.ts > adds"]));
+    let folded = combined(&[&fixture::write(&held)]).unwrap();
+    assert_eq!(folded.result.commit.as_deref(), Some("c0ffee"));
+    let last: serde_json::Value = serde_json::from_slice(record_coverage::read(&folded.bytes).unwrap().parts.last.as_deref().unwrap()).unwrap();
+    assert_eq!(last["commit"], serde_json::json!("beef"));
+}
+
+#[test]
+fn refuses_a_combine_of_no_records() {
+    assert_eq!(refused(&[]), "no records were named to combine");
+}
+
+/// `cased(file)` with `before` as its before layer.
+fn based(file: &'static str, before: Vec<u8>) -> Vec<u8> {
+    let mut held = cased(file, "1");
+    held.parts.push(("before", before));
+    fixture::write(&held)
+}
+
+#[test]
+fn a_shard_that_found_no_record_combines_beside_shards_that_found_one() {
+    // A shard job that restored no record lays its cases over nothing: its
+    // last-run layer begins, and it holds no before layer and names no before
+    // commit. Its files are ones the others' before layer cannot answer for.
+    let mut found = cased("a.test.ts", "1");
+    found.parts = vec![
+        ("index", cases("a.test.ts", "1")),
+        ("last", br#"{"commit":"c0ffee","before":"beef","at":"1","files":["a.test.ts"],"cases":["a.test.ts > adds"]}"#.to_vec()),
+        ("before", cases("a.test.ts", "1")),
+    ];
+    let mut began = cased("b.test.ts", "1");
+    began.parts[1] = ("last", br#"{"commit":"c0ffee","at":"1","files":["b.test.ts"],"began":true,"cases":["b.test.ts > adds"]}"#.to_vec());
+    let (found, began) = (fixture::write(&found), fixture::write(&began));
+    let folded = combined(&[&began, &found]).unwrap();
+    assert_eq!(folded.bytes, combined(&[&found, &began]).unwrap().bytes);
+    let record = record_coverage::read(&folded.bytes).unwrap();
+    assert!(record.parts.before.is_some());
+    let last: serde_json::Value = serde_json::from_slice(record.parts.last.as_deref().unwrap()).unwrap();
+    assert_eq!(
+        (&last["before"], last.get("began"), &last["unbased"]),
+        (&serde_json::json!("beef"), None, &serde_json::json!(["b.test.ts"]))
+    );
+}
+
+#[test]
+fn refuses_a_before_layer_this_build_cannot_read_and_says_to_record_it_again() {
+    let message = refused(&[&based("a.test.ts", vec![0xff; 16]), &based("b.test.ts", cases("b.test.ts", "1"))]);
+    assert!(message.starts_with("cannot read the before layer of shard-0.bin: "), "{message}");
+    assert!(message.ends_with("Record it again with this version."), "{message}");
+}
+
+#[test]
+fn refuses_a_last_run_layer_this_build_cannot_read_by_its_shard() {
+    let mut held = cased("a.test.ts", "1");
+    held.parts[1] = ("last", b"{\"files\":3}".to_vec());
+    let message = refused(&[&fixture::write(&held)]);
+    assert!(message.starts_with("shard-0.bin: its last-run layer is not one this build reads: "), "{message}");
+}

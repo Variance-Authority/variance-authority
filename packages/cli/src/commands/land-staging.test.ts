@@ -18,12 +18,13 @@ import { published, wholeRecord } from './mainline-fixture.js';
 const full = vi.hoisted(() => ({
   directory: undefined as string | undefined,
   file: 'snapshot' as 'snapshot' | 'runs record',
-  /** Once set, reading the staged combine fails as a cut file does. */
+  /** Once set, the staged combine is cut short, as a full disk leaves a file. */
   combined: false,
 }));
 
 vi.mock('@variance-authority/sense/test-selection', async (original) => {
   const actual = await original<typeof import('@variance-authority/sense/test-selection')>();
+  const { truncateSync } = await import('node:fs');
   const failing = (file: typeof full.file, to: string) => {
     if (full.file === file && full.directory !== undefined && dirname(to) === full.directory) {
       throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' });
@@ -31,13 +32,14 @@ vi.mock('@variance-authority/sense/test-selection', async (original) => {
   };
   return {
     ...actual,
-    writeTestCoverage: async (...args: Parameters<typeof actual.writeTestCoverage>) => {
+    writeCoverageBytes: async (...args: Parameters<typeof actual.writeCoverageBytes>) => {
       failing('snapshot', args[0]);
-      return actual.writeTestCoverage(...args);
+      return actual.writeCoverageBytes(...args);
     },
-    readTestCoverage: async (...args: Parameters<typeof actual.readTestCoverage>) => {
-      if (full.combined && args[0].endsWith('-combined.tmp')) throw new Error('the record ends before its sections do');
-      return actual.readTestCoverage(...args);
+    combineRecords: (...args: Parameters<typeof actual.combineRecords>) => {
+      const combined = actual.combineRecords(...args);
+      if (full.combined) truncateSync(args[1], 64);
+      return combined;
     },
     writeCommitRuns: async (...args: Parameters<typeof actual.writeCommitRuns>) => {
       failing('runs record', args[0]);
@@ -99,7 +101,7 @@ describe('landJourneys when what it stages cannot be written', () => {
     await writeTestCoverage(shard, { version: 3, instrumentation: 'fixture', commit: first, tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }], modules: [] });
 
     full.combined = true;
-    await expect(landJourneys(dir, [shard], record)).rejects.toThrow(/^the record ends before its sections do$/);
+    await expect(landJourneys(dir, [shard], record)).rejects.toThrow(/^not a variance-authority test coverage artifact$/);
 
     expect(await readFile(record)).toEqual(snapshot);
     expect((await readdir(dirname(record))).filter((name) => name.endsWith('.tmp'))).toEqual([]);

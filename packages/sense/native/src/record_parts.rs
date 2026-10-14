@@ -64,11 +64,7 @@ pub(crate) fn last_run(bytes: &[u8]) -> Result<(Option<String>, Vec<String>), St
 }
 
 fn read_last(bytes: &[u8]) -> Result<Last, String> {
-    let last: Last = serde_json::from_slice(bytes).map_err(|error| format!("its last-run layer is not one this build reads: {error}"))?;
-    if last.began == Some(false) {
-        return Err("its last-run layer spells began as false".to_owned());
-    }
-    Ok(last)
+    serde_json::from_slice(bytes).map_err(|error| format!("its last-run layer is not one this build reads: {error}"))
 }
 
 /// The shards' last-run layers as the one run they were. Each shard is
@@ -81,11 +77,14 @@ pub(crate) fn fold_last(shards: &[(&str, &[u8], &HashMap<String, String>)]) -> R
         .iter()
         .map(|(name, bytes, renames)| read_last(bytes).map(|last| (*name, last, *renames)).map_err(|error| format!("{name}: {error}")))
         .collect::<Result<_, _>>()?;
-    let (_, held, _) = read.first().ok_or("folding last-run layers needs at least one")?;
-    let (mut commit, mut before) = (Agreed::new("commit"), Agreed::new("before layer's commit"));
+    if read.is_empty() {
+        return Err("folding last-run layers needs at least one".to_owned());
+    }
+    let (mut commit, mut before) = (Agreed::new("last-run layer's commit"), Agreed::new("before layer's commit"));
     for (name, last, _) in &read {
-        commit.hear(name, last.commit.as_deref())?;
-        before.hear(name, last.before.as_deref())?;
+        commit.hear_some(name, last.commit.as_deref())?;
+        // A shard that began over no record names no before commit.
+        before.hear_some(name, last.before.as_deref())?;
     }
     let every_began = read.iter().all(|(_, last, _)| last.began == Some(true));
     let mut texts: BTreeMap<String, (String, &str)> = BTreeMap::new();
@@ -109,8 +108,8 @@ pub(crate) fn fold_last(shards: &[(&str, &[u8], &HashMap<String, String>)]) -> R
         last.unbased.iter().flatten().chain(last.files.iter().filter(move |_| began)).cloned()
     }));
     let folded = Last {
-        commit: held.commit.clone(),
-        before: held.before.clone(),
+        commit: commit.value().map(str::to_owned),
+        before: before.value().map(str::to_owned),
         at: read.iter().map(|(_, last, _)| last.at.as_str()).max_by(|left, right| order::code_unit(left, right)).unwrap_or_default().to_owned(),
         files: sorted(read.iter().flat_map(|(_, last, _)| last.files.iter().cloned())),
         unbased: (!unbased.is_empty()).then_some(unbased),
@@ -151,9 +150,10 @@ struct EyesOut<'a> {
 /// The shards' Eyes as the one run they were: every case watched by any, and
 /// each case's journal for each attempt. An attempt of a case ran in one shard,
 /// so two shards that hold different journals for it are refused, naming
-/// both, and a journal of a case the folded index does not hold, `cases`, is
-/// refused as `layEyes` refuses it.
-pub(crate) fn fold_eyes(shards: &[(&str, &[u8], &HashMap<String, String>)], cases: &HashSet<String>) -> Result<Vec<u8>, String> {
+/// both, and a journal of a case the folded index, `cases`, does not hold is
+/// refused as `layEyes` refuses it. `cases` is `None` when no shard kept
+/// cases, and every journal is then refused.
+pub(crate) fn fold_eyes(shards: &[(&str, &[u8], &HashMap<String, String>)], cases: Option<&HashSet<String>>) -> Result<Vec<u8>, String> {
     let mut watched: BTreeSet<String> = BTreeSet::new();
     let mut journals: HashMap<(String, u64), (&str, Journal<'_>)> = HashMap::new();
     for (name, bytes, renames) in shards {
@@ -168,8 +168,16 @@ pub(crate) fn fold_eyes(shards: &[(&str, &[u8], &HashMap<String, String>)], case
                 return Err(refused("holds a row that names no case and attempt"));
             }
             let case = renamed(renames, &row.case).to_owned();
-            if !cases.contains(&case) {
-                return Err(refused(&format!("holds a journal of `{case}`, a case the combined index does not record")));
+            match cases {
+                Some(cases) if !cases.contains(&case) => {
+                    return Err(refused(&format!("holds a journal of `{case}`, a case the combined index does not record")));
+                }
+                Some(_) => {}
+                None => {
+                    return Err(refused(&format!(
+                        "holds a journal of `{case}`, and no shard kept cases, so the combined record has no case index to name it. Record the shards again with cases kept."
+                    )));
+                }
             }
             watched.insert(case.clone());
             let key = (case.clone(), row.attempt);

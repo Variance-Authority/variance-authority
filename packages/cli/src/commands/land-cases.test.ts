@@ -285,8 +285,10 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     const at = await uncoveredShard(first, index, 'shard-a.bin');
     const other = await uncoveredShard('b'.repeat(40), index, 'shard-b.bin');
 
-    // The combine takes the shards in the order of their digests, so either may be named first.
-    await expect(landJourneys(dir, [at, other], record)).rejects.toThrow(/shard-[ab]\.bin and .*shard-[ab]\.bin disagree about the commit/);
+    // The combine hears the shards in code-unit order of their paths, whatever order they are named in.
+    await expect(landJourneys(dir, [other, at], record)).rejects.toThrow(new Error(
+      `${at} and ${other} disagree about the commit (\`${first}\` against \`${'b'.repeat(40)}\`), so they are not shards of one run and cannot be folded into one.`,
+    ));
     expect(await readFile(record)).toEqual(before);
   });
 
