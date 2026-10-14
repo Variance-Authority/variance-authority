@@ -83,6 +83,52 @@ describe('the probes loader', () => {
     expect(columns).toEqual([0, first.indexOf('var __vaK')]);
   });
 
+  it('takes a map handed on as its JSON text ahead of the loaders, as `swc-loader` hands one without `parseMap`', async () => {
+    const root = await checkout();
+    const script = '"use strict"; function total(items) {\n  return items.length > 0 ? items.length : 0;\n}\nmodule.exports = { total };\n';
+    await writeFile(resolve(root, 'total.js'), script, 'utf8');
+    const handed = JSON.stringify({ ...IDENTITY, sources: ['total.js'], mappings: 'AAAA,cAAc;AACd;AACA;AACA' });
+    const { error, code, map } = load(resolve(root, 'total.js'), script, handed, { root, placement: 'before-transforms' });
+
+    expect(error).toBeNull();
+    const first = code!.split('\n')[0]!;
+    expect(first.indexOf('require("!!')).toBeLessThan(first.indexOf('var __vaK'));
+    expect(map).toMatchObject({ sources: ['total.js'] });
+    // Read as an object, the map moves past the require like one handed on as an object.
+    const required = first.slice(first.indexOf('require("!!'), first.indexOf(');', first.indexOf('require("!!')) + 2);
+    expect(decode((map as { mappings: string }).mappings)[0]!.map((segment) => segment.column)).toEqual([0, 14 + required.length]);
+  });
+
+  // A file the instrumenter cannot parse, such as one with Flow's annotations,
+  // is marked as loaded rather than probed, from what the loaders wrote.
+  const FLOW_SCRIPT = '// @flow\nfunction total(items: Array<number>) {\n  return items.length;\n}\nmodule.exports = { total };\n';
+  const FLOW_MODULE = '// @flow\nexport function total(items: Array<number>) {\n  return items.length;\n}\n';
+  const STRIPPED = { version: 3, names: [], mappings: 'AAAA;AACA;AACA;AACA;AACA' };
+
+  it('takes the collector into a script it marks with a require, not an import, so its `module.exports` is still read', async () => {
+    const root = await checkout();
+    await writeFile(resolve(root, 'flow.js'), FLOW_SCRIPT, 'utf8');
+    const written = FLOW_SCRIPT.replace(': Array<number>', '');
+    const { error, code } = load(resolve(root, 'flow.js'), written, { ...STRIPPED, sources: ['flow.js'] }, { root });
+
+    expect(error).toBeNull();
+    expect(code).toMatch(/__vaE\(\);/);
+    expect(code!.startsWith(`${written}\n;require("!!`)).toBe(true);
+    expect(code).not.toMatch(/\bimport\b/);
+  });
+
+  it('takes the collector into a module it marks with an import, as into one it probes', async () => {
+    const root = await checkout();
+    await writeFile(resolve(root, 'flow.js'), FLOW_MODULE, 'utf8');
+    const written = FLOW_MODULE.replace(': Array<number>', '');
+    const { error, code } = load(resolve(root, 'flow.js'), written, { ...STRIPPED, sources: ['flow.js'] }, { root });
+
+    expect(error).toBeNull();
+    expect(code).toMatch(/__vaE\(\);/);
+    expect(code).not.toMatch(/\brequire\(/);
+    expect(code!.startsWith(`${written}\n;import "!!`)).toBe(true);
+  });
+
   it('refuses a module the loaders before it rewrote and handed on no map, naming `devtool`', async () => {
     const root = await checkout();
     const { error } = load(resolve(root, 'cart.js'), `// rewritten\n${SOURCE}`, undefined, { root });

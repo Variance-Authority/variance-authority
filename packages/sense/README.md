@@ -1046,6 +1046,9 @@ build and names the file. Each probed module takes the page collector without
 moving a line, and its `"use client"` or `"use strict"` stays first: a module
 ends with an `import`, which is hoisted, and a CommonJS script, which an
 `import` would turn into a module, takes a `require` after its directives. A
+file the instrumenter cannot parse, such as one with Flow annotations, is
+recorded as loaded rather than probed, and takes the collector the same way:
+an `import` where what your loaders wrote is a module, a `require` otherwise. A
 module with no file on disk, such as a
 builder's virtual entry, is not probed.
 

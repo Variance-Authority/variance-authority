@@ -8,15 +8,17 @@
  * and takes the collector without moving a line: a module ends with an
  * `import`, which is hoisted, and a script such as CommonJS takes a `require`
  * past its directive prologue, the map's columns moved with it. Either way a
- * `"use client"` or `"use strict"` stays first. A module it does not probe
- * passes untouched. With `placement: 'before-transforms'` it runs ahead of
+ * `"use client"` or `"use strict"` stays first. A module it marks as loaded,
+ * one the instrumenter cannot parse, takes the collector between the text the
+ * loaders wrote and the mark, as an `import` or a `require` by what that text
+ * is. A module it does not probe passes untouched. With `placement: 'before-transforms'` it runs ahead of
  * the loaders and places the probes in the text it is handed, as read.
  */
 
-import type { InstrumentMode } from '../instrument/index.js';
+import { instrument, type InstrumentMode } from '../instrument/index.js';
 import { cleanId, defaultInclude } from './instrumented-modules.js';
 import { placeModule, type Captured } from './captured-modules.js';
-import { probeHanded, type HandedMap } from './loader-probes.js';
+import { handedMap, probeHanded, type HandedMap } from './loader-probes.js';
 import { shifted } from './map-segments.js';
 import { executionCollectorSource } from './probes.js';
 import { COLLECTOR_FILE, PROBES_LOADER, includeOf, type ProbesLoaderOptions } from './probes-rule.js';
@@ -62,12 +64,22 @@ function probed(context: ProbesLoaderContext, options: ProbesLoaderOptions, code
   if (placed === undefined) return { code, map: handed };
   // `!!`: the collector goes through this loader alone, never the project's.
   const collector = JSON.stringify(`!!${PROBES_LOADER}?collector=${options.mode ?? 'presence'}!${COLLECTOR_FILE}`);
-  // An `import` would make a script a module, and its `module.exports` unread;
-  // an `.mjs` file is a module whatever it holds, and has no `require`.
-  const script = /\.m[jt]s$/.test(file) ? undefined : placed.captured.script;
-  if (script === undefined) return { code: `${placed.captured.code}\n;import ${collector};`, map: placed.map };
   const text = placed.captured.code;
   const required = `require(${collector});`;
+  // An `import` would make a script a module, and its `module.exports` unread;
+  // an `.mjs` file is a module whatever it holds, and has no `require`.
+  if (/\.m[jt]s$/.test(file)) return { code: `${text}\n;import ${collector};`, map: placed.map };
+  // A module marked rather than probed carries its mark after the text the
+  // loaders wrote: the collector goes between them, on a line of its own, so
+  // it runs before the mark and no column moves. Whether that text is a
+  // script is asked of the text itself; one the instrumenter cannot parse
+  // takes the `require`, which Rspack and webpack read in a module too.
+  if (!placed.captured.module.instrumented) {
+    const taken = instrument(code, file)?.module === true ? `\n;import ${collector};` : `\n;${required}`;
+    return { code: `${code}${taken}${text.slice(code.length)}`, map: placed.map };
+  }
+  const script = placed.captured.script;
+  if (script === undefined) return { code: `${text}\n;import ${collector};`, map: placed.map };
   const line = text.slice(0, script.at).split('\n').length - 1;
   const column = script.at - (text.lastIndexOf('\n', script.at - 1) + 1);
   const map = placed.map && { ...placed.map, mappings: shifted(placed.map.mappings, required.length, line, column) };
@@ -76,9 +88,7 @@ function probed(context: ProbesLoaderContext, options: ProbesLoaderOptions, code
 
 /** What {@link placeModule} placed ahead of the loaders, with the map it was handed. */
 function ahead(captured: Captured | undefined, handed: HandedMap) {
-  if (captured === undefined) return undefined;
-  const map = (typeof handed === 'string' ? JSON.parse(handed) : (handed ?? undefined)) as Exclude<HandedMap, string | null> | undefined;
-  return { captured, map };
+  return captured === undefined ? undefined : { captured, map: handedMap(handed) };
 }
 
 function recipe(mode: string): InstrumentMode {

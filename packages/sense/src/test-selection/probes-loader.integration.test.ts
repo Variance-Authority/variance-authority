@@ -80,14 +80,19 @@ describe('a page Rspack built, a syntax-reading compiler among its loaders', () 
 });
 
 describe('a CommonJS module Rspack bundles', () => {
-  /** `lib`, opening with `prologue`, and the entry requiring it, with extension `extension`, built for Node through the rule alone. */
-  async function bundled(extension: '.js' | '.cjs', prologue = ''): Promise<{ root: string; page: string }> {
+  /**
+   * `lib`, opening with `prologue`, and the entry requiring it, with extension
+   * `extension`, built for Node through the rule alone. A `typed` lib carries
+   * an annotation the instrumenter does not read in a script, which SWC strips
+   * ahead of the rule: the rule marks it as loaded rather than probing it.
+   */
+  async function bundled(extension: '.js' | '.cjs', prologue = '', typed = false): Promise<{ root: string; page: string }> {
     const root = await realpath(await mkdtemp(resolve(tmpdir(), 'variance-authority-cjs-')));
     temporary.push(root);
     await mkdir(resolve(root, 'src'));
     await writeFile(
       resolve(root, `src/lib${extension}`),
-      `${prologue}function tone(on) {\n  if (on) return "red";\n  return "blue";\n}\nmodule.exports = { tone, strict: (function () { return this === undefined; })() };\n`,
+      `${prologue}function tone(on${typed ? ': boolean' : ''}) {\n  if (on) return "red";\n  return "blue";\n}\nmodule.exports = { tone, strict: (function () { return this === undefined; })() };\n`,
     );
     // The built rule: it names the loader by path, and Rspack loads that path as it is.
     const { testSelectionRule } = (await import(pathToFileURL(resolve(repository, 'packages/sense/dist/test-selection/probes-rule.js')).href)) as typeof import('./probes-rule.js');
@@ -99,7 +104,12 @@ describe('a CommonJS module Rspack bundles', () => {
       context: root,
       entry: `./src/main${extension}`,
       output: { path: resolve(root, 'out'), filename: 'page.js' },
-      module: { rules: [testSelectionRule({ root })] },
+      module: {
+        rules: [
+          testSelectionRule({ root }),
+          ...(typed ? [{ test: /lib\.c?js$/, use: [{ loader: 'builtin:swc-loader', options: { jsc: { parser: { syntax: 'typescript' } } } }] }] : []),
+        ],
+      },
     });
     const stats = await new Promise<{ hasErrors(): boolean; toString(options: object): string }>((done, fail) =>
       compiler.run((error, result) => (error ? fail(error) : done(result!))),
@@ -126,5 +136,14 @@ describe('a CommonJS module Rspack bundles', () => {
     runInContext(page, context);
     expect(runInContext('globalThis.pressed', context)).toBe('red');
     expect(runInContext('globalThis.strict', context)).toBe(true);
+  }, 60_000);
+
+  it('keeps a script it marks rather than probes a script, its exports read', async () => {
+    const { page } = await bundled('.cjs', '', true);
+    const context = createContext({});
+    runInContext(page, context);
+    expect(runInContext('globalThis.pressed', context)).toBe('red');
+    const journal = (runInContext(`globalThis[${JSON.stringify(EXECUTION_GLOBAL)}]`, context) as ExecutionCollector).drain();
+    expect(journal.modules.map((module) => module.id.split('@')[0]).sort()).toEqual(['src/lib.cjs', 'src/main.cjs']);
   }, 60_000);
 });

@@ -46,9 +46,7 @@ export interface LoaderProbed {
  * cannot be believed, as {@link captureAfter} refuses one.
  */
 export function probeHanded(file: string, code: string, handed: HandedMap, placement: LoaderPlacement): LoaderProbed | undefined {
-  const map = (typeof handed === 'string' ? JSON.parse(handed) : (handed ?? undefined)) as
-    | (ComposedMap & Record<string, unknown>)
-    | undefined;
+  const map = handedMap(handed);
   const captured = captureAfter(placement.root, file, code, placement.include, placement.mode, map && (() => map), {
     unprobed: placement.unprobed,
     carry: true,
@@ -57,4 +55,12 @@ export function probeHanded(file: string, code: string, handed: HandedMap, place
   });
   if (captured === undefined) return undefined;
   return { captured, map: map && (captured.carried === undefined ? map : { ...map, mappings: captured.carried }) };
+}
+
+/**
+ * `handed` as an object: a loader may hand its map on as JSON text, as
+ * `swc-loader` does without `parseMap`.
+ */
+export function handedMap(handed: HandedMap): (ComposedMap & Record<string, unknown>) | undefined {
+  return (typeof handed === 'string' ? JSON.parse(handed) : (handed ?? undefined)) as (ComposedMap & Record<string, unknown>) | undefined;
 }
