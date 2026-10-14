@@ -22,12 +22,13 @@ the transformed text where the transforms' combined map carries each region.
 A plugin of yours also at `enforce: 'post'` and listed after
 `testSelectionProbes` still runs after the probes; list it before.
 
-A region can now be recorded as running when it did not, never the other way
-round. A region the map gives no code of its own is recorded running when the
-function in front of it is entered, or when the module loads, and a compiler's
-own map can widen a region too:
-React Compiler's sends the code after an early `return` to the component's
-entry. Either selects a test it did not need to, never misses one.
+A region can now be recorded as running when it did not. A region the map
+gives no code of its own is recorded running when the function holding the
+code in front of it is entered, or when the module loads, and a compiler's own
+map can widen a region too: React Compiler's sends the code after an early
+`return` to the component's entry. Either selects a test it did not need to.
+One case can miss: a compiler that moved the code in front of such a region
+into a function of its own, called later or never.
 
 These stop a run that went through before, each with an error naming the file:
 

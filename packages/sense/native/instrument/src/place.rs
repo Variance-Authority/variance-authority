@@ -33,7 +33,10 @@
 //!    handed out while an earlier test ran — is module code, fired when the
 //!    module loads and so charged to every test that loaded it.
 //!
-//! A region that ran is never recorded as not running; some are over-charged.
+//! A region that ran is never recorded as not running, but for one case: a
+//! region fired by rule 3 where the compiler moved the code in front of it
+//! into a function of its own, a closure called later or never, which the map
+//! cannot tell from the author's. Some are over-charged.
 //! A transformed region that fires none was written by the project and carries
 //! no probe.
 

@@ -962,8 +962,10 @@ a neighbour, such as a style function inlined into its component, is carried by
 the code the map attributes it to: the code in front of it, inside a region
 that encloses it.
 
-A region can be recorded as running when it did not, and never the other way
-round. A compiler's map may name a function's closing brace as the end of its
+A region can be recorded as running when it did not. The other way round
+takes a compiler that moved the code in front of a region the map gives no
+code of its own into a function of its own, called later or never: the region
+is fired where that function is entered. A compiler's map may name a function's closing brace as the end of its
 last statement; React Compiler's does, so the code after an early `return` is
 recorded on every call, and an edit to it selects the tests that returned early
 too.
