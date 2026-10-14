@@ -135,10 +135,12 @@
 import { instrumenter, spliced as splice, type Block, type BlockKind, type InstrumentMode } from './spliced.js';
 
 export type { Block, BlockKind, InstrumentMode };
+export type { SourceConsumed } from './source-consumed.js';
+import type { SourceConsumed } from './source-consumed.js';
 export { cadence, columnBehindCut, type CutSourceMap, type CutTestFile } from './cadence.js';
 
 /** Changes whenever two instrumented block universes must not share observations. */
-export const INSTRUMENTATION_ID = 'sense:instrument/presence-v7';
+export const INSTRUMENTATION_ID = 'sense:instrument/presence-v8';
 
 /**
  * The recipe each mode emits under. One identity per mode, because the two
@@ -148,22 +150,28 @@ export const INSTRUMENTATION_ID = 'sense:instrument/presence-v7';
  */
 const IDS: Readonly<Record<InstrumentMode, string>> = {
   presence: INSTRUMENTATION_ID,
-  entries: 'sense:instrument/entries-v4',
+  entries: 'sense:instrument/entries-v5',
 };
 
-/** The probe identity emitted for `mode`, defaulting to presence. */
-export function instrumentationId(mode: InstrumentMode = 'presence'): string {
-  return IDS[mode];
+/**
+ * The region identity for `mode` and the declared source consumers.
+ * Different consumer rules cannot share recordings; absent rules select the
+ * default identity. The build and driver use the same rules in the same order.
+ */
+export function instrumentationId(mode: InstrumentMode = 'presence', sourceConsumed?: readonly SourceConsumed[]): string {
+  return sourceConsumed === undefined || sourceConsumed.length === 0 ? IDS[mode] : instrumenter().instrumentationId(mode === 'entries', sourceConsumed);
 }
 
-/** The mode an identity names, or nothing for a recipe this build does not emit. */
-export function instrumentModeOf(instrumentation: string): InstrumentMode | undefined {
-  return (Object.keys(IDS) as InstrumentMode[]).find((mode) => IDS[mode] === instrumentation);
+/** The mode an identity names under these rules; an unknown configuration is not recut as the default. */
+export function instrumentModeOf(instrumentation: string, sourceConsumed?: readonly SourceConsumed[]): InstrumentMode | undefined {
+  return (Object.keys(IDS) as InstrumentMode[]).find((mode) => instrumentationId(mode, sourceConsumed) === instrumentation);
 }
 
 export interface InstrumentOptions {
   /** `presence` records every arrival region; `entries` only modules and functions. */
   readonly mode?: InstrumentMode;
+  /** Source positions declared by the consuming integration; no rules by default. */
+  readonly sourceConsumed?: readonly SourceConsumed[];
 }
 
 /**
@@ -209,8 +217,9 @@ export interface Instrumented {
  * that is the whole reason it is not an exception: a file this cannot read is a
  * file whose blocks are unknown, and [ADR-0008](../../../../docs/context/adr/0008-per-profile-expectations.md)
  * says the honest report is *not instrumented*, never *not executed*. A caller
- * that swallowed a throw here would produce the second. The one throw is a
- * missing addon, which would leave every module uninstrumented.
+ * that swallowed a throw here would produce the second. An unavailable
+ * addon or invalid source-consumer rule throws rather than silently omitting
+ * instrumentation.
  */
 export function instrument(
   source: string,
@@ -219,11 +228,11 @@ export function instrument(
   options: InstrumentOptions = {},
 ): Instrumented | undefined {
   const mode = options.mode ?? 'presence';
-  const spliced = splice(source, file, mode, id);
+  const spliced = splice(source, file, mode, id, options.sourceConsumed);
   if (spliced === undefined) return undefined;
 
   const { code, sourceDigest, blocks } = spliced;
-  return { code, sourceDigest, instrumentation: IDS[mode], blocks };
+  return { code, sourceDigest, instrumentation: instrumentationId(mode, options.sourceConsumed), blocks };
 }
 
 /**
@@ -271,10 +280,11 @@ export function probeRuntime(id: ModuleId, count: number): string {
  * A transform cache that keys on the instrumentation identity alone serves the
  * previous probe after the header or the walk changes under the same identity.
  * A cache that stores instrumented text keys on the recipe. A Rust pipeline built on the instrumenter
- * crate answers the same string from its `recipe()`, which is how a wrapper
+ * crate answers the same configured string from `recipe_with()`, which is how a wrapper
  * tells that the probes it did not place are the ones this build would have.
+ * Supply the same source-consumer rules, in the same order, as `instrument()`.
  */
-export function probeRecipe(mode: InstrumentMode = 'presence'): string {
-  return instrumenter().probeRecipe(mode === 'entries');
+export function probeRecipe(mode: InstrumentMode = 'presence', sourceConsumed?: readonly SourceConsumed[]): string {
+  return instrumenter().probeRecipe(mode === 'entries', sourceConsumed);
 }
 

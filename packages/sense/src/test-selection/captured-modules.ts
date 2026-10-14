@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
-import { instrument, probeRuntime, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { instrument, probeRuntime, type InstrumentMode, type ModuleId, type SourceConsumed } from '../instrument/index.js';
 import { recordedBlocks } from './coverage-rows.js';
 import { insideRoot, isMissing, projectPath, type CapturedModule } from './instrumented-modules.js';
 import { handedTexts, rawFrame, type RawFrame } from './source-lines.js';
@@ -91,8 +91,9 @@ export function captureModule(
   include: (file: string) => boolean,
   mode: InstrumentMode | undefined,
   original: (path: string) => string = readOriginal,
+  sourceConsumed?: readonly SourceConsumed[],
 ): Captured | undefined {
-  return placeModule(root, path, code, include, undefined, mode, original);
+  return placeModule(root, path, code, include, undefined, mode, original, sourceConsumed);
 }
 
 /**
@@ -128,6 +129,7 @@ export function placeModule(
   unprobed: ((file: string) => boolean) | undefined,
   mode: InstrumentMode | undefined,
   original: (path: string) => string = readOriginal,
+  sourceConsumed?: readonly SourceConsumed[],
 ): Captured | undefined {
   const plan = planModule(root, path, code, include, original, unprobed);
   if (plan === undefined) return undefined;
@@ -137,7 +139,7 @@ export function placeModule(
   if (plan.marked) {
     return { module: { file, id, sourceDigest, instrumented: false, blocks: [] }, code: markLoaded(code, id), ...changed };
   }
-  const done = instrument(code, file, id, mode === undefined ? {} : { mode });
+  const done = instrument(code, file, id, { ...(mode === undefined ? {} : { mode }), ...(sourceConsumed === undefined ? {} : { sourceConsumed }) });
   return {
     module: done === undefined
       ? { file, id, sourceDigest, instrumented: false, blocks: [] }
@@ -229,6 +231,7 @@ export async function deriveModules(
   root: string,
   ids: Iterable<ModuleId>,
   mode: InstrumentMode | undefined,
+  sourceConsumed?: readonly SourceConsumed[],
 ): Promise<ReadonlyMap<ModuleId, CapturedModule>> {
   const found = new Map<ModuleId, CapturedModule>();
   // A suite's journals can name tens of thousands of modules: a read for each
@@ -236,7 +239,7 @@ export async function deriveModules(
   const pending = new Set(ids).values();
   const reader = async () => {
     for (const id of pending) {
-      const module = await deriveModule(root, id, mode);
+      const module = await deriveModule(root, id, mode, sourceConsumed);
       if (module !== undefined) found.set(id, module);
     }
   };
@@ -258,6 +261,7 @@ async function deriveModule(
   root: string,
   id: ModuleId,
   mode: InstrumentMode | undefined,
+  sourceConsumed?: readonly SourceConsumed[],
 ): Promise<CapturedModule | undefined> {
   const parts = ID.exec(id);
   if (parts === null) return undefined;
@@ -279,6 +283,6 @@ async function deriveModule(
   const original = (at: string) => (at === path ? disk : readFileSync(at, 'utf8'));
   const captured = marked === MARKED
     ? markModule(root, path, code, () => true, original)
-    : captureModule(root, path, code, () => true, mode, original);
+    : captureModule(root, path, code, () => true, mode, original, sourceConsumed);
   return captured?.module;
 }

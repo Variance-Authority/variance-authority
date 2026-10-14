@@ -21,6 +21,7 @@ import {
   recordExecution,
   type EvaluatingPage,
   type InstrumentMode,
+  type SourceConsumed,
   type ObservedCase,
   type ObservedSubject,
 } from '@variance-authority/sense/journal';
@@ -51,6 +52,8 @@ export interface StoryExecutionOptions {
    * under a different recipe has each run retire the other's evidence.
    */
   readonly mode?: InstrumentMode;
+  /** The source-consumer rules used by the application build. */
+  readonly sourceConsumed?: readonly SourceConsumed[];
   /**
    * Files whose contents are preconditions of every story this run recorded.
    *
@@ -178,6 +181,7 @@ export async function createStoryRecorder(
             : { coverageFile: resolve(ran, options.coverageFile) }),
           ...(options.suite === undefined ? {} : { suite: options.suite }),
           ...(options.mode === undefined ? {} : { mode: options.mode }),
+          ...(options.sourceConsumed === undefined ? {} : { sourceConsumed: options.sourceConsumed }),
           ...(options.preconditions === undefined
             ? {}
             : { preconditions: options.preconditions }),

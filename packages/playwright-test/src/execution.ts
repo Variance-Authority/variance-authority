@@ -443,6 +443,7 @@ export function createExecutionRecorder(
       ...(recording.coverageFile === undefined ? {} : { coverageFile: resolve(start, recording.coverageFile) }),
       ...(recording.suite === undefined ? {} : { suite: recording.suite }),
       ...(recording.mode === undefined ? {} : { mode: recording.mode }),
+      ...(recording.sourceConsumed === undefined ? {} : { sourceConsumed: recording.sourceConsumed }),
       ...(recording.preconditions === undefined
         ? {}
         : { preconditions: recording.preconditions }),

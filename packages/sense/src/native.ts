@@ -15,6 +15,7 @@
 import type { EdgeKind, FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
 import type { Parsed } from './cache.js';
 import type { Digest } from './digest.js';
+import type { SourceConsumed } from './instrument/source-consumed.js';
 import type { NativeInstrumented } from './instrument/spliced.js';
 import { keyFor, parseWay } from './files.js';
 import { type ResolveOptions } from './resolve.js';
@@ -125,11 +126,13 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * `instrument()`'s walk and splice, or `null` for a source that does not
    * parse. With a `module`, the header reporting under it is in the text.
    */
-  instrument(source: string, file: string, entries: boolean, module?: string): NativeInstrumented | null;
+  instrument(source: string, file: string, entries: boolean, module?: string, sourceConsumed?: readonly SourceConsumed[]): NativeInstrumented | null;
   /** The header one module carries: `native/instrument/src/header.rs`. */
   probeHeader(module: string, count: number): string;
   /** The instrumenter crate's `recipe()` for `presence`, or for `entries`. */
-  probeRecipe(entries: boolean): string;
+  probeRecipe(entries: boolean, sourceConsumed?: readonly SourceConsumed[]): string;
+  /** The native recipe's identity for the configured region universe. */
+  instrumentationId(entries: boolean, sourceConsumed?: readonly SourceConsumed[]): string;
   /**
    * The test file with a cut before each statement of its test and hook
    * bodies, the `mappings` back to `source` and the `[line, column, length]`

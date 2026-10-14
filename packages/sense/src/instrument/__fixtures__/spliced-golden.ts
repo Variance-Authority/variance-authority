@@ -1,7 +1,7 @@
 /**
  * What the walk answers for every fixture in [`spliced.test.ts`](../spliced.test.ts),
- * in both modes, under `sense:instrument/presence-v7` and
- * `sense:instrument/entries-v4`. A change here is a change to the identity every
+ * in both modes, under `sense:instrument/presence-v8` and
+ * `sense:instrument/entries-v5`. A change here is a change to the identity every
  * recording is stored under, and comes with a new instrumentation id.
  */
 

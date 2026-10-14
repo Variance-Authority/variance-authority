@@ -55,18 +55,23 @@ pub const CROSSINGS: [(&str, usize); 8] = [
 
 /// The span of every function `program` hands to another realm.
 ///
-/// Scope analysis is built only for named crossing arguments or Compiled
+/// Scope analysis is built only for named crossing arguments or declared consumer
 /// imports; most modules write theirs at the call or cross nothing.
+#[cfg(test)]
 pub fn crossing<'a>(program: &'a Program<'a>) -> HashSet<(u32, u32)> {
+    crossing_with(program, &[])
+}
+
+pub fn crossing_with<'a>(program: &'a Program<'a>, rules: &[crate::SourceConsumed]) -> HashSet<(u32, u32)> {
     let mut sites = Sites { found: HashSet::new(), named: false, semantic: None };
     sites.visit_program(program);
-    if !sites.named && !crate::compiled::has_styles(program) {
+    if !sites.named && !crate::source_consumed::has_consumers(program, rules) {
         return sites.found;
     }
     let built = SemanticBuilder::new().with_build_nodes(true).build(program);
     let mut sites = Sites { found: sites.found, named: false, semantic: Some(&built.semantic) };
     sites.visit_program(program);
-    sites.found.extend(crate::compiled::callbacks(program, &built.semantic));
+    sites.found.extend(crate::source_consumed::callbacks(program, &built.semantic, rules));
     sites.found
 }
 
@@ -108,7 +113,7 @@ fn sent<'b, 'a>(call: &'b CallExpression<'a>) -> Option<&'b Expression<'a>> {
 }
 
 /// The expression under parentheses and type assertions, which cross with it.
-fn bare<'b, 'a>(mut expression: &'b Expression<'a>) -> &'b Expression<'a> {
+pub(super) fn bare<'b, 'a>(mut expression: &'b Expression<'a>) -> &'b Expression<'a> {
     loop {
         expression = match expression {
             Expression::ParenthesizedExpression(it) => &it.expression,
@@ -169,39 +174,56 @@ mod tests {
         spans.into_iter().map(|(start, end)| source[start as usize..end as usize].to_string()).collect()
     }
 
-    #[test]
-    fn compiled_style_callbacks_are_compiler_input() {
-        let source = "import { styled as design, css } from '@compiled/react';\nconst Button = design.button({ width: p => p.small ? '24px' : '32px' }, p => p.active && css({ color: 'red' }));\n";
-        assert_eq!(crossing_text(source), ["p => p.small ? '24px' : '32px'", "p => p.active && css({ color: 'red' })"]);
+    fn consumer_text(source: &str) -> Vec<String> {
+        use crate::{SourceConsumed, ConsumerStep, Consumption};
+        let rules = [
+            SourceConsumed { module: "compiler-kit".into(), imported: "factory".into(), path: vec![ConsumerStep::Member], syntax: Consumption::Arguments(None) },
+            SourceConsumed { module: "compiler-kit".into(), imported: "factory".into(), path: vec![ConsumerStep::Call], syntax: Consumption::Arguments(None) },
+            SourceConsumed { module: "compiler-kit".into(), imported: "factory".into(), path: vec![ConsumerStep::Member], syntax: Consumption::Template },
+            SourceConsumed { module: "compiler-kit".into(), imported: "quote".into(), path: vec![], syntax: Consumption::Arguments(None) },
+        ];
+        let allocator = Allocator::new();
+        let parsed = Parser::new(&allocator, source, SourceType::ts()).parse();
+        assert!(parsed.diagnostics.is_empty());
+        let program = allocator.alloc(parsed.program);
+        let mut spans: Vec<_> = crossing_with(program, &rules).into_iter().collect();
+        spans.sort_unstable();
+        spans.into_iter().map(|(start, end)| source[start as usize..end as usize].to_string()).collect()
     }
 
     #[test]
-    fn compiled_named_style_objects_follow_their_declarations() {
-        let source = "import { styled } from '@compiled/react'; const dimensions = { width: p => p.small ? '24px' : '32px' }; const styles = { '&:hover': dimensions }; styled.button(styles); list.map(p => p.small);";
-        assert_eq!(crossing_text(source), ["p => p.small ? '24px' : '32px'"]);
-        let source = "import { styled } from '@compiled/react'; const a = { x: b }; const b = { x: a, width: p => p.width }; styled.button(a);";
-        assert_eq!(crossing_text(source), ["p => p.width"]);
+    fn declared_style_callbacks_are_compiler_input() {
+        let source = "import { factory as design, quote } from 'compiler-kit';\nconst Button = design.button({ width: p => p.small ? '24px' : '32px' }, p => p.active && quote({ color: 'red' }));\n";
+        assert_eq!(consumer_text(source), ["p => p.small ? '24px' : '32px'", "p => p.active && quote({ color: 'red' })"]);
     }
 
     #[test]
-    fn compiled_named_styles_cross_but_the_component_is_runtime() {
-        let source = "import { styled } from '@compiled/react'; const style = p => p.active; const Button = styled(p => render(p))(style);";
-        assert_eq!(crossing_text(source), ["p => p.active"]);
-        let source = "import { styled } from '@compiled/react'; const Button = styled.button`color: ${p => p.color}`;";
-        assert_eq!(crossing_text(source), ["p => p.color"]);
+    fn declared_named_style_objects_follow_their_declarations() {
+        let source = "import { factory } from 'compiler-kit'; const dimensions = { width: p => p.small ? '24px' : '32px' }; const styles = { '&:hover': dimensions }; factory.button(styles); list.map(p => p.small);";
+        assert_eq!(consumer_text(source), ["p => p.small ? '24px' : '32px'"]);
+        let source = "import { factory } from 'compiler-kit'; const a = { x: b }; const b = { x: a, width: p => p.width }; factory.button(a);";
+        assert_eq!(consumer_text(source), ["p => p.width"]);
     }
 
     #[test]
-    fn compiled_dynamic_style_value_callbacks_stay_runtime() {
-        let source = "import { styled, css } from '@compiled/react'; styled.button({ color: items.map(value => value.color).join(',') }); styled.button(css({ width: props => props.width }));";
-        assert_eq!(crossing_text(source), ["props => props.width"]);
+    fn declared_named_styles_cross_but_the_component_is_runtime() {
+        let source = "import { factory } from 'compiler-kit'; const style = p => p.active; const Button = factory(p => render(p))(style);";
+        assert_eq!(consumer_text(source), ["p => p.active"]);
+        let source = "import { factory } from 'compiler-kit'; const Button = factory.button`color: ${p => p.color}`;";
+        assert_eq!(consumer_text(source), ["p => p.color"]);
+    }
+
+    #[test]
+    fn declared_dynamic_style_value_callbacks_stay_runtime() {
+        let source = "import { factory, quote } from 'compiler-kit'; factory.button({ color: items.map(value => value.color).join(',') }); factory.button(quote({ width: props => props.width }));";
+        assert_eq!(consumer_text(source), ["props => props.width"]);
     }
 
     #[test]
     fn unrelated_and_shadowed_style_names_keep_their_probes() {
-        let source = "import { styled } from '@compiled/react';\nfunction runtime(styled) { return styled.button(p => p.active); }\nlist.map(p => p.active);\n";
-        assert!(crossing_text(source).is_empty());
-        assert!(crossing_text("import { styled } from 'styled-components'; const B = styled.button(p => p.active);").is_empty());
+        let source = "import { factory } from 'compiler-kit';\nfunction runtime(factory) { return factory.button(p => p.active); }\nlist.map(p => p.active);\n";
+        assert!(consumer_text(source).is_empty());
+        assert!(consumer_text("import { factory } from 'factory-components'; const B = factory.button(p => p.active);").is_empty());
     }
 
     #[test]

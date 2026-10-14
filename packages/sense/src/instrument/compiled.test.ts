@@ -1,7 +1,17 @@
 import { transformSync } from '@babel/core';
 import compiled from '@compiled/babel-plugin';
 import { describe, expect, it } from 'vitest';
-import { instrument, instrumentationId } from './index.js';
+import { instrument, instrumentationId, type SourceConsumed } from './index.js';
+
+// The compiler integration declares its source inputs; the core has no library rules.
+const sourceConsumed: readonly SourceConsumed[] = [
+  { module: '@compiled/react', imported: 'styled', path: ['member'], syntax: 'arguments' },
+  { module: '@compiled/react', imported: 'styled', path: ['call'], syntax: 'arguments' },
+  { module: '@compiled/react', imported: 'styled', path: ['member'], syntax: 'template' },
+  { module: '@compiled/react', imported: 'css', syntax: 'arguments' },
+  { module: '@compiled/react', imported: 'css', syntax: 'template' },
+  { module: '@compiled/react', imported: 'cssMap', syntax: 'arguments' },
+];
 
 const SOURCE = `import { styled as design, css } from '@compiled/react';
 export const Button = design.button(
@@ -33,8 +43,8 @@ describe('Compiled style declarations', () => {
     const plain = rules(compile(source));
     expect(plain.length).toBeGreaterThan(0);
     for (const mode of ['entries', 'presence'] as const) {
-      const probed = instrument(source, 'compiled-styles.tsx', 'compiled-styles.tsx', { mode })!;
-      expect(probed.instrumentation).toBe(instrumentationId(mode));
+      const probed = instrument(source, 'compiled-styles.tsx', 'compiled-styles.tsx', { mode, sourceConsumed })!;
+      expect(probed.instrumentation).toBe(instrumentationId(mode, sourceConsumed));
       expect(rules(compile(probed.code))).toEqual(plain);
       if (name === 'component') expect(probed.blocks.map(block => block.name)).toEqual(['', 'View']);
     }
@@ -45,7 +55,7 @@ describe('Compiled style declarations', () => {
 const items = [{ color: 'red' }];
 export const Button = styled.button({ color: items.map(value => value.color).join(',') });`;
     expect(() => compile(source)).not.toThrow();
-    const probed = instrument(source, 'compiled-styles.tsx', 'compiled-styles.tsx', { mode })!;
+    const probed = instrument(source, 'compiled-styles.tsx', 'compiled-styles.tsx', { mode, sourceConsumed })!;
     expect(probed.blocks).toHaveLength(2);
     expect(probed.code).toContain('value => (__va(1),value.color)');
     expect(() => compile(probed.code)).not.toThrow();
@@ -53,8 +63,8 @@ export const Button = styled.button({ color: items.map(value => value.color).joi
 
   it.each(['entries', 'presence'] as const)('preserves compiler syntax and CSS under %s probes', mode => {
     const plain = compile(SOURCE);
-    const probed = instrument(SOURCE, 'compiled-styles.tsx', 'compiled-styles.tsx', { mode })!;
-    expect(probed.instrumentation).toBe(instrumentationId(mode));
+    const probed = instrument(SOURCE, 'compiled-styles.tsx', 'compiled-styles.tsx', { mode, sourceConsumed })!;
+    expect(probed.instrumentation).toBe(instrumentationId(mode, sourceConsumed));
     expect(rules(compile(probed.code))).toEqual(rules(plain));
     expect(probed.blocks.map(block => block.name)).toEqual(['', 'runtime']);
     expect(rules(plain)).toHaveLength(3);

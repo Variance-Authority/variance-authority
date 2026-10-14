@@ -6,7 +6,7 @@
  * report the file and the text they were placed on, and the join next door
  * cuts that text again to learn what each ordinal means.
  */
-import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { instrumentationId, type InstrumentMode, type ModuleId, type SourceConsumed } from '../instrument/index.js';
 import { captureModule } from './captured-modules.js';
 import { cleanId, defaultInclude } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
@@ -80,6 +80,8 @@ export interface TestSelectionProbeOptions {
    * would each wipe the other every run.
    */
   readonly mode?: InstrumentMode;
+  /** Source consumers declared by this build; use the same rules in the recording driver. */
+  readonly sourceConsumed?: readonly SourceConsumed[];
   /**
    * Install the journey head before anything this build instrumented runs.
    *
@@ -137,7 +139,7 @@ export function testSelectionProbes(
     resolveId: (id) => (id === VIRTUAL_COLLECTOR || id === RESOLVED_COLLECTOR ? RESOLVED_COLLECTOR : null),
     load: (id) => {
       if (id !== RESOLVED_COLLECTOR) return null;
-      const collector = executionCollectorSource(options.mode);
+      const collector = executionCollectorSource(options.mode, options.sourceConsumed);
       if (options.journeys !== true) return collector;
       // Imports evaluate first, so the head owns `__VA__` before this module's
       // page engine looks, and the page engine defers to it.
@@ -148,7 +150,7 @@ export function testSelectionProbes(
     transform(code, specifier) {
       const source = cleanId(specifier);
       if (source === RESOLVED_COLLECTOR) return null;
-      const captured = captureModule(root, source, code, include, options.mode);
+      const captured = captureModule(root, source, code, include, options.mode, undefined, options.sourceConsumed);
       if (captured === undefined) return null;
 
       // Hoisted in front of everything the module imports, and on the first line,
@@ -172,8 +174,8 @@ export function testSelectionProbes(
  * every module reads it once and keeps it, and the drain on
  * {@link EXECUTION_GLOBAL} is the one installed with it.
  */
-export function executionCollectorSource(mode?: InstrumentMode): string {
-  const instrumentation = instrumentationId(mode);
+export function executionCollectorSource(mode?: InstrumentMode, sourceConsumed?: readonly SourceConsumed[]): string {
+  const instrumentation = instrumentationId(mode, sourceConsumed);
   return `
 const engine = (${probeLog.createEngine.toString()})(false);
 const lists = ${probeLists.lists.toString()};

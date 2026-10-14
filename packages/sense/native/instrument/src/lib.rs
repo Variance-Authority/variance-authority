@@ -26,7 +26,7 @@
 
 mod cadence;
 mod cadence_map;
-mod compiled;
+mod source_consumed;
 mod crossing;
 mod cut;
 mod dialect;
@@ -39,6 +39,7 @@ mod walk;
 
 pub use cadence::{cadence, Cadence};
 pub use header::EVALUATING;
+pub use source_consumed::{SourceConsumed, ConsumerStep, Consumption};
 
 /// How many regions a module is cut into.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -56,8 +57,8 @@ impl Mode {
     /// `instrumentationId()` in `src/instrument/index.ts` answers the same.
     pub const fn instrumentation(self) -> &'static str {
         match self {
-            Mode::Presence => "sense:instrument/presence-v7",
-            Mode::Entries => "sense:instrument/entries-v4",
+            Mode::Presence => "sense:instrument/presence-v8",
+            Mode::Entries => "sense:instrument/entries-v5",
         }
     }
 }
@@ -69,8 +70,8 @@ pub struct Instrumented {
     pub code: String,
     /// The digest of the source the probes were placed on.
     pub source_digest: String,
-    /// [`Mode::instrumentation`] of the mode it was cut under.
-    pub instrumentation: &'static str,
+    /// The mode and configured source-consumer identity it was cut under.
+    pub instrumentation: String,
     /// How many regions it was cut into; the module itself is the first.
     pub regions: u32,
 }
@@ -85,13 +86,18 @@ pub struct Instrumented {
 /// Nothing when the source does not parse: a module whose regions are unknown
 /// runs as it is and is reported as not instrumented, never as not executed.
 pub fn instrument(source: &str, file: &str, module: &str, mode: Mode) -> Option<Instrumented> {
-    let mut cut = cut::cut(source, file, mode == Mode::Entries)?;
+    instrument_with(source, file, module, mode, &[])
+}
+
+/// Place probes with the source-consumer rules declared by the integration.
+pub fn instrument_with(source: &str, file: &str, module: &str, mode: Mode, rules: &[SourceConsumed]) -> Option<Instrumented> {
+    let mut cut = cut::cut_with(source, file, mode == Mode::Entries, rules)?;
     let regions = cut.blocks.len() as u32;
     cut.code.insert_str(cut.header_byte, &header::header(module, cut.blocks.len()));
     Some(Instrumented {
         code: cut.code,
         source_digest: cut.source_digest,
-        instrumentation: mode.instrumentation(),
+        instrumentation: identity(mode, rules),
         regions,
     })
 }
@@ -112,8 +118,19 @@ pub fn module_id(path: &str, source: &str) -> String {
 /// header and of the sources and manifest the crate was compiled from. Two
 /// builds with one recipe place the same probes on the same text.
 pub fn recipe(mode: Mode) -> String {
-    let made = format!("{}\0{}", header::header("", 0), env!("SENSE_INSTRUMENT_SOURCES"));
-    format!("{}+{}", mode.instrumentation(), digest::of_string(&made))
+    recipe_with(mode, &[])
+}
+
+/// The configured region universe; no rules is the mode's default identity.
+pub fn identity(mode: Mode, rules: &[SourceConsumed]) -> String {
+    if rules.is_empty() { return mode.instrumentation().into(); }
+    format!("{}/source-consumed:{}", mode.instrumentation(), digest::of_string(&format!("{rules:?}")))
+}
+
+/// A recipe also names every configured source-consumer rule, in supplied order.
+pub fn recipe_with(mode: Mode, rules: &[SourceConsumed]) -> String {
+    let made = format!("{}\0{}\0{rules:?}", header::header("", 0), env!("SENSE_INSTRUMENT_SOURCES"));
+    format!("{}+{}", identity(mode, rules), digest::of_string(&made))
 }
 
 /// What the package's addon needs and a pipeline does not: the regions
@@ -123,7 +140,7 @@ pub fn recipe(mode: Mode) -> String {
 pub mod native {
     use oxc_ast::ast::Program;
 
-    pub use crate::cut::{cut, Cut};
+    pub use crate::cut::{cut, cut_with, Cut};
     pub use crate::dialect::dialect;
     pub use crate::header::header;
     pub use crate::walk::{Block, Kind};
@@ -141,6 +158,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn declared_consumers_change_both_the_recipe_and_the_region_identity() {
+        let rules = [SourceConsumed { module: "compiler-kit".into(), imported: "declare".into(), path: vec![], syntax: Consumption::Arguments(None) }];
+        let source = "import { declare } from 'compiler-kit'; declare(p => p.color);";
+        for mode in [Mode::Presence, Mode::Entries] {
+            let plain = instrument(source, "consumer.ts", "consumer.ts", mode).unwrap();
+            let configured = instrument_with(source, "consumer.ts", "consumer.ts", mode, &rules).unwrap();
+            assert_eq!(plain.regions, 2);
+            assert_eq!(configured.regions, 1);
+            assert_eq!(configured.instrumentation, identity(mode, &rules));
+            assert_ne!(plain.instrumentation, configured.instrumentation);
+            assert_ne!(recipe(mode), recipe_with(mode, &rules));
+            assert_eq!(identity(mode, &[]), mode.instrumentation());
+        }
+    }
+
+    #[test]
     fn the_header_goes_after_the_prologue_and_the_probes_stay_on_their_lines() {
         let source = "import a from './a';\nexport function f(x) {\n  if (x) return a;\n  return 0;\n}\n";
         let out = instrument(source, "f.js", "src/f.js@00", Mode::Presence).expect("it parses");
@@ -148,7 +181,7 @@ mod tests {
         assert!(out.code.starts_with("import a from './a';\nvar __vaK"));
         assert!(out.code.contains(".r(\"src/f.js@00\",5);"));
         assert_eq!(out.regions, 5);
-        assert_eq!(out.instrumentation, "sense:instrument/presence-v7");
+        assert_eq!(out.instrumentation, "sense:instrument/presence-v8");
     }
 
     #[test]

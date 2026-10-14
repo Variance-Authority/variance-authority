@@ -44,7 +44,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
-import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { instrumentationId, type InstrumentMode, type ModuleId, type SourceConsumed } from '../instrument/index.js';
 import { ownedExecutionIndexFrom } from './cases.js';
 import { eyesOfCases } from './eyes-record.js';
 import { encodeOwnedSetExecutionIndex } from './execution-set-format.js';
@@ -92,7 +92,7 @@ export type { ModuleId };
 export { moduleId } from './captured-modules.js';
 
 /** The probe recipe both halves of this seam have to agree on. */
-export type { InstrumentMode };
+export type { SourceConsumed, InstrumentMode };
 
 // What a driver observed, and how a run recorded by several processes is
 // joined: both are the journal seam's surface, and neither is this file's
@@ -154,6 +154,8 @@ export interface RecordExecutionOptions {
    * the other's evidence.
    */
   readonly mode?: InstrumentMode;
+  /** The source-consumer rules used by the build; a different configuration is refused. */
+  readonly sourceConsumed?: readonly SourceConsumed[];
   /**
    * Additional files whose contents are preconditions of every subject here.
    *
@@ -213,7 +215,7 @@ export async function recordExecution(
   // page to its heads, it is idempotent, and doing it here rather than in each
   // collector is what makes the invariant hold for collectors not yet written.
   const subjects = joinObservations([options.subjects]);
-  const instrumentation = instrumentationId(options.mode);
+  const instrumentation = instrumentationId(options.mode, options.sourceConsumed);
   const coverageFile = recordFileFor(root, root, options);
 
   const foreign = subjects.find(
@@ -227,7 +229,7 @@ export async function recordExecution(
       because:
         `the page reported probe recipe ${foreign.journal.instrumentation} and this driver ` +
         `records ${instrumentation}: the build and the driver are different versions, or they ` +
-        'were given different `mode` values',
+        'were given different `mode` values or `sourceConsumed` rules',
     };
   }
 
@@ -237,7 +239,7 @@ export async function recordExecution(
   const ids = new Set(
     subjects.flatMap((subject) => subject.journal.modules.map((module) => module.id)),
   );
-  const byId = await deriveModules(root, ids, options.mode);
+  const byId = await deriveModules(root, ids, options.mode, options.sourceConsumed);
   if (ids.size > 0 && byId.size === 0) {
     return {
       recorded: false,

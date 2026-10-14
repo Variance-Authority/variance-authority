@@ -33,6 +33,7 @@ import {
   recordExecution,
   stagingDirectory,
   type InstrumentMode,
+  type SourceConsumed,
 } from '@variance-authority/sense/journal';
 import {
   recordFileFor,
@@ -70,6 +71,8 @@ export interface ExecutionReporterOptions {
    * journal the run collected.
    */
   readonly mode?: InstrumentMode;
+  /** The source-consumer rules used by the application build. */
+  readonly sourceConsumed?: readonly SourceConsumed[];
   /**
    * Files whose contents are preconditions of every spec this run recorded.
    *
@@ -134,6 +137,7 @@ export default class implements Reporter {
         ...(this.#coverageFile === undefined ? {} : { coverageFile: this.#coverageFile }),
         ...(this.#options.suite === undefined ? {} : { suite: this.#options.suite }),
         ...(this.#options.mode === undefined ? {} : { mode: this.#options.mode }),
+          ...(this.#options.sourceConsumed === undefined ? {} : { sourceConsumed: this.#options.sourceConsumed }),
         ...(this.#options.preconditions === undefined
           ? {}
           : { preconditions: this.#options.preconditions }),

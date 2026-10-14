@@ -1,3 +1,4 @@
+import type { SourceConsumed } from './source-consumed.js';
 /**
  * What a block is, and the addon's answer for one module.
  *
@@ -152,13 +153,13 @@ type WellFormed = string & { isWellFormed(): boolean };
  * With a `module`, the text carries the header that reports under that id, at
  * `headerAt`; without one it carries the probes alone.
  */
-export function spliced(source: string, file: string, mode: InstrumentMode, module?: string): Spliced | undefined {
+export function spliced(source: string, file: string, mode: InstrumentMode, module?: string, sourceConsumed?: readonly SourceConsumed[]): Spliced | undefined {
   const addon = instrumenter();
   if (!(source as WellFormed).isWellFormed()) return undefined;
 
   let answer: ReturnType<typeof addon.instrument>;
   try {
-    answer = addon.instrument(source, file, mode === 'entries', module);
+    answer = addon.instrument(source, file, mode === 'entries', module, sourceConsumed);
   } catch (error) {
     throw new Error(`instrument: the native walk failed on ${file}: ${(error as Error).message}`, { cause: error });
   }

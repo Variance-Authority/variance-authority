@@ -4,7 +4,7 @@
  * which `withTestSelection` hands to both.
  */
 
-import type { InstrumentMode } from '@variance-authority/sense/journal';
+import type { InstrumentMode, SourceConsumed } from '@variance-authority/sense/journal';
 
 /** Where the index and the block records live, when the defaults are wrong. */
 export interface ExecutionRecording {
@@ -47,6 +47,8 @@ export interface ExecutionRecording {
    * under two recipes has each run retire the other's evidence.
    */
   readonly mode?: InstrumentMode;
+  /** The source-consumer rules used by the application build. */
+  readonly sourceConsumed?: readonly SourceConsumed[];
   /**
    * Files whose contents are preconditions of every spec this run recorded.
    *

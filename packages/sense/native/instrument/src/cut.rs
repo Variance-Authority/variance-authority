@@ -42,15 +42,19 @@ thread_local! {
 
 /// Cut one module, or nothing when the source does not parse.
 pub fn cut(source: &str, file: &str, entries: bool) -> Option<Cut> {
+    cut_with(source, file, entries, &[])
+}
+
+pub fn cut_with(source: &str, file: &str, entries: bool, rules: &[crate::SourceConsumed]) -> Option<Cut> {
     ARENA.with(|arena| {
         let mut arena = arena.borrow_mut();
-        let out = cut_in(&arena, source, file, entries);
+        let out = cut_in(&arena, source, file, entries, rules);
         arena.reset();
         out
     })
 }
 
-fn cut_in(allocator: &Allocator, source: &str, file: &str, entries: bool) -> Option<Cut> {
+fn cut_in(allocator: &Allocator, source: &str, file: &str, entries: bool, rules: &[crate::SourceConsumed]) -> Option<Cut> {
     // The JavaScript parser falls back the same way for an extension it does not know.
     let source_type = dialect(file).unwrap_or_default();
     let parsed = Parser::new(allocator, source, source_type).parse();
@@ -59,7 +63,7 @@ fn cut_in(allocator: &Allocator, source: &str, file: &str, entries: bool) -> Opt
     }
     let program = &parsed.program;
 
-    let mut walker = walk(program, source_type.is_typescript(), entries);
+    let mut walker = walk_with(program, source_type.is_typescript(), entries, rules);
 
     let prologue = prologue_end(program);
     // The window closes after the last top-level statement, never at the end of the text.
@@ -156,7 +160,11 @@ impl Utf16 {
 
 /// The walk over a program another parse made, from its module region down.
 pub(crate) fn walk<'a>(program: &'a Program<'a>, typescript: bool, entries: bool) -> Walker {
-    let mut walker = Walker::new(entries, crate::crossing::crossing(program));
+    walk_with(program, typescript, entries, &[])
+}
+
+fn walk_with<'a>(program: &'a Program<'a>, typescript: bool, entries: bool, rules: &[crate::SourceConsumed]) -> Walker {
+    let mut walker = Walker::new(entries, crate::crossing::crossing_with(program, rules));
     let start = if typescript { typescript_start(program) } else { program.span.start };
     walker.open(Kind::Module, "module", start, program.span.end, None);
     walker.list(&program.body, "", 0);
