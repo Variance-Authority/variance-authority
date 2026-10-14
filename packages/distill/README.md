@@ -301,6 +301,11 @@ wrote them — and optionally the file graph as `relations`. The cases and the
 regions a charge reads come from the record itself. `ScopeDistillInput` carries one `record` per suite. The
 records are read once, by the native addon, however many test files a scope
 asks about.
+
+`distillFile`, `distillScope` and `scopeRows` require the
+`@variance-authority/sense` native addon, which installs as an optional
+dependency on macOS arm64, Linux arm64 and x64, and Windows x64. Where it did
+not install, they throw and name why.
 `FileDistillation` counts what the file `loaded` and their `lines`, and lists `LoadedModule` entries — `file`, `lines`, and
 `entered`, how many of the file's cases entered the module — fewest entered
 first, then most lines, then by path. `modules` is absent, and `withheld` says

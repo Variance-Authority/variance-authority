@@ -59,11 +59,13 @@ function graphOf(relations: Relations | undefined): NativeDistillGraph | undefin
 }
 
 /**
- * Coverage records that carry their case index, in either spelling, read for
+ * Coverage records that carry their case index in the set spelling, read for
  * distillation.
  *
  * A record with no coverage rows throws `RecordWithoutCoverage`, as reading
- * its coverage would; one without the addon is refused with why it did not load.
+ * its coverage would; one whose case index is in the row spelling, which no
+ * build writes any more, is refused with a request to record again; and
+ * without the addon, distillation is refused with why it did not load.
  */
 export function readDistillRecords(records: readonly Uint8Array[]): DistillRecords {
   for (const bytes of records) openTestCoverage(bytes);
@@ -83,8 +85,8 @@ export function readDistillRecords(records: readonly Uint8Array[]): DistillRecor
     scope: (within, relations) => handle.scope(within, graphOf(relations)),
     file: (file, relations) => handle.file(file, graphOf(relations)),
     cases: (file) => {
-      const found = handle.file(file, undefined);
-      return found.held ? testsOf(found.record).filter((test) => test.file === file) : [];
+      const record = handle.holder(file);
+      return record === null ? [] : testsOf(record).filter((test) => test.file === file);
     },
     regions: (file, importer) => handle.regions(file, importer),
   };

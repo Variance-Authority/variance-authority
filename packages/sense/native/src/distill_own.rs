@@ -6,8 +6,8 @@
 //! chain that no case used, that dominates nothing a case used, and that has
 //! exactly one way in — a predecessor it does not dominate; a measured module
 //! holding only its top level that re-exports all it imports counts as unused.
-//! What changes is the cost. Dominance is Cooper, Harvey and Kennedy's
-//! iteration over local ids, "dominates" is a pre/post interval test on the
+//! What changes is the cost. Dominance is [`graph_dominators`](crate::graph_dominators)
+//! over local ids, "dominates" is a pre/post interval test on the
 //! dominator tree, the used marks walk up once with an early stop, and the
 //! owner is carried down the tree in reverse postorder: linear in the edges the
 //! test file followed, where the walk over strings was quadratic in a hub's
@@ -22,6 +22,7 @@
 use napi_derive::napi;
 
 use crate::distill_read::{Paths, Record};
+use crate::graph_dominators::Dominators;
 use crate::journey_graph::JourneyGraph;
 
 const FILE: u8 = 0;
@@ -139,11 +140,7 @@ pub(crate) struct Scratch {
     stack: Vec<(u32, u32)>,
     into: Vec<u32>,
     predecessors: Vec<u32>,
-    idom: Vec<u32>,
-    below: Vec<u32>,
-    children: Vec<u32>,
-    tin: Vec<u32>,
-    tout: Vec<u32>,
+    dominators: Dominators,
     entered: Vec<u32>,
     carries: Vec<bool>,
     owner: Vec<u32>,
@@ -166,11 +163,7 @@ impl Scratch {
             stack: Vec::new(),
             into: Vec::new(),
             predecessors: Vec::new(),
-            idom: Vec::new(),
-            below: Vec::new(),
-            children: Vec::new(),
-            tin: Vec::new(),
-            tout: Vec::new(),
+            dominators: Dominators::default(),
             entered: Vec::new(),
             carries: Vec::new(),
             owner: Vec::new(),
@@ -283,8 +276,7 @@ pub(crate) fn causes_of(
         }
     }
 
-    dominators(s, count);
-    dominator_tree(s, count);
+    s.dominators.build(&s.order, &s.number, &s.into, &s.predecessors);
 
     s.entered.clear();
     s.entered.resize(count, NONE);
@@ -303,7 +295,7 @@ pub(crate) fn causes_of(
         let mut at = node as u32;
         while at != 0 && !s.carries[at as usize] {
             s.carries[at as usize] = true;
-            at = s.idom[at as usize];
+            at = s.dominators.idom(at as usize);
         }
     }
 
@@ -316,7 +308,7 @@ pub(crate) fn causes_of(
         if node == 0 {
             continue;
         }
-        let parent = s.idom[node] as usize;
+        let parent = s.dominators.idom(node) as usize;
         if parent != 0 && s.owner[parent] != NONE {
             s.owner[node] = s.owner[parent];
             s.importer[node] = s.importer[parent];
@@ -332,7 +324,7 @@ pub(crate) fn causes_of(
             let Some(local) = s.local_of(*module).filter(|local| *local != 0) else { return Cause::Unseen };
             let local = local as usize;
             if s.owner[local] == NONE {
-                return Cause::Shared { parts: s.nodes[s.idom[local] as usize] };
+                return Cause::Shared { parts: s.nodes[s.dominators.idom(local) as usize] };
             }
             let (importer, imported) = (s.nodes[s.importer[local] as usize], s.nodes[s.owner[local] as usize]);
             // A static import of the same module evaluates it on load, whatever else imports it lazily;
@@ -361,90 +353,9 @@ fn qualifies(s: &Scratch, node: usize, record: &Record, graph: &FileGraph) -> Op
         return None;
     }
     // A predecessor `node` dominates closes a cycle back into it; every other one is a way in.
-    let (tin, tout) = (s.tin[node], s.tout[node]);
     let mut ways = s.predecessors[s.into[node] as usize..s.into[node + 1] as usize]
         .iter()
-        .filter(|from| !(tin <= s.tin[**from as usize] && s.tout[**from as usize] <= tout));
+        .filter(|from| !s.dominators.dominates(node, **from as usize));
     let way = *ways.next()?;
     ways.next().is_none().then_some(way)
-}
-
-/// Cooper, Harvey and Kennedy: intersect the predecessors' dominators in reverse postorder until nothing changes.
-fn dominators(s: &mut Scratch, count: usize) {
-    s.idom.clear();
-    s.idom.resize(count, NONE);
-    s.idom[0] = 0;
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for at in (0..s.order.len().saturating_sub(1)).rev() {
-            let node = s.order[at] as usize;
-            let mut next = NONE;
-            for from in &s.predecessors[s.into[node] as usize..s.into[node + 1] as usize] {
-                if s.idom[*from as usize] == NONE {
-                    continue;
-                }
-                next = if next == NONE { *from } else { intersect(&s.idom, &s.number, *from, next) };
-            }
-            if next != NONE && s.idom[node] != next {
-                s.idom[node] = next;
-                changed = true;
-            }
-        }
-    }
-}
-
-fn intersect(idom: &[u32], number: &[u32], left: u32, right: u32) -> u32 {
-    let (mut a, mut b) = (left, right);
-    while a != b {
-        while number[a as usize] < number[b as usize] {
-            a = idom[a as usize];
-        }
-        while number[b as usize] < number[a as usize] {
-            b = idom[b as usize];
-        }
-    }
-    a
-}
-
-/// Entry and exit times over the dominator tree, so one test says whether a node dominates another.
-fn dominator_tree(s: &mut Scratch, count: usize) {
-    s.below.clear();
-    s.below.resize(count + 1, 0);
-    for node in 1..count {
-        s.below[s.idom[node] as usize + 1] += 1;
-    }
-    for at in 0..count {
-        s.below[at + 1] += s.below[at];
-    }
-    s.children.clear();
-    s.children.resize(count.saturating_sub(1), 0);
-    let mut fill = s.below.clone();
-    for node in 1..count {
-        let parent = s.idom[node] as usize;
-        s.children[fill[parent] as usize] = node as u32;
-        fill[parent] += 1;
-    }
-    s.tin.clear();
-    s.tin.resize(count, 0);
-    s.tout.clear();
-    s.tout.resize(count, 0);
-    let mut clock = 0;
-    s.stack.clear();
-    s.stack.push((0, 0));
-    s.tin[0] = clock;
-    while let Some(&(node, cursor)) = s.stack.last() {
-        let (from, to) = (s.below[node as usize], s.below[node as usize + 1]);
-        if from + cursor == to {
-            s.stack.pop();
-            clock += 1;
-            s.tout[node as usize] = clock;
-            continue;
-        }
-        s.stack.last_mut().unwrap().1 += 1;
-        let child = s.children[(from + cursor) as usize];
-        clock += 1;
-        s.tin[child as usize] = clock;
-        s.stack.push((child, 0));
-    }
 }

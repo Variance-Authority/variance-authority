@@ -119,7 +119,6 @@ const SHARED_KIND = 2;
  */
 export function distillScope(input: ScopeDistillInput): ScopeDistillation {
   const { within, scope } = scopeOf(input);
-  const rows = [...readingsOf(input, scope)];
   const name = (id: number): string => scope.names[id]!;
   const spills = Array.from(scope.kind, (kind, at): Spill => {
     const cause: SpillCause | undefined = kind === IMPORT
@@ -139,14 +138,21 @@ export function distillScope(input: ScopeDistillInput): ScopeDistillation {
       lines: scope.spillLines[at]!,
     };
   });
-  const withheld = rows.flatMap(({ suite, file, withheld }) =>
-    withheld === undefined ? [] : [{ file, ...(suite === undefined ? {} : { suite }), reason: withheld }]);
+  // One pass over the rows, none of them kept: what the answer holds is their tally and the withheld.
+  const withheld: { file: string; suite?: string; reason: string }[] = [];
+  const suites = new Set<string>();
+  let files = 0;
+  for (const { suite, file, withheld: reason } of readingsOf(input, scope)) {
+    files += 1;
+    if (suite !== undefined) suites.add(suite);
+    if (reason !== undefined) withheld.push({ file, ...(suite === undefined ? {} : { suite }), reason });
+  }
   return {
     ...(within === undefined ? {} : { within }),
-    suites: [...new Set(rows.flatMap(({ suite }) => (suite === undefined ? [] : [suite])))],
+    suites: [...suites],
     ...(input.unrecorded === undefined || input.unrecorded.length === 0 ? {} : { unrecorded: input.unrecorded }),
-    files: rows.length,
-    read: rows.length - withheld.length,
+    files,
+    read: files - withheld.length,
     withheld,
     loads: scope.loads,
     lines: scope.lines,
@@ -171,10 +177,12 @@ export interface ScopeRow {
 /**
  * Every test file of a scope, one row each, in the order {@link distillScope}
  * reads them: a row a test file at a time, for a reader that wants the
- * distribution across test files rather than the imports they share.
+ * distribution across test files rather than the imports they share. The
+ * records are read, and a scope that holds no test file refused, before it
+ * returns; each row is made as it is reached.
  */
-export function* scopeRows(input: ScopeDistillInput): Generator<ScopeRow, void, undefined> {
-  yield* readingsOf(input, scopeOf(input).scope);
+export function scopeRows(input: ScopeDistillInput): Generator<ScopeRow, void, undefined> {
+  return readingsOf(input, scopeOf(input).scope);
 }
 
 /** `packages/app/`, `./packages/app` and `packages/app` name one directory. */

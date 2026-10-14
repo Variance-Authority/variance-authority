@@ -6,7 +6,6 @@
 import { relationsOf, type Relation, type Relations } from '@variance-authority/core/relate';
 import {
   encodeAsSetExecutionIndex,
-  encodeExecutionIndex,
   layerTestCoverage,
   withCaseSections,
   type ExecutionIndex,
@@ -14,14 +13,9 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { distillFile, type FileDistillation, type FileDistillInput } from './file.js';
 
-/**
- * The record a run writes: its coverage rows, layered over nothing, and its case
- * index in the set spelling, or in the row spelling a build before it wrote.
- * Only the row spelling says which case ran a region while its module loaded.
- */
-export function recordOf(coverage: TestCoverage, execution: ExecutionIndex, spelling: 'sets' | 'rows' = 'sets'): Uint8Array {
-  const index = spelling === 'sets' ? encodeAsSetExecutionIndex(execution) : encodeExecutionIndex(execution);
-  return withCaseSections(layerTestCoverage(undefined, coverage), { index });
+/** The record a run writes: its coverage rows, layered over nothing, and its case index in the set spelling. */
+export function recordOf(coverage: TestCoverage, execution: ExecutionIndex): Uint8Array {
+  return withCaseSections(layerTestCoverage(undefined, coverage), { index: encodeAsSetExecutionIndex(execution) });
 }
 
 const file = (name: string) => ({ kind: 'file', name }) as const;

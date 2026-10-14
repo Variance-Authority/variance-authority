@@ -167,13 +167,25 @@ pub(crate) fn place(bytes: &[u8], version: u8) -> Result<Vec<Placed>, String> {
 /// coverage record that carries one, and `bytes` themselves otherwise, which
 /// the journey reader then opens or refuses on its own terms.
 pub(crate) fn recorded_cases(bytes: Vec<u8>) -> Vec<u8> {
-    let cases = place_any(&bytes).ok().and_then(|placed| {
-        placed.into_iter().find(|column| column.name == "cases" && column.rows.is_none())
-    });
-    match cases {
-        Some(column) => bytes[column.stored].to_vec(),
+    match cases_section(&bytes) {
+        Some(stored) => bytes[stored].to_vec(),
         None => bytes,
     }
+}
+
+/// [`recorded_cases`] for a caller that holds the bytes elsewhere: the part of
+/// `bytes` that is the case index, borrowed.
+pub(crate) fn recorded_cases_in(bytes: &[u8]) -> &[u8] {
+    match cases_section(bytes) {
+        Some(stored) => &bytes[stored],
+        None => bytes,
+    }
+}
+
+fn cases_section(bytes: &[u8]) -> Option<std::ops::Range<usize>> {
+    place_any(bytes).ok().and_then(|placed| {
+        placed.into_iter().find(|column| column.name == "cases" && column.rows.is_none()).map(|column| column.stored)
+    })
 }
 
 fn place_any(bytes: &[u8]) -> Result<Vec<Placed>, String> {

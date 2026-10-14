@@ -1,8 +1,9 @@
 /**
  * What the native scanner's distillation calls take and answer: records read
  * once, then a scope of their test files or one test file, as columns whose ids
- * index `names`. `native/src/distill_read.rs` reads, `distill_own.rs` owns,
- * `distill_gather.rs` gathers, `distill_regions.rs` reads what a charge asks.
+ * index `names`. `native/src/distill_read.rs` reads the coverage rows,
+ * `distill_cases.rs` the case index and what a charge asks of it,
+ * `distill_own.rs` owns and `distill_gather.rs` gathers.
  */
 import type { NativeJourneyGraph } from './native-journey.js';
 
@@ -82,8 +83,6 @@ export interface NativeDistillRegion {
   readonly source: boolean;
   /** A case of the test file called it. */
   readonly ran: boolean;
-  /** A case of the test file ran it while the module loaded. */
-  readonly atLoad: boolean;
   /** The test files whose cases called it, as ids that only compare with each other. */
   readonly called: Uint32Array;
 }
@@ -91,6 +90,8 @@ export interface NativeDistillRegion {
 export interface NativeDistillRecords {
   scope(within: string | undefined, graph: NativeDistillGraph | undefined): NativeDistillScope;
   file(file: string, graph: NativeDistillGraph | undefined): NativeDistillFile;
+  /** The record that holds `file`, by its place among the records; null when none does. */
+  holder(file: string): number | null;
   regions(file: string, importer: string): NativeDistillRegion[];
 }
 

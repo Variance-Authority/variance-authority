@@ -24,7 +24,6 @@ import {
   declaredSuites,
   importReferences,
   isEncodedExecutionIndex,
-  openCoverageFile,
   RecordWithoutCoverage,
   recordedEyesOf,
 } from '@variance-authority/sense/test-selection';
@@ -74,9 +73,9 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
   const bytes = await recordAt(record);
   try {
     if (options.test === undefined && file !== undefined) {
-      // The addon reads the record's cases and the regions a charge asks; the case index is not decoded whole.
+      // The addon reads the record's cases and the regions a charge asks; no region of the case index is decoded but those.
       const input = { file, record: coverageOf(bytes, record) };
-      const flat = distillFile(input);
+      const flat = readingOf([record], () => distillFile(input));
       // The graph is read only when there is a load to give a cause, or a mock to hold against it: the scan costs more than the record.
       if (!flat.modules?.some(({ entered }) => entered === 0) && !(await mocksIn(options.root, flat.file))) return flat;
       const graph = await fileGraph(options.root);
@@ -108,8 +107,8 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
  * graph only once, when some file loaded a module no case of it entered.
  */
 async function distillRecords(options: DistillOptions): Promise<ScopeDistillation> {
-  const input = await scopeOf(options);
-  const flat = asOperator(() => distillScope(input));
+  const { input, paths } = await scopeOf(options);
+  const flat = readingOf(paths, () => distillScope(input));
   if (flat.spills.length === 0) return flat;
   const graph = await fileGraph(options.root);
   return distillScope({ ...input, relations: graph });
@@ -117,23 +116,26 @@ async function distillRecords(options: DistillOptions): Promise<ScopeDistillatio
 
 /**
  * A scope read across records as {@link distillFiles} reads it with no case and
- * no file named, one row a test file; the suites that kept no record are named
- * beside the rows. No row names an import, so the file graph is not read.
+ * no file named, one row a test file, each made as it is reached; the suites
+ * that kept no record are named beside the rows. No row names an import, so
+ * the file graph is not read. A scope that cannot be read is refused here,
+ * before the first row.
  */
 export async function distillRows(options: Omit<DistillOptions, 'test' | 'file'>): Promise<{
-  readonly rows: readonly ScopeRow[];
+  readonly rows: Iterable<ScopeRow>;
   readonly unrecorded?: readonly string[];
 }> {
-  const input = await scopeOf(options);
-  const rows = asOperator(() => [...scopeRows(input)]);
+  const { input, paths } = await scopeOf(options);
+  const rows = readingOf(paths, () => scopeRows(input));
   return { rows, ...(input.unrecorded === undefined ? {} : { unrecorded: input.unrecorded }) };
 }
 
-/** The records a scope is read from, and the declared suites that kept none. */
-async function scopeOf(options: Omit<DistillOptions, 'test' | 'file'>): Promise<ScopeDistillInput> {
+/** The records a scope is read from, where each is, and the declared suites that kept none. */
+async function scopeOf(options: Omit<DistillOptions, 'test' | 'file'>): Promise<{ readonly input: ScopeDistillInput; readonly paths: readonly string[] }> {
   const named = options.execution !== undefined || options.suite !== undefined;
   const declared = named ? undefined : suitesOf(options.root);
   const records: ScopeRecord[] = [];
+  const paths: string[] = [];
   const unrecorded: string[] = [];
   for (const suite of declared ?? [options.suite]) {
     let record: string;
@@ -146,13 +148,17 @@ async function scopeOf(options: Omit<DistillOptions, 'test' | 'file'>): Promise<
       continue;
     }
     const bytes = await recordAt(record);
-    records.push({ ...(suite === undefined ? {} : { suite }), record: asOperator(() => coverageOf(bytes, record)) });
+    records.push({ ...(suite === undefined ? {} : { suite }), record: coverageOf(bytes, record) });
+    paths.push(record);
   }
   if (records.length === 0) throw nothingRecorded(options.root, unrecorded);
   return {
-    ...(options.from === undefined ? {} : { within: options.from }),
-    records,
-    ...(unrecorded.length === 0 ? {} : { unrecorded }),
+    input: {
+      ...(options.from === undefined ? {} : { within: options.from }),
+      records,
+      ...(unrecorded.length === 0 ? {} : { unrecorded }),
+    },
+    paths,
   };
 }
 
@@ -182,23 +188,35 @@ function fileGraph(root: string): Promise<Relations> {
 }
 
 /**
- * A record that holds coverage rows, which say which test file loaded which
- * module. A case index on its own carries none, and a file reading has nothing
- * to read; a record whose rows do not read is damaged, and the reading says so.
+ * A record that may hold coverage rows, which say which test file loaded which
+ * module. A case index written as JSON carries none, and a file reading has
+ * nothing to read. Whether a binary record holds them is its header's to say,
+ * and the reading opens that header once: see {@link readingOf}.
  */
 function coverageOf(bytes: Uint8Array, record: string): Uint8Array {
-  const none = new OperatorError(
-    `${record} holds no coverage rows, which say what a test file loaded; name a case with --test, or read a record`,
-  );
-  if (!isEncodedExecutionIndex(bytes)) throw none;
-  try {
-    // The header alone says whether the record holds coverage; the rows are read once, by the reading.
-    openCoverageFile(record).close();
-  } catch (error) {
-    if (error instanceof RecordWithoutCoverage) throw none;
-    throw error;
-  }
+  if (!isEncodedExecutionIndex(bytes)) throw withoutCoverage([record]);
   return bytes;
+}
+
+/**
+ * A reading of the records at `paths`, refused as the operator's when one of
+ * them holds cases and no coverage rows; a record whose rows do not read is
+ * damaged, and the reading says so.
+ */
+function readingOf<T>(paths: readonly string[], read: () => T): T {
+  return asOperator(() => {
+    try {
+      return read();
+    } catch (error) {
+      throw error instanceof RecordWithoutCoverage ? withoutCoverage(paths) : error;
+    }
+  });
+}
+
+function withoutCoverage(paths: readonly string[]): OperatorError {
+  return new OperatorError(
+    `${paths.join(' or ')} holds no coverage rows, which say what a test file loaded; name a case with --test, or read a record`,
+  );
 }
 
 function journalsOf(journals: NonNullable<ReturnType<typeof recordedEyesOf>>['journals']): readonly EyesAttempt[] {
@@ -218,8 +236,4 @@ export function* distillPieces(
   else if ('test' in result) yield formatDistillation(result);
   else yield 'spills' in result ? formatScopeDistillation(result) : formatFileDistillation(result);
   yield '\n';
-}
-
-export function formatDistill(result: Distillation | FileDistillation | ScopeDistillation, format: 'text' | 'json'): string {
-  return [...distillPieces(result, format)].join('');
 }

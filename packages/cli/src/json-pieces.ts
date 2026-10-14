@@ -1,11 +1,14 @@
 /**
  * `JSON.stringify(value, null, 2)` in pieces whose joined text is the same,
- * so a large answer is written as it is read rather than held whole as one
+ * so a large answer is written as it serializes rather than held whole as one
  * string beside the value it spells.
  *
  * The value and the lists and objects it holds are walked; whatever those
- * hold is one piece each, stringified as a whole. A `toJSON` below that depth
- * is called by `JSON.stringify`, with the key it is given there.
+ * hold is one piece each, stringified as a whole. The same text is promised
+ * for plain data only — objects, lists, strings, numbers, booleans and
+ * `null`, which is all a distillation holds. A boxed primitive, a `toJSON`
+ * on the value itself that returns `undefined`, or one whose result has a
+ * `toJSON` of its own may write other text.
  */
 export function* jsonPieces(value: object): Generator<string, void, undefined> {
   yield* pieces(prepared(value, ''), '', 0);
@@ -58,11 +61,12 @@ const WRITTEN = 1 << 16;
 /**
  * Write pieces of text to `out` a batch at a time, waiting after each batch
  * until the reader has taken it, so what is held follows the batch and not
- * the whole answer.
+ * the whole answer. A reader that has gone is written nothing more, and the
+ * rest of the pieces are not made.
  */
 export async function writePieces(
   pieces: Iterable<string>,
-  streams: { out(text: string): void; drained?(): Promise<void> },
+  streams: { out(text: string): void; drained?(): Promise<boolean> },
 ): Promise<void> {
   let batch = '';
   for (const piece of pieces) {
@@ -70,7 +74,7 @@ export async function writePieces(
     if (batch.length < WRITTEN) continue;
     streams.out(batch);
     batch = '';
-    await streams.drained?.();
+    if ((await streams.drained?.()) === false) return;
   }
   if (batch !== '') streams.out(batch);
 }

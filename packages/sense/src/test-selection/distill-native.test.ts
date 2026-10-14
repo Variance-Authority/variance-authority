@@ -30,34 +30,33 @@ const index = (distance: number, stopped = false): ExecutionIndex => ({
 });
 
 describe('readDistillRecords', () => {
-  it('reads a case index in the row spelling as the set spelling of the same crossings, at any depth', () => {
-    const rows = readDistillRecords([withCaseSections(encodeTestCoverage(COVERAGE), { index: encodeExecutionIndex(index(2)) })]).file(FILE);
-    const sets = readDistillRecords([withCaseSections(encodeTestCoverage(COVERAGE), { index: encodeAsSetExecutionIndex(index(0)) })]).file(FILE);
+  it('reads which modules no case of the file entered, and how many cases it holds', () => {
+    const near = readDistillRecords([withCaseSections(encodeTestCoverage(COVERAGE), { index: encodeAsSetExecutionIndex(index(0)) })]).file(FILE);
 
-    expect(rows).toEqual(sets);
-    expect(rows.names[rows.module[0]!]).toBe('src/unused.ts');
-    expect([rows.cases, rows.unsettled]).toEqual([3, 0]);
+    expect(near.names[near.module[0]!]).toBe('src/unused.ts');
+    expect([near.cases, near.unsettled]).toEqual([3, 0]);
   });
 
-  it('counts a case the row spelling holds as stopped as unsettled', () => {
-    const rows = readDistillRecords([withCaseSections(encodeTestCoverage(COVERAGE), { index: encodeExecutionIndex(index(2, true)) })]).file(FILE);
+  it('counts a case the index holds as stopped as unsettled', () => {
     const sets = readDistillRecords([withCaseSections(encodeTestCoverage(COVERAGE), { index: encodeAsSetExecutionIndex(index(0, true)) })]).file(FILE);
 
-    expect(rows).toEqual(sets);
-    expect([rows.cases, rows.unsettled]).toEqual([3, 1]);
+    expect([sets.cases, sets.unsettled]).toEqual([3, 1]);
   });
 
-  it('reads an importer\'s regions against the file\'s cases in either spelling, the load of a case only in the rows', () => {
-    const rows = readDistillRecords([withCaseSections(encodeTestCoverage(COVERAGE), { index: encodeExecutionIndex(index(2)) })]);
+  it('refuses a case index in the row spelling, which no writer emits any more', () => {
+    expect(() => readDistillRecords([withCaseSections(encodeTestCoverage(COVERAGE), { index: encodeExecutionIndex(index(0)) })]))
+      .toThrow('record the suite again');
+  });
+
+  it('reads an importer\'s regions against the file\'s cases', () => {
     const sets = readDistillRecords([withCaseSections(encodeTestCoverage(COVERAGE), { index: encodeAsSetExecutionIndex(index(0)) })]);
     const region = { kind: 'function', name: 'run', path: 'run', startLine: 2, endLine: 2, source: true };
 
-    expect(rows.regions(FILE, 'src/used.ts')).toEqual(sets.regions(FILE, 'src/used.ts'));
-    expect(rows.regions(FILE, 'src/used.ts')).toEqual([{ ...region, ran: true, atLoad: false, called: expect.any(Uint32Array) }]);
-    expect(rows.regions(FILE, 'src/used.ts')[0]!.called).toHaveLength(1);
-    expect(rows.regions(FILE, 'src/unused.ts')).toEqual([{ ...region, ran: false, atLoad: true, called: new Uint32Array() }]);
-    expect(sets.regions(FILE, 'src/unused.ts')).toEqual([{ ...region, ran: false, atLoad: false, called: new Uint32Array() }]);
-    expect(rows.regions(FILE, 'src/absent.ts')).toEqual([]);
-    expect(rows.cases(FILE).map(({ name }) => name)).toEqual(['one', 'two', 'three']);
+    expect(sets.regions(FILE, 'src/used.ts')).toEqual([{ ...region, ran: true, called: expect.any(Uint32Array) }]);
+    expect(sets.regions(FILE, 'src/used.ts')[0]!.called).toHaveLength(1);
+    expect(sets.regions(FILE, 'src/unused.ts')).toEqual([{ ...region, ran: false, called: new Uint32Array() }]);
+    expect(sets.regions(FILE, 'src/absent.ts')).toEqual([]);
+    expect(sets.cases(FILE).map(({ name }) => name)).toEqual(['one', 'two', 'three']);
+    expect(sets.cases('test/absent.test.ts')).toEqual([]);
   });
 });

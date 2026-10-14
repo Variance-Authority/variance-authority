@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  encodeExecutionIndex,
+  encodeAsSetExecutionIndex,
   testCoverageFile,
   withCaseSections,
   writeTestCoverage,
@@ -11,7 +11,10 @@ import {
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
-import { distillFiles, formatDistill } from './distill.js';
+import { distillFiles, distillPieces } from './distill.js';
+
+/** The text the CLI writes for a distillation, joined. */
+const written = (...args: Parameters<typeof distillPieces>): string => [...distillPieces(...args)].join('');
 
 const CASE = 'test/cart.spec.ts > adds one item';
 const cwd = process.cwd();
@@ -69,11 +72,11 @@ async function recorded(root: string, journals?: readonly unknown[], watched = [
   });
   const block = { kind: 'function' as const, name: 'Cart', path: 'entry', startLine: 1, endLine: 9, source: true };
   writeFileSync(at, withCaseSections(readFileSync(at), {
-    index: encodeExecutionIndex({
+    index: encodeAsSetExecutionIndex({
       tests: [{ id: CASE, file: 'test/cart.spec.ts', name: 'adds one item' }],
       modules: [
-        { file: 'src/cart.tsx', blocks: [{ ...block, crossings: [{ test: 0, distance: 1 }] }] },
-        { file: 'src/price.ts', blocks: [{ ...block, name: 'price', crossings: [{ test: 0, distance: 2 }] }] },
+        { file: 'src/cart.tsx', blocks: [{ ...block, crossings: [{ test: 0, distance: 0 }] }] },
+        { file: 'src/price.ts', blocks: [{ ...block, name: 'price', crossings: [{ test: 0, distance: 0 }] }] },
       ],
     }),
     ...(journals === undefined ? {} : {
@@ -87,7 +90,7 @@ const plain = {
   tests: [{ id: 'plain', file: 'plain.test.ts', name: 'works' }],
   modules: [{ file: 'plain.ts', blocks: [{
     kind: 'function', name: 'work', path: 'entry', startLine: 1, endLine: 2,
-    source: true, crossings: [{ test: 0, distance: 1 }],
+    source: true, crossings: [{ test: 0, distance: 0 }],
   }] }],
 };
 
@@ -99,7 +102,7 @@ async function indexed(at: string, execution: typeof plain): Promise<void> {
     tests: [{ file: 'plain.test.ts', complete: true, preconditions: [] }],
     modules: [],
   });
-  writeFileSync(at, withCaseSections(readFileSync(at), { index: encodeExecutionIndex(execution) }));
+  writeFileSync(at, withCaseSections(readFileSync(at), { index: encodeAsSetExecutionIndex(execution) }));
 }
 
 describe('the CLI distillation boundary', () => {
@@ -114,8 +117,8 @@ describe('the CLI distillation boundary', () => {
 
     expect(result.attempts?.map((attempt) => attempt.attempt)).toEqual([1, 2]);
     // The record's paths are relative to the checkout on both sides, and join.
-    expect(result.execution.opportunities).toEqual([{ file: 'src/price.ts', distance: 2 }]);
-    const text = formatDistill(result, 'text');
+    expect(result.execution.opportunities).toEqual([{ file: 'src/price.ts', distance: 0 }]);
+    const text = written(result, 'text');
     expect(text).toContain('Eyes journal, attempt 1: complete.');
     expect(text).toContain('Eyes journal, attempt 2: complete.');
   });
@@ -125,18 +128,18 @@ describe('the CLI distillation boundary', () => {
     await recorded(root);
     const result = await distillFiles({ test: CASE, root });
     expect(result.attempts).toBeUndefined();
-    expect(formatDistill(result, 'text')).toContain('the record keeps no Eyes journals');
+    expect(written(result, 'text')).toContain('the record keeps no Eyes journals');
   });
 
   it('tells a case its run did not watch from a watched case that handed no journal', async () => {
     const root = checkout();
     await recorded(root, [], []);
-    const unwatched = formatDistill(await distillFiles({ test: CASE, root }), 'text');
+    const unwatched = written(await distillFiles({ test: CASE, root }), 'text');
     expect(unwatched).toContain('this case\'s run did not opt into Eyes.');
     // One reason, said once: an unwatched case is not a watched one missing its journal.
     expect(unwatched).not.toContain('keeps no Eyes journal for this case');
     await recorded(root, []);
-    expect(formatDistill(await distillFiles({ test: CASE, root }), 'text'))
+    expect(written(await distillFiles({ test: CASE, root }), 'text'))
       .toContain('the record keeps no Eyes journal for this case.');
   });
 
@@ -206,7 +209,7 @@ describe('the CLI distillation boundary', () => {
     const answer = await run(['distill', '--test', 'plain', '--suite', 'unit', '--format', 'json']);
 
     expect(answer.code).toBe(EXIT_CLEAN);
-    expect(JSON.parse(answer.out).execution.entered).toEqual([{ file: 'unit.ts', distance: 1 }]);
+    expect(JSON.parse(answer.out).execution.entered).toEqual([{ file: 'unit.ts', distance: 0 }]);
   });
 
   it('asks for `--suite`, naming the declared suites, when several are declared and none is named', async () => {
@@ -227,7 +230,7 @@ describe('the CLI distillation boundary', () => {
     const answer = await run(['distill', '--test', 'plain', '--format', 'json']);
 
     expect(answer.code).toBe(EXIT_CLEAN);
-    expect(JSON.parse(answer.out).execution.entered).toEqual([{ file: 'unit.ts', distance: 1 }]);
+    expect(JSON.parse(answer.out).execution.entered).toEqual([{ file: 'unit.ts', distance: 0 }]);
   });
 
   it('reads a case index named with --execution, which carries no journals', async () => {
@@ -237,9 +240,9 @@ describe('the CLI distillation boundary', () => {
 
     const result = await distillFiles({ test: 'plain', execution, root });
 
-    expect(result.execution.entered).toEqual([{ file: 'plain.ts', distance: 1 }]);
+    expect(result.execution.entered).toEqual([{ file: 'plain.ts', distance: 0 }]);
     expect(result.execution.opportunities).toBeUndefined();
-    expect(formatDistill(result, 'json')).toContain('"entered"');
+    expect(written(result, 'json')).toContain('"entered"');
   });
 
   it('reads a test file alone: what it loaded, how many of its cases entered each module, and the import, static or lazy, behind each load', async () => {
@@ -264,7 +267,7 @@ describe('the CLI distillation boundary', () => {
     });
     const block = { kind: 'function', name: 'main', path: 'main', startLine: 4, endLine: 9, source: true };
     writeFileSync(at, withCaseSections(readFileSync(at), {
-      index: encodeExecutionIndex({
+      index: encodeAsSetExecutionIndex({
         tests: [
           { id: CASE, file: 'test/cart.spec.ts', name: 'adds one item', stopped: false },
           { id: 'test/cart.spec.ts > checks out', file: 'test/cart.spec.ts', name: 'checks out', stopped: false },
@@ -342,7 +345,7 @@ describe('the CLI distillation boundary', () => {
       }],
     });
     writeFileSync(at, withCaseSections(readFileSync(at), {
-      index: encodeExecutionIndex({
+      index: encodeAsSetExecutionIndex({
         tests: [{ id: CASE, file: 'test/cart.spec.ts', name: 'adds one item', stopped: false }],
         modules: [{ file: 'src/cart.tsx', blocks: [{ kind: 'function', name: 'main', path: 'main', startLine: 3, endLine: 3, source: true, crossings: [{ test: 0, distance: 0 }] }] }],
       }),

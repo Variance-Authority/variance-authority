@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { once } from 'node:events';
 import { closeSync, openSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { isCI } from 'ci-info';
@@ -9,6 +8,7 @@ import { EXIT_CLEAN, EXIT_OPERATOR, isOperatorError, type ExitCode } from './exi
 import { CLI_VERSION } from './version.js';
 import { USAGE, parseArgs, type Parsed } from './parse.js';
 import { helpFor } from './usage.js';
+import { readerOf } from './reader.js';
 import { skillLine } from './skill.js';
 import type { Streams } from './commands/configless.js';
 
@@ -122,10 +122,7 @@ function isProgram(entry: string): boolean {
 const entry = process.argv[1];
 if (entry !== undefined && isProgram(entry)) {
   process.exitCode = await main(process.argv.slice(2), {
-    out: (text) => process.stdout.write(text),
-    drained: async () => {
-      if (process.stdout.writableNeedDrain) await once(process.stdout, 'drain');
-    },
+    ...readerOf(process.stdout),
     err: (text) => process.stderr.write(text),
     // A CI job ends with its last step and saves its cache after it, so there
     // nothing is left running: the step is the log, and the log is whole.

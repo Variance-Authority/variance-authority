@@ -85,11 +85,14 @@ export async function constantAnswer(
   return undefined;
 }
 
-/** Where a command writes; `drained` resolves once what was written has been taken, where a reader can lag. */
+/**
+ * Where a command writes. `drained`, where a reader can lag, resolves once
+ * what was written has been taken, `false` when the reader has gone.
+ */
 export interface Streams {
   out(text: string): void;
   err(text: string): void;
-  drained?(): Promise<void>;
+  drained?(): Promise<boolean>;
   detach?: Detach;
 }
 
@@ -119,7 +122,7 @@ export async function answerConfigless(
       if (parsed.format === 'jsonl') {
         const { distillRows } = await import('./distill.js');
         const { rows, unrecorded } = await distillRows(parsed);
-        await writePieces(rows.map((row) => `${JSON.stringify(row)}\n`), streams);
+        await writePieces(linesOf(rows), streams);
         if (unrecorded !== undefined) streams.err(`Not recorded: ${unrecorded.length === 1 ? 'suite' : 'suites'} ${unrecorded.join(', ')}.\n`);
         return EXIT_CLEAN;
       }
@@ -301,4 +304,9 @@ export async function answerConfigless(
       return exit;
     }
   }
+}
+
+/** One JSON line a row, each written as it is reached. */
+function* linesOf(rows: Iterable<unknown>): Generator<string, void, undefined> {
+  for (const row of rows) yield `${JSON.stringify(row)}\n`;
 }

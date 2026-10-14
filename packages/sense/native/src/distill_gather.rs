@@ -18,7 +18,7 @@ use rayon::prelude::*;
 
 use crate::distill_own::{causes_of, Cause, DistillGraph, FileGraph, Scratch};
 use crate::distill_read::{Paths, Record};
-use crate::distill_regions::DistillRegion;
+use crate::distill_cases::DistillRegion;
 use crate::order::code_unit;
 
 /// A reading's withheld code: none, no cases, an incomplete coverage row, a case that did not settle.
@@ -165,6 +165,10 @@ impl DistillRecords {
             files.sort_by(|a, b| code_unit(paths.name(*a), paths.name(*b)));
             work.extend(files.into_iter().map(|file| (at as u32, file)));
         }
+        for record in &mut self.records {
+            record.enter_all(&self.paths).map_err(napi::Error::from_reason)?;
+        }
+        let paths = &self.paths;
         let size = paths.len();
         let records = &self.records;
         let graph = graph.as_ref();
@@ -176,12 +180,13 @@ impl DistillRecords {
             .map(|(record, file)| {
                 let slot = rayon::current_thread_index().unwrap_or(0) % scratches.len();
                 let mut scratch = scratches[slot].lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-                let reading = read(&records[*record as usize], paths, *file, graph, scratch.get_or_insert_with(|| Scratch::new(size)));
+                let reading = read(&records[*record as usize], paths, *file, graph, scratch.get_or_insert_with(|| Scratch::new(size)))?;
                 let loads = loads_of(&reading, graph.is_some());
                 // A scope keeps a reading's summary; only one test file read alone lists its modules.
-                (Reading { modules: Vec::new(), ..reading }, loads)
+                Ok((Reading { modules: Vec::new(), ..reading }, loads))
             })
-            .collect();
+            .collect::<Result<_, String>>()
+            .map_err(napi::Error::from_reason)?;
         // Gathered in reading order, one test file after another: the sums and the sets do not depend on how the work was split.
         let mut gathered = Gathered::default();
         for ((_, file), (_, loads)) in work.iter().zip(&read) {
@@ -203,7 +208,7 @@ impl DistillRecords {
         };
         let record = &self.records[at];
         let mut scratch = Scratch::new(self.paths.len());
-        let reading = read(record, &self.paths, id, graph.as_ref(), &mut scratch);
+        let reading = read(record, &self.paths, id, graph.as_ref(), &mut scratch).map_err(napi::Error::from_reason)?;
         let column = |pick: &dyn Fn(&Module) -> u32| Uint32Array::new(reading.modules.iter().map(pick).collect());
         let module = Uint32Array::new(reading.modules.iter().map(|module| names.id(&self.paths, module.file)).collect());
         let (mut importer, mut imported, mut kind, mut lazy, mut loading) = (vec![], vec![], vec![], vec![], vec![]);
@@ -248,6 +253,13 @@ impl DistillRecords {
 
 #[napi]
 impl DistillRecords {
+    /// The record that holds `file`, by its place among the records; none when no record does.
+    #[napi]
+    pub fn holder(&self, file: String) -> Option<u32> {
+        let id = self.paths.id(&file)?;
+        self.records.iter().position(|record| record.holds(id)).map(|at| at as u32)
+    }
+
     /// The regions the record holding `file` keeps for `importer`, read against
     /// `file`'s cases; none when no record holds it or the index keeps no module for `importer`.
     #[napi(catch_unwind)]
@@ -283,7 +295,7 @@ impl DistillFile {
 }
 
 /// One test file's loads against its cases' entries, `readTestFile` in `@variance-authority/distill` before it moved here.
-fn read(record: &Record, paths: &Paths, file: u32, graph: Option<&FileGraph>, scratch: &mut Scratch) -> Reading {
+fn read(record: &Record, paths: &Paths, file: u32, graph: Option<&FileGraph>, scratch: &mut Scratch) -> Result<Reading, String> {
     let cases = record.cases(file);
     let candidates: Vec<u32> = record.loads(file).iter().copied().filter(|row| record.row(*row).file != file).collect();
     let lines = candidates.iter().map(|row| u64::from(record.row(*row).lines.unwrap_or(0))).sum();
@@ -298,15 +310,15 @@ fn read(record: &Record, paths: &Paths, file: u32, graph: Option<&FileGraph>, sc
     };
     let mut reading = Reading { cases: cases.count, withheld, unsettled: cases.unsettled, loaded: candidates.len() as u32, lines, unentered: 0, unentered_lines: 0, modules: Vec::new() };
     if withheld != READ {
-        return reading;
+        return Ok(reading);
     }
     let mut modules: Vec<Module> = candidates
         .iter()
         .map(|row| {
             let measured = record.row(*row);
-            Module { file: measured.file, lines: measured.lines, entered: record.entered(measured.file, file), cause: None }
+            Ok(Module { file: measured.file, lines: measured.lines, entered: record.entered(paths, measured.file, file)?, cause: None })
         })
-        .collect();
+        .collect::<Result<_, String>>()?;
     if let Some(graph) = graph {
         let asked: Vec<u32> = modules.iter().filter(|module| module.entered == 0).map(|module| module.file).collect();
         if !asked.is_empty() {
@@ -331,7 +343,7 @@ fn read(record: &Record, paths: &Paths, file: u32, graph: Option<&FileGraph>, sc
     reading.unentered = unentered.clone().count() as u32;
     reading.unentered_lines = unentered.map(|module| u64::from(module.lines.unwrap_or(0))).sum();
     reading.modules = modules;
-    reading
+    Ok(reading)
 }
 
 /// One module a test file loaded and no case of it entered, under its cause.
