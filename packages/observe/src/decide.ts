@@ -12,7 +12,7 @@ import { absorbsEntirely, relaxes, fingerprintOfMask } from '@variance-authority
 import type { SemanticSnapshot } from '@variance-authority/core/format';
 import { compareRasters } from '@variance-authority/png';
 import { attributionOf } from './attribution.js';
-import { count, describeChange, forgiveness, unjoined, unrecorded, type BeforeSide } from './because.js';
+import { count, describeChange, forgiveness, reshaped, unjoined, unrecorded, type BeforeSide } from './because.js';
 import { unpackSnapshot } from './packed.js';
 import { frameDiagnostics } from './frame.js';
 import type { CompareInputs, IgnoredPixels, Observation } from './observe.js';
@@ -89,7 +89,10 @@ export async function decide(
   const remaining = subtraction.mask.changed;
   const documentMoved = before.documentDigest !== after.documentDigest;
   const accessibility = accessibilityBetween(before, after);
-  const pixelsMoved = remaining > 0 || comparison.dimensionsChanged;
+  // Rows that moved are pixels that moved, even where each matches the row it
+  // came from: the alignment keeps the shift out of the mask and says so here.
+  const moved = reshaped(comparison);
+  const pixelsMoved = remaining > 0 || moved;
   // The before side's tree, for the region join. Asked only when this run has a
   // tree of its own: without one there is nothing to join, and nothing an
   // accepting run could record in its place.
@@ -148,7 +151,7 @@ export async function decide(
   if (
     relaxed !== null &&
     remaining > 0 &&
-    !comparison.dimensionsChanged &&
+    !moved &&
     accessibility?.verdict !== 'changed'
   ) {
     return {
@@ -172,7 +175,7 @@ export async function decide(
   // Shape ignores cannot apply here, because there is no region to fingerprint.
   if (
     remaining === 0 &&
-    !comparison.dimensionsChanged &&
+    !moved &&
     accessibility?.verdict !== 'changed'
   ) {
     // Two green verdicts, never one. `unchanged` is a fact about the render;
@@ -208,7 +211,7 @@ export async function decide(
   // before/after ARIA snapshots are the evidence. Document movement remains a
   // named signal, but is not itself a raster verdict: reconstruction inputs can
   // differ while both independently observed outputs agree.
-  if (remaining === 0 && !comparison.dimensionsChanged) {
+  if (remaining === 0 && !moved) {
     return {
       subject,
       verdict: 'changed',
@@ -269,7 +272,7 @@ export async function decide(
 
   if (
     outstanding === 0 &&
-    !comparison.dimensionsChanged &&
+    !moved &&
     accessibility?.verdict !== 'changed'
   ) {
     return {

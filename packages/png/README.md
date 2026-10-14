@@ -145,12 +145,20 @@ shipped constants. `isolateWith` picks which one of them the returned
 rather than returning a mask describing a different comparison from the counts
 beside it.
 
-## Mismatched sizes are padded
+## Content that moved is aligned
 
 `pixelmatch` requires equal dimensions, and Playwright's `toHaveScreenshot` fails
-outright when they differ. Here both images are copied onto the union box,
-top-left aligned, `dimensionsChanged` is set, and `before` / `after` report the
-original sizes — so a size change is measured rather than merely detected.
+outright when they differ. A full-page capture changes height whenever content
+is inserted, and compared position by position every row under the insertion
+sits against the row that used to be there, so a paragraph added near the top
+marks the whole rest of the page as changed.
+
+Two images of the same width are aligned row by row first, the way a text diff
+aligns lines. Each after row is compared with the before row it shows: content
+that moved is compared where it moved to, rows with no partner in the before
+image are marked in full as inserted, and before rows with no partner are
+reported as removed. The comparison is drawn on the after image's canvas,
+`dimensionsChanged` is set, and `before` / `after` report the original sizes.
 
 A 20×20 white image against a 20×21 copy with one black row added at the bottom:
 
@@ -163,13 +171,30 @@ A 20×20 white image against a 20×21 copy with one black row added at the botto
   after: { width: 20, height: 21 },
   changed: { default: 20, strict: 20 },
   total: 420,
-  mask: { width: 20, height: 21, changed: 20 }
+  mask: { width: 20, height: 21, changed: 20 },
+  alignment: { inserted: [{ from: 20, to: 21 }], removed: [], shifted: [] }
 }
 ```
 
-Twenty pixels — the added row — rather than the whole image.
+Twenty pixels — the added row — rather than the whole image. `alignment` names
+the after rows that were inserted, the before rows that were removed with `at`,
+the after row they would have sat above, and the after rows that moved with `by`,
+how far. Content that moved without changing still counts as a change: the
+pixels match, and the rows say where they went.
 
-The padding is opaque **white**, and that is a position rather than a derived
+The alignment proposes pairs and the pixel comparison judges each one, so a
+pairing that is wrong finds more difference, never less. A run of identical rows
+that only grew, such as a white gap one row taller, pairs its extra rows with
+the run's own last row rather than marking them inserted. Only whole rows are
+matched: content that moves in one column beside a column that stays put is
+compared where it sits.
+
+When the widths differ there is no row of one image in the other. Both are then
+copied onto the union box, top-left aligned, and compared position by position,
+and `alignment` is absent. The same happens when the two differ in more than
+2,000 runs of rows, where aligning costs more than it can save.
+
+That padding is opaque **white**, and that is a position rather than a derived
 value: white is taken as the page's assumed canvas. Transparent padding would
 invent a difference wherever the shorter image's own background is opaque, which
 is most captures. The cost lands on dark-themed UIs, where the padded strip reads
@@ -237,7 +262,7 @@ from the image, and no component list is attached — `undefined` reads as
 
 ## `png/mask` — the same mask, without a codec
 
-`@variance-authority/png/mask` exports the two functions that do the per-pixel
+`@variance-authority/png/mask` exports the functions that do the per-pixel
 work, over raw RGBA. Take it when the pixels are already in hand: a canvas, a
 framebuffer, `createImageBitmap` in a review page. A bundler following this
 subpath never reaches `pngjs`.
@@ -261,8 +286,9 @@ console.log(padded.width, padded.height); // 4 4
 ```
 
 `differencePixels` returns `{ width, height, data, changed }`, where `data` is
-RGBA. It pads to the union box itself, so `padTo` is only worth calling directly
-when you need the padded pixels for something else. Pass
+RGBA, and `alignment` when it aligned the rows. It aligns or pads on its own, so
+`padTo` is only worth calling directly when you need the padded pixels for
+something else. Pass
 `{ diffMask: true }` as a fourth argument and it writes only the differing pixels
 and leaves the rest transparent, which is how `comparePngs` gets a mask without
 recovering one from a red-on-grey picture.

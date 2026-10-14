@@ -404,8 +404,9 @@ absent from the run may have been copied from another report.
   counted in a register of its own.
 - **It cannot change what is rendered.** Ignores sit outside the environment key,
   so editing one never invalidates a baseline — and never changes an image.
-- **It cannot silence a size change.** A subject that resized is reported whatever
-  its exclusions cover, because the canvas itself changed.
+- **It cannot silence a size change or content that moved.** A subject that
+  resized, or whose rows moved up or down the page, is reported whatever its
+  exclusions cover, because the layout around them changed.
 - **It cannot hide from the ledger.** There is no quiet ignore.
 
 ## Coming from somewhere else
