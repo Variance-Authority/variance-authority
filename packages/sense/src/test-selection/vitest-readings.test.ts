@@ -259,6 +259,9 @@ describe('a module the runner loaded from its build alone', () => {
       );
       const plugin = seamOf(configured.plugins);
       const source = 'export default function setup() { return 1; }';
+      await mkdir(resolve(root, 'src'), { recursive: true });
+      await writeFile(resolve(root, 'eyes.globalSetup.ts'), source);
+      await writeFile(resolve(root, 'src/cart.ts'), source);
 
       expect(plugin.transform.handler(source, resolve(root, 'eyes.globalSetup.ts'))).toBeNull();
       // The exclusion is the named path, not every file beside it.

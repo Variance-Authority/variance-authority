@@ -61,6 +61,14 @@ function page(setup: string, instrumented: string, test: string): { before: Hook
   };
 }
 
+/** `path` under `root`, written with `text`: the file a transform is handed a module of. */
+async function held(root: string, path: string, text: string): Promise<string> {
+  const file = resolve(root, path);
+  await mkdir(resolve(file, '..'), { recursive: true });
+  await writeFile(file, text);
+  return file;
+}
+
 const PRICE = 'export function price(amount) { if (amount > 10) { return 1; } return 2; }';
 
 describe('a test file that runs in a page', () => {
@@ -69,7 +77,7 @@ describe('a test file that runs in a page', () => {
     try {
       const { plugin, setup } = seam(root);
       await plugin.config({ test: { browser: { enabled: true } } });
-      const instrumented = plugin.transform.handler(PRICE, resolve(root, 'src/price.ts'))!.code;
+      const instrumented = plugin.transform.handler(PRICE, await held(root, 'src/price.ts', PRICE))!.code;
       const run = page(await readFile(setup, 'utf8'), instrumented, 'price(20);');
       const file = { type: 'suite', filepath: resolve(root, 'src/premium.test.ts') } as { meta?: object };
 
@@ -95,7 +103,7 @@ describe('a test file that runs in a page', () => {
     try {
       const { plugin, setup } = seam(root);
       await plugin.config({ test: { browser: { enabled: true } } });
-      const instrumented = plugin.transform.handler(PRICE, resolve(root, 'src/price.ts'))!.code;
+      const instrumented = plugin.transform.handler(PRICE, await held(root, 'src/price.ts', PRICE))!.code;
       const run = page(await readFile(setup, 'utf8'), instrumented, 'price(5);');
       const file = { type: 'suite', filepath: resolve(root, 'src/plain.test.ts') } as { meta?: object };
 
@@ -113,9 +121,8 @@ describe('a test file that runs in a page', () => {
     try {
       const { plugin, reporter, setup } = seam(root);
       await plugin.config({ test: { browser: { enabled: true } } });
-      const instrumented = plugin.transform.handler(PRICE, resolve(root, 'src/price.ts'))!.code;
+      const instrumented = plugin.transform.handler(PRICE, await held(root, 'src/price.ts', PRICE))!.code;
       const shim = await readFile(setup, 'utf8');
-      await mkdir(resolve(root, 'src'));
       const finished = async (name: string, test: string): Promise<ReportedModule> => {
         const filepath = resolve(root, 'src', name);
         await writeFile(filepath, `it("x", () => { ${test} });\n`);

@@ -135,3 +135,15 @@ describe('a browser run that cannot be joined records nothing', () => {
     });
   });
 });
+
+describe('a module the page imports that no file holds', () => {
+  it('carries no probe, as a builder hands over its virtual entry under the root', async () => {
+    // Storybook hands its builder `storybook-config-entry.js` at the project
+    // root: `include` accepts the name, and no diff is ever written against it.
+    await inRoot(async (root) => {
+      const transformed = testSelectionProbes({ root }).transform(SOURCE, resolve(root, 'storybook-config-entry.js'));
+
+      expect(transformed).toBeNull();
+    });
+  });
+});

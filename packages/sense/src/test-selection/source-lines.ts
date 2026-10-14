@@ -221,7 +221,11 @@ function readable(original: (path: string) => string, path: string): string | un
  * lines. The frame is still cut from the text handed over, as before, and says
  * so with {@link RawFrame.changed}: what a caller does about it is the caller's.
  *
- * `undefined` when neither name is accepted.
+ * A module no file holds — a builder's virtual entry, such as Storybook's
+ * `storybook-stories.js` handed over at the project root — is no file a diff is
+ * written against, whatever name it is handed under, and has no frame.
+ *
+ * `undefined` when neither name is accepted, or the module has no file.
  */
 export function rawFrame(
   code: string,
@@ -238,6 +242,8 @@ export function rawFrame(
     if (frame.file === source) return frame;
   }
   if (!include(file)) return undefined;
+  // `onDisk` reads no file under `node_modules`: that one is read here only to see it is there.
+  if (read === undefined && (!NODE_MODULES.test(file) || readable(original, file) === undefined)) return undefined;
   const frame = recordedFrame(code, undefined, file, original);
   if (disk === undefined) return read === undefined ? frame : { ...frame, changed: true };
   return frame.text !== code ? frame : { ...frame, sourceDigest: digestString(disk), text: disk };
@@ -260,12 +266,7 @@ const NODE_MODULES = /[/\\]node_modules[/\\]/;
  * read the map itself.
  */
 function onDisk(file: string, original: (path: string) => string): string | undefined {
-  if (NODE_MODULES.test(file)) return undefined;
-  try {
-    return original(file);
-  } catch {
-    return undefined;
-  }
+  return NODE_MODULES.test(file) ? undefined : readable(original, file);
 }
 
 /** The map the file on disk points at. */

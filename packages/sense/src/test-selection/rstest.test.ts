@@ -201,7 +201,8 @@ describe('the Rstest loader', () => {
   ) {
     const directory = await root();
     const coverageFile = resolve(directory, 'coverage.bin');
-    for (const [path, text] of Object.entries(files)) {
+    // The loader is handed a module the checkout holds.
+    for (const [path, text] of Object.entries({ [file]: code, ...files })) {
       await mkdir(resolve(directory, path, '..'), { recursive: true });
       await writeFile(resolve(directory, path), text);
     }

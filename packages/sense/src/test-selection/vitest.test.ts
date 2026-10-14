@@ -241,6 +241,7 @@ describe('a module named unprobed', () => {
       const page = resolve(root, 'page.ts');
       const configured = withTestSelection({}, { root, coverageFile, include: () => true, unprobed: (file) => file === page });
       const { plugin, reporter } = seamOf(configured);
+      await writeFile(page, 'export function f(x) { if (x) { return 1; } return 2; }');
 
       const placed = plugin.transform.handler('export function f(x) { if (x) { return 1; } return 2; }', page);
       await reporter.onFinished([]);
@@ -263,6 +264,7 @@ describe('coverage generations', () => {
       const configured = withTestSelection({}, { root, coverageFile, include: () => true });
       const { plugin, reporter } = seamOf(configured);
 
+      await writeFile(resolve(root, 'broken.ts'), 'const =');
       // It still runs marked as loaded, so a test that loaded it still says so.
       expect(plugin.transform.handler('const =', resolve(root, 'broken.ts'))).toEqual({
         code: expect.stringMatching(/^const =\n;[^]*__vaE\(\);$/),
@@ -334,6 +336,7 @@ describe('coverage generations', () => {
     try {
       const configured = withTestSelection({}, { root, coverageFile, include: () => true, mode: 'entries' });
       const { plugin, reporter } = seamOf(configured);
+      await writeFile(resolve(root, 'f.ts'), 'export function f(x) { if (x) { return 1; } return 2; }');
 
       const placed = plugin.transform.handler('export function f(x) { if (x) { return 1; } return 2; }', resolve(root, 'f.ts'));
       await reporter.onFinished([]);

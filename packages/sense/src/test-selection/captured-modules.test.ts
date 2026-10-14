@@ -50,6 +50,42 @@ describe('the module the probes name', () => {
   });
 });
 
+describe('a module with no file on disk', () => {
+  // A bundler's virtual entry — Storybook's `storybook-stories.js` — is handed
+  // over under a path in the checkout that `include` accepts, and no diff is
+  // ever written against it.
+  it('is not probed, as a bundler hands over its virtual entry', async () => {
+    const { root } = await checkout(SOURCE);
+    const virtual = resolve(root, 'storybook-stories.js');
+
+    expect(captureModule(root, virtual, SOURCE, defaultInclude, undefined)).toBeUndefined();
+  });
+
+  it('is not probed after the transforms either, whatever map arrives with it', async () => {
+    const { root } = await checkout(SOURCE);
+    const virtual = resolve(root, 'storybook-config-entry.js');
+    const map = () => ({ sources: ['storybook-config-entry.js'], mappings: 'AAAA;AACA;AACA' });
+
+    expect(captureAfter(root, virtual, SOURCE, defaultInclude, undefined, map)).toBeUndefined();
+  });
+
+  it('is not probed under node_modules where `include` accepts it', async () => {
+    const { root } = await checkout(SOURCE);
+    const virtual = resolve(root, 'node_modules', '.cache', 'storybook', 'entry.js');
+
+    expect(captureModule(root, virtual, SOURCE, () => true, undefined)).toBeUndefined();
+  });
+
+  it('is probed under node_modules where `include` accepts it and the file is there', async () => {
+    const { root } = await checkout(SOURCE);
+    const vendored = resolve(root, 'node_modules', 'cart', 'index.js');
+    await mkdir(resolve(root, 'node_modules', 'cart'), { recursive: true });
+    await writeFile(vendored, SOURCE, 'utf8');
+
+    expect(captureModule(root, vendored, SOURCE, () => true, undefined)).toBeDefined();
+  });
+});
+
 describe('a module whose probes go in after the transforms', () => {
   it('reports the id and the regions the file on disk is cut into', async () => {
     const { root, file } = await checkout(SOURCE);
