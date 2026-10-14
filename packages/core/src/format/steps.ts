@@ -14,6 +14,9 @@
  * no digest, so a timing can never move an image, a key or a verdict.
  */
 
+import { codeUnitOrder } from '../segment/index.js';
+
+/** One step of one subject: the phase's own name and how long its span took. */
 export interface Step {
   readonly step: string;
   /** Wall time of the span, in milliseconds, to a tenth. */
@@ -86,7 +89,7 @@ export function totalsOf(subjects: readonly (readonly Step[] | undefined)[]): re
     }
   }
   return [...totals]
-    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .sort(([left], [right]) => codeUnitOrder(left, right))
     .map(([step, total]) => ({ step, ms: tenths(total.ms), subjects: total.subjects }));
 }
 

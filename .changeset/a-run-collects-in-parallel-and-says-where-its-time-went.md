@@ -31,7 +31,15 @@ subjects that ran it and counts them. A phase a subject skipped is absent, not
 zero. Timings are part of no digest, so images, records and baselines do not
 move when only timing does.
 
-`settleRecipe`, `compareRasters`, the raster `Renderer.render` and the route
-page agent take an optional step clock and report the steps they ran.
+`settleRecipe`, `stabilizeForObservation`, `compareRasters` and the raster
+`Renderer.render` take an optional step clock and report the steps they ran on
+it. The route page agent and `readRoute` always return the steps they took.
 `stepClock`, `timeOn` and `totalsOf` are exported from
 `@variance-authority/core/format`.
+
+On a machine with four or more cores, a run that is not sharded now reads the
+mainline's subject costs to hand its slowest files out first, as a run with
+`workers` set always did.
+
+`concurrency` is shared across the worlds, with at least one subject per world,
+so by default the raster tier is as wide as the number of worlds.

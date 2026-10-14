@@ -90,8 +90,9 @@ export function contextFor(context: ObserveContext, lane: Lane): ObserveContext 
  * Run `body` over every index in `queue`, group by group, lane by lane.
  *
  * Each lane keeps up to `window` subjects in flight — `concurrency` shared
- * across the lanes, so the raster tier is exactly as wide as it was configured
- * — and takes its next group only once it has started the last subject of the
+ * across the lanes, and at least one each, so the raster tier is as wide as it
+ * was configured or as there are lanes — and takes its next group only once it
+ * has started the last subject of the
  * one before. With one lane and a concurrency of one this is the loop a run
  * always was: one subject at a time, in queue order.
  */
@@ -141,7 +142,7 @@ export function timed(
   const record = {
     ...outcome.record,
     costMs: elapsed() - started,
-    ...(steps === undefined ? {} : { steps }),
+    ...(steps === undefined ? {} : { steps: [...steps] }),
   };
   return { ...outcome, record: declaredIn === undefined ? record : { ...record, declaredIn } };
 }

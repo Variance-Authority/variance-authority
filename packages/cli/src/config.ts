@@ -291,7 +291,8 @@ export interface Config extends RestsOn, PageRegion {
   readonly decoder?: 'auto' | 'pngjs' | 'sharp';
 
   /**
-   * How many subjects may be in the raster tier at once. Defaults to 1.
+   * How many subjects may be in the raster tier at once, shared across the
+   * worlds, and never fewer than one per world. Defaults to 1.
    *
    * This widens rendering, decoding, comparing and writing, never collection:
    * a standing world (ADR-0009) collects one subject at a time, and mounting two

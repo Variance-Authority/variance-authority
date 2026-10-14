@@ -118,7 +118,7 @@
       "type": "integer",
       "minimum": 1,
       "default": 1,
-      "description": "How many subjects may be in the raster tier at once. It widens rendering, decoding and comparing; how many worlds collect is `workers`. Each lane holds a browser page and the decoded pixels of two images, so this is a memory decision as much as a speed one. Observations are written in plan order, so raising it changes what a run costs and never what it says."
+      "description": "How many subjects may be in the raster tier at once, shared across the worlds and never fewer than one per world. It widens rendering, decoding and comparing; how many worlds collect is `workers`. Each lane holds a browser page and the decoded pixels of two images, so this is a memory decision as much as a speed one. Observations are written in plan order, so raising it changes what a run costs and never what it says."
     },
     "workers": {
       "type": "integer",

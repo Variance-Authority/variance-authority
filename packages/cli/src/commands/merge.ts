@@ -227,14 +227,6 @@ function parse(shard: Shard): number {
 }
 
 /**
- * Every shard's observations, in shard order, with an overlap refused.
- *
- * Two observations of one subject means the globs overlapped, and there is no
- * safe resolution: the two ran at different times against the same baseline, so
- * keeping either one is a choice about which verdict is real. The operator wrote
- * the globs and is the only one who can say which shard should have had it.
- */
-/**
  * The step totals are a fold over subjects, so they are taken again over the
  * merged list rather than added up from each shard's. `workers` is not carried:
  * every shard collected in its own, and no one number is the merged run's.
@@ -246,6 +238,14 @@ function withTotals(
   return { observations, ...(steps.length === 0 ? {} : { steps }) };
 }
 
+/**
+ * Every shard's observations, in shard order, with an overlap refused.
+ *
+ * Two observations of one subject means the globs overlapped, and there is no
+ * safe resolution: the two ran at different times against the same baseline, so
+ * keeping either one is a choice about which verdict is real. The operator wrote
+ * the globs and is the only one who can say which shard should have had it.
+ */
 function observationsOf(shards: readonly Shard[]): CliRunReport['observations'] {
   const seen = new Map<string, string>();
   const merged: CliRunReport['observations'][number][] = [];

@@ -1,3 +1,4 @@
+import { stepClock } from '@variance-authority/core/format';
 import type { Page } from 'playwright';
 import { describe, expect, it } from 'vitest';
 import { acquireFromAgent } from './acquire.js';
@@ -96,5 +97,27 @@ describe('acquiring over an asset map that is still filling', () => {
     // Not an empty map: `assets: {}` and no `assets` are the same environment
     // key, and a run with observation off should not claim to have looked.
     expect(sent).toEqual([{ subjectId: 'route/x' }]);
+  });
+});
+
+describe('the steps of acquiring', () => {
+  const names = async (wire: NetworkObservation | undefined): Promise<string[]> => {
+    const steps = stepClock(() => performance.now());
+    await acquireFromAgent(pageRecording([]), wire, { subjectId: 'route/x' }, steps);
+    return steps.taken.map((step) => step.step);
+  };
+
+  it('takes the one read, and no wait, when nothing observes the wire', async () => {
+    expect(await names(undefined)).toEqual(['read']);
+  });
+
+  it('takes the read and the wait for the wire when the wire held still', async () => {
+    const same = { 'a.png': 'v1:a' };
+    expect(await names(wireThatFetchesDuringStabilization(same, { ...same }))).toEqual(['read', 'network']);
+  });
+
+  it('names the reading the wire outdated `stale`, and the one kept `read`', async () => {
+    const wire = wireThatFetchesDuringStabilization({ 'a.png': 'v1:a' }, { 'a.png': 'v1:b' });
+    expect(await names(wire)).toEqual(['stale', 'network', 'read']);
   });
 });
