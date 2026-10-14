@@ -17,7 +17,8 @@ import { routeCollector } from '@variance-authority/route-collector';
 
 export default routeCollector({
   sitemap: 'http://localhost:8787/sitemap.xml',
-  source: { dirs: ['app'] },
+  // A component's file is named from the checkout's root, where the run starts.
+  source: { dirs: ['site/app'] },
   // A Mermaid diagram renders after the page loads, and says so with
   // `aria-busy` until it has: a page is ready when nothing on it is busy.
   ready: { '*': 'body:not(:has([aria-busy="true"]))' },

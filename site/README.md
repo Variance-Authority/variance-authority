@@ -43,10 +43,10 @@ Every page `sitemap.xml` lists is a subject of the `site` check in
 `.github/workflows/variance.yml`, read from the build `yarn start` serves:
 `variance.config.json` here, and the collector in `variance/routes.mjs`. A page
 added to `NAVIGATION` is watched without an edit there. To run it against your
-own build, start the server and, from `site/`:
+own build, start the server and, from the repository root:
 
 ```bash
-node ../packages/cli/dist/bin.js run --config variance.config.json
+node packages/cli/dist/bin.js run --config site/variance.config.json
 ```
 
 A change it finds is accepted on the pull request with the `variance: accept
