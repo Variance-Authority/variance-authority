@@ -88,7 +88,17 @@ const instrumentable = (file: string) => source(file) && probeable(ROOT, file);
  */
 const unprobed = (file: string) => source(file) && marked(ROOT, file);
 
-/** What every slice runs under. */
+/**
+ * What every slice runs under.
+ *
+ * The site is outside the workspaces and keeps its own install, but its tests
+ * run here, on the root one: the suite's CI job installs nothing in `site/`. So a module a site
+ * test loads resolves from the root manifest or not at all, and the root
+ * declares the site's rendering dependencies as `devDependencies` at the site's
+ * own ranges. The framework is the exception: `next/link` and
+ * `next/navigation` are interfaces each site test mocks, and the plugin below
+ * only lets their names resolve so the mock has something to replace.
+ */
 const shared = defineConfig({
   plugins: [{
     name: 'site-framework-test-interfaces',
