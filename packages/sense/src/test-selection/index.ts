@@ -61,6 +61,7 @@ export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from
 export { unmeasuredOf, type Unmeasured } from './route.js';
 export { importReferences, type FileReferences } from './references.js';
 export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
+export { readDistillRecords, type DistillRecords, type NativeDistillFile, type NativeDistillScope } from './distill-native.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
 export { formatCoveringChange, type CoveringCaseNote, type CoveringChangeHeading } from './covering-change-text.js';
 export {
@@ -71,6 +72,8 @@ export {
 } from './execution-format.js';
 export { mergeExecutionIndexes } from './execution-merge.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
+/** A coverage snapshot as a record writes it, with no case sections; `writeTestCoverage` writes one to disk. */
+export { encodeTestCoverage };
 export { encodeAsSetExecutionIndex, journeyGaps, openSetColumns, type JourneyGaps, type SetColumns, type StringTable, type TestColumns } from './execution-set-format.js';
 export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
 export { readingLines, type FileReading } from './reading-lines.js';

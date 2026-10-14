@@ -2,7 +2,7 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { EDGE_KINDS, NODE_KINDS, idOf, type EdgeKind, type Relations } from '@variance-authority/core/relate';
+import type { Relations } from '@variance-authority/core/relate';
 import { parseEyesJournal } from '@variance-authority/eyes/archive';
 import {
   distill,
@@ -22,12 +22,11 @@ import {
 } from '@variance-authority/distill';
 import {
   declaredSuites,
-  decodeTestCoverage,
   importReferences,
   isEncodedExecutionIndex,
+  openCoverageFile,
   RecordWithoutCoverage,
   recordedEyesOf,
-  type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { mayMock, shadowReach } from '@variance-authority/sense/taint';
 import { messageOf } from '../config-values.js';
@@ -75,14 +74,14 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
   try {
     const execution = executionIndexOf(bytes);
     if (options.test === undefined && file !== undefined) {
-      const input = { file, execution, coverage: coverageOf(bytes, record) };
+      const input = { file, execution, record: coverageOf(bytes, record) };
       const flat = distillFile(input);
       // The graph is read only when there is a load to give a cause, or a mock to hold against it: the scan costs more than the record.
       if (!flat.modules?.some(({ entered }) => entered === 0) && !(await mocksIn(options.root, flat.file))) return flat;
       const graph = await fileGraph(options.root);
       return distillFile({
         ...input,
-        ...causesFrom(graph),
+        relations: graph,
         references: (file) => importReferences(options.root, graph, file),
         shadows: (file) => shadowReach(graph, file),
       });
@@ -111,7 +110,7 @@ async function distillRecords(options: DistillOptions): Promise<ScopeDistillatio
   const flat = asOperator(() => distillScope(input));
   if (flat.spills.length === 0) return flat;
   const graph = await fileGraph(options.root);
-  return distillScope({ ...input, ...causesFrom(graph) });
+  return distillScope({ ...input, relations: graph });
 }
 
 /**
@@ -145,11 +144,7 @@ async function scopeOf(options: Omit<DistillOptions, 'test' | 'file'>): Promise<
       continue;
     }
     const bytes = await recordAt(record);
-    records.push({
-      ...(suite === undefined ? {} : { suite }),
-      execution: asOperator(() => executionIndexOf(bytes)),
-      coverage: asOperator(() => coverageOf(bytes, record)),
-    });
+    records.push({ ...(suite === undefined ? {} : { suite }), record: asOperator(() => coverageOf(bytes, record)) });
   }
   if (records.length === 0) throw nothingRecorded(options.root, unrecorded);
   return {
@@ -184,65 +179,24 @@ function fileGraph(root: string): Promise<Relations> {
   return relationsFor(root, ['.'], [], []);
 }
 
-/** The edges a runtime evaluates a module through on load: a dynamic import evaluates later, if at all. */
-const LOADING = new Set((['imports', 'reexports', 'asset'] as const satisfies readonly EdgeKind[]).map((kind) => EDGE_KINDS.indexOf(kind)));
-/** The edge a literal `import()` leaves: what it loads is paid when it runs. */
-const LAZY = new Set([EDGE_KINDS.indexOf('dynamic')]);
-const FILE = NODE_KINDS.indexOf('file');
-
-/** The files each file reaches by one set of edge kinds, read from the file graph by the names the record uses. */
-function importsOf(relations: Relations, through: ReadonlySet<number> = LOADING): (file: string) => readonly string[] {
-  const { offset, target, kind } = relations.depends;
-  return (file) => {
-    const id = idOf(relations, 'file', file);
-    if (id === undefined) return [];
-    const found: string[] = [];
-    for (let at = offset[id]!; at < offset[id + 1]!; at += 1) {
-      if (through.has(kind[at]!) && relations.kinds[target[at]!] === FILE) found.push(relations.names[target[at]!]!);
-    }
-    return found;
-  };
-}
-
-/** What a file reading needs from the file graph to name the import behind each load. */
-function causesFrom(relations: Relations) {
-  return { imports: importsOf(relations), lazy: importsOf(relations, LAZY), republishes: republishesOf(relations) };
-}
-
-const REEXPORTS = EDGE_KINDS.indexOf('reexports');
-
-/** Whether every file a file loads statically, it re-exports: a barrel, as far as the file graph says. */
-function republishesOf(relations: Relations): (file: string) => boolean {
-  const { offset, target, kind } = relations.depends;
-  return (file) => {
-    const id = idOf(relations, 'file', file);
-    if (id === undefined) return false;
-    let any = false;
-    for (let at = offset[id]!; at < offset[id + 1]!; at += 1) {
-      if (!LOADING.has(kind[at]!) || relations.kinds[target[at]!] !== FILE) continue;
-      if (kind[at] !== REEXPORTS) return false;
-      any = true;
-    }
-    return any;
-  };
-}
-
 /**
- * The coverage rows of a record, which say which test file loaded which module.
- * A case index on its own carries none, and a file reading has nothing to read;
- * a record whose rows do not decode is damaged, and says so.
+ * A record that holds coverage rows, which say which test file loaded which
+ * module. A case index on its own carries none, and a file reading has nothing
+ * to read; a record whose rows do not read is damaged, and the reading says so.
  */
-function coverageOf(bytes: Uint8Array, record: string): TestCoverage {
+function coverageOf(bytes: Uint8Array, record: string): Uint8Array {
   const none = new OperatorError(
     `${record} holds no coverage rows, which say what a test file loaded; name a case with --test, or read a record`,
   );
   if (!isEncodedExecutionIndex(bytes)) throw none;
   try {
-    return decodeTestCoverage(bytes);
+    // The header alone says whether the record holds coverage; the rows are read once, by the reading.
+    openCoverageFile(record).close();
   } catch (error) {
     if (error instanceof RecordWithoutCoverage) throw none;
     throw error;
   }
+  return bytes;
 }
 
 function journalsOf(journals: NonNullable<ReturnType<typeof recordedEyesOf>>['journals']): readonly EyesAttempt[] {

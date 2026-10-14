@@ -206,11 +206,6 @@
   },
   {
     "idiom": "code-unit-order",
-    "at": "packages/distill/src/scope.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
     "at": "packages/help/src/read.ts",
     "count": 1
   },

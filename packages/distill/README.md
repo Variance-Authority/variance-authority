@@ -279,7 +279,7 @@ a measured-empty addressed surface.
 | `formatDistillation(result)` | The text above. The CLI and MCP adapters print exactly this. |
 | `parseExecutionIndex(value)` | Validates untyped execution JSON, throwing on the first bad field. |
 | `distillFile(input)` | `FileDistillInput` in, `FileDistillation` out: the modules one test file loaded that no case, or only some cases, entered. Throws when the record holds no test file at exactly `file`. |
-| `LoadCause` | Why a file loaded a module no case entered: the one `import` every path to it runs through, `shared` with the file where its paths part, or `unseen` by any static import. Set when `FileDistillInput.imports` gives the static imports of each file. |
+| `LoadCause` | Why a file loaded a module no case entered: the one `import` every path to it runs through, `shared` with the file where its paths part, or `unseen` by any static import. Set when `FileDistillInput.relations` gives the file graph. |
 | `formatFileDistillation(result)` | The text of a file reading, as the CLI prints it for `--file` alone. |
 | `scopeRows(input)` | `ScopeDistillInput` in, one `ScopeRow` a test file out, as `variance distill --format jsonl` writes them: the file's `suite`, `cases`, what it `loaded` and its lines, and what no case of it `unentered`, or `withheld` with the reason. Throws when the scope holds no recorded test file. |
 
@@ -296,7 +296,11 @@ range. On an `EnteredModule`, `entered` and `unentered` split those regions, and
 `loadedOnly` is the flag behind the loaded-but-not-covered finding.
 
 `FileDistillInput` carries the test file's repository-relative path as `file`, the
-record's case index as `execution`, and its coverage rows as `coverage`.
+record's bytes as `record` — its coverage rows and its case index, as the run
+wrote them — that case index decoded as `execution`, and optionally the file
+graph as `relations`. `ScopeDistillInput` carries one `record` per suite. The
+records are read once, by the native addon, however many test files a scope
+asks about.
 `FileDistillation` counts what the file `loaded` and their `lines`, and lists `LoadedModule` entries — `file`, `lines`, and
 `entered`, how many of the file's cases entered the module — fewest entered
 first, then most lines, then by path. `modules` is absent, and `withheld` says

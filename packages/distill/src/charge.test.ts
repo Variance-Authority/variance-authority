@@ -2,6 +2,7 @@ import type { ExecutionIndex, FileReferences, TestCoverage } from '@variance-aut
 import { describe, expect, it } from 'vitest';
 import { distillFile, formatFileDistillation, type ImportCharge } from './index.js';
 import { reachLine } from './charge.js';
+import { graphOf, recordOf } from './record.fixture.js';
 
 const FILE = 'test/report.test.ts';
 const OTHER = 'test/export.test.ts';
@@ -58,9 +59,9 @@ function read(
   const imports = { [FILE]: [UTILS], [UTILS]: [PDF], ...edges };
   return distillFile({
     file: FILE,
-    coverage,
+    record: recordOf(coverage, execution),
     execution,
-    imports: (file) => imports[file] ?? [],
+    relations: graphOf(imports),
     references: (file) => (file === UTILS ? references : file === FILE ? own : file === PDF ? pdf : undefined),
   });
 }

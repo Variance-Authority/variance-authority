@@ -1,0 +1,81 @@
+/**
+ * What the native scanner's distillation calls take and answer: records read
+ * once, then a scope of their test files or one test file, as columns whose ids
+ * index `names`. `native/src/distill_read.rs` reads, `distill_own.rs` owns,
+ * `distill_gather.rs` gathers.
+ */
+import type { NativeJourneyGraph } from './native-journey.js';
+
+/** The file graph, and the `EDGE_KINDS` indices a distillation reads. */
+export interface NativeDistillGraph {
+  readonly graph: NativeJourneyGraph;
+  /** Imports, re-exports and assets: what a runtime evaluates on load. */
+  readonly loading: readonly number[];
+  /** A literal `import()`. */
+  readonly lazy: readonly number[];
+  readonly reexports: number;
+}
+
+/** Each test file read, in reading order. `withheld`: 0 read, 1 no cases, 2 an incomplete row, 3 a case that did not settle. */
+export interface NativeDistillReadings {
+  readonly file: Uint32Array;
+  readonly record: Uint32Array;
+  readonly cases: Uint32Array;
+  readonly withheld: Uint8Array;
+  readonly unsettled: Uint32Array;
+  readonly loaded: Uint32Array;
+  readonly loadedLines: Float64Array;
+  readonly unentered: Uint32Array;
+  readonly unenteredLines: Float64Array;
+}
+
+/** A cause's kind: 0 none (no graph), 1 an import, 2 shared, 3 unseen. */
+export interface NativeDistillScope {
+  readonly names: string[];
+  readonly readings: NativeDistillReadings;
+  readonly loads: number;
+  readonly lines: number;
+  /** Per spill, heaviest first. */
+  readonly kind: Uint8Array;
+  readonly importer: Uint32Array;
+  readonly imported: Uint32Array;
+  readonly lazy: Uint8Array;
+  readonly spillLines: Float64Array;
+  readonly moduleOffset: Uint32Array;
+  readonly modules: Uint32Array;
+  readonly fileOffset: Uint32Array;
+  readonly files: Uint32Array;
+}
+
+/** One test file, its modules fewer than all of its cases entered, in the order it lists them. */
+export interface NativeDistillFile {
+  /** Whether the records' coverage rows hold the file. */
+  readonly held: boolean;
+  readonly names: string[];
+  readonly cases: number;
+  readonly loaded: number;
+  readonly lines: number;
+  readonly withheld: number;
+  readonly unsettled: number;
+  readonly module: Uint32Array;
+  readonly moduleLines: Float64Array;
+  readonly hasLines: Uint8Array;
+  readonly entered: Uint32Array;
+  readonly kind: Uint8Array;
+  readonly importer: Uint32Array;
+  /** The imported file of an import, the file a shared module's paths part at. */
+  readonly imported: Uint32Array;
+  readonly lazy: Uint8Array;
+  /** How many test files load an import's importer. */
+  readonly loading: Uint32Array;
+}
+
+export interface NativeDistillRecords {
+  scope(within: string | undefined, graph: NativeDistillGraph | undefined): NativeDistillScope;
+  file(file: string, graph: NativeDistillGraph | undefined): NativeDistillFile;
+}
+
+export interface NativeDistill {
+  /** Coverage records that carry their case index, read once. */
+  readDistillRecords?(records: Buffer[]): NativeDistillRecords;
+}

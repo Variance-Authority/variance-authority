@@ -1,6 +1,7 @@
 import type { ExecutionIndex, TestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
-import { distillFile, formatFileDistillation } from './index.js';
+import { formatFileDistillation } from './index.js';
+import { distillOf } from './record.fixture.js';
 
 const FILE = 'test/dialog.test.tsx';
 
@@ -62,7 +63,7 @@ const EXECUTION: ExecutionIndex = {
 
 describe('distillFile', () => {
   it('names the modules a test file loaded and only some of its cases, or none, entered', () => {
-    const result = distillFile({ file: FILE, execution: EXECUTION, coverage: COVERAGE });
+    const result = distillOf({ file: FILE, execution: EXECUTION, coverage: COVERAGE });
 
     expect(result.file).toBe(FILE);
     expect(result.cases.map((test) => test.name)).toEqual(['opens', 'cancels', 'renders']);
@@ -76,7 +77,7 @@ describe('distillFile', () => {
   });
 
   it('prints never before sometimes, with the share of cases that entered', () => {
-    const text = formatFileDistillation(distillFile({ file: FILE, execution: EXECUTION, coverage: COVERAGE }));
+    const text = formatFileDistillation(distillOf({ file: FILE, execution: EXECUTION, coverage: COVERAGE }));
 
     expect(text).toContain('test/dialog.test.tsx: 3 case(s); 4 loaded module(s) declare functions.');
     expect(text).toContain('Loaded, and entered by no case: 2 module(s), 960 line(s).');
@@ -87,7 +88,7 @@ describe('distillFile', () => {
   });
 
   it('reads a file whose record kept no cases as unmeasured, not as nothing entered', () => {
-    const result = distillFile({ file: FILE, execution: { tests: [], modules: [] }, coverage: COVERAGE });
+    const result = distillOf({ file: FILE, execution: { tests: [], modules: [] }, coverage: COVERAGE });
 
     expect(result.modules).toBeUndefined();
     expect(result.withheld).toBe('the record keeps no cases for test/dialog.test.tsx.');
@@ -96,7 +97,7 @@ describe('distillFile', () => {
 
   it('reads only the test file a path names, never one whose path contains it or ends in it', () => {
     for (const asked of ['test/dialog.test.ts', 'dialog.test.tsx', 'dialog', 'test/']) {
-      expect(() => distillFile({ file: asked, execution: EXECUTION, coverage: COVERAGE }))
+      expect(() => distillOf({ file: asked, execution: EXECUTION, coverage: COVERAGE }))
         .toThrow(`The record holds no test file \`${asked}\`.`);
     }
   });
@@ -105,7 +106,7 @@ describe('distillFile', () => {
     const tests = EXECUTION.tests.map(({ stopped, ...test }, at) =>
       at === 1 ? { ...test, stopped: true } : at === 2 ? test : { ...test, stopped });
 
-    const result = distillFile({ file: FILE, execution: { ...EXECUTION, tests }, coverage: COVERAGE });
+    const result = distillOf({ file: FILE, execution: { ...EXECUTION, tests }, coverage: COVERAGE });
 
     expect(result.modules).toBeUndefined();
     expect(result.withheld).toBe(
@@ -118,7 +119,7 @@ describe('distillFile', () => {
       tests: COVERAGE.tests.map((test) => (test.file === FILE ? { ...test, complete: false } : test)),
     };
 
-    const result = distillFile({ file: FILE, execution: EXECUTION, coverage });
+    const result = distillOf({ file: FILE, execution: EXECUTION, coverage });
 
     expect(result.modules).toBeUndefined();
     expect(result.withheld).toContain(`the coverage row for ${FILE} is incomplete`);
@@ -133,7 +134,7 @@ describe('distillFile', () => {
       modules: [...EXECUTION.modules, { file: 'src/shared.ts', blocks: [block('share', [{ test: 3, distance: 0 }])] }],
     };
 
-    expect(distillFile({ file: FILE, execution, coverage }).modules)
+    expect(distillOf({ file: FILE, execution, coverage }).modules)
       .toContainEqual({ file: 'src/shared.ts', lines: 50, entered: 0 });
   });
 
@@ -142,7 +143,7 @@ describe('distillFile', () => {
     const root = { ...lazy.blocks[0]!, loadedBy: [] };
     const coverage: TestCoverage = { ...COVERAGE, modules: [...COVERAGE.modules, { ...lazy, blocks: [root, ...lazy.blocks.slice(1)] }] };
 
-    expect(distillFile({ file: FILE, execution: EXECUTION, coverage }).modules?.map(({ file }) => file))
+    expect(distillOf({ file: FILE, execution: EXECUTION, coverage }).modules?.map(({ file }) => file))
       .not.toContain('src/lazy.ts');
   });
 
@@ -158,7 +159,7 @@ describe('distillFile', () => {
       ],
     };
 
-    const result = distillFile({ file: FILE, execution: rootCrossed, coverage: COVERAGE });
+    const result = distillOf({ file: FILE, execution: rootCrossed, coverage: COVERAGE });
 
     expect(result.modules).toContainEqual({ file: 'src/heavy-editor.ts', lines: 900, entered: 0 });
   });
@@ -169,11 +170,11 @@ describe('distillFile', () => {
       tests: [...COVERAGE.tests, { file: `${FILE}.snap.test.ts`, complete: true, preconditions: [] }],
     };
 
-    expect(distillFile({ file: FILE, execution: EXECUTION, coverage }).file).toBe(FILE);
+    expect(distillOf({ file: FILE, execution: EXECUTION, coverage }).file).toBe(FILE);
   });
 
   it('refuses a path no recorded test file has, and names no other path', () => {
-    expect(() => distillFile({ file: 'missing', execution: EXECUTION, coverage: COVERAGE })).toThrow(
+    expect(() => distillOf({ file: 'missing', execution: EXECUTION, coverage: COVERAGE })).toThrow(
       'The record holds no test file `missing`. It names each test file by its path from the repository root, with `/`.',
     );
   });
