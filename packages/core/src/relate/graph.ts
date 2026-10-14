@@ -125,6 +125,7 @@ export interface Node {
   readonly name: string;
 }
 
+/** One edge as a reader of a file states it: `from` reaches `to` through an edge of `kind`. */
 export interface Relation {
   readonly from: Node;
   readonly to: Node;
