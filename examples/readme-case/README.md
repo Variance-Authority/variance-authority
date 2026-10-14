@@ -34,7 +34,7 @@ painted the two PNGs, the platform it ran on, and the one semantic delta between
 them, with the changed-pixel count the comparison finds between the two
 committed PNGs. The count is checked against those PNGs on every platform, not
 against a fresh paint: the same engine rasterizes text differently on macOS and
-Linux, and between two Macs by a glyph edge the default policy counts.
+Linux, and two Macs can differ by a glyph-edge pixel the default policy counts.
 
 ```json
 {

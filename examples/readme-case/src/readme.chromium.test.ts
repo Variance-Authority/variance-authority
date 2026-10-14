@@ -16,7 +16,7 @@ const BROWSER_AVAILABLE = (() => {
 
 if (!BROWSER_AVAILABLE) {
   console.warn(
-    '\nexamples/readme-case: skipped.\n  no browser — npx playwright install chromium\n',
+    '\nexamples/readme-case: the cases that paint skipped.\n  no browser — npx playwright install chromium\n',
   );
 }
 
