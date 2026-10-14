@@ -1,6 +1,6 @@
 # Workflows
 
-Six workflow files live here. Three of them are recipes, meant to be copied
+Five workflow files live here. Three of them are recipes, meant to be copied
 into your own repository and edited. Each is a complete answer to a different
 question, and every decision inside them is commented as a decision — including
 the ones that are wrong for somebody else's repository. They all shell out to
@@ -27,9 +27,9 @@ this repository, not one published to the Marketplace, so `uses:
 *Collection* is reading the live page; *render* is repainting that reading into
 an image. [`docs/stabilization.md`](../../docs/stabilization.md) has both.
 
-The other three files here, [`check.yml`](check.yml),
-[`release.yml`](release.yml) and [`integration.yml`](integration.yml), are this
-repository's own build, publish and integration check, and none is a recipe. On a pull request, `check.yml` runs only the tests the
+The other two files here, [`check.yml`](check.yml) and
+[`release.yml`](release.yml), are this repository's own build and publish, and
+neither is a recipe. On a pull request, `check.yml` runs only the tests the
 change reached, selected by the `withTestSelection` each slice's config is
 wrapped in from the recording `main` saved, and a push to `main` runs the whole
 suite. It then posts two comments on the pull request, each under its own
@@ -52,19 +52,6 @@ and the review surface's, and keep a comment each.
 measurements, and the vitest suite — and a `check` job that turns their results
 into the one check a branch rule names. In a merge group `plan` and `queue`
 replace the harness jobs, and `check` still runs, reading only their results.
-
-`integration.yml` runs the integration modes through the parts this repository
-does not control: git-lfs, `actions/checkout`, `actions/cache`, Wrangler and the
-runner image. A mode is a place a baseline is kept together with the flow that
-accepts into it. It runs on a pull request that touches a file those modes stand
-on, and on dispatch. Each review flow of
-[`../actions/variance`](../actions/variance) runs there the way a consumer runs
-it, in a consumer the job creates. The cache flow accepts on one machine and
-compares on another. The `lfs` flow commits back through git-lfs to a bare
-repository; a fresh clone must hold the same bytes, and a clone without the LFS
-objects must stop with exit 2. The Tribunal flow pushes to a Tribunal the job
-starts, on Node and under `wrangler dev`. A dispatched run has no pull request
-branch to commit back to, so it leaves the `lfs` flow out.
 
 ## How the CLI reaches the runner
 
@@ -286,10 +273,8 @@ passed in, and under `VARIANCE_REVIEW: tribunal` the service your config names. 
 [`../actions/variance`](../actions/variance) is what sends the body, and it is
 bash around the same binary.
 
-**Accept without a person.** Every accept of a baseline somebody keeps is a
-label, a dispatch, or a decision on the service. `commit-baselines` is on in
-`variance.yml` only under `VARIANCE_REVIEW: git`, and only for the run a label
-started. On every run it would accept what the run just found, and a check that
-does that has stopped being a gate. `integration.yml` accepts unattended, into
-consumers it creates and throws away with the job, because what it checks is
-that an accept arrives, not what it accepted.
+**Accept without a person.** Every accept is a label, a dispatch, or a decision
+on the service. `commit-baselines` is on only in `variance.yml` under
+`VARIANCE_REVIEW: git`, and only for the run a label started. On every run it
+would accept what the run just found, and a check that does that has stopped
+being a gate.
