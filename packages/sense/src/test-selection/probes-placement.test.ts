@@ -88,7 +88,7 @@ const seams: Readonly<Record<string, (placement: Placement) => string | undefine
     const plugin = testSelectionProbes({ root, placement });
     plugin.configResolved({ command: 'build', plugins: [] } as never);
     // One plugin: it runs ahead of the transforms or after them.
-    return plugin.transform.call(context, placement === 'before-transforms' ? SOURCE : COMPILED, file)?.code;
+    return plugin.transform.handler.call(context, placement === 'before-transforms' ? SOURCE : COMPILED, file)?.code;
   },
   rstest: (placement) => {
     const coverageFile = resolve(root, 'coverage.bin');

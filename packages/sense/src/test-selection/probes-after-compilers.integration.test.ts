@@ -150,6 +150,20 @@ describe('a compiler that reads the syntax it compiles', () => {
     ]);
   });
 
+  it('runs after a plain `transform` at `enforce: \'post\'` listed after the probes, so the extractor reads no probe', async () => {
+    const root = await workspace();
+    const output = await build({
+      root,
+      configFile: false,
+      logLevel: 'silent',
+      plugins: [testSelectionProbes({ root }), { ...extractor(), enforce: 'post' }],
+      build: { write: false, minify: false, rollupOptions: { input: resolve(root, 'src/main.js') } },
+    });
+    const [bundle] = Array.isArray(output) ? output : [output];
+    const code = 'output' in bundle! ? bundle.output.find((file) => file.type === 'chunk')?.code : undefined;
+    expect(code).toMatch(/cls\(["']tone["'], \(props\) => \(__va\(\d+\),/);
+  });
+
   it('places the probes in the file as read with `placement: \'before-transforms\'`, where the extractor reads them', async () => {
     const root = await workspace();
     await expect(build({

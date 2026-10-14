@@ -117,7 +117,7 @@ describe('a module read as itself and through its tsc build', () => {
  */
 describe('a module loaded from its tsc build under the default include', () => {
   const transformed = (file: string, code = TSC.code) =>
-    testSelectionProbes({ root }).transform(code, join(root, file));
+    testSelectionProbes({ root }).transform.handler(code, join(root, file));
 
   it('is instrumented and recorded under the source its map leads to', () => {
     const done = transformed('app/dist/a.js');

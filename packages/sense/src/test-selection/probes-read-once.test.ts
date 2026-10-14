@@ -70,7 +70,7 @@ describe('a module is read from disk once', () => {
     const plugin = testSelectionProbes({ root });
     plugin.configResolved({ command: 'serve', plugins: [] } as never);
     expect(plugin.load(file)).toBeNull();
-    const placed = plugin.transform.call({ getCombinedSourcemap: () => MAP }, COMPILED, file);
+    const placed = plugin.transform.handler.call({ getCombinedSourcemap: () => MAP }, COMPILED, file);
 
     expect(placed?.code).toContain('__va');
     expect(reads.get(file)).toBe(1);
@@ -79,7 +79,7 @@ describe('a module is read from disk once', () => {
   it('under a Vite build, by the probes alone', () => {
     const plugin = testSelectionProbes({ root });
     plugin.configResolved({ command: 'build', plugins: [] } as never);
-    const placed = plugin.transform.call({ getCombinedSourcemap: () => MAP }, COMPILED, file);
+    const placed = plugin.transform.handler.call({ getCombinedSourcemap: () => MAP }, COMPILED, file);
 
     expect(placed?.code).toContain('__va');
     expect(reads.get(file)).toBe(1);

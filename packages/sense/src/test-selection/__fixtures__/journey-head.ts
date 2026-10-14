@@ -149,7 +149,7 @@ export async function head(root: string, label = 'build', options: HeadOptions =
   const module = resolve(root, 'currency.js');
   await writeFile(module, source, 'utf8');
   const plugin = testSelectionProbes({ root, label });
-  const transformed = plugin.transform(source, module)!;
+  const transformed = plugin.transform.handler(source, module)!;
   return {
     where: { coverageFile: resolve(root, 'coverage.bin') },
     currency: options.lazy ? unevaluated : evaluate(transformed.code),

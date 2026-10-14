@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { transformsAfter, unmappedSteps, warnTransformsAfter, watchUnmapped } from './unmapped-transforms.js';
+import { testSelectionProbes } from './probes.js';
 
 /**
  * The steps ahead of the probes that wrote a module and returned no map, as
@@ -90,11 +91,16 @@ describe('a plugin whose transform runs after the probes', () => {
   const handler = (code: string) => code;
   const plugins = [
     { name: 'ahead', transform: { order: 'post', handler } },
-    { name: SELF, transform: { order: 'post', handler } },
+    testSelectionProbes(),
     { name: 'post-unordered', transform: handler },
     { name: 'after-the-probes', transform: { order: 'post', handler } },
     { name: 'vite:import-analysis', transform: { order: 'post', handler } },
   ];
+
+  it('is none of the plain ones: the probes\' own `transform` is ordered `post`', () => {
+    expect(testSelectionProbes().transform).toMatchObject({ order: 'post' });
+    expect(testSelectionProbes({ placement: 'before-transforms' }).transform).toMatchObject({ order: 'pre' });
+  });
 
   it('is one ordered `post` and listed after them, which Vite runs last', () => {
     expect(transformsAfter(plugins, SELF)).toEqual(['after-the-probes']);

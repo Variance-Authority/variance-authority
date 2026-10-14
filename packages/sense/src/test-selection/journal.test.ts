@@ -38,7 +38,7 @@ describe('a browser run records what it executed', () => {
       await writeFile(module, SOURCE, 'utf8');
 
       const plugin = testSelectionProbes({ root });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const transformed = plugin.transform.handler(SOURCE, module)!;
 
       const realm = evaluate(transformed.code);
       realm.price(20);
@@ -75,7 +75,7 @@ describe('a browser run records what it executed', () => {
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
       const transformed = testSelectionProbes({ root })
-        .transform(SOURCE, module)!;
+        .transform.handler(SOURCE, module)!;
 
       // Each collector is a module of its own bundle, so each gets a scope.
       const page = createContext({});
@@ -107,7 +107,7 @@ describe('a browser run records what it executed', () => {
       await writeFile(module, SOURCE, 'utf8');
 
       const plugin = testSelectionProbes({ root });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const transformed = plugin.transform.handler(SOURCE, module)!;
 
       const realm = evaluate(transformed.code);
       realm.price(20);
@@ -148,7 +148,7 @@ describe('a browser run records what it executed', () => {
       await writeFile(module, SOURCE, 'utf8');
 
       const plugin = testSelectionProbes({ root });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const transformed = plugin.transform.handler(SOURCE, module)!;
 
       // The module evaluates once, inside the first subject's window — which is
       // exactly the attribution that would be a lie if it were kept.
@@ -182,7 +182,7 @@ describe('a browser run records what it executed', () => {
       const module = resolve(root, 'broken.js');
       await writeFile(module, broken, 'utf8');
 
-      const transformed = testSelectionProbes({ root }).transform(broken, module);
+      const transformed = testSelectionProbes({ root }).transform.handler(broken, module);
 
       expect(transformed?.code.startsWith(`import "variance-authority:execution-collector";${broken}`)).toBe(true);
       // The module's own text throws wherever it runs; what follows it is the mark.
@@ -206,7 +206,7 @@ describe('a browser run records what it executed', () => {
       await writeFile(module, INITIALIZING, 'utf8');
 
       const plugin = testSelectionProbes({ root });
-      const transformed = plugin.transform(INITIALIZING, module)!;
+      const transformed = plugin.transform.handler(INITIALIZING, module)!;
 
       // `label(1)` runs once, while the module evaluates, inside the first
       // subject's window. The second subject never calls it and depends on it.
@@ -252,7 +252,7 @@ describe('a browser run records what it executed', () => {
       await writeFile(module, INITIALIZING, 'utf8');
 
       const plugin = testSelectionProbes({ root });
-      const transformed = plugin.transform(INITIALIZING, module)!;
+      const transformed = plugin.transform.handler(INITIALIZING, module)!;
 
       const realm = evaluate(transformed.code);
       realm.price(20);
@@ -304,7 +304,7 @@ describe('a browser run records what it executed', () => {
       await writeFile(resolve(root, 'preview.js'), 'export const decorators = [];\n', 'utf8');
 
       const plugin = testSelectionProbes({ root });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const transformed = plugin.transform.handler(SOURCE, module)!;
       const realm = evaluate(transformed.code);
       realm.price(20);
       const premium = realm.collector.drain();
@@ -346,7 +346,7 @@ describe('a browser run records what it executed', () => {
       await writeFile(module, SOURCE, 'utf8');
 
       const plugin = testSelectionProbes({ root });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const transformed = plugin.transform.handler(SOURCE, module)!;
       const realm = evaluate(transformed.code);
       realm.price(20);
       const journal = realm.collector.drain();
@@ -372,7 +372,7 @@ describe('a browser run records what it executed', () => {
       await writeFile(module, SOURCE, 'utf8');
 
       const plugin = testSelectionProbes({ root });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const transformed = plugin.transform.handler(SOURCE, module)!;
       const realm = evaluate(transformed.code);
       realm.price(20);
       const journal = realm.collector.drain();
@@ -400,7 +400,7 @@ describe('a browser run records what it executed', () => {
       await writeFile(module, SOURCE, 'utf8');
 
       const plugin = testSelectionProbes({ root });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const transformed = plugin.transform.handler(SOURCE, module)!;
 
       const realm = evaluate(transformed.code);
       realm.price(20);
@@ -447,7 +447,7 @@ describe('a browser run records what it executed', () => {
       await writeFile(resolve(root, 'price.stories.js'), 'export default {};\n', 'utf8');
 
       const plugin = testSelectionProbes({ root });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const transformed = plugin.transform.handler(SOURCE, module)!;
       const realm = evaluate(transformed.code);
       realm.price(20);
 

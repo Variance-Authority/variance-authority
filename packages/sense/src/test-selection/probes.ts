@@ -131,11 +131,19 @@ export interface InstrumentingPlugin {
   readonly buildStart: () => void;
   readonly resolveId: (id: string) => string | null;
   readonly load: (id: string) => string | { code: string; map: object | null } | null;
-  readonly transform: (
-    this: unknown,
-    code: string,
-    id: string,
-  ) => { code: string; map: InstrumentedMap | null } | null;
+  /**
+   * Ordered `post` after the transforms, so a plain `transform` at
+   * `enforce: 'post'` runs ahead of it wherever it is listed; ordered `pre`
+   * ahead of them.
+   */
+  readonly transform: {
+    readonly order: 'pre' | 'post';
+    readonly handler: (
+      this: unknown,
+      code: string,
+      id: string,
+    ) => { code: string; map: InstrumentedMap | null } | null;
+  };
 }
 
 const VIRTUAL_COLLECTOR = 'variance-authority:execution-collector';
@@ -215,7 +223,7 @@ export function testSelectionProbes(
       return `import { collectJourneys } from "@variance-authority/sense/journey";\ncollectJourneys(${head});\n${collector}`;
     },
 
-    transform(code, specifier) {
+    transform: { order: before ? 'pre' : 'post', handler(code, specifier) {
       const source = cleanId(specifier);
       if (source === RESOLVED_COLLECTOR) return null;
       if (before) {
@@ -246,7 +254,7 @@ export function testSelectionProbes(
         code: `${COLLECTOR}${captured.code}`,
         map: mappings === undefined ? null : { version: 3, sources: [source], names: [], mappings },
       };
-    },
+    } },
   };
 
   /**
