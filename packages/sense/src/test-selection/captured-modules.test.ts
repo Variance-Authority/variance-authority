@@ -127,6 +127,21 @@ describe('a module whose probes go in after the transforms', () => {
     expect(after.code.startsWith(raw)).toBe(true);
   });
 
+  it('is marked as loaded on what the transforms wrote where `unprobed` names it, its map carried on', async () => {
+    const { root, file } = await checkout(SOURCE);
+    const compiled = `"use strict";\n${SOURCE}`;
+    const mappings = ';AAAA;AACA;AACA';
+    const after = captureAfter(root, file, compiled, defaultInclude, undefined, () => ({ sources: ['src-cart.js'], mappings }), {
+      unprobed: (path) => path === file,
+      carry: true,
+    })!;
+
+    expect(after.module).toEqual(markModule(root, file, SOURCE, defaultInclude)!.module);
+    // The text runs as the transforms wrote it, and a runner no bundler composes maps for reads its lines through the map they wrote.
+    expect(after.code.startsWith(compiled)).toBe(true);
+    expect(after.carried).toBe(mappings);
+  });
+
   it('holds the probe of loading a module of types, which compiles to code that maps to nothing', async () => {
     const TYPES = 'export interface Cart {\n  readonly total: number;\n}\n';
     const { root, file } = await checkout(TYPES);

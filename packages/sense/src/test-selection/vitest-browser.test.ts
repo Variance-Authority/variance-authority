@@ -170,6 +170,27 @@ describe('a test file that runs in a page', () => {
     }
   });
 
+  it('leaves a module `include` refuses as the transforms wrote it, unprobed', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-browser-'));
+    try {
+      await mkdir(resolve(root, 'vendor'), { recursive: true });
+      const vendor = resolve(root, 'vendor/pad.ts');
+      const source = 'export const pad = (text) => ` ${text}`;\n';
+      await writeFile(vendor, source, 'utf8');
+      const { plugin } = seam(root);
+      await plugin.config({ test: { browser: { enabled: true } } });
+      const inside = resolve(root, 'src/pad.ts');
+      await mkdir(resolve(root, 'src'), { recursive: true });
+      await writeFile(inside, source, 'utf8');
+
+      expect(plugin.transform.handler(source, vendor)).toBeNull();
+      // The same text under `include` is probed, so the refusal is what left it.
+      expect(plugin.transform.handler(source, inside)?.code).toMatch(/__va\(/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('leaves a file that runs in Node to the worker that writes its own', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-browser-node-'));
     try {

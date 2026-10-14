@@ -124,12 +124,11 @@ function answer(result: unknown): { written: unknown; map: unknown } {
   return { written: object?.code, map: object?.map };
 }
 
-function push(list: UnmappedStep[] | undefined, step: UnmappedStep): void {
-  if (list !== undefined && !list.some((it) => it.plugin === step.plugin)) list.push(step);
+function push(list: UnmappedStep[], step: UnmappedStep): void {
+  if (!list.some((it) => it.plugin === step.plugin)) list.push(step);
 }
 
-function noteModule(stores: ReadonlySet<UnmappedNotes>, id: unknown, step: UnmappedStep): void {
-  if (typeof id !== 'string') return;
+function noteModule(stores: ReadonlySet<UnmappedNotes>, id: string, step: UnmappedStep): void {
   for (const notes of stores) {
     const list = notes.get(id) ?? [];
     notes.set(id, list);
@@ -137,8 +136,7 @@ function noteModule(stores: ReadonlySet<UnmappedNotes>, id: unknown, step: Unmap
   }
 }
 
-function onContextOf(context: unknown): UnmappedStep[] | undefined {
-  if (typeof context !== 'object' || context === null) return undefined;
+function onContextOf(context: object): UnmappedStep[] {
   const list = onContext.get(context) ?? [];
   onContext.set(context, list);
   return list;
