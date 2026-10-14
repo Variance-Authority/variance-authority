@@ -81,7 +81,7 @@ describe('a browser run records what it executed', () => {
       const page = createContext({});
       const collector = `{${executionCollectorSource()}}`;
       runInContext(collector, page);
-      runInContext(transformed.code.replace(/^import "[^"]+";/, ''), page);
+      runInContext(transformed.code.replace(/\n;import "[^"]+";$/, ''), page);
       runInContext(collector, page);
       runInContext('__browser_test_price(20)', page);
 
@@ -184,7 +184,8 @@ describe('a browser run records what it executed', () => {
 
       const transformed = testSelectionProbes({ root }).transform(broken, module);
 
-      expect(transformed?.code.startsWith(`import "variance-authority:execution-collector";${broken}`)).toBe(true);
+      expect(transformed?.code.startsWith(broken)).toBe(true);
+      expect(transformed?.code.endsWith(`\n;import "variance-authority:execution-collector";`)).toBe(true);
       // The module's own text throws wherever it runs; what follows it is the mark.
       const realm = evaluate(transformed!.code.replace(broken, ''));
       await recordExecution({
