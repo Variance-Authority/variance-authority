@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import type { SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
-import { hasDifference, useDifferenceUrl } from './difference.js';
+import { hasDifference, useDifference } from './difference.js';
 import { Raster, share, union } from './plate.js';
 import { RegionOverlay, RegionTable } from './regions.js';
 import { count, magnitude, number } from './text.js';
@@ -86,8 +86,8 @@ export function Viewer({
   const stage = useRef<HTMLDivElement>(null);
   // Computed rather than fetched, unless this build kept one: see
   // [`difference.ts`](./difference.js) for why a mask is the one image worth
-  // making twice. `undefined` until it is ready, which is why the plate says so.
-  const difference = useDifferenceUrl(client, build, subject, mode === 'difference');
+  // making twice. In its place the page says it is being made, or why it failed.
+  const difference = useDifference(client, build, subject, mode === 'difference');
 
   /**
    * The frame both readings are drawn in.
@@ -187,6 +187,20 @@ export function Viewer({
             ? { maxWidth: `${String(box.width)}px` }
             : { width: `${String(box.width * zoom)}px` }),
         };
+  /**
+   * What stands in for a mask the page has not got. The regions are rings on the
+   * mask's pixels, so with no mask the plate holds neither: rings over nothing
+   * read as a finding, and over a sentence they cover it. The plate itself stays,
+   * at the size it is drawn at in every other mode, so a reviewer who zoomed and
+   * scrolled to a region and then asked for the mask is still at that region
+   * when it arrives.
+   */
+  const waiting =
+    mode !== 'difference' || difference?.state === 'ready'
+      ? undefined
+      : difference?.state === 'failed'
+        ? `This page could not compute the difference mask: ${difference.why}`
+        : 'Working out the difference…';
   const boxes =
     mode === 'side-by-side' ? null : (
       <RegionOverlay subject={subject} box={box} focus={focus} onFocus={setFocus} />
@@ -258,6 +272,7 @@ export function Viewer({
         </div>
       </div>
 
+      {waiting === undefined ? null : <p className="va-note">{waiting}</p>}
       {mode === 'side-by-side' ? (
         <div className="va-side-by-side">
           <figure>
@@ -286,11 +301,9 @@ export function Viewer({
             {mode === 'difference' ? (
               // Already in the union's coordinates: the mask is what the
               // comparison drew, on the box it padded both captures to.
-              difference === undefined ? (
-                <p className="va-note">Working out the difference&hellip;</p>
-              ) : (
-                <Raster src={difference} alt={`${subject.subject} difference mask`} />
-              )
+              difference?.state === 'ready' ? (
+                <Raster src={difference.value} alt={`${subject.subject} difference mask`} />
+              ) : null
             ) : (
               <>
                 {subject.has.before ? (
@@ -309,7 +322,7 @@ export function Viewer({
                 />
               </>
             )}
-            {boxes}
+            {waiting === undefined ? boxes : null}
             {mode === 'wipe' ? (
               <span className="va-seam-line" aria-hidden="true" style={{ left: `${String(seam)}%` }} />
             ) : null}
