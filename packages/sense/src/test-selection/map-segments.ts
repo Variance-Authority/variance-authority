@@ -1,7 +1,8 @@
 /**
  * The segments of a source map's `mappings`, decoded into the fields a line
  * lookup needs. `sourceLines` in `source-lines.ts` is the only reader; the
- * digits are `cut-map.ts`'s as well.
+ * digits are `cut-map.ts`'s as well, and {@link shifted} moves a map past text
+ * prepended to its first line.
  */
 
 export interface Segment {
@@ -118,4 +119,15 @@ export function vlqOf(value: number): string {
     text += CHARACTERS[digit];
   } while (rest > 0);
   return text;
+}
+
+/**
+ * `mappings` with every column of its first line moved `by` to the right, for
+ * text of that length prepended to the line: the first segment's column is the
+ * only absolute one.
+ */
+export function shifted(mappings: string, by: number): string {
+  if (!DIGITS.has(mappings[0] ?? '')) return mappings;
+  const { value, next } = vlq(mappings, 0);
+  return vlqOf(value + by) + mappings.slice(next);
 }

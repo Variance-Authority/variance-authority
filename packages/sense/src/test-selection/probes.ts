@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import { captureAfter, type ComposedMap, placeModule } from './captured-modules.js';
 import { cleanId, defaultInclude } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
+import { shifted } from './map-segments.js';
 import { builtMap, handedTexts, namesItsMap } from './source-lines.js';
 import { type UnmappedNotes, unmappedSteps, warnTransformsAfter, watchUnmapped } from './unmapped-transforms.js';
 import probeLists from '../instrument/probe-lists.cjs';
@@ -242,32 +243,6 @@ export function testSelectionProbes(
     first.add(id);
     return { code: captured.code, map: builtMap(disk, file, (path) => readFileSync(path, 'utf8')) ?? null };
   }
-}
-
-const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-
-/** `mappings` with every column of its first line moved `by` to the right: the first segment's is the only absolute one. */
-function shifted(mappings: string, by: number): string {
-  let value = 0;
-  let shift = 0;
-  let at = 0;
-  for (; at < mappings.length; at++) {
-    const digit = BASE64.indexOf(mappings[at]!);
-    if (digit === -1) return mappings;
-    value += (digit & 31) << shift;
-    shift += 5;
-    if ((digit & 32) === 0) break;
-  }
-  if (at === mappings.length) return mappings;
-  let rest = ((value & 1) === 1 ? -(value >> 1) : value >> 1) + by;
-  rest = rest < 0 ? (-rest << 1) | 1 : rest << 1;
-  let field = '';
-  do {
-    const digit = rest & 31;
-    rest >>= 5;
-    field += BASE64[rest > 0 ? digit | 32 : digit];
-  } while (rest > 0);
-  return field + mappings.slice(at + 1);
 }
 
 /**
