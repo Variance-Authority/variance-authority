@@ -27,10 +27,10 @@ mod case_owner;
 mod case_preconditions;
 mod case_shard;
 mod compact;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 mod large_alloc;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 #[global_allocator]
 static ALLOCATOR: large_alloc::Mapped = large_alloc::Mapped;
 mod conditions;
@@ -121,7 +121,10 @@ mod ready_index;
 mod record;
 mod record_combine;
 mod record_coverage;
+mod record_coverage_columns;
+mod record_coverage_dictionary;
 mod record_coverage_fold;
+mod record_coverage_layer;
 #[cfg(test)]
 mod record_fixture;
 mod record_layout;

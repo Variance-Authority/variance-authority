@@ -1,5 +1,5 @@
-//! The addon's allocator on macOS: the system's, except that a block of
-//! [`LARGE`] bytes or more is mapped from the kernel and unmapped when freed.
+//! The addon's allocator on macOS and Linux: the system's, except that a block
+//! of [`LARGE`] bytes or more is mapped from the kernel and unmapped when freed.
 //!
 //! macOS's allocator keeps freed large blocks resident in a cache, and reuses
 //! one only for a request of nearly its size. A fold decodes each shard into
@@ -11,10 +11,14 @@
 //! zero-filled page per page touched, which the decode that fills the block
 //! pays many times over.
 //!
-//! macOS only, because only macOS's allocator needs it. glibc returns a freed
-//! block above its mapping threshold to the kernel already and reuses the rest
-//! from its heap: there the combine peaks at what it peaks at here, and mapping
-//! every large block costs it a sixth of its time in page faults and copies.
+//! glibc maps a block above its threshold and unmaps it on free, but each such
+//! free raises the threshold to the block's size, up to 32 MiB. Once the first
+//! record's columns are freed, the next record's come from the heap and stay
+//! resident there: a landing over an existing record held over a hundred MiB
+//! more than the same landing on macOS. On Linux a mapped block that grows is
+//! moved with `mremap`, which remaps its pages instead of copying them.
+//!
+//! Elsewhere the system allocator is used unchanged.
 
 use std::alloc::{GlobalAlloc, Layout, System};
 
@@ -55,6 +59,11 @@ unsafe impl GlobalAlloc for Mapped {
         let grown = Layout::from_size_align_unchecked(size, layout.align());
         if !mapped(&layout) && !mapped(&grown) {
             return System.realloc(at, layout, size);
+        }
+        #[cfg(target_os = "linux")]
+        if mapped(&layout) && mapped(&grown) {
+            let at = libc::mremap(at.cast(), layout.size(), size, libc::MREMAP_MAYMOVE);
+            return if at == libc::MAP_FAILED { std::ptr::null_mut() } else { at.cast() };
         }
         let moved = self.alloc(grown);
         if !moved.is_null() {

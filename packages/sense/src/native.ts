@@ -32,7 +32,7 @@ import type {
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
-import type { NativeCombinedRecord } from './native-record.js';
+import type { NativeRecords } from './native-record.js';
 import { witnessesOf } from './witness.js';
 export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal } from './addon.js';
 export type {
@@ -121,7 +121,7 @@ export interface NativeScanBatch extends NativeReadBatch {
   readonly targets: string[];
 }
 
-export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys {
+export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords {
   /**
    * `instrument()`'s walk and splice, or `null` for a source that does not
    * parse. With a `module`, the header reporting under it is in the text.
@@ -258,8 +258,6 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   stitchJourneys?(files: string[]): NativeJourneyStitch;
   /** Union and write compressed journey artifacts without returning their bytes to JavaScript. */
   stitchJourneysTo?(files: string[], output: string): NativeJourneyStitchResult;
-  /** Fold shard records into the one record at `output`: coverage, cases and their parts, and nothing else. */
-  combineRecords?(paths: string[], output: string): NativeCombinedRecord;
   /** A journey file cut down to the changed modules, with cases only on the regions the change can ask about. */
   projectJourneys?(file: string, changed: NativeJourneyChange[]): NativeJourneyProjection;
   /** The test files a change needs, read off a journey file and the file graph; unsorted. */

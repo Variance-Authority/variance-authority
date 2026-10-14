@@ -6,13 +6,15 @@
 addon, and `variance journeys <shards…> --into <record>` lands that record.
 This entry is the benchmark [ADR-0004](../adr/0004-defer-native-acceleration.md)
 asks of native code, and the measurement behind spec 0044's acceptance: sixteen
-shards of the 200,000-module fixture, combined and landed, each in about 5 s
-and under a 600 MiB ceiling.
+shards of the 200,000-module fixture, combined and landed, over no record and
+over the record a previous run left, each in about 5 s and under a 600 MiB
+ceiling.
 
-Both fit: the combine at about 525 MiB and 4 s, the landing at about 530 MiB
-and 4.5 s. On macOS they fit only because the addon returns large freed blocks
-to the kernel. Without that, the same combine peaks at about 1.6 GiB. Linux
-needs nothing: glibc already returns them.
+All three fit: the combine at about 525 MiB and 4 s, the landing over no record
+at about 505 MiB and 4 s, and the landing over a record at about 505 MiB and
+4.7 s. They fit only because the addon returns large freed blocks to the
+kernel, on macOS and on Linux. Without that, the combine on macOS peaks at
+about 1.6 GiB, and the landing over a record on Linux at about 640 MiB.
 
 ## Method
 
@@ -27,12 +29,13 @@ cd packages/sense
 node scripts/snapshot-scale.mjs shards <dir>    # 16 shard records of the fixture
 node scripts/snapshot-scale.mjs combine <dir>   # combineRecords; exits 1 above 600 MiB
 cd ../cli
-node scripts/land-scale.mjs land <dir>          # journeys <shards…> --into, over no record; exits 1 above 600 MiB
+node scripts/land-scale.mjs land <dir>          # journeys <shards…> --into, over no record, then over that record; exits 1 above 600 MiB
 ```
 
-`main` has no `combine` mode. Its column is `variance journeys merge
-<dir>/*.bin --into <out>` from `main`'s build, over the same shards, under
-`/usr/bin/time -l`.
+`main` has no `combine` mode. Its combine is `variance journeys merge
+<dir>/*.bin --into <out>` from `main`'s build, and its landing over a record is
+`main`'s `landJourneys` over the same shards into a copy of the combined
+record, each under `/usr/bin/time -l`.
 
 The fixture has 200,000 modules, 1,600,000 regions, 2,000 test files and about
 460 million crossings, cut into 16 shards by test.
@@ -44,10 +47,23 @@ The fixture has 200,000 modules, 1,600,000 regions, 2,000 test files and about
 | Combine | `main` (JS fold) | dies at 22 s | about 4.5 GiB, heap exhausted |
 | Combine | native, system allocator | 3.9–4.2 s | 1.53–1.57 GiB |
 | Combine | native, large blocks unmapped | 3.9–4.5 s | 524–530 MiB |
-| Land over no record | native, large blocks unmapped | 4.2–4.6 s | 527–530 MiB |
+| Land over no record | native, large blocks unmapped | 4.0–4.1 s | 501–505 MiB |
+| Land over a record | `main` (JS fold) | dies at 22 s | about 4.7 GiB, heap exhausted |
+| Land over a record | native, large blocks unmapped | 4.7 s | 503–504 MiB |
+| Land over no record, Linux | native, system allocator | 3.8 s | about 520 MiB |
+| Land over a record, Linux | native, system allocator | 4.4–4.5 s | 624–653 MiB |
+| Land over no record, Linux | native, large blocks unmapped | 3.7–3.8 s | 492–496 MiB |
+| Land over a record, Linux | native, large blocks unmapped | 4.5 s | 502–504 MiB |
 
 Every combine row wrote the reference bytes. `main` lands through the same
-JavaScript fold, so its landing dies where its merge does.
+JavaScript fold, so its landing dies where its merge does, whether a record is
+there or not.
+
+A landing over a record lays the combined record over the one there in the
+addon. It reads both records' columns and writes the landed record in one
+pass, through the column writer the combine uses, and neither record is
+decoded into the runner's model. Alone, the lay of the fixture peaks at about
+340 MiB and takes about 620 ms.
 
 ## What the memory was
 
@@ -66,32 +82,42 @@ those blocks go to the same cache. With the cache turned off
 (`MallocLargeCache=0`), the same code peaks at 478 MiB, which says the cache is
 the whole difference.
 
-On macOS the addon's global allocator maps any block of 4 MiB or more with
-`mmap` and unmaps it on free. Smaller blocks go to the system allocator as
-before. A large block costs one system call each way and arrives as fresh
-zeroed pages. Every native path on macOS gets this, so the scan was measured
-too, cold `scanRelations` over a 28,000-file repository:
+The addon's global allocator maps any block of 4 MiB or more with `mmap` and
+unmaps it on free. Smaller blocks go to the system allocator as before. A large
+block costs one system call each way and arrives as fresh zeroed pages. Every
+native path gets this, so the scan was measured too, cold `scanRelations` over
+a 28,000-file repository:
 
 | System | Path | Allocator | Wall | Peak |
 | --- | --- | --- | --- | --- |
 | macOS | scan | system | 438–478 ms | 305–322 MiB |
 | macOS | scan | large blocks unmapped | 408–445 ms | 295–301 MiB |
-| Linux | combine | system | 3.85–3.87 s | 543–552 MiB |
-| Linux | combine | large blocks unmapped | 4.55–4.60 s | 562–568 MiB |
+| Linux | combine | system | 3.5 s | about 524 MiB |
+| Linux | combine | large blocks unmapped, copied to grow | 4.55–4.60 s | 562–568 MiB |
+| Linux | combine | large blocks unmapped, remapped to grow | 3.4–3.5 s | 492–498 MiB |
 | Linux | scan | system | about 4.65 s | 308–314 MiB |
-| Linux | scan | large blocks unmapped | about 4.67 s | 283–286 MiB |
+| Linux | scan | large blocks unmapped, copied to grow | about 4.67 s | 283–286 MiB |
 
-The Linux scan reads through a bind mount and is bound by it. On Linux the
-mapping costs the combine a sixth of its time and saves no peak, so the
-allocator is compiled for macOS alone.
+The Linux scan reads through a bind mount and is bound by it.
+
+glibc maps a block above its threshold and unmaps it on free, as the addon
+does, but each such free raises the threshold to that block's size, up to
+32 MiB. A landing over a record frees the first record's columns, and the
+next record's columns then come from the heap, which keeps them resident:
+130 MiB more than the same landing on macOS. With the threshold held at 4 MiB
+(`MALLOC_MMAP_THRESHOLD_=4194304`), the same build peaks at 493 MiB. Capping
+the arenas instead (`MALLOC_ARENA_MAX=2`) reaches 511 MiB and costs time.
+
+Mapping every large block first cost the Linux combine a sixth of its time.
+That cost was the copy a growing block paid: a mapping that grows is a new
+mapping plus a copy of the old one. On Linux the allocator grows a mapped
+block with `mremap`, which moves its pages instead of copying them. The
+combine is then as fast as with the system allocator and holds less.
 
 ## What it leaves
 
-Landing over a record that is already there decodes the combined record into
-the runner's model before laying it, and at this scale that model does not fit:
-it runs out of heap, as it does on `main`. A landing over nothing reads the
-record's columns instead. Laying a record over a record without the model moves
-the layering rule into the addon, and is marked where the landing decodes.
+The landing over a record takes 4.7 s on macOS, close to its 5 s ceiling. The
+lay is about 620 ms of it.
 
 On a larger corpus, with a wider combined record, the combine peaks at about
 1.5 GiB. That is the size of the record it writes, not a held buffer, and the

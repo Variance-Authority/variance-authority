@@ -22,6 +22,8 @@ export interface RecordLayout {
     readonly untimed: number;
     readonly noOwner: number;
     readonly noDuration: number;
+    /** The line a region written on no lines holds at both ends: lines count from one. */
+    readonly noLine: number;
     /** Every coverage section, in the order a record holds them. */
     readonly sections: readonly string[];
     /** The section the untimed layout lacks. */

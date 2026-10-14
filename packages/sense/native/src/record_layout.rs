@@ -40,10 +40,10 @@ pub struct Coverage {
     pub uncased: u8,
     pub untimed: u8,
     pub no_duration: u32,
-    /// The owner a block with no owner carries. The fold carries owners as
-    /// they are; only a test writes a block without one.
-    #[cfg(test)]
+    /// The owner a block with no owner carries: the module root's.
     pub no_owner: u32,
+    /// The line a region written on no lines holds at both ends.
+    pub no_line: u32,
     /// Every coverage section, in the order a record holds them.
     pub sections: Vec<String>,
     /// The section the untimed layout lacks.

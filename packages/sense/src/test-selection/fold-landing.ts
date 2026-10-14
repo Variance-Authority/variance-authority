@@ -9,8 +9,7 @@
  * module was cut from, the commit — is a few columns.
  */
 
-import { decodeTestCoverage } from './format.js';
-import { layerTestCoverage } from './format-layer.js';
+import { native, nativeRefusal } from '../addon.js';
 import type { TestCoverageView } from './format-view.js';
 import type { LaidRun } from './case-landing.js';
 import type { TestCoverage } from './index.js';
@@ -36,22 +35,27 @@ export function recordedRun(coverage: TestCoverageView): RecordedRun {
   };
 }
 
+/** A record where it lies, and its coverage. */
+export interface LyingRecord {
+  readonly path: string;
+  readonly bytes: Uint8Array;
+  readonly coverage: TestCoverageView;
+}
+
 /**
  * The coverage `fold` lands as over `previous`, the record already at the
- * target, as `mergeCoverage` lays it: `fold` itself over nothing, or over a
- * record under other probes, which it replaces.
+ * target, as a runner's teardown lays its run over the record it found:
+ * `fold` itself over nothing, or over a record under other probes, which it
+ * replaces. The addon lays one over the other column to column; neither is
+ * decoded.
  *
  * Both are records this build opens; the caller has refused one it cannot.
  */
-export function landedCoverage(
-  previous: { readonly bytes: Uint8Array; readonly coverage: TestCoverageView } | undefined,
-  fold: { readonly bytes: Uint8Array; readonly coverage: TestCoverageView },
-): Uint8Array {
+export function landedCoverage(previous: LyingRecord | undefined, fold: LyingRecord): Uint8Array {
   if (previous === undefined || previous.coverage.instrumentation !== fold.coverage.instrumentation) return fold.bytes;
-  // FIXME: over a record, the fold is decoded into the model the runner's own
-  // layering lays, and at two hundred thousand modules that model is gigabytes:
-  // a landing of the whole suite over a record of it does not fit where the
-  // landing over nothing does. Laying a record over a record without the model
-  // is the layering's own rule moved into the addon, for every runner at once.
-  return layerTestCoverage(previous.bytes, decodeTestCoverage(fold.bytes));
+  const lay = native()?.layRecords;
+  if (lay === undefined) {
+    throw new Error(`landing over a record requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `layRecords`'}`);
+  }
+  return lay(previous.path, fold.path) ?? fold.bytes;
 }

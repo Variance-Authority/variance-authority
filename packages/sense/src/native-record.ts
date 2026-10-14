@@ -1,3 +1,5 @@
+import type { NativeReconciledRegions, NativeRegion } from './native-journey.js';
+
 /** One shard a combine read, in the order the shards were named. */
 export interface NativeCombinedShard {
   readonly path: string;
@@ -23,4 +25,14 @@ export interface NativeCombinedRecord {
   readonly commit?: string | null;
   /** Files two shards' case indexes cut into different regions. */
   readonly renumbered: readonly string[];
+}
+
+/** What the addon answers about records: combining shards, laying one over another, and joining one file's regions. */
+export interface NativeRecords {
+  /** Fold shard records into the one record at `output`: coverage, cases and their parts, and nothing else. */
+  combineRecords?(paths: string[], output: string): NativeCombinedRecord;
+  /** The record at `current` laid over the record at `previous`; `null` where `current` replaces it whole. */
+  layRecords?(previous: string, current: string): Buffer | null;
+  /** Several inventories of one source text, read at the regions they all hold. */
+  reconcileRegions?(inventories: NativeRegion[][]): NativeReconciledRegions;
 }

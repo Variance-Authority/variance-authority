@@ -86,19 +86,9 @@ async function landCombined(
   }
   // The record is read off its columns, never decoded: over nothing it is the
   // coverage the landing writes, and what else is asked of it is a few columns.
-  const fold = opened(selection, await readFile(combinedAt));
-  const folded = fold === undefined ? undefined : selection.recordedRun(fold.coverage);
+  const fold = opened(selection, combinedAt, await readFile(combinedAt));
   const measured = combined.shards.filter((shard) => shard.measured);
   const unmeasured = combined.shards.flatMap((shard) => (shard.measured ? [] : shard.files));
-  // The one run the shards were: what the coverage recorded, and every file a
-  // shard that measured nothing ran, finished, so its cases retire the target's.
-  const run = folded === undefined && unmeasured.length === 0
-    ? undefined
-    : {
-        tests: [...(folded?.tests ?? []), ...unmeasured.map((file) => ({ file, complete: true }))],
-        ...(combined.commit == null ? {} : { commit: combined.commit }),
-        ...(folded === undefined ? {} : { modules: folded.modules }),
-      };
 
   // Each shard's own landing kept the install it ran on in the runs record
   // beside its snapshot, where that shard ran, and the fold ran on it only when
@@ -108,7 +98,7 @@ async function landCombined(
   // FIXME: the texts a shard's install names are kept in the cache of the
   // machine it ran on, and nothing carries them here, so a shard that ran over
   // an uncommitted install elsewhere is compared from its commit after all.
-  const installed = folded === undefined
+  const installed = fold === undefined
     ? undefined
     : selection.shardsInstall(
         await Promise.all(
@@ -149,7 +139,7 @@ async function landCombined(
   const locked = await selection.withIndexLock(at, async () => {
     let previous: Opened | undefined;
     try {
-      previous = opened(selection, await readFile(at));
+      previous = opened(selection, at, await readFile(at));
     } catch (error) {
       // A record whose run instrumented nothing has no coverage to fold over,
       // and its cases are laid under the shards' below.
@@ -163,13 +153,24 @@ async function landCombined(
       }
     }
 
+    // The coverage is laid first, while nothing else the landing reads is held.
+    const bytes = fold === undefined ? previous?.bytes : selection.landedCoverage(previous, fold);
+    const landed = bytes === undefined ? undefined : selection.openTestCoverage(bytes);
+    const folded = fold === undefined ? undefined : selection.recordedRun(fold.coverage);
+    // The one run the shards were: what the coverage recorded, and every file a
+    // shard that measured nothing ran, finished, so its cases retire the target's.
+    const run = folded === undefined && unmeasured.length === 0
+      ? undefined
+      : {
+          tests: [...(folded?.tests ?? []), ...unmeasured.map((file) => ({ file, complete: true }))],
+          ...(combined.commit == null ? {} : { commit: combined.commit }),
+          ...(folded === undefined ? {} : { modules: folded.modules }),
+        };
     // A runs record that cannot be read is written afresh, and said so, as a
     // runner's `landRun` does: refusing would leave the operator to delete it
     // and land again, which writes the same record.
     const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
     const before = previous === undefined ? undefined : selection.recordedRun(previous.coverage);
-    const bytes = fold === undefined ? previous?.bytes : selection.landedCoverage(previous, fold);
-    const landed = bytes === undefined ? undefined : selection.openTestCoverage(bytes);
     const runs = folded === undefined ? undefined : selection.commitRunsAfter(before, held, folded, installed);
     // The index beside the snapshot was cut from the texts the snapshot names,
     // and a module no shard recorded is laid onto the cut its rows landed at.
@@ -243,6 +244,7 @@ async function landCombined(
  */
 /** A record and its coverage, opened where it lies. */
 interface Opened {
+  readonly path: string;
   readonly bytes: Uint8Array;
   readonly coverage: TestCoverageView;
 }
@@ -252,11 +254,11 @@ interface Opened {
  * A record this build cannot read throws, here and not at the first column a
  * later step reads.
  */
-function opened(selection: Selection, bytes: Uint8Array): Opened | undefined {
+function opened(selection: Selection, path: string, bytes: Uint8Array): Opened | undefined {
   try {
     const coverage = selection.openTestCoverage(bytes);
     void coverage.instrumentation;
-    return { bytes, coverage };
+    return { path, bytes, coverage };
   } catch (error) {
     if (error instanceof selection.RecordWithoutCoverage) return undefined;
     throw error;

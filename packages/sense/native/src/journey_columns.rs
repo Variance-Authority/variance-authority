@@ -35,12 +35,14 @@ struct Header {
     sections: Vec<Section>,
 }
 
+/// A column as it is written: its bytes, packed where packing is smaller.
+/// Only the form written is kept, so encoding a record holds it once.
 struct Stored {
     name: &'static str,
     width: u8,
     rows: usize,
     bytes: Vec<u8>,
-    packed: Option<Vec<u8>>,
+    packed: bool,
 }
 
 pub fn encode(columns: Vec<Column>, version: u8) -> Result<Vec<u8>, String> {
@@ -49,15 +51,14 @@ pub fn encode(columns: Vec<Column>, version: u8) -> Result<Vec<u8>, String> {
     let sections = stored
         .iter()
         .map(|column| {
-            let bytes = column.packed.as_ref().unwrap_or(&column.bytes);
             let section = Section {
                 name: column.name.to_owned(),
                 offset,
-                length: bytes.len(),
+                length: column.bytes.len(),
                 width: column.width,
-                rows: column.packed.as_ref().map(|_| column.rows),
+                rows: column.packed.then_some(column.rows),
             };
-            offset = aligned(offset + bytes.len());
+            offset = aligned(offset + column.bytes.len());
             section
         })
         .collect();
@@ -69,7 +70,7 @@ pub fn encode(columns: Vec<Column>, version: u8) -> Result<Vec<u8>, String> {
     out.extend_from_slice(&header);
     out.resize(4 + header_length, 0);
     for column in stored {
-        out.extend_from_slice(column.packed.as_ref().unwrap_or(&column.bytes));
+        out.extend_from_slice(&column.bytes);
         let end = aligned(out.len());
         out.resize(end, 0);
     }
@@ -226,34 +227,30 @@ fn store(column: Column) -> Result<Stored, String> {
     let pack_above = LAYOUT.pack_above;
     match column {
         Column::Bytes(name, bytes) => {
-            let rows = bytes.len();
-            let packed = (bytes.len() > pack_above)
-                .then(|| pack_byte_runs(&bytes, LAYOUT.levels.numbers))
-                .transpose()?
-                .filter(|packed| packed.len() < bytes.len());
-            Ok(Stored { name, width: 1, rows, bytes, packed })
+            let packed = (bytes.len() > pack_above).then(|| pack_byte_runs(&bytes, LAYOUT.levels.numbers)).transpose()?;
+            Ok(smaller(name, 1, bytes.len(), bytes, packed))
         }
         Column::Words(name, words) => {
             let rows = words.len();
-            let mut bytes = Vec::with_capacity(rows * 4);
-            for word in &words {
-                bytes.extend_from_slice(&word.to_le_bytes());
-            }
-            let packed = (bytes.len() > pack_above)
-                .then(|| pack_word_runs(&words))
-                .transpose()?
-                .filter(|packed| packed.len() < bytes.len());
-            Ok(Stored { name, width: 4, rows, bytes, packed })
+            let packed = (rows * 4 > pack_above).then(|| pack_word_runs(&words)).transpose()?.filter(|packed| packed.len() < rows * 4);
+            Ok(match packed {
+                Some(bytes) => Stored { name, width: 4, rows, bytes, packed: true },
+                None => Stored { name, width: 4, rows, bytes: words.iter().flat_map(|word| word.to_le_bytes()).collect(), packed: false },
+            })
         }
         Column::Blob(name, bytes, offsets) => {
-            let rows = bytes.len();
-            let packed = (bytes.len() > pack_above)
-                .then(|| pack_blob_runs(&bytes, &offsets))
-                .transpose()?
-                .filter(|packed| packed.len() < bytes.len());
-            Ok(Stored { name, width: 1, rows, bytes, packed })
+            let packed = (bytes.len() > pack_above).then(|| pack_blob_runs(&bytes, &offsets)).transpose()?;
+            Ok(smaller(name, 1, bytes.len(), bytes, packed))
         }
-        Column::Plain(name, bytes) => Ok(Stored { name, width: 1, rows: bytes.len(), bytes, packed: None }),
+        Column::Plain(name, bytes) => Ok(Stored { name, width: 1, rows: bytes.len(), bytes, packed: false }),
+    }
+}
+
+/// The packed form of a column where it is smaller than `plain`, else `plain`.
+fn smaller(name: &'static str, width: u8, rows: usize, plain: Vec<u8>, packed: Option<Vec<u8>>) -> Stored {
+    match packed.filter(|packed| packed.len() < plain.len()) {
+        Some(bytes) => Stored { name, width, rows, bytes, packed: true },
+        None => Stored { name, width, rows, bytes: plain, packed: false },
     }
 }
 

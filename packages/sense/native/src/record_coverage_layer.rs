@@ -1,0 +1,427 @@
+//! `layRecords`: one record's coverage laid over the record already at the
+//! target, as a runner's teardown lays its run over the record it found, read
+//! and written column to column. A landing reads no checkout, so nothing is
+//! re-cut from text on disk and every edit is taken to reach what it touched.
+//!
+//! The rule, `current` over `previous`:
+//!
+//! - Under other probes, `current` replaces `previous` whole.
+//! - A test `current` recorded complete retires its previous crossings, and so
+//!   does one it recorded incomplete under other preconditions; an incomplete
+//!   one under the same preconditions keeps them.
+//! - Each module row of `current` claims a row of `previous` with its path:
+//!   the first unclaimed one built from the same text, else the first
+//!   unclaimed one. A previous region carries its crossings onto the region of
+//!   the claiming row at its address (name, path and repeat) when both rows
+//!   were measured, the kinds agree, and the text is the same or the cut
+//!   seated its counters where the old one did. A region it has no carried
+//!   crossings for reads them off the nearest region around it that has.
+//! - A previous test that `current` did not record, and whose crossings were
+//!   lost or land on a region whose text moved, is no longer complete.
+//! - Rows nobody claimed are carried as they are, less retired crossings.
+//!
+//! The output is a function of the two records' contents only: read and
+//! written in one pass, in code-unit order, rows of one path re-recorded
+//! first, through the writer the fold of shards writes with.
+
+use std::fs;
+
+use napi::bindgen_prelude::Buffer;
+use napi_derive::napi;
+use rustc_hash::{FxHashMap, FxHashSet};
+
+use crate::case_shard;
+use crate::journey_columns::{self, Column, Spare};
+use crate::order;
+use crate::record_coverage::{self, Coverage, Text};
+use crate::journey_format::SetPool;
+use crate::record_coverage_columns::{Columns, Region};
+use crate::record_coverage_dictionary::{Merged, Spelled};
+use crate::record_layout::LAYOUT;
+
+/// Lay the record at `current` over the record at `previous`: the coverage
+/// record that lands, or `None` where `current` replaces `previous` whole.
+#[napi(catch_unwind)]
+pub fn lay_records(previous: String, current: String) -> napi::Result<Option<Buffer>> {
+    laid(&previous, &current).map(|bytes| bytes.map(Buffer::from)).map_err(napi::Error::from_reason)
+}
+
+fn laid(previous: &str, current: &str) -> Result<Option<Vec<u8>>, String> {
+    let read = |path: &str| -> Result<Option<Coverage>, String> {
+        let bytes = fs::read(path).map_err(|error| format!("cannot read {path}: {error}"))?;
+        let record = record_coverage::read_reusing(&bytes, &mut Spare::default())
+            .map_err(|error| format!("cannot read the record {path}: {error}. Record it again with this version."))?;
+        Ok(record.coverage)
+    };
+    // A record that measured nothing holds nothing to lay over. Both records
+    // are let go before the output is encoded.
+    let columns = {
+        let Some(held) = read(previous)? else { return Ok(None) };
+        let laid = read(current)?.ok_or_else(|| format!("{current} holds no coverage to lay over {previous}"))?;
+        lay(held, laid)?
+    };
+    columns.map(|columns| journey_columns::encode(columns, LAYOUT.coverage.format)).transpose()
+}
+
+/// `current` laid over `previous`, as coverage sections; `None` under other probes.
+fn lay(previous: Coverage, current: Coverage) -> Result<Option<Vec<Column>>, String> {
+    let Some(Written { merged, mut out, pool, instrumentation, commit }) = written(&previous, &current)? else { return Ok(None) };
+    // Every row is written, and the dictionaries are all that is read from here.
+    let (previous, current) = (previous.into_strings(), current.into_strings());
+    let (ps, cs) = (previous.text()?, current.text()?);
+    let mut used = vec![false; merged.len()];
+    used[instrumentation as usize] = true;
+    commit.into_iter().for_each(|commit| used[commit as usize] = true);
+    out.name_in(&mut used);
+    let Spelled { blob, offsets, rank } = merged.spelled(ps, cs, &used);
+    drop(used);
+    out.renumber(&rank);
+    out.encoded(blob, offsets, rank[instrumentation as usize], commit.map(|commit| rank[commit as usize]), &pool).map(Some)
+}
+
+/// The rows of `current` laid over `previous`, strings as ranks of both dictionaries at once.
+struct Written {
+    merged: Merged,
+    out: Columns,
+    pool: SetPool,
+    instrumentation: u32,
+    commit: Option<u32>,
+}
+
+fn written(previous: &Coverage, current: &Coverage) -> Result<Option<Written>, String> {
+    let (ps, cs) = (previous.text()?, current.text()?);
+    if ps.at(previous.instrumentation) != cs.at(current.instrumentation) {
+        return Ok(None);
+    }
+    let rerecorded: FxHashMap<&str, usize> = (0..current.tests()).map(|test| (cs.at(current.test_path[test]), test)).collect();
+    let held: FxHashMap<&str, usize> = (0..previous.tests()).map(|test| (ps.at(previous.test_path[test]), test)).collect();
+    let retired: Vec<bool> = (0..current.tests())
+        .map(|test| {
+            current.test_complete[test] == 1
+                || held.get(cs.at(current.test_path[test])).is_some_and(|before| {
+                    preconditions(previous, ps, *before) != preconditions(current, cs, test)
+                })
+        })
+        .collect();
+
+    // The universe: the tests `current` recorded, then the previous tests it did not.
+    let mut carried = 0;
+    let mut again = vec![false; previous.tests()];
+    let universe: Vec<Option<u32>> = (0..previous.tests())
+        .map(|test| match rerecorded.get(ps.at(previous.test_path[test])) {
+            Some(now) => {
+                again[test] = true;
+                (!retired[*now]).then_some(*now as u32)
+            }
+            None => {
+                carried += 1;
+                Some((current.tests() + carried - 1) as u32)
+            }
+        })
+        .collect();
+
+    // Strings are ranks in both records' dictionaries at once, so none is
+    // copied; tests are numbered as the output numbers them, by path.
+    let merged = Merged::new(ps, cs);
+    let (before, now) = (&merged.previous, &merged.current);
+    let mut written: Vec<(u32, Row)> = (0..current.tests()).map(|test| (now[current.test_path[test] as usize], Row::Current(test))).collect();
+    written.extend((0..previous.tests()).filter(|test| !again[*test]).map(|test| (before[previous.test_path[test] as usize], Row::Previous(test))));
+    written.sort_unstable_by_key(|(path, _)| *path);
+    let mut numbered = vec![0_u32; current.tests() + carried];
+    for (at, (_, row)) in written.iter().enumerate() {
+        numbered[match row {
+            Row::Current(test) => *test,
+            Row::Previous(test) => universe[*test].map_or(0, |id| id as usize),
+        }] = at as u32;
+    }
+    let universe: Vec<Option<u32>> = universe.into_iter().map(|id| id.map(|id| numbered[id as usize])).collect();
+    let now_id = |test: u32| numbered[test as usize];
+
+    // Every previous row by path, rows of one path in row order; each row of
+    // `current` claims one before anything is written.
+    let mut by_path: Vec<u32> = (0..previous.modules() as u32).collect();
+    by_path.sort_by_key(|row| before[previous.module_path[*row as usize] as usize]);
+    let mut claimed = vec![false; previous.modules()];
+    let claims: Vec<Option<usize>> = (0..current.modules())
+        .map(|module| {
+            let (path, source) = (now[current.module_path[module] as usize], now[current.module_source[module] as usize]);
+            let from = by_path.partition_point(|row| before[previous.module_path[*row as usize] as usize] < path);
+            let rows = by_path[from..].iter().map(|row| *row as usize).take_while(|row| before[previous.module_path[*row] as usize] == path);
+            let mut rows = rows.filter(|row| !claimed[*row]).peekable();
+            let first = rows.peek().copied();
+            let claim = rows.find(|row| before[previous.module_source[*row] as usize] == source).or(first);
+            if let Some(row) = claim {
+                claimed[row] = true;
+            }
+            claim
+        })
+        .collect();
+
+    // Modules by path, the rows of `current` before the previous rows nobody claimed.
+    let mut rows: Vec<(u32, Row)> = (0..current.modules()).map(|module| (now[current.module_path[module] as usize], Row::Current(module))).collect();
+    rows.extend((0..previous.modules()).filter(|row| !claimed[*row]).map(|row| (before[previous.module_path[row] as usize], Row::Previous(row))));
+    rows.sort_by_key(|(path, _)| *path);
+    let blocks: usize = rows.iter().map(|(_, row)| match row {
+        Row::Current(module) => current.blocks(*module).len(),
+        Row::Previous(row) => previous.blocks(*row).len(),
+    }).sum();
+    let inputs = current.precondition_name.len() + previous.precondition_name.len();
+    let mut out = Columns::sized(current.tests() + carried, inputs, rows.len(), blocks);
+
+    let previous_members = |set: u32| case_shard::decode_set(case_shard::set_slice(&previous.set_bytes, &previous.set_offsets, set)?, previous.tests());
+    let current_members = |set: u32| case_shard::decode_set(case_shard::set_slice(&current.set_bytes, &current.set_offsets, set)?, current.tests());
+    let mut stale = vec![false; previous.tests()];
+    let mut staled = vec![false; previous.set_offsets.len() - 1];
+    let mut lose = |set: u32, stale: &mut [bool]| -> Result<(), String> {
+        if !std::mem::replace(&mut staled[set as usize], true) {
+            for test in previous_members(set)? {
+                stale[test as usize] |= !again[test as usize];
+            }
+        }
+        Ok(())
+    };
+    // Sets are interned as they are written, so their ids follow the output.
+    let mut pool = SetPool::new(current.tests() + carried);
+    let mut unions: FxHashMap<(u32, u32), u32> = FxHashMap::default();
+    let mut union = |pool: &mut SetPool, held: Option<u32>, set: u32| -> Result<u32, String> {
+        let key = (held.unwrap_or(u32::MAX), set);
+        if let Some(id) = unions.get(&key) {
+            return Ok(*id);
+        }
+        let mut members: Vec<u32> = held.map(previous_members).transpose()?.unwrap_or_default().into_iter().filter_map(|test| universe[test as usize]).collect();
+        members.extend(current_members(set)?.into_iter().map(now_id));
+        members.sort_unstable();
+        members.dedup();
+        let id = pool.intern(&members);
+        unions.insert(key, id);
+        Ok(id)
+    };
+    let mut remapped = vec![u32::MAX; previous.set_offsets.len() - 1];
+    let mut remap = |pool: &mut SetPool, set: u32| -> Result<u32, String> {
+        if remapped[set as usize] == u32::MAX {
+            let mut members: Vec<u32> = previous_members(set)?.into_iter().filter_map(|test| universe[test as usize]).collect();
+            members.sort_unstable();
+            remapped[set as usize] = pool.intern(&members);
+        }
+        Ok(remapped[set as usize])
+    };
+
+    for (path, row) in rows {
+        let module = match row {
+            Row::Current(module) => module,
+            // A row nobody claimed, as it is, less retired crossings.
+            Row::Previous(row) => {
+                out.module(path, before[previous.module_source[row] as usize], previous.module_instrumented[row] == 1);
+                for block in previous.blocks(row) {
+                    out.region(Region {
+                        ordinal: previous.block_ordinal[block],
+                        kind: previous.block_kind[block],
+                        source: previous.block_source[block],
+                        owner: previous.block_owner[block],
+                        digest: before[previous.block_digest[block] as usize],
+                        name: before[previous.block_name[block] as usize],
+                        path: before[previous.block_path[block] as usize],
+                        start: previous.block_start[block],
+                        end: previous.block_end[block],
+                        called: remap(&mut pool, previous.block_set[block])?,
+                        loaded: remap(&mut pool, previous.block_loaded_set[block])?,
+                    });
+                }
+                continue;
+            }
+        };
+        let source = now[current.module_source[module] as usize];
+        let blocks = current.blocks(module);
+        let mut surviving: Vec<Option<usize>> = vec![None; blocks.len()];
+        if let Some(row) = claims[module] {
+            let held_source = before[previous.module_source[row] as usize];
+            let address = |coverage: &Coverage, strings: Text, block: usize| (strings.at(coverage.block_name[block]).to_owned(), strings.at(coverage.block_path[block]).to_owned());
+            let placeable = held_source == source
+                || same_numbering(previous.blocks(row).map(|block| address(previous, ps, block)), blocks.clone().map(|block| address(current, cs, block)));
+            let measured = current.module_instrumented[module] == 1 && previous.module_instrumented[row] == 1;
+            let mut seen: FxHashMap<(u32, u32), u32> = FxHashMap::default();
+            let mut addressed = FxHashMap::default();
+            for block in blocks.clone() {
+                let at = (now[current.block_name[block] as usize], now[current.block_path[block] as usize]);
+                let nth = seen.entry(at).and_modify(|nth| *nth += 1).or_insert(1);
+                addressed.insert((at.0, at.1, *nth), block);
+            }
+            seen.clear();
+            for held in previous.blocks(row) {
+                let at = (before[previous.block_name[held] as usize], before[previous.block_path[held] as usize]);
+                let nth = *seen.entry(at).and_modify(|nth| *nth += 1).or_insert(1);
+                match addressed.get(&(at.0, at.1, nth)) {
+                    Some(block) if placeable && measured && previous.block_kind[held] == current.block_kind[*block] => {
+                        surviving[*block - blocks.start] = Some(held);
+                        if held_source != source && before[previous.block_digest[held] as usize] != now[current.block_digest[*block] as usize] {
+                            lose(previous.block_set[held], &mut stale)?;
+                        }
+                    }
+                    _ => lose(previous.block_set[held], &mut stale)?,
+                }
+            }
+        }
+        let around = around(current, blocks.clone(), &surviving);
+        out.module(path, source, current.module_instrumented[module] == 1);
+        for (at, block) in blocks.enumerate() {
+            let held = around[at];
+            let start = current.block_start[block];
+            out.region(Region {
+                ordinal: current.block_ordinal[block],
+                kind: current.block_kind[block],
+                source: u8::from(current.block_source[block] == 1),
+                owner: current.block_owner[block],
+                digest: now[current.block_digest[block] as usize],
+                name: now[current.block_name[block] as usize],
+                path: now[current.block_path[block] as usize],
+                start,
+                end: if start == LAYOUT.coverage.no_line { LAYOUT.coverage.no_line } else { current.block_end[block] },
+                called: union(&mut pool, held.map(|held| previous.block_set[held]), current.block_set[block])?,
+                loaded: union(&mut pool, held.map(|held| previous.block_loaded_set[held]), current.block_loaded_set[block])?,
+            });
+        }
+    }
+    // Every previous region `current` claimed has been seen, so staleness is known.
+    for (path, row) in written {
+        match row {
+            Row::Current(test) => {
+                let inputs = settled(current, cs, test).into_iter().map(|(name, digest)| (now[name as usize], now[digest as usize]));
+                out.test(path, u8::from(current.test_complete[test] == 1), duration(current, test), inputs);
+            }
+            Row::Previous(test) => {
+                let inputs: Vec<(u32, u32)> = if ascending(previous, test) {
+                    previous.preconditions(test).map(|input| (previous.precondition_name[input], previous.precondition_digest[input])).collect()
+                } else {
+                    settled(previous, ps, test)
+                };
+                let complete = previous.test_complete[test] == 1 && !stale[test];
+                out.test(path, u8::from(complete), duration(previous, test), inputs.into_iter().map(|(name, digest)| (before[name as usize], before[digest as usize])));
+            }
+        }
+    }
+
+    let (instrumentation, commit) = (now[current.instrumentation as usize], current.commit.map(|commit| now[commit as usize]));
+    Ok(Some(Written { merged, out, pool, instrumentation, commit }))
+}
+
+/// A row of the output, by where it is read from.
+#[derive(Clone, Copy)]
+enum Row {
+    Current(usize),
+    Previous(usize),
+}
+
+fn duration(coverage: &Coverage, test: usize) -> u32 {
+    coverage.test_duration.as_ref().map_or(LAYOUT.coverage.no_duration, |duration| duration[test])
+}
+
+/// A test's preconditions as text, compared as a set.
+fn preconditions<'a>(coverage: &Coverage, strings: Text<'a>, test: usize) -> FxHashSet<(&'a str, &'a str)> {
+    coverage.preconditions(test).map(|input| (strings.at(coverage.precondition_name[input]), strings.at(coverage.precondition_digest[input]))).collect()
+}
+
+/// A test's preconditions as ids, in code-unit order of their text, once each.
+fn settled(coverage: &Coverage, strings: Text, test: usize) -> Vec<(u32, u32)> {
+    let mut inputs: Vec<(u32, u32)> = coverage.preconditions(test).map(|input| (coverage.precondition_name[input], coverage.precondition_digest[input])).collect();
+    let text = |(name, digest): &(u32, u32)| (strings.at(*name), strings.at(*digest));
+    let order = |left: &(u32, u32), right: &(u32, u32)| {
+        let (left, right) = (text(left), text(right));
+        order::code_unit(left.0, right.0).then_with(|| order::code_unit(left.1, right.1))
+    };
+    inputs.sort_by(order);
+    inputs.dedup_by(|right, left| order(left, right).is_eq());
+    inputs
+}
+
+/// Whether a test's precondition ids ascend: its dictionary is sorted, so it was written settled.
+fn ascending(coverage: &Coverage, test: usize) -> bool {
+    let range = coverage.preconditions(test);
+    let id = |input: usize| (coverage.precondition_name[input], coverage.precondition_digest[input]);
+    (range.start + 1..range.end).all(|input| id(input - 1) < id(input))
+}
+
+/// Per region of a module row, the previous region its crossings come from:
+/// its own, else the nearest region around it that has one.
+fn around(coverage: &Coverage, blocks: std::ops::Range<usize>, own: &[Option<usize>]) -> Vec<Option<usize>> {
+    let ordinals: FxHashMap<u32, usize> = blocks.clone().enumerate().map(|(at, block)| (coverage.block_ordinal[block], at)).collect();
+    let owner = |at: usize| {
+        let owner = coverage.block_owner[blocks.start + at];
+        (owner != LAYOUT.coverage.no_owner).then(|| ordinals.get(&owner).copied()).flatten()
+    };
+    let mut resolved: Vec<Option<Option<usize>>> = vec![None; own.len()];
+    for start in 0..own.len() {
+        let (mut handed, mut seen, mut at, mut answer) = (Vec::new(), FxHashSet::default(), Some(start), None);
+        while let Some(region) = at {
+            if !seen.insert(region) {
+                break;
+            }
+            if let Some(already) = resolved[region] {
+                answer = already;
+                break;
+            }
+            if own[region].is_some() {
+                resolved[region] = Some(own[region]);
+                answer = own[region];
+                break;
+            }
+            handed.push(region);
+            at = owner(region);
+        }
+        for region in handed {
+            resolved[region] = Some(answer);
+        }
+    }
+    resolved.into_iter().map(Option::flatten).collect()
+}
+
+/// Whether two cuts of a module seated their counters alike: every site both
+/// number holds the same seats in each.
+fn same_numbering(before: impl Iterator<Item = (String, String)>, after: impl Iterator<Item = (String, String)>) -> bool {
+    let now = sites(after);
+    sites(before).into_iter().all(|(site, taken)| now.get(&site).is_none_or(|holds| *holds == taken))
+}
+
+/// The seats each site of a cut holds.
+fn sites(blocks: impl Iterator<Item = (String, String)>) -> FxHashMap<String, FxHashSet<u64>> {
+    let mut sites: FxHashMap<String, FxHashSet<u64>> = FxHashMap::default();
+    for (name, path) in blocks {
+        for (site, seat) in seats_of(&name, &path) {
+            sites.entry(site).or_default().insert(seat);
+        }
+    }
+    sites
+}
+
+/// Every counter an address passes through, with the seat it took there, as
+/// the bits of the number the seat's digits read as.
+fn seats_of(name: &str, path: &str) -> Vec<(String, u64)> {
+    let mut found = Vec::new();
+    let mut steps = |path: &str, from: String| -> String {
+        let mut at = from;
+        for step in path.split('/').filter(|_| !path.is_empty()) {
+            if let Some((prefix, seat)) = seat(step) {
+                found.push((format!("{at}/{prefix}"), seat));
+            }
+            at.push('/');
+            at.push_str(step);
+        }
+        at
+    };
+    let named = steps(name, String::new());
+    steps(path, format!("{named}\0"));
+    found
+}
+
+/// A step's counter and seat: the digits after its last `#`, which run to its
+/// end, over a prefix on one line.
+fn seat(step: &str) -> Option<(&str, u64)> {
+    let (prefix, digits) = step.rsplit_once('#')?;
+    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) || prefix.contains(['\n', '\r', '\u{2028}', '\u{2029}']) {
+        return None;
+    }
+    digits.parse::<f64>().ok().map(|seat| (prefix, seat.to_bits()))
+}
+
+#[cfg(test)]
+#[path = "record_coverage_layer_tests.rs"]
+mod tests;

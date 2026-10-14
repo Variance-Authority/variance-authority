@@ -93,14 +93,19 @@ pub(super) fn decode_placed(bytes: &[u8], placed: Vec<Placed>, spare: &mut Spare
     Ok(Decoded { columns })
 }
 
-// No reservation below is sized by a count the file states: a count is checked
-// against what the runs decode to, and what they decode to is bounded by
-// `decompress`'s limit, so a hostile header costs what its bytes cost. `out`
-// comes empty, holding whatever capacity an earlier decode gave it.
+// A count the file states is checked against what the runs decode to, and
+// what they decode to is bounded by `decompress`'s limit, so a hostile header
+// costs what its bytes cost. A column is reserved at the rows it states once
+// its run table is found, so it is filled in place rather than copied as it
+// grows, which would hold every column of a record twice while they decode at
+// once; the reservation is only asked for, and a refusal leaves the column to
+// grow. Pages it never fills are never touched. `out` comes empty, holding
+// whatever capacity an earlier decode gave it.
 
 fn unpack_words(stored: &[u8], rows: usize, mut out: Vec<u32>) -> Result<Vec<u32>, String> {
     let run = LAYOUT.run;
     let runs = runs(stored, rows.div_ceil(run))?;
+    let _ = out.try_reserve_exact(rows);
     let mut remaining = rows;
     for held in runs {
         out.extend(unvarints(&decompress(held, word_run_limit())?, remaining.min(run))?);
@@ -111,6 +116,7 @@ fn unpack_words(stored: &[u8], rows: usize, mut out: Vec<u32>) -> Result<Vec<u32
 
 fn unpack_bytes(stored: &[u8], rows: usize, mut out: Vec<u8>) -> Result<Vec<u8>, String> {
     let runs = runs(stored, rows.div_ceil(LAYOUT.run))?;
+    let _ = out.try_reserve_exact(rows);
     for held in runs {
         out.extend_from_slice(&decompress(held, LAYOUT.run)?);
     }
@@ -121,7 +127,9 @@ fn unpack_bytes(stored: &[u8], rows: usize, mut out: Vec<u8>) -> Result<Vec<u8>,
 }
 
 fn unpack_blob(stored: &[u8], rows: usize, mut out: Vec<u8>) -> Result<Vec<u8>, String> {
-    for held in runs_any(stored)? {
+    let runs = runs_any(stored)?;
+    let _ = out.try_reserve_exact(rows);
+    for held in runs {
         let limit = rows.saturating_sub(out.len());
         out.extend_from_slice(&decompress(held, limit)?);
     }

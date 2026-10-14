@@ -29,7 +29,7 @@ describe('the record layout both sides read', () => {
       codecs: { raw: true, zstd: true },
       levels: { numbers: true, text: true },
       coverage: {
-        model: true, format: true, uncased: true, untimed: true, noOwner: true, noDuration: true,
+        model: true, format: true, uncased: true, untimed: true, noOwner: true, noDuration: true, noLine: true,
         sections: true, duration: true, parts: true, blockKinds: true,
       },
       sets: { list: true, bits: true, runs: true, narrow: true },

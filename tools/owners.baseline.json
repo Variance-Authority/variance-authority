@@ -461,11 +461,6 @@
   },
   {
     "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/reconcile-regions.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
     "at": "packages/sense/src/test-selection/execution-select.ts",
     "count": 1
   },

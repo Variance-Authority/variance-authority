@@ -142,6 +142,49 @@ fn coverage(mut decoded: Decoded, version: u8) -> Result<Coverage, String> {
     Ok(coverage)
 }
 
+/// A record's dictionary, kept once the rest of its coverage is let go.
+pub(crate) struct Strings {
+    blob: Vec<u8>,
+    offsets: Vec<u32>,
+}
+
+impl Strings {
+    pub fn text(&self) -> Result<Text<'_>, String> {
+        text_of(&self.blob, &self.offsets)
+    }
+}
+
+fn text_of<'a>(blob: &'a [u8], offsets: &'a [u32]) -> Result<Text<'a>, String> {
+    let text = std::str::from_utf8(blob).map_err(|_| "a record string is not UTF-8".to_owned())?;
+    if !offsets.iter().all(|at| text.is_char_boundary(*at as usize)) {
+        return Err("a record string is not UTF-8".to_owned());
+    }
+    Ok(Text { text, offsets })
+}
+
+/// A record's dictionary as it lies in the record, string `id` at [`Text::at`].
+#[derive(Clone, Copy)]
+pub(crate) struct Text<'a> {
+    text: &'a str,
+    offsets: &'a [u32],
+}
+
+impl<'a> Text<'a> {
+    /// A dictionary laid out as a record holds one, for a test to read.
+    #[cfg(test)]
+    pub fn laid_out(text: &'a str, offsets: &'a [u32]) -> Self {
+        Text { text, offsets }
+    }
+
+    pub fn at(&self, id: u32) -> &'a str {
+        &self.text[self.offsets[id as usize] as usize..self.offsets[id as usize + 1] as usize]
+    }
+
+    pub fn len(&self) -> usize {
+        self.offsets.len().saturating_sub(1)
+    }
+}
+
 impl Coverage {
     pub fn tests(&self) -> usize {
         self.test_path.len()
@@ -149,6 +192,16 @@ impl Coverage {
 
     pub fn modules(&self) -> usize {
         self.module_path.len()
+    }
+
+    /// The dictionary, read in place: checked as UTF-8 once, a string a slice.
+    pub fn text(&self) -> Result<Text<'_>, String> {
+        text_of(&self.blob, &self.offsets)
+    }
+
+    /// The dictionary alone, every other column let go.
+    pub fn into_strings(self) -> Strings {
+        Strings { blob: self.blob, offsets: self.offsets }
     }
 
     /// The dictionary, one slice a string, each checked as UTF-8 once.

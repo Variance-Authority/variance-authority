@@ -14,8 +14,11 @@ the TypeScript writers give for the unsharded run. Sixteen shards of a
 200,000-module suite combine in about 4 s under 600 MiB, where the JavaScript
 fold ran out of heap. `variance journeys <shard.bin>...` combines the same
 way, then lands the combined record as the one run it was, reading its
-columns rather than decoding it: the same sixteen shards land on an empty
-cache in about 4.5 s under 600 MiB.
+columns rather than decoding it: the same sixteen shards land in about 4 s
+under 600 MiB. Over the record a previous run left, the addon lays the
+combined record over it, reading both records' columns and writing the result
+in one pass, and the landing takes under 5 s and 600 MiB, where it ran out of
+heap.
 
 `combineRecords(paths, output)` in `@variance-authority/sense/test-selection`
 writes the record and returns `CombinedRecord`: the counts, the commit, the
@@ -31,9 +34,9 @@ Stitching journey artifacts writes each case's duration, the longest any
 shard measured, and the case's lines, and refuses a case whose lines stand on
 a file two shards cut into different regions.
 
-On macOS the addon returns freed blocks of 4 MiB or more to the system, so
-a native call that decodes large buffers one after another holds the largest
-of them, not their sum. Linux's allocator already does.
+On macOS and Linux the addon returns freed blocks of 4 MiB or more to the
+system, so a native call that decodes large buffers one after another holds
+the largest of them, not their sum.
 
 **Breaking:**
 

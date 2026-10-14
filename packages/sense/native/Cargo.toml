@@ -107,7 +107,7 @@ opt-level = 3
 [target.'cfg(target_arch = "aarch64")'.dependencies]
 sha2 = { version = "0.10", features = ["asm"] }
 
-# `mmap` and `munmap`, which the addon's allocator maps a large block with on
-# macOS, the one system whose allocator keeps a freed large block resident.
-[target.'cfg(target_os = "macos")'.dependencies]
+# `mmap`, `munmap` and `mremap`, which the addon's allocator maps a large block
+# with on macOS and Linux, whose allocators keep a freed large block resident.
+[target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
 libc = "0.2"
