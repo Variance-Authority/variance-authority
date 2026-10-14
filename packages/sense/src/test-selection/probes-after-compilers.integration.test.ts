@@ -104,7 +104,7 @@ describe('a compiler that reads the syntax it compiles', () => {
     expect(await derived(root, chunk?.code)).toEqual(served);
   });
 
-  it('stops the build by name where what a transform wrote has no map back to the file', async () => {
+  it('stops the build, naming each region, where what a transform wrote has no map back to the file', async () => {
     const root = await workspace();
     const blind: Plugin = {
       name: 'blind',
@@ -116,6 +116,6 @@ describe('a compiler that reads the syntax it compiles', () => {
       logLevel: 'silent',
       plugins: [testSelectionProbes({ root }), extractor(), blind],
       build: { write: false, rollupOptions: { input: resolve(root, 'src/main.js') } },
-    })).rejects.toThrow(/`src\/tone\.ts`: .*no map back to it/);
+    })).rejects.toThrow(/`src\/tone\.ts`: .* back to css\.arg0\/entry, label\/entry, /);
   });
 });

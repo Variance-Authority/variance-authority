@@ -573,10 +573,12 @@ transformer — `@swc/jest`, `ts-jest`, `babel-jest`, any module with Jest's
 transformer shape — compiles the file as Jest read it, on its own pattern with
 its own options, and the probes go into what it wrote, where the map it returns
 carries each region of your file. The map handed on to Jest is that map moved
-past the probes, so a stack trace points where it did before. `setupFiles` keep their order and gain
-the counter factory at the start; `setupFilesAfterEnv` gain the journal writer
-at the end; reporters gain one at the end, and a configuration with no reporters
-keeps Jest's default.
+past the probes, so a stack trace points where it did before. A transformer
+that changes the text and returns no map is handed the probed text instead, as
+nothing carries a region into what it wrote. `setupFiles` keep their order and
+gain the counter factory at the start; `setupFilesAfterEnv` gain the journal
+writer at the end; reporters gain one at the end, and a configuration with no
+reporters keeps Jest's default.
 
 ```js
 // jest.config.mjs
@@ -731,10 +733,11 @@ text stays the language it was. `senseProbes` is absent for a test file, a file
 outside product source and a file Jest loads before the collector exists, and
 `instrument` returns nothing for a text it cannot parse; either way the module
 runs without probes. A module `unprobed` names reaches your transformer without
-`senseProbes` too, already carrying the wrapper's mark at the end of its text. The wrapper compares `senseRecipe` with this package's
-recipe when Jest loads it, and refuses one built from other sources of the
-crate, naming both; a `senseRecipe` that answers nothing for the mode leaves
-the transformer a plain one, given the text with the probes already in.
+`senseProbes` too, already carrying the wrapper's mark at the end of its text.
+The wrapper compares `senseRecipe` with this package's recipe when Jest loads
+it, and refuses one built from other sources of the crate, naming both; a
+`senseRecipe` that answers nothing for the mode leaves the transformer a plain
+one, and the probes go into what it wrote.
 
 ## Cut an Rstest run down to a diff
 

@@ -173,8 +173,11 @@ export function selectionPlugin(
       if (id === file && !inPage) {
         const text = disk(file);
         if (!namesItsMap(text)) {
-          if (!cuts) return null;
-          if (!handedTexts(text).includes(code)) throw changedOnArrival(root, file);
+          // The map Vite composes starts at the text the transforms were
+          // handed, so a file changed on its way here would be placed by lines
+          // the author never wrote: refused, if it is one the run records.
+          const changed = text !== '' && !handedTexts(text).includes(code);
+          if (changed && (cuts || capture(file, code)?.changed === true)) throw changedOnArrival(root, file);
           return cutOf(code) ?? null;
         }
         first.add(id);

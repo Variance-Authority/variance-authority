@@ -164,7 +164,7 @@ export interface CapturedAfter extends Captured {
 }
 
 /** What {@link captureAfter} is told beyond the text and its map. */
-export interface AfterOptions {
+interface AfterOptions {
   /** The modules marked as loaded rather than probed, as {@link placeModule} reads it. */
   readonly unprobed?: ((file: string) => boolean) | undefined;
   /** Answer the composed map moved onto the probed text, for a runner no bundler composes maps for. */
@@ -209,9 +209,10 @@ export function captureAfter(
   const composed = map();
   // The mark follows the last line, so no column the map names moves.
   if (plan.marked) return { module: unread, code: markLoaded(code, id), ...(carry && composed ? { carried: composed.mappings } : {}) };
-  // A text with no code in it, such as what a module of types compiles to, has
-  // no map to name the file in: the probe of loading it is all it can hold.
-  const blank = !/\S/.test(code);
+  // A text with no code in it, or code the map carries to nothing, such as what
+  // a module of types compiles to, has no map to name the file in: the probe of
+  // loading it is all it can hold, and a region of the file is refused by name.
+  const blank = !/\S/.test(code) || (composed !== undefined && !/[^;,]/.test(composed.mappings));
   const source = blank ? 0 : composed?.sources.findIndex(
     (name) => name !== null && resolve(dirname(path), composed.sourceRoot ?? '', name) === path,
   ) ?? -1;

@@ -21,7 +21,9 @@ import type { JestTransformedSource } from './jest-transform.js';
 /**
  * `done`, what the project's transformer wrote from `source`, with the probes
  * of `source`'s regions in it. A module `defaultInclude` and `unprobed` both
- * refuse is `done` as it came.
+ * refuse is `done` as it came. A transformer that changed the text and returned
+ * no map leaves nothing to place the regions through, so the answer is nothing,
+ * and the caller hands that transformer the probed text instead.
  */
 export function probedAfter(
   root: string,
@@ -30,12 +32,13 @@ export function probedAfter(
   done: JestTransformedSource,
   mode: InstrumentMode,
   unprobed: ((file: string) => boolean) | undefined,
-): JestTransformedSource {
+): JestTransformedSource | undefined {
   const given = done.map == null || done.map === '' ? undefined : done.map;
   const inline = given === undefined ? inlineMap(done.code) : undefined;
   const code = inline?.code ?? done.code;
   const text = typeof given === 'string' ? given : inline?.map;
   const map = (text === undefined ? given : JSON.parse(text)) as (ComposedMap & Record<string, unknown>) | undefined;
+  if (map === undefined && code !== source) return undefined;
   const captured = captureAfter(root, path, code, defaultInclude, mode, map && (() => map), {
     unprobed,
     carry: true,

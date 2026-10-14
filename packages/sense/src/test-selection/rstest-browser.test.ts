@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { keepsCases } from './case-record.js';
 import { decodeTestCoverage } from './format.js';
 import instrumentModule, { type SelectionLoaderContext } from './rstest-loader.js';
+import probeAfter from './rstest-after-loader.js';
 import { withTestSelection, type RstestFileResult } from './rstest.js';
 
 type Hook = (...args: unknown[]) => void;
@@ -44,7 +45,7 @@ function api(browser: { enabled?: boolean } | undefined): unknown {
   };
 }
 
-/** What the loader makes of one module, as Rspack would call it. */
+/** What the two loaders make of one module, as Rspack would call them. */
 function instrumented(file: string, code: string, coverageFile: string): string {
   let out = code;
   const context: SelectionLoaderContext = {
@@ -53,6 +54,7 @@ function instrumented(file: string, code: string, coverageFile: string): string 
     callback: (_error, next) => (out = next),
   };
   instrumentModule.call(context, code);
+  probeAfter.call(context, out);
   return out;
 }
 

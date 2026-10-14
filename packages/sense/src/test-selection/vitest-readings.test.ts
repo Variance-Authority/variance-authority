@@ -56,7 +56,25 @@ const EDITED = `// What a cart holds.\n${SOURCE}`;
 /** Another module of the package, whose tests load it and not the cart. */
 const RATE = 'export const rate = 0.2;\n';
 
-type Transform = (code: string, id: string) => unknown;
+type Handled = { code: string } | null;
+type SeamPlugin = { name: string; transform: { handler: (code: string, id: string) => Handled }; watchChange?(id: string): void };
+
+/**
+ * The seam's two transforms as Vite runs them on a module no other plugin
+ * changes: the cut first, then the probes, handed what the cut left. Nothing
+ * between them rewrites the text, so the probes stage never asks for a map.
+ */
+function seamOf(plugins: unknown): { transform: { handler: (code: string, id: string) => Handled }; watchChange(id: string): void } {
+  const [cut, probes] = (plugins as SeamPlugin[]).filter(({ name }) => name.startsWith('variance-authority:test-selection'));
+  const unmapped = { getCombinedSourcemap: () => { throw new Error('no transform rewrote the text'); } };
+  return {
+    transform: { handler: (code, id) => {
+      const first = cut!.transform.handler(code, id);
+      return probes!.transform.handler.call(unmapped, first?.code ?? code, id) ?? first;
+    } },
+    watchChange: (id) => cut!.watchChange!(id),
+  };
+}
 
 type Reading = 'source' | 'build' | 'legacy' | 'rate';
 
@@ -94,16 +112,11 @@ async function recordedUnder(
     await writeFile(resolve(root, 'lib/cart.js'), LEGACY, 'utf8');
     await writeFile(resolve(root, 'src/rate.ts'), RATE, 'utf8');
     const configured = withTestSelection({}, { root, coverageFile, include });
-    const plugin = (configured.plugins as unknown as Array<{
-      transform: { handler: Transform };
-      watchChange(id: string): void;
-    }>)[0]!;
+    const plugin = seamOf(configured.plugins);
     // A `projects` layout wraps each project's config, and each brings a plugin of its own.
     const other = projects === 1
       ? plugin
-      : (withTestSelection({}, { root, coverageFile, include }).plugins as unknown as Array<{
-          transform: { handler: Transform };
-        }>)[0]!;
+      : seamOf(withTestSelection({}, { root, coverageFile, include }).plugins);
     const reporter = (configured.test!.reporters as unknown as Array<{
       onFinished(files: readonly []): Promise<void>;
       onWatcherRerun(): void;
@@ -244,9 +257,7 @@ describe('a module the runner loaded from its build alone', () => {
         { test: { globalSetup: ['./eyes.globalSetup.ts'] } },
         { root, coverageFile },
       );
-      const plugin = (configured.plugins as unknown as Array<{
-        transform: { handler(code: string, id: string): { code: string } | null };
-      }>)[0]!;
+      const plugin = seamOf(configured.plugins);
       const source = 'export default function setup() { return 1; }';
 
       expect(plugin.transform.handler(source, resolve(root, 'eyes.globalSetup.ts'))).toBeNull();
@@ -272,9 +283,7 @@ describe('a module the runner loaded from its build alone', () => {
         JSON.stringify({ version: 3, sources: ['../src/setup.ts'], names: [], mappings: 'AAAA' }),
       );
       const configured = withTestSelection({ test: { globalSetup: ['./dist/setup.js'] } }, { root, coverageFile });
-      const plugin = (configured.plugins as unknown as Array<{
-        transform: { handler(code: string, id: string): { code: string } | null };
-      }>)[0]!;
+      const plugin = seamOf(configured.plugins);
       const built = 'export default function setup() { return 1; }\n//# sourceMappingURL=setup.js.map\n';
       await writeFile(resolve(root, 'dist/setup.js'), built);
       await writeFile(resolve(root, 'dist/other.js'), built.replace('setup.js.map', 'other.js.map'));
@@ -341,7 +350,7 @@ async function recordedTyped(reading: 'source' | 'build' | 'helped'): Promise<Te
     await writeFile(resolve(root, 'dist/cart.js'), built, 'utf8');
     await writeFile(resolve(root, 'dist/cart.js.map'), map, 'utf8');
     const configured = withTestSelection({}, { root, coverageFile, include: () => true });
-    const plugin = (configured.plugins as unknown as Array<{ transform: { handler: Transform } }>)[0]!;
+    const plugin = seamOf(configured.plugins);
     const reporter = (configured.test!.reporters as unknown as Array<{
       onFinished(files: readonly []): Promise<void>;
     }>).at(-1)!;

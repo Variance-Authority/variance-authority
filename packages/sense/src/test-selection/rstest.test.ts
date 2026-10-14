@@ -7,6 +7,7 @@ import { statusesComplete } from './finished-files.js';
 import { runOf } from './selection-run.js';
 import { SELECTION_LOADER, withTestSelection, type RstestConfig, type RstestTestSelectionOptions } from './rstest.js';
 import instrumentModule from './rstest-loader.js';
+import probeAfter, { type AfterLoaderContext } from './rstest-after-loader.js';
 
 const temporary: string[] = [];
 
@@ -190,7 +191,7 @@ describe('what a finished Rstest file is worth', () => {
 });
 
 describe('the Rstest loader', () => {
-  /** What the loader hands Rspack for `code` at `file`, and the run it recorded into. */
+  /** What the two loaders hand Rspack for `code` at `file`, one after the other, and the run they recorded into. */
   async function loaded(
     file: string,
     code: string,
@@ -206,9 +207,16 @@ describe('the Rstest loader', () => {
     }
     withTestSelection({ root: directory, ...config }, { coverageFile, ...options });
     let handed: string | undefined;
+    let map: Parameters<AfterLoaderContext['callback']>[2];
+    const resourcePath = resolve(directory, file);
     instrumentModule.call(
-      { resourcePath: resolve(directory, file), getOptions: () => ({ coverageFile }), callback: (_error, text) => { handed = text; } },
+      { resourcePath, getOptions: () => ({ coverageFile }), callback: (_error, text, given) => { handed = text; map = given as typeof map; } },
       code,
+    );
+    probeAfter.call(
+      { resourcePath, getOptions: () => ({ coverageFile }), callback: (error, text) => { if (error) throw error; handed = text; } },
+      handed!,
+      map,
     );
     return { handed, modules: [...runOf(coverageFile)!.modules.values()] };
   }

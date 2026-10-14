@@ -20,6 +20,7 @@ carries to no code, stops the run with an error naming the file and the region.
 A region whose own code the map names no origin for is recorded with the code in
 front of it, so it can be reported present when it did not run, never missing
 when it did. A file that names its own source map, such as a built package, is
-probed before the transforms, as before. Ids, digests and regions are
+probed before the transforms, as before, and so is a file under a Jest
+transformer that rewrites it and returns no map. Ids, digests and regions are
 unchanged, so existing recordings still join. A configuration assembled by hand
 for Rstest names the new `@variance-authority/sense/rstest-after-loader` too.

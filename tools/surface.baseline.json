@@ -2502,6 +2502,10 @@
           "types": "./dist/test-selection/rstest.d.ts",
           "default": "./dist/test-selection/rstest.js"
         },
+        "./rstest-after-loader": {
+          "types": "./dist/test-selection/rstest-after-loader.d.ts",
+          "default": "./dist/test-selection/rstest-after-loader.js"
+        },
         "./rstest-loader": {
           "types": "./dist/test-selection/rstest-loader.d.ts",
           "default": "./dist/test-selection/rstest-loader.js"
@@ -3200,12 +3204,17 @@
         "withTestSelection": "function"
       },
       "./rstest": {
+        "PROBES_LOADER": "const",
         "RstestConfig": "interface",
         "RstestFileResult": "interface",
         "RstestTestSelectionOptions": "interface",
         "SELECTION_LOADER": "const",
         "mergeCoverage": "function",
         "withTestSelection": "function"
+      },
+      "./rstest-after-loader": {
+        "AfterLoaderContext": "interface",
+        "default": "function"
       },
       "./rstest-loader": {
         "SelectionLoaderContext": "interface",

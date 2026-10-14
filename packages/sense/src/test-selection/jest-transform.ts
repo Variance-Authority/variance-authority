@@ -7,7 +7,9 @@
  * chooses one: the project's transformer runs on the file as Jest read it, with
  * the project's options, and the probes of that file's regions go into what it
  * wrote, through the map it returned ({@link probedAfter}). A test file is cut
- * first instead, and the transformer runs on the cut.
+ * first instead, and the transformer runs on the cut. A transformer that changes
+ * the text and returns no map is run again on the probed text, since nothing
+ * carries the regions into what it wrote.
  *
  * Jest's transform cache decides what it costs: the text this returns is
  * stored on disk under `getCacheKey`, shared by every worker and every later
@@ -194,8 +196,9 @@ export async function createTransformer(
       if (innerProcessAsync === undefined) return bare(root, path, options, text, how, cut);
       const handed = places ? handOver(root, path, forInner(options), text, how) : undefined;
       if (handed !== undefined) return behind(marked(await innerProcessAsync(text, path, handed), handed), cut);
-      if (!after(path, options, how, source)) return behind(await innerProcessAsync(place(root, path, options, text, how), path, forInner(options)), cut);
-      return probedAfter(root, path, source, await innerProcessAsync(text, path, forInner(options)), how.mode, how.unprobed);
+      const first = async () => await innerProcessAsync(place(root, path, options, text, how), path, forInner(options));
+      if (places || !after(path, options, how, source)) return behind(await first(), cut);
+      return probedAfter(root, path, source, await innerProcessAsync(text, path, forInner(options)), how.mode, how.unprobed) ?? first();
     },
   };
   const innerProcess = inner?.process?.bind(inner);
@@ -206,8 +209,9 @@ export async function createTransformer(
       if (innerProcess === undefined) return bare(root, path, options, text, how, cut);
       const handed = places ? handOver(root, path, forInner(options), text, how) : undefined;
       if (handed !== undefined) return behind(marked(innerProcess(text, path, handed), handed), cut);
-      if (!after(path, options, how, source)) return behind(innerProcess(place(root, path, options, text, how), path, forInner(options)), cut);
-      return probedAfter(root, path, source, innerProcess(text, path, forInner(options)), how.mode, how.unprobed);
+      const first = () => innerProcess(place(root, path, options, text, how), path, forInner(options));
+      if (places || !after(path, options, how, source)) return behind(first(), cut);
+      return probedAfter(root, path, source, innerProcess(text, path, forInner(options)), how.mode, how.unprobed) ?? first();
     };
   }
   return transformer;

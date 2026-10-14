@@ -9,10 +9,11 @@ import { withTestSelection } from './vitest.js';
 /**
  * A module some other plugin changed before the seam read it.
  *
- * The seam's transform is ordered `pre`, so of the transforms only another
- * one ordered `pre` and placed ahead of it can reach the text first, and a
- * `load` hook always does. Either way the text has lines the file on disk does not, and
- * a record cut from it names every region by a line the author never wrote.
+ * The seam's first transform is ordered `pre`, so of the transforms only
+ * another one ordered `pre` and placed ahead of it can reach the text first,
+ * and a `load` hook always does. Either way the text has lines the file on disk
+ * does not, and the map Vite composes starts from that text, so probes placed
+ * through it would name every region by a line the author never wrote.
  */
 
 const SOURCE = 'export function greet(name) {\n  return `hello ${name}`;\n}\n';
@@ -26,6 +27,7 @@ type Plugin = {
 
 let root: string;
 let transform: Transform;
+let probes: Transform;
 let inPage: () => Promise<void>;
 
 beforeEach(async () => {
@@ -34,6 +36,9 @@ beforeEach(async () => {
   const configured = withTestSelection({}, { root, coverageFile: resolve(root, 'coverage.bin'), include: () => true });
   const plugin = (configured.plugins as unknown as Plugin[]).find(({ name }) => name === 'variance-authority:test-selection')!;
   transform = plugin.transform!.handler.bind(plugin);
+  const after = (configured.plugins as unknown as Plugin[]).find(({ name }) => name === 'variance-authority:test-selection-probes')!;
+  // Vite hands the probes stage the map it composed; the file reaches it unchanged here, so none is read.
+  probes = after.transform!.handler.bind({ getCombinedSourcemap: () => ({ sources: [], mappings: '' }) });
   inPage = () => plugin.config!({ test: { browser: { enabled: true } } });
 });
 
@@ -57,8 +62,9 @@ describe('a module another plugin changed before the seam read it', () => {
     expect(transform(mock, resolve(root, 'greet.ts'))).toBeNull();
   });
 
-  it('is recorded when it is the file on disk', () => {
-    expect(transform(SOURCE, resolve(root, 'greet.ts'))?.code).toMatch(/__va\(/);
+  it('is recorded when it is the file on disk, by probes placed after the transforms', () => {
+    expect(transform(SOURCE, resolve(root, 'greet.ts'))).toBeNull();
+    expect(probes(SOURCE, resolve(root, 'greet.ts'))?.code).toMatch(/__va\(/);
   });
 
   it.each([

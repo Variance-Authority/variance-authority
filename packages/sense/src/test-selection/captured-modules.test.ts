@@ -71,6 +71,17 @@ describe('a module whose probes go in after the transforms', () => {
       /`src-cart\.js`: .* back to total\/entry,/,
     );
   });
+
+  it('holds the probe of loading a module of types, which compiles to code that maps to nothing', async () => {
+    const TYPES = 'export interface Cart {\n  readonly total: number;\n}\n';
+    const { root, file } = await checkout(TYPES);
+    // What `@swc/jest` writes for it: the CommonJS prologue, and a map with no source.
+    const compiled = '"use strict";\nObject.defineProperty(exports, "__esModule", {\n    value: true\n});\n';
+    const after = captureAfter(root, file, compiled, defaultInclude, undefined, () => ({ sources: [], mappings: '' }))!;
+
+    expect(after.module).toEqual(captureModule(root, file, TYPES, defaultInclude, undefined)!.module);
+    expect(after.code).toContain('__va(');
+  });
 });
 
 describe('a module marked as loaded', () => {
