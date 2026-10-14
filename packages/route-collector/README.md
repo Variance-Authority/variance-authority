@@ -270,8 +270,11 @@ export default routeCollector({
 
 Discovered ids come from the URL path with leading and trailing slashes trimmed,
 and a sitemap listing two URLs whose paths collide is refused rather than
-resolved. For static output, replace `sitemap` with `directory: './build'`; the
-collector serves it locally and creates one subject per `.html` file. Ids drop
+resolved. Each page is visited on the server the sitemap came from, keeping the
+entry's path and query, so a local build whose sitemap names production is still
+the build photographed. For static output, replace `sitemap` with
+`directory: './build'`; the collector serves it locally and creates one subject
+per `.html` file. Ids drop
 the extension and `index.html` resolves to its directory, so `cart/empty.html` is
 the subject `cart/empty` and `about/index.html` is `about` — the name you type
 back at `--subjects` and `variance accept`. The root `index.html` has no

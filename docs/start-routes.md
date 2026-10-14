@@ -181,7 +181,9 @@ in it as it is:
 
 Discovered ids come from the URL path with leading and trailing slashes trimmed,
 and a sitemap listing two URLs whose paths collide is refused rather than
-resolved.
+resolved. Each page is visited on the server the sitemap came from, whatever
+host its entry names, so a local build whose sitemap lists your production URLs
+is still the build that gets photographed.
 
 For static output, `directory: './build'` serves the build and creates one
 subject per `.html` file. Prefer a real server when you have one: a file server
