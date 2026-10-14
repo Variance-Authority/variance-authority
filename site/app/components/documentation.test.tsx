@@ -16,6 +16,12 @@ vi.mock("next/navigation", () => ({ usePathname: () => route.pathname }));
 vi.mock("next/link", () => ({
   default: (props: AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props} />,
 }));
+// The Markdown renderer and the diagrams are the site's own install, not the
+// root's; the attribute these cases read is on the element around them.
+vi.mock("react-markdown", () => ({ default: ({ children }: { children: string }) => <>{children}</> }));
+vi.mock("rehype-raw", () => ({ default: () => undefined }));
+vi.mock("remark-gfm", () => ({ default: () => undefined }));
+vi.mock("./MermaidDiagram", () => ({ default: () => null }));
 
 const documentOf = (markup: string) => new JSDOM(markup).window.document;
 
