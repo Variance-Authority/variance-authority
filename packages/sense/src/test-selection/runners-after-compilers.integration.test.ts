@@ -32,8 +32,9 @@ afterAll(async () => {
 });
 
 /** The fixture's environment: the record, the caches, and the placement where one is asked for. */
-function environment(directory: string, placement?: string): NodeJS.ProcessEnv {
+function environment(directory: string, placement?: string, extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
+    ...extra,
     ...process.env,
     VARIANCE_AUTHORITY_COVERAGE: resolve(directory, 'coverage.bin'),
     VARIANCE_AUTHORITY_CACHE: directory,
@@ -83,5 +84,22 @@ describe.each(Object.entries(runners))('a module a syntax-reading compiler rewri
     );
     // The run fails, and on the probe the extractor found in the arrow.
     expect(failed).toMatch(/extractor: `[^`]*__va\([^`]*` is unable to have its styles extracted/);
+  }, 60_000);
+});
+
+describe('a module a syntax-reading compiler rewrites at `enforce: \'post\'`, under rstest', () => {
+  it('runs the probes after the post loader the project lists, so the extractor reads no probe', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-compilers-'));
+    temporary.push(directory);
+    // Post loaders run right to left: had the probes been listed after the
+    // extractor, they would run ahead of it, and it would refuse the probed arrow.
+    await execute(process.execPath, runners.rstest, {
+      cwd: fixture,
+      env: environment(directory, undefined, { VARIANCE_AUTHORITY_EXTRACTOR_ENFORCE: 'post' }),
+    });
+    const module = decodeTestCoverage(await readFile(resolve(directory, 'coverage.bin'))).modules.find(
+      (candidate) => candidate.file === named('src/tone.ts'),
+    );
+    expect(module?.blocks.find((block) => block.name === 'css.arg0')?.testFiles).toEqual([named('test/tone.case.ts')]);
   }, 60_000);
 });

@@ -26,7 +26,7 @@ interface Rules {
 }
 
 describe('what a wrapped Rstest configuration becomes', () => {
-  it('adds a pre loader carrying the snapshot the reporter will write, without replacing the project\'s own', async () => {
+  it('adds a pre loader carrying the snapshot the reporter will write, last of the rules, and the probes loader first, without replacing the project\'s own', async () => {
     const directory = await root();
     const coverageFile = resolve(directory, 'coverage.bin');
     const mine = { module: { rules: [] } };
@@ -41,14 +41,23 @@ describe('what a wrapped Rstest configuration becomes', () => {
     // the key it writes would drop every sibling.
     expect((config.tools as { swc?: unknown }).swc).toEqual({});
 
-    const rule = (rspack[1] as Rules).module.rules[0]!;
-    // After the project's loaders and after SWC, so the probes land on
-    // JavaScript and the map back to the author's lines is the bundler's own.
-    expect(rule.enforce).toBe('pre');
-    expect(rule.use[0]!.loader).toBe(SELECTION_LOADER);
+    // Applied the way Rsbuild applies a function, to the rules every entry
+    // before it wrote: theirs, and one post loader of the project's.
+    const theirs = { test: /\.ts$/, enforce: 'post', use: [{ loader: 'their-post-loader', options: {} }] };
+    const applied = { module: { rules: [theirs] as Rules['module']['rules'] } };
+    (rspack[1] as (config: typeof applied) => void)(applied);
+    const [probes, kept, rule] = applied.module.rules;
+    // The post rule first, so it runs after every other post loader, theirs
+    // included: a compiler that reads syntax never reads a probe.
+    expect(probes!.enforce).toBe('post');
+    expect(kept).toBe(theirs);
+    // The pre rule last, so it runs ahead of every other pre loader, on the
+    // file as it is on disk.
+    expect(rule!.enforce).toBe('pre');
+    expect(rule!.use[0]!.loader).toBe(SELECTION_LOADER);
     // The one string that names a run: a loader is loaded by path and can be
     // handed options, never the object the configuration built.
-    expect(rule.use[0]!.options.coverageFile).toBe(coverageFile);
+    expect(rule!.use[0]!.options.coverageFile).toBe(coverageFile);
     expect(runOf(coverageFile)?.root).toBe(directory);
   });
 

@@ -50,5 +50,9 @@
     "@variance-authority/react": "workspace:^",
     "@variance-authority/sense": "workspace:^",
     "@variance-authority/storybook": "workspace:^"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "~2.2.7",
+    "@rspack/core": "^2.2.6"
   }
 }

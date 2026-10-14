@@ -314,31 +314,36 @@ export function withTestSelection(
     reporters: [...reporters, reporter],
     tools: {
       ...config.tools,
-      // Appended to whatever the project configured rather than replacing it:
-      // Rsbuild folds an array of these in order, and the rule only has to be
-      // present, not first.
+      // After whatever the project configured, as a function, so the rules
+      // are placed among every rule Rsbuild and the project wrote. Loaders of
+      // one phase run right to left: the pre rule goes last, ahead of every
+      // other pre loader, and the post rule first, after every other post
+      // loader.
       rspack: [
         ...array(config.tools?.rspack),
-        {
-          module: {
+        (rspack: { module?: { rules?: unknown[] } }) => {
+          const rules = rspack.module?.rules ?? [];
+          rspack.module = {
+            ...rspack.module,
             rules: [
               {
                 test: /\.[cm]?[jt]sx?$/,
-                // Before SWC and the project's own loaders, so a test file's
-                // cut lands on the file as it is on disk, and a file that names
-                // its own map is probed on it.
-                enforce: 'pre',
-                use: [{ loader: SELECTION_LOADER, options: { coverageFile } }],
-              },
-              {
-                test: /\.[cm]?[jt]sx?$/,
-                // After them, so a compiler that reads syntax never reads a
-                // probe, and the probes go where their map says the file went.
+                // After SWC and the project's own loaders, so a compiler that
+                // reads syntax never reads a probe, and the probes go where
+                // their map says the file went.
                 enforce: 'post',
                 use: [{ loader: PROBES_LOADER, options: { coverageFile } }],
               },
+              ...rules,
+              {
+                test: /\.[cm]?[jt]sx?$/,
+                // Before them, so a test file's cut lands on the file as it is
+                // on disk, and a file that names its own map is probed on it.
+                enforce: 'pre',
+                use: [{ loader: SELECTION_LOADER, options: { coverageFile } }],
+              },
             ],
-          },
+          };
         },
       ],
     },

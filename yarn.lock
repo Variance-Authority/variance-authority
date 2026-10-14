@@ -5741,6 +5741,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@variance-authority/storybook-collector@workspace:packages/storybook-collector"
   dependencies:
+    "@rsbuild/core": "npm:~2.2.7"
+    "@rspack/core": "npm:^2.2.6"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/dom": "workspace:^"
     "@variance-authority/playwright": "workspace:^"
