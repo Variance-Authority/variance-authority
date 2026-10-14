@@ -18,4 +18,5 @@ same way — and a driven page
 needs nothing else. It takes `root`, `mode`,
 `include` and `placement` as `testSelectionProbes` does under Vite; the loader
 itself is `@variance-authority/sense/probes-loader`. With the default
-`include`, the rule excludes `node_modules`.
+`include`, the rule excludes `node_modules`; an `include` you give is the
+rule's own condition, so the loader runs in a worker as well.

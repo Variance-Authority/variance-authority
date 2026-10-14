@@ -378,9 +378,7 @@ and the addon adds no second one.
 Pass the probes' options as the addon's: `{ name:
 '@variance-authority/storybook-collector', options: { mode: 'entries' } }`.
 `include` decides which modules are your source, every file outside
-`node_modules` and `dist` that is not a test or a config by default; keep it a
-pure function of the file name, since under Rspack and webpack its source text
-keys the build's cache; `root` is a
+`node_modules` and `dist` that is not a test or a config by default; `root` is a
 directory in the repository, the cwd by default. `placement:
 'before-transforms'` places the probes in each file as read, ahead of every
 compiler; a Storybook that runs an extractor keeps the default.

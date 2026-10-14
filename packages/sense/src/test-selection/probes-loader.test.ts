@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { decode } from './map-segments.js';
 import probesLoader, { type ProbesLoaderContext } from './probes-loader.js';
 import { executionCollectorSource } from './probes.js';
-import { includeOf, testSelectionRule, type ProbesLoaderOptions } from './probes-rule.js';
+import { testSelectionRule, type ProbesLoaderOptions } from './probes-rule.js';
 import type { HandedMap } from './loader-probes.js';
 
 const SOURCE = 'export function total(items) {\n  return items.length > 0 ? items.length : 0;\n}\n';
@@ -136,36 +136,30 @@ describe('the probes loader', () => {
     expect(error?.message).toMatch(/`cart\.js`.*devtool/s);
   });
 
-  it('passes a module `include` refuses untouched', async () => {
+  it('passes a module the default `include` refuses untouched', async () => {
     const root = await checkout();
-    const rule = testSelectionRule({ root, include: () => false });
-    const handed = load(resolve(root, 'cart.js'), SOURCE, IDENTITY, rule.use[0].options);
+    await writeFile(resolve(root, 'cart.test.js'), SOURCE, 'utf8');
+    const handed = load(resolve(root, 'cart.test.js'), SOURCE, IDENTITY, { root });
 
     expect(handed).toEqual({ error: null, code: SOURCE, map: IDENTITY });
   });
 });
 
 describe('the rule', () => {
-  it('runs the loader after the project’s, carrying `include` as a key to the function', () => {
+  it('runs the loader after the project’s, with `include` as the rule’s own condition and the loader’s options data alone', () => {
     const include = (file: string) => file.endsWith('.ts');
     const rule = testSelectionRule({ root: process.cwd(), include, mode: 'entries' });
 
-    expect(rule).toMatchObject({ enforce: 'post', use: [{ loader: expect.stringMatching(/probes-loader\.js$/) }] });
-    expect(JSON.parse(JSON.stringify(rule.use[0].options))).toEqual(rule.use[0].options);
-    expect(includeOf(rule.use[0].options.include!)).toBe(include);
-    expect(testSelectionRule({ include }).use[0].options.include).toBe(rule.use[0].options.include);
+    expect(rule).toMatchObject({ enforce: 'post', include, use: [{ loader: expect.stringMatching(/probes-loader\.js$/) }] });
+    expect(rule.use[0].options).toEqual({ root: expect.any(String), mode: 'entries', include: 'rule' });
   });
 
-  it('keys `include` by its source, so the key is the same whichever rule registered first', () => {
-    const include = (file: string) => file.includes('/keyed-by-source/');
-    const key = testSelectionRule({ include }).use[0].options.include!;
-    // The same text, a different function: a rule built again in a second run, or in another order.
-    const again = (file: string) => file.includes('/keyed-by-source/');
+  it('takes every module the rule’s condition hands it, when `include` is the rule’s', async () => {
+    const root = await checkout();
+    const { error, code } = load(resolve(root, 'cart.js'), SOURCE, IDENTITY, { root, include: 'rule' });
 
-    expect(key).toMatch(/^include-v1:[0-9a-f]+$/);
-    expect(testSelectionRule({ include: again }).use[0].options.include).toBe(`${key}-2`);
-    expect(includeOf(key)).toBe(include);
-    expect(includeOf(`${key}-2`)).toBe(again);
+    expect(error).toBeNull();
+    expect(code).not.toBe(SOURCE);
   });
 
   it('leaves `node_modules` to the loaders where `include` is the default, and to `include` where it is given', () => {
@@ -174,7 +168,4 @@ describe('the rule', () => {
     expect(testSelectionRule({ include: () => true }).exclude).toBeUndefined();
   });
 
-  it('refuses a key no rule in this process registered, as a loader in a worker would hold', () => {
-    expect(() => includeOf('include-0')).toThrow(/worker/);
-  });
 });

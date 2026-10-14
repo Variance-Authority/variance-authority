@@ -13,7 +13,6 @@
  */
 
 import { fileURLToPath } from 'node:url';
-import { digestString } from '../digest.js';
 import type { InstrumentMode } from '../instrument/index.js';
 import type { ProbePlacement } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
@@ -31,10 +30,9 @@ export interface TestSelectionRuleOptions {
   readonly root?: string;
   /**
    * Decide which modules are product source; defaults to every file outside
-   * `node_modules` and `dist` that is not a test or a config. It must be pure,
-   * answering from the file name alone: the rule is keyed by the function's
-   * source text, so Rspack's cache reuses a module probed under another
-   * function of the same text, one closing over a different value.
+   * `node_modules` and `dist` that is not a test or a config. Given, it is the
+   * rule's own condition, asked of each file before the loader runs: a built
+   * package's file it takes is named by the sources its map lists.
    */
   readonly include?: (file: string) => boolean;
   /** The probe recipe, as `testSelectionProbes` takes it: one answer for every seam that shares a coverage file. */
@@ -52,8 +50,11 @@ export interface ProbesLoaderOptions {
   /** The checkout's root. */
   readonly root?: string;
   readonly mode?: InstrumentMode;
-  /** The key {@link testSelectionRule} registered `include` under, in this realm. */
-  readonly include?: string;
+  /**
+   * `'rule'` where the rule's condition is the project's `include`: the loader
+   * then probes every module it is handed. Absent, it asks the default.
+   */
+  readonly include?: 'rule';
   readonly placement?: ProbePlacement;
 }
 
@@ -62,6 +63,8 @@ export interface TestSelectionRule {
   readonly test: RegExp;
   /** `node_modules`, where `include` is the default and would refuse every file in it: Rspack then never hands one over. */
   readonly exclude?: RegExp;
+  /** The project's `include`, where it gave one: Rspack and webpack ask it of each file, in the process that built the rule. */
+  readonly include?: (file: string) => boolean;
   readonly enforce: 'pre' | 'post';
   readonly use: readonly [{ readonly loader: string; readonly options: ProbesLoaderOptions }];
 }
@@ -90,58 +93,19 @@ export const COLLECTOR_FILE = fileURLToPath(new URL('./probes-collector.js', imp
  *
  * Leave `devtool` writing source maps: the probes go where the map the loaders
  * hand on says each region of the file went, and a module that arrives with no
- * map stops the build by name. `include` is a function, and loader options
- * cross into Rspack's core as data, so the rule carries a key to it, its source
- * text's digest, which the loader finds in this process: a loader run in a
- * worker cannot. A worker is told so, by name, and the build stops.
+ * map stops the build by name. `include`, a function, is the rule's own
+ * condition and never a loader option, which crosses into Rspack's core as
+ * data: the loader runs in a worker as well as on the main thread.
  */
 export function testSelectionRule(options: TestSelectionRuleOptions = {}): TestSelectionRule {
   const loaderOptions: ProbesLoaderOptions = {
     root: repositoryRoot(options.root ?? process.cwd()),
     ...(options.mode === undefined ? {} : { mode: options.mode }),
-    ...(options.include === undefined ? {} : { include: registered(options.include) }),
+    ...(options.include === undefined ? {} : { include: 'rule' as const }),
     ...(options.placement === undefined ? {} : { placement: options.placement }),
   };
   const enforce = options.placement === 'before-transforms' ? 'pre' : 'post';
   const test = /\.[cm]?[jt]sx?$/;
   const use = [{ loader: PROBES_LOADER, options: loaderOptions }] as const;
-  return options.include === undefined ? { test, exclude: /[\\/]node_modules[\\/]/, enforce, use } : { test, enforce, use };
-}
-
-/** Every `include` a rule in this realm carries, by key. Global, so two copies of this module share it. */
-const INCLUDES = Symbol.for('@variance-authority/sense/probes-loader#include');
-
-function includes(): Map<string, (file: string) => boolean> {
-  const realm = globalThis as { [INCLUDES]?: Map<string, (file: string) => boolean> };
-  return (realm[INCLUDES] ??= new Map());
-}
-
-/**
- * The key `include` is carried under: its source's digest, which is the same in
- * every run whatever registered first, so Rspack's cache, keyed by the
- * loader's options, holds across runs. Two functions of one text, closing over
- * different values, take the digest and the digest with a count.
- */
-function registered(include: (file: string) => boolean): string {
-  const known = includes();
-  const base = `include-${digestString(include.toString())}`;
-  for (let count = 1; ; count++) {
-    const key = count === 1 ? base : `${base}-${count}`;
-    const held = known.get(key);
-    if (held === include) return key;
-    if (held !== undefined) continue;
-    known.set(key, include);
-    return key;
-  }
-}
-
-/** The `include` a rule registered under `key`; throws where this realm holds none. */
-export function includeOf(key: string): (file: string) => boolean {
-  const include = includes().get(key);
-  if (include !== undefined) return include;
-  throw new Error(
-    `variance-authority: the probes loader was handed \`include\` ${JSON.stringify(key)}, which no \`testSelectionRule\` ` +
-      'registered in this process. A loader run in a worker, such as under `thread-loader` or Rspack\'s parallel loaders, ' +
-      'cannot reach the function: run the probes loader on the main thread, or leave `include` out.',
-  );
+  return options.include === undefined ? { test, exclude: /[\\/]node_modules[\\/]/, enforce, use } : { test, include: options.include, enforce, use };
 }

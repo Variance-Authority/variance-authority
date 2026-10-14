@@ -12,6 +12,9 @@ const output = process.argv[2];
 if (output === undefined) throw new Error('the output directory is required');
 // Where the probes go: after the project's loaders unless the test asks for before.
 const placement = process.env['VARIANCE_AUTHORITY_PLACEMENT'];
+// Whether the probes loader runs in Rspack's worker threads, away from the process that built the rule.
+const parallel = process.env['VARIANCE_AUTHORITY_PARALLEL'] === '1';
+const probes = testSelectionRule({ root, include: (file) => file.startsWith(root), ...(placement === undefined ? {} : { placement }) });
 
 const compiler = rspack({
   mode: 'development',
@@ -30,8 +33,8 @@ const compiler = rspack({
           { loader: 'builtin:swc-loader', options: { jsc: { parser: { syntax: 'typescript' }, target: 'es2022' } } },
         ],
       },
-      // A function: it crosses into Rspack's core as data, so the rule carries a key to it.
-      testSelectionRule({ root, include: (file) => file.startsWith(root), ...(placement === undefined ? {} : { placement }) }),
+      // `include` is a function, which the rule hands Rspack as its own condition.
+      parallel ? { ...probes, use: probes.use.map((entry) => ({ ...entry, parallel: true })) } : probes,
     ],
   },
   plugins: [

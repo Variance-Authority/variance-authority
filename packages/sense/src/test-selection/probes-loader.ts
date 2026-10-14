@@ -21,7 +21,7 @@ import { placeModule, type Captured } from './captured-modules.js';
 import { handedMap, probeHanded, type HandedMap } from './loader-probes.js';
 import { shifted } from './map-segments.js';
 import { executionCollectorSource } from './probes.js';
-import { COLLECTOR_FILE, PROBES_LOADER, includeOf, type ProbesLoaderOptions } from './probes-rule.js';
+import { COLLECTOR_FILE, PROBES_LOADER, type ProbesLoaderOptions } from './probes-rule.js';
 import { repositoryRoot } from './repository-root.js';
 
 /** The subset of the Rspack and webpack loader surface this uses, so nothing here needs either. */
@@ -56,7 +56,10 @@ function probesLoader(this: ProbesLoaderContext, code: string, handed?: HandedMa
 function probed(context: ProbesLoaderContext, options: ProbesLoaderOptions, code: string, handed: HandedMap): { code: string; map?: HandedMap } {
   const file = cleanId(context.resourcePath);
   const root = repositoryRoot(options.root ?? context.rootContext ?? process.cwd());
-  const include = options.include === undefined ? defaultInclude : includeOf(options.include);
+  // The rule asked the project's `include` before handing the file over, and
+  // the function stays in that process: a built file's sources, which the
+  // rule never saw, are taken because the rule took the built file.
+  const include = options.include === 'rule' ? everything : defaultInclude;
   // Ahead of the loaders, every line is where the file has it: the handed map, if any, still holds.
   const placed = options.placement === 'before-transforms'
     ? ahead(placeModule(root, file, code, include, undefined, options.mode), handed)
@@ -87,6 +90,11 @@ function probed(context: ProbesLoaderContext, options: ProbesLoaderOptions, code
   const column = script.at - (text.lastIndexOf('\n', script.at - 1) + 1);
   const map = placed.map && { ...placed.map, mappings: shifted(placed.map.mappings, required.length, line, column) };
   return { code: `${text.slice(0, script.at)}${required}${text.slice(script.at)}`, map };
+}
+
+/** The `include` of a rule whose own condition already chose the file. */
+function everything(): boolean {
+  return true;
 }
 
 /** What {@link placeModule} placed ahead of the loaders, with the map it was handed. */

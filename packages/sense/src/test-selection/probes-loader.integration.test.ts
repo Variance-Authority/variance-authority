@@ -65,6 +65,20 @@ describe('a page Rspack built, a syntax-reading compiler among its loaders', () 
     expect(module?.sourceDigest).toBe(digestString(await readFile(resolve(fixture, 'src/tone.ts'), 'utf8')));
   }, 60_000);
 
+  it('probes the page with the loader in Rspack\'s worker threads, `include` being the rule\'s own condition', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-rspack-'));
+    temporary.push(directory);
+    await execute(process.execPath, [resolve(fixture, 'rspack.build.mjs'), resolve(directory, 'out')], {
+      cwd: fixture,
+      env: { ...process.env, VARIANCE_AUTHORITY_PARALLEL: '1' },
+    });
+
+    const page = createContext({});
+    runInContext(await readFile(resolve(directory, 'out/page.js'), 'utf8'), page);
+    const collector = runInContext(`globalThis[${JSON.stringify(EXECUTION_GLOBAL)}]`, page) as ExecutionCollector;
+    expect(collector.drain().modules.map((module) => module.id.split('@')[0]).sort()).toEqual([named('src/cls.ts'), named('src/tone.ts')]);
+  }, 60_000);
+
   it('places the probes ahead of the loaders with `placement: \'before-transforms\'`, where the extractor reads them', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-rspack-'));
     temporary.push(directory);

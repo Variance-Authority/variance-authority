@@ -1056,12 +1056,12 @@ an `import` where what your loaders wrote is a module, a `require` otherwise. A
 module with no file on disk, such as a
 builder's virtual entry, is not probed.
 
-`include` is a function, and Rspack hands loader options to its core as data,
-so the rule registers `include` in the process that built the configuration,
-keyed by its source text. Keep it pure, answering from the file name alone:
-Rspack's cache reuses a module probed under another `include` of the same
-text, one closing over a different value. A loader run in a worker, such as
-`thread-loader`'s, cannot find it, and the build stops and says so.
+`include`, where you give one, is the rule's own condition: Rspack and webpack
+ask it of each file in the process that built the configuration, and the
+loader probes what the rule hands it, in a worker as well, such as under
+`thread-loader` or Rspack's parallel loaders. It is asked of the file the
+bundler reads, so a package's built file it takes is named by the sources
+its map lists, and one it refuses is not probed at all.
 
 In a Storybook, list `@variance-authority/storybook-collector` in `addons`
 instead: it adds this rule under Rspack or webpack, and `testSelectionProbes`
