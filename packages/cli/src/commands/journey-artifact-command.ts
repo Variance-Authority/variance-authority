@@ -1,26 +1,33 @@
 import {
+  combineRecords,
   finalizeJestJourneys,
   stitchJourneyArtifacts,
+  type CombinedRecord,
   type JourneyArtifactResult,
 } from '@variance-authority/sense/test-selection';
-import { EXIT_CLEAN, type ExitCode } from '../exit.js';
+import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
-import { landJourneys } from './land.js';
-import { formatLanding } from './journeys.js';
+import { messageOf } from './resources.js';
 
 type JourneyArtifactCommand = Extract<
   Parsed,
   { command: 'journeys'; operation: 'finalize' | 'stitch' | 'merge' }
 >;
 
-/** Finalize journals, stitch journey artifacts, or merge rich shard records. */
+/** Finalize journals, stitch journey artifacts, or combine shard records. */
 export async function runJourneyArtifactCommand(
   parsed: JourneyArtifactCommand,
   streams: { out(text: string): void },
 ): Promise<ExitCode> {
   if (parsed.operation === 'merge') {
-    const result = await landJourneys(parsed.root, parsed.shards, parsed.into);
-    streams.out(`${formatLanding(result)}\n`);
+    let result: CombinedRecord;
+    try {
+      result = combineRecords(parsed.shards, parsed.into);
+    } catch (error) {
+      throw new OperatorError(messageOf(error), { cause: error });
+    }
+    streams.out(`${combinedLine(result, parsed.into)}\n`);
+    streams.out(renumbered(result));
     return EXIT_CLEAN;
   }
 
@@ -43,6 +50,16 @@ export async function runJourneyArtifactCommand(
   return EXIT_CLEAN;
 }
 
+/** What `journeys merge` wrote, in one line. */
+function combinedLine(result: CombinedRecord, into: string): string {
+  const cases = result.cases == null ? '' : `, ${result.cases} cases`;
+  const commit = result.commit == null ? '' : `, recorded at ${result.commit.slice(0, 12)}`;
+  return (
+    `journeys: combined ${result.shards.length} records into ${into} ` +
+    `(${result.tests} tests, ${result.modules} modules, ${result.crossings} crossings${cases}${commit})`
+  );
+}
+
 /**
  * The files whose regions are coarser than recorded, by name.
  *
@@ -51,7 +68,7 @@ export async function runJourneyArtifactCommand(
  * credited to the regions both transforms share. A reader who sees a function
  * select more tests than it should needs to find out why here.
  */
-function renumbered(result: JourneyArtifactResult): string {
+function renumbered(result: Pick<JourneyArtifactResult, 'renumbered'>): string {
   const files = result.renumbered ?? [];
   if (files.length === 0) return '';
   const count = files.length === 1 ? '1 file was' : `${files.length} files were`;

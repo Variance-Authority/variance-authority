@@ -9,6 +9,7 @@ import {
   caseSectionsAt,
   coveringTests,
   decodeExecutionIndex,
+  encodeAsSetExecutionIndex,
   encodeExecutionIndex,
   followRows,
   readTestCoverage,
@@ -102,7 +103,7 @@ async function landedAt(source: string, text: Text) {
       tests: [whole(ONE), whole(TWO)],
       modules: [rows(AT_FIRST, { module: [ONE, TWO], a: [ONE], b: [TWO] })],
     }, {
-      index: encodeExecutionIndex({
+      index: encodeAsSetExecutionIndex({
         tests: [caseOf(ONE), caseOf(TWO)],
         modules: [{
           file: FILE,
@@ -129,7 +130,7 @@ async function landedAt(source: string, text: Text) {
         },
       ],
     }, {
-      index: encodeExecutionIndex({ tests: [caseOf(THREE)], modules: [{ file: OTHER, blocks: [block('module', '', [1, 1], [0])] }] }),
+      index: encodeAsSetExecutionIndex({ tests: [caseOf(THREE)], modules: [{ file: OTHER, blocks: [block('module', '', [1, 1], [0])] }] }),
     });
     await writeFile(mathFile, source, 'utf8');
     await landJourneys(dir, [shard], into);

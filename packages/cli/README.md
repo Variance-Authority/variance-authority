@@ -161,7 +161,7 @@ variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev|instant>]
-variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file> | merge <record.bin>... --into <record> [--root <checkout>]
+variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file> | merge <record.bin>... --into <record>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>]
@@ -1588,19 +1588,24 @@ app/src/components/CartCard.tsx  3 observers
   …
 ```
 
-For a CI job that only combines records, `journeys merge` writes the record
-and its counts without computing a journey comparison:
+For a CI job that only combines records, `journeys merge` writes the one
+record an unsharded run would have written, and nothing else:
 
 ```bash
 variance journeys merge shard-1/coverage.bin shard-2/coverage.bin \
-  --into artifacts/coverage.bin --root /work/checkout
+  --into artifacts/coverage.bin
 ```
 
-It needs no visual project configuration. `--root` defaults to the working
-directory and names the source checkout the records came from; keep its test
-files present, because landing retires cases whose files were deleted. Shard
-and output paths resolve from the working directory, independently of `--root`.
-The case index and the rules for landing below apply to both commands.
+```
+journeys: combined 2 records into artifacts/coverage.bin (342 tests, 1204 modules, 51873 crossings, 2210 cases, recorded at 4f2a1c9d0b73)
+```
+
+It reads the shards and nothing else: no configuration, no checkout, no
+source index. `--into` is replaced, not layered over, and the output is the
+same bytes whatever order the shards are named in. Paths resolve from the
+working directory. Landing the combined record, in this checkout or another,
+is `journeys`'s; the rules below apply to both commands, because `journeys`
+combines its shards the same way and lands the result as one.
 
 The fold refuses shards that were not one run, naming both files: recorded under
 different probe recipes, or at different commits — and a shard recorded outside
@@ -1626,7 +1631,9 @@ coverage, and `covering`, `coverage` and `review` answer from the result. If you
 land a shard that ran a test file to the end and kept no cases, the landing
 drops the index, because no index can hold which of that file's cases run a
 line. Those commands then print that nothing is recorded until a run writes one.
-A shard keeps no cases when its seam recorded none. If another run is writing
+A shard keeps no cases when its seam recorded none, and one that kept cases
+beside one that kept none is refused, because their combined record could
+answer for the cases of only some of its files. If another run is writing
 the record when you land, nothing is written and `journeys` exits non-zero; land
 again once that run ends.
 

@@ -67,7 +67,7 @@ read-modify-write-and-rename with no expected-prior check
 (`packages/sense/src/immutable-log.ts:122-140`).
 
 **4. A demotion carries its reason.** Three sites write `{ ...test, complete:
-false }` and drop why: `packages/sense/src/test-selection/merge.ts:166`, `packages/sense/src/test-selection/merge.ts:357`, `packages/sense/src/test-selection/format-layer.ts:266`. The
+false }` and drop why: `packages/sense/src/test-selection/merge.ts:166`, `packages/sense/src/test-selection/merge.ts:205`, `packages/sense/src/test-selection/format-layer.ts:266`. The
 reason is computed — `stitchJourneys` builds a `because` string — and reaches
 stderr once, then is gone.
 
@@ -103,7 +103,7 @@ generated inputs, or the second implementation needs to go.
 
 **8. Three disagreements that are decisions nobody has made.**
 
-- `foldTestCoverage` keys modules by path alone and throws on a second row with
+- `combineRecords` keys modules by path alone and throws on a second row with
   a different digest; `mergeCoverage` deliberately indexes a path to all of its
   rows and matches by digest. A shard that saw two builds of one module — a
   second environment, a second transform — **cannot be landed at all**, and the

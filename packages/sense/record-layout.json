@@ -1,0 +1,94 @@
+{
+  "alignment": 8,
+  "packAbove": 65536,
+  "run": 4096,
+  "blobRun": 512,
+  "codecs": {
+    "raw": 0,
+    "zstd": 2
+  },
+  "levels": {
+    "numbers": 6,
+    "text": 1
+  },
+  "coverage": {
+    "model": 3,
+    "format": 10,
+    "uncased": 9,
+    "untimed": 8,
+    "noOwner": 4294967295,
+    "noDuration": 4294967295,
+    "noLine": 0,
+    "sections": [
+      "strings.blob",
+      "strings.off",
+      "snapshot.instrumentation",
+      "snapshot.commit",
+      "tests.path",
+      "tests.complete",
+      "tests.preconditions",
+      "tests.duration",
+      "preconditions.name",
+      "preconditions.digest",
+      "modules.path",
+      "modules.source",
+      "modules.instrumented",
+      "modules.blocks",
+      "blocks.ordinal",
+      "blocks.kind",
+      "blocks.owner",
+      "blocks.digest",
+      "blocks.name",
+      "blocks.path",
+      "blocks.start",
+      "blocks.end",
+      "blocks.source",
+      "blocks.set",
+      "blocks.loadedSet",
+      "sets.blob",
+      "sets.off"
+    ],
+    "duration": "tests.duration",
+    "parts": [
+      [
+        "index",
+        "cases"
+      ],
+      [
+        "before",
+        "cases.before"
+      ],
+      [
+        "last",
+        "cases.last"
+      ],
+      [
+        "eyes",
+        "eyes"
+      ]
+    ],
+    "blockKinds": [
+      "module",
+      "function",
+      "branch",
+      "continuation",
+      "resume",
+      "loop",
+      "case",
+      "handler"
+    ]
+  },
+  "sets": {
+    "list": 0,
+    "bits": 1,
+    "runs": 2,
+    "narrow": 65536
+  },
+  "cases": {
+    "format": 3,
+    "loadedSets": 2,
+    "duration": "tests.duration",
+    "lines": "lines.blob",
+    "linesOffsets": "lines.off"
+  }
+}

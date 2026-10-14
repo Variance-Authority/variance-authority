@@ -18,10 +18,10 @@ use std::collections::HashMap;
 use std::fs;
 
 use crate::case_preconditions;
-use crate::journey_format;
 use crate::journey_lazy::{Handle, Lazy};
-use crate::journey_stitch::decode_set;
+use crate::case_shard::decode_set;
 use crate::order;
+use crate::record_layout::LAYOUT;
 
 /// One region of a module, as the columns spell it.
 #[derive(Clone, Copy)]
@@ -82,7 +82,7 @@ impl Journey {
     /// a coverage record's case index, or a case index on its own.
     pub fn of(file: &str, bytes: Vec<u8>) -> Result<Journey, String> {
         let bytes = crate::journey_columns::recorded_cases(bytes);
-        let lazy = Lazy::new(bytes, journey_format::FORMAT)
+        let lazy = Lazy::new(bytes, LAYOUT.cases.format)
             .map_err(|error| format!("cannot read journey file {file}: {error}"))?;
         let columns = Columns {
             strings: lazy.column("strings.blob", 1)?,

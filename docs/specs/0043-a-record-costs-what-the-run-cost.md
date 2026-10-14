@@ -140,7 +140,7 @@ journal.
 **6. Something retires what the repository no longer holds.** Every item above
 bounds the cost of a *run*. Nothing bounds the cost of the *file*. A module
 deleted from the repository is carried verbatim with all of its crossings —
-`packages/sense/src/test-selection/merge.ts:415` carries it because nothing at the path says the rows are about a
+`packages/sense/src/test-selection/merge.ts:264` carries it because nothing at the path says the rows are about a
 file that is gone, and `packages/sense/src/test-selection/format-layer.ts:248` pushes every unclaimed row onward —
 and a test file that no longer exists keeps its row and its `complete` flag
 (`packages/sense/src/test-selection/format-layer.ts:263-265`). So the snapshot is monotonically non-shrinking over

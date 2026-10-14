@@ -1,9 +1,9 @@
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
-import { encodeExecutionIndex, readTestCoverage, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { encodeAsSetExecutionIndex, readTestCoverage, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { main, parseArgs } from '../bin.js';
 import { distillRows } from './distill.js';
 import { readExecutionIndex } from './execution-input.js';
@@ -40,7 +40,7 @@ async function fixture() {
       version: 3, instrumentation: 'fixture',
       tests: [{ file, complete: true, preconditions: [] }],
       modules: [{ file: 'src/greet.ts', sourceDigest: digestString(source), instrumented: true, blocks }],
-    }, { index: encodeExecutionIndex({ tests: [test], modules: [{ file: 'src/greet.ts', blocks: blocks.map((block) => ({
+    }, { index: encodeAsSetExecutionIndex({ tests: [test], modules: [{ file: 'src/greet.ts', blocks: blocks.map((block) => ({
       ...block, crossings: block.kind === 'function' ? [{ test: 0, distance: 0 }] : [],
     })) }] }) });
     shards.push(path);
@@ -49,17 +49,17 @@ async function fixture() {
 }
 
 describe('`journeys merge`', () => {
-  it('lands coverage and cases without project configuration or a comparison, from the named checkout', async () => {
+  it('combines coverage and cases without project configuration, a checkout or a comparison', async () => {
     const { root, shards, into } = await fixture();
     const before = (await Promise.all(shards.map((execution) => distillRows({ root, execution })))).flatMap((read) => read.rows);
     let out = '';
     let err = '';
-    const code = await main(['journeys', 'merge', ...shards, '--into', into, '--root', root], {
+    const code = await main(['journeys', 'merge', ...shards, '--into', into], {
       out: (text) => { out += text; }, err: (text) => { err += text; },
     });
 
     expect({ code, err }).toEqual({ code: 0, err: '' });
-    expect(out).toContain(`folded 2 snapshots into ${into}`);
+    expect(out).toBe(`journeys: combined 2 records into ${into} (2 tests, 1 modules, 2 crossings, 2 cases)\n`);
     expect(out).not.toContain('pool:');
     expect(recordedJourneys).not.toHaveBeenCalled();
     expect((await readTestCoverage(into)).modules[0]!.blocks[0]!.loadedBy).toEqual(['a.test.ts', 'b.test.ts']);
@@ -67,15 +67,33 @@ describe('`journeys merge`', () => {
     expect((await distillRows({ root, execution: into })).rows).toEqual(before);
   });
 
-  it('defaults the source root to the working directory and resolves paths there', () => {
-    expect(parseArgs(['journeys', 'merge', 'one.bin', '--into', 'all.bin'])).toMatchObject({
-      command: 'journeys', operation: 'merge', root: process.cwd(), shards: [resolve('one.bin')], into: resolve('all.bin'),
-    });
+  it('writes the same bytes whatever order the shards are named in', async () => {
+    const { shards, into } = await fixture();
+    const quiet = { out: () => {}, err: () => {} };
+    expect(await main(['journeys', 'merge', ...shards, '--into', into], quiet)).toBe(0);
+    const swapped = `${into}.swapped`;
+    expect(await main(['journeys', 'merge', ...[...shards].reverse(), '--into', swapped], quiet)).toBe(0);
+    expect(Buffer.compare(await readFile(into), await readFile(swapped))).toBe(0);
   });
 
-  it('keeps relative shard and output paths at the working directory with an explicit source root', () => {
-    expect(parseArgs(['journeys', 'merge', 'one.bin', '--into', 'all.bin', '--root', 'checkout'])).toMatchObject({
-      root: resolve('checkout'), shards: [resolve('one.bin')], into: resolve('all.bin'),
+  it('refuses shards of two runs by name, and writes nothing', async () => {
+    const { root, shards, into } = await fixture();
+    const other = join(root, 'other.bin');
+    await writeTestCoverage(other, { version: 3, instrumentation: 'fixture', commit: 'elsewhere', tests: [{ file: 'c.test.ts', complete: true, preconditions: [] }], modules: [] });
+    let err = '';
+    const code = await main(['journeys', 'merge', shards[0]!, other, '--into', into], { out: () => {}, err: (text) => { err += text; } });
+    expect(code).not.toBe(0);
+    expect(err).toContain('disagree about the commit');
+    await expect(readFile(into)).rejects.toThrow();
+  });
+
+  it('reads no checkout, so it takes no `--root`', () => {
+    expect(() => parseArgs(['journeys', 'merge', 'one.bin', '--into', 'all.bin', '--root', 'checkout'])).toThrow('`--root` is not');
+  });
+
+  it('resolves shard and output paths at the working directory', () => {
+    expect(parseArgs(['journeys', 'merge', 'one.bin', '--into', 'all.bin'])).toEqual({
+      command: 'journeys', operation: 'merge', config: expect.any(String), shards: [resolve('one.bin')], into: resolve('all.bin'),
     });
   });
 
@@ -86,9 +104,5 @@ describe('`journeys merge`', () => {
     ['merge', 'one.bin', '--into', 'all.bin', '--config', 'web.json'],
   ])('refuses incomplete or reading-specific arguments: %j', (...args) => {
     expect(() => parseArgs(['journeys', ...args])).toThrow('`variance journeys merge`');
-  });
-
-  it.each(['stitch', 'finalize', 'one.bin'])('refuses --root outside merge: %s', (operation) => {
-    expect(() => parseArgs(['journeys', operation, '--root', '/repo'])).toThrow();
   });
 });

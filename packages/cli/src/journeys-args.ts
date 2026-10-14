@@ -44,7 +44,6 @@ export type ParsedJourneys =
       readonly command: 'journeys';
       readonly operation: 'merge';
       readonly config: string;
-      readonly root: string;
       readonly shards: readonly string[];
       readonly into: string;
     };
@@ -58,15 +57,12 @@ export function parseJourneysArgs(flags: Flags, config: string): ParsedJourneys 
 
 
   if (operation === 'merge') {
-    const otherFlags = [...flags.present].filter((flag) => flag !== '--into' && flag !== '--root');
+    const otherFlags = [...flags.present].filter((flag) => flag !== '--into');
     if (otherFlags.length > 0 || into === undefined || flags.positionals.length < 2) {
-      throw new OperatorError(
-        '`variance journeys merge` takes one or more shard records, `--into <record>` and optional `--root <checkout>`',
-      );
+      throw new OperatorError('`variance journeys merge` takes one or more shard records and `--into <record>`');
     }
     return {
       command: 'journeys', operation: 'merge', config,
-      root: resolve(flags.values.get('--root') ?? process.cwd()),
       shards: flags.positionals.slice(1).map((path) => resolve(path)),
       into: resolve(into),
     };
@@ -99,8 +95,6 @@ export function parseJourneysArgs(flags: Flags, config: string): ParsedJourneys 
       into: resolve(into),
     };
   }
-
-  if (flags.present.has('--root')) throw new OperatorError('`journeys --root` is only used by `journeys merge`');
 
   if (into !== undefined && flags.positionals.length === 0) {
     throw new OperatorError('`--into` says where a fold lands, and nothing was named to fold');

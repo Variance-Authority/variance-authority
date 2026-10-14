@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { rename, rm } from 'node:fs/promises';
-import type { CommitRuns } from '@variance-authority/sense/test-selection';
+import type { CommitRuns, TestCoverage } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { said } from '../here.js';
 import type { LandedJourneys } from './journeys.js';
@@ -15,9 +15,10 @@ import { landingRecord } from './suite-record.js';
  * too large for one machine records one snapshot per job, and until they are
  * one file nothing here can be asked about the suite: `journeyAgainst` reads a
  * single path and so does everything a runner layers over. The fold itself is
- * `foldTestCoverage`'s and refuses by name, for the same reasons `mergeReports`
- * does; this is the glue that reads the shards, lands the result where the
- * runner would have put it, and says so.
+ * `combineRecords`'s, in the native addon, and refuses by name, for the same
+ * reasons `mergeReports` does: it writes the one record an unsharded run would
+ * have written, beside the target. This lands that record where the runner
+ * would have put it, as the one run it is, and says so.
  *
  * Landing is a *layer*, not a replacement, and by the runner's own rule. A
  * snapshot already at the target — the local runs of a laptop, or last week's
@@ -33,15 +34,15 @@ import { landingRecord } from './suite-record.js';
  * run outside the checkout or before the other commit was fetched.
  *
  * The cases travel in the record (spec 0094): each shard's seam kept its own in
- * the shard's record, and those are laid over the target's in the same order
- * and written into the record the landing writes; a shard that kept none takes
- * the target's with it, so nobody reads cases the snapshot has replaced. See
- * `landCases`. A module whose rows the landing re-cut to another text has its
+ * the shard's record, the combine folds them into one index, and that is laid
+ * over the target's and written into the record the landing writes; shards that
+ * kept none take the target's with them, so nobody reads cases the snapshot has
+ * replaced. See `landCases`. A module whose rows the landing re-cut to another text has its
  * held cases laid onto the same cut (`followRows`).
  *
  * A shard whose run instrumented nothing holds its cases and no coverage. It is
- * unmeasured, so it folds nothing and moves no runs record, and its cases are
- * laid with the others'. Landed alone where no coverage stands, it writes a
+ * unmeasured, so it folds no coverage and names no install, and its cases are
+ * laid with the others', its files finished as its last run ran them. Landed alone where no coverage stands, it writes a
  * record of cases and no coverage, which narrows no later selection.
  *
  * A target that exists and cannot be read is refused rather than replaced. The
@@ -58,43 +59,48 @@ export async function landJourneys(
   const selection = await import('@variance-authority/sense/test-selection');
   const at = into ?? (await landingRecord(root));
 
-  const read = await Promise.all(
-    shards.map(async (path) => {
-      try {
-        return { path, coverage: await selection.readTestCoverage(path) };
-      } catch (error) {
-        if (error instanceof selection.RecordWithoutCoverage) return { path };
-        throw new OperatorError(
-          isMissing(error)
-            ? `there is no snapshot at ${said(path)}`
-            : `the snapshot at ${said(path)} could not be read: ${messageOf(error)}`,
-          { cause: error },
-        );
-      }
-    }),
-  );
-
-  const measured = read.flatMap(({ path, coverage }) => (coverage === undefined ? [] : [{ path, coverage }]));
-  let folded;
+  // The combine is staged beside the target, so the rename below never crosses
+  // a file system, and the staged name ends in `.tmp` for prune to find.
+  const combinedAt = `${at}.${process.pid}-${randomUUID()}-combined.tmp`;
   try {
-    folded = measured.length === 0 ? undefined : selection.foldTestCoverage(measured);
+    return await landCombined(selection, root, shards, at, combinedAt);
+  } finally {
+    await rm(combinedAt, { force: true });
+  }
+}
+
+type Selection = typeof import('@variance-authority/sense/test-selection');
+
+async function landCombined(
+  selection: Selection,
+  root: string,
+  shards: readonly string[],
+  at: string,
+  combinedAt: string,
+): Promise<LandedJourneys> {
+  let combined;
+  try {
+    combined = selection.combineRecords(shards, combinedAt);
   } catch (error) {
     throw new OperatorError(messageOf(error), { cause: error });
   }
-  // A shard that measured nothing names its commit in the run that laid its
-  // cases, and is held to the fold's rule: one run, one commit. One that names
-  // none, as a record that crossed a checkout does, disagrees with nobody.
-  const named = read.flatMap(({ path, coverage }) => {
-    const commit = coverage?.commit ?? selection.lastCaseRunOf(selection.caseSectionsAt(path))?.commit;
-    return commit === undefined ? [] : [{ path, commit }];
-  });
-  const other = named.find((shard) => shard.commit !== named[0]!.commit);
-  if (other !== undefined) {
-    throw new OperatorError(
-      `${named[0]!.path} and ${other.path} disagree about the commit (\`${named[0]!.commit}\` against ` +
-        `\`${other.commit}\`), so they are not shards of one run and cannot be folded into one.`,
-    );
+  let folded: TestCoverage | undefined;
+  try {
+    folded = await selection.readTestCoverage(combinedAt);
+  } catch (error) {
+    if (!(error instanceof selection.RecordWithoutCoverage)) throw error;
   }
+  const measured = combined.shards.filter((shard) => shard.measured);
+  const unmeasured = combined.shards.flatMap((shard) => (shard.measured ? [] : shard.files));
+  // The one run the shards were: what the coverage recorded, and every file a
+  // shard that measured nothing ran, finished, so its cases retire the target's.
+  const run = folded === undefined && unmeasured.length === 0
+    ? undefined
+    : {
+        tests: [...(folded?.tests ?? []), ...unmeasured.map((file) => ({ file, complete: true }))],
+        ...(combined.commit == null ? {} : { commit: combined.commit }),
+        ...(folded === undefined ? {} : { modules: folded.modules }),
+      };
 
   // Each shard's own landing kept the install it ran on in the runs record
   // beside its snapshot, where that shard ran, and the fold ran on it only when
@@ -106,7 +112,10 @@ export async function landJourneys(
     ? undefined
     : selection.shardsInstall(
         await Promise.all(
-          measured.map(async ({ path, coverage }) => ({ tests: coverage, runs: await shardRuns(path) })),
+          measured.map(async (shard) => ({
+            tests: { ...(shard.commit == null ? {} : { commit: shard.commit }), tests: shard.files.map((file) => ({ file })) },
+            runs: await shardRuns(shard.path),
+          })),
         ),
       );
 
@@ -163,14 +172,18 @@ export async function landJourneys(
     // The index beside the snapshot was cut from the texts the snapshot names,
     // and a module no shard recorded is laid onto the cut its rows landed at.
     const texts = selection.textsOf(previous);
-    const { landing: cases, sections: laid } = selection.landCases(
+    const { landing, sections: laid } = selection.landCases(
       at,
       selection.caseSectionsAt(at),
       root,
-      read,
+      [{ path: combinedAt, ...(run === undefined ? {} : { coverage: run }) }],
       texts,
       previous?.commit,
     );
+    // The landing laid one record, which is every shard's.
+    const cases = 'laid' in landing
+      ? { ...landing, shards: landing.shards === 0 ? 0 : shards.length }
+      : { ...landing, shard: shards.join(', ') };
     const sections = selection.followRows(laid, landed, texts, selection.editsBetween(root, undefined, [previous?.commit, landed?.commit]));
     // Shards that measured nothing and kept no case this build reads, over no
     // coverage, leave nothing to write: the target stays as it was.
@@ -204,7 +217,7 @@ export async function landJourneys(
 
   return {
     at,
-    shards: read.length,
+    shards: shards.length,
     ...(landed?.commit === undefined ? {} : { commit: landed.commit }),
     observations: landed?.tests.length ?? 0,
     modules: landed?.modules.length ?? 0,

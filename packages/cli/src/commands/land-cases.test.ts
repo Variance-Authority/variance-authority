@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   caseSectionsAt,
   commitRunsFile,
-  encodeExecutionIndex,
+  encodeAsSetExecutionIndex,
   lastCaseRunOf,
   readTestCoverage,
   RecordWithoutCoverage,
@@ -117,7 +117,7 @@ describe('landJourneys and the run its shards were', () => {
       commit,
       tests: [{ file: test.file, complete: true, preconditions: [] }],
       modules: [probedModule([test.file])],
-    }, { index: encodeExecutionIndex({ tests: [test], modules: [{ file: 'src/total.ts', blocks: [block] }] }) });
+    }, { index: encodeAsSetExecutionIndex({ tests: [test], modules: [{ file: 'src/total.ts', blocks: [block] }] }) });
     return shard;
   }
 
@@ -220,7 +220,7 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     expect(last).toMatchObject({ commit: later, before: first });
   });
 
-  it('lays nothing of one whose cases this build cannot read and that names no run, and keeps the record as it was', async () => {
+  it('refuses one whose cases this build cannot read, by name, and keeps the record as it was', async () => {
     const { dir, first } = await published(home, { publish: false, record: wholeRecord });
     const record = testCoverageFile(dir, { suite: 'unit' });
     await ranWhole(record, first);
@@ -230,9 +230,7 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     await writeFile(shard, recordOfCases({ index: Buffer.from([0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]) }));
     expect(withoutCoverage(shard)).toBe(true);
 
-    const landed = await landJourneys(dir, [shard], record);
-
-    expect(landed.cases).toEqual({ laid: record, shards: 0 });
+    await expect(landJourneys(dir, [shard], record)).rejects.toThrow(`cannot read the case index of ${shard}`);
     expect(await readFile(record)).toEqual(before);
   });
 
@@ -244,13 +242,12 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     const at = await uncoveredShard(first, index, 'shard-a.bin');
     const other = await uncoveredShard('b'.repeat(40), index, 'shard-b.bin');
 
-    await expect(landJourneys(dir, [at, other], record)).rejects.toThrow(
-      `${at} and ${other} disagree about the commit (\`${first}\` against \`${'b'.repeat(40)}\`), so they are not shards of one run and cannot be folded into one.`,
-    );
+    // The combine takes the shards in the order of their digests, so either may be named first.
+    await expect(landJourneys(dir, [at, other], record)).rejects.toThrow(/shard-[ab]\.bin and .*shard-[ab]\.bin disagree about the commit/);
     expect(await readFile(record)).toEqual(before);
   });
 
-  it('folds the shards that measured something, and lays every shard\'s cases in the order they were named', async () => {
+  it('refuses a shard that kept cases beside one that kept none, as no one run keeps cases of only some files', async () => {
     const { dir, first } = await published(home, { publish: false, record: wholeRecord });
     const record = testCoverageFile(dir, { suite: 'unit' });
     const shard = await uncoveredShard(first, caseSectionsAt(record).index!);
@@ -263,10 +260,9 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
       modules: [],
     });
 
-    const landed = await landJourneys(dir, [shard, measured], record);
+    const before = await readFile(record);
 
-    expect(landed.shards).toBe(2);
-    expect(landed.cases).toEqual({ laid: record, shards: 1 });
-    expect((await readTestCoverage(record)).tests.map((test) => test.file)).toContain('test/other.test.ts');
+    await expect(landJourneys(dir, [shard, measured], record)).rejects.toThrow(/kept cases and .* kept none/);
+    expect(await readFile(record)).toEqual(before);
   });
 });

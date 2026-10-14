@@ -1,0 +1,284 @@
+use super::*;
+use crate::journey_format::{self, CaseExtras, EncodedModule, SetPool};
+use crate::journey_journal::{Test, FINISHED};
+use crate::journey_record::{Block, Module};
+use crate::record_fixture::{self as fixture, block, module, spec, test, Spec};
+
+fn named(records: &[&[u8]]) -> Vec<(String, Vec<u8>)> {
+    records.iter().enumerate().map(|(at, bytes)| (format!("shard-{at}.bin"), bytes.to_vec())).collect()
+}
+
+fn combined(records: &[&[u8]]) -> Result<Combined, String> {
+    combine_bytes(&named(records))
+}
+
+fn refused(records: &[&[u8]]) -> String {
+    combined(records).err().expect("the fold is refused")
+}
+
+fn two() -> (Vec<u8>, Vec<u8>) {
+    let first = spec(
+        vec![test("b.test.ts"), test("a.test.ts")],
+        vec![module("src/shared.ts", vec![block(0, &[0, 1]), block(2, &[1])]), module("src/a.ts", vec![block(0, &[1])])],
+    );
+    let second = spec(vec![test("c.test.ts")], vec![module("src/shared.ts", vec![block(0, &[0]), block(1, &[0])])]);
+    (fixture::write(&first), fixture::write(&second))
+}
+
+fn files(names: &[&str]) -> Vec<String> {
+    names.iter().map(|name| (*name).to_owned()).collect()
+}
+
+#[test]
+fn writes_the_same_bytes_whatever_order_the_shards_are_named_in() {
+    let (first, second) = two();
+    let forward = combined(&[&first, &second]).unwrap();
+    let backward = combined(&[&second, &first]).unwrap();
+    assert_eq!(forward.bytes, backward.bytes);
+    let again = combined(&[&forward.bytes]).unwrap();
+    assert_eq!(again.bytes, forward.bytes, "a combined record combines to itself");
+}
+
+#[test]
+fn unions_the_regions_of_a_module_two_shards_ran() {
+    let (first, second) = two();
+    let folded = combined(&[&second, &first]).unwrap();
+    let (tests, modules) = fixture::read(&folded.bytes);
+    let named: Vec<&str> = tests.iter().map(|(file, _, _)| file.as_str()).collect();
+    assert_eq!(named, ["a.test.ts", "b.test.ts", "c.test.ts"]);
+    assert_eq!(tests[0].2, Some(9));
+    let shared = &modules.iter().find(|(file, _, _)| file == "src/shared.ts").unwrap().2;
+    let regions: Vec<(u32, Vec<String>)> = shared.iter().map(|(ordinal, called, _)| (*ordinal, called.clone())).collect();
+    assert_eq!(
+        regions,
+        [(0, files(&["a.test.ts", "b.test.ts", "c.test.ts"])), (1, files(&["c.test.ts"])), (2, files(&["a.test.ts"]))]
+    );
+    assert_eq!((folded.result.tests, folded.result.modules, folded.result.crossings), (3, 2, 6.0));
+    // Each shard's files come back beside its path, in the order the shards were named.
+    assert_eq!(folded.result.shards[0].files, files(&["c.test.ts"]));
+    assert_eq!(folded.result.shards[1].files, files(&["a.test.ts", "b.test.ts"]));
+    assert_eq!(folded.result.commit.as_deref(), Some("c0ffee"));
+}
+
+#[test]
+fn refuses_a_test_file_two_shards_recorded() {
+    let one = fixture::write(&spec(vec![test("a.test.ts")], Vec::new()));
+    let other = fixture::write(&spec(vec![test("a.test.ts"), test("b.test.ts")], Vec::new()));
+    assert!(refused(&[&one, &other]).contains("`a.test.ts` was recorded by"));
+}
+
+#[test]
+fn refuses_shards_of_two_commits_or_two_recipes() {
+    let at = |commit: Option<&'static str>, instrumentation: &'static str| {
+        let mut held = spec(vec![test(if commit.is_some() { "a.test.ts" } else { "b.test.ts" })], Vec::new());
+        held.commit = commit;
+        held.instrumentation = instrumentation;
+        fixture::write(&held)
+    };
+    let message = refused(&[&at(Some("c0ffee"), "istanbul"), &at(Some("beef"), "istanbul")]);
+    assert!(message.contains("disagree about the commit"), "{message}");
+    let message = refused(&[&at(Some("c0ffee"), "istanbul"), &at(None, "istanbul")]);
+    assert!(message.contains("(`c0ffee` against `(none)`)") || message.contains("(`(none)` against `c0ffee`)"), "{message}");
+    let mut other = spec(vec![test("b.test.ts")], Vec::new());
+    other.instrumentation = "v8";
+    let message = refused(&[&at(Some("c0ffee"), "istanbul"), &fixture::write(&other)]);
+    assert!(message.contains("disagree about the instrumentation"), "{message}");
+}
+
+#[test]
+fn refuses_a_module_two_shards_built_from_different_text() {
+    let mut changed = module("src/a.ts", vec![block(0, &[0])]);
+    changed.source = "text-2";
+    let one = fixture::write(&spec(vec![test("a.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]));
+    let other = fixture::write(&spec(vec![test("b.test.ts")], vec![changed]));
+    assert!(refused(&[&one, &other]).contains("`src/a.ts` is different source in"));
+}
+
+#[test]
+fn refuses_a_region_two_shards_describe_differently() {
+    let mut moved = block(0, &[0]);
+    moved.start = 40;
+    let one = fixture::write(&spec(vec![test("a.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]));
+    let other = fixture::write(&spec(vec![test("b.test.ts")], vec![module("src/a.ts", vec![moved])]));
+    assert!(refused(&[&one, &other]).contains("`src/a.ts` region 0 is described differently"));
+}
+
+#[test]
+fn answers_a_module_from_the_shards_that_measured_it() {
+    let mut unread = module("src/a.ts", vec![block(5, &[0])]);
+    unread.instrumented = false;
+    let unmeasured = fixture::write(&spec(vec![test("a.test.ts")], vec![unread]));
+    let measured = fixture::write(&spec(vec![test("b.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]));
+    let (_, modules) = fixture::read(&combined(&[&unmeasured, &measured]).unwrap().bytes);
+    assert_eq!(modules, [("src/a.ts".to_owned(), true, vec![(0, files(&["b.test.ts"]), Vec::new())])]);
+    // Where no shard measured it, the shards' rows are one union all the same.
+    let mut again = module("src/a.ts", vec![block(6, &[0])]);
+    again.instrumented = false;
+    let other = fixture::write(&spec(vec![test("b.test.ts")], vec![again]));
+    let (_, modules) = fixture::read(&combined(&[&other, &unmeasured]).unwrap().bytes);
+    let ordinals: Vec<u32> = modules[0].2.iter().map(|region| region.0).collect();
+    assert_eq!((modules[0].1, ordinals), (false, vec![5, 6]));
+}
+
+#[test]
+fn reads_the_layouts_before_durations_and_before_cases() {
+    let mut untimed = spec(vec![test("a.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]);
+    untimed.version = LAYOUT.coverage.untimed;
+    let mut uncased = spec(vec![test("b.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]);
+    uncased.version = LAYOUT.coverage.uncased;
+    let folded = combined(&[&fixture::write(&untimed), &fixture::write(&uncased)]).unwrap();
+    let (tests, _) = fixture::read(&folded.bytes);
+    assert_eq!(tests, [("a.test.ts".to_owned(), true, None), ("b.test.ts".to_owned(), true, Some(9))]);
+    assert_eq!(journey_columns::decode_any(&folded.bytes).unwrap().0, LAYOUT.coverage.format);
+}
+
+#[test]
+fn refuses_a_version_or_a_section_this_build_does_not_read() {
+    let refused_version = refused(&[&journey_columns::encode(Vec::new(), 7).unwrap()]);
+    assert!(refused_version.contains("unsupported record version: 7"), "{refused_version}");
+    let mut held = spec(vec![test("a.test.ts")], Vec::new());
+    held.parts.push(("index", Vec::new()));
+    let mut bytes = fixture::write(&held);
+    // Rename the part to one no layout names, keeping the framing intact.
+    let at = bytes.windows(5).position(|window| window == b"cases").unwrap();
+    bytes[at..at + 5].copy_from_slice(b"caxes");
+    assert!(refused(&[&bytes]).contains("a section this build does not know: caxes"));
+}
+
+#[test]
+fn refuses_hostile_records_without_reading_past_them() {
+    let good = fixture::write(&spec(vec![test("a.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]));
+    // Sections end on an 8-byte boundary, so a cut of eight bytes always reaches the data.
+    for cut in [0, 3, 8, good.len() / 2, good.len() - 8] {
+        assert!(combined(&[&good[..cut]]).is_err(), "a record cut at {cut} is refused");
+    }
+    let (_, decoded) = journey_columns::decode_any(&good).unwrap();
+    let rewrite = |section: &'static str, values: Vec<u32>| {
+        let mut columns: Vec<Column> = Vec::new();
+        for name in &LAYOUT.coverage.sections {
+            let name: &'static str = LAYOUT.coverage.sections.iter().find(|held| *held == name).unwrap().as_str();
+            columns.push(if name == section {
+                Column::Words(name, values.clone())
+            } else if ["strings.blob", "sets.blob", "tests.complete", "modules.instrumented", "blocks.kind", "blocks.source"].contains(&name) {
+                Column::Bytes(name, decoded.bytes(name).unwrap())
+            } else {
+                Column::Words(name, decoded.words(name).unwrap())
+            });
+        }
+        journey_columns::encode(columns, LAYOUT.coverage.format).unwrap()
+    };
+    for (section, values) in [
+        ("tests.path", vec![u32::MAX]),
+        ("blocks.set", vec![9]),
+        ("modules.blocks", vec![0, 5]),
+        ("strings.off", vec![0, 1, u32::MAX]),
+        ("sets.off", vec![1]),
+        ("tests.preconditions", vec![0]),
+    ] {
+        let message = refused(&[&rewrite(section, values)]);
+        assert!(message.contains(section), "{section}: {message}");
+    }
+}
+
+#[test]
+fn folds_sets_of_every_spelling_and_width() {
+    // Over the narrow limit a member takes four bytes; a run of consecutive
+    // tests is stored as runs, a dense scatter as bits and a sparse one as a list.
+    let count = LAYOUT.sets.narrow as u32 + 8;
+    let names: Vec<&'static str> = (0..count).map(|at| &*Box::leak(format!("t{at:06}.test.ts").into_boxed_str())).collect();
+    let (left, right) = names.split_at(names.len() / 2);
+    let runs: Vec<u32> = (0..left.len() as u32).collect();
+    let bits: Vec<u32> = (0..right.len() as u32).step_by(3).collect();
+    let list = [1, right.len() as u32 - 1];
+    let one = spec(left.iter().map(|name| test(name)).collect(), vec![module("src/a.ts", vec![block(0, &runs), block(1, &[2])])]);
+    let other = spec(right.iter().map(|name| test(name)).collect(), vec![module("src/a.ts", vec![block(0, &bits), block(1, &list)])]);
+    let (one, other) = (fixture::write(&one), fixture::write(&other));
+    let folded = combined(&[&one, &other]).unwrap();
+    assert_eq!(folded.bytes, combined(&[&other, &one]).unwrap().bytes);
+    let (_, modules) = fixture::read(&folded.bytes);
+    let mut expected: Vec<String> = left.iter().map(|name| (*name).to_owned()).collect();
+    expected.extend(bits.iter().map(|at| right[*at as usize].to_owned()));
+    assert_eq!(modules[0].2[0].1, expected);
+    assert_eq!(modules[0].2[1].1, files(&[left[2], right[1], right[right.len() - 1]]));
+}
+
+fn cases(file: &str, runner: &str) -> Vec<u8> {
+    let tests = [Test {
+        id: format!("{file} > adds"),
+        file: file.to_owned(),
+        name: "adds".to_owned(),
+        project: None,
+        runner: Some(runner.to_owned()),
+        settled: FINISHED,
+        preconditions: None,
+    }];
+    let regions = Module {
+        id: "src/a.ts".to_owned(),
+        file: "src/a.ts".to_owned(),
+        blocks: vec![Block { kind: "function".to_owned(), name: "f0".to_owned(), path: "f0".to_owned(), start_line: 1, end_line: 1, source: true }],
+        owners: None,
+    };
+    let mut sets = SetPool::new(1);
+    let called = vec![sets.intern(&[0])];
+    let modules = [EncodedModule { module: &regions, called: &called, loaded: &[false] }];
+    journey_format::encode(&tests, &CaseExtras::default(), &modules, &sets, None).unwrap()
+}
+
+fn last(commit: &str, files: &[&str], cases: &[&str]) -> Vec<u8> {
+    let quoted = |values: &[&str]| values.iter().map(|value| format!("\"{value}\"")).collect::<Vec<_>>().join(",");
+    format!("{{\"commit\":\"{commit}\",\"at\":\"2026-01-01T00:00:00.000Z\",\"files\":[{}],\"cases\":[{}]}}", quoted(files), quoted(cases)).into_bytes()
+}
+
+fn cased(file: &'static str, runner: &str) -> Spec {
+    let mut held = spec(vec![test(file)], vec![module("src/a.ts", vec![block(0, &[0])])]);
+    held.parts = vec![("index", cases(file, runner)), ("last", last("c0ffee", &[file], &[&format!("{file} > adds")]))];
+    held
+}
+
+#[test]
+fn folds_the_cases_beside_the_coverage_through_the_one_case_fold() {
+    let (one, other) = (fixture::write(&cased("a.test.ts", "1")), fixture::write(&cased("b.test.ts", "1")));
+    let folded = combined(&[&other, &one]).unwrap();
+    assert_eq!(folded.bytes, combined(&[&one, &other]).unwrap().bytes);
+    assert_eq!(folded.result.cases, Some(2));
+    let record = record_coverage::read(&folded.bytes).unwrap();
+    let last: serde_json::Value = serde_json::from_slice(record.parts.last.as_deref().unwrap()).unwrap();
+    assert_eq!(last["files"], serde_json::json!(["a.test.ts", "b.test.ts"]));
+    assert_eq!(last["cases"], serde_json::json!(["a.test.ts > adds", "b.test.ts > adds"]));
+    let index = case_shard::read_shard(record.parts.index.as_deref().unwrap(), &mut HashMap::new()).unwrap();
+    assert_eq!(index.tests.len(), 2);
+}
+
+#[test]
+fn writes_a_record_of_cases_alone_when_no_shard_measured_coverage() {
+    let alone = |file: &str| {
+        let columns = vec![
+            Column::Plain(LAYOUT.coverage.part("index"), cases(file, "1")),
+            Column::Plain(LAYOUT.coverage.part("last"), last("c0ffee", &[file], &[])),
+        ];
+        journey_columns::encode(columns, LAYOUT.coverage.format).unwrap()
+    };
+    let folded = combined(&[&alone("a.test.ts"), &alone("b.test.ts")]).unwrap();
+    let record = record_coverage::read(&folded.bytes).unwrap();
+    assert!(record.coverage.is_none());
+    assert_eq!(folded.result.cases, Some(2));
+    assert_eq!(folded.result.commit.as_deref(), Some("c0ffee"));
+    // A shard that measured nothing names the files its last run ran, which the landing finishes.
+    assert_eq!(folded.result.shards[1].files, files(&["b.test.ts"]));
+    assert!(!folded.result.shards[1].measured);
+}
+
+#[test]
+fn refuses_shards_of_which_only_some_kept_cases() {
+    let bare = fixture::write(&spec(vec![test("b.test.ts")], Vec::new()));
+    let message = refused(&[&fixture::write(&cased("a.test.ts", "1")), &bare]);
+    assert!(message.contains("kept none"), "{message}");
+}
+
+#[test]
+fn a_record_that_is_not_there_is_refused_by_name() {
+    let missing = std::env::temp_dir().join(format!("variance-combine-missing-{}.bin", std::process::id()));
+    let path = missing.to_string_lossy().into_owned();
+    let error = combine(&[path.clone()]).err().expect("the combine is refused");
+    assert_eq!(error, format!("there is no record at {path}"));
+}

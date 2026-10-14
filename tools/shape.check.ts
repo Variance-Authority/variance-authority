@@ -145,7 +145,7 @@ describe('nothing grows into a monster', () => {
     // FIXME: `journey.rs` is 6 lines over the limit, holding the fold's entry
     // points, its replay visitors and its bit-set helpers in one file. Moving one
     // of those groups into a module of its own closes this.
-    ['packages/sense/native/src/journey.rs', 506],
+    ['packages/sense/native/src/journey.rs', 504],
   ]);
 
   /** Lines as `wc -l` counts them, plus a last line that has no newline after it. */

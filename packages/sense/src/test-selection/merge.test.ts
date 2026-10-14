@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { INSTRUMENTATION_ID } from '../instrument/index.js';
-import { existingCoverage, foldTestCoverage, mergeCoverage } from './merge.js';
+import { existingCoverage, mergeCoverage } from './merge.js';
 import type { TestCoverage } from './index.js';
 
 const BASELINE = '1111111111111111111111111111111111111111';
@@ -292,138 +292,6 @@ function rewritten(coverage: TestCoverage, digest: string): TestCoverage {
     })),
   };
 }
-
-describe('foldTestCoverage', () => {
-  /** One shard: its own test file whole, and `src/decide.ts` entered by it. */
-  const shard = (path: string, test: string, commit = BASELINE) => ({
-    path,
-    coverage: at(commit, test),
-  });
-
-  it('is the snapshot the unsharded run would have written, in any order', () => {
-    // Two shards of one run each hold one test file and both loaded the same
-    // module. The union names both tests on the region, and names them the same
-    // way whichever shard is read first: a fan-in that depended on order would
-    // be a layer, and a layer retires what the later side re-recorded.
-    const alpha = shard('shard-1/coverage.bin', 'test/alpha.test.ts');
-    const beta = shard('shard-2/coverage.bin', 'test/beta.test.ts');
-
-    const folded = foldTestCoverage([alpha, beta]);
-
-    expect(folded.commit).toBe(BASELINE);
-    expect(folded.tests.map((test) => test.file)).toEqual([
-      'test/alpha.test.ts',
-      'test/beta.test.ts',
-    ]);
-    expect(folded.modules).toHaveLength(1);
-    expect(folded.modules[0]!.blocks[0]!.testFiles).toEqual([
-      'test/alpha.test.ts',
-      'test/beta.test.ts',
-    ]);
-    expect(foldTestCoverage([beta, alpha])).toEqual(folded);
-  });
-
-  it('carries a module only one shard loaded, with only that shard\'s crossings', () => {
-    const alpha = shard('shard-1/coverage.bin', 'test/alpha.test.ts');
-    const beta = shard('shard-2/coverage.bin', 'test/beta.test.ts');
-    const only = {
-      ...beta,
-      coverage: {
-        ...beta.coverage,
-        modules: beta.coverage.modules.map((module) => ({ ...module, file: 'src/only.ts' })),
-      },
-    };
-
-    const folded = foldTestCoverage([alpha, only]);
-
-    expect(folded.modules.map((module) => module.file)).toEqual(['src/decide.ts', 'src/only.ts']);
-    expect(folded.modules[0]!.blocks[0]!.testFiles).toEqual(['test/alpha.test.ts']);
-    expect(folded.modules[1]!.blocks[0]!.testFiles).toEqual(['test/beta.test.ts']);
-  });
-
-  it('keeps the measured row over a shard that could not instrument the module', () => {
-    // The row that says *this build never measured this module* is a sentence
-    // about that build. It says nothing about the test another shard watched
-    // enter the module, so the measurement stands, in either order.
-    const alpha = shard('shard-1/coverage.bin', 'test/alpha.test.ts');
-    const beta = shard('shard-2/coverage.bin', 'test/beta.test.ts');
-    const unread = {
-      ...beta,
-      coverage: {
-        ...beta.coverage,
-        modules: beta.coverage.modules.map((module) => ({ ...module, instrumented: false, blocks: [] })),
-      },
-    };
-
-    const folded = foldTestCoverage([alpha, unread]);
-
-    expect(folded.modules).toEqual(alpha.coverage.modules);
-    expect(folded.tests.every((test) => test.complete)).toBe(true);
-    expect(foldTestCoverage([unread, alpha])).toEqual(folded);
-  });
-
-  it('refuses shards that disagree about where they stand, by name', () => {
-    expect(() =>
-      foldTestCoverage([
-        shard('shard-1/coverage.bin', 'test/alpha.test.ts', BASELINE),
-        shard('shard-2/coverage.bin', 'test/beta.test.ts', LOCAL),
-      ]),
-    ).toThrow(/shard-1\/coverage\.bin and shard-2\/coverage\.bin disagree about the commit/);
-
-    // Absent is a value. A shard recorded outside a checkout cannot say where
-    // it stands, and folding it under a commit it never named would.
-    expect(() =>
-      foldTestCoverage([
-        shard('shard-1/coverage.bin', 'test/alpha.test.ts', BASELINE),
-        { path: 'shard-2/coverage.bin', coverage: at(undefined, 'test/beta.test.ts') },
-      ]),
-    ).toThrow(/disagree about the commit .*\(none\)/);
-  });
-
-  it('refuses shards recorded under different probe recipes, by name', () => {
-    const alpha = shard('shard-1/coverage.bin', 'test/alpha.test.ts');
-    const beta = shard('shard-2/coverage.bin', 'test/beta.test.ts');
-
-    expect(() =>
-      foldTestCoverage([
-        alpha,
-        { ...beta, coverage: { ...beta.coverage, instrumentation: 'other-instrumentation' } },
-      ]),
-    ).toThrow(/disagree about the instrumentation/);
-  });
-
-  it('refuses a test file two shards both recorded', () => {
-    expect(() =>
-      foldTestCoverage([
-        shard('shard-1/coverage.bin', 'test/alpha.test.ts'),
-        shard('shard-2/coverage.bin', 'test/alpha.test.ts'),
-      ]),
-    ).toThrow(/`test\/alpha\.test\.ts` was recorded by shard-1\/coverage\.bin and again by shard-2\/coverage\.bin/);
-  });
-
-  it('refuses a module two shards built from different source', () => {
-    const alpha = shard('shard-1/coverage.bin', 'test/alpha.test.ts');
-    const beta = shard('shard-2/coverage.bin', 'test/beta.test.ts');
-    const rebuilt = {
-      ...beta,
-      coverage: {
-        ...beta.coverage,
-        modules: beta.coverage.modules.map((module) => ({ ...module, sourceDigest: 'source:other' })),
-      },
-    };
-
-    expect(() => foldTestCoverage([alpha, rebuilt])).toThrow(
-      /`src\/decide\.ts` is different source in shard-1\/coverage\.bin and shard-2\/coverage\.bin/,
-    );
-  });
-
-  it('is the shard itself when there is one, and nothing when there are none', () => {
-    const alpha = shard('shard-1/coverage.bin', 'test/alpha.test.ts');
-
-    expect(foldTestCoverage([alpha])).toBe(alpha.coverage);
-    expect(() => foldTestCoverage([])).toThrow(/at least one/);
-  });
-});
 
 describe('existingCoverage', () => {
   it('treats a file it cannot decode as one that is not there', async () => {

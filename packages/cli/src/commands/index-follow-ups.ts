@@ -142,15 +142,24 @@ function alive(pid: number): boolean {
 const READS_THE_INDEX_ALONE: ReadonlySet<Parsed['command']> = new Set(['select']);
 
 /**
+ * The commands that read nothing `variance index` writes: `journeys merge`
+ * combines the records it is named and opens nothing else. They do not wait.
+ */
+function readsNoIndex(parsed: Parsed): boolean {
+  return parsed.command === 'journeys' && parsed.operation === 'merge';
+}
+
+/**
  * Wait for the follow-ups a detached `index` is making, before any command reads
  * them; the process making them is the one command that does not wait. A process
  * that is gone left them unmade, so they are made here, on stderr, before the
  * command runs — unless the command is `index`, which is about to make them anyway.
  * A command that reads the index alone waits for the fold and no further, and
- * leaves the follow-ups of a gone process to the next command that reads them.
+ * leaves the follow-ups of a gone process to the next command that reads them;
+ * one that reads no index does not wait at all.
  */
 export async function settleFollowUps(parsed: Parsed, streams: { err(text: string): void }): Promise<void> {
-  if (parsed.command === 'index' && parsed.followUps === true) return;
+  if ((parsed.command === 'index' && parsed.followUps === true) || readsNoIndex(parsed)) return;
   const indexing = parsed.command === 'index';
   const cwd = process.cwd();
   const index = sourceIndexPath(cwd);

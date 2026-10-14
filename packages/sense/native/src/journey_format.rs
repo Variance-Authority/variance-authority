@@ -6,13 +6,13 @@ use crate::journey_columns::{self, Column};
 use crate::journey_journal::Test;
 use crate::journey_record::{Module, NO_OWNER};
 use crate::order;
+use crate::record_layout::LAYOUT;
 
-/// Version 3 carries load time as one flag per region rather than as the set of
-/// tests that loaded it. A region that ran while its module evaluated ran for
-/// whoever imported the module first, so the set named an import order and
-/// not a test; the import graph answers that question, and the flag says when
-/// to ask it.
-pub const FORMAT: u8 = 3;
+// The index's version is `LAYOUT.cases.format`. Version 3 carries load time
+// as one flag per region rather than as the set of tests that loaded it. A
+// region that ran while its module evaluated ran for whoever imported the
+// module first, so the set named an import order and not a test; the import
+// graph answers that question, and the flag says when to ask it.
 
 pub struct SetPool {
     test_count: usize,
@@ -62,7 +62,8 @@ impl SetPool {
 }
 
 fn encode_set(members: &[u32], test_count: usize) -> Vec<u8> {
-    let width = if test_count < 0x1_0000 { 2 } else { 4 };
+    let sets = &LAYOUT.sets;
+    let width = sets.width(test_count);
     let words = (test_count + 31) >> 5;
     let mut runs = 0;
     for at in 0..members.len() {
@@ -76,7 +77,7 @@ fn encode_set(members: &[u32], test_count: usize) -> Vec<u8> {
     let smallest = list_size.min(bits_size).min(runs_size);
     if smallest == bits_size {
         let mut out = vec![0; bits_size];
-        out[0] = 1;
+        out[0] = sets.bits;
         for test in members {
             let at = 1 + ((*test as usize >> 5) * 4);
             let mut word = u32::from_le_bytes(out[at..at + 4].try_into().unwrap_or_default());
@@ -87,7 +88,7 @@ fn encode_set(members: &[u32], test_count: usize) -> Vec<u8> {
     }
     if smallest == runs_size {
         let mut out = Vec::with_capacity(runs_size);
-        out.push(2);
+        out.push(sets.runs);
         let mut at = 0;
         while at < members.len() {
             let first = members[at];
@@ -102,7 +103,7 @@ fn encode_set(members: &[u32], test_count: usize) -> Vec<u8> {
         return out;
     }
     let mut out = Vec::with_capacity(list_size);
-    out.push(0);
+    out.push(sets.list);
     for member in members {
         number(&mut out, *member, width);
     }
@@ -170,12 +171,29 @@ pub fn read_gaps(decoded: &journey_columns::Decoded, strings: &[String]) -> Resu
     }))
 }
 
+/// What a case carries beyond its name and how it settled, each column written
+/// only where some case has it, and one row a case where it is written.
+#[derive(Default)]
+pub struct CaseExtras {
+    /// Each case's duration in whole milliseconds; empty where no case was timed.
+    pub durations: Vec<Option<u32>>,
+    /// Each case's lines as stored, empty for a case that recorded none; no
+    /// rows where no case recorded any.
+    pub lines: Vec<Vec<u8>>,
+}
+
 pub fn encode(
     tests: &[Test],
+    extras: &CaseExtras,
     modules: &[EncodedModule<'_>],
     sets: &SetPool,
     gaps: Option<&Gaps>,
 ) -> Result<Vec<u8>, String> {
+    let timed = extras.durations.iter().any(Option::is_some);
+    let lined = extras.lines.iter().any(|lines| !lines.is_empty());
+    if (timed && extras.durations.len() != tests.len()) || (lined && extras.lines.len() != tests.len()) {
+        return Err("case columns disagree with the cases".to_owned());
+    }
     let mut strings = Vec::new();
     let said: Vec<Option<String>> = tests
         .iter()
@@ -295,6 +313,21 @@ pub fn encode(
         let words = said.iter().map(|text| text.as_deref().map_or(case_preconditions::UNHEARD, id)).collect();
         columns.push(Column::Words(case_preconditions::COLUMN, words));
     }
+    let cases = &LAYOUT.cases;
+    if timed {
+        let words = extras.durations.iter().map(|duration| duration.unwrap_or(LAYOUT.coverage.no_duration)).collect();
+        columns.push(Column::Words(cases.duration.as_str(), words));
+    }
+    if lined {
+        let mut blob = Vec::new();
+        let mut offsets = vec![0_u32];
+        for lines in &extras.lines {
+            blob.extend_from_slice(lines);
+            offsets.push(u32::try_from(blob.len()).map_err(|_| "case lines exceed 4 GiB".to_owned())?);
+        }
+        columns.push(Column::Blob(cases.lines.as_str(), blob, offsets.clone()));
+        columns.push(Column::Words(cases.lines_offsets.as_str(), offsets));
+    }
     if let Some(gaps) = gaps {
         let ids = |names: &[String]| names.iter().map(|name| id(name)).collect::<Vec<u32>>();
         columns.push(Column::Words(UNRECORDED, ids(&gaps.unrecorded)));
@@ -304,5 +337,5 @@ pub fn encode(
             columns.push(Column::Words(SILENT, ids(silent)));
         }
     }
-    journey_columns::encode(columns, FORMAT)
+    journey_columns::encode(columns, LAYOUT.cases.format)
 }

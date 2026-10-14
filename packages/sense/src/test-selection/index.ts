@@ -18,7 +18,7 @@ import type {
   SourcePoint,
   SourceRegion,
 } from './at-source.js';
-import { foldTestCoverage, mergeCoverage, type CoverageShard } from './merge.js';
+import { mergeCoverage } from './merge.js';
 import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
 import {
   narrowByExecutionFromView,
@@ -70,6 +70,7 @@ export {
   isEncodedExecutionIndex,
 } from './execution-format.js';
 export { mergeExecutionIndexes } from './execution-merge.js';
+export { combineRecords, type CombinedRecord, type CombinedShard } from './record-combine.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
 export { encodeAsSetExecutionIndex, journeyGaps, openSetColumns, type JourneyGaps, type SetColumns, type StringTable, type TestColumns } from './execution-set-format.js';
 export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
@@ -96,7 +97,7 @@ export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
 export { selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
 export { eitherFace, indexFaces, type Face, type Faces, type ReachThrough } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
-export { foldTestCoverage, journeyDivergences, mergeCoverage };
+export { journeyDivergences, mergeCoverage };
 export {
   CACHE_CONFIG,
   cacheLayers,
@@ -209,7 +210,6 @@ export {
   type SuiteChange,
   type SuiteCount,
 } from './coverage-count.js';
-export type { CoverageShard };
 
 /**
  * The lines of the source a region was written on, inclusive — or neither.
@@ -362,8 +362,8 @@ export interface DeviationOptions {
  * binary artifact, and a consumer who cannot decode it cannot see the evidence
  * its own runs produced, only the two summaries this module chose to compute.
  *
- * It is the counterpart to {@link writeTestCoverage}; `mergeCoverage` and
- * `foldTestCoverage` take and return this same shape between the two.
+ * It is the counterpart to {@link writeTestCoverage}; `mergeCoverage` takes and
+ * returns this same shape between the two.
  */
 export async function readTestCoverage(file: string): Promise<TestCoverage> {
   return decodeTestCoverage(await readFile(file));

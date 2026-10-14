@@ -5,6 +5,7 @@ import { decodeRecordedEyes, readableEyes, type EyesSection } from './eyes-recor
 import { invalid } from './format-validation.js';
 import { DURATION, FORMAT, framedHeader, NAMES, sections, UNCASED_FORMAT, validSections, type Header, type Section, type Stored } from './format-layout.js';
 import type { Bytes } from './columns.js';
+import { LAYOUT } from './record-layout.js';
 
 /**
  * What a run recorded about its cases, carried inside the record its coverage
@@ -36,7 +37,7 @@ export interface CaseSections {
   readonly eyes?: Uint8Array;
 }
 
-const PARTS = { index: 'cases', before: 'cases.before', last: 'cases.last', eyes: 'eyes' } as const;
+const PARTS = Object.fromEntries(LAYOUT.coverage.parts) as Readonly<Record<keyof CaseSections, string>>;
 const ALL = Object.keys(PARTS) as readonly (keyof CaseSections)[];
 const KNOWN: ReadonlySet<string> = new Set<string>([...NAMES, DURATION, ...Object.values(PARTS)]);
 

@@ -69,21 +69,22 @@ one answers.
 
 ## Combine CI shard records
 
-To combine records written by `withTestSelection` without computing a journey
-comparison, name every shard and an output file:
+To combine records written by `withTestSelection` into the one record an
+unsharded run would have written, name every shard and an output file:
 
 ```bash
 variance journeys merge shard-1/coverage.bin shard-2/coverage.bin \
-  --into artifacts/coverage.bin --root /work/checkout
+  --into artifacts/coverage.bin
 ```
 
-No visual project configuration is needed. `--root` names the source checkout
-and defaults to the working directory; its test files must be present, or
-landing retires their cases. Shard and output paths resolve from the working
-directory. The existing output, when present, is layered under the shards.
-The merge preserves case sections for `distill` and refuses overlapping test
-files, different commits or different probe recipes. `journeys stitch` reads
-journey-only artifacts instead, which lack the per-file loads `distill` needs.
+The merge reads the shards and nothing else: no configuration, no checkout, no
+source index. Paths resolve from the working directory. The output is replaced,
+not layered over, and is the same bytes whatever order the shards are named in.
+It keeps the case sections for `distill` and refuses overlapping test files,
+different commits, different probe recipes, and a shard that kept cases beside
+one that kept none. Land the result with `variance journeys <record>`.
+`journeys stitch` reads journey-only artifacts instead, which lack the per-file
+loads `distill` needs.
 
 ## From the command line
 

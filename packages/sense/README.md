@@ -1646,15 +1646,16 @@ the suite it would have run anyway.
 A suite too large for one machine runs across N jobs and ends with N snapshots,
 each a whole observation of its own test files and a partial one of every module
 they share. Every question is about the suite, and no shard can answer it.
-`foldTestCoverage` is the union the unsharded run would have written, and it is
-the same union in any order:
+`combineRecords` writes the one record the unsharded run would have written,
+coverage and cases together, and the same bytes in any order. It runs in the
+native addon and reads nothing but the shards:
 
 ```ts
 import { randomUUID } from 'node:crypto';
 import { rename, rm } from 'node:fs/promises';
 import {
   caseSectionsAt,
-  foldTestCoverage,
+  combineRecords,
   landCases,
   mergeCoverage,
   readTestCoverage,
@@ -1664,14 +1665,9 @@ import {
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
 
-const shards = await Promise.all(
-  ['shard-1/coverage.bin', 'shard-2/coverage.bin'].map(async (path) => ({
-    path,
-    coverage: await readTestCoverage(path),
-  })),
-);
-
-const suite = foldTestCoverage(shards);
+const combined = 'artifacts/coverage.bin';
+const { commit, tests } = combineRecords(['shard-1/coverage.bin', 'shard-2/coverage.bin'], combined);
+const suite = await readTestCoverage(combined);
 
 const file = testCoverageFile(process.cwd());
 await seedTestCoverage(file, process.cwd());
@@ -1683,6 +1679,7 @@ const landed = await withIndexLock(file, async () => {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
+  const shards = [{ path: combined, coverage: suite }];
   const { sections } = landCases(file, previous === undefined ? {} : caseSectionsAt(file), process.cwd(), shards);
   try {
     await writeTestCoverage(staged, mergeCoverage(previous, suite), sections);
@@ -1692,13 +1689,17 @@ const landed = await withIndexLock(file, async () => {
   }
 });
 if (!landed.held) throw new Error(`another process is writing ${file}`);
+console.log(`${tests} test files at ${commit ?? 'no commit'}`);
 ```
 
 Record each shard through the ordinary seams with `coverageFile` pointing at
-that job's artifact, and fold the artifacts in a job of their own. Each
-shard's record carries its cases, so the artifact is the one file. `landCases`
-lays each shard's cases over the ones `file` holds, in the order the shards
-are named, and returns them for the record you write. If a shard ran a test
+that job's artifact, and combine the artifacts in a job of their own. Each
+shard's record carries its cases, so the artifact is the one file, and the
+combined record carries the cases of every shard. `combineRecords` refuses, by
+name, shards that were not one run: different commits or probe recipes, a test
+file two shards both recorded, a shard that kept cases beside one that kept
+none, or a part it cannot read. `landCases` lays the combined record's cases
+over the ones `file` holds, and returns them for the record you write. If a shard ran a test
 file to the end and kept no cases, it returns none, because nothing then
 records which of that file's cases ran a line.
 
