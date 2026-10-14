@@ -59,9 +59,8 @@ fires, spliced at UTF-16 offsets; nothing is re-printed. It returns the probed
 text and the map from it back to the transformed text. When no transform
 changed the text, the call is `instrument`.
 
-A region that ran is never recorded as not running, but where a compiler
-moved the code in front of a region with no origin into a function of its
-own, called later or never; some regions are over-charged. Every authored region is fired by something, and where the map
+A region that ran is never recorded as not running; some regions are
+over-charged. Every authored region is fired by something, and where the map
 cannot say which code runs it, it is fired by code that runs on every path
 that can reach it, up to the module's load.
 

@@ -32,7 +32,10 @@ require the probe text to sit in front of the compilers.
 
 Prior art places in two ways. Istanbul instruments source as one Babel
 transform among the project's, so where its counters sit against a compiler
-depends on plugin order. V8 coverage (`c8`, Vitest's `v8` provider) counts the
+depends on plugin order: `babel-plugin-istanbul` listed ahead of a compiler is
+this defect, and `vite-plugin-istanbul` takes `enforce: 'post'` to avoid it.
+React Compiler's own documentation asks to run first in a Babel pipeline, so
+any probe in front of it is read as the component. V8 coverage (`c8`, Vitest's `v8` provider) counts the
 engine's output and maps it back through the composed source map, after every
 transform. This decision takes V8's placement and keeps regions cut from the
 source, as Istanbul's are.
@@ -52,7 +55,7 @@ source map. A map that would place a probe on the wrong code is never used.**
    loop or case a compiler wrote, which no code from one of the same kind sits
    directly in, names nothing of its own: a memoising compiler's cache check
    is skipped on a cache hit, so the code it holds fires in the region around
-   it.
+   it, and so does a branch the author wrote inside it.
 
 2. **The nearest origin is an over-approximation, and never an
    under-approximation.** An authored region no origin falls in, because an
@@ -108,11 +111,10 @@ source map. A map that would place a probe on the wrong code is never used.**
 - The placement pays a second parse and a map read: about 0.4 ms a module under
   a Vite dev server and 0.07 ms under Jest, rounded, on one machine.
 - A test can be selected for a region it did not run. It is never left
-  unselected for one it ran, with one exception: a region with no origin of
-  its own is fired at the entry of the transformed function holding the code in
-  front of it, and when a compiler moved that code into a function of its own,
-  such as a closure called later or not at all, the region can run without
-  that function's entry running.
+  unselected for one it ran: a region with no origin of its own is fired at
+  the entry of the function around the code in front of it, past any function
+  a compiler wrote around that code, and an authored branch inside a
+  compiler's cache branch fires at the code around the compiler's branch.
 - A project whose plugin returns no map under Vite, whose rewrite maps back to
   another file, or whose Rstest config turned `devtool` off or left out the
   second loader, fails where it ran before. The error names the plugin, the

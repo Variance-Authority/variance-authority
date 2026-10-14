@@ -316,7 +316,8 @@ export function withTestSelection(
               {
                 test: /\.[cm]?[jt]sx?$/,
                 // Before SWC and the project's own loaders, so a test file's
-                // probes and cut land on the file as it is on disk.
+                // cut lands on the file as it is on disk, and a file that names
+                // its own map is probed on it.
                 enforce: 'pre',
                 use: [{ loader: SELECTION_LOADER, options: { coverageFile } }],
               },

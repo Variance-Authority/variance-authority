@@ -19,16 +19,20 @@ around the transformer you configured, in Rstest with a second loader at
 `enforce: 'post'`. Each module is still cut from the file on disk — named after
 it, digested as its text, placed on its lines — and the probes are written into
 the transformed text where the transforms' combined map carries each region.
-A plugin of yours also at `enforce: 'post'` and listed after
-`testSelectionProbes` still runs after the probes; list it before.
+A plugin of yours whose `transform` is ordered `post` and listed after
+`testSelectionProbes` still runs after the probes, and the configuration now
+warns with its name; list it before. A plain `transform` at `enforce: 'post'`
+runs ahead of the probes.
 
 A region can now be recorded as running when it did not. A region the map
 gives no code of its own is recorded running when the function holding the
 code in front of it is entered, or when the module loads, and a compiler's own
 map can widen a region too: React Compiler's sends the code after an early
-`return` to the component's entry. Either selects a test it did not need to.
-One case can miss: a compiler that moved the code in front of such a region
-into a function of its own, called later or never.
+`return` to the component's entry, and its `c()` cache call maps to the
+import, so a probe fires on every render. An import of a variant of a file,
+such as `?raw`, that no map leads back from is recorded as the file loaded.
+Each selects a test it did not need to. None leaves out a test that ran the
+region.
 
 These stop a run that went through before, each with an error naming the file:
 
@@ -41,6 +45,11 @@ These stop a run that went through before, each with an error naming the file:
   `map: null` when no position moved. A `map: null` returned for text that
   moved is caught where a later step writes a map, as the map's text for the
   file then is not the file.
+- Text your transforms wrote that the instrumenter cannot parse, from a file
+  it can.
+- Under Vitest, a test file the run cuts whose `load` hook rewrote it, named
+  by the hook's plugin. Any other file a `load` hook rewrote goes on to the
+  probes, which place it through the map the hook returned.
 - Under Rstest, a file that reaches the second loader with no map: leave
   Rspack's `devtool` writing source maps, as Rstest sets it.
 - Under Rstest, a configuration assembled by hand that names

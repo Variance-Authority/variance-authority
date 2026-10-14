@@ -177,6 +177,13 @@ interface AfterOptions {
   readonly unmapped?: readonly UnmappedStep[];
   /** How this seam's project has its transforms write a map, for the error that has none. */
   readonly remedy?: string;
+  /**
+   * The import asked for a module built from the file, such as `?raw` or a
+   * single-file component's block, rather than the file itself: one whose map
+   * leads back to the file is placed through it, and any other is marked as
+   * loaded, so an edit to the file selects every test that loaded it.
+   */
+  readonly variant?: boolean;
 }
 
 const REMEDY = 'Have them write a source map';
@@ -196,7 +203,9 @@ export class MapRefusal extends Error {}
  * names no source that resolves to the file, one a plugin returned no map
  * for, one whose map carries a text for the file that is not the file, and
  * code a map with no mappings carries for a file with more than module code,
- * is an error. Where `code` is the file, this is {@link placeModule}.
+ * and text the instrumenter cannot parse written from a file it can, is an
+ * error; a `variant` is marked instead. Where `code` is the file, this is
+ * {@link placeModule}.
  */
 export function captureAfter(
   root: string,
@@ -207,7 +216,7 @@ export function captureAfter(
   map: (() => ComposedMap | undefined) | undefined,
   options: AfterOptions = {},
 ): CapturedAfter | undefined {
-  const { unprobed, carry = false, original = readOriginal, unmapped = [], remedy = REMEDY } = options;
+  const { unprobed, carry = false, original = readOriginal, unmapped = [], remedy = REMEDY, variant = false } = options;
   let disk: string | undefined;
   try {
     disk = original(path);
@@ -227,6 +236,14 @@ export function captureAfter(
   if (plan.marked) return { module: unread, code: markLoaded(code, id), ...(carry && composed ? { carried: composed.mappings } : {}) };
   const texts = handedTexts(disk);
   const rewrote = unmapped.filter((step) => step.loaded === undefined || !texts.includes(step.loaded));
+  const source = mapsBack(path, code, composed);
+  // A module built from the file whose code no map leads back from, such as
+  // the file's text as a string, holds none of the file's code to place a
+  // region in, and depends on all of it: marked, as `unprobed` marks a module.
+  if (variant && (rewrote.length > 0 || source === undefined || source < 0 || !carriesTheFile(composed!, source, texts))) {
+    const marked = markedId(projectPath(root, path), disk);
+    return { module: { ...unread, id: marked }, code: markLoaded(code, marked), ...(carry && composed ? { carried: composed.mappings } : {}) };
+  }
   if (rewrote.length > 0) {
     const plugins = rewrote.map((step) => `\`${step.plugin}\``).join(', ');
     throw new Error(
@@ -235,7 +252,6 @@ export function captureAfter(
         `Have ${rewrote.length === 1 ? 'it' : 'each'} return the map of what it wrote, or leave the file out of \`include\`.`,
     );
   }
-  const source = mapsBack(path, code, composed);
   if (source === undefined) {
     throw new MapRefusal(
       `\`${named}\`: the transforms ahead of the probes rewrote the file and left no map back to it, ` +
@@ -251,7 +267,18 @@ export function captureAfter(
   }
   const done = instrumentTransformed(disk, code, { file, mappings: source === -1 ? '' : composed!.mappings, source: Math.max(source, 0) }, id, { ...(mode === undefined ? {} : { mode }), carry });
   if (done === undefined) {
-    return { module: unread, code: markLoaded(code, id), ...(carry && composed ? { carried: composed.mappings } : {}) };
+    // The file itself cannot be cut, so the reader cuts nothing from it either:
+    // the probe of loading it is all it can hold, as when the probes go in first.
+    if (instrument(disk, file, id) === undefined) {
+      return { module: unread, code: markLoaded(code, id), ...(carry && composed ? { carried: composed.mappings } : {}) };
+    }
+    // The file can be cut and what the transforms wrote cannot be parsed: a
+    // mark would be read back as the module's region alone run, every other
+    // region never, so a test that ran them would go unselected.
+    throw new Error(
+      `\`${named}\`: the transforms ahead of the probes wrote text the instrumenter cannot parse, so no region of the file ` +
+        'can be placed in it. Have them write JavaScript, or leave the file out of `include`.',
+    );
   }
   // Code a map carries to nothing is a module of types compiled to a prologue,
   // which has only the module's region; a file with more was rewritten, and

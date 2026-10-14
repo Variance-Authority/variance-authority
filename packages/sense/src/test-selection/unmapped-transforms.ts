@@ -10,8 +10,9 @@
  * `transform` is wrapped once the config is resolved, as `vite-plugin-inspect`
  * wraps them, and a step that changed the text without a map is noted. The dev
  * server shares one context across every plugin of a pass, so it is noted
- * there; Rollup hands each plugin its own, so a build notes it by module, and
- * the probes take the note when they read it. `map: null` is the plugin saying
+ * there; Rollup hands each plugin its own, so a build notes it by module, in
+ * the notes of the probes that watched the plugin, and the probes take the
+ * note when they read it. Two builds in one process each read their own. `map: null` is the plugin saying
  * it moved nothing, as Rollup reads it, and is believed. A `load` hook is
  * watched too, by module, and its text kept: whether it rewrote the file is
  * known only against the file on disk, which the probes read.
@@ -35,23 +36,34 @@ type Handler = (this: object, code: string, id: string, ...rest: unknown[]) => u
 /** Where a step is noted: on the pass's context under the dev server, by module in a build. */
 type Keyed = 'context' | 'module';
 
+/** What one watcher noted by module: the steps of one build, or of one server's loads. */
+export type UnmappedNotes = Map<string, UnmappedStep[]>;
+
 const onContext = new WeakMap<object, UnmappedStep[]>();
-const byModule = new Map<string, UnmappedStep[]>();
-const watched = new WeakSet<object>();
+/** The notes each wrapped plugin writes to by module: every watcher's that resolved it. */
+const notesOf = new WeakMap<object, Set<UnmappedNotes>>();
 
 /**
  * Wrap the `transform` and `load` of every plugin but `self` in `plugins` so a
  * step that wrote a module and returned no map is noted: a transform as
- * `keyed` says, a load by module. Each plugin is wrapped once, however many
- * seams or environments resolve it.
+ * `keyed` says, a load by module, in the notes this answers. Each plugin is
+ * wrapped once, however many seams or environments resolve it; one that more
+ * than one watcher resolved notes a module for each of them.
  */
-export function watchUnmapped(plugins: readonly ResolvedPlugin[], self: string, keyed: Keyed = 'context'): void {
+export function watchUnmapped(plugins: readonly ResolvedPlugin[], self: string, keyed: Keyed = 'context'): UnmappedNotes {
+  const notes: UnmappedNotes = new Map();
   for (const plugin of plugins) {
-    if (plugin.name === self || watched.has(plugin)) continue;
-    watched.add(plugin);
+    if (plugin.name === self) continue;
+    const known = notesOf.get(plugin);
+    if (known !== undefined) {
+      known.add(notes);
+      continue;
+    }
+    const stores = new Set([notes]);
+    notesOf.set(plugin, stores);
     for (const hook of ['transform', 'load'] as const) {
       const value = plugin[hook];
-      const wrap = (handler: Handler) => (hook === 'load' ? loaded(plugin.name, handler) : wrapped(plugin.name, handler, keyed));
+      const wrap = (handler: Handler) => (hook === 'load' ? loaded(plugin.name, handler, stores) : wrapped(plugin.name, handler, keyed, stores));
       if (typeof value === 'function') {
         plugin[hook] = wrap(value as Handler);
       } else if (typeof value === 'object' && value !== null && typeof (value as { handler?: unknown }).handler === 'function') {
@@ -61,43 +73,39 @@ export function watchUnmapped(plugins: readonly ResolvedPlugin[], self: string, 
       }
     }
   }
+  return notes;
 }
 
 /**
  * The steps ahead of the caller that wrote the module without a map: those
- * noted on `context`, and those noted for `id`, which this takes.
+ * noted on `context`, and those noted in `notes` for `id`, which this takes.
  */
-export function unmappedSteps(context: unknown, id?: string): readonly UnmappedStep[] {
+export function unmappedSteps(context: unknown, id: string, notes: UnmappedNotes | undefined): readonly UnmappedStep[] {
   const shared = typeof context === 'object' && context !== null ? (onContext.get(context) ?? []) : [];
-  if (id === undefined) return shared;
-  const own = byModule.get(id) ?? [];
-  byModule.delete(id);
+  const own = notes?.get(id) ?? [];
+  notes?.delete(id);
   return [...shared, ...own.filter((step) => !shared.some((it) => it.plugin === step.plugin))];
 }
 
-/** Drop every note taken by module: a build starting again in watch mode loads and transforms afresh. */
-export function forgetUnmapped(): void {
-  byModule.clear();
-}
-
-function wrapped(name: string, handler: Handler, keyed: Keyed): Handler {
+function wrapped(name: string, handler: Handler, keyed: Keyed, stores: ReadonlySet<UnmappedNotes>): Handler {
   return function (this: object, code, id, ...rest) {
     const result = handler.call(this, code, id, ...rest);
-    const list = () => listFor(keyed === 'module' ? id : this);
     return settled(result, (value) => {
       const { written, map } = answer(value);
-      if (typeof written === 'string' && written !== code && map === undefined) push(list(), { plugin: name });
+      if (typeof written !== 'string' || written === code || map !== undefined) return;
+      if (keyed === 'module') noteModule(stores, id, { plugin: name });
+      else push(onContextOf(this), { plugin: name });
     });
   };
 }
 
 /** A `load` hook's answer with no map, kept with its text for the probes to hold against the file. */
-function loaded(name: string, handler: Handler): Handler {
+function loaded(name: string, handler: Handler, stores: ReadonlySet<UnmappedNotes>): Handler {
   return function (this: object, id, ...rest) {
     const result = handler.call(this, id, ...rest);
     return settled(result, (value) => {
       const { written, map } = answer(value);
-      if (typeof written === 'string' && map === undefined) push(listFor(id), { plugin: name, loaded: written });
+      if (typeof written === 'string' && map === undefined) noteModule(stores, id, { plugin: name, loaded: written });
     });
   };
 }
@@ -120,14 +128,48 @@ function push(list: UnmappedStep[] | undefined, step: UnmappedStep): void {
   if (list !== undefined && !list.some((it) => it.plugin === step.plugin)) list.push(step);
 }
 
-function listFor(key: unknown): UnmappedStep[] | undefined {
-  if (typeof key === 'string') {
-    const list = byModule.get(key) ?? [];
-    byModule.set(key, list);
-    return list;
+function noteModule(stores: ReadonlySet<UnmappedNotes>, id: unknown, step: UnmappedStep): void {
+  if (typeof id !== 'string') return;
+  for (const notes of stores) {
+    const list = notes.get(id) ?? [];
+    notes.set(id, list);
+    push(list, step);
   }
-  if (typeof key !== 'object' || key === null) return undefined;
-  const list = onContext.get(key) ?? [];
-  onContext.set(key, list);
+}
+
+function onContextOf(context: unknown): UnmappedStep[] | undefined {
+  if (typeof context !== 'object' || context === null) return undefined;
+  const list = onContext.get(context) ?? [];
+  onContext.set(context, list);
   return list;
+}
+
+/**
+ * The plugins whose `transform` runs after `self`'s, and so reads its probes:
+ * a handler ordered `post` and listed after it. Vite runs every `post` handler
+ * after every other, in the order the plugins are listed, so a plugin at
+ * `enforce: 'post'` whose handler is not ordered runs ahead of the probes.
+ * Vite's and Vitest's own are left out: they read the module to resolve its
+ * imports, which the probes do not change.
+ */
+export function transformsAfter(plugins: readonly ResolvedPlugin[], self: string): readonly string[] {
+  const at = plugins.findIndex((plugin) => plugin.name === self);
+  if (at === -1) return [];
+  return plugins
+    .slice(at + 1)
+    .filter(({ name, transform }) => {
+      const ordered = typeof transform === 'object' && transform !== null && (transform as { order?: unknown }).order === 'post';
+      return ordered && name !== self && !/^vite(?:st)?:/.test(name);
+    })
+    .map(({ name }) => name);
+}
+
+/** Warn that the plugins {@link transformsAfter} names read the probes, once for each list of them. */
+export function warnTransformsAfter(plugins: readonly ResolvedPlugin[], self: string): void {
+  const after = transformsAfter(plugins, self);
+  if (after.length === 0) return;
+  console.warn(
+    `variance-authority: ${after.map((name) => `\`${name}\``).join(', ')} ${after.length === 1 ? 'runs' : 'run'} its \`transform\` after ` +
+      `\`${self}\`, ordered \`post\` and listed after it, so ${after.length === 1 ? 'it reads' : 'they read'} the probes. List the probes last.`,
+  );
 }

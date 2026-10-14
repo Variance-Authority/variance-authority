@@ -14,7 +14,7 @@ import { browserSetupSource } from './worker-source.js';
 import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
 import { removeSeamModules, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { handedTexts, namesItsMap } from './source-lines.js';
-import { type UnmappedStep, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
+import { type UnmappedNotes, type UnmappedStep, unmappedSteps, warnTransformsAfter, watchUnmapped } from './unmapped-transforms.js';
 import { readCommandLine, seedInBanner, type BannerContext } from './vitest-sequencer.js';
 
 export interface ConfigPlugin {
@@ -62,15 +62,14 @@ export function selectionPlugin(
   runnerId: string,
   globalSetup: ReadonlySet<string>,
   run: SelectionRun,
-  { capture, changed: recordsChanged, after }: {
+  { capture, after }: {
     readonly capture: (file: string, code: string) => Captured | undefined;
-    /** Whether `code` is not the file on disk, and the file is one the run records. */
-    readonly changed: (file: string, code: string) => boolean;
     readonly after: (
       file: string,
       code: string,
       map: () => ComposedMap,
       unmapped: readonly UnmappedStep[],
+      variant: boolean,
     ) => CapturedAfter | undefined;
   },
   mode: InstrumentMode,
@@ -87,6 +86,8 @@ export function selectionPlugin(
   const cutting = (id: string, file: string): boolean => cut !== undefined && id === file && run.cases && cut(file);
   /** The modules probed first because their files name their own maps, until the probes plugin passes them by. */
   const first = new Set<string>();
+  /** What the plugins ahead of the probes noted by module: each `load` with no map. */
+  let notes: UnmappedNotes | undefined;
   return [{
     name: 'variance-authority:test-selection',
     // First, for the test files the run cuts: a case says which of its lines
@@ -179,14 +180,21 @@ export function selectionPlugin(
         const cutFile = cuts ? cadence(text, file) : undefined;
         return cutFile === undefined ? undefined : { code: cutFile.code, map: cutFile.map };
       };
+      // A query asks for a module built from the file, such as `?raw` or a
+      // single-file component's block: probed after the transforms, below,
+      // through the map back to the file, or marked as loaded where none
+      // leads back.
+      if (id !== file && !inPage) return null;
       if (id === file && !inPage) {
         const text = disk(file);
         if (!namesItsMap(text)) {
-          // The map Vite composes starts at the text the transforms were
-          // handed, so a file changed on its way here would be placed by lines
-          // the author never wrote: refused, if it is one the run records.
-          const changed = text !== '' && !handedTexts(text).includes(code);
-          if (changed && (cuts || recordsChanged(file, code))) throw changedOnArrival(root, file);
+          // A case says which line of the file on disk was running, so a test
+          // file a `load` hook changed has no line of the author's to cut.
+          // Any other file goes on to the probes, which place it through the
+          // map the hook returned, or name the hook that returned none.
+          if (cuts && text !== '' && !handedTexts(text).includes(code)) {
+            throw changedOnArrival(root, file, (notes?.get(id) ?? []).map((step) => step.plugin));
+          }
           return cutOf(code) ?? null;
         }
         first.add(id);
@@ -217,12 +225,14 @@ export function selectionPlugin(
     // nothing, so every other plugin is watched for one.
     enforce: 'post',
     configResolved(config) {
-      watchUnmapped((config as unknown as { plugins: readonly { name: string; transform?: unknown }[] }).plugins, PROBES);
+      const { plugins } = config as unknown as { plugins: readonly { name: string; transform?: unknown }[] };
+      notes = watchUnmapped(plugins, PROBES);
+      warnTransformsAfter(plugins, PROBES);
     },
     transform: { order: 'post', handler(code, id) {
       const file = cleanId(id);
-      if (own(file) || id !== file || inPage || first.delete(id)) return null;
-      const captured = after(file, code, () => this.getCombinedSourcemap(), unmappedSteps(this, id));
+      if (own(file) || inPage || first.delete(id)) return null;
+      const captured = after(file, code, () => this.getCombinedSourcemap(), unmappedSteps(this, id, notes), id !== file);
       if (captured === undefined) return null;
       modules.set(captured.module.id, captured.module);
       return {
@@ -235,11 +245,14 @@ export function selectionPlugin(
 
 const PROBES = 'variance-authority:test-selection-probes';
 
-/** The refusal of a file whose lines no longer match the file on disk when it reaches the seam. */
-function changedOnArrival(root: string, file: string): Error {
+/** The refusal of a file whose lines no longer match the file on disk when it reaches the seam, naming the `load` hooks that rewrote it with no map. */
+function changedOnArrival(root: string, file: string, loaders: readonly string[] = []): Error {
+  const by = loaders.length === 0
+    ? 'a `load` hook or a plugin placed ahead of it rewrote the file'
+    : `the \`load\` hook of ${loaders.map((name) => `\`${name}\``).join(', ')} rewrote the file`;
   return new Error(
-    `\`${projectPath(root, file)}\` reached \`withTestSelection\` already changed: a \`load\` hook or a plugin placed ahead ` +
-      'of it rewrote the file, and its lines no longer match the file on disk. Let the file load as it is on disk, or leave it out of `include`.',
+    `\`${projectPath(root, file)}\` reached \`withTestSelection\` already changed: ${by}, ` +
+      'and its lines no longer match the file on disk. Let the file load as it is on disk, or leave it out of `include`.',
   );
 }
 

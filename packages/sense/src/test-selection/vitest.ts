@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
 import type { UserConfig } from 'vitest/config';
 import type { InstrumentMode } from '../instrument/index.js';
-import { captureAfter, placeModule, planModule, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
+import { captureAfter, placeModule, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
 import type { UnmappedStep } from './unmapped-transforms.js';
 import { defaultInclude } from './instrumented-modules.js';
 import { writeCut } from './case-cut.js';
@@ -140,10 +140,13 @@ export function withTestSelection(
     placeModule(root, file, code, include, unprobed, mode);
   // A module's probes go in after every transform, through the map Vite
   // composed back to the file, so a compiler that reads syntax reads none.
-  const after = (file: string, code: string, map: () => ComposedMap, unmapped: readonly UnmappedStep[]): CapturedAfter | undefined =>
-    captureAfter(root, file, code, include, mode, map, { unprobed, unmapped });
-  const changed = (file: string, code: string): boolean =>
-    planModule(root, file, code, include, undefined, unprobed)?.frame.changed === true;
+  const after = (
+    file: string,
+    code: string,
+    map: () => ComposedMap,
+    unmapped: readonly UnmappedStep[],
+    variant: boolean,
+  ): CapturedAfter | undefined => captureAfter(root, file, code, include, mode, map, { unprobed, unmapped, variant });
   const setupFiles = array(config.test?.setupFiles);
   // What the author declared is declared for the tests this configuration
   // governs, which for the one that describes the run is every test.
@@ -178,7 +181,7 @@ export function withTestSelection(
   }
 
   const cut = options.cadence === false ? undefined : testFiles(config, configRoot);
-  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { capture, changed, after }, mode, declared, settle, cut);
+  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { capture, after }, mode, declared, settle, cut);
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
   const continuations = options.continuations === true;

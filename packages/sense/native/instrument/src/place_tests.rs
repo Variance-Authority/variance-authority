@@ -284,3 +284,29 @@ fn a_compiler_s_branch_inside_the_author_s_fires_at_the_author_s() {
     let placed = place(authored, transformed, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
     assert!(placed.cut.code.contains("if (v) {__va(2); if ($) {void 0; g(v) }"), "{}", placed.cut.code);
 }
+
+#[test]
+fn an_author_s_branch_inside_a_compiler_s_branch_fires_at_the_region_around_the_compiler_s() {
+    // The author's `if (v)` sits inside the compiler's `if ($)`, which a cache
+    // hit skips: fired there, a render that hit the cache would record the
+    // `then` as not running.
+    let authored = "export function f(v) { if (v) { g(v) } }\n";
+    let transformed = "export function f(v) { if ($) { if (v) { g(v) } } }\n";
+    let mut points: Vec<_> = (0..23).map(|column| (0, column, 0, column)).collect();
+    points.extend((32..47).map(|column| (0, column, 0, column - 9)));
+    let placed = place(authored, transformed, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
+    assert!(placed.cut.code.contains("function f(v) {__va(1),__va(2),__va(3); if ($) {void 0; if (v) {void 0; g(v) }"), "{}", placed.cut.code);
+}
+
+#[test]
+fn a_region_whose_origin_a_compiler_moved_into_a_closure_fires_at_the_function_s_entry() {
+    // The code in front of the `if` went into a closure the compiler wrote,
+    // called later or never: fired at its entry, a call of `f` that never
+    // called it would record the `if` as not running.
+    let authored = "export function f(v) { g(v); if (v) { h() } }\n";
+    let transformed = "export function f(v) { const k = () => { g(v); }; if (v) { h() } }\n";
+    let mut points: Vec<_> = (0..23).map(|column| (0, column, 0, column)).collect();
+    points.extend((41..46).map(|column| (0, column, 0, column - 18)));
+    let placed = place(authored, transformed, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
+    assert!(placed.cut.code.contains("function f(v) {__va(1),__va(2),__va(3); const k = () => {"), "{}", placed.cut.code);
+}

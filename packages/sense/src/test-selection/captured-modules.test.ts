@@ -95,6 +95,38 @@ describe('a module whose probes go in after the transforms', () => {
     );
   });
 
+  it('is refused where the transforms wrote text that cannot be parsed from a file that can', async () => {
+    const { root, file } = await checkout(SOURCE);
+    // A transform that left a syntax the instrumenter does not read, mapped line for line.
+    const unparsed = 'export function total(items) {\n  return items.length > 0 ? items.length : 0;\n}}\n';
+    const map = () => ({ sources: ['src-cart.js'], mappings: 'AAAA;AACA;AACA' });
+
+    expect(() => captureAfter(root, file, unparsed, defaultInclude, undefined, map)).toThrow(
+      /`src-cart\.js`: the transforms ahead of the probes wrote text the instrumenter cannot parse/,
+    );
+  });
+
+  it('holds the probe of loading a file the instrumenter cannot parse, as the probes going in first do', async () => {
+    const UNPARSED = 'export function total(items) {\n  return items.length >;\n}\n';
+    const { root, file } = await checkout(UNPARSED);
+    const map = () => ({ sources: ['src-cart.js'], mappings: 'AAAA;AACA;AACA' });
+    const after = captureAfter(root, file, `${UNPARSED}\n`, defaultInclude, undefined, map)!;
+
+    expect(after.module).toEqual(captureModule(root, file, UNPARSED, defaultInclude, undefined)!.module);
+  });
+
+  it('is marked as loaded where the import asked for a variant of the file no map leads back from', async () => {
+    const { root, file } = await checkout(SOURCE);
+    const raw = `export default ${JSON.stringify(SOURCE)};\n`;
+    const after = captureAfter(root, file, raw, defaultInclude, undefined, () => ({ sources: ['src-cart.js'], sourcesContent: [raw], mappings: 'AAAA' }), {
+      variant: true,
+      unmapped: [{ plugin: 'vite:asset', loaded: raw }],
+    })!;
+
+    expect(after.module).toEqual(markModule(root, file, SOURCE, defaultInclude)!.module);
+    expect(after.code.startsWith(raw)).toBe(true);
+  });
+
   it('holds the probe of loading a module of types, which compiles to code that maps to nothing', async () => {
     const TYPES = 'export interface Cart {\n  readonly total: number;\n}\n';
     const { root, file } = await checkout(TYPES);

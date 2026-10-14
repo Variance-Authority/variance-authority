@@ -7,8 +7,10 @@
  * this loader runs after SWC and every loader the project configured, and the
  * probes go into what they wrote, where the map they handed on says each region
  * of the file on disk went: the regions, ordinals and id are the file's, cut
- * from the text on disk. Rspack composes the map this hands on with the ones
- * before it, so the map handed on is theirs, moved onto the probed text.
+ * from the text on disk. Rspack composes no loader maps: each loader hands
+ * the next the map from its own output back to the file, so the map this is
+ * handed leads back to the file, and the one it hands on is that map moved
+ * onto the probed text (`carry`).
  *
  * The test files the run cuts were cut before SWC, by the
  * [`enforce: 'pre'` loader](./rstest-loader.ts), and their map carries the

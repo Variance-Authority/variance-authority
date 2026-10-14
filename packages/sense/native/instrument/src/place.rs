@@ -19,24 +19,24 @@
 //!    compiler's own branch — a
 //!    memoising compiler's `if ($[0] !== v)`, skipped on a cache hit — runs
 //!    less often than the code it holds was written to, so that code fires at
-//!    the region around the compiler's;
+//!    the region around the compiler's, and so does a branch the author wrote
+//!    inside a compiler's, which runs only on a miss as well;
 //! 2. a region with no text of its own — the `else` or `default` the walk adds
 //!    — fires the authored one of the same kind and step whose siblings, the
 //!    `then` or the cases of the same decision, its own siblings fire;
 //! 3. an authored region no origin falls in — an extractor that moved a
 //!    function's text maps what it wrote to the declaration — is fired by the
 //!    entry of the transformed function holding the nearest origin in front of
-//!    it that sits in the code of a region enclosing it in the same function.
+//!    it that sits in the code of a region enclosing it in the same function —
+//!    past any function the compiler wrote around that code, a closure called
+//!    later or never, to the one around it that runs on every call.
 //!    That code runs on every call that can run the region, so a test that ran
 //!    the region ran it too. A region with no such origin — a function, which
 //!    can be called before any code in front of it runs: hoisted above it, or
 //!    handed out while an earlier test ran — is module code, fired when the
 //!    module loads and so charged to every test that loaded it.
 //!
-//! A region that ran is never recorded as not running, but for one case: a
-//! region fired by rule 3 where the compiler moved the code in front of it
-//! into a function of its own, a closure called later or never, which the map
-//! cannot tell from the author's. Some are over-charged.
+//! A region that ran is never recorded as not running. Some are over-charged.
 //! A transformed region that fires none was written by the project and carries
 //! no probe.
 
@@ -320,12 +320,24 @@ fn fired(authored: &[Block], transformed: &[Block], segments: &[Segment]) -> Vec
             })
         })
         .collect();
-    let lift = |mut at: u32| loop {
-        let block = &transformed[at as usize];
-        if own[at as usize] || matches!(block.kind, Kind::Module | Kind::Function | Kind::Resume) {
-            return at;
+    // The innermost region the author wrote with no compiler's branch between
+    // it and its function: an author's branch inside a compiler's runs only on
+    // a cache miss too, so what it holds fires at the region around the
+    // compiler's, as code directly in the compiler's does.
+    let lift = |mut at: u32| {
+        let mut chosen = None;
+        loop {
+            let block = &transformed[at as usize];
+            if matches!(block.kind, Kind::Module | Kind::Function | Kind::Resume) {
+                return chosen.unwrap_or(at);
+            }
+            if !own[at as usize] {
+                chosen = None;
+            } else if chosen.is_none() {
+                chosen = Some(at);
+            }
+            at = block.owner.unwrap_or(0);
         }
-        at = block.owner.unwrap_or(0);
     };
     for (to, from) in into.iter().zip(&from) {
         if let (Some(to), Some(from)) = (to, from) {
@@ -379,9 +391,13 @@ fn fired(authored: &[Block], transformed: &[Block], segments: &[Segment]) -> Vec
     // declaration hoisted above it, a callback handed out — is module code.
     let mut by_origin: Vec<usize> = (0..segments.len()).collect();
     by_origin.sort_by_key(|it| (segments[*it].original, *it));
+    // A function a compiler wrote around the code — a closure holding code of
+    // a function another region already stands for, called later or never —
+    // is passed for the one around it, which runs on every call.
     let entry = |mut at: u32| loop {
         let block = &transformed[at as usize];
-        if matches!(block.kind, Kind::Module | Kind::Function | Kind::Resume) {
+        let compilers = block.kind == Kind::Function && !own[at as usize];
+        if !compilers && matches!(block.kind, Kind::Module | Kind::Function | Kind::Resume) {
             return at;
         }
         at = block.owner.unwrap_or(0);

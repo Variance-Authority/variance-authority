@@ -947,25 +947,33 @@ each module is cut from the file on disk, named after it, digested as its text
 and placed on its lines, and the probes are written into the transformed text
 where the transforms' combined map carries each region. Code a compiler wrote
 that the map carries to no region gets no probe, so a decorator helper or a
-generated constructor is never recorded. A plugin of yours that is also
-`enforce: 'post'` and listed after `testSelectionProbes` runs after the probes
-and reads them; list it before.
+generated constructor is never recorded. A plugin of yours whose `transform`
+is ordered `post`, `transform: { order: 'post', handler }`, and listed after
+`testSelectionProbes` runs after the probes and reads them: the configuration
+warns with its name, and you list it before. A plain `transform` at
+`enforce: 'post'` runs ahead of the probes wherever it is listed.
 
 Where the transforms ahead of the probes rewrote a file and left no map back to
 it, or left a region of it with no code the map carries back, the build stops
 and names the file and the region. A `load` hook counts as a transform: one that
 returned rewritten text with no map is named the same way, under a build and a
 dev server alike. A map that names the file but carries a text for it that is
-not the file on disk is refused, and so is a map with no mappings handed on
-with rewritten code. A region a compiler folded into
+not the file on disk is refused, and so is an empty map returned with
+rewritten code where the file has more than one region. Text the transforms
+wrote from a file the instrumenter can parse, that it cannot, stops the build
+too. An import of a variant of a file, such as `?raw` or a single-file
+component's `?vue&type=script`, is placed where its map leads back to the file;
+where none does, it is recorded as the file loaded, so an edit anywhere in the
+file selects every test that imported the variant. A region a compiler folded into
 a neighbour, such as a style function inlined into its component, is carried by
 the code the map attributes it to: the code in front of it, inside a region
 that encloses it.
 
-A region can be recorded as running when it did not. The other way round
-takes a compiler that moved the code in front of a region the map gives no
-code of its own into a function of its own, called later or never: the region
-is fired where that function is entered. A compiler's map may name a function's closing brace as the end of its
+A region can be recorded as running when it did not, never the other way
+round. A region the map gives no code of its own is fired where the function
+holding the code in front of it is entered, past any function a compiler wrote
+around that code, and a branch you wrote inside a compiler's cache branch fires
+at the code around the compiler's. A compiler's map may name a function's closing brace as the end of its
 last statement; React Compiler's does, so the code after an early `return` is
 recorded on every call, and an edit to it selects the tests that returned early
 too.

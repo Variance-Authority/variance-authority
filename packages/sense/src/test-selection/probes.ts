@@ -12,7 +12,7 @@ import { captureAfter, type ComposedMap, placeModule } from './captured-modules.
 import { cleanId, defaultInclude } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
 import { builtMap, handedTexts, namesItsMap } from './source-lines.js';
-import { forgetUnmapped, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
+import { type UnmappedNotes, unmappedSteps, warnTransformsAfter, watchUnmapped } from './unmapped-transforms.js';
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
 
@@ -168,16 +168,19 @@ export function testSelectionProbes(
   let serving = false;
   /** The modules a dev server loaded probed, because their files name their own maps. */
   const first = new Set<string>();
+  /** What the plugins this build watches noted by module, its own and no other build's. */
+  let notes: UnmappedNotes | undefined;
   return {
     name,
     enforce: 'post',
     // A build hands each plugin its own context, so a step is noted by module there.
     configResolved: (config) => {
       serving = config.command === 'serve';
-      watchUnmapped(config.plugins, name, serving ? 'context' : 'module');
+      notes = watchUnmapped(config.plugins, name, serving ? 'context' : 'module');
+      warnTransformsAfter(config.plugins, name);
     },
     // A build in watch mode starts again: what an earlier one noted is stale.
-    buildStart: () => forgetUnmapped(),
+    buildStart: () => notes?.clear(),
     resolveId: (id) => (id === VIRTUAL_COLLECTOR || id === RESOLVED_COLLECTOR ? RESOLVED_COLLECTOR : null),
     load: (id) => {
       if (id !== RESOLVED_COLLECTOR) return serving ? probedFirst(id) : null;
@@ -197,7 +200,10 @@ export function testSelectionProbes(
       const context = this as InstrumentingContext | undefined;
       const combined = context?.getCombinedSourcemap;
       const map = typeof combined === 'function' ? () => combined.call(context) : undefined;
-      const captured = captureAfter(root, source, code, include, options.mode, map, { unmapped: unmappedSteps(context, specifier) });
+      const captured = captureAfter(root, source, code, include, options.mode, map, {
+        unmapped: unmappedSteps(context, specifier, notes),
+        variant: specifier !== source,
+      });
       if (captured === undefined) return null;
 
       // Hoisted in front of everything the module imports, and on the first line,
