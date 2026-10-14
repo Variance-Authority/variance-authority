@@ -34,7 +34,7 @@ This is the Storybook adapter, not the `variance` binary. The binary lives in
 | Module format | ESM only. Every `@variance-authority/*` package sets `"type": "module"`; `require()` will not load them. |
 | Browser | Chromium, installed through Playwright. The binaries do not arrive with an `npm install`. |
 | Storybook | Exercised against Storybook 10 with `@storybook/react-vite`. Index versions `3`, `4` and `5` are read, and the story root is looked for at `#storybook-root` (Storybook 7 and later) and then `#root` (before it). Storybook 8.3 and later emit `storyFinished`, which this package waits for; it falls back to `storyRendered` when the event is absent. |
-| Builder | Collection reads `index.json` and drives the preview channel, so it works the same whether Vite or Webpack 5 built the Storybook. Two optional precision features are Vite plugins with no Webpack equivalent, and are named as such where they appear below: `@variance-authority/jsx-source` and the `tests` option. |
+| Builder | Collection reads `index.json` and drives the preview channel, so it works the same whether Vite, Webpack 5 or Rspack built the Storybook. The `tests` option records under all three. `@variance-authority/jsx-source` is a Vite plugin with no Webpack or Rspack equivalent. |
 | React | Required for component attribution, the `wiring` band and the Suspense wait. The reading is of the expando `react-dom` writes on host nodes — `__reactFiber$` on React 17 and later, `__reactInternalInstance$` on React 16 — so there is no React version to match and none is imported. The suite runs against React 19. |
 
 A Storybook whose renderer is not React still collects: documents, pixels,
@@ -215,7 +215,7 @@ Everything below is passed to `storybookCollector(...)` in the module from step
 | `wiring` | Your preview's renderer is not React. | `true`. Reads props, context, hook cells and keys into a band of its own; turning it off changes no stored digest. |
 | `holdings` | Application values behind the nodes are evidence you want read. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 | `roots` | Your preview mounts somewhere other than the standard roots. | `['#storybook-root', '#root']`, tightest match first. |
-| `tests` | The next run should be able to skip stories whose code nothing touched. | `false`. Requires a Vite-built preview that includes `testSelectionProbes()`; see below. |
+| `tests` | The next run should be able to skip stories whose code nothing touched. | `false`. Requires this package in the Storybook's `addons`; see below. |
 
 A **band** is the severity category a change is filed under. Loudest first:
 `a11y`, `geometry`, `token`, `content`, `texture`. A role or accessible name that
@@ -344,25 +344,32 @@ for builds that already use Emotion, theme-ui or another custom JSX runtime.
 
 With `tests`, a run records which blocks of your code each story crossed, so the
 next run can skip a story whose code your diff did not reach. The recording is
-done by a Vite plugin in the preview build:
-
-```bash
-npm install --save-dev @variance-authority/sense
-```
+done by probes in the preview build, which this package adds as a Storybook
+addon:
 
 ```js
 // .storybook/main.js
-import { testSelectionProbes } from '@variance-authority/sense/journal';
-
 export default {
   stories: ['../src/**/*.stories.@(js|jsx|ts|tsx)'],
-  framework: { name: '@storybook/react-vite', options: {} },
-  viteFinal: async (config) => ({
-    ...config,
-    plugins: [...(config.plugins ?? []), testSelectionProbes()],
-  }),
+  framework: { name: 'storybook-react-rsbuild', options: {} },
+  addons: ['@variance-authority/storybook-collector'],
 };
 ```
+
+The addon reads the builder Storybook runs. Under Vite it adds
+`testSelectionProbes()` from `@variance-authority/sense/journal`; under Rspack,
+through `rsbuildFinal`, and Webpack 5, through `webpackFinal`, it adds
+`testSelectionRule()`, a loader at `enforce: 'post'`. Either way the probes go
+in after every compiler your build runs, so an extractor such as
+`@compiled/react` reads your file as you wrote it, and each probe is
+placed where the source map says that code went. Leave the build writing source
+maps: a module that arrives with none stops the build and names it.
+
+Pass the probes' options as the addon's: `{ name:
+'@variance-authority/storybook-collector', options: { mode: 'entries' } }`.
+`include` decides which modules are your source, every file outside
+`node_modules` and `dist` that is not a test or a config by default; `root` is a
+directory in the repository, the cwd by default.
 
 ```js
 // variance/storybook.mjs
