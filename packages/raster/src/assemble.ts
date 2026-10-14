@@ -38,13 +38,20 @@ export function assemble(document: RenderDocument, options: AssembleOptions = {}
       : [`<base href="${escapeAttribute(document.baseUrl)}">`]),
     `<style>${sheet(document, options)}</style>`,
     '</head>',
-    `<body${attributes(document.frame.body)}>`,
+    // The container's content width is reproduced inline on the subject's
+    // parent, the innermost ancestor or else the body, because that is the box a
+    // percentage width resolves against. Without it a subject declaring
+    // `width: 100%` renders at viewport width regardless of the panel it lived
+    // in. Inline and content-box, so no page rule on that box, its sizing
+    // included, moves it: Storybook pads a border-box body, and a width written
+    // on the body in the sheet lost its padding to that rule.
+    `<body${
+      document.frame.ancestors.length === 0
+        ? withWidth(document.frame.body, document.frame.containerWidth)
+        : attributes(document.frame.body)
+    }>`,
     ...document.frame.ancestors.map((ancestor, index) =>
-      // The container's used width is reproduced inline on the innermost
-      // ancestor, because that is the box a percentage width resolves against.
-      // Without it a subject declaring `width: 100%` renders at viewport width
-      // regardless of the panel it actually lived in.
-      index === document.frame.ancestors.length - 1 && document.frame.containerWidth !== undefined
+      index === document.frame.ancestors.length - 1
         ? `<${ancestor.tag}${withWidth(ancestor.attributes, document.frame.containerWidth)}>`
         : `<${ancestor.tag}${attributes(ancestor.attributes)}>`,
     ),
@@ -82,12 +89,9 @@ function sheet(document: RenderDocument, options: AssembleOptions): string {
     // The page's own margin, not the subject's. Reproducing the browser default
     // would offset the clip box by 8px and change nothing else, so it is removed
     // rather than carried; the subject's position on the page is not what is
-    // being compared.
-    'html,body{margin:0;padding:0}',
-    ...(document.frame.containerWidth !== undefined
-      ? [`body{width:${document.frame.containerWidth}px}`]
-      : []),
-    ...(inherited !== '' ? [`@layer{:root{${inherited}}}`] : []),
+    // being compared. It sits in the floor's layer, so it beats the browser's
+    // default and loses to a page rule on `html` or `body`, layered or not.
+    `@layer{html,body{margin:0;padding:0}${inherited !== '' ? `:root{${inherited}}` : ''}}`,
     ...document.css,
     ...(options.extraCss !== undefined ? [options.extraCss] : []),
   ].join('\n');
@@ -99,11 +103,12 @@ function attributes(record: Readonly<Record<string, string>>): string {
     .join('');
 }
 
-function withWidth(record: Readonly<Record<string, string>>, width: number): string {
+function withWidth(record: Readonly<Record<string, string>>, width: number | undefined): string {
+  if (width === undefined) return attributes(record);
   const existing = record['style'];
   return attributes({
     ...record,
-    style: `${existing !== undefined ? `${existing};` : ''}width:${width}px`,
+    style: `${existing !== undefined ? `${existing};` : ''}box-sizing:content-box;width:${width}px`,
   });
 }
 

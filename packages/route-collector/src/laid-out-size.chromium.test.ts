@@ -82,6 +82,15 @@ const PAGES: Readonly<Record<string, string>> = {
      .small { margin: 0; font-size: 10px; }`,
     '<div class="doc"><h2>Title</h2><p class="small">One line</p></div>',
   ),
+  // The body's padding set in a layer, as a Tailwind page sets it with a class
+  // on `<body>`. The render's own reset of the page margin must lose to it, as
+  // the browser's default margin does: the subject is 40px narrower than the
+  // viewport.
+  "/layered-body": page(
+    `@layer base { body { padding-inline: 20px; } }
+     .box { display: block; height: 20px; }`,
+    '<div class="box"></div>',
+  ),
 };
 
 const PLAN: Plan = {
@@ -192,5 +201,11 @@ chromium_("a line height the root declares as a number", () => {
 chromium_("rules in cascade layers", () => {
   it("paints the subject at the size the live page laid it out at", () => {
     paintsAsLaidOut("layers", { width: 400, height: 75 });
+  });
+});
+
+chromium_("the body styled in a cascade layer", () => {
+  it("paints the subject at the size the live page laid it out at", () => {
+    paintsAsLaidOut("layered-body", { width: 360, height: 20 });
   });
 });

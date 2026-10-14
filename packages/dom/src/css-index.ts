@@ -3,7 +3,7 @@ import { declarationsOf } from './declarations.js';
 import { evaluateMedia, evaluateSupports, type ConditionEnvironment } from './media.js';
 import { splitSelectorList, specificityOf, type Specificity } from './specificity.js';
 import { items } from './dom-list.js';
-import { lastCompound, outsideArguments, splitPseudoElement } from './selector-parts.js';
+import { lastCompound, outsideArguments, splitPseudoElement, unescapeName } from './selector-parts.js';
 import { STABILIZE_ATTRIBUTE } from './stabilize.js';
 import { faceOf, isFontFaceRule, type IndexedFace } from './font-faces.js';
 import { LayerOrder, layerBlockName, layerStatementNames, within, type LayerName } from './layers.js';
@@ -322,6 +322,9 @@ export function indexStyleSheets(
   }
 }
 
+/** The characters of an id or class: name characters, non-ASCII, or an escape. */
+const NAME = String.raw`(?:\\[0-9a-fA-F]{1,6}[ \t\n]?|\\.|[\w-]|[^\x00-\x7f])+`;
+
 /**
  * The rightmost simple selector, as a bucket key.
  *
@@ -337,11 +340,11 @@ export function indexStyleSheets(
 function rightmostKey(selector: string): string {
   const compound = outsideArguments(lastCompound(selector));
 
-  const id = /#([\w-]+)/.exec(compound);
-  if (id) return `#${id[1]}`;
+  const id = new RegExp(`#(${NAME})`).exec(compound);
+  if (id) return `#${unescapeName(id[1]!)}`;
 
-  const className = /\.((?:\\.|[\w-])+)/.exec(compound);
-  if (className) return `.${className[1]!.replace(/\\/g, '')}`;
+  const className = new RegExp(`\\.(${NAME})`).exec(compound);
+  if (className) return `.${unescapeName(className[1]!)}`;
 
   const tag = /^([a-z][\w-]*)/i.exec(compound);
   if (tag && !compound.startsWith(':')) return tag[1]!.toLowerCase();

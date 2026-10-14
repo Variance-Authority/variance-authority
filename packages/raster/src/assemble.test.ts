@@ -37,7 +37,7 @@ describe('assembling a page from a document', () => {
       }),
     );
 
-    const root = page.indexOf('@layer{:root{');
+    const root = page.indexOf('@layer{html,body{margin:0;padding:0}:root{');
     const rules = page.indexOf('[data-va-path="0"]{font-size:20px}');
     expect(root).toBeGreaterThan(-1);
     // Order is the content of this assertion. The floor reaches the subject only
@@ -82,8 +82,21 @@ describe('assembling a page from a document', () => {
       }),
     );
 
-    expect(page).toContain('<aside style="width:600px">');
-    expect(page).toContain('body{width:600px}');
+    expect(page).toContain('<aside style="box-sizing:content-box;width:600px">');
+    expect(page).toContain('<body>');
+  });
+
+  it('puts the container width on the body when the body is the parent', () => {
+    // Inline, so a page rule sizing the body as a border box, as Storybook's
+    // padded layout does, cannot take its padding out of the width.
+    const page = assemble(
+      documentOf({
+        frame: { html: {}, body: { class: 'sb-main-padded' }, ancestors: [], containerWidth: 343 },
+      }),
+    );
+
+    expect(page).toContain('<body class="sb-main-padded" style="box-sizing:content-box;width:343px">');
+    expect(page).not.toMatch(/body\{[^}]*width/);
   });
 
   it('keeps a container width alongside a style the ancestor already had', () => {
@@ -98,7 +111,7 @@ describe('assembling a page from a document', () => {
       }),
     );
 
-    expect(page).toContain('style="padding:8px;width:300px"');
+    expect(page).toContain('style="padding:8px;box-sizing:content-box;width:300px"');
   });
 
   it('does not reproduce the browser default page margin', () => {

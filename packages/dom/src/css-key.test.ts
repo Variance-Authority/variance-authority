@@ -61,4 +61,17 @@ describe('a rule reaches the element its rightmost compound names', () => {
     const css = '.a\\+b { color: red }';
     expect(matched(css, '<div class="a+b"></div>', 'div')).toEqual(['.a\\+b']);
   });
+
+  // The CSSOM writes a class that starts with a digit as a hex escape, and the
+  // space that ends the escape is part of it: read as a descendant combinator,
+  // every `2xl:` rule of a Tailwind page was filed under `xl` and never tested.
+  it('files a class written with a hex escape by the whole class', () => {
+    const css = '.\\32 xl\\:p-4 { padding: 1rem }';
+    expect(matched(css, '<div class="2xl:p-4"></div>', 'div')).toEqual(['.\\32 xl\\:p-4']);
+  });
+
+  it('files an escaped id by the whole id', () => {
+    const css = '#a\\:b { color: red }';
+    expect(matched(css, '<div id="a:b"></div>', 'div')).toEqual(['#a\\:b']);
+  });
 });
