@@ -14,7 +14,7 @@ import { browserSetupSource } from './worker-source.js';
 import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
 import { removeSeamModules, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { handedTexts, namesItsMap } from './source-lines.js';
-import { unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
+import { type UnmappedStep, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
 import { readCommandLine, seedInBanner, type BannerContext } from './vitest-sequencer.js';
 
 export interface ConfigPlugin {
@@ -70,7 +70,7 @@ export function selectionPlugin(
       file: string,
       code: string,
       map: () => ComposedMap,
-      unmapped: readonly string[],
+      unmapped: readonly UnmappedStep[],
     ) => CapturedAfter | undefined;
   },
   mode: InstrumentMode,
@@ -222,7 +222,7 @@ export function selectionPlugin(
     transform: { order: 'post', handler(code, id) {
       const file = cleanId(id);
       if (own(file) || id !== file || inPage || first.delete(id)) return null;
-      const captured = after(file, code, () => this.getCombinedSourcemap(), unmappedSteps(this));
+      const captured = after(file, code, () => this.getCombinedSourcemap(), unmappedSteps(this, id));
       if (captured === undefined) return null;
       modules.set(captured.module.id, captured.module);
       return {

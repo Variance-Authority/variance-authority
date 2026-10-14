@@ -939,20 +939,25 @@ export default {
 modules are product source, `mode`, and `journeys` with `label`, which install
 a journey head for a service bundle under that name (`build` by default).
 
-`testSelectionProbes` runs at `enforce: 'post'`, after every transform of
-yours, so a compiler that reads the syntax it compiles, such as a CSS-in-JS
+`testSelectionProbes` runs at `enforce: 'post'`, after your transforms, so a
+compiler that reads the syntax it compiles, such as a CSS-in-JS
 extractor or React Compiler, reads the text it reads without recording and
 compiles the same output. The regions are still the file's own:
 each module is cut from the file on disk, named after it, digested as its text
 and placed on its lines, and the probes are written into the transformed text
 where the transforms' combined map carries each region. Code a compiler wrote
 that the map carries to no region gets no probe, so a decorator helper or a
-generated constructor is never recorded.
+generated constructor is never recorded. A plugin of yours that is also
+`enforce: 'post'` and listed after `testSelectionProbes` runs after the probes
+and reads them; list it before.
 
 Where the transforms ahead of the probes rewrote a file and left no map back to
 it, or left a region of it with no code the map carries back, the build stops
-and names the file and the region. Under a dev server, a plugin that rewrote a
-file and returned no map is named the same way. A region a compiler folded into
+and names the file and the region. A `load` hook counts as a transform: one that
+returned rewritten text with no map is named the same way, under a build and a
+dev server alike. A map that names the file but carries a text for it that is
+not the file on disk is refused, and so is a map with no mappings handed on
+with rewritten code. A region a compiler folded into
 a neighbour, such as a style function inlined into its component, is carried by
 the code the map attributes it to: the code in front of it, inside a region
 that encloses it.
@@ -976,7 +981,9 @@ that cannot be read. A Vite dev server and `vite build` decide alike, and so do
 the Vitest, Jest and Rstest seams. Under a dev server, Vitest and Rstest, a
 module that names its own map is probed before your transforms: they compose
 that map, so what they hand back maps to its sources rather than to the file. A
-`vite build` and Jest probe it after them, like any other module.
+`vite build` and Jest probe it after them, like any other module, where the
+transforms' map leads back to the file; a Jest transformer that composed the
+build's map instead has the file probed before it, without a warning.
 
 A module reports the id it was instrumented under: its repository-relative path
 and a digest of the text the regions were cut from, `src/cart/total.ts@<digest>`.

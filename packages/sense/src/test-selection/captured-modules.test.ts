@@ -63,14 +63,27 @@ describe('a module whose probes go in after the transforms', () => {
     expect(after.code.endsWith('\n\n')).toBe(true);
   });
 
-  it('fires every region the map carries nowhere when the module loads, so a test that ran one is never recorded as not running it', async () => {
+  it('is refused where a map with no mappings carries code written from a file with more than module code', async () => {
     const { root, file } = await checkout(SOURCE);
     const map = () => ({ sources: ['src-cart.js'], mappings: '' });
-    const after = captureAfter(root, file, `${SOURCE}\n`, defaultInclude, undefined, map)!;
 
-    expect(after.module).toEqual(captureModule(root, file, SOURCE, defaultInclude, undefined)!.module);
-    // `total`'s entry, region 1, goes in with the probe of loading, not in `total`.
-    expect(after.code).toMatch(/__va\(1\);export function total\(items\) \{void 0;/);
+    expect(() => captureAfter(root, file, `${SOURCE}\n`, defaultInclude, undefined, map)).toThrow(
+      /`src-cart\.js`: the transforms ahead of the probes rewrote the file and handed on a map with no mappings/,
+    );
+  });
+
+  it('is refused where the map carries a text for the file that is not the file, though it names the file', async () => {
+    const { root, file } = await checkout(SOURCE);
+    // A `load` hook moved every line down one and returned no map: the map
+    // that follows starts from its text, and names the file by its name.
+    const loaded = `/* banner */\n${SOURCE}`;
+    const map = () => ({ sources: ['src-cart.js'], sourcesContent: [loaded], mappings: 'AAAA;AACA;AACA;AACA' });
+
+    expect(() => captureAfter(root, file, loaded, defaultInclude, undefined, map)).toThrow(
+      /`src-cart\.js`: the map back to the file carries a text for it that is not the file on disk/,
+    );
+    const own = () => ({ sources: ['src-cart.js'], sourcesContent: [SOURCE], mappings: 'AAAA;AACA;AACA' });
+    expect(captureAfter(root, file, `${SOURCE}\n`, defaultInclude, undefined, own)!.module.instrumented).toBe(true);
   });
 
   it('is refused where the map names no source that resolves to the file', async () => {

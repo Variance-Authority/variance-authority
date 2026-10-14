@@ -40,7 +40,7 @@ source, as Istanbul's are.
 ## Decision
 
 **The regions are cut from the authored text. The probes are placed on the
-transformed text, after every transform of the project's, through the composed
+transformed text, after the project's transforms, through the composed
 source map. A map that would place a probe on the wrong code is never used.**
 
 1. **One native call places.** `place(authored, transformed, map)` cuts the
@@ -48,7 +48,11 @@ source map. A map that would place a probe on the wrong code is never used.**
    module ids do not depend on the transforms. It walks the transformed text
    into regions and reads the map one way: a generated position names the
    authored region its origin sits in. A transformed region fires the regions
-   its positions name, and one that names none carries no probe.
+   its positions name, and one that names none carries no probe. A branch,
+   loop or case a compiler wrote, which no code from one of the same kind sits
+   directly in, names nothing of its own: a memoising compiler's cache check
+   is skipped on a cache hit, so the code it holds fires in the region around
+   it.
 
 2. **The nearest origin is an over-approximation, and never an
    under-approximation.** An authored region no origin falls in, because an
@@ -67,28 +71,35 @@ source map. A map that would place a probe on the wrong code is never used.**
    rewrite whose map leads back to no source that is the file stops it with
    the file's project-relative path. Vite composes a plugin that rewrote a file
    and returned no map as identity under a dev server and as an empty map in a
-   build, so each plugin's `transform` is watched and such a plugin is refused
-   by name; `map: null` says nothing moved and is believed. Rstest refuses a
-   file that reaches the second loader with no map, a configuration whose
-   loaders leave the second out, and, when Rspack lists no loaders, at the
+   build, so each plugin's `transform` and `load` is watched and such a plugin
+   is refused by name; `map: null` says nothing moved and is believed. A map
+   that names the file is believed only where the text it carries for it, if
+   any, is the file on disk, which also catches a `map: null` that lied before
+   a step that wrote a map, and a map with no mappings handed on with rewritten
+   code is refused. What stays unchecked is a `map: null` that lied with no
+   map-writing step after it. Rstest refuses a file that reaches the second
+   loader with no map, a configuration whose loaders leave the second out,
+   and, when Rspack lists no loaders, at the
    run's end, a file that went through the first loader and never reached the
    second.
 
 4. **Four cases still meet the probes, or the case marks, before the
    transforms.** A file that names its own source map under a Vite dev server,
    Vitest or Rstest, because each composes from that map and names the build's
-   sources, not the file; a Vite build and Jest place it after. A Jest
+   sources, not the file; a Vite build places it after, and so does Jest
+   unless the transformer composed the build's map, which leads back to no
+   source that is the file: then it is probed first, unwarned. A Jest
    transformer that returns no map, or one leading back to no source that is
    the file, which is handed the probed text, transforms twice and is warned
    about once by name. Vitest browser mode, because `vi.mock` loads a mock under
    the file's name from no text a map carries back. A test file, cut for its
    cases first so its case marks sit on the author's lines.
 
-5. **A new recipe id.** The probes a module carries moved, so a recording made
-   before names another id. Selection reads it as it stands, since the regions
-   are cut alike; a journal or page report naming another is refused; the next
-   run that writes a record replaces it rather than merging, so the first run
-   after upgrading should be the full suite.
+5. **The recipe id stays.** Regions are cut as before and a hit means what it
+   meant, so a record made with the probes before the transforms is merged
+   with one made after, as one record. Only where a probe sits in the output
+   moved, and Jest's transform cache keys on the recipe, which digests the
+   instrumenter's sources, so nothing it cached is served across the change.
 
 ## Consequences
 
@@ -97,8 +108,11 @@ source map. A map that would place a probe on the wrong code is never used.**
 - The placement pays a second parse and a map read: about 0.4 ms a module under
   a Vite dev server and 0.07 ms under Jest, rounded, on one machine.
 - A test can be selected for a region it did not run. It is never left
-  unselected for one it ran, except a function called before the enclosing code
-  in front of it, a hoisted declaration or one handed out earlier.
+  unselected for one it ran, with one exception: a region with no origin of
+  its own is fired at the entry of the transformed function holding the code in
+  front of it, and when a compiler moved that code into a function of its own,
+  such as a closure called later or not at all, the region can run without
+  that function's entry running.
 - A project whose plugin returns no map under Vite, whose rewrite maps back to
   another file, or whose Rstest config turned `devtool` off or left out the
   second loader, fails where it ran before. The error names the plugin, the

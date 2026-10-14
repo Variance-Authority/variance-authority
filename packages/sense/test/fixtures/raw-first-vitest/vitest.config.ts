@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { jsxSource } from '@variance-authority/jsx-source/vite';
+import MagicString from 'magic-string';
 import { withTestSelection } from '@variance-authority/sense/vitest';
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
@@ -21,7 +22,11 @@ const compiler: Plugin = {
   enforce: 'pre',
   transform(code, id) {
     if (!id.endsWith('/compiled.ts')) return null;
-    return { code: `globalThis.compiledAhead = true;\n${code}`, map: null };
+    // A compiler that moves the author's lines returns the map of the move:
+    // `map: null` would claim nothing moved, and the map esbuild writes after it,
+    // whose text for the file is not the file, would stop the run.
+    const compiled = new MagicString(code).prepend('globalThis.compiledAhead = true;\n');
+    return { code: compiled.toString(), map: compiled.generateMap({ hires: true }) };
   },
 };
 

@@ -3,6 +3,7 @@ import { dirname, relative, resolve, sep } from 'node:path';
 import type { UserConfig } from 'vitest/config';
 import type { InstrumentMode } from '../instrument/index.js';
 import { captureAfter, placeModule, planModule, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
+import type { UnmappedStep } from './unmapped-transforms.js';
 import { defaultInclude } from './instrumented-modules.js';
 import { writeCut } from './case-cut.js';
 import { caseRunnerSource, setupSource } from './worker-source.js';
@@ -139,7 +140,7 @@ export function withTestSelection(
     placeModule(root, file, code, include, unprobed, mode);
   // A module's probes go in after every transform, through the map Vite
   // composed back to the file, so a compiler that reads syntax reads none.
-  const after = (file: string, code: string, map: () => ComposedMap, unmapped: readonly string[]): CapturedAfter | undefined =>
+  const after = (file: string, code: string, map: () => ComposedMap, unmapped: readonly UnmappedStep[]): CapturedAfter | undefined =>
     captureAfter(root, file, code, include, mode, map, { unprobed, unmapped });
   const changed = (file: string, code: string): boolean =>
     planModule(root, file, code, include, undefined, unprobed)?.frame.changed === true;

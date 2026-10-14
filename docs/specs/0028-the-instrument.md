@@ -66,7 +66,7 @@ that can reach it, up to the module's load.
 
 | Case | Rule | Why |
 | --- | --- | --- |
-| A mapped position in a transformed region | fires the innermost authored region its origin sits in | the code there came from that region, so it runs when that region does |
+| A mapped position | fires the innermost authored region its origin sits in, through the innermost transformed region holding it that the author wrote: a function, or a branch, loop or case some code directly in which came from one of the same kind that no region around it stands for | the code there came from that region, so it runs when that region does; a branch a compiler wrote, such as a memoising compiler's cache check, is skipped on a cache hit, so code charged there would be recorded as not running on that render |
 | A transformed region with no text of its own: the `else` or `default` the walk adds | fires the authored one of the same kind and step whose siblings, the `then` or the other cases, its own siblings fire | an absent outcome has no position for a map to name |
 | An authored region no origin falls in, inside a function | fired at the entry of the transformed function holding the nearest origin in front of it in code of a region enclosing it | that code runs on every call that can run the region; Compiled's map names a styled component's whole body by its declarator |
 | An authored region with no such origin: a function, or a region with none in front of it in its function | fired when the module loads, and so charged to every test that loaded it | a function can be called before any code in front of it runs: hoisted above it, or handed out while an earlier test ran |
@@ -94,6 +94,7 @@ Alternatives not taken:
 | Probes first, with a caller-declared list of source consumers whose arguments carry none | per library and per caller; a skipped style callback gets no region, so an edit to it reaches only the module region, and React Compiler and whole-file compilers stay uncovered |
 | Probes after the transforms, regions cut from the transformed text | breaks the record's address: regions land on compiled lines, and compiler-written code is recorded |
 | A strict refusal of a region with no origin of its own | refuses every Compiled module with a dynamic prop |
+| Firing a mapped position through the innermost transformed region holding it, whoever wrote it | React Compiler moves a component's code into `if ($[0] !== props)`; a render that hits the cache skips it, and a test that rendered the component twice would be recorded as not running it on the second render |
 | Firing a region with no origin at the entry of the code in front of it, wherever that is | a function hoisted above that code, or handed out by an earlier test, runs without it, and a test that ran it would be recorded as not running it |
 
 **3. The worker runtime, and presence is the whole of it.** A per-worker set
@@ -118,7 +119,7 @@ until that data feeds the diff-based selection stage in
 
 | Seam | Cut | Placement | Map handed on | Refused |
 | --- | --- | --- | --- | --- |
-| `testSelectionProbes`, a Vite build or dev server | at `enforce: 'post'`, from disk | the same hook | probed text to transformed, composed by Vite | a rewrite whose map names no source that is the file, and a plugin ahead that rewrote the file and returned no map, by name |
+| `testSelectionProbes`, a Vite build or dev server | at `enforce: 'post'`, from disk | the same hook | probed text to transformed, composed by Vite | a rewrite whose map names no source that is the file, or carries a text for it that is not the file, or has no mappings; a plugin ahead whose `transform` or `load` rewrote the file and returned no map, by name |
 | Vitest | test files at `enforce: 'pre'`; every module from disk | a second plugin at `enforce: 'post'` | composed by Vite | the same as a dev server, and a file changed on its way to the `pre` plugin |
 | Jest | test files in the wrapper; every module from disk | after the wrapped transformer, through its map, inline or returned | the transformer's map carried past the probes, the inline one dropped | nothing: a transformer whose map does not lead back to the file is handed the probed text, below |
 | Rstest | test files in an `enforce: 'pre'` loader | `rstest-after-loader` at `enforce: 'post'`, after SWC and the project's loaders | the loaders' map carried past the probes | a file that reaches the second loader with no map back to it, naming Rspack's `devtool`; a configuration whose loaders, as Rspack lists them, leave the second out, at the first file; where Rspack lists none, at the run's end, a file that went through the first loader and never reached the second |
@@ -129,8 +130,11 @@ are still probed, or marked, before the transforms:
 - **A file that names its own source map**, a built package, under a Vite dev
   server, Vitest and Rstest: each starts the composed map from that map, so it
   names the build's sources, not the file, and no placement after could join
-  it. A Vite build and Jest compose from the file's text, and place it after
-  the transforms as any other module.
+  it. A Vite build composes from the file's text and places it after the
+  transforms as any other module. Jest places it after where the
+  transformer's map leads back to the file, and probes it first, without a
+  warning, where the transformer composed the build's map: babel-jest reads an
+  inline input map and answers in the build's sources.
 - **A Jest transformer that rewrites a module and returns no map**, or a map
   that leads back to no source that is the file, is handed the probed text, as
   before, and transforms each such module twice; the run warns once per
@@ -155,9 +159,11 @@ crossing uses a transport before its coverage joins its test file.
   transform of the project's reads a probe outside the four cases above. A map
   that names the wrong code is never used: Vite's dev server composes a plugin
   that rewrote a file and returned no map as identity, and a build composes it
-  to a map with no mapping, so each plugin's `transform` is watched and such a
-  plugin is refused by name; `map: null` is the plugin saying nothing moved,
-  and is believed.
+  to a map with no mapping, so each plugin's `transform` and `load` is watched
+  and such a plugin is refused by name; `map: null` is the plugin saying
+  nothing moved, and is believed. A composed map whose text for the file is not
+  the file on disk is refused, which catches a `map: null` that lied ahead of
+  a step that wrote a map; one with no such step after it is not caught.
 - vitest hoists `vi.mock` calls in its own transform. The module probe must be
   inserted at the **first executable statement after the hoisted block**, never
   at offset 0 — a probe above a hoisted mock changes evaluation order.
@@ -265,15 +271,17 @@ region whose arrival does not follow from the region above because an arm may
 have returned.
 
 **Identity.** `INSTRUMENTATION_ID` at `packages/sense/src/instrument/index.ts`
-is `sense:instrument/presence-v7`. Every module record, journal, account and
-coverage file names it. A journal or a page's report that names another is
-refused. A record that names another is read by selection as it stands, since
-the regions are cut alike, and replaced rather than merged by the next run that
-writes one, which then holds only the tests that run ran. A
-change to where probes go or what a block means mints a new id. The `entries`
-mode — the module and each function, nothing between — is a second recipe
-under `sense:instrument/entries-v4`, and `instrumentationId(mode)` names the
-recipe a seam was asked for.
+is `sense:instrument/presence-v6`. Every module record, journal, account and
+coverage file names it, and every reader refuses one that names another. A
+change to how a module is cut into regions or to what a hit means mints a new
+id. Where in the output a region's probe sits does not: a record made with the
+probes before the transforms names the same regions by the same ordinals, and a
+hit in it still means the region ran, so it is merged with one made after. The
+`entries` mode — the module and each function, nothing between — is a second
+recipe under `sense:instrument/entries-v3`, and `instrumentationId(mode)` names
+the recipe a seam was asked for. Jest's transform cache keys on the recipe,
+which also digests the instrumenter's sources, so a module cached by an older
+release is transformed again.
 
 **Cost.** Under `instrument`, one parse and one walk, O(module length). Under
 `place`, two of each, the authored text and the transformed one, plus one read

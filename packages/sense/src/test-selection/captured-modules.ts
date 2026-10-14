@@ -21,6 +21,7 @@ import { instrumentTransformed } from '../instrument/transformed.js';
 import { recordedBlocks } from './coverage-rows.js';
 import { insideRoot, isMissing, projectPath, type CapturedModule } from './instrumented-modules.js';
 import { handedTexts, rawFrame, type RawFrame } from './source-lines.js';
+import type { UnmappedStep } from './unmapped-transforms.js';
 
 /** A module cut into regions, and the text that carries its probes. */
 export interface Captured {
@@ -152,6 +153,8 @@ export function placeModule(
 export interface ComposedMap {
   readonly sources: readonly (string | null)[];
   readonly sourceRoot?: string;
+  /** The text of each source, where the map carries it: for the file, what the first step was handed. */
+  readonly sourcesContent?: readonly (string | null)[] | undefined;
   readonly mappings: string;
 }
 
@@ -170,13 +173,16 @@ interface AfterOptions {
   /** Answer the composed map moved onto the probed text, for a runner no bundler composes maps for. */
   readonly carry?: boolean;
   readonly original?: (path: string) => string;
-  /** The plugins ahead of this one that rewrote the module and returned no map: {@link unmappedSteps}. */
-  readonly unmapped?: readonly string[];
+  /** The steps ahead of this one that wrote the module and returned no map: {@link unmappedSteps}. */
+  readonly unmapped?: readonly UnmappedStep[];
   /** How this seam's project has its transforms write a map, for the error that has none. */
   readonly remedy?: string;
 }
 
 const REMEDY = 'Have them write a source map';
+
+/** A refusal of the map back to the file: a seam that can run the transforms again on the probed text answers it so. */
+export class MapRefusal extends Error {}
 
 /**
  * Cut one module as {@link placeModule} cuts it, from the file on disk, and
@@ -187,8 +193,10 @@ const REMEDY = 'Have them write a source map';
  * and `map` says which code in `code` each one became. A region `map` carries
  * nowhere fires when the module loads, charged to every test that loaded it,
  * rather than recorded as never running. A rewrite with no map, one whose map
- * names no source that resolves to the file, or one a plugin returned no map
- * for, is an error. Where `code` is the file, this is {@link placeModule}.
+ * names no source that resolves to the file, one a plugin returned no map
+ * for, one whose map carries a text for the file that is not the file, and
+ * code a map with no mappings carries for a file with more than module code,
+ * is an error. Where `code` is the file, this is {@link placeModule}.
  */
 export function captureAfter(
   root: string,
@@ -217,24 +225,42 @@ export function captureAfter(
   const composed = map?.();
   // The mark follows the last line, so no column the map names moves.
   if (plan.marked) return { module: unread, code: markLoaded(code, id), ...(carry && composed ? { carried: composed.mappings } : {}) };
-  if (unmapped.length > 0) {
-    const plugins = unmapped.map((name) => `\`${name}\``).join(', ');
+  const texts = handedTexts(disk);
+  const rewrote = unmapped.filter((step) => step.loaded === undefined || !texts.includes(step.loaded));
+  if (rewrote.length > 0) {
+    const plugins = rewrote.map((step) => `\`${step.plugin}\``).join(', ');
     throw new Error(
-      `\`${named}\`: ${unmapped.length === 1 ? 'the plugin' : 'the plugins'} ${plugins} ahead of the probes rewrote the file ` +
+      `\`${named}\`: ${rewrote.length === 1 ? 'the plugin' : 'the plugins'} ${plugins} ahead of the probes rewrote the file ` +
         'and returned no source map, which Vite reads as moving nothing, so the map back to the file names code that is not there. ' +
-        `Have ${unmapped.length === 1 ? 'it' : 'each'} return the map of what it wrote, or leave the file out of \`include\`.`,
+        `Have ${rewrote.length === 1 ? 'it' : 'each'} return the map of what it wrote, or leave the file out of \`include\`.`,
     );
   }
   const source = mapsBack(path, code, composed);
   if (source === undefined) {
-    throw new Error(
+    throw new MapRefusal(
       `\`${named}\`: the transforms ahead of the probes rewrote the file and left no map back to it, ` +
         `so no region of it can be placed in what they wrote. ${remedy}, or leave the file out of \`include\`.`,
+    );
+  }
+  if (source >= 0 && !carriesTheFile(composed!, source, texts)) {
+    throw new MapRefusal(
+      `\`${named}\`: the map back to the file carries a text for it that is not the file on disk: a step ahead of the ` +
+        'transforms that wrote a map, such as a `load` hook, rewrote the file and returned no map or `map: null`, so the map names lines ' +
+        `the author never wrote. Have that step return the map of what it wrote, or leave the file out of \`include\`.`,
     );
   }
   const done = instrumentTransformed(disk, code, { file, mappings: source === -1 ? '' : composed!.mappings, source: Math.max(source, 0) }, id, { ...(mode === undefined ? {} : { mode }), carry });
   if (done === undefined) {
     return { module: unread, code: markLoaded(code, id), ...(carry && composed ? { carried: composed.mappings } : {}) };
+  }
+  // Code a map carries to nothing is a module of types compiled to a prologue,
+  // which has only the module's region; a file with more was rewritten, and
+  // its map lost on the way.
+  if (source === -1 && /\S/.test(code) && done.blocks.length > 1) {
+    throw new MapRefusal(
+      `\`${named}\`: the transforms ahead of the probes rewrote the file and handed on a map with no mappings, ` +
+        `so no region of it can be placed in what they wrote. ${remedy}, or leave the file out of \`include\`.`,
+    );
   }
   return {
     module: { ...unread, instrumented: true, blocks: recordedBlocks(done.blocks, frame, disk, mode ?? 'presence') },
@@ -256,6 +282,16 @@ export function mapsBack(path: string, code: string, map: ComposedMap | undefine
   if (!/\S/.test(code) || (map !== undefined && !/[^;,]/.test(map.mappings))) return -1;
   const source = map?.sources.findIndex((name) => name !== null && resolve(dirname(path), map.sourceRoot ?? '', name) === path) ?? -1;
   return source === -1 ? undefined : source;
+}
+
+/**
+ * Whether the text `map` carries for its source `source`, if it carries one,
+ * is one of `texts`, the file as a step can be handed it. A map is trusted on
+ * its source's name only where it says nothing more.
+ */
+export function carriesTheFile(map: ComposedMap, source: number, texts: readonly string[]): boolean {
+  const content = map.sourcesContent?.[source];
+  return typeof content !== 'string' || texts.includes(content);
 }
 
 function readOriginal(path: string): string {

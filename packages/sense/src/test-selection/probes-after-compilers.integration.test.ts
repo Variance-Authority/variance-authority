@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
@@ -183,6 +183,42 @@ describe('a compiler that reads the syntax it compiles', () => {
     try {
       await expect(server.transformRequest('/src/tone.ts')).rejects.toThrow(
         /`src\/tone\.ts`: the plugin `banner` ahead of the probes rewrote the file and returned no source map/,
+      );
+    } finally {
+      await server.close();
+    }
+  });
+
+  /** A `load` hook that reads the file and moves every line down one, and returns no map. */
+  const loader: Plugin = {
+    name: 'loader',
+    enforce: 'pre',
+    load: async (id) => (id.endsWith('tone.ts') ? `/* banner */\n${await readFile(id, 'utf8')}` : null),
+  };
+
+  it('stops the build, naming the plugin, where a `load` hook rewrote the file and returned no map', async () => {
+    const root = await workspace();
+    await expect(build({
+      root,
+      configFile: false,
+      logLevel: 'silent',
+      plugins: [testSelectionProbes({ root }), extractor(), loader],
+      build: { write: false, rollupOptions: { input: resolve(root, 'src/main.js') } },
+    })).rejects.toThrow(/`src\/tone\.ts`: the plugin `loader` ahead of the probes rewrote the file and returned no source map/);
+  });
+
+  it('refuses a dev-server module a `load` hook rewrote without a map, naming the plugin', async () => {
+    const root = await workspace();
+    const server = await createServer({
+      root,
+      configFile: false,
+      logLevel: 'silent',
+      plugins: [testSelectionProbes({ root }), extractor(), loader],
+      server: { middlewareMode: true, hmr: false, ws: false },
+    });
+    try {
+      await expect(server.transformRequest('/src/tone.ts')).rejects.toThrow(
+        /`src\/tone\.ts`: the plugin `loader` ahead of the probes rewrote the file and returned no source map/,
       );
     } finally {
       await server.close();

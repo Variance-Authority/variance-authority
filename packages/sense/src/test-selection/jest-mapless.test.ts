@@ -150,3 +150,63 @@ module.exports = {
     expect(sourceLines(done.code, map, file)(offset, offset)?.[0]).toBe(4);
   });
 });
+
+describe('a Jest transformer over a built package, a file that names its own source map', () => {
+  const BUILT = "export function pick(value) {\n  return value ? 'left' : 'right';\n}\n//# sourceMappingURL=pick.js.map\n";
+
+  /**
+   * A package built from `src/pick.ts`, and a transformer that prepends a line
+   * and returns a map: back to the file it was handed, or, with `composes`,
+   * composed onto the build's map, as a transformer that reads that map does.
+   */
+  async function built(composes: boolean): Promise<{ root: string; path: string; done: string; handed: string[] }> {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-jest-built-after-'));
+    temporary.push(root);
+    await mkdir(resolve(root, 'src'), { recursive: true });
+    await mkdir(resolve(root, 'dist'), { recursive: true });
+    await writeFile(resolve(root, 'package.json'), '{"name":"fixture","private":true}\n');
+    await writeFile(resolve(root, 'src/pick.ts'), "export function pick(value: boolean): string {\n  return value ? 'left' : 'right';\n}\n");
+    await writeFile(resolve(root, 'dist/pick.js'), BUILT);
+    await writeFile(resolve(root, 'dist/pick.js.map'), JSON.stringify({ version: 3, sources: ['../src/pick.ts'], names: [], mappings: 'AAAA;AACA;AACA' }));
+    const transformer = resolve(root, `prepend-${composes}.cjs`);
+    await writeFile(
+      transformer,
+      `module.exports = {
+  handed: [],
+  process(source) {
+    module.exports.handed.push(source);
+    const lines = source.split('\\n').map((_, index) => (index === 0 ? 'AAAA' : 'AACA'));
+    return {
+      code: "'use strict';\\n" + source,
+      map: { version: 3, sources: [${JSON.stringify(composes ? '../src/pick.ts' : 'pick.js')}], names: [], mappings: ';' + lines.join(';') },
+    };
+  },
+};
+`,
+    );
+    const path = resolve(root, 'dist/pick.js');
+    const done = (await createTransformer({ root, transformer })).process!(BUILT, path, transformOptions(root)).code;
+    return { root, path, done, handed: (createRequire(import.meta.url)(transformer) as { handed: string[] }).handed };
+  }
+
+  it('places the probes in what the transformer wrote where its map leads back to the file', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { done, handed } = await built(false);
+
+    // Transformed once, as the build wrote it: no probe for a compiler to read.
+    expect(handed).toEqual([BUILT]);
+    expect(done).toContain('globalThis.__VA__');
+    expect(done).toContain('__va(');
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('probes the file first, unwarned, where the transformer composed the build\'s map and answers in its sources', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { done, handed } = await built(true);
+
+    expect(handed).toHaveLength(2);
+    expect(handed[1]).toContain('__va(');
+    expect(done).toContain('globalThis.__VA__');
+    expect(warn).not.toHaveBeenCalled();
+  });
+});

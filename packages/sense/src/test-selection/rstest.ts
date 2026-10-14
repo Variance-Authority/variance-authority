@@ -374,4 +374,4 @@ function array<T>(value: T | readonly T[] | undefined): T[] {
 }
 
 export { mergeCoverage } from './merge.js';
-export { PROBES_LOADER, SELECTION_LOADER } from './rstest-loaders.js';
+export { SELECTION_LOADER } from './rstest-loaders.js';

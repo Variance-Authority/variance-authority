@@ -183,10 +183,13 @@ export async function createTransformer(
       .slice(0, 32);
   // A transformer that rewrote a module and returned no map leaves nothing to
   // carry the regions into what it wrote, so it runs again on the probed text:
-  // said once, because every module it transforms pays for it.
+  // said once, because every module it transforms pays for it. A file that
+  // names its own map, a build's output, is not said: a transformer that reads
+  // that map answers in the build's sources, as it should, and its file is
+  // probed first, as every seam that composes from that map probes it.
   let warned = false;
-  const mapless = <T>(path: string, again: () => T): T => {
-    if (!warned) {
+  const mapless = <T>(path: string, source: string, again: () => T): T => {
+    if (!warned && !namesItsMap(source)) {
       warned = true;
       const name = typeof config.transformer === 'string' ? config.transformer : config.transformer?.[0] ?? 'the transformer';
       console.warn(
@@ -214,8 +217,8 @@ export async function createTransformer(
       const handed = places ? handOver(root, path, forInner(options), text, how) : undefined;
       if (handed !== undefined) return behind(marked(await innerProcessAsync(text, path, handed), handed), cut);
       const first = async () => await innerProcessAsync(place(root, path, options, text, how), path, forInner(options));
-      if (places || !after(path, options, how, source)) return behind(await first(), cut);
-      return probedAfter(root, path, source, await innerProcessAsync(text, path, forInner(options)), how.mode, how.unprobed) ?? mapless(path, first);
+      if (places || !after(path, options, how)) return behind(await first(), cut);
+      return probedAfter(root, path, source, await innerProcessAsync(text, path, forInner(options)), how.mode, how.unprobed) ?? mapless(path, source, first);
     },
   };
   const innerProcess = inner?.process?.bind(inner);
@@ -227,8 +230,8 @@ export async function createTransformer(
       const handed = places ? handOver(root, path, forInner(options), text, how) : undefined;
       if (handed !== undefined) return behind(marked(innerProcess(text, path, handed), handed), cut);
       const first = () => innerProcess(place(root, path, options, text, how), path, forInner(options));
-      if (places || !after(path, options, how, source)) return behind(first(), cut);
-      return probedAfter(root, path, source, innerProcess(text, path, forInner(options)), how.mode, how.unprobed) ?? mapless(path, first);
+      if (places || !after(path, options, how)) return behind(first(), cut);
+      return probedAfter(root, path, source, innerProcess(text, path, forInner(options)), how.mode, how.unprobed) ?? mapless(path, source, first);
     };
   }
   return transformer;
@@ -278,12 +281,14 @@ function place(
 }
 
 /**
- * Whether a module's probes go into what the inner transformer wrote: one that
- * gets probes, unless the file names its own map, a build's output, whose
- * transformer reads that map and answers in the build's sources, never the file.
+ * Whether a module's probes go into what the inner transformer wrote: every
+ * one that gets probes. A file that names its own map, a build's output, is
+ * placed after too wherever its transformer's map leads back to it, as
+ * `babel-jest` does reading no map from a file beside it; one that composed
+ * the build's map answers in the build's sources, and is probed first.
  */
-function after(path: string, options: JestTransformRequest, how: Placing, source: string): boolean {
-  return probes(path, options, how) && !namesItsMap(source);
+function after(path: string, options: JestTransformRequest, how: Placing): boolean {
+  return probes(path, options, how);
 }
 
 /** Whether a module gets probes, rather than a cut or nothing: neither excluded nor a test. */

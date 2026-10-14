@@ -3204,7 +3204,6 @@
         "withTestSelection": "function"
       },
       "./rstest": {
-        "PROBES_LOADER": "const",
         "RstestConfig": "interface",
         "RstestFileResult": "interface",
         "RstestTestSelectionOptions": "interface",

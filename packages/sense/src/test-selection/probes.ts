@@ -12,7 +12,7 @@ import { captureAfter, type ComposedMap, placeModule } from './captured-modules.
 import { cleanId, defaultInclude } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
 import { builtMap, handedTexts, namesItsMap } from './source-lines.js';
-import { unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
+import { forgetUnmapped, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
 
@@ -116,8 +116,10 @@ export interface InstrumentingPlugin {
   /** Watch every other plugin for a rewrite with no map: {@link watchUnmapped}. */
   readonly configResolved: (config: {
     readonly command: string;
-    readonly plugins: readonly { readonly name: string; transform?: unknown }[];
+    readonly plugins: readonly { readonly name: string; transform?: unknown; load?: unknown }[];
   }) => void;
+  /** Forget what an earlier build in watch mode noted. */
+  readonly buildStart: () => void;
   readonly resolveId: (id: string) => string | null;
   readonly load: (id: string) => string | { code: string; map: object | null } | null;
   readonly transform: (
@@ -174,6 +176,8 @@ export function testSelectionProbes(
       serving = config.command === 'serve';
       watchUnmapped(config.plugins, name, serving ? 'context' : 'module');
     },
+    // A build in watch mode starts again: what an earlier one noted is stale.
+    buildStart: () => forgetUnmapped(),
     resolveId: (id) => (id === VIRTUAL_COLLECTOR || id === RESOLVED_COLLECTOR ? RESOLVED_COLLECTOR : null),
     load: (id) => {
       if (id !== RESOLVED_COLLECTOR) return serving ? probedFirst(id) : null;
