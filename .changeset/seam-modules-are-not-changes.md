@@ -16,7 +16,6 @@ The directory now carries its own `.gitignore`, written before the first
 module, which names the seam's modules and itself and nothing else, so a file
 you keep beside them is what it was to git before the run. It comes off with
 the last module, so the directory is left as the run found it. A `.gitignore`
-you keep in that directory yourself is never written over, and it decides
-alone, so it has to name `test-selection-*` if it does not already ignore
-everything. Your own ignore line for `.variance-authority/` is no longer needed
-for the modules.
+you keep in that directory yourself is never written over; if no ignore rule of
+yours covers `test-selection-*`, add it there. Otherwise your own ignore line
+for `.variance-authority/` is no longer needed for the modules.

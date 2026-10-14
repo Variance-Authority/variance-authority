@@ -220,9 +220,11 @@ export function seamModuleId(configRoot: string, run: SelectionRun, role: 'setup
  *
  * It is written only where there is none, so an ignore file the project put
  * there is the project's, and it comes off once no seam module is left beside
- * it, so a directory is left as the run found it.
+ * it, so a directory is left as the run found it. The seam knows its own by the
+ * first line, which every release writes alike.
  */
-const IGNORE =`# Written by @variance-authority/sense for the run in progress.\n${IGNORE_FILE}\n${SEAM_MODULE}*\n`;
+const IGNORE_HEADER = '# Written by @variance-authority/sense for the run in progress.\n';
+const IGNORE = `${IGNORE_HEADER}${IGNORE_FILE}\n${SEAM_MODULE}*\n`;
 
 function writeShim(run: Pick<SelectionRun, 'made'>, id: string, source: string): string {
   // `mkdirSync` answers with the first directory it had to create, and with
@@ -234,13 +236,12 @@ function writeShim(run: Pick<SelectionRun, 'made'>, id: string, source: string):
       if (made === first || made === dirname(made)) break;
     }
   }
-  // Before the shim, so no reader sees the shim and not the rule.
-  try {
-    writeFileSync(resolve(dirname(id), IGNORE_FILE), IGNORE, { encoding: 'utf8', flag: 'wx' });
-  } catch (error) {
-    if (!isErrno(error, 'EEXIST')) throw error;
-  }
+  // Before the shim, so no reader sees the shim and not the rule; and again
+  // after it, because another run's end may have taken the rule off in between
+  // — see {@link removeIgnoreFile}.
+  writeIgnoreFile(dirname(id));
   writeFileSync(id, source, 'utf8');
+  writeIgnoreFile(dirname(id));
   leaveOnExit(run, id);
   return id;
 }
@@ -302,21 +303,31 @@ export function removeSeamModules(run: Pick<SelectionRun, 'made'>, shims: Iterab
   }
 }
 
+/** Put the seam's ignore file in `directory`, unless one is there: the seam's, or the project's. */
+function writeIgnoreFile(directory: string): void {
+  try {
+    writeFileSync(resolve(directory, IGNORE_FILE), IGNORE, { encoding: 'utf8', flag: 'wx' });
+  } catch (error) {
+    if (!isErrno(error, 'EEXIST')) throw error;
+  }
+}
+
 /**
  * Take this seam's ignore file out of `directory` once no seam module is left
  * there. Another run's shim beside it keeps it, and that run's end takes it.
  *
  * Another run can find the file, and so not write it, between the look and the
- * removal; its shim would then go unignored for the rest of that run. So the
- * directory is looked at again after, and the file goes back if a shim came.
+ * removal. Each side looks again after it acts — the writer once its shim is
+ * down, this once the file is gone — and puts the file back if it finds a shim,
+ * so whichever acts last leaves the rule beside it.
  */
 function removeIgnoreFile(directory: string): void {
   const file = resolve(directory, IGNORE_FILE);
   const holdsShim = (): boolean => readdirSync(directory).some((entry) => entry.startsWith(SEAM_MODULE));
   try {
-    if (holdsShim() || readFileSync(file, 'utf8') !== IGNORE) return;
+    if (holdsShim() || !readFileSync(file, 'utf8').startsWith(IGNORE_HEADER)) return;
     rmSync(file);
-    if (holdsShim()) writeFileSync(file, IGNORE, { encoding: 'utf8', flag: 'wx' });
+    if (holdsShim()) writeIgnoreFile(directory);
   } catch {
     // Tidied, not required gone, for the reason the directories are.
   }
@@ -327,6 +338,6 @@ function isErrno(error: unknown, code: string): boolean {
 }
 
 /** The pid-and-uuid stamp a run names its directories and its shims after. */
-export function runStamp(run: SelectionRun): string {
+function runStamp(run: SelectionRun): string {
   return basename(run.runDirectory).replace(/^\.run-/, '');
 }
