@@ -2,19 +2,19 @@ import { execFileSync, spawn } from 'node:child_process';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { changedBy, siteReach } from './site-reach.mjs';
 
 /**
  * The `site` check photographs every route the site's sitemap lists, which
- * takes about twenty minutes. Most pull requests cannot change one pixel of it:
- * a spec, a test, a case, the review service. Those finish the check in the
- * time it takes to say so, and every other one runs it as before.
+ * takes about twenty minutes. Some pull requests cannot change one pixel of
+ * it: a spec, a test, an example, the review service. Those finish the check
+ * once the install and the build have, and every other one runs it as before.
  *
  * Asked of this checkout, because the answer is this checkout's: which files
- * the site loads from outside `site/`, which workspace packages the run loads,
- * and which of their files count as a change are all read from it rather than
- * written down here. A file named below stands for its kind.
+ * the site reaches, which workspace packages the run loads, and which of their
+ * files count as a change are all read from it rather than written down here.
+ * A file named below stands for its kind.
  */
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -24,6 +24,12 @@ const RUNNER = 'packages/cli/dist/bin.js';
 const git = (...args: string[]): string =>
   execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
+// The site's reach is read from the published source index, as the job reads
+// it, so the index is published first, as the job publishes it.
+beforeAll(() => {
+  execFileSync('node', [join(ROOT, RUNNER), 'index'], { cwd: ROOT, stdio: 'ignore' });
+}, 120_000);
+
 describe('what reaches the site', () => {
   it.each([
     ['its own source', 'site/app/layout.tsx'],
@@ -31,13 +37,16 @@ describe('what reaches the site', () => {
     ['a docs page a site page imports as text', 'docs/across-dimensions.md'],
     ['a package the run loads', 'packages/core/src/judge/scope.ts'],
     ['a package the site imports', 'packages/route-collector/src/read.ts'],
+    ['what decides which routes are photographed', 'packages/route-collector/src/sitemap.ts'],
     ['the scanner the run loads to name components', 'packages/sense/native/src/read.rs'],
     ['the workflow that runs it', '.github/workflows/variance.yml'],
     ['the action that photographs it', '.github/actions/variance/action.yml'],
+    ['the script that decides whether the run accepts', '.github/scripts/variance-accept.mjs'],
+    ['what counts as a change of a package', '.changeset/config.json'],
     ['the install', 'yarn.lock'],
     ['a step of the root build', 'tools/page-agents.mjs'],
-  ])('%s', (_, file) => {
-    const { observe, because } = siteReach(ROOT, ['backlog/tasks/unrelated.md', file], RUNNER);
+  ])('%s', async (_, file) => {
+    const { observe, because } = await siteReach(ROOT, ['backlog/tasks/unrelated.md', file], RUNNER);
 
     expect(observe).toBe(true);
     expect(because).toContain(file);
@@ -54,25 +63,26 @@ describe('what reaches the site', () => {
     ['a repository check', 'tools/site-packages.check.ts'],
     ['a task', 'backlog/tasks/unrelated.md'],
     ['a changeset', '.changeset/a-change.md'],
-  ])('not %s', (_, file) => {
-    const { observe, because } = siteReach(ROOT, [file], RUNNER);
+  ])('not %s', async (_, file) => {
+    const { observe, because } = await siteReach(ROOT, [file], RUNNER);
 
     expect(observe).toBe(false);
-    expect(because).toContain('1 changed file');
+    expect(because).toContain('1 changed file is not');
   });
 
-  it('not a change that changes nothing', () => {
-    expect(siteReach(ROOT, [], RUNNER).observe).toBe(false);
+  it('not a change that changes nothing', async () => {
+    expect((await siteReach(ROOT, [], RUNNER)).observe).toBe(false);
   });
 });
 
 describe('the change a commit makes', () => {
-  it('is every path it touched against its first parent', () => {
-    const merge = git('rev-list', '--merges', '--max-count=1', 'HEAD');
-
-    expect(changedBy(ROOT, merge)).toEqual(
-      git('diff', '--name-only', '--no-renames', `${merge}^1`, merge).split('\n').filter(Boolean),
-    );
+  // #347's branch added a changeset and dropped it again: merging it changed
+  // the example and nothing else.
+  it('is what merging brought in, not what each commit of the branch did', () => {
+    expect(changedBy(ROOT, '39ffac1a44b46a97de23324b902bd126ccadd0d9')).toEqual([
+      'examples/readme-case/README.md',
+      'examples/readme-case/src/readme.chromium.test.ts',
+    ]);
   });
 
   // A move out of a package the run loads changes that package, and only the
@@ -146,10 +156,10 @@ describe('whether the run observes the site', () => {
     expect(outputs['because']).not.toBe('');
   });
 
-  // Two merges from this repository's own history: #347 changed a case's
+  // Two merges from this repository's own history: #347 changed an example's
   // README and its test, #339 the site's styling.
   it.each([
-    ['a case', '39ffac1a44b46a97de23324b902bd126ccadd0d9', 'false'],
+    ['an example', '39ffac1a44b46a97de23324b902bd126ccadd0d9', 'false'],
     ['the site', 'b823fd3038dfc012f2552c000b6a2f7966c14073', 'true'],
   ])('on a pull request that changes %s, by what it changes', async (_, commit, observe) => {
     const { code, out, outputs } = await decide('pull_request', 'synchronize', commit);

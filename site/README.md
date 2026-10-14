@@ -53,7 +53,7 @@ A change it finds is accepted on the pull request with the `variance: accept
 site` label.
 
 A pull request that changes nothing the site is built from or photographed
-with does not run it: nothing here, nothing a page here imports, nothing the
+with does not run it: nothing here, nothing a page here reaches, nothing the
 run loads and nothing of the job itself. The check still reports, green, and
 its summary names why. `tools/site-reach.mjs` makes that call, and `main`
 always runs.

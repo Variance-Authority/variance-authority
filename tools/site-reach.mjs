@@ -3,26 +3,31 @@
 // Whether a pull request can change what the `site` check photographs.
 //
 // The check builds `site/`, serves it, and photographs every route its sitemap
-// lists, which takes about twenty minutes. A change reaches it in one of two
-// ways: it changes what the site is built from, or it changes what photographs
-// it. Each is read out of this checkout rather than listed here, so a page that
-// starts importing another README, or a package the CLI starts depending on,
-// is in reach the moment it is committed:
+// lists, which takes about twenty minutes and is the slowest check a pull
+// request waits for. A change reaches it in one of three ways, and the first two
+// are read out of this checkout rather than listed here, so a page that starts
+// importing another README, or a package the CLI starts depending on, is in
+// reach the moment it is committed:
 //
 // - **What the site is built from**: everything under `site/`, and every file
-//   a module there loads from outside it, read by sense's module reader. That
-//   is how `docs/` and the packages' READMEs come in, as `?raw` text.
+//   the published source index says a file there reaches. That is the file graph
+//   every other reach question here walks (`affectedBy`), and it is how `docs/`
+//   and the packages' READMEs come in, as `?raw` text, and how the routes
+//   collector and what it imports come in. A site module the reader could not
+//   enumerate every import of is a change nobody can read, and runs.
 // - **What photographs it**: the workspace packages the run loads, which are
 //   the one holding the runner (`VARIANCE_RUNNER`, the command the variance
-//   step runs), every workspace package a site module names, and everything
-//   those depend on. A file in one of them counts when it counts as a change of
-//   that package to changesets: `.changeset/config.json`'s
-//   `changedFilePatterns` already says that a test, a fixture or a README is
-//   not the package.
-// - **What runs it**: this workflow, the actions it uses, this file, and the root's
-//   install and build. These are written down, because nothing in the
-//   repository says which of its files a workflow job runs; they are what the
-//   job's own text names.
+//   step runs) and everything it depends on. These are judged by package, not
+//   by import: the run also loads the native scanner, the page-agent bundles and
+//   the skills, which nothing imports. A file in one of them counts when it
+//   counts as a change of that package to changesets: `.changeset/config.json`'s
+//   `changedFilePatterns` already says that a test, a fixture or a README is not
+//   the package.
+// - **What runs it**: this workflow, the actions and the script its steps use,
+//   the configs the job reads, this file, the root's install, and every file a
+//   step of the root build reaches. The first ones are written down, because
+//   nothing in the repository says which of its files a workflow job runs; they
+//   are what the job's own text names.
 //
 // The change is the pull request's whole, its merge commit against the base it
 // merges into, not the last push: a test-only push to a branch that already
@@ -30,31 +35,45 @@
 // accept label always run, and so does a pull request whose change cannot be
 // read. Not running is the claim that needs the evidence.
 //
-// Writes `observe` and `because` to `$GITHUB_OUTPUT`. Run by hand with a merge
-// commit, `node tools/site-reach.mjs <commit>`, it prints what it would decide.
+// Reads the source index `variance index` publishes; in CI that step runs first.
+// Writes `observe` and `because` to `$GITHUB_OUTPUT`. To ask it by hand about a
+// merge commit, from the root:
+//
+//   GITHUB_EVENT_NAME=pull_request VARIANCE_RUNNER=packages/cli/dist/bin.js \
+//     node tools/site-reach.mjs <commit>
 
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, existsSync, readFileSync } from 'node:fs';
-import { posix, resolve } from 'node:path';
+import { appendFileSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { readModule } from '@variance-authority/sense/read';
+import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
+import { publishedSources } from '@variance-authority/sense';
+import ciInfo from 'ci-info';
 import picomatch from 'picomatch';
 
-/** The files of the job itself: the workflow, the two actions its steps use, and this. */
+/**
+ * The files of the job itself: the workflow, the actions and the script its
+ * steps use, the configs those read, and this.
+ */
 const MACHINERY = [
   '.github/workflows/variance.yml',
   '.github/actions/build/**',
   '.github/actions/variance/**',
+  '.github/scripts/variance-accept.mjs',
+  '.changeset/config.json',
+  'variance.config.json',
   'tools/site-reach.mjs',
 ];
 
 /** The root's install. Its build is read from `scripts.build`. */
 const INSTALL = ['package.json', 'yarn.lock', '.yarnrc.yml', '.yarn/**', 'tsconfig.json', 'tsconfig.base.json'];
 
-const MODULE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
-
 const git = (root, ...args) =>
-  execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  execFileSync('git', ['-c', 'core.quotePath=false', ...args], {
+    cwd: root,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
 
 /**
  * Every path a commit touched against its first parent, both sides of a move,
@@ -69,8 +88,8 @@ export function changedBy(root, commit) {
   } catch {
     return undefined;
   }
-  return git(root, 'diff', '--name-only', '--no-renames', `${commit}^1`, commit)
-    .split('\n')
+  return git(root, 'diff', '-z', '--name-only', '--no-renames', `${commit}^1`, commit)
+    .split('\0')
     .filter(Boolean);
 }
 
@@ -95,54 +114,39 @@ function workspaces(root) {
   return found;
 }
 
-/** The specifiers every tracked module under `site/` loads. */
-function siteRequests(root) {
-  const requests = [];
-  for (const file of git(root, 'ls-files', '--', 'site').split('\n')) {
-    if (!MODULE.test(file) || !existsSync(resolve(root, file))) continue;
-    const read = readModule(file, readFileSync(resolve(root, file), 'utf8'));
-    if (read.unknown?.includes('parse error')) throw new Error(`${file} could not be parsed`);
-    for (const { value } of read.requests) requests.push({ file, value });
-  }
-  return requests;
-}
-
-/** The package a bare specifier names, or `null` for a relative one or a host's own. */
-function packageOf(specifier) {
-  if (specifier.startsWith('.') || specifier.startsWith('/') || specifier.startsWith('node:')) return null;
-  const parts = specifier.split('/');
-  return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
+/**
+ * The checkout's file graph, from the published source index, and the site
+ * modules whose imports it could not all read.
+ */
+async function graphOf(root) {
+  const read = await publishedSources(root, {
+    ci: ciInfo.isCI,
+    step: 'variance index',
+    announce: (line) => process.stderr.write(`site-reach: ${line}\n`),
+  });
+  const unread = read.records
+    .filter(({ file, unknown, unresolved }) =>
+      file.startsWith('site/') && (unknown !== undefined || unresolved?.some((value) => value.startsWith('.'))),
+    )
+    .map(({ file, unknown }) => `\`${file}\`${unknown === undefined ? '' : ` (${unknown})`}`);
+  return { relations: relationsOfFiles(read.records), unread };
 }
 
 /**
  * Whether a change can reach the site, and the sentence that says why.
  *
  * `changed` is repository-relative paths; `runner` is the file the variance
- * step runs. Reads the checkout at `root` for everything else.
+ * step runs. Reads the checkout at `root` and its published source index for
+ * everything else.
  */
-export function siteReach(root, changed, runner) {
+export async function siteReach(root, changed, runner) {
   const packages = workspaces(root);
-  const requests = siteRequests(root);
+  const { relations, unread } = await graphOf(root);
+  if (unread.length > 0) throw new Error(`not every import of ${unread.join(', ')} could be read`);
 
-  // Loaded from outside `site/`: a path, or a prefix for a specifier that
-  // leaves its extension to the resolver.
-  const loaded = [];
-  const seeds = new Set();
-  for (const { file, value } of requests) {
-    const named = packageOf(value);
-    if (named !== null) {
-      if (packages.has(named)) seeds.add(named);
-      continue;
-    }
-    const target = posix.normalize(posix.join(posix.dirname(file), value.replace(/\?.*$/, '')));
-    if (!target.startsWith('site/') && !target.startsWith('../')) loaded.push({ target, by: file });
-  }
-
-  for (const [name, { dir }] of packages) {
-    if (runner.startsWith(`${dir}/`)) seeds.add(name);
-  }
   const run = new Set();
-  for (const pending = [...seeds]; pending.length > 0; ) {
+  for (const pending = [...packages].filter(([, { dir }]) => runner.startsWith(`${dir}/`)).map(([name]) => name);
+    pending.length > 0; ) {
     const name = pending.pop();
     if (run.has(name)) continue;
     run.add(name);
@@ -156,13 +160,14 @@ export function siteReach(root, changed, runner) {
     changedFilePatterns.filter((pattern) => !pattern.startsWith('!')),
     { dot: true, ignore: changedFilePatterns.filter((pattern) => pattern.startsWith('!')).map((p) => p.slice(1)) },
   );
-  const build = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).scripts?.build ?? '';
+  const build = (JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).scripts?.build ?? '').split(/\s+/);
   const job = picomatch([...MACHINERY, ...INSTALL], { dot: true });
 
   for (const file of changed) {
     if (file.startsWith('site/')) return { observe: true, because: `\`${file}\` is the site's own.` };
-    const imported = loaded.find(({ target }) => file === target || file.startsWith(`${target}.`));
-    if (imported) return { observe: true, because: `\`${imported.by}\` loads \`${file}\`.` };
+    const reached = affectedBy(relations, [file]).files;
+    const page = reached.filter((path) => path.startsWith('site/')).sort()[0];
+    if (page !== undefined) return { observe: true, because: `\`${page}\` reaches \`${file}\`.` };
     const owner = owners.find(([, { dir }]) => file.startsWith(`${dir}/`));
     if (owner) {
       const [name, { dir }] = owner;
@@ -171,8 +176,10 @@ export function siteReach(root, changed, runner) {
       }
       continue;
     }
-    if (job(file) || build.split(/\s+/).includes(file)) {
-      return { observe: true, because: `\`${file}\` is part of the job that photographs the site.` };
+    if (job(file)) return { observe: true, because: `\`${file}\` is part of the job that photographs the site.` };
+    const step = reached.find((path) => build.includes(path)) ?? (build.includes(file) ? file : undefined);
+    if (step !== undefined) {
+      return { observe: true, because: `\`${file}\` changes \`${step}\`, a step of the root build.` };
     }
   }
 
@@ -184,7 +191,7 @@ export function siteReach(root, changed, runner) {
 }
 
 /** What the step decides, from the event and the commit it checked out. */
-function decide(root, commit) {
+async function decide(root, commit) {
   const event = process.env['GITHUB_EVENT_NAME'];
   if (event !== 'pull_request') return { observe: true, because: `a \`${event}\` always runs the site.` };
   if (process.env['VARIANCE_EVENT_ACTION'] === 'labeled') {
@@ -197,15 +204,15 @@ function decide(root, commit) {
     }
     const runner = process.env['VARIANCE_RUNNER'];
     if (!runner) throw new Error('VARIANCE_RUNNER is not set');
-    return siteReach(root, changed, runner);
+    return await siteReach(root, changed, runner);
   } catch (error) {
-    return { observe: true, because: `the change could not be read: ${error.message}` };
+    return { observe: true, because: `the change could not be read: ${error.message}`, failed: true };
   }
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const root = resolve(import.meta.dirname, '..');
-  const { observe, because } = decide(root, process.argv[2] || 'HEAD');
+  const { observe, because, failed } = await decide(root, process.argv[2] || 'HEAD');
   const output = process.env['GITHUB_OUTPUT'];
   if (output) {
     appendFileSync(output, `observe<<__variance__\n${observe}\n__variance__\n`);
@@ -214,5 +221,6 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const summary = process.env['GITHUB_STEP_SUMMARY'];
   const sentence = observe ? `The site is observed: ${because}` : `The site is not observed: ${because}`;
   if (summary) appendFileSync(summary, `${sentence}\n`);
-  console.log(observe ? sentence : `::notice title=site not observed::${because}`);
+  if (failed) console.log(`::warning title=site reach not decided::${because}`);
+  else console.log(observe ? sentence : `::notice title=site not observed::${because}`);
 }
