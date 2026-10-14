@@ -123,7 +123,11 @@ async function decide(
   await writeFile(output, '', 'utf8');
   const child = spawn('node', [SCRIPT, commit], {
     cwd: ROOT,
+    // `HOME` is where the job's global git config is, which is what trusts a
+    // checkout another user owns, as in the merge queue's container. Without
+    // it git refuses the checkout and the run is observed for that reason.
     env: {
+      HOME: process.env['HOME'],
       PATH: process.env['PATH'],
       GITHUB_EVENT_NAME: event,
       GITHUB_OUTPUT: output,
@@ -175,6 +179,6 @@ describe('whether the run observes the site', () => {
     const { code, out, outputs } = await decide('pull_request', 'synchronize', commit);
 
     expect(code, out).toBe(0);
-    expect(outputs['observe']).toBe(observe);
+    expect(outputs['observe'], outputs['because']).toBe(observe);
   });
 });
