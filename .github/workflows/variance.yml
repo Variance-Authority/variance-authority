@@ -665,10 +665,11 @@ jobs:
           token: ${{ secrets.VARIANCE_PUSH_TOKEN || github.token }}
           lfs: false
 
-      # The container runs as root over a workspace the runner's user owns, and
-      # git refuses such a repository until it is named safe: the build's cache
-      # key and the pointer check below both read it.
-      - name: mark the workspace safe for git
+      # The Playwright image runs as a user that does not own the checkout, and
+      # git refuses a directory it does not trust. Everything after this asks
+      # git something: the build names the native scanner's tree by it, and a
+      # tree it cannot name restores another commit's scanner.
+      - name: trust the workspace
         shell: bash
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
@@ -797,6 +798,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      # The Playwright image runs as a user that does not own the checkout, and
+      # git refuses a directory it does not trust. Everything after this asks
+      # git something: the build names the native scanner's tree by it, and a
+      # tree it cannot name restores another commit's scanner.
+      - name: trust the workspace
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - shell: bash
         run: corepack enable && yarn install --immutable
