@@ -2,7 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-08-02
-**Amended by:** [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) — a baseline under another identity is compared, with the identity named as the cause; the partition keys the store, it no longer refuses
+**Amended by:** [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) — a baseline under another identity is compared, with the identity named as the cause; the partition keys the store, it no longer refuses; [ADR-0091](0091-a-baseline-is-named-for-its-subject.md) — the identity is not in a baseline's path, it is read from the record, and it keys the render cache
 **Extends:** ADR-0010 (tier-specific environment keys), ADR-0002 (sub-renderer)
 
 ## Context

@@ -167,6 +167,80 @@ describe('acquiring a render document', () => {
 });
 
 /**
+ * A face under jsdom, which keeps a face's `font-family` and drops its `src`.
+ *
+ * The carrying itself is a browser's to show and `web-fonts.chromium.test.ts`
+ * in `route-collector` shows it; what this host can say is which faces the
+ * subject is set in, and that it could not read their files.
+ */
+describe('a subject set in a face this host cannot read', () => {
+  it('says the render will paint a fallback where the page painted the face', () => {
+    styleSheet(
+      '@font-face { font-family: "Brand Sans"; src: url(/fonts/brand.woff2) format("woff2"); }\n' +
+        '#subject { font-family: "brand sans", serif; }',
+    );
+    const subject = mount('<div id="subject"><p>hello</p></div>');
+
+    const acquired = acquireDocument(subject, { subject: { id: 's', kind: 'fixture' }, viewport: VIEWPORT });
+
+    // Named as the family matched it: case-folded, the way family names compare.
+    expect(acquired.diagnostics.find((d) => d.code === 'unreadable-font-face')?.message).toContain('"brand sans"');
+    // Not carried: a face with no file declares a font the render cannot paint.
+    expect(acquired.css.join('\n')).not.toContain('@font-face');
+  });
+
+  it('says nothing of a face the subject is not set in', () => {
+    styleSheet(
+      '@font-face { font-family: Elsewhere; src: url(/fonts/elsewhere.woff2); }\n' +
+        '#subject { font-family: "Brand Sans", serif; }',
+    );
+    const subject = mount('<div id="subject"><p>hello</p></div>');
+
+    const acquired = acquireDocument(subject, { subject: { id: 's', kind: 'fixture' }, viewport: VIEWPORT });
+
+    expect(acquired.diagnostics.map((d) => d.code)).not.toContain('unreadable-font-face');
+  });
+
+  it('reads the family wherever the stack names it, and under a condition that holds', () => {
+    // The whole stack, because which entry draws a glyph is the renderer's to
+    // decide from the faces it holds.
+    styleSheet(
+      '@media (min-width: 1px) { @font-face { font-family: Second; src: url(/second.woff2); } }\n' +
+        '@media (max-width: 1px) { @font-face { font-family: Narrow; src: url(/narrow.woff2); } }\n' +
+        '#subject p { font-family: First, \'Second\', Narrow, sans-serif; }',
+    );
+    const subject = mount('<div id="subject"><p>hello</p></div>');
+
+    const acquired = acquireDocument(subject, { subject: { id: 's', kind: 'fixture' }, viewport: VIEWPORT });
+
+    const message = acquired.diagnostics.find((d) => d.code === 'unreadable-font-face')?.message ?? '';
+    expect(message).toContain('"second"');
+    expect(message).not.toContain('narrow');
+  });
+});
+
+/**
+ * An object URL under a host that paints nothing.
+ *
+ * jsdom mints no object URLs, so a `blob:` there is a string a test wrote, and
+ * no page ever showed the picture it names. The render still paints it broken,
+ * which is the host's standing limit, as an unread font face is: said, and not
+ * a failed run.
+ */
+describe('an object URL this host cannot read', () => {
+  it('warns that the render paints it broken, since no page here showed it', () => {
+    const subject = mount('<div id="subject"><img src="blob:http://localhost/made-up" alt="chart"></div>');
+
+    const acquired = acquireDocument(subject, { subject: { id: 's', kind: 'fixture' }, viewport: VIEWPORT });
+
+    const unread = acquired.diagnostics.filter((d) => d.code === 'unreadable-object-url');
+    expect(unread.map((d) => d.severity)).toEqual(['warn']);
+    expect(unread[0]?.message).toContain('<img src="blob:http://localhost/made-up">');
+    expect(acquired.html).toContain('src="blob:http://localhost/made-up"');
+  });
+});
+
+/**
  * The digest is a function of the tree, and of nothing about the run that read it.
  *
  * `outerHTML` writes attributes in the order the element happens to hold them,

@@ -1,6 +1,7 @@
 import { bandsBetween } from '@variance-authority/core/attribute';
 import { mergeDiagnostics, pictured, type Raster } from '@variance-authority/core/format';
 import { attributionOf } from './attribution.js';
+import type { BeforeSide } from './because.js';
 import { accessibilityBetween, decide } from './decide.js';
 import type { CompareInputs, Observation } from './observe.js';
 
@@ -33,9 +34,10 @@ export async function decideRasters(
   after: Raster,
   rendered: boolean,
   options: CompareInputs,
+  beforeIs: BeforeSide,
 ): Promise<Observation> {
   if (pictured(before) && pictured(after)) {
-    return await decide(subject, before, after, rendered, options);
+    return await decide(subject, before, after, rendered, options, beforeIs);
   }
   return withoutPixels(subject, before, after, rendered, options);
 }

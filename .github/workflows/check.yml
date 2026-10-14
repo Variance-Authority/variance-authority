@@ -425,6 +425,11 @@ jobs:
 
       - uses: ./.github/actions/build
 
+      # For `docs_grep`'s tests, which are unit tests and fail on CI without
+      # `rg` rather than skip. The other slices load none of them.
+      - uses: ./.github/actions/ripgrep
+        if: matrix.suite == 'unit'
+
       # The mainline's records as `base` read them, downloaded only when it
       # uploaded some. A download that fails then fails the job: going on
       # would ask the line on its own, the read `base` is there to replace.
@@ -742,7 +747,9 @@ jobs:
 
       # One comment, rewritten on every push, found by the marker the review
       # writes on its first line. The marker is read from the file rather than
-      # spelled here, so the command stays the one place it is defined.
+      # spelled here, so the command stays the one place it is defined. It
+      # adopts nothing: the docket from before markers named a project is the
+      # variance gate's, never the review's.
       - name: tell the reviewer
         if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.review.outcome == 'success' }}
         shell: bash
@@ -751,7 +758,8 @@ jobs:
           REVIEW: ${{ steps.carry.outputs.review }}
         run: |
           body="$REVIEW/review.md"
-          node .github/actions/variance/post-comment.mjs --body-file "$body" --marker "$(head -n 1 "$body")"
+          node .github/actions/variance/post-comment.mjs --body-file "$body" --marker "$(head -n 1 "$body")" \
+            --adopt-unkeyed false
 
       # What this push ran, for the pull request's next push to read from: the
       # step `what the last push ran` in `base` says why. A red suite is kept
@@ -1165,6 +1173,10 @@ jobs:
         run: corepack enable && yarn install --immutable
 
       - uses: ./.github/actions/build
+
+      # The unit part only, for the reason written at the same step in `suite`.
+      - uses: ./.github/actions/ripgrep
+        if: matrix.part == 'unit'
 
       - name: lint
         if: matrix.part == 'rules'

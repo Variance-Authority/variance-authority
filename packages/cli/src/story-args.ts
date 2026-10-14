@@ -4,9 +4,9 @@ import { OperatorError } from './exit.js';
 
 export interface ParsedStory {
   readonly command: 'story';
-  /** Text the story's test file contains. */
+  /** The story's test file, by its path in the checkout. */
   readonly file?: string;
-  /** Text the story's case name contains. */
+  /** The story's case, by its whole name as the runner reports it. */
   readonly name?: string;
   /** The checkout the stories were written in; defaults to the working directory. */
   readonly root: string;
@@ -26,10 +26,14 @@ export interface ParsedStory {
  */
 export type StoryCompare = 'last' | 'outcome' | { readonly labels: readonly [string, string] };
 
-/** One file's part of the route, the steps near one step, or all of it. */
-export type StoryZoom = { readonly in: string } | { readonly around: number } | { readonly whole: true };
+/** One file's part of the route, one package's, the steps near one step, or all of it. */
+export type StoryZoom =
+  | { readonly in: string }
+  | { readonly package: string }
+  | { readonly around: number }
+  | { readonly whole: true };
 
-const ZOOMS = ['--in', '--around', '--whole'] as const;
+const ZOOMS = ['--in', '--package', '--around', '--whole'] as const;
 
 /** Parse the story reader outside the config-shaped command parser. */
 export function parseStory(flags: Flags): ParsedStory {
@@ -77,6 +81,8 @@ function zoomOf(flags: Flags): StoryZoom | undefined {
   if (flags.present.has('--whole')) return { whole: true };
   const within = flags.values.get('--in');
   if (within !== undefined) return { in: within };
+  const home = flags.values.get('--package');
+  if (home !== undefined) return { package: home };
   const around = flags.values.get('--around');
   if (around === undefined) return undefined;
   const step = Number(around);

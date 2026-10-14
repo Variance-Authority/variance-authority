@@ -46,7 +46,7 @@ changed-pixel count is checked only on the platform that painted it:
     "to": "rgb(130 80 223 / 1)",
     "impact": "paint"
   },
-  "changedPixels": 9226
+  "changedPixels": 9237
 }
 ```
 

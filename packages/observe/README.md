@@ -233,7 +233,7 @@ this package.
 
 | Verdict | Meaning | What to do |
 | --- | --- | --- |
-| `unchanged` | No changed pixels. | Continue without review. |
+| `unchanged` | No changed pixels beyond the default policy's tolerance: antialiasing, and a colour change of up to 1%. `because` counts any pixels it forgave. | Continue without review. |
 | `changed` | The image differs. `regions` gives as much attribution as the snapshot and source you supplied allow. | Present the evidence and require review. |
 | `new` | No baseline exists for this key. | Review and explicitly approve or reject. Not green. |
 | `ignored` | Pixels changed, and every one fell inside a declared exclusion or sensitivity. | Continue, and record that the green result rested on a rule. |
@@ -310,7 +310,7 @@ measures displacement.
   baseline was written.
 - **Everything is `changed` with a moved identity.** Compare the reported
   identities. Browser, platform, scale, font declarations and stabilization
-  inputs partition baselines on purpose; pin one painter for every run.
+  inputs are part of the identity on purpose; pin one painter for every run.
 - **Regions have coordinates but no components.** Supply the semantic snapshot
   from the same render.
 - **Components have no source lines.** Supply a matching `SourceIndex`.

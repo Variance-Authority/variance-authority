@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
-import { readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
-import { answerSearch, grep, journeyMapTool, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
+import { readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
+import { answerSearch, discover, grep, intersection, journeyMapTool, namesWanted, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
 import { readTree, startPointArg, stringArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
@@ -78,6 +78,38 @@ export async function grepSource(root: string, input: Readonly<Record<string, un
   // the sentence that says so, and a call with no start point needs none.
   const tree = grep.wants?.(input) === true ? await readTree({ root, index: sourceIndexPath(root) }).catch(() => undefined) : undefined;
   return { answer: () => grep.run(undefined, input, { ...(tree === undefined ? {} : { tree }), root }), at: undefined };
+}
+
+/**
+ * `discover` reads no workspace value either, but every one of its sets
+ * needs the tree, and `declares` and most `imports` need each file's names,
+ * which only the scan that draws the tree holds.
+ */
+export async function discoverSource(root: string, input: Readonly<Record<string, unknown>>): Promise<Answering> {
+  const read = await readNamedTree(root, input);
+  return { answer: () => discover.run(undefined, input, { ...read, root }), at: undefined };
+}
+
+/**
+ * `intersection` asks each of its questions over one reading: the workspace
+ * value the name questions read, the tree when any question names a path, and
+ * each file's names when a `discover` among them reads names — which only the
+ * scan that draws a tree holds. The tree the questions reach along is still
+ * the workspace's, because only that one joins a taint table's edges.
+ */
+export async function intersectionSource(
+  root: string,
+  input: Readonly<Record<string, unknown>>,
+  reading: SourceReadOptions,
+): Promise<Answering> {
+  const sourced = await readSource(root, reading);
+  const tree = sourced.tree?.();
+  const names = namesWanted(input) ? (await readNamedTree(root, input)).names : undefined;
+  const drawn = { ...(tree === undefined ? {} : { tree }), ...(names === undefined ? {} : { names }) };
+  return {
+    answer: () => intersection.run(sourced.help, input, { ...drawn, root }),
+    at: workspaceGeneration(sourced.help),
+  };
 }
 
 /**

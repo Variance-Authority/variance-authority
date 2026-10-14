@@ -9,7 +9,7 @@ sentence: a **verdict**, a **cause**, and a place.
 
 This block is where the system stops describing and starts asserting. It holds
 the whole distance between *5482 pixels moved* and *`Toggle` moved, at
-`src/ds/components.tsx:107`, in `main → region "Todos" → item 2 of 3`* — the
+`examples/todomvc/src/ds/components.tsx:107`, in `main → region "Todos" → item 2 of 3`* — the
 arithmetic that says what differs, the exclusions the adopter declared, the join
 that gives a difference a name and a location, the ordering that separates a
 **cause** from its collateral, and the single word the run commits to. Every one

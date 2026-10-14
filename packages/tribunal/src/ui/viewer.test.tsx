@@ -54,6 +54,24 @@ describe('the viewer offers only comparisons this build can make', () => {
     expect(modesFor(newSubject)).not.toContain('blink');
   });
 
+  it('claims no comparison under a render that had no baseline', () => {
+    const markup = renderToStaticMarkup(
+      <Viewer
+        client={CLIENT}
+        build="ci-1"
+        subject={subject({
+          verdict: 'new',
+          changedPixels: 0,
+          has: { before: false, after: true, diff: false },
+          size: { width: 100, height: 50 },
+        })}
+      />,
+    );
+
+    expect(markup).toContain('No baseline, so nothing was compared');
+    expect(markup).not.toContain('pixels differ');
+  });
+
   it('says so plainly when the run kept nothing to look at', () => {
     const markup = renderToStaticMarkup(
       <Viewer

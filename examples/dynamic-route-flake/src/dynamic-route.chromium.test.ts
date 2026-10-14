@@ -122,6 +122,8 @@ beforeAll(async () => {
     attributeRegions(isolateRegions(activeComparison.mask).regions, changed, {
       scale: VIEWPORT.deviceScaleFactor,
       origin: active.origin,
+      before: baseline,
+      beforeOrigin: before.origin,
     }),
     activeCauses,
   );
@@ -132,6 +134,8 @@ beforeAll(async () => {
     attributeRegions(isolateRegions(repeatComparison.mask).regions, repeat, {
       scale: VIEWPORT.deviceScaleFactor,
       origin: again.origin,
+      before: changed,
+      beforeOrigin: active.origin,
     }),
   );
 }, 120_000);

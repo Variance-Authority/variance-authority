@@ -36,7 +36,7 @@
 
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import {
   declaredSuites,
@@ -47,10 +47,12 @@ import {
   type DeclaredSuite,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
+import { DEFAULT_BASELINE_PATH, parseBaselinePath } from '@variance-authority/store/durable';
 import type { Mainlines } from '../share-lines.js';
 import type { Config } from '../config.js';
 import { loadConfig } from '../config-load.js';
 import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
+import { projectSegment } from '../project-segment.js';
 
 export type CarryDirection = 'restore' | 'save';
 
@@ -89,6 +91,11 @@ export interface CarryPlan {
   /** The branch the keys are cut for. Absent off a host, where nothing is keyed. */
   readonly line?: string;
   readonly base?: string;
+  /**
+   * The config's `project` as one path segment, for what the host names per
+   * project: a ref, an artifact. Absent with no config.
+   */
+  readonly project?: string;
   readonly cached: readonly Cached[];
   /**
    * Where the baseline store sits on disk, for a host step that commits what an
@@ -96,6 +103,17 @@ export interface CarryPlan {
    * which keep nothing in the checkout.
    */
   readonly baselinesRoot?: string;
+  /**
+   * What that step stages, as git pathspecs: the images and records at every
+   * path `baselines.path` can render, the old layout's partitions, and for
+   * `lfs` the `.gitattributes` that tracks them.
+   *
+   * Never the root. A template with `{dir}` puts the root at the repository,
+   * and staging it would commit whatever else the run left in the working
+   * tree. The old partitions are named so that a pair `accept` retired goes out
+   * as a deletion beside the file it moved to, which git shows as a rename.
+   */
+  readonly baselinesPathspecs?: readonly string[];
   /** What a reviewer downloads: uploaded as it is, so it has a path and no key. */
   readonly uploads: readonly { readonly name: string; readonly path: string }[];
   /**
@@ -240,8 +258,9 @@ export function carryPlan(input: CarryInput): CarryPlan {
     direction,
     ...(line === undefined ? {} : { line }),
     ...(run.base === undefined ? {} : { base: run.base }),
+    ...(config === undefined ? {} : { project: projectSegment(config.project) }),
     cached,
-    ...(store === undefined || store.kind === 'remote' ? {} : { baselinesRoot: store.root }),
+    ...(store === undefined || store.kind === 'remote' ? {} : { baselinesRoot: store.root, baselinesPathspecs: pathspecsOf(store) }),
     uploads: [
       ...(config === undefined ? [] : [{ name: 'report', path: config.report }, { name: 'images', path: config.images }]),
       { name: 'review', path: resolve(input.root, REVIEW_OUT) },
@@ -249,6 +268,27 @@ export function carryPlan(input: CarryInput): CarryPlan {
     shared: (input.suites ?? []).filter((suite) => suite.carry === 'share').map((suite) => suite.name),
     notes,
   };
+}
+
+/**
+ * An old layout's partition directory as a glob: `v1-<hex>` as it wrote it, or
+ * the raw `v1:<hex>` it wrote before that. The hex is spelled out, because a
+ * directory such as `api/v1-beta` only starts like one, and collocated, the
+ * root is the whole repository.
+ */
+const PARTITION = `v1[-:]${'[0-9a-f]'.repeat(32)}`;
+
+/** See {@link CarryPlan.baselinesPathspecs}. */
+function pathspecsOf(store: Exclude<NonNullable<Config['baselines']>, { kind: 'remote' }>): readonly string[] {
+  const { glob } = parseBaselinePath(store.path ?? DEFAULT_BASELINE_PATH);
+  const records = store.records ?? store.root;
+  const roots = records === store.root ? [store.root] : [store.root, records];
+  return [
+    `:(glob)${join(store.root, `${glob}.png`)}`,
+    `:(glob)${join(records, `${glob}.json`)}`,
+    ...roots.map((root) => `:(glob)${join(root, `**/${PARTITION}/*`)}`),
+    ...(store.kind === 'lfs' ? [`:(glob)${join(store.root, '.gitattributes')}`] : []),
+  ];
 }
 
 function eyesNote(root: string, suite: string, notes: string[]): void {
@@ -274,11 +314,12 @@ function savesRecording(run: HostRun, line: string | undefined, mainlines: Mainl
 /**
  * The plan as `$GITHUB_OUTPUT` lines.
  *
- * `<artifact>-path`, `<artifact>-key` and, on a restore,
- * `<artifact>-restore-keys`, with the multi-line values in the heredoc form
- * the host reads; then `baselines-root` and the uploads, one path each. An artifact that is not carried this time prints nothing,
- * so a step guarded by `<artifact>-key != ''` does not run. Last, `shared-suites`:
- * the suites given to the share, separated by spaces, when there are any.
+ * `project` when there is a config; `<artifact>-path`, `<artifact>-key` and,
+ * on a restore, `<artifact>-restore-keys`, with the multi-line values in the
+ * heredoc form the host reads; then `baselines-root` and the uploads, one path
+ * each. An artifact that is not carried this time prints nothing, so a step
+ * guarded by `<artifact>-key != ''` does not run. Last, `shared-suites`: the
+ * suites given to the share, separated by spaces, when there are any.
  */
 export function githubOutput(plan: CarryPlan): string {
   const lines: string[] = [];
@@ -292,12 +333,14 @@ export function githubOutput(plan: CarryPlan): string {
   };
   if (plan.line !== undefined) one('line', plan.line);
   if (plan.base !== undefined) one('base', plan.base);
+  if (plan.project !== undefined) one('project', plan.project);
   for (const cached of plan.cached) {
     many(`${cached.artifact}-path`, cached.paths);
     one(`${cached.artifact}-key`, cached.key);
     if (cached.restoreKeys !== undefined) many(`${cached.artifact}-restore-keys`, cached.restoreKeys);
   }
   if (plan.baselinesRoot !== undefined) one('baselines-root', plan.baselinesRoot);
+  if (plan.baselinesPathspecs !== undefined) many('baselines-pathspecs', plan.baselinesPathspecs);
   for (const upload of plan.uploads) one(upload.name, upload.path);
   if (plan.shared.length > 0) {
     // Read by a shell loop, so a space in a name would split it into two suites.

@@ -15,6 +15,7 @@ import { caseSectionsAt, type CaseSections } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes, type EyesSection } from './eyes-record.js';
+import { editsBetween } from './region-edit.js';
 import type { TestCoverageView } from './format-view.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoverageModule, CoverageTest } from './index.js';
@@ -111,11 +112,11 @@ export interface LastCaseRun {
  * journals replaced by the run's, and has none when the run opened none.
  *
  * `held` is the text the snapshot names each module of `previous`'s index at,
- * which is the text it was cut from unless the snapshot re-cut a module no run
- * re-recorded since an edit; where the lines disagree, the numbering decides. A module
- * the run recorded from that same text lands its held cases by address, as its
- * rows do; one whose text is not known on both sides lands them only where the
- * two cuts numbered alike.
+ * which is the text it was cut from. A module the run recorded from another
+ * text lands its held cases through the edit between the two: the regions the
+ * edit left alone keep them, at the lines it places them, and the regions it
+ * touched keep none. A module whose text is not known on both sides, or not
+ * found, is read as changed whole.
  *
  * `stands` is the commit the record's snapshot stands at. When `previous`
  * names no last run, as a record that crossed a checkout does, the cases it
@@ -140,13 +141,19 @@ export function layCases(
   held?: ModuleTexts,
   stands?: string,
   base?: { readonly index: Uint8Array; readonly texts?: ModuleTexts; readonly recorded?: ModuleTexts },
+  cacheRoot?: string,
 ): CaseSections {
   const ran = new Set(run.tests.map((test) => test.file));
   const recorded = textsOf(run);
+  const edits = editsBetween(root, cacheRoot, [stands, run.commit]);
   const { merged, cases, last, announced, before: retired, unlined } = layerCaseIndex(previous.index, fresh, {
     ran,
     finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
     present: (test) => existsSync(resolve(root, test)),
+    edit: (file) => {
+      const [from, to] = [held?.get(file), recorded.get(file)];
+      return from === undefined || to === undefined ? undefined : edits(file, from, to);
+    },
     sameText: (file) => recorded.has(file) && recorded.get(file) === held?.get(file),
     ...(base === undefined ? {} : {
       base: base.index,
@@ -299,7 +306,9 @@ export type CaseLanding =
  * cases stood on before any shard ran.
  *
  * `stands` is the commit the record's snapshot stands at, which names the
- * before layer when `previous` names no last run — see {@link layCases}.
+ * before layer when `previous` names no last run — see {@link layCases}. It
+ * is also where a text the landing did not keep is looked for, with `cacheRoot`
+ * the layer the kept texts are in.
  *
  * Nothing is written here. The landing writes the sections into the record it
  * writes, under that record's lock.
@@ -311,6 +320,7 @@ export function landCases(
   shards: readonly LandedShard[],
   held?: ModuleTexts,
   stands?: string,
+  cacheRoot?: string,
 ): { readonly landing: CaseLanding; readonly sections: CaseSections } {
   let sections = previous;
   const texts = new Map(held ?? []);
@@ -326,7 +336,7 @@ export function landCases(
     if (run === undefined) continue;
     if (fresh !== undefined) {
       // A section this build cannot read is laid as a shard that opened none.
-      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base && { ...base, recorded: new Map(recorded) });
+      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base && { ...base, recorded: new Map(recorded) }, cacheRoot);
       for (const [file, text] of textsOf(run)) {
         texts.set(file, text);
         recorded.set(file, text);

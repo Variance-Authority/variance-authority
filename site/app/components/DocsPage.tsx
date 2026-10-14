@@ -19,6 +19,7 @@ export interface DocsPageProps {
   readonly eyebrow: string;
   readonly toc: readonly TableOfContentsItem[];
   readonly children: ReactNode;
+  readonly contentKind?: "article" | "index";
 }
 
 /**
@@ -33,6 +34,7 @@ export default function DocsPage({
   eyebrow,
   toc,
   children,
+  contentKind = "article",
 }: DocsPageProps) {
   const item = navigationItem(current);
   const { previous, next } = navigationNeighbors(current);
@@ -81,7 +83,7 @@ export default function DocsPage({
             </div>
           </header>
 
-          <div className="docs-content">{children}</div>
+          <div className={contentKind === "article" ? "docs-content" : "docs-index"}>{children}</div>
         </article>
 
         {previous || next ? (

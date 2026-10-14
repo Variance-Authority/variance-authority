@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
-import { digestFileName, identityDigest } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createLfsStore, type CommandResult, type CommandRunner } from './lfs.js';
 
@@ -35,8 +34,6 @@ const POINTER =
   'oid sha256:4d7a2145b0d3f1e2c4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7\nsize 9\n';
 
 const OK: CommandResult = { code: 0, stdout: '', stderr: '' };
-
-const partition = digestFileName(identityDigest(MAC));
 
 function rasterOf(bytes = IMAGE): Raster {
   return { documentDigest: 'v1:doc', identity: MAC, width: 1, height: 1, bytes, missingFonts: [] };
@@ -79,7 +76,7 @@ async function pointersFor(subjects: readonly string[]): Promise<void> {
   const writer = await createLfsStore({ root, verify: false });
   for (const subject of subjects) {
     await writer.put({ subject }, rasterOf());
-    await writeFile(join(root, partition, `${subject}.png`), POINTER, 'utf8');
+    await writeFile(join(root, `${subject}-chromium.png`), POINTER, 'utf8');
   }
 }
 
@@ -101,8 +98,8 @@ describe('a clone that skipped the smudge', () => {
     const found = await store.find({ subject: 'todo--empty' }, MAC);
 
     expect(found?.raster.bytes).toBe(IMAGE);
-    expect(pulls).toEqual([[`${partition}/todo--empty.png`]]);
-    expect(await readFile(join(root, partition, 'todo--full.png'), 'utf8')).toBe(POINTER);
+    expect(pulls).toEqual([['todo--empty-chromium.png']]);
+    expect(await readFile(join(root, 'todo--full-chromium.png'), 'utf8')).toBe(POINTER);
   });
 
   it('settles from the sidecar without fetching anything', async () => {
@@ -142,8 +139,8 @@ describe('a clone that skipped the smudge', () => {
     for (const found of await Promise.all([first, ...rest])) expect(found?.raster.bytes).toBe(IMAGE);
     // Within a batch, the order is whichever read finished first.
     expect(pulls.map((pull) => [...pull].sort())).toEqual([
-      [`${partition}/a.png`],
-      [`${partition}/b.png`, `${partition}/c.png`],
+      ['a-chromium.png'],
+      ['b-chromium.png', 'c-chromium.png'],
     ]);
   });
 
@@ -168,7 +165,7 @@ describe('a clone that skipped the smudge', () => {
     const includes = calls.filter((call) => call.startsWith('git lfs pull')).slice(1);
     expect(includes.length).toBeGreaterThan(1);
     for (const call of includes) expect(call.length).toBeLessThan(8100);
-    expect(pulls.slice(1).flat().sort()).toEqual(names.map((name) => `${partition}/${name}.png`));
+    expect(pulls.slice(1).flat().sort()).toEqual(names.map((name) => `${name}-chromium.png`));
   });
 
   it('refuses, naming the pull, when git-lfs could not fetch the image', async () => {
@@ -237,7 +234,7 @@ describe('a clone that skipped the smudge', () => {
     const { git: tracked } = skippedSmudge();
     const removing: CommandRunner = async (command, args, options) => {
       if (args[0] !== 'lfs' || args[1] !== 'pull') return tracked(command, args, options);
-      await rm(join(root, partition, 'todo--empty.png'));
+      await rm(join(root, 'todo--empty-chromium.png'));
       return OK;
     };
     const store = await createLfsStore({ root, git: removing });
@@ -245,7 +242,7 @@ describe('a clone that skipped the smudge', () => {
     const lookup = store.find({ subject: 'todo--empty' }, MAC);
 
     await expect(lookup).rejects.toBeInstanceOf(RasterStoreError);
-    await expect(lookup).rejects.toThrow(/todo--empty\.png is a git-LFS pointer, and fetching the image failed.*ENOENT/s);
+    await expect(lookup).rejects.toThrow(/todo--empty-chromium\.png is a git-LFS pointer, and fetching the image failed.*ENOENT/s);
   });
 
   it('fetches nothing when it was told not to consult git', async () => {
@@ -277,12 +274,12 @@ describe('against a real git with git-lfs', () => {
       git(root, 'clone', '--quiet', origin, work);
       git(work, 'lfs', 'install', '--local');
 
-      // `beside`, under a directory named the way a route segment is: `[` is a
+      // Under a directory named the way a route segment is: `[` is a
       // glob character to `--include`, and an unescaped one matches nothing. A
       // `!` inside a name is the opposite: escaped, it matches nothing.
       const baselines = join(work, 'app', '[slug]', 'a!b');
       await mkdir(baselines, { recursive: true });
-      const writer = await createLfsStore({ root: baselines, layout: 'beside' });
+      const writer = await createLfsStore({ root: baselines });
       expect(writer.tracking.diagnostics).toEqual([]);
       await writer.put({ subject: 'page--empty' }, rasterOf());
       await writer.put({ subject: 'page--full' }, rasterOf());
@@ -291,20 +288,20 @@ describe('against a real git with git-lfs', () => {
       git(work, 'push', '--quiet', 'origin', 'HEAD');
 
       // The committed image is a pointer in the object database.
-      const tracked = `app/[slug]/a!b/${partition}/page--empty.png`;
+      const tracked = 'app/[slug]/a!b/page--empty-chromium.png';
       expect(git(work, 'show', `HEAD:${tracked}`)).toMatch(/^version https:\/\/git-lfs/);
 
       git(root, 'clone', '--quiet', origin, clone, { GIT_LFS_SKIP_SMUDGE: '1' });
       git(clone, 'lfs', 'install', '--local', '--skip-smudge');
       expect(await readFile(join(clone, tracked), 'utf8')).toMatch(/^version https:\/\/git-lfs/);
 
-      const reader = await createLfsStore({ root: join(clone, 'app', '[slug]', 'a!b'), layout: 'beside' });
+      const reader = await createLfsStore({ root: join(clone, 'app', '[slug]', 'a!b') });
       expect(reader.tracking.diagnostics).toEqual([]);
       const found = await reader.find({ subject: 'page--empty' }, MAC);
 
       expect(found?.raster.bytes).toBe(IMAGE);
       expect(
-        await readFile(join(clone, `app/[slug]/a!b/${partition}/page--full.png`), 'utf8'),
+        await readFile(join(clone, 'app/[slug]/a!b/page--full-chromium.png'), 'utf8'),
       ).toMatch(/^version https:\/\/git-lfs/);
       expect(git(clone, 'status', '--porcelain')).toBe('');
     },

@@ -241,7 +241,7 @@ be requested anonymously.
 
 | method and path | token | what it does |
 |---|---|---|
-| `GET /version` | any | `{"service":"variance-authority-tribunal","api":5,"schema":19}` |
+| `GET /version` | any | `{"service":"variance-authority-tribunal","api":6,"schema":21}` |
 | `POST /baseline/find` | ingest | the approved image for a key, bytes and all |
 | `POST /baseline/describe` | ingest | the same lookup without moving the image |
 | `POST /baseline/put` | ingest | store an approved image |
@@ -336,8 +336,9 @@ before it uploads and prints both numbers. A CLI newer than its deployment is
 not an error: it works, and what the older deployment lacks shows up somewhere
 else — before API 2 as upload it could have skipped and as an approved subject
 that stays `new`, before API 3 as a share that is always empty, and before API 4
-as a review page that answers 404 when you flag a concern, and before API 5 as a
-share token refused at `/review/changelog` with no `/review/decisions` to read.
+as a review page that answers 404 when you flag a concern, before API 5 as a
+share token refused at `/review/changelog` with no `/review/decisions` to read,
+and before API 6 as every baseline description refused as malformed.
 Until something prints both numbers, neither looks like a version mismatch.
 
 ## What a reviewer sees
@@ -661,6 +662,7 @@ when the bind is loopback.
 
 ```tsx
 // app/variance/page.tsx — excerpt: `whoIsThis` is your session lookup
+import '@variance-authority/tribunal/fonts.css';
 import { ReviewApp, REVIEW_STYLES, createReviewClient } from '@variance-authority/tribunal/ui';
 
 declare function whoIsThis(): Promise<string>;
@@ -706,6 +708,12 @@ export const { GET, POST, PUT, HEAD } = createTribunalRoutes(worker, {
   tokens: { ingest: env.VARIANCE_INGEST_TOKEN, review: env.VARIANCE_REVIEW_TOKEN },
 });
 ```
+
+`REVIEW_STYLES` is text, and text cannot carry a font file, so the faces it is
+set in — Inter and JetBrains Mono, under the SIL Open Font License beside them —
+ship as `@variance-authority/tribunal/fonts.css`, whose `url()`s your bundler
+resolves next to the sheet. Leave the import out and the surface falls back to
+the system sans and monospace stacks.
 
 `createReviewClient` takes `endpoint` — where the Worker is mounted — and an
 optional `token` for a caller supplying the review token directly. Omit `token`

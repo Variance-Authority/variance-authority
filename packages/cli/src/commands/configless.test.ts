@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_CLEAN } from '../exit.js';
 import { questions } from './ask-questions.js';
-import { COMMENT_MARKER } from './comment.js';
 
 /**
  * The answers that need no config, asked where there is none: a directory
@@ -27,10 +26,6 @@ async function answer(argv: readonly string[]): Promise<{ code: number; out: str
 }
 
 describe('an answer that needs no config', () => {
-  it('prints the marker a docket comment is found by, for `comment --marker`', async () => {
-    expect(await answer(['comment', '--marker'])).toEqual({ code: EXIT_CLEAN, out: `${COMMENT_MARKER}\n`, err: '' });
-  });
-
   it('lists the questions `ask` answers, for `ask` with no question', async () => {
     expect(await answer(['ask'])).toEqual({ code: EXIT_CLEAN, out: questions(), err: '' });
   });

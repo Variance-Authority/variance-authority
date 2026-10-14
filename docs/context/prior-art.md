@@ -251,6 +251,22 @@ environment key, the fixed instant is part of the key
 fixes is `Date` alone: Playwright's own fixed clock replaces the timers and
 frames too, and is the reason it is not the mechanism.
 
+### How far a pixel's colour moves before it counts
+
+Every tool below counts a pixel through `pixelmatch`'s YIQ metric, and they
+disagree by a factor of twenty on where a change starts:
+
+| | Default `threshold` |
+| --- | --- |
+| **Playwright** `toHaveScreenshot`, 1.62.1 | `0.2` |
+| **`pixelmatch`** itself | `0.1` |
+| **jest-image-snapshot** ([README](https://github.com/americanexpress/jest-image-snapshot#optional-configuration)), 6.5.2 | `0.01` |
+
+At `0.1`, a border colour moved from `#2f3437` to `#3a4043` is no change at all.
+The default here is jest-image-snapshot's `0.01`, and
+[ADR-0026](adr/0026-ignored-is-not-unchanged.md) holds the measurements that
+chose it.
+
 ## Coverage adequacy
 
 The field that asks whether a suite is good enough, as opposed to which of it to
@@ -365,6 +381,22 @@ generated per task, and wired to code by coordinates. Codemaps' risk was cost
 per question; Compass's is staleness, which its own `growth-and-drift.md` says
 no structural comparison sees. The rule for both: **derive what an owner knows;
 declare only what no owner knows.**
+
+**Crossing facts about files** is a query language's job, and the field has
+two ends of it. Code search — Sourcegraph's `file:`, `content:` and
+`type:symbol` filters, GitHub code search's `path:` and `symbol:` qualifiers —
+combines facts with `AND`, `OR` and `NOT`, but each fact is about the file's
+own text or path; none of them is *reachable from this file along the
+imports*. Relational code databases — CodeQL's QL, Meta's Glean with Angle,
+Datalog engines such as Soufflé used for program analysis — express any join,
+reachability included, at the price of a language the asker must write and a
+database the build must extract. `variance ask discover` sits between:
+fixed operands (reach, imports by name, declarations, path, text), each read
+whole from the index the other questions already read, crossed and subtracted,
+with no `or` and no user-written query. `variance ask intersection` takes the
+same step one level up: its operands are whole questions, each read uncapped,
+which is the composition a query language gives for free and a fixed set of
+questions has to name.
 
 ## Architecture that keeps what matters
 

@@ -67,10 +67,10 @@ reads: the `then` arm of the fifth `if` in the body of the first `for`):
 
 | Case | Leaf |
 |---|---|
-| `publish.test.ts`: replaces when nobody can say, and says so | `publish.ts:169`, `decide` `for#0/body/if#4/then` |
-| `publish.test.ts`: keeps a newer format, and a newer version replaces an older one in its slot | `publish.ts:152`, `decide` `for#0/body/if#1/then` |
-| `publish.test.ts`: refuses a malformed entry before touching the line | `publish.ts:75`, `publishLine` `for#0/body/if#0/then` |
-| `diff.test.ts`: rejects a cross-profile comparison outright | `diff/index.ts:103`, `diffSnapshots` `if#1/then` |
+| `publish.test.ts`: replaces when nobody can say, and says so | `packages/core/src/share/publish.ts:169`, `decide` `for#0/body/if#4/then` |
+| `publish.test.ts`: keeps a newer format, and a newer version replaces an older one in its slot | `packages/core/src/share/publish.ts:152`, `decide` `for#0/body/if#1/then` |
+| `publish.test.ts`: refuses a malformed entry before touching the line | `packages/core/src/share/publish.ts:75`, `publishLine` `for#0/body/if#0/then` |
+| `diff.test.ts`: rejects a cross-profile comparison outright | `packages/core/src/compare/diff/index.ts:103`, `diffSnapshots` `if#1/then` |
 
 In the other 314, several regions are equally rare, in different functions in
 209 of them. The leaf is then all of them, because no tie-break that was tried
@@ -95,7 +95,7 @@ All three come from the set and the suite-wide count. Test-composition answers
 what a case adds over the narrower cases inside it; these answer where it ends.
 
 - **Cases that share a leaf.** "Reports a prepend" and "reports a relabel" both
-  end on `match.ts:168`. "Reports a reorder as movement" and "reports a
+  end on `packages/core/src/compare/diff/match.ts:168`. "Reports a reorder as movement" and "reports a
   rotation as movement" end on the same three equally rare regions, among them
   `compareTrees` `for#2/body/if#0/then`. Two cases with one leaf exercise one
   decision: either they are one test written twice, or what tells them apart is
@@ -208,9 +208,9 @@ On this repository, after `yarn test:unit`:
 
 1. `variance ask test-composition --file
    packages/core/src/share/publish.test.ts --name "replaces when nobody can
-   say, and says so"` names `publish.ts:169`, `decide`
+   say, and says so"` names `packages/core/src/share/publish.ts:169`, `decide`
    `for#0/body/if#4/then`, and after item 2, that it was reached at
-   `publish.test.ts:71`.
+   `packages/core/src/share/publish.test.ts:71`.
 2. `covering --file packages/core/src/share/publish.ts --line 169` lists that
    case as the one whose leaf the region is, and lists every other case that
    reaches the region as reaching it.

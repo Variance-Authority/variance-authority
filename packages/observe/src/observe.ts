@@ -21,6 +21,7 @@ import {
   type IdentityCause,
   type RasterComparison,
   type RasterStore,
+  type Relocated,
   type Renderer,
 } from '@variance-authority/raster';
 import { declaredIgnores } from './decide.js';
@@ -104,6 +105,24 @@ export interface Observation {
       readonly before?: AccessibilitySnapshot;
       readonly after?: AccessibilitySnapshot;
     };
+    /**
+     * `unrecorded` when this run collected a snapshot and the stored baseline
+     * it was compared against kept none that unpacks, whatever the verdict.
+     * Never set against an image the caller handed in, which nothing stores. A changed
+     * region is joined against that side's nodes, so an accepting run re-stamps
+     * an unchanged baseline that carries this, as it re-stamps one painted under
+     * another identity: left alone, the first change after it is joined against
+     * one render.
+     */
+    readonly snapshot?: 'unrecorded';
+    /**
+     * Set when the baseline was read from where the layout before
+     * `baselines.path` kept it, root-relative and without an extension: `from`
+     * the old place, `to` the path the configured template renders. A cause,
+     * never a reason to call the subject `new`, and an accepting run re-stamps
+     * an unchanged baseline that carries it, which is the move.
+     */
+    readonly relocated?: { readonly from: string; readonly to: string };
   };
 
   /**
@@ -312,7 +331,7 @@ export async function observeRasters(
   options: CompareInputs = {},
 ): Promise<Observation> {
   return withCause(
-    await decideRasters(subject, before, after, false, options),
+    await decideRasters(subject, before, after, false, options, 'image'),
     identityCause(before.identity, after.identity, {
       stored: 'the before image',
       current: 'the after image',
@@ -344,6 +363,7 @@ export async function observePair(
     right.raster,
     left.rendered || right.rendered,
     options,
+    'image',
   );
 }
 
@@ -395,9 +415,20 @@ export async function observeAgainstBaseline(
     };
   }
 
-  return withCause(
-    await decideRasters(document.subject.id, found.raster, fresh.raster, fresh.rendered, options),
-    identityCause(found.storedUnder, identity),
+  return withRelocation(
+    withCause(
+      await decideRasters(
+        document.subject.id,
+        found.raster,
+        fresh.raster,
+        fresh.rendered,
+        options,
+        'baseline',
+      ),
+      identityCause(found.storedUnder, identity),
+      documentMoved(found.raster, fresh.raster),
+    ),
+    found.relocated,
     documentMoved(found.raster, fresh.raster),
   );
 }
@@ -422,6 +453,29 @@ export function withCause(
       identity: cause.identity,
       moved: cause.moved,
     },
+  };
+}
+
+/**
+ * An observation with the place its baseline was read from as a cause: a
+ * baseline the layout before `baselines.path` kept is compared all the same,
+ * and the move is named first, so an upgrade that renames every baseline
+ * reads as one move and never as a suite of `new` subjects. Unchanged when the
+ * baseline was where the template puts it.
+ */
+export function withRelocation(
+  observation: Observation,
+  relocated: Relocated | undefined,
+  document: 'unchanged' | 'changed',
+): Observation {
+  if (relocated === undefined) return observation;
+  return {
+    ...observation,
+    because:
+      `the baseline was read from ${relocated.from}, a directory named for its renderer ` +
+      `identity, and accepting moves it to ${relocated.to}, the path \`baselines.path\` names; ` +
+      observation.because,
+    signals: { document, ...observation.signals, relocated },
   };
 }
 

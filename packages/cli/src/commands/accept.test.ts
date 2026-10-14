@@ -177,7 +177,28 @@ describe('accept', () => {
     // commit-message entry, and the count says what was written instead.
     expect(result.accepted).toEqual([]);
     expect(result.restamped).toBe(1);
-    expect(formatAcceptance(result)).toContain("1 re-stamped under this run's identity");
+    expect(formatAcceptance(result)).toContain('1 unchanged and re-stamped');
+  });
+
+  it('re-stamps an unchanged subject whose baseline kept no snapshot, so its nodes are recorded', async () => {
+    const { store, puts } = recordingStore();
+
+    const result = await accept({
+      report: reportOf([
+        observation({ verdict: 'unchanged', changedPixels: 0, signals: { document: 'unchanged', snapshot: 'unrecorded' } }),
+      ]),
+      reportDir: '/repo/out',
+      store,
+      subjects: [],
+      all: true,
+      read: async () => CANDIDATE,
+    });
+
+    expect(puts).toEqual([[{ subject: 'fixture:a' }, CANDIDATE]]);
+    expect(result.accepted).toEqual([]);
+    expect(result.restamped).toBe(1);
+    // Not "under this run's identity": nothing about the identity moved.
+    expect(formatAcceptance(result)).not.toContain('identity');
   });
 
   it('refuses a named subject that did not change, instead of silently doing nothing', async () => {
@@ -423,19 +444,21 @@ describe('accepting a difference shape', () => {
 });
 
 /**
- * Where an accepted image is written, for a store that places by path.
+ * Where an accepted image is written, for a store that names it by path.
  *
  * `accept` never re-plans — it reads a report and the images beside it — so the
- * directory has to arrive in the report or not at all. Losing it here is silent
- * and total: every accepted baseline lands in the root, the next run looks in
- * the placement the config asked for, finds nothing, and reports `new`.
+ * file, title and name have to arrive in the report or not at all. Losing them
+ * here is silent and total: every accepted baseline is named off its id, the
+ * next run looks at the path the template renders from the plan, finds nothing,
+ * and reports `new`.
  */
 describe('the placement an acceptance carries', () => {
-  it('hands the store the directory the run recorded', async () => {
+  it('hands the store the file, title and name the run recorded', async () => {
     const { store, puts } = recordingStore();
+    const baselineKey = { file: 'src/ui/shell/HatBar.stories.tsx', title: 'Shell/HatBar', name: 'Accepted' };
 
     await accept({
-      report: reportOf([observation({ placement: 'src/ui/shell' })]),
+      report: reportOf([observation({ baselineKey })]),
       reportDir: '/reports',
       store,
       subjects: ['fixture:a'],
@@ -443,10 +466,10 @@ describe('the placement an acceptance carries', () => {
       read: async () => CANDIDATE,
     });
 
-    expect(puts[0]?.[0]).toEqual({ subject: 'fixture:a', path: 'src/ui/shell' });
+    expect(puts[0]?.[0]).toEqual({ subject: 'fixture:a', ...baselineKey });
   });
 
-  it('omits the path when the run recorded none, rather than inventing one', async () => {
+  it('keys by the subject alone when the run recorded nothing more, rather than inventing a file', async () => {
     const { store, puts } = recordingStore();
 
     await accept({
@@ -459,20 +482,5 @@ describe('the placement an acceptance carries', () => {
     });
 
     expect(puts[0]?.[0]).toEqual({ subject: 'fixture:a' });
-  });
-
-  it('carries a root placement as the root, which is not the same as none', async () => {
-    const { store, puts } = recordingStore();
-
-    await accept({
-      report: reportOf([observation({ placement: '' })]),
-      reportDir: '/reports',
-      store,
-      subjects: ['fixture:a'],
-      all: false,
-      read: async () => CANDIDATE,
-    });
-
-    expect(puts[0]?.[0]).toEqual({ subject: 'fixture:a', path: '' });
   });
 });

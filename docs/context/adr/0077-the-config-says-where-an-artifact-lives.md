@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-09-26
+**Amended by:** [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) — the store partitions by identity digest and compares across it, with the identity named as the cause
 **Relates to:** [ADR-0069](0069-every-answer-has-an-owner.md) (the configuration
 owns what a setting means),
 [ADR-0076](0076-a-suite-is-declared-and-records-alone.md) (a suite records

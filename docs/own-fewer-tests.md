@@ -104,8 +104,8 @@ remain live.
 ## Ask what one test is made of
 
 A flow test that checks out a cart also prices it, applies the coupon and
-renders the summary, and each of those has a narrower test of its own. What the
-flow test adds is what is left when you take its narrower tests away. That
+renders the summary, and each of those has a narrower test of its own. **Coverage
+composition** shows what is left when you take its narrower tests away. That
 subtraction only works region by region. Two coverage totals subtract to a
 number, and a number cannot name the code only the flow test runs. The
 command reads the same per-case index `withTestSelection` writes, from
@@ -146,6 +146,22 @@ What no piece ran splits in two:
 - **Paths of a piece's modules** are regions of a module a piece ran, on paths
   only this test takes. A narrower test could run them more cheaply, and that is
   usually where a unit test is missing.
+
+### Connect the regions to test statements
+
+[Cadence](test-level-coverage.md#which-test-statement-first-ran-a-region)
+records which statement of the flow test first ran each region. It connects a
+region in the composition answer to the test action that first ran it: pricing
+the cart, applying a coupon, or submitting the order. Node runners mark a
+hook's work separately; Playwright records `beforeEach` and `afterEach`
+statements as case lines.
+
+Composition compares the regions each test ran. Its footprint, pieces and own
+layer depend on those sets; the statement lines add attribution to the
+recording. `variance ask test-composition` lists the regions and their source
+locations, rather than inserting annotations between the lines of your test.
+For the sequence of calls and their repeats, read a [test
+story](test-stories.md#why-the-journey-has-no-order).
 
 Every count is execution, so a piece is a test that ran the same code, not one
 that checks the same thing. A test that mocks a module runs none of it, and

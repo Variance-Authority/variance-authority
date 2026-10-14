@@ -150,20 +150,24 @@ export interface CliObservationRecord extends ObservationRecord {
   readonly diagnostics?: readonly Diagnostic[];
 
   /**
-   * The directory this subject's code lives in, carried from the plan.
+   * What this subject's baseline is named after, carried from the plan: the
+   * file that declares it, its title and its name.
    *
    * Here because `accept` writes baselines and never re-plans: it reads this
    * report, reads the candidate images beside it, and puts them in the store.
-   * Under a `beside` layout the store needs the directory, and the only process
-   * that knew it was the run — so a report that dropped it would leave `accept`
-   * writing every accepted image to a placement the next run does not read.
+   * A `baselines.path` template names the file from these, and the only process
+   * that knew them was the run — so a report that dropped them would leave
+   * `accept` writing every accepted image to a path the next run does not read.
    *
    * A CLI field rather than part of `ObservationRecord`, because it says nothing
-   * about what was observed. Absent for every collector that names no path, and
-   * for every report written before the field existed, both of which place
-   * exactly as they did.
+   * about what was observed. Absent for every collector that names none of the
+   * three, whose baselines are named after the subject id alone.
    */
-  readonly placement?: string;
+  readonly baselineKey?: {
+    readonly file?: string;
+    readonly title?: string;
+    readonly name?: string;
+  };
 
   /**
    * Wall milliseconds from this subject's first collection to its decision,

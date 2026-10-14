@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-08-03
+**Amended by:** [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) — the sidecar's identity names a moved identity as the cause of a comparison; it no longer makes a pair `incomparable`
 **Extends:** ADR-0011 (durable and ephemeral retention), ADR-0016 (where a baseline is kept decides nothing), ADR-0017 (the exit code is the interface)
 **Discharges:** spec 0010, review half
 

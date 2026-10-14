@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-08-03
+**Amended by:** [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) — a run compares against an image another machine painted, with the identity named as the cause; the partition keys the store, it does not refuse; [ADR-0091](0091-a-baseline-is-named-for-its-subject.md) — a baseline's path is the operator's template, with no identity in it, and what `createLfsStore` delegates is that template
 **Extends:** ADR-0011 (durable and ephemeral retention), ADR-0013 (packages are named for their requirements)
 **Discharges:** spec 0004
 
@@ -63,7 +64,7 @@ re-records. So the signature is checked and the error names
 `git lfs install && git lfs pull`.
 
 **Nothing shells out to git to read or write an image.** (Amended by
-[ADR-0086](0086-an-lfs-checkout-fetches-what-it-compares.md): a pointer met by
+[ADR-0092](0092-an-lfs-checkout-fetches-what-it-compares.md): a pointer met by
 `find` is fetched with `git lfs pull --include`.) LFS is a clean/smudge
 filter, so a checked-out tree already holds the real PNG at the real path. `git`
 is consulted for exactly one thing — `check-attr`, to ask what the filter

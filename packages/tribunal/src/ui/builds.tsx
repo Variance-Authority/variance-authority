@@ -177,7 +177,7 @@ function addressOf(endpoint: string | undefined): string {
 function Verdicts({ build }: { readonly build: BuildSummary }): ReactElement {
   return (
     <p className="va-verdicts">
-      <span className={build.pending > 0 ? 'va-pending' : 'va-settled'}>
+      <span className={build.pending > 0 ? 'va-pending' : 'va-clear'}>
         {build.pending > 0 ? `${number(build.pending)} awaiting review` : 'nothing awaiting review'}
       </span>
       <span className="va-counts">

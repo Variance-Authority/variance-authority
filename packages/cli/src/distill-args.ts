@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { checkoutPath } from '@variance-authority/sense';
+import { checkoutFile } from './checkout-file.js';
 import { noPositionals, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
 import { oneRecord } from './commands/suite-record.js';
@@ -45,13 +45,12 @@ export function parseDistill(flags: Flags): ParsedDistill {
   const suite = flags.values.get('--suite');
   oneRecord(suite, execution, '--execution');
   const root = resolve(flags.values.get('--root') ?? process.cwd());
-  const within = from === undefined ? undefined : checkoutPath(root, from);
-  if (within !== undefined && 'outside' in within) throw new OperatorError(within.outside);
+  const within = from === undefined ? undefined : checkoutFile(root, from);
   return {
     command: 'distill',
     ...(test === undefined ? {} : { test }),
     ...(file === undefined ? {} : { file }),
-    ...(within === undefined ? {} : { from: within.path }),
+    ...(within === undefined ? {} : { from: within }),
     root,
     ...(execution === undefined ? {} : { execution: resolve(execution) }),
     ...(suite === undefined ? {} : { suite }),

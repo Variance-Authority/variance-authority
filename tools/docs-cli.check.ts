@@ -134,7 +134,7 @@ describe('the documented command line is the real one', () => {
    * Both other kinds are in this repository and both are correctly excluded.
    * `cases/README.md` begins every line with `variance ` and keeps `on a fresh
    * checkout  8 new  exit 1` — a record of what four runs did. The
-   * `variance comment --marker` block below in `packages/cli/README.md` is one
+   * `variance comment --config … --marker` block in `packages/cli/README.md` is one
    * concrete call with no placeholder in it; requiring it to name all six
    * commands is what the first draft of this rule did, and it was wrong. The
    * placeholder is required of the block rather than of each line, because a

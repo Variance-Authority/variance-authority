@@ -8,7 +8,7 @@ Type: lifecycle
 
 A reviewer is looking at a red **subject** and has one question: which edit did
 this. The system holds the whole distance between a changed-pixel count and
-*`Toggle` moved, at `src/ds/components.tsx:107`* — and every hop in that distance
+*`Toggle` moved, at `examples/todomvc/src/ds/components.tsx:107`* — and every hop in that distance
 fails differently, so the lifecycle is worth tracing as one path rather than
 read out of any single component. It is also the path where a confident wrong
 answer is more expensive than no answer, so each hop's refusal is part of the

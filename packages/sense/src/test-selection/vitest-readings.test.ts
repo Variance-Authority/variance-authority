@@ -107,7 +107,7 @@ async function recordedUnder(
     const reporter = (configured.test!.reporters as unknown as Array<{
       onFinished(files: readonly []): Promise<void>;
       onWatcherRerun(): void;
-    }>)[1]!;
+    }>).at(-1)!;
     // The maps each build wrote beside itself: one source, the file the build
     // was made from. A build of the edited source maps its first line one line
     // further down.
@@ -344,7 +344,7 @@ async function recordedTyped(reading: 'source' | 'build' | 'helped'): Promise<Te
     const plugin = (configured.plugins as unknown as Array<{ transform: { handler: Transform } }>)[0]!;
     const reporter = (configured.test!.reporters as unknown as Array<{
       onFinished(files: readonly []): Promise<void>;
-    }>)[1]!;
+    }>).at(-1)!;
     if (reading === 'source') plugin.transform.handler(TYPED, resolve(root, 'src/cart.ts'));
     else plugin.transform.handler(built, resolve(root, 'dist/cart.js'));
     await reporter.onFinished([]);

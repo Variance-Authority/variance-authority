@@ -26,6 +26,7 @@
  */
 
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { digestString } from '../digest.js';
 import { decode, type Segment } from './map-segments.js';
 
@@ -47,12 +48,14 @@ export type ExtentOf = (start: number, last: number) => readonly [number, number
 /**
  * A lookup from transformed offsets to original lines.
  *
- * `file` narrows a map that names more than one source — a bundler that inlined
- * a helper alongside the module still reports one file's mappings among
- * another's, and a segment from the helper would place a block in a file the
- * diff will never name. When no source matches, every segment is accepted: a map
- * whose paths are written relative to a root this cannot see is still that
- * module's map, and the alternative is discarding it whole.
+ * Only segments of `file` are read. A source is the file when it resolves to it
+ * as the Source Map specification resolves one: behind `sourceRoot`, against
+ * the directory of `generated`, the transformed text the map sits beside, which
+ * for a transform hook is `file` itself. A bundler that inlined a helper
+ * alongside the module reports the helper's mappings among the module's, and a
+ * source that resolves anywhere else is another file. A map with no source
+ * that resolves to `file` holds no lines of it, and every region is answered
+ * with none.
  *
  * Each end is the origin of the last thing at or before it, so the only text
  * with no answer is text before the first origin in the module — the prologue
@@ -77,6 +80,7 @@ export function sourceLines(
   code: string,
   map: TransformSourceMap | undefined,
   file: string,
+  generated: string = file,
 ): ExtentOf {
   // Once per module, not once per offset. A block asks twice and a module has
   // thousands of them, so counting newlines from the top each time is quadratic
@@ -87,7 +91,8 @@ export function sourceLines(
     return (start, last) => [lineOfStart(starts, start) + 1, lineOfStart(starts, last) + 1];
   }
 
-  const only = sourceIndex(map.sources, file);
+  const only = sourcesOf(map, generated, file);
+  if (only.size === 0) return () => undefined;
   const lines = decode(map.mappings);
   const at = (offset: number): readonly [number, number] => {
     const line = lineOfStart(starts, offset);
@@ -140,9 +145,11 @@ export function sourceLines(
  *
  * `original` is called with the file the lines landed in, which is usually the
  * one the host named and is {@link originalFile} when the map points somewhere
- * else. It is called only when there is a map worth reading back through or no
- * text to read, and a seam whose id is not a file on disk may throw rather than
- * answer. That is the untranslatable case again and it is recorded the same way,
+ * else. It is called only when there is a map with a source that resolves to
+ * that file or no text to read: a map whose sources are all other files reads
+ * nothing back, and the text is framed as it was handed over. A seam whose id
+ * is not a file on disk may throw rather than answer. That is the
+ * untranslatable case again and it is recorded the same way,
  * under the host's name: a frame reports one file or none, never a name from one
  * text and a digest from another.
  */
@@ -169,23 +176,19 @@ export function recordedFrame(
     if (whole !== undefined) return whole;
   }
   const candidate = originalFile(map, file) ?? file;
-  let text: string | undefined;
-  let named = file;
-  if (translated) {
-    try {
-      text = original(candidate);
-      named = candidate;
-    } catch {
-      text = undefined;
-    }
+  const text = translated && sourcesOf(map, file, candidate).size > 0 ? readable(original, candidate) : undefined;
+  if (text === undefined) {
+    return { file, extentOf: sourceLines(code, undefined, file), sourceDigest: digestString(code), text: code };
   }
+  return { file: candidate, extentOf: sourceLines(code, map, candidate, file), sourceDigest: digestString(text), text };
+}
 
-  return {
-    file: named,
-    extentOf: sourceLines(code, map, file),
-    sourceDigest: digestString(text ?? code),
-    text: text ?? code,
-  };
+function readable(original: (path: string) => string, path: string): string | undefined {
+  try {
+    return original(path);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -330,17 +333,41 @@ function wholeFile(file: string, original: (path: string) => string): RecordedFr
  */
 function originalFile(map: TransformSourceMap | undefined, file: string): string | undefined {
   if (map === undefined || map.mappings === '') return undefined;
-  if (sourceIndex(map.sources, file) !== undefined) return undefined;
-
   const named = map.sources.filter((source): source is string => source !== null && source !== '');
-  const only = named.length === 1 ? named[0] : undefined;
-  // A virtual module's id is not a path, and an absolute URL is not this
-  // machine's. Both are names a reader cannot open, which is what the host's
-  // own name at least is.
-  if (only === undefined || only.startsWith('\0') || only.includes('://')) return undefined;
+  const path = named.length === 1 ? sourcePath(map, file, named[0]!) : undefined;
+  return path === file ? undefined : path;
+}
 
+/** The indexes of `map.sources` that resolve to `file`, read beside `generated`. */
+function sourcesOf(map: TransformSourceMap, generated: string, file: string): ReadonlySet<number> {
+  const found = new Set<number>();
+  map.sources.forEach((source, index) => {
+    if (source !== null && sourcePath(map, generated, source) === file) found.add(index);
+  });
+  return found;
+}
+
+/**
+ * Where one entry of `sources` is: behind `sourceRoot`, resolved against the
+ * directory of `generated`, the text the map sits beside.
+ *
+ * A source is a URL, as the format says, so it is resolved as one: `a%20b.ts`
+ * is `a b.ts`, and `//host/a.ts` is on another machine, not `/host/a.ts` here.
+ * Only a `file:` URL with no host is a file this machine can open; a virtual
+ * module's id and every other URL are names a reader cannot open.
+ */
+function sourcePath(map: TransformSourceMap, generated: string, source: string): string | undefined {
+  if (source === '' || source.startsWith('\0')) return undefined;
   const root = map.sourceRoot ?? '';
-  return resolve(dirname(file), root === '' ? only : `${root.replace(/\/$/, '')}/${only}`);
+  const joined = root === '' ? source : `${root.replace(/\/$/, '')}/${source}`;
+  // `new URL` refuses what is no URL at all; `fileURLToPath` refuses a file URL
+  // no path can be, such as one holding an encoded `/`.
+  try {
+    const url = new URL(joined, pathToFileURL(`${dirname(generated)}/`));
+    return url.protocol === 'file:' && url.host === '' ? fileURLToPath(url) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -355,14 +382,14 @@ function nearest(
   lines: readonly (readonly Segment[])[],
   line: number,
   column: number,
-  only: number | undefined,
+  only: ReadonlySet<number>,
 ): number | undefined {
   for (let at = Math.min(line, lines.length - 1); at >= 0; at -= 1) {
     const segments = lines[at];
     if (segments === undefined) continue;
     let best: Segment | undefined;
     for (const segment of segments) {
-      if (only !== undefined && segment.source !== only) continue;
+      if (!only.has(segment.source)) continue;
       // Past the position on its own line. Earlier lines are read to their end,
       // because what is wanted there is the last origin before the position.
       if (at === line && segment.column > column) break;
@@ -382,11 +409,11 @@ function opening(
   lines: readonly (readonly Segment[])[],
   [line, column]: readonly [number, number],
   [lastLine, lastColumn]: readonly [number, number],
-  only: number | undefined,
+  only: ReadonlySet<number>,
 ): number | undefined {
   let before: Segment | undefined;
   for (const segment of lines[line] ?? []) {
-    if (only !== undefined && segment.source !== only) continue;
+    if (!only.has(segment.source)) continue;
     if (segment.column === column) return undefined;
     if (segment.column < column) {
       before = segment;
@@ -408,26 +435,16 @@ function following(
   lines: readonly (readonly Segment[])[],
   line: number,
   column: number,
-  only: number | undefined,
+  only: ReadonlySet<number>,
 ): number | undefined {
   for (let at = line; at < lines.length; at += 1) {
     for (const segment of lines[at] ?? []) {
-      if (only !== undefined && segment.source !== only) continue;
+      if (!only.has(segment.source)) continue;
       if (at === line && segment.column < column) continue;
       return segment.line;
     }
   }
   return undefined;
-}
-
-function sourceIndex(sources: readonly (string | null)[], file: string): number | undefined {
-  const found = sources.findIndex((source) => source !== null && names(file, source));
-  return found === -1 ? undefined : found;
-}
-
-function names(file: string, source: string): boolean {
-  const tail = source.replace(/^(?:\.\.?\/)+/, '');
-  return file === source || file.endsWith(`/${tail}`);
 }
 
 /** Which line an offset falls on, zero-based, by bisecting the line starts. */

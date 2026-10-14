@@ -2,12 +2,21 @@
 
 **Status:** accepted
 **Date:** 2026-10-11
+**Amended by:** [ADR-0091](0091-a-baseline-is-named-for-its-subject.md) — §6 as written below: a line is one engine family, a file-backed store keeps one file on it, and the record names which machine painted it
 **Supersedes:** [ADR-0011](0011-durable-and-ephemeral-retention.md)'s rule that a
 cross-identity baseline is `incomparable`, and
 [ADR-0012](0012-observability-and-the-damage-boundary.md) §4's sentence that a
 baseline stabilised one way and a run stabilised another are `incomparable`;
 [ADR-0088](0088-a-page-is-read-as-nobody-is-using-it.md)'s readings under another
-clock, instant, timezone or locale, which it calls `incomparable`
+clock, instant, timezone or locale, which it calls `incomparable`; and the
+sentences that restate the refusal:
+[ADR-0016](0016-where-a-baseline-is-kept-decides-nothing.md)'s summary of
+ADR-0011, [ADR-0019](0019-one-comment-that-leads-with-causes.md)'s pinned
+container, [ADR-0021](0021-approval-promotes-an-image-that-already-exists.md)'s
+sidecar, [ADR-0026](0026-ignored-is-not-unchanged.md)'s baseline from another
+machine, [ADR-0049](0049-browser-accessibility-is-an-independent-retained-signal.md)'s
+one-sided and cross-engine accessibility evidence, and
+[ADR-0077](0077-the-config-says-where-an-artifact-lives.md)'s store partition
 **Relates to:** [`packages/raster/src/settle.ts`](../../../packages/raster/src/settle.ts),
 [`packages/observe/src/observe.ts`](../../../packages/observe/src/observe.ts),
 [`packages/raster/src/renderer.ts`](../../../packages/raster/src/renderer.ts)
@@ -54,19 +63,24 @@ reviewer reads first.
    `--update-snapshots` write an `unchanged` subject under a moved identity
    again under the run's own, so an upgrade is named once rather than on every
    later run. Its pixels did not move, so nothing unreviewed is adopted.
-6. **A write moves the baseline along its line.** A line is one engine family
-   on one platform at one scale; an engine build, the fonts and the recipe move
-   along it. Writing a subject retires its copy elsewhere on the same line, and
-   a lookup that misses its own identity reads its line before any other, in a
-   fixed order. Once siblings are compared, the order would otherwise decide the
-   verdict: after two upgrades, the older copy could be read first, and a
-   reversion to the old look would read `unchanged`. A matrix of engines or
-   machines is several lines, and each keeps its baseline.
+6. **A write moves the baseline along its line.** A line is one engine family.
+   A file-backed store keeps one file per subject on a line, and the identity
+   lives in the `.json` record beside the image: platform, scale factor, engine
+   build, fonts and recipe. A machine whose identity differs reads that file,
+   compares it, and reports the field that moved as the cause. The last accept
+   on the line writes the file, so two machines that both accept take turns
+   reading the other's as `changed`. Writing a subject also retires its copy in
+   an earlier layout's identity directory, and a lookup that misses its own path
+   reads those copies nearest identity first, in a fixed order. Once siblings
+   are compared, the order would otherwise decide the verdict: after two
+   upgrades, the older copy could be read first, and a reversion to the old
+   look would read `unchanged`. A matrix of engines is several lines, and each
+   keeps its baseline.
 
-The partition by `identityDigest` stays. It keys the render cache, and a
-lookup still prefers its own partition. A sibling partition is no longer a
-reason to refuse; it is the baseline, and the fact that it is a sibling is the
-cause.
+The partition by `identityDigest` stays where nobody reads a path: it keys the
+render cache and the bucket store's rows. A baseline painted under another
+identity is no longer a reason to refuse; it is the baseline, and the field
+that differs is the cause.
 
 ## Consequences
 
@@ -76,10 +90,15 @@ cause.
   The bulk-acceptance exception for a recipe-only re-baseline is gone with the
   verdict it was an exception to.
 - A durable store holds one baseline per line for a subject. An accept after a
-  browser upgrade replaces the old build's copy; a chromium and a webkit
-  project, or a laptop and a Linux runner, keep one each.
+  browser upgrade replaces the old build's file in place; a chromium and a
+  webkit project keep one each, and a laptop and a Linux runner on Chromium
+  share one, the last accept's.
 - The tribunal's bucket store does not retire yet: it upserts by identity, and
-  a machine's own superseded row still wins its lookup.
+  a machine's own superseded row still wins its lookup. Two machines that both
+  accept therefore each read `unchanged` against the bucket and take turns
+  reading `changed` against a file-backed store, which is a difference
+  ADR-0016 does not allow. It stands until the bucket and the remote contract
+  keep one row per line.
 - A container pinned in CI still matters: a baseline from a laptop compared
   with a Linux run is a wall of `changed`, now visible, with the platform named
   as its cause.

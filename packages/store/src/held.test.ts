@@ -1,17 +1,18 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { Raster, RenderIdentity } from '@variance-authority/core/format';
+import { digestFileName, fileNameFor, identityDigest, type Raster, type RenderIdentity } from '@variance-authority/core/format';
 import { createDurableStore } from './durable.js';
 
 /**
  * What the store holds and the plan did not name (ADR-0063).
  *
- * The answer is a set difference taken over paths, so every test here is about
- * a path the walk must or must not reach: another machine's partition, the
- * render cache sharing a root, a subject approved with no pixels, and the two
- * layouts that spell the same id differently.
+ * The answer is a set difference taken over paths, and named by the path, which
+ * is what a person finds in the checkout. Every test here is about a path the
+ * walk must or must not reach: another engine's file, the render cache sharing a
+ * root, a subject approved with no pixels, and the layout before
+ * `baselines.path`.
  */
 
 const MAC: RenderIdentity = {
@@ -22,8 +23,8 @@ const MAC: RenderIdentity = {
   fonts: ['Inter/400/normal/abc'],
 };
 
-/** Same browser, different machine: the partition these tests must not cross. */
-const RUNNER: RenderIdentity = { ...MAC, platform: 'linux/x64' };
+/** Another engine: the file these tests must not cross. */
+const FIREFOX: RenderIdentity = { ...MAC, renderer: 'playwright-firefox', engine: 'firefox@133.0' };
 
 function rasterOf(identity: RenderIdentity, digest = 'v1:doc', bytes = 'AAAA'): Raster {
   return { documentDigest: digest, identity, width: 10, height: 10, bytes, missingFonts: [] };
@@ -44,7 +45,7 @@ describe('unplanned', () => {
     await store.put({ subject: 'home.html' }, rasterOf(MAC));
     await store.put({ subject: 'blog.html' }, rasterOf(MAC));
 
-    expect(await store.unplanned?.([{ subject: 'home.html' }], MAC)).toEqual(['blog.html']);
+    expect(await store.unplanned?.([{ subject: 'home.html' }], MAC)).toEqual(['blog.html-chromium']);
   });
 
   it('says nothing when the plan covers what is held', async () => {
@@ -54,12 +55,12 @@ describe('unplanned', () => {
     expect(await store.unplanned?.([{ subject: 'home.html' }], MAC)).toEqual([]);
   });
 
-  // The partition is the point: a baseline another machine approved is not this
-  // run's to call unwatched, and reporting it would make every CI-recorded
-  // subject unplanned on every laptop.
-  it('ignores baselines under another identity', async () => {
+  // A run of one engine has no opinion about another engine's baselines: a
+  // Chromium run planning nothing would otherwise call every Firefox file
+  // unwatched.
+  it('ignores baselines of another engine', async () => {
     const store = createDurableStore(root);
-    await store.put({ subject: 'blog.html' }, rasterOf(RUNNER));
+    await store.put({ subject: 'blog.html' }, rasterOf(FIREFOX));
 
     expect(await store.unplanned?.([], MAC)).toEqual([]);
   });
@@ -83,27 +84,44 @@ describe('unplanned', () => {
       { documentDigest: 'v1:doc', identity: MAC, missingFonts: [] },
     );
 
-    expect(await store.unplanned?.([], MAC)).toEqual(['empty.html']);
+    expect(await store.unplanned?.([], MAC)).toEqual(['empty.html-chromium']);
   });
 
-  it('recovers an id the flat layout had to encode', async () => {
+  // The template scatters baselines through directories, so the scan has to
+  // walk — and the directories it walked through are part of the name, because
+  // `primary` alone names three different components.
+  it('walks the template`s directories and keeps them in the name', async () => {
     const store = createDurableStore(root);
-    await store.put({ subject: 'docs/guide/start' }, rasterOf(MAC));
-
-    expect(await store.unplanned?.([], MAC)).toEqual(['docs/guide/start']);
-  });
-
-  // `beside` scatters the partitions among the subjects' own directories, so the
-  // scan has to walk — and the directories it walked through are part of the
-  // name, because `primary` alone names three different components.
-  it('walks a beside layout and keeps the directories in the name', async () => {
-    const store = createDurableStore(root, { layout: 'beside' });
     await store.put({ subject: 'components/Button/primary' }, rasterOf(MAC));
     await store.put({ subject: 'components/Card/primary' }, rasterOf(MAC));
 
     expect(await store.unplanned?.([{ subject: 'components/Card/primary' }], MAC)).toEqual([
-      'components/Button/primary',
+      'components/Button/primary-chromium',
     ]);
+  });
+
+  it('walks beside the declaring files under a collocated template', async () => {
+    const path = '{dir}/__baselines__/{file}/{name}-{engine}';
+    const store = createDurableStore(root, { path });
+    const button = { subject: 'button--primary', file: 'src/Button.stories.tsx', name: 'Primary' };
+    const card = { subject: 'card--primary', file: 'src/Card.stories.tsx', name: 'Primary' };
+    await store.put(button, rasterOf(MAC));
+    await store.put(card, rasterOf(MAC));
+
+    expect(await store.unplanned?.([card], MAC)).toEqual([
+      'src/__baselines__/Button.stories.tsx/Primary-chromium',
+    ]);
+  });
+
+  // An upgrade has not yet moved what the layout before `baselines.path` wrote,
+  // and a subject the plan dropped is still dropped there. It is named by its
+  // id, the partition left out, because the id is what that layout spelled.
+  it('names a dropped subject the old layout still holds, by its id', async () => {
+    const old = join(root, digestFileName(identityDigest(MAC)));
+    await mkdir(old, { recursive: true });
+    await writeFile(join(old, `${fileNameFor('docs/guide/start')}.json`), JSON.stringify(rasterOf(MAC)));
+
+    expect(await createDurableStore(root).unplanned?.([], MAC)).toEqual(['docs/guide/start']);
   });
 
   it('answers an empty root rather than failing on it', async () => {
@@ -121,7 +139,7 @@ describe('unplanned', () => {
       const store = createDurableStore(root, { recordRoot: records });
       await store.put({ subject: 'blog.html' }, rasterOf(MAC));
 
-      expect(await store.unplanned?.([], MAC)).toEqual(['blog.html']);
+      expect(await store.unplanned?.([], MAC)).toEqual(['blog.html-chromium']);
     } finally {
       await rm(records, { recursive: true, force: true });
     }

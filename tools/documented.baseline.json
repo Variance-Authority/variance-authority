@@ -24,12 +24,6 @@
     "packages": 11
   },
   {
-    "name": "createHarness",
-    "kind": "function",
-    "at": "packages/playwright/src/harness.ts",
-    "packages": 10
-  },
-  {
     "name": "identityDigest",
     "kind": "function",
     "at": "packages/core/src/format/document.ts",
@@ -48,10 +42,10 @@
     "packages": 8
   },
   {
-    "name": "BaselineKey",
-    "kind": "interface",
-    "at": "packages/raster/src/store.ts",
-    "packages": 7
+    "name": "createHarness",
+    "kind": "function",
+    "at": "packages/playwright/src/harness.ts",
+    "packages": 8
   },
   {
     "name": "Harness",
@@ -108,9 +102,21 @@
     "packages": 5
   },
   {
+    "name": "createDurableStore",
+    "kind": "function",
+    "at": "packages/store/src/durable.ts",
+    "packages": 5
+  },
+  {
     "name": "CallSiteResolver",
     "kind": "interface",
     "at": "packages/core/src/attribute/call-site.ts",
+    "packages": 4
+  },
+  {
+    "name": "Observation",
+    "kind": "interface",
+    "at": "packages/observe/src/observe.ts",
     "packages": 4
   },
   {
@@ -120,15 +126,21 @@
     "packages": 4
   },
   {
-    "name": "SourceLocation",
+    "name": "Relations",
     "kind": "interface",
-    "at": "packages/core/src/format/provenance.ts",
+    "at": "packages/core/src/relate/graph.ts",
     "packages": 4
   },
   {
-    "name": "createDurableStore",
-    "kind": "function",
-    "at": "packages/store/src/durable.ts",
+    "name": "SemanticNode",
+    "kind": "interface",
+    "at": "packages/core/src/format/snapshot.ts",
+    "packages": 4
+  },
+  {
+    "name": "SourceLocation",
+    "kind": "interface",
+    "at": "packages/core/src/format/provenance.ts",
     "packages": 4
   },
   {
@@ -141,6 +153,12 @@
     "name": "decode",
     "kind": "function",
     "at": "packages/png/src/compare.ts",
+    "packages": 4
+  },
+  {
+    "name": "environmentKey",
+    "kind": "function",
+    "at": "packages/core/src/format/environment.ts",
     "packages": 4
   },
   {
@@ -168,39 +186,15 @@
     "packages": 3
   },
   {
-    "name": "NotObserved",
-    "kind": "interface",
-    "at": "packages/report/src/format.ts",
-    "packages": 3
-  },
-  {
     "name": "Observation",
     "kind": "interface",
     "at": "packages/history/src/observation.ts",
     "packages": 3
   },
   {
-    "name": "Observation",
-    "kind": "interface",
-    "at": "packages/observe/src/observe.ts",
-    "packages": 3
-  },
-  {
-    "name": "Relations",
-    "kind": "interface",
-    "at": "packages/core/src/relate/graph.ts",
-    "packages": 3
-  },
-  {
     "name": "SemanticDiff",
     "kind": "interface",
     "at": "packages/core/src/compare/diff/index.ts",
-    "packages": 3
-  },
-  {
-    "name": "SemanticNode",
-    "kind": "interface",
-    "at": "packages/core/src/format/snapshot.ts",
     "packages": 3
   },
   {
@@ -330,12 +324,6 @@
     "packages": 2
   },
   {
-    "name": "environmentKey",
-    "kind": "function",
-    "at": "packages/core/src/format/environment.ts",
-    "packages": 2
-  },
-  {
     "name": "inspect",
     "kind": "function",
     "at": "packages/core/src/judge/inspect.ts",
@@ -375,30 +363,6 @@
     "name": "AssembleOptions",
     "kind": "interface",
     "at": "packages/raster/src/assemble.ts",
-    "packages": 1
-  },
-  {
-    "name": "BASELINE_DESCRIBE_PATH",
-    "kind": "const",
-    "at": "packages/remote/src/store.ts",
-    "packages": 1
-  },
-  {
-    "name": "BASELINE_PUT_PATH",
-    "kind": "const",
-    "at": "packages/remote/src/store.ts",
-    "packages": 1
-  },
-  {
-    "name": "CACHE_FIND_PATH",
-    "kind": "const",
-    "at": "packages/remote/src/store.ts",
-    "packages": 1
-  },
-  {
-    "name": "CACHE_PUT_PATH",
-    "kind": "const",
-    "at": "packages/remote/src/store.ts",
     "packages": 1
   },
   {

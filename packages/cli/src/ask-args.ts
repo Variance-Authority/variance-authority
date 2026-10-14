@@ -27,20 +27,50 @@ import { OperatorError } from './exit.js';
  */
 const PLACING = ['under', 'above', 'inside', 'beside', 'leftOf', 'rightOf', 'on'] as const;
 
+/**
+ * The sets `discover` crosses, and the sets it takes out.
+ *
+ * Carried as typed, like the relations above: a list among them is split on
+ * commas where the tool's schema says it is a list, so this file keeps no
+ * second account of which is which.
+ */
+export const CROSSING = [
+  'imports',
+  'declares',
+  'path',
+  'text',
+  'exceptFrom',
+  'exceptTo',
+  'exceptImports',
+  'exceptDeclares',
+  'exceptPath',
+] as const;
+
+/** `--imports`, `--declares`, `--path`, `--text` and their `--except-` twins, by property. */
+export type Crossing = { readonly [Property in (typeof CROSSING)[number]]?: string };
+
+/** The crossing flags off anything that carries them, and nothing else. */
+export function crossingOf(carrier: Crossing): Crossing {
+  return Object.fromEntries(CROSSING.flatMap((property) => {
+    const value = carrier[property];
+    return value === undefined ? [] : [[property, value] as const];
+  }));
+}
+
 function flagOf(property: string): string {
   return `--${property.replace(/[A-Z]/g, (upper) => `-${upper.toLowerCase()}`)}`;
 }
 
-function placing(flags: Flags): Readonly<Record<string, string>> {
+function carried(flags: Flags, properties: readonly string[]): Readonly<Record<string, string>> {
   return Object.fromEntries(
-    PLACING.flatMap((property) => {
+    properties.flatMap((property) => {
       const value = flags.values.get(flagOf(property));
       return value === undefined ? [] : [[property, value] as const];
     }),
   );
 }
 
-export interface ParsedAsk {
+export interface ParsedAsk extends Crossing {
   readonly command: 'ask';
   readonly config: string;
   /**
@@ -195,9 +225,10 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(pkg !== undefined ? { package: pkg } : {}),
     ...(subpath !== undefined ? { subpath } : {}),
     ...(query !== undefined ? { query } : {}),
-    ...placing(flags),
+    ...carried(flags, PLACING),
     ...(from !== undefined ? { from } : {}),
     ...(to !== undefined ? { to } : {}),
+    ...carried(flags, CROSSING),
     ...(changedFile !== undefined ? { changedFile: resolve(changedFile) } : {}),
     ...(taintFile !== undefined ? { taintFile: resolve(taintFile) } : {}),
     ...(justAnswer ? { justAnswer: true as const } : {}),

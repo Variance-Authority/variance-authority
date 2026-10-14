@@ -18,7 +18,7 @@ ordering measures displacement rather than blame:
   511px — Stack
   86px — Toggle
       in checkbox "Mark as done"
-      src/ds/components.tsx:107
+      examples/todomvc/src/ds/components.tsx:107
 ```
 
 A **subject** is one named UI state you asked for and can ask for again —
@@ -141,7 +141,7 @@ silently comparing against a baseline that may describe another scenario.
 
 ## Name the file behind a changed region
 
-Attribution names a component. Turning `Toggle` into `src/ds/components.tsx:107`
+Attribution names a component. Turning `Toggle` into `examples/todomvc/src/ds/components.tsx:107`
 is a separate hop, and there are three ways it happens.
 
 **Nothing to do, on Chromium.** The page agent keeps the component functions
@@ -200,7 +200,7 @@ ordering measures displacement rather than blame:
       src/checkout/Stack.tsx:12
   86px — Toggle
       in checkbox "Mark as done"
-      src/ds/components.tsx:107
+      examples/todomvc/src/ds/components.tsx:107
 ```
 
 The ordering is by changed area and the message prints that: an `Observation`
@@ -393,7 +393,7 @@ const variance = await createVariance(page, {
 | Field | Use it when | Default and boundary |
 | --- | --- | --- |
 | `id` | Observations do not each name a `subjectId`. | None. An observation with neither is refused rather than given an invented address. |
-| `colorScheme`, `deviceScaleFactor` | Ever. Both partition the baseline. | `light` and `1`. |
+| `colorScheme`, `deviceScaleFactor` | Ever. The scale factor is part of the identity a baseline records, so a change names it as the cause. Neither is in the baseline's path: two projects that differ only in these share one baseline, so give their observations distinct `subjectId`s. | `light` and `1`. |
 | `baseURL` | Recording should use the URL the page is served from. | Omitted; a service under test then sees the execution from the first observation rather than the first request. |
 | `owner` | The run records which spec covered which source. | Omitted; the run records no execution against a file. |
 | `accepting` | This run is the one promoting candidates to baselines. | `false`. Under `TestInfo` it is `--update-snapshots=all\|changed` and nothing else — `missing` is the flag's absence. |
@@ -434,7 +434,7 @@ The three are passed separately because Rstest requires a test body's first
 parameter to be an object pattern, so there is no whole context to hand over.
 `expect` is the one the body was handed, which saves importing a second.
 `id` is the test's title path, `owner` is the spec relative to the project root,
-the raster partition — colour scheme, scale factor and base URL — is read off
+the raster settings — colour scheme, scale factor and base URL — are read off
 the `playwright` fixture's `contextOptions`, whatever `definePlaywrightConfig`
 resolved them to, and `accepting` is `rstest run -u` — Rstest's default writes
 snapshots that have none yet, which is an absence and not an approval.
@@ -595,10 +595,10 @@ last one. The page runs on its own clock, so a region it enters while a later
 statement runs is charged to that later statement: a request `click` started
 and the page answered during the next `expect` lands on the `expect`. A body
 declared in another file, such as a page object's method, is not waited on, and
-what it reached is charged to the spec statement that called it. A hook's
-statement is recorded as the case's own line. Lines keep their numbers and
-Babel's map names the file as you wrote it, so an inline aria snapshot lands
-where you wrote it.
+what it reached is charged to the spec statement that called it. A statement
+in `beforeEach` or `afterEach` is recorded as the case's own line. Lines keep
+their numbers and Babel's map names the file as you wrote it, so an inline
+aria snapshot lands where you wrote it.
 
 Each statement waits at most a second for its drain. One held up longer by the
 page, as an open `alert` holds every evaluation until the test answers it, lets
@@ -665,6 +665,7 @@ message reads *preconditions unmeasured* rather than *no preconditions recorded*
 | Fixture | Purpose | Default |
 | --- | --- | --- |
 | `varianceBaselines` | Directory of durable baselines. | `.variance/baselines` |
+| `varianceBaselinePath` | Where each baseline goes under `varianceBaselines`, as a template. `{title}` is the `describe` titles, `{name}` the test's title or the `subjectId` after its last `/`, `{file}` and `{dir}` the spec file, `{project}` the Playwright project's `name`. `createVariance` and `observe` take the same template as `baselinePath`. | `{title}/{name}-{engine}` |
 | `varianceRenderer` | Renderer this test's page is painted by. | The worker's renderer for the timezone and locale the page runs in, from `varianceRenderers`. |
 | `varianceRenderers` | Renderers one Playwright worker holds, one per timezone and locale its pages ran in. | Playwright renderers launched on first use and closed by the fixture. |
 | `timezoneId` | Playwright's own option, the timezone the test's page opens in. | `UTC` when neither your config nor `test.use` sets one, rather than your machine's, so your laptop and CI read a page under one key. A value you set is used as it is. Playwright Test already opens the page in `en-US` when you set no `locale`. The default reaches every test that uses these fixtures, including one that never calls `variance`, so its own date assertions read `UTC`. |

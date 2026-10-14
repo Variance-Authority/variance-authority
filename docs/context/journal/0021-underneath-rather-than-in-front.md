@@ -99,7 +99,7 @@ real Emotion:
 - **Storybook** — `storybook build`, production and minified, plugin installed
   and `jsxImportSource` gone from `.storybook/main.js`. 36 recorded locations in
   the bundle, and the case suite's 18 tests pass, including the one that asserts
-  the report names `src/ds.jsx:53` (where `<button>` is written) and not `:51`
+  the report names `cases/storybook-case/src/ds.jsx:53` (where `<button>` is written) and not `:51`
   (where `Button` is declared).
 - **Vitest** — the same `jsxSource()` plugin, with `server.deps.inline` for
   Emotion. All four elements correct.

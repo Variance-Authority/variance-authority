@@ -389,6 +389,21 @@ next diff will be in. A module whose text cannot be read as source has no
 table to place them in: it stays as it was, and every test that covered
 it is demoted.
 
+**The case index follows the edit, not the address.** The rows keep a crossing
+by the region's address because the digests catch a mispair. The case index
+holds no digest, so the only evidence it has of what an edit touched is the edit
+itself: the `git diff -U0` hunks between the text it was cut from and the text
+you recorded. A region the hunks leave alone keeps its cases, at the lines the
+hunks place it. A region they touch carries none, so its tests count as changed
+and selection runs them; the module and every region around an edited one are
+touched with it. A region the edit wrote has no recorded cases of its own and
+takes those of the untouched region around it. Two regions that share a name,
+such as two `useEffect(() => …)` callbacks, are told apart by where the text
+puts them, and never by their order or their name: delete the first, write a new
+one behind the second, and the cases of the old second stay with the body that
+survives. When either text cannot be found, the whole file counts as changed and
+selection widens to every case that touched it.
+
 ### From a crossing back to a line
 
 The record joins a block to the file two ways. `sourceDigest` on the module
@@ -712,8 +727,11 @@ below is one stage of that call.
    and its reading lists the declared files in `effects`. A test that crossed the
    changed module through no importer the graph holds is listed in `unseen` and
    charged nothing. An importer whose text cannot be read charges its module,
-   or, with no row, every test step 6's walk finds behind it. `load` charges
-   the lines as step 4 does. Under `bodies`
+   or, with no row, every test step 6's walk finds behind it. A `load` the
+   parser gave charges the lines as step 4 does, and a line outside every
+   function is in the module's own region, which every test that loaded the
+   file ran; a `load` that `sideEffects` declared charges the module. Under
+   `bodies`
    or `values`, text inserted in a gap no region spans charges nothing. A file
    without `sourceAt`, whose hunks do not apply to the recorded text, whose
    text does not parse, or on a machine without the scanner's native addon is

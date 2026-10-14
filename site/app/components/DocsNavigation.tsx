@@ -2,96 +2,78 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Fragment } from "react";
-import { NAVIGATION, navigationItem, navigationSection } from "../navigation";
+import { useEffect, useState } from "react";
+import {
+  DOCUMENTATION_ENTRY_POINTS,
+  navigationContext,
+  navigationItem,
+  navigationSection,
+  type NavigationContext,
+} from "../navigation";
 
-/**
- * The reading order as links. It lives in a client component so the active
- * entry follows the pathname while the layout around it stays mounted; a
- * server layout has no pathname to give it.
- */
-function NavigationLinks({ current }: { readonly current: string }) {
+/** Keep selection outside the mobile disclosure, which remounts on arrival. */
+function useNavigationContext(current: string) {
+  const [selected, setSelected] = useState<string>();
+  const context = navigationContext(current, selected);
+  useEffect(() => setSelected(context?.href), [context?.href]);
+  return context;
+}
+
+/** The selected top-level section remains fully browsable on both surfaces. */
+function NavigationLinks({ current, context }: {
+  readonly current: string;
+  readonly context: NavigationContext | undefined;
+}) {
+  const active = (href: string) =>
+    href === current ||
+    (href === "/reference/packages" && current.startsWith("/reference/packages/"));
+
+  const links = (items: readonly { href: string; label: string }[], primary = false) => (
+    <ul className="space-y-0.5">
+      {items.map((item) => (
+        <li key={item.href}>
+          <Link
+            href={item.href}
+            aria-current={active(item.href) ? "page" : undefined}
+            className={`block rounded-md border-l-2 px-3 py-2 text-sm leading-5 transition-colors ${
+              active(item.href) || (primary && item.href === context?.href)
+                ? "border-orange bg-orange/[0.07] font-medium text-ivory"
+                : "border-transparent text-quiet hover:border-hairline hover:bg-panel/70 hover:text-ivory"
+            }`}
+          >
+            {item.label}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+
   return (
     <nav aria-label="Documentation">
-      <div className="space-y-7">
-        {NAVIGATION.map((section) => (
-          <div key={section.label}>
-            <p className="mb-2 px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-quiet">
-              {section.label}
-            </p>
-            <ul className="space-y-0.5">
-              {section.items
-                .filter((item) => !item.unlisted)
-                .map((item, index, items) => {
-                  const active =
-                    item.href === current ||
-                    (item.href === "/reference/packages" &&
-                      current.startsWith("/reference/packages/"));
-                  const previous = items[index - 1];
-                  const startsCluster =
-                    "cluster" in item &&
-                    item.cluster !==
-                      (previous && "cluster" in previous
-                        ? previous.cluster
-                        : undefined);
-                  return (
-                    <Fragment key={item.href}>
-                      {startsCluster ? (
-                        <li className="pb-1 pt-4 first:pt-1">
-                          {"clusterOverview" in item && item.clusterOverview ? (
-                            <Link
-                              href={item.href}
-                              aria-current={active ? "page" : undefined}
-                              className={`block rounded-md border-l-2 px-3 py-2 font-mono text-[9px] uppercase tracking-[0.13em] transition-colors ${
-                                active
-                                  ? "border-orange bg-orange/[0.07] text-ivory"
-                                  : "border-transparent text-quiet hover:border-hairline hover:bg-panel/70 hover:text-ivory"
-                              }`}
-                            >
-                              {item.cluster}
-                            </Link>
-                          ) : (
-                            <span className="px-3 font-mono text-[9px] uppercase tracking-[0.13em] text-quiet">
-                              {item.cluster}
-                            </span>
-                          )}
-                        </li>
-                      ) : null}
-                      {"clusterOverview" in item &&
-                      item.clusterOverview ? null : (
-                        <li>
-                          <Link
-                            href={item.href}
-                            aria-current={active ? "page" : undefined}
-                            className={`block rounded-md border-l-2 px-3 py-2 text-sm leading-5 transition-colors ${
-                              active
-                                ? "border-orange bg-orange/[0.07] font-medium text-ivory"
-                                : "border-transparent text-quiet hover:border-hairline hover:bg-panel/70 hover:text-ivory"
-                            }`}
-                          >
-                            {item.label}
-                          </Link>
-                        </li>
-                      )}
-                    </Fragment>
-                  );
-                })}
-            </ul>
-          </div>
-        ))}
-      </div>
+      {links(DOCUMENTATION_ENTRY_POINTS, true)}
+      {context ? (
+        <div className="mt-6 space-y-5 border-t border-hairline pt-5">
+          {context.sections.map((section) => (
+            <div key={section.label}>
+              <p className="mb-2 px-3 text-xs font-medium leading-5 text-quiet">
+                {section.label}
+              </p>
+              {links(section.items.filter((item) =>
+                !DOCUMENTATION_ENTRY_POINTS.some((entry) => entry.href === item.href),
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </nav>
   );
 }
 
-/**
- * Below the desktop breakpoint the reading order folds into a disclosure under
- * the header. It is keyed on the pathname so it remounts closed on arrival
- * instead of staying open over the page the reader just chose.
- */
+/** Navigation closes on arrival, so it does not cover the chosen page. */
 export function DocsMobileNavigation() {
   const current = usePathname();
   const item = navigationItem(current);
+  const context = useNavigationContext(current);
 
   return (
     <details
@@ -105,33 +87,22 @@ export function DocsMobileNavigation() {
           </span>
           {item?.label ?? navigationSection(current)}
         </span>
-        <span aria-hidden="true" className="docs-mobile-chevron text-orange">
-          ↓
-        </span>
+        <span aria-hidden="true" className="docs-mobile-chevron text-orange">↓</span>
       </summary>
       <div className="max-h-[70vh] overflow-y-auto border-t border-hairline py-5">
-        <NavigationLinks current={current} />
+        <NavigationLinks current={current} context={context} />
       </div>
     </details>
   );
 }
 
-/** The first grid column: sticky, and scrolled wherever the reader left it. */
+/** All pages in the selected section stay available while the article scrolls. */
 export function DocsSidebar() {
   const current = usePathname();
-  const item = navigationItem(current);
-
+  const context = useNavigationContext(current);
   return (
     <aside className="docs-sidebar hidden lg:block">
-      {item ? (
-        <div className="mb-7 border-l-2 border-orange px-3 py-1">
-          <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-quiet">
-            Current page
-          </p>
-          <p className="mt-1 text-xs leading-5 text-ivory">{item.label}</p>
-        </div>
-      ) : null}
-      <NavigationLinks current={current} />
+      <NavigationLinks current={current} context={context} />
     </aside>
   );
 }

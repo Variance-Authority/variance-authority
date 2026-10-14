@@ -43,6 +43,19 @@ describe('observing a mounted subject', () => {
     expect(artifact.subject.kind).toBe('fixture');
   });
 
+  describe('Save > Cancel', () => {
+    it('sends the titles the runner declared, a separator inside one kept whole', async () => {
+      const asked = recorder();
+      await observeSubject(mount('<button>Save</button>'), {}, asked.deliver);
+
+      expect(asked.requests[0]!.titlePath).toEqual([
+        'observing a mounted subject',
+        'Save > Cancel',
+        'sends the titles the runner declared, a separator inside one kept whole',
+      ]);
+    });
+  });
+
   it('takes a located subject, the shape a runner locator has', async () => {
     const element = mount('<p class="body">text</p>');
     const asked = recorder();

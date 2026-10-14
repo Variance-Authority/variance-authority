@@ -25,10 +25,10 @@ and the run reports a failure of the machine as a failure of the product.
 
 ## How you talk to it
 
-One comment, found by a marker and updated in place, plus an exit code — `0`
-nothing to review, `1` a **verdict** about the product, `2` the run did not
-happen. The system renders the comment body; the forge's own integration posts
-it. Nothing else crosses.
+One comment per project, found by a marker and updated in place, plus an exit
+code — `0` nothing to review, `1` a **verdict** about the product, `2` the run
+did not happen. The system renders the comment body; the forge's own integration
+posts it. Nothing else crosses.
 
 ## Their chart
 

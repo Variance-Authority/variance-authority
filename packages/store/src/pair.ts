@@ -1,17 +1,21 @@
 // compass: variance-authority.retention
 
-import { readFile, stat } from 'node:fs/promises';
-import type { Raster, RenderIdentity } from '@variance-authority/core/format';
+import { readFile, rm, rmdir, stat } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import type { Raster } from '@variance-authority/core/format';
 import { REFUSAL, RasterStoreError, messageOf, sidecarFrom } from '@variance-authority/raster';
 import { orAbsent } from './absent.js';
+import { placedForIn, type PlacedFor } from './claims.js';
 
 /**
- * One baseline read from disk: the image and the record of how it was painted,
- * found together or refused.
+ * One baseline on disk: an image and the record of what painted it, read and
+ * removed as a pair.
  *
- * Shared by every lookup the durable store makes — a baseline, a description, a
- * cached render — because each of them owes the same answer about a pair with
- * one half missing, and two copies of that answer are two chances to disagree.
+ * Split from `durable.ts`, which decides *which* pair a lookup reads; this file
+ * decides what a pair on disk *is*, and refuses one that is half there. Every
+ * lookup the durable store makes — a baseline, a description, a cached render —
+ * reads through it, because each owes the same answer about a pair with one half
+ * missing, and two copies of that answer are two chances to disagree.
  */
 
 /** How a baseline's `.png` becomes bytes. See `DurableStoreOptions.readImage`. */
@@ -20,10 +24,10 @@ export type ImageReader = (path: string) => Promise<Buffer>;
 /**
  * Where the two halves of one baseline go.
  *
- * Equal prefixes unless `DurableStoreOptions.recordRoot` is set, which is why
- * the split costs a reader nothing to ignore: every path in this file comes from
- * one call, and the default makes both fields the string the file used to pass
- * around.
+ * Equal prefixes unless `DurableStoreOptions.recordRoot` is set, which is
+ * why the split costs a reader nothing to ignore: every path `durable.ts` reads comes
+ * from one call, and the default makes both fields the string the file used to
+ * pass around.
  */
 export interface Places {
   /** The `.png`'s path, without the extension. */
@@ -32,12 +36,23 @@ export interface Places {
   readonly record: string;
 }
 
-export async function load(
-  places: Places,
-  readImage: ImageReader,
-): Promise<{ raster: Raster; identity: RenderIdentity } | null> {
-  const raster = await readRaster(places, readImage);
-  return raster === null ? null : { raster, identity: raster.identity };
+/**
+ * A record as read, with who it was placed for beside it rather than inside:
+ * `placedFor` says where a file-backed store filed the baseline, and nothing
+ * downstream of the store reads it.
+ */
+export type Read<T> = T & { readonly placedFor?: PlacedFor };
+
+/**
+ * Remove a pair `put` just superseded, and its directories once empty: an
+ * accept moves a baseline rather than leaving a second copy for the fallback.
+ */
+export async function retire(places: Places): Promise<void> {
+  await rm(`${places.image}.png`, { force: true });
+  await rm(`${places.record}.json`, { force: true });
+  for (const directory of new Set([dirname(places.image), dirname(places.record)])) {
+    await rmdir(directory).catch(() => undefined);
+  }
 }
 
 /**
@@ -71,7 +86,7 @@ export async function load(
 export async function readRaster(
   places: Places,
   readImage: ImageReader = readFile,
-): Promise<Raster | null> {
+): Promise<Read<Raster> | null> {
   const [sidecar, bytes] = await Promise.all([
     orAbsent(() => readFile(`${places.record}.json`, 'utf8'), `${places.record}.json`),
     orAbsent(() => readImage(`${places.image}.png`), `${places.image}.png`),
@@ -103,7 +118,7 @@ export async function readRaster(
  * verdict would then depend on which question the caller asked. A stat is a
  * directory read; it is the existence check without the megabyte.
  */
-export async function readSidecar(places: Places): Promise<Omit<Raster, 'bytes'> | null> {
+export async function readSidecar(places: Places): Promise<Read<Omit<Raster, 'bytes'>> | null> {
   const [sidecar, image] = await Promise.all([
     orAbsent(() => readFile(`${places.record}.json`, 'utf8'), `${places.record}.json`),
     orAbsent(() => stat(`${places.image}.png`), `${places.image}.png`),
@@ -174,7 +189,7 @@ function halfAPair(places: Places, sidecarSurvived: boolean): RasterStoreError {
  * becomes a digest taken over nothing: two invented answers where the honest one
  * is that the file cannot be read.
  */
-function parseSidecar(text: string, path: string): Omit<Raster, 'bytes'> {
+function parseSidecar(text: string, path: string): Read<Omit<Raster, 'bytes'>> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text) as unknown;
@@ -193,5 +208,6 @@ function parseSidecar(text: string, path: string): Omit<Raster, 'bytes'> {
         `document digest and the identity that painted it. ${REFUSAL}.`,
     );
   }
-  return sidecar;
+  const placedFor = placedForIn(parsed);
+  return placedFor === undefined ? sidecar : { ...sidecar, placedFor };
 }

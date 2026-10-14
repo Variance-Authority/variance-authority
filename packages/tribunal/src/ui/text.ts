@@ -11,6 +11,8 @@
  * would belong to the store, not to the presentation.
  */
 
+import type { SubjectView } from '../review-types.js';
+
 /** `1 pixel` / `8,818 pixels`, so a count of one does not read as a template. */
 export function count(value: number, noun: string, plural?: string): string {
   return `${number(value)} ${value === 1 ? noun : (plural ?? `${noun}s`)}`;
@@ -180,14 +182,76 @@ export function magnitudeOf(subject: {
   };
 }
 
+/**
+ * What a render with no count to print reads as, or `undefined` when it has one.
+ *
+ * Decided once, here, so the long form and the short form differ only in their
+ * words. A zero is a count only when the pixel axis says it measured one: a new
+ * render has no baseline, a render that gained or lost its pixels or changed
+ * size arrives with no count at all, and one that occupies none was never
+ * compared. An absorbed render's zero is read after its ignores are subtracted,
+ * so its pixels did differ, inside the regions those ignores took out.
+ */
+type Zero =
+  | 'no-baseline'
+  | 'none'
+  | 'none-outside-ignores'
+  | 'uncounted'
+  | 'unobservable'
+  | 'unsaid';
+
+function zeroOf(subject: {
+  readonly verdict: SubjectView['verdict'];
+  readonly changedPixels: number;
+  readonly regions: readonly unknown[];
+  readonly signals?: SubjectView['signals'];
+}): Zero | undefined {
+  if (subject.verdict === 'new') return 'no-baseline';
+  if (subject.changedPixels !== 0 || subject.regions.length !== 0) return undefined;
+
+  switch (subject.signals?.pixels) {
+    case 'unchanged':
+      return subject.verdict === 'ignored' ? 'none-outside-ignores' : 'none';
+    case 'changed':
+      return 'uncounted';
+    case 'unobservable':
+      return 'unobservable';
+    case undefined:
+      return 'unsaid';
+  }
+}
+
+const LONG: Readonly<Record<Zero, string>> = {
+  'no-baseline': 'No baseline, so nothing was compared',
+  none: 'No pixel differs',
+  'none-outside-ignores': 'No pixel differs outside the ignored regions',
+  uncounted: 'Its pixels changed, and the run kept no count of them',
+  unobservable: 'It occupies no pixels, so none were compared',
+  unsaid: 'The run did not say whether it measured pixels',
+};
+
+const SHORT: Readonly<Record<Zero, string>> = {
+  'no-baseline': 'no baseline',
+  none: count(0, 'pixel'),
+  'none-outside-ignores': `${count(0, 'pixel')} outside ignores`,
+  uncounted: 'pixels changed, uncounted',
+  unobservable: 'occupies no pixels',
+  unsaid: 'no pixel signal',
+};
+
 /** How many areas are named before the rest become a count. */
 const NAMED = 3;
 
 /** The long form, for a surface with a line to spend on it. */
 export function magnitude(subject: {
+  readonly verdict: SubjectView['verdict'];
   readonly changedPixels: number;
   readonly regions: readonly { readonly pixels?: number; readonly fingerprint?: string }[];
+  readonly signals?: SubjectView['signals'];
 }): string {
+  const zero = zeroOf(subject);
+  if (zero !== undefined) return LONG[zero];
+
   const size = magnitudeOf(subject);
 
   // Nothing localised the difference, so the total is all there is to say — and
@@ -217,11 +281,21 @@ export function magnitude(subject: {
   return `${where}: ${areas}${all}${partial}`;
 }
 
-/** The short form, for a rail item that has to stay one line. */
+/**
+ * The short form, for a rail item that has to stay one line.
+ *
+ * It reads a zero from `zeroOf`, as `magnitude` does, because it is printed
+ * beside the render's name with `magnitude` as the tooltip over it.
+ */
 export function briefly(subject: {
+  readonly verdict: SubjectView['verdict'];
   readonly changedPixels: number;
   readonly regions: readonly { readonly pixels?: number; readonly fingerprint?: string }[];
+  readonly signals?: SubjectView['signals'];
 }): string {
+  const zero = zeroOf(subject);
+  if (zero !== undefined) return SHORT[zero];
+
   const size = magnitudeOf(subject);
   if (size.regions === 0) return count(size.total, 'pixel');
 

@@ -7,7 +7,8 @@ import type { SemanticNode } from '../../format/snapshot.js';
  * Diffing by path alone would report a single insertion as "every following node
  * changed" — the classic snapshot-test failure that trains people to stop
  * reading diffs. Matching therefore happens by identity first, content second,
- * and position last.
+ * and position last; a node no key relates is paired only by the author that
+ * recorded writing it.
  *
  * The middle pass is the one that took three attempts to find. Identity keys
  * collapse whenever a node has no alias, no accessible name and no provenance —
@@ -131,6 +132,26 @@ export function matchTrees(baseline: SemanticNode, candidate: SemanticNode): Mat
       if (claimed !== undefined) partner[afterIndex] = claimed;
     });
 
+    // Pass 3 — a replacement its author recorded. A component that swaps its
+    // own output, `Toggle` rendering a `<div>` where it rendered a checkbox,
+    // leaves two nodes no key relates: they share no content, and one is a
+    // named role where the other is a bare tag. What relates them is who wrote
+    // them. Under one matched parent, one node left and one arrived, and the
+    // same component created both, so the second is read as what that
+    // component rendered instead of the first. The record cannot tell that from
+    // an element dropped and an unrelated one drawn elsewhere in the row, and
+    // the pair's position is not asked: the deltas then say what the slot
+    // became and that it moved.
+    //
+    // Exactly one and one, or nothing. Two that left and two that arrived from
+    // one author could pair either way, and choosing by position is the guess
+    // pass 2 already declines across keys. And never two nodes that each
+    // declare who they are: `createdBy` names a component, and every `<Button>`
+    // is created by `Button`, so a Save button and an Export link under one
+    // toolbar share an author while their names, which pass 2 has read, say
+    // they are two elements.
+    replacements(before.children, after.children, taken, partner);
+
     const sequence: number[] = [];
     after.children.forEach((child, afterIndex) => {
       const beforeIndex = partner[afterIndex];
@@ -155,6 +176,48 @@ export function matchTrees(baseline: SemanticNode, candidate: SemanticNode): Mat
       if (!taken.has(index)) removed.push(child);
     });
   }
+}
+
+/** Pairs, in place, the one unclaimed node on each side that one author created. */
+function replacements(
+  before: readonly SemanticNode[],
+  after: readonly SemanticNode[],
+  taken: Set<number>,
+  partner: (number | undefined)[],
+): void {
+  const left = byAuthor(before, (position) => !taken.has(position));
+  const arrived = byAuthor(after, (position) => partner[position] === undefined);
+
+  for (const [author, [beforeIndex, ...more]] of left) {
+    const counterpart = arrived.get(author);
+    if (more.length > 0 || counterpart?.length !== 1) continue;
+    if (declared(before[beforeIndex!]!) && declared(after[counterpart[0]!]!)) continue;
+    taken.add(beforeIndex!);
+    partner[counterpart[0]!] = beforeIndex;
+  }
+}
+
+/** Whether a node says who it is, by the first two of `matchKey`'s keys. */
+function declared(node: SemanticNode): boolean {
+  return node.alias !== undefined || (node.role !== undefined && node.name !== undefined);
+}
+
+/** Positions of the nodes `open` admits, by the component that created each. */
+function byAuthor(
+  children: readonly SemanticNode[],
+  open: (position: number) => boolean,
+): Map<string, number[]> {
+  const authors = new Map<string, number[]>();
+
+  children.forEach((child, position) => {
+    const author = child.provenance?.createdBy;
+    if (author === undefined || !open(position)) return;
+    const positions = authors.get(author);
+    if (positions) positions.push(position);
+    else authors.set(author, [position]);
+  });
+
+  return authors;
 }
 
 function index(

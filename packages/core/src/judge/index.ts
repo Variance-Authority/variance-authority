@@ -38,6 +38,7 @@ export { applyIgnores, summarizeIgnores, validateIgnoreRule } from './ignore.js'
 export { isUnder, matchesGlob, appliesToSubject, isExpired } from './scope.js';
 export type { Scoped } from './scope.js';
 export { fingerprintOfRoot, fingerprintOfMask, shapeOfDelta } from './fingerprint.js';
+export { restamps } from './restamp.js';
 export type { MaskFingerprintOptions } from './fingerprint.js';
 export type {
   IgnoreRule,

@@ -105,7 +105,7 @@ describe('layerCaseIndex', () => {
     });
   });
 
-  it('lands carried cases on the regions recorded now by address and kind, and drops the rest', () => {
+  it('lands carried cases on the regions the edit left alone, where it places them, and drops the rest', () => {
     const fresh = index(['a.test.ts > one', 'a.test.ts > two'], {
       'src/shared.ts': [
         ['added', ['a.test.ts > two']],
@@ -114,7 +114,9 @@ describe('layerCaseIndex', () => {
       ],
     });
 
-    const { merged } = layerCaseIndex(suite, fresh, ran(['a.test.ts']));
+    // One line written in front of the first region: the two held ones stand a line lower.
+    const written = { hunks: [{ oldStart: 0, oldCount: 0, newStart: 1, newCount: 1 }] };
+    const { merged } = layerCaseIndex(suite, fresh, { ...ran(['a.test.ts']), edit: () => written });
 
     expect(read(merged).regions['src/shared.ts']).toEqual({
       added: ['a.test.ts > two'],

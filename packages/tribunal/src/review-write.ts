@@ -293,6 +293,10 @@ export async function promote(
     // every standing defect as arriving with the change under review.
     ...listField(row, 'candidate_components', 'components'),
     ...listField(row, 'candidate_finding_marks', 'findingMarks'),
+    // The packed tree a later run joins a changed region against. Text in and
+    // text out: nothing here unpacks it, and `decide` treats one that will not
+    // unpack as not recorded.
+    ...snapshotField(optionalText(row, 'candidate_snapshot', 'a build subject')),
   };
 
   await baselines.put({ subject }, raster);
@@ -357,6 +361,11 @@ function listField(
     return parsed?.components === undefined ? {} : { components: parsed.components };
   }
   return parsed?.findingMarks === undefined ? {} : { findingMarks: parsed.findingMarks };
+}
+
+/** The packed snapshot a candidate carried, put back on the raster, or absent. */
+function snapshotField(snapshot: string | undefined): Partial<Pick<Raster, 'snapshot'>> {
+  return snapshot === undefined ? {} : { snapshot };
 }
 
 /** Stands in for the one field `sidecarFrom` requires and `listField` is not reading. */

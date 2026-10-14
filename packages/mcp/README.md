@@ -338,6 +338,7 @@ read the tree itself and hand it to a call:
 | `root` | the repository. Every coordinate comes back relative to it |
 | `dirs` | where to start walking, relative to the root. The whole repository by default, because a start point may name any path in it and a narrower walk answers *not found* about a file that is plainly there |
 | `index` | the persistent scan index, as above |
+| `names` | called once the walk ends, with what each file declares and what it imports, by name, read off the same parse. Without it no names are kept |
 
 The walk happens once per session and only when a call needs it: most
 questions do not name a path, and a repository is not a thing to read before
@@ -468,9 +469,10 @@ told it one run too late.
 `variance_run_signals` takes `state`, `file` and `limit`, and marks a running
 test with `▸` and a stopped one as `waiting`. `file` is one spec file, by its
 path from the checkout the server was started in or from `/`; a path outside
-that checkout is refused. `variance_test_signals` takes `test` — an id from the listing, a
-title, or enough of one to be unambiguous; where it is not unambiguous, the
-answer is the candidates and their ids. `variance_self` takes nothing.
+that checkout is refused. `variance_test_signals` takes `test` — an id from the listing, or
+a whole title; where two tests share that title, the answer is both and their
+ids, and where none has it, the answer is every test that has reported.
+`variance_self` takes nothing.
 
 `variance_self` is the one that separates the two reasons an answer is empty:
 nothing has run yet, or something ran and reported somewhere else. A connection

@@ -152,11 +152,13 @@ export function ChangelogEntries({
 
   return (
     <>
-      <ol className="va-changes">
-        {log.changes.map((change) => (
-          <ChangeEntry key={change.fingerprint} change={change} />
-        ))}
-      </ol>
+      {log.changes.length === 0 ? null : (
+        <ol className="va-changes">
+          {log.changes.map((change) => (
+            <ChangeEntry key={change.fingerprint} change={change} />
+          ))}
+        </ol>
+      )}
 
       {log.ungrouped.length === 0 ? null : (
         <section className="va-ungrouped">
@@ -394,7 +396,7 @@ export function ChurnLine({
     <p className="va-churn">
       <strong>{component}</strong> caused an approved change in {churn.changedRuns} of {churn.runs}{' '}
       recorded run{churn.runs === 1 ? '' : 's'}
-      {churn.lastAt === undefined ? null : <>, most recently {churn.lastAt}</>}.
+      {churn.lastAt === undefined ? null : <>, most recently {when(churn.lastAt)}</>}.
       {churn.collateralRuns === 0 ? null : (
         <> It was displaced without changing in {churn.collateralRuns} more.</>
       )}

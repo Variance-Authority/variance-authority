@@ -43,6 +43,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { followRowsIn } from './case-cuts.js';
+import { editsBetween } from './region-edit.js';
 import { layCases, textsIn, type FreshCases, type ModuleTexts } from './case-landing.js';
 import { casesRecordedOver, recordOfCases, withCaseSections } from './case-record.js';
 import { askCoverageFile } from './coverage-file.js';
@@ -179,11 +180,11 @@ export async function landRun(
   const texts = cases === undefined && previous.index === undefined ? undefined : recordedTexts(coverageFile);
   const laid = cases === undefined
     ? previous
-    : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules }, cases.eyes, texts, before?.commit);
+    : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules }, cases.eyes, texts, before?.commit, undefined, cacheRoot);
   const coverage = await layeredCoverage(coverageFile, current, root, cacheRoot);
   // The rows of a module this run did not record may have been re-cut to the
   // text on disk; the cases held for it are laid onto the same cut.
-  const followed = laid.index === undefined ? laid : followRowsIn(laid, openTestCoverage(coverage), texts);
+  const followed = laid.index === undefined ? laid : followRowsIn(laid, openTestCoverage(coverage), texts, editsBetween(root, cacheRoot, [before?.commit, current.commit]));
   const bytes = Object.values(followed).every((part) => part === undefined) ? coverage : withCaseSections(coverage, followed);
   await writeCoverageBytes(coverageFile, bytes);
   // The snapshot's rows are coordinates in the texts on disk now, and the

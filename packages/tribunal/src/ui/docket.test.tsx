@@ -142,6 +142,36 @@ describe('the opening line counts only what there is something to count', () => 
     expect(text).toContain('nothing here is a difference it also carried');
     expect(text).not.toMatch(/\b0 /);
   });
+
+  it('heads a build with no change filed by that, never by saying nothing changed', async () => {
+    // No change is filed for a first run, whose every render is new, nor for a
+    // render that moved with no component named as its cause. *Nothing in this
+    // build changed* was the heading over both.
+    const fresh = subject({ subject: 'story:new', verdict: 'new', regions: [], has: { before: false, after: true, diff: false } });
+    const unclaimed = subject({ subject: 'story:unclaimed', regions: [{ x: 0, y: 0, width: 10, height: 10, pixels: 100, cause: true }] });
+
+    for (const subjects of [[fresh], [unclaimed]]) {
+      const text = await open(build('6', subjects), build('5', []));
+
+      expect(text).toContain('No change to work through');
+      expect(text).not.toContain('Nothing in this build changed');
+    }
+  });
+
+  it('counts a subject the earlier run did not have as new, not as one that moved', async () => {
+    // A subject absent from the earlier run has nothing there to have moved from,
+    // so *moved for the first time* says a comparison happened that did not.
+    const fresh = subject({
+      subject: 'story:new',
+      verdict: 'new',
+      regions: [],
+      has: { before: false, after: true, diff: false },
+    });
+    const text = await open(build('6', [fresh]), build('5', []));
+
+    expect(text).toContain('Against build 5: 1 subject is new to this run.');
+    expect(text).not.toContain('moved for the first time');
+  });
 });
 
 describe('the header counts the concerns the build showed', () => {

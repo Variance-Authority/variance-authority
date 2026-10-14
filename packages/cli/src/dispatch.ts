@@ -44,7 +44,7 @@ import { refiningRecord, selectingRecord } from './commands/suite-record.js';
 import { runJourneyArtifactCommand } from './commands/journey-artifact-command.js';
 import { formatPush, push, pushTicker } from './commands/push.js';
 import { serve } from './commands/serve.js';
-import { renderComment } from './commands/comment.js';
+import { commentMarker, renderComment } from './commands/comment.js';
 import { doctor, machineProbes } from './commands/doctor.js';
 import { mainlinesOf, publishedLine } from './commands/share.js';
 import { shareOutput, writeSuitePart } from './commands/suite-part.js';
@@ -360,6 +360,7 @@ export async function dispatch(
           commit: identity.commit,
           ...(parsed.branch !== undefined ? { branch: parsed.branch } : {}),
           ...(config.share !== undefined ? { share: config.share } : {}),
+          ...(config.baselines !== undefined ? { baselines: config.baselines } : {}),
           onProgress: ticker.on,
         });
       } finally {
@@ -393,8 +394,15 @@ export async function dispatch(
     }
 
     case 'comment': {
+      // The poster's question, asked where no body may exist to find it in: a
+      // clean run, whose previous docket has to be located and cleared.
+      if (parsed.marker) {
+        streams.out(`${commentMarker(config.project)}\n`);
+        return EXIT_CLEAN;
+      }
       const report = await reportsFor(parsed.reports, config);
       const body = renderComment({
+        project: config.project,
         report,
         ...(parsed.runUrl !== undefined ? { runUrl: parsed.runUrl } : {}),
         ...(parsed.toAccept !== undefined ? { toAccept: parsed.toAccept } : {}),

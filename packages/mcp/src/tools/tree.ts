@@ -12,6 +12,7 @@ import {
 } from '@variance-authority/core/relate';
 import { relative } from 'node:path';
 import { costsFrom } from './hops.js';
+import { namesOf, type FileNames, type SourceNames } from './names.js';
 
 /**
  * The source tree, as the one thing allowed to say whether a path exists.
@@ -268,6 +269,13 @@ export interface TreeOptions {
    * run pays a map lookup per unchanged file rather than a parse.
    */
   readonly index?: string;
+  /**
+   * Receives every file's names, read off the parses that drew the tree, once
+   * the scan is done. Asked for only by a question that names a name: holding
+   * them costs a map the size of the tree, which a question about paths would
+   * pay for nothing.
+   */
+  readonly names?: (names: SourceNames) => void;
 }
 
 /**
@@ -292,12 +300,36 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
   }
 
   const source = options.index === undefined ? undefined : await scanner.openSourceIndex(options.index);
+  const names = options.names === undefined ? undefined : new Map<string, FileNames>();
+  // A parse the addon's graph read, or an index row it wrote, holds no
+  // declarations; such a file is read again for them once the scan is done.
+  const unharvested = new Map<string, readonly (string | undefined)[]>();
   const records = await scanner.scanRelations({
     root: options.root,
     dirs: options.dirs ?? ['.'],
     ...(source === undefined ? {} : { cache: source.cache, reuse: source.reuse }),
+    ...(names === undefined ? {} : {
+      indexed: (file, parsed, targets) => {
+        if (parsed.harvested === true) names.set(file, namesOf(parsed, targets));
+        else unharvested.set(file, targets);
+      },
+    }),
   });
+  if (names !== undefined && unharvested.size > 0) {
+    const subjects = records.flatMap((record) =>
+      record.digest !== undefined && unharvested.has(record.file) ? [{ file: record.file, digest: record.digest }] : [],
+    );
+    // A file read again into the index is saved with its declarations, so the
+    // next question is served them. One that could not be read again is left
+    // out of the names, which counts it as unread rather than declaring nothing.
+    // FIXME: the first question on a checkout the graph read parses every file a
+    // second time, though only the files the other sets kept need declarations;
+    // unmeasured past ten thousand files.
+    const harvested = await scanner.enrichSources(options.root, subjects, source?.cache ?? scanner.memoryParseCache());
+    for (const [file, parsed] of harvested) names.set(file, namesOf(parsed, unharvested.get(file)!));
+  }
   await source?.save();
+  if (names !== undefined) options.names?.(names);
 
   return treeOf(records, options.root);
 }

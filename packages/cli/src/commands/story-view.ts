@@ -158,8 +158,7 @@ export function window(lines: readonly Line[], pick: (line: Line) => boolean, re
   return shown;
 }
 
-/** Whether a stop is in the package named `text`, or in a file whose path contains it. */
-export function inFile(text: string, packageOf: (file: string) => string | undefined): (line: Line) => boolean {
-  const matches = (file: string) => file.includes(text) || packageOf(file) === text;
-  return ({ stop }) => stop !== undefined && ('loaded' in stop ? stop.loaded.some(matches) : matches(stop.place.file));
+/** Whether a stop is at a declaration in a file `inside` keeps, or loaded one. */
+export function through(inside: (file: string) => boolean): (line: Line) => boolean {
+  return ({ stop }) => stop !== undefined && ('loaded' in stop ? stop.loaded.some(inside) : inside(stop.place.file));
 }

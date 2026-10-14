@@ -8,7 +8,7 @@
  * packages passed through, and every step. The reading is the finest level that
  * fits in {@link BUDGET} characters, so a short case is read step by step and a long
  * one opens on its table of contents. A reader who wants finer narrows the part
- * with `--in` or `--around`, which picks again inside it, or asks for every
+ * with `--in`, `--package` or `--around`, which picks again inside it, or asks for every
  * step with `--whole`. The level is named in the reading, with the size of the
  * next one down, so a reader knows what it is not being shown.
  *
@@ -18,10 +18,10 @@
  * design system, a utility library — and a reader changing the application
  * wants to know the route went through them, not every step it took there. So
  * at the level of steps, consecutive steps inside a package that is neither the
- * test's own nor one `--in` named are one line naming the package, its steps
+ * test's own nor one `--in` or `--package` opened are one line naming the package, its steps
  * and the declarations they were at. A step back in any other package ends the
  * line, so a callback into the application stays on the route. Nothing is
- * dropped: the line names what it holds, and `--in <package>` opens it.
+ * dropped: the line names what it holds, and `--package <name>` opens it.
  */
 
 import type { Place } from '@variance-authority/sense/story';

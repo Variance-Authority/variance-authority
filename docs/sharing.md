@@ -880,7 +880,7 @@ curl -s -H "Authorization: Bearer $VARIANCE_SHARE_TOKEN" https://variance.exampl
 ```
 
 ```text
-{"service":"variance-authority-tribunal","api":5,"schema":19}
+{"service":"variance-authority-tribunal","api":6,"schema":21}
 ```
 
 `/version` answers any of the deployment's tokens and refuses any other with

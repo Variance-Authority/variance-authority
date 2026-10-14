@@ -8,9 +8,9 @@
  * together instead of accumulating at the top of `dispatch`.
  *
  * They arrive in two shapes and the split is a typing fact as much as a
- * narrative one. `constantAnswer` covers three *arguments* — `comment --marker`,
- * an `ask` with no question, and an `ask` whose question is about the source —
- * whose commands otherwise go on to load a config like any other.
+ * narrative one. `constantAnswer` covers two *arguments* — an `ask` with no
+ * question, and an `ask` whose question is about the source — whose commands
+ * otherwise go on to load a config like any other.
  * `withoutConfig` covers thirteen whole commands, and narrows them out of the
  * union so that what is left in `dispatch` is exactly the set that has a
  * `--config` to read. `usage.ts` states the same fact from
@@ -49,31 +49,28 @@ export function withoutConfig(parsed: Parsed): parsed is Configless {
 }
 
 /**
- * What answers before the project is read, for the three arguments that ask it to.
+ * What answers before the project is read, for the two arguments that ask it to.
  *
- * Two are constants this build carries rather than readings of anything. The
- * poster needs the marker in exactly the case where there is no body to find it
- * in — a clean run, where the previous docket has to be located and cleared; and
- * an agent finding out what it may ask has not reached a run to ask about, so
+ * One is a constant this build carries rather than a reading of anything: an
+ * agent finding out what it may ask has not reached a run to ask about, so
  * answering it with the config would be a refusal to hold a conversation on the
  * grounds that there is nothing to say yet.
  *
- * The third is a reading, of the one subject a config says nothing about. A
+ * The other is a reading, of the one subject a config says nothing about. A
  * question about the source — what a package publishes, who imports a name —
  * is asked of the checkout under the working directory, and a checkout is
  * there whether or not anybody configured a visual suite in it. Refusing it for
  * want of `variance.config.json` would send a reader to write a file that has
  * no bearing on the answer.
+ *
+ * `comment --marker` is not one of them: the marker names the config's
+ * `project`, so it is answered after the config is read, like any other answer
+ * about a project.
  */
 export async function constantAnswer(
   parsed: Parsed,
   streams: { out(text: string): void },
 ): Promise<ExitCode | undefined> {
-  if (parsed.command === 'comment' && parsed.marker) {
-    const { COMMENT_MARKER } = await import('./comment.js');
-    streams.out(`${COMMENT_MARKER}\n`);
-    return EXIT_CLEAN;
-  }
   if (parsed.command !== 'ask') return undefined;
   const [{ askSource, questions }, { questionFor }] = await Promise.all([import('./ask.js'), import('./asking.js')]);
   if (parsed.question === undefined) {

@@ -71,7 +71,7 @@ function testInfoIn(root: string, testId: string, title: string): TestInfo {
   return {
     project: { name: 'chromium' },
     file: resolve(root, 'tests/checkout.spec.ts'),
-    titlePath: ['chromium', 'tests/checkout.spec.ts', 'mocked', title],
+    titlePath: ['tests/checkout.spec.ts', 'mocked', title],
     testId,
   } as unknown as TestInfo;
 }

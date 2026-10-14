@@ -6,6 +6,11 @@ how many times each loop ran, and the lines the code printed. Every run already
 records which code each test ran. A story adds the order, the counts and the
 printed lines, and you read it from top to bottom.
 
+If you need the test statement that first ran a region,
+[cadence](test-level-coverage.md#which-test-statement-first-ran-a-region)
+records that on ordinary runs. Record a story when you need what happened next
+or how often it repeated.
+
 ## What you already know, and what you do not
 
 With [Sense](../packages/sense/README.md) set up for your runner, every run
@@ -83,7 +88,7 @@ CLI](../packages/cli/README.md) prints that, step by step:
 
 ```bash
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last item"
-variance story --name "removes the last item"
+variance story --name "cart > removes the last item"
 ```
 
 In the output, `✗` is a branch the test never took, and `×2` is how many times
@@ -258,7 +263,7 @@ its file, record each setup twice under its own label, then compare the labels:
 ```bash
 VARIANCE_AUTHORITY_STORY=alone yarn vitest run src/cart.test.ts -t "removes the last item"
 VARIANCE_AUTHORITY_STORY=file yarn vitest run src/cart.test.ts
-variance story --name "removes the last item" --compare alone,file
+variance story --name "cart > removes the last item" --compare alone,file
 ```
 
 `before the test`, at the top of each story, shows the code the runner ran right before the
@@ -272,13 +277,29 @@ edit changed, not to explain a test that fails on some runs.
 The journey and the story answer different questions, so a run keeps them
 differently:
 
+| You need to know | What to read |
+| --- | --- |
+| Which code a case ran | Its journey, the set of regions it covered |
+| Which test statement first ran each region | Its cadence, the statement lines recorded with those regions |
+| In what order the code ran, including repeats | Its story, recorded when you ask for one |
+
+The recorder adds calls between test and hook statements to record cadence.
+It keeps one first statement per region, not every visit. Node runners mark
+hook work separately; Playwright records `beforeEach` and `afterEach`
+statements as case lines.
+A story step is a visit to source code, so one
+test statement can produce many steps. [Coverage
+composition](own-fewer-tests.md#connect-the-regions-to-test-statements) compares
+tests by their region sets; a story shows the order a case ran those regions in.
+
 - **The journey is kept for every test, on every run.** Test selection and
   `variance covering` need it for every test. Two runs that ran the same code
   in a different order have one journey, so the order async code happens to
   run in does not change which tests [test
   selection](coverage-test-selection.md#what-the-record-keeps) runs. The
-  record also keeps the test line that first reached each region, and async
-  code can move that line between runs; selection does not read it.
+  record also keeps cadence where the runner recorded statement lines.
+  Asynchronous work can be attributed to a different statement on another run;
+  selection does not read those lines.
 - **The story is written only when you ask**, for the tests you name. Keeping
   the order adds work to every function the test runs, and a story for every
   test. Setting `VARIANCE_AUTHORITY_STORY` does not change the journeys: the
@@ -360,20 +381,21 @@ part you want:
 story  src/checkout.test.ts > checkout > pays with a saved card
   goes through 14 files in 116 steps
   drawn by declarations: by every step it would be 11712 characters, and a story is kept under 5000;
-  narrow it with --in <package or file> or --around <step>, or read every step with --whole
+  narrow it with --in <file>, --package <name> or --around <step>, or read every step with --whole
 ```
 
 Then you ask for the part you need, and that part opens at the finest level
 that fits:
 
 ```bash
-variance story --name "pays with a saved card" --in price.ts   # the steps through one file or package
-variance story --name "pays with a saved card" --around 40     # three steps either side of step 40
-variance story --name "pays with a saved card" --whole         # every step, however long
+variance story --name "checkout > pays with a saved card" --in src/price.ts      # the steps through one file
+variance story --name "checkout > pays with a saved card" --package @acme/ui  # the steps through one package
+variance story --name "checkout > pays with a saved card" --around 40         # three steps either side of step 40
+variance story --name "checkout > pays with a saved card" --whole             # every step, however long
 ```
 
 When steps inside another workspace package, such as your design system, are
-shown as one line, that line names the package, and `--in` opens it.
+shown as one line, that line names the package, and `--package` opens it.
 
 ## What the code prints
 

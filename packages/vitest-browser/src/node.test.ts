@@ -5,12 +5,15 @@ import { PNG } from 'pngjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CaptureArtifact } from '@variance-authority/core';
 import {
+  CHROMIUM_PROFILE,
   digestFileName,
   documentDigest,
+  environmentKey,
   identityDigest,
   type Raster,
   type RenderDocument,
   type RenderIdentity,
+  type SemanticSnapshot,
 } from '@variance-authority/core/format';
 import type { Renderer } from '@variance-authority/raster';
 import { createDurableStore } from '@variance-authority/store/durable';
@@ -91,6 +94,29 @@ function artifactFor(subject: string, html = '<div data-va-path="0">Save</div>')
   };
 }
 
+/** The tree a collector read for a subject: one box, enough to be kept. */
+const SNAPSHOT: SemanticSnapshot = {
+  formatVersion: 1,
+  subject: { id: 'k', kind: 'fixture' },
+  profile: CHROMIUM_PROFILE,
+  environment: environmentKey({
+    profile: 'chromium',
+    engine: 'chromium',
+    ruleset: 'r',
+    allowlist: 'a',
+    viewport: { width: 8, height: 8, deviceScaleFactor: 1, colorScheme: 'light' },
+    fonts: [],
+    conditions: {},
+    assets: {},
+  }),
+  renderHash: 'v1:r',
+  structureHash: 'v1:s',
+  styleHash: 'v1:t',
+  root: { path: '0', tag: 'div', attributes: {}, style: {}, rect: { x: 0, y: 0, width: 8, height: 8 }, children: [] },
+  styleProvenance: [],
+  diagnostics: [],
+};
+
 /** What Vitest hands a command when the run was started with `--update`. */
 const UPDATING = { project: { vitest: { config: { snapshotOptions: { updateSnapshot: 'all' } } } } };
 
@@ -130,6 +156,23 @@ describe('the command the browser half calls', () => {
     expect(renderer.renders).toBe(1);
   });
 
+  it('files a baseline by the test file and the titles the test was declared under', async () => {
+    const store = createDurableStore(root, { path: '{dir}/__baselines__/{file}/{title}/{name}-{engine}' });
+    const renderer = fakeRenderer();
+    const commands = varianceCommands({ store, renderer, accept: true });
+    const context = { testPath: join(process.cwd(), 'src', 'ui', 'Button.test.tsx') };
+
+    await commands.varianceObserve(context, {
+      artifact: artifactFor('Button > renders primary'),
+      titlePath: ['Button', 'renders primary'],
+    });
+
+    expect(await readdir(join(root, 'src/ui/__baselines__/Button.test.tsx/Button'))).toEqual([
+      'renders-primary-fake.json',
+      'renders-primary-fake.png',
+    ]);
+  });
+
   it('reads the runner`s own `--update` when nothing was declared', async () => {
     const store = createDurableStore(root);
     const renderer = fakeRenderer();
@@ -140,6 +183,23 @@ describe('the command the browser half calls', () => {
 
     await commands.varianceObserve(UPDATING, { artifact: artifactFor('c') });
     expect(await store.find({ subject: 'c' }, renderer.identity)).not.toBeNull();
+  });
+
+  it('re-stamps an unchanged baseline that kept no snapshot on `--update`, so it keeps this one', async () => {
+    // Written by a run that collected no tree, or before sidecars kept one.
+    await varianceCommands({ store: createDurableStore(root), renderer: fakeRenderer(), accept: true }).varianceObserve(
+      undefined,
+      { artifact: artifactFor('k') },
+    );
+    const store = createDurableStore(root);
+    const renderer = fakeRenderer();
+
+    const observed = await varianceCommands({ store, renderer }).varianceObserve(UPDATING, {
+      artifact: { ...artifactFor('k'), snapshot: SNAPSHOT },
+    });
+
+    expect(observed.verdict).toBe('unchanged');
+    expect((await store.find({ subject: 'k' }, renderer.identity))?.raster.snapshot).toEqual(expect.any(String));
   });
 
   describe('a baseline painted under another identity', () => {
@@ -271,6 +331,26 @@ describe('the render cache a directory store keeps', () => {
 
     expect(await readdir(byDocument(join(cache, 'renders')))).toContainEqual(expect.stringMatching(/\.png$/));
     await expect(readdir(byDocument(baselines))).rejects.toThrow();
+  });
+
+  it('writes each baseline where `baselinePath` names it', async () => {
+    const baselines = join(root, 'baselines');
+    const commands = varianceCommands({
+      baselines,
+      baselinePath: '__baselines__/{title}/{name}-{engine}',
+      renderer: fakeRenderer(),
+      accept: true,
+    });
+
+    await commands.varianceObserve(undefined, {
+      artifact: artifactFor('Button > renders primary'),
+      titlePath: ['Button', 'renders primary'],
+    });
+
+    expect(await readdir(join(baselines, '__baselines__/Button'))).toEqual([
+      'renders-primary-fake.json',
+      'renders-primary-fake.png',
+    ]);
   });
 
   it('bounds that cache when the run closes, the way `variance run` does', async () => {

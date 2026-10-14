@@ -45,12 +45,12 @@ needs, and a component can influence the result without being directly used.
 Distill identifies candidates; the confirming run establishes which ones can go.
 
 Name the case with `--test` and the file that declares it with `--file`.
-`--test` takes the recorded id, the case's exact title, or a part of the title;
+`--test` takes the recorded id or the case's whole title, `checkout > submits`;
 `--file` takes the test file's path, relative to the checkout or absolute, and
 names that file alone:
 
 ```bash
-variance distill --file test/checkout.spec.ts --test submits
+variance distill --file test/checkout.spec.ts --test 'checkout > submits'
 ```
 
 When more than one case fits, Distill prints the ids of up to five of them and
@@ -361,7 +361,7 @@ cases used.
 
 | Entrance | Use it when | Invocation |
 | --- | --- | --- |
-| CLI | the run recorded in this checkout, or a record you name | `variance distill [--file <path> [--test <title>] \| --test <title> \| --from <dir>] [--suite <name> \| --execution <path>]` |
+| CLI | the run recorded in this checkout, or a record you name | `variance distill [--file <path> [--test <name>] \| --test <name> \| --from <dir>] [--suite <name> \| --execution <path>]` |
 | [MCP](agent-questions.md#distill-one-test) | a producer already supplies Eyes and Sense evidence to a connection | `variance_distill {"test":"<id>"}` |
 | [`variance-authority` skill](../packages/cli#ask-the-agent-answers-without-an-agent-protocol) | an agent must turn opportunities into a smaller verified test | install the skill shipped by `@variance-authority/cli` |
 

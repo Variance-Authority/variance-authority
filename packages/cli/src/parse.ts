@@ -161,7 +161,7 @@ export type Parsed =
        * like one.
        */
       readonly all: boolean;
-      /** `--file <text>`: substring, case-insensitive, over the recorded module path. */
+      /** `--file <path>`: the one recorded module at this path in the checkout. */
       readonly file?: string;
       readonly limit?: number;
       /** Shard snapshots to fold and land before reading, and `--into <path>`, where they land; this repository's cache otherwise. */

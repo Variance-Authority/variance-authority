@@ -1,5 +1,134 @@
 # @variance-authority/report
 
+## 0.15.0
+
+### Minor Changes
+
+- d5cc0c3: A baseline painted under another identity is compared, and the identity is the cause
+
+  There is no `incomparable` verdict: a subject with two images is always
+  compared, and reads `unchanged`, `changed`, `new` or `ignored`. When the two
+  were painted under different identities, such as another browser version,
+  platform, scale factor, font stack or recipe of this tool, the observation
+  carries `signals.identity` (`recipe` or `machine`) and `signals.moved`, each
+  moved field with both values, and its `because` opens with that cause. A
+  `changed` subject fails the gate whatever its cause, and `variance accept --all`,
+  Playwright Test's `--update-snapshots` and Vitest's `--update` adopt it like any
+  other change. An `unchanged` subject under a moved identity is re-stamped
+  under this run's identity by the same three, so an upgrade is named once rather
+  than on every later run. A re-stamp approves nothing: `variance accept` counts
+  it in `restamped` and its summary, not among the accepted subjects or the
+  commit message, and the `variance_changelog` preview says so. A durable store's
+  `put` moves a baseline along its line, one engine family on one platform at one
+  scale: the line's older copy is removed, so a lookup never compares against a
+  superseded image, while a matrix of engines or machines keeps one baseline
+  each. A lookup that misses its own identity reads its line first. `variance_explain` names the moved identity as the
+  cause of a change, and the tribunal no longer counts or lists an
+  `incomparable` verdict. `@variance-authority/raster` exports `identityCause`,
+  which says whether two identities differ in the recipe alone or in the machine,
+  with its `IdentityCause` and `ComparedSides` types. `variance doctor` reports a
+  store painted by another machine as `PAINTED ELSEWHERE` and exits `0`: the run
+  compares it. Its `baselines.comparable` field is now `baselines.paintedHere`.
+  The pull-request comment groups these
+  subjects under "Painted under another identity", one line per identity that
+  moved. Its section for subjects with no image to point at is headed "Nothing to
+  point at", which was "Not compared".
+- 14aefbf: Ask what one test, or one story, checks that the narrower ones inside it do
+  not.
+
+  - `variance ask test-composition --file <test> --name <words>`, and
+    `docs_test_composition`, read one recorded test as the smaller tests whose
+    regions sit inside its own, the larger tests holding it, and the regions no
+    smaller test entered: modules only it enters, and paths through a smaller
+    test's module only it takes.
+  - `variance_composition {subject}` closes with the same reading for a story:
+    the smaller stories inside it, the larger ones holding it, and what no
+    smaller story renders — components only it mounts, and components a smaller
+    story renders another way. The run carries it per subject in the report's
+    structure section; `piecesOf` in `@variance-authority/core/attribute`
+    computes it.
+  - A component mounted by more than half the suite's subjects is structure. A
+    subject that mounts a component many times now counts once, where every
+    mount used to count: a chip story is an example of the chip again when the
+    pages around it mount chips many times over.
+- da0cdbc: `variance collect` writes the suite index without a visual run: no baseline,
+  no comparison, no image. Each CI job collects its shard into a part, and
+  `variance collect merge evidence-*.json --out suite.index` folds them:
+
+  ```bash
+  variance collect --shard 1/4 --workers 2 --out evidence-1.json
+  variance collect merge evidence-*.json --out suite.index
+  ```
+
+  Each part records its plan, its build (Storybook digest, commit, and every
+  source file under `source.dirs` as it is on disk), the config that shaped the
+  reading, the environment its engine reported, and an outcome for every
+  subject its shard owns. The merge refuses parts from different builds, plans,
+  configs or environments, a missing or repeated shard, and sharded and
+  unsharded parts together, and names the shard to collect again. While any subject failed, it leaves the index at `--out` as it was,
+  writes `<out>.incomplete`, and exits `2`.
+
+  The suite index is version 2: it carries landmarks, the file that declares
+  each subject, fields the reading did not reach apart from fields it read as
+  empty, coverage with the reason each subject was not observed in a run
+  report's words, and the build it came from. Version 1 indexes still open, without those facts.
+
+  `variance run --workers` keeps where every worker located a component. Before,
+  the report's lexicon carried only the last worker's locations, so a component
+  another worker located fell back to the source scan's candidates.
+
+  `variance share` refuses an unsharded part beside sharded ones, and two
+  unsharded parts, rather than composing them into one index. A suite part that
+  exists but cannot be read stops the command with its path.
+- 9bea264: A variation record carries `step` — the `axis`, its `position` among the format's axes, and the parent's and the subject's values on it, as `from` and `to` — when the configured name format read the pair. A pair linked any other way has none. `VariationStep` is exported beside `VariationRecord`.
+
+### Patch Changes
+
+- 5e70b52: The adjudicate count line names each count by the verdict its claim line prints: `overreached` and `unobservable`, where it said `over-reaching` and `unchecked`.
+- cb8a52f: A source index another release wrote is no longer reported as damaged
+
+  After an upgrade, the first command that read the source index said it was
+  damaged and read only up to its first bad segment, and in CI it refused with
+  the same words. The segments were whole: an earlier release had written them in
+  another format version. Now the reader names both versions, for example that
+  the index was written in format version 15 and this release reads version 18.
+  On a workstation it rebuilds the index and says so, and `variance index` prints
+  `source index rebuilt over one written in format version 15`. In CI the refusal
+  names both versions and asks you to run `variance index` with this release
+  before the command that reads it. `ask orient --files` over such an index says
+  which version wrote it and that `variance index` rebuilds it.
+- 9bb6f47: A moved identity names only the fields that differ
+
+  When the baseline was painted under another identity, the `because` sentence
+  names only the identity fields that differ between the baseline and this run,
+  and says whether they are the machine (renderer, engine, platform, scale, fonts)
+  or only variance-authority's recipe (the stabilization or rasterization digest).
+  `recipeOnly`, exported from `@variance-authority/raster`, answers which.
+
+  An observation from `@variance-authority/observe` carries `signals.document`,
+  saying whether the document is the one the baseline was painted from, so a
+  recipe change over an unchanged document reads apart from one that moved the
+  page too. `signals.pixels` is optional, since a subject that occupies no pixels
+  has none to measure; TypeScript code that reads `Observation.signals.pixels`
+  must handle it being absent.
+
+  `variance ask summary` prints a reason that several subjects share once, with a
+  count, and lists the subjects under it, so an upgrade that moves every subject
+  reads as one line rather than one per subject. It groups the same way the
+  pull-request comment does, through `byReason`, exported from
+  `@variance-authority/report`.
+- ef496ad: READMEs name what the program does
+
+  The package READMEs, and the `@variance-authority/vantage` and
+  `@variance-authority/playwright-test` descriptions, no longer write a test, a
+  record or a run as something that says, asks or knows. Each sentence names what
+  the program does: a command prints, a record holds a field, a test runs or
+  covers. Where a value is filled in from configuration or a default rather than
+  recorded, the README says so. Four renamed headings change their anchors:
+  `help`'s "Where the declaration is undocumented", `playwright`'s "Where a
+  component is declared, read from the engine", `storybook`'s "What a pass sends
+  the preview" and `sense`'s "Correct what a file's text declares it imports".
+
 ## 0.14.0
 
 ### Patch Changes

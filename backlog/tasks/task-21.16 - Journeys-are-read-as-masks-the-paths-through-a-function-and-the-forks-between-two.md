@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-29 03:41'
-updated_date: '2026-09-29 03:52'
+updated_date: '2026-10-11 07:54'
 labels: []
 dependencies: []
 parent_task_id: TASK-21
@@ -40,7 +40,7 @@ A journey is the mask of blocks one test entered. Two calculations over a record
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Rust matches the JS prototype exactly on rankRegions<->settle (this repo: 61/72/42, forks at observe-one.ts:153/178/212…, same nearly case) and on zod _getMessage<->flattenError (832/20/2, 808 journeys, 208/18 near; thin at 2 connecting). 4-7 ms per question against seconds in JS.
+Rust matches the JS prototype exactly on rankRegions<->settle (this repo: 61/72/42, forks at packages/cli/src/commands/observe-one.ts:153/178/212…, same nearly case) and on zod _getMessage<->flattenError (832/20/2, 808 journeys, 208/18 near; thin at 2 connecting). 4-7 ms per question against seconds in JS.
 MUI styleFunctionSx: 4043 cases, passage 4004 (as in JS), but 3 paths where purpose.mjs found 6 — the prototype counted branches of closures written inside the function; the Rust reading gives each region to the smallest function holding it, so a closure's branches are the closure's paths, not its parent's.
 
 Validation: yarn build && yarn verify green (618 files, 6669 tests); 5 Rust unit tests (cargo test --lib journey_masks, lazy napi linking) and the 'journeys read as masks' TS test pass.

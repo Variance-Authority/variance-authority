@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Tool } from '@variance-authority/mcp/tools';
+import type { FileSet, Tool } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
@@ -56,8 +56,7 @@ export const symbol: Tool<Help> = {
     // is an alphabetical accident whose own count is usually nothing. Equal
     // counts fall to the published name, by code unit, so the answer does not
     // follow the order the workspace's directories were read in.
-    const found = entriesNamed(help, name)
-      .filter(([published, held]) => wanted === undefined || isPackage(published, held, wanted))
+    const found = [...publishing(help, name, wanted)]
       .sort(([left, leftDoor, a], [right, rightDoor, b]) =>
         b.usedBy.length - a.usedBy.length || b.uses - a.uses ||
         byCodeUnit(left.name, right.name) || byCodeUnit(leftDoor.subpath, rightDoor.subpath));
@@ -129,7 +128,40 @@ export const symbol: Tool<Help> = {
 
     return [block(first[0], first[1], first[2]), ...also, ...shown].join('\n');
   },
+
+  // The files of this checkout that declare the name, each at its line, by the
+  // same three readings `run` answers from in turn; an installed declaration is
+  // not a file of the checkout, so a name only a dependency declares is unfound.
+  files(help, input, invocation): FileSet {
+    const name = stringArg(input, 'name');
+    const from = input['package'];
+    const wanted = typeof from === 'string' && from !== '' ? from : undefined;
+    const at: (readonly [string, number])[] = publishing(help, name, wanted).map(([, , entry]) => [entry.at, entry.line]);
+    if (at.length === 0) {
+      for (const site of sitesByPath(help, name, wanted)) {
+        const declared = declaration(help, name, site);
+        if (declared !== undefined) at.push([declared.at, declared.line]);
+      }
+    }
+    if (at.length === 0) {
+      const exported = exportsNamed(help, name, wanted);
+      for (const [held] of declaringExports(name, exported, invocation?.root)) at.push([held.at, held.line]);
+    }
+    if (at.length === 0) throw new Error(unfound(help, name, wanted));
+    const files = new Map<string, number[]>();
+    for (const [file, line] of at) {
+      const lines = files.get(file) ?? [];
+      if (!lines.includes(line)) lines.push(line);
+      files.set(file, lines);
+    }
+    return { files };
+  },
 };
+
+/** Every published entry of the name, from the package asked for when one was. */
+function publishing(help: Help, name: string, wanted: string | undefined) {
+  return entriesNamed(help, name).filter(([published, held]) => wanted === undefined || isPackage(published, held, wanted));
+}
 
 /** Code-unit order, so a tie never depends on `LANG`. */
 function byCodeUnit(left: string, right: string): number {
@@ -191,11 +223,7 @@ function declaration(help: Help, name: string, site: PathSite): { readonly at: s
  * imports are counted with the export it passes on, once.
  */
 function exportedOnly(name: string, exported: readonly Named[], root: string | undefined): string {
-  const read = exported.map((held) => [held, importsOf(root, [held.at], name)] as const);
-  const passing = new Set(read.flatMap(([, within]) => ('through' in within ? within.through : [])));
-  // Files that pass the name on to each other and declare it nowhere else are all shown.
-  const declaring = read.filter(([held]) => !passing.has(held.at));
-  return (declaring.length > 0 ? declaring : read)
+  return declaringExports(name, exported, root)
     .map(([held, within]) =>
       [
         name,
@@ -205,6 +233,18 @@ function exportedOnly(name: string, exported: readonly Named[], root: string | u
       ].join('\n'),
     )
     .join('\n\n');
+}
+
+/**
+ * The exports of a name that declare it, each with the imports the source index
+ * resolved to it: a file that passes on another one's export is left out.
+ */
+function declaringExports(name: string, exported: readonly Named[], root: string | undefined) {
+  const read = exported.map((held) => [held, importsOf(root, [held.at], name)] as const);
+  const passing = new Set(read.flatMap(([, within]) => ('through' in within ? within.through : [])));
+  // Files that pass the name on to each other and declare it nowhere else are all shown.
+  const declaring = read.filter(([held]) => !passing.has(held.at));
+  return declaring.length > 0 ? declaring : read;
 }
 
 /** How many places import one export, read off the source index. */

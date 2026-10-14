@@ -89,6 +89,39 @@ innermost box — the one the browser painted on top, and the one somebody edite
 — so a report over a design system names the component and not the wrapper
 around it.
 
+### What left, and what arrived
+
+A pixel comparison has two sides, and a change that replaces an element paints
+over both: the old element's place and the new one's. Replacing todomvc's
+checkbox with a styled div changes a 20×18 region. 71% of it lies inside the old
+input's box and 88.75% inside the new div's, so neither box contains it and the
+region falls to the row around both.
+
+So `before`, which the caller must state, is the snapshot of the revision the
+pixels are compared against. Each node in this snapshot is joined against the
+union of its own box and the box its counterpart had there. Which node is its
+counterpart is the differ's answer, not a second one: the matcher that pairs
+nodes for `diffSnapshots` pairs them here. It pairs by content and identity first, so a
+path that a sibling inserted ahead renumbered still pairs. An element whose
+author rendered a different one in its place pairs too, when it is the only one
+that author replaced under that parent. Two replaced together stay unpaired,
+because either could be either, and a box another component left at the same
+place is never joined.
+
+A stored baseline keeps that snapshot as `snapshot`, gzipped and in base64. On
+todomvc's populated list the tree is 163,032 bytes of JSON and 8,211 packed.
+
+`undefined` is an answer, and the observation says what it cost. A baseline
+accepted before it kept a snapshot is joined against this render's boxes alone,
+and a changed verdict adds that the baseline records no snapshot of its nodes,
+and that an accepting run records one on a revision where the subject is
+unchanged. An accepting run re-stamps every unchanged baseline that kept none,
+so one accepting run on a clean revision records them all. Until it does, a
+run renders each such subject even when its document has not moved, rather
+than settling it on the digest, so there is an image to re-stamp. Two images handed in
+directly get the same sentence, without the remedy: no accept rewrites a file
+somebody passed in.
+
 ### When nothing contains it
 
 A region no box contains is reported `unattributed`, and this is rarer than it
@@ -280,13 +313,13 @@ is reported instead.
 `rankRegions` exists because of a measurement. A **tier** is a level of
 observation: the structure-and-style reading of a document, which any DOM host
 produces, and the painted image, which only a browser can. Replacing a checkbox
-with a styled div on the todomvc corpus changes 1530 pixels in 5 regions, which
+with a styled div on the todomvc corpus changes 1853 pixels in 5 regions, which
 attribute geometrically and rank by area as:
 
 ```
-  933px  Text      <- changed, and reflowed
-  511px  Stack     <- only reflowed
-   86px  Toggle    <- the edit
+ 1055px  Text      <- changed, and reflowed
+  614px  Stack     <- only reflowed
+  184px  Toggle    <- the edit
 ```
 
 Every one of those attributions is correct — the pixels really are inside those

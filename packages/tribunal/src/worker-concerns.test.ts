@@ -118,7 +118,9 @@ describe('the concern routes', () => {
     expect(TRIBUNAL_API).toBeGreaterThanOrEqual(4);
     const version = (await (await call('/version', { token: REVIEW })).json()) as { api: number; schema: number };
     expect(version.api).toBe(TRIBUNAL_API);
-    expect(version.schema).toBe(20);
+    // The step that added the concern tables, not the latest: a later step that
+    // keeps concerns too is not this test's business.
+    expect(version.schema).toBeGreaterThanOrEqual(19);
   });
 
   it('answers the review page’s own client, raise to move to list', async () => {

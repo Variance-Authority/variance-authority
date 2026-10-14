@@ -341,6 +341,9 @@ jobs:
           fi
           ls -l packages/sense/npm/*/*.node
 
+      # `yarn verify` runs `docs_grep`'s tests, which fail on CI without `rg`.
+      - uses: ./.github/actions/ripgrep
+
       - run: yarn verify
 
       - name: Publish, and tag what was published

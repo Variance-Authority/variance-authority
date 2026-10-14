@@ -385,10 +385,18 @@ describe('naming the test', () => {
     { id: 'test/cart.test.tsx > cart > submits', file: 'test/cart.test.tsx', name: 'cart > submits' },
   ], modules: [] };
 
-  it('finds a recorded test by a part of its name within the file its path names', () => {
-    expect(distill({ file: 'test/checkout.test.tsx', test: 'submits', execution: recorded }).test.id)
+  it('finds a recorded test by its whole name within the file its path names', () => {
+    expect(distill({ file: 'test/checkout.test.tsx', test: 'checkout > submits', execution: recorded }).test.id)
       .toBe('test/checkout.test.tsx > checkout > submits');
     expect(distill({ file: 'test/cart.test.tsx', execution: recorded }).test.id).toBe('test/cart.test.tsx > cart > submits');
+  });
+
+  it('names a test by its id or whole name, never by a part of either', () => {
+    for (const test of ['submits', 'SUBMITS', 'checkout > SUBMITS', 'checkout > sub']) {
+      expect(() => distill({ test, execution: recorded })).toThrow(`The record holds no case matching \`${test}\`.`);
+    }
+    expect(() => distill({ file: 'test/checkout.test.tsx', test: 'submits', execution: recorded }))
+      .toThrow('The record holds no case matching `submits` in `test/checkout.test.tsx`.');
   });
 
   it('narrows to the file a path names, never one whose path contains it or ends in it', () => {
@@ -397,10 +405,14 @@ describe('naming the test', () => {
     }
   });
 
-  it('refuses a name more than one test fits, and names each one by its id', () => {
-    expect(() => distill({ test: 'SUBMITS', execution: recorded })).toThrow(
-      '2 recorded cases matching `SUBMITS`: test/checkout.test.tsx > checkout > submits, '
-        + 'test/cart.test.tsx > cart > submits; name one by its id',
+  it('refuses a name more than one test has, and names each one by its id', () => {
+    const twice: ExecutionIndex = { tests: [
+      ...recorded.tests,
+      { id: 'test/again.test.tsx > cart > submits', file: 'test/again.test.tsx', name: 'cart > submits' },
+    ], modules: [] };
+    expect(() => distill({ test: 'cart > submits', execution: twice })).toThrow(
+      '2 recorded cases matching `cart > submits`: test/cart.test.tsx > cart > submits, '
+        + 'test/again.test.tsx > cart > submits; name one by its id',
     );
     expect(() => distill({ file: 'test/checkout.test.tsx', execution: recorded }))
       .toThrow('2 recorded cases in `test/checkout.test.tsx`');

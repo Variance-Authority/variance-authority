@@ -187,13 +187,13 @@ are five, loudest first:
 | band | what changed | example delta kinds |
 |---|---|---|
 | `a11y` | a role, accessible name, description or ARIA state | `role-changed`, `name-changed`, `state-changed` |
-| `geometry` | boxes appeared, vanished, moved or resized | `node-added`, `node-moved`, `rect-changed`, `attribute-changed` |
-| `token` | style values changed while structure stayed the same | `style-changed`, `token-changed` |
+| `geometry` | boxes appeared, vanished, moved, resized or were replaced | `node-added`, `node-moved`, `tag-changed`, `rect-changed`, `attribute-changed` |
+| `token` | style values changed while structure stayed the same | `style-changed`, `token-changed`, except on a pair across two tags, where they are `geometry` |
 | `content` | text changed and nothing else did | `text-changed` |
 | `texture` | sub-semantic rendering variance | `raster-residue` |
 
-`bandOf(kind)` performs that assignment and is the default rather than the
-answer — policy may promote or demote per project, subject, region or
+`bandOf(kind, { retagged })` performs that assignment and is the default
+rather than the answer — policy may promote or demote per project, subject, region or
 component. `loudestBand(bands)` collapses a set to the loudest one present, and
 returns `null` for an empty set so that *nothing changed* and *something changed
 at the quietest band* stay apart.
@@ -231,7 +231,10 @@ const after = normalize(recapture);
 const diff = diffSnapshots(before, after);           // deltas and roots, no verdict
 
 const places = isolateRegions(mask, { cell: 8 });    // pixels → regions
-const named = attributeRegions(places.regions, after, { scale: 2 });
+const named = attributeRegions(places.regions, after, {
+  scale: 2,
+  before,                                            // where the pixels it replaced were
+});
 ```
 
 `diffSnapshots` returns `identical`, the flat `deltas`, the `roots` a docket
@@ -244,6 +247,20 @@ runner.
 `scale` is device pixels per CSS pixel and it is required. Attribute a 2x
 screenshot at 1x and every region lands in the top-left quadrant with the wrong
 component named — a full, plausible, entirely wrong report.
+
+`before` is required too: the snapshot of the revision the pixels are compared
+against, or `undefined` when nobody kept it. A change that replaces an element
+paints over the old box and the new one, so each node is joined against its own
+box and the box of the node the differ's matcher pairs it with. A stored baseline
+carries that snapshot packed, as its `snapshot`; `unpackSnapshot` in
+`@variance-authority/observe` reads it back.
+
+Each box that left is placed by where it was in its own image. A screenshot
+clipped to the subject starts at the subject's root, and `beforeOrigin` is the
+before image's top-left corner in page CSS pixels. It defaults to the before
+snapshot's root, as `origin` defaults to this render's. When you pass `origin`
+and a `before` snapshot, pass `beforeOrigin` too, or the call throws: the page
+can move what you clipped to between the two shots.
 
 Rendered comparisons throw when the two subjects differ, or when their
 observation profiles differ.

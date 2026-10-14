@@ -32,7 +32,7 @@ several sections.
 | --- | --- |
 | **subject** | One named UI state you asked for and can ask for again — a story, route, fixture, or value — under an id that survives a rename. `story:components-button--primary` is one. |
 | **observation profile** | What the capture surface was *able* to see, independent of what it found. Two ship: `jsdom` resolves roles, accessible names and author-declared style but has no layout engine and paints nothing; `chromium` adds the resolved cascade, real box geometry and pixels. Set it with `--profile` or in configuration. A profile that cannot see a band says so rather than reporting the band `unchanged`. |
-| **painter** | The machine-and-software identity that produced an image: renderer (`playwright-chromium@1.49.0`, `remote:render.internal`), engine build, OS and architecture, device scale factor, the fonts the renderer actually had, and digests of what it did to the page before reading it and of its pixel-affecting launch settings. Every field is hashed into one **identity digest**. A *painter partition* is the set of images stored under one such digest. Two painters' images are still compared, and the fields that differ are named as the cause of what moved. `variance doctor` prints your identity and every identity your baseline root and render cache already keep. |
+| **painter** | The machine-and-software identity that produced an image: renderer (`playwright-chromium@1.49.0`, `remote:render.internal`), engine build, OS and architecture, device scale factor, the fonts the renderer actually had, and digests of what it did to the page before reading it and of its pixel-affecting launch settings. Every field is hashed into one **identity digest**, recorded in the `.json` beside each baseline. A *painter partition* is the set of images one such digest painted. Two painters' images are still compared, and the fields that differ are named as the cause of what moved. `variance doctor` prints your identity and every identity your baseline root and render cache already keep. |
 | **band** | The kind of difference a change lands in. There are five, ordered loudest first: `a11y`, `geometry`, `token`, `content`, `texture`. The order is rarity — an accessible name almost never changes and is a defect when it does; anti-aliasing changes constantly and never matters. A set of bands collapses to the loudest one present, never to a default. |
 
 ### Things a run records
@@ -101,7 +101,7 @@ and no other:
 
 | `verdict` | What it means |
 | --- | --- |
-| `unchanged` | The stored baseline and the new capture were compared, and nothing differs. |
+| `unchanged` | The stored baseline and the new capture were compared, and nothing differs beyond the default policy's tolerance: antialiasing, and a colour change of up to 1%. |
 | `changed` | Pixels moved. The report names the region, the component and the `file:line`. |
 | `new` | The subject was captured and no approved baseline exists. |
 | `ignored` | Pixels moved, and every one of them fell inside a subtree your `ignore` rules excluded. Green, and a separate word from `unchanged`, so a report can be asked how much of its green was earned and how much was declared. |
@@ -439,9 +439,9 @@ use, and re-approve under it. See [placement](placement.md).
 writes each case's journal into the same record, under the case the recording
 runs and its attempt. Titles and file paths are presentation and are never used
 as a fallback identity: two readings join only on the case id the record holds.
-`variance distill` is where you read the two together: `--test` and `--file`
-find one case in the record's case index, by its id, its title or a part of
-either, and everything else is read by that case's id. It prints a line when the
+`variance distill` is where you read the two together: `--test` names one case
+in the record's case index by its id or its whole title, `--file` by its test
+file's checkout path, and everything else is read by that case's id. It prints a line when the
 record has no Eyes journal, rather than reading that as an empty one.
 
 Within a joined test, three things stay distinct and are not read as each

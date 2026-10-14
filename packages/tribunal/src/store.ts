@@ -1,10 +1,8 @@
-import { identityDigest, type Digest, type Raster } from '@variance-authority/core/format';
+import { identityDigest, keepsSnapshot, type Raster, type RenderIdentity } from '@variance-authority/core/format';
 import {
   REFUSAL,
   RasterStoreError,
-  messageOf,
   neverFails,
-  sidecarFrom,
   type BaselineKey,
   type Described,
   type Found,
@@ -21,6 +19,7 @@ import {
 } from './bindings.js';
 import { guardStore } from './guard.js';
 import { keep } from './objects.js';
+import { parseRow, type SidecarRow } from './sidecar-row.js';
 
 /**
  * Baselines in R2, attributed in D1.
@@ -115,29 +114,6 @@ function requireProject(project: string): void {
   }
 }
 
-/** Shape of every baseline and cache row as it comes back out of D1. */
-interface SidecarRow {
-  readonly identity: string;
-  readonly document_digest: string;
-  /**
-   * Null exactly when {@link SidecarRow.object_key} is: the subject occupies no
-   * pixels, so nothing was photographed and there is no object to point at. The
-   * three are written together, and {@link parse} refuses a row carrying some.
-   */
-  readonly width: number | null;
-  readonly height: number | null;
-  readonly missing_fonts: string;
-  readonly object_key: string | null;
-  readonly accessibility?: string | null;
-  /**
-   * Baselines only; the render cache stores pixels and stripped these before
-   * they ever reached a row. Null is *not recorded*, which is what every
-   * baseline written before these columns existed says, and is not `[]`.
-   */
-  readonly components?: string | null;
-  readonly finding_marks?: string | null;
-}
-
 export function createBucketStore(options: BucketStoreOptions): RasterStore {
   const { db, bucket, project } = options;
   requireD1(db);
@@ -150,10 +126,10 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
 
     async find(key, identity): Promise<Found | null> {
       const mine = identityDigest(identity);
-      const row = await locate(db, project, key, mine);
+      const row = await locate(db, project, key, identity);
       if (row === null) return null;
 
-      const sidecar = parse(row.sidecar, describeRow(project, key, row.identityDigest));
+      const sidecar = parseRow(row.sidecar, describeRow(project, key, row.identityDigest));
       const object = row.sidecar.object_key;
       return {
         raster: object === null ? sidecar : { ...sidecar, bytes: await fetchBytes(bucket, object) },
@@ -164,11 +140,11 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
 
     async describe(key, identity): Promise<Described | null> {
       const mine = identityDigest(identity);
-      const row = await locate(db, project, key, mine);
+      const row = await locate(db, project, key, identity);
       if (row === null) return null;
 
       const where = describeRow(project, key, row.identityDigest);
-      const sidecar = parse(row.sidecar, where);
+      const sidecar = parseRow(row.sidecar, where);
 
       // The object is still checked for existence, and this is the entire reason
       // `R2Like` has a `head`. Answering from the row alone would let `describe`
@@ -186,6 +162,7 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
         comparable: row.identityDigest === mine,
         storedUnder: sidecar.identity,
         pictured: object !== null,
+        keepsSnapshot: keepsSnapshot(sidecar.snapshot),
         missingFonts: sidecar.missingFonts,
         ...(sidecar.components === undefined
           ? {}
@@ -219,8 +196,8 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
               `INSERT INTO baselines
                  (project, identity_digest, subject, label, identity, document_digest,
                   width, height, missing_fonts, accessibility, components, finding_marks,
-                  object_key, at, at_ms)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  snapshot, object_key, at, at_ms)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT (project, identity_digest, subject, label) DO UPDATE SET
                  identity = excluded.identity,
                  document_digest = excluded.document_digest,
@@ -230,6 +207,7 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
                  accessibility = excluded.accessibility,
                  components = excluded.components,
                  finding_marks = excluded.finding_marks,
+                 snapshot = excluded.snapshot,
                  object_key = excluded.object_key,
                  at = excluded.at,
                  at_ms = excluded.at_ms`,
@@ -252,6 +230,7 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
               // document and left it ranking by area.
               raster.components === undefined ? null : JSON.stringify(raster.components),
               raster.findingMarks === undefined ? null : JSON.stringify(raster.findingMarks),
+              raster.snapshot ?? null,
               objectKey,
               at,
               Date.parse(at),
@@ -284,7 +263,7 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
         );
         if (row === null) return null;
 
-        const sidecar = parse(row, where);
+        const sidecar = parseRow(row, where);
         return row.object_key === null
           ? sidecar
           : { ...sidecar, bytes: await fetchBytes(bucket, row.object_key) };
@@ -328,8 +307,15 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
 }
 
 /**
- * The row for this key under this identity, or the most recent one under any
- * other, or nothing.
+ * The most recent row for this key under this identity's engine family, or the
+ * most recent under any other family, or nothing.
+ *
+ * The last accept on the family, not this identity's own row. A file-backed
+ * store keeps one file per engine family, so when a laptop and CI both accept,
+ * the file holds whichever accepted last and both machines read it
+ * ([ADR-0016](../../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)):
+ * a row this machine wrote before CI's accept would answer `unchanged` where
+ * every file store answers with CI's image and names the machine.
  *
  * The lookup is deliberately *not* scoped to the caller's identity, which is the
  * `RasterStore` contract's own instruction: returning nothing for a baseline that
@@ -347,23 +333,29 @@ async function locate(
   db: D1Like,
   project: string,
   key: BaselineKey,
-  mine: Digest,
+  mine: RenderIdentity,
 ): Promise<{ readonly sidecar: SidecarRow; readonly identityDigest: string } | null> {
+  // FIXME: a row is keyed by subject and label and not by `key.project`, so
+  // two Playwright projects under `{project}` share one baseline here while a
+  // file-backed store keeps two (parity.test.ts holds the todo).
   const label = labelOf(key);
-  const where = describeRow(project, key, mine);
+  const where = describeRow(project, key, identityDigest(mine));
+  const engine = "json_extract(identity, '$.engine')";
 
   const row = await guardStore(
     () =>
       db
         .prepare(
           `SELECT identity, document_digest, width, height, missing_fonts, accessibility,
-                  components, finding_marks, object_key, identity_digest
+                  components, finding_marks, snapshot, object_key, identity_digest
              FROM baselines
             WHERE project = ? AND subject = ? AND label = ?
-            ORDER BY (identity_digest = ?) DESC, at_ms DESC, identity_digest
+            ORDER BY (CASE WHEN instr(${engine}, '@') = 0 THEN ${engine}
+                           ELSE substr(${engine}, 1, instr(${engine}, '@') - 1) END = ?) DESC,
+                     at_ms DESC, identity_digest
             LIMIT 1`,
         )
-        .bind(project, key.subject, label, mine)
+        .bind(project, key.subject, label, engineFamily(mine.engine))
         .first<SidecarRow & { readonly identity_digest: string }>(),
     where,
   );
@@ -386,70 +378,6 @@ async function fetchBytes(bucket: R2Like, objectKey: string): Promise<string> {
 }
 
 /**
- * A sidecar row, checked rather than cast.
- *
- * The columns came out of a database this process did not write in this run —
- * one that may have been written by an older version of this package, or by a
- * `put` that raced a schema change. Believed unchecked, a malformed `identity`
- * becomes a digest taken over nothing and a missing `documentDigest` becomes
- * `undefined` compared against a real one: two invented answers where the honest
- * one is that the record cannot be read.
- */
-function parse(row: SidecarRow, where: string): Omit<Raster, 'bytes'> {
-  let identity: unknown;
-  let missingFonts: unknown;
-  let accessibility: unknown;
-  let components: unknown;
-  let findingMarks: unknown;
-  try {
-    identity = JSON.parse(row.identity) as unknown;
-    missingFonts = JSON.parse(row.missing_fonts) as unknown;
-    accessibility = row.accessibility == null ? undefined : (JSON.parse(row.accessibility) as unknown);
-    // Absent columns and null columns are the same answer here — a baseline
-    // that never recorded this — and both leave the field off the sidecar,
-    // where `sidecarFrom` reads absence as *unknown* rather than as *none*.
-    components = row.components == null ? undefined : (JSON.parse(row.components) as unknown);
-    findingMarks = row.finding_marks == null ? undefined : (JSON.parse(row.finding_marks) as unknown);
-  } catch (error) {
-    throw new RasterStoreError(
-      `${where} holds JSON columns that will not parse: ${messageOf(error)}. ${REFUSAL}.`,
-      { cause: error },
-    );
-  }
-
-  // The dimensions and the object key are one fact recorded twice, and a row
-  // where they disagree is refused. Dimensions with no object is half a baseline
-  // — the case `halfAPair` exists for — and an object with no dimensions is a
-  // picture nothing can be scaled against.
-  const sized = row.width != null && row.height != null;
-  if (sized !== (row.object_key != null)) {
-    throw new RasterStoreError(
-      `${where} records ${sized ? 'an image with no object behind it' : 'an object it never took'}: ` +
-        'the dimensions and the object key are written together, and one without the other is ' +
-        `damage rather than a subject with no pixels. ${REFUSAL}.`,
-    );
-  }
-
-  const sidecar = sidecarFrom({
-    identity,
-    missingFonts,
-    documentDigest: row.document_digest,
-    ...(sized ? { width: row.width, height: row.height } : {}),
-    ...(accessibility === undefined ? {} : { accessibility }),
-    ...(components === undefined ? {} : { components }),
-    ...(findingMarks === undefined ? {} : { findingMarks }),
-  });
-
-  if (sidecar === null) {
-    throw new RasterStoreError(
-      `${where} is not a raster record: it parsed, but does not carry a document digest and ` +
-        `the identity that painted it. ${REFUSAL}.`,
-    );
-  }
-  return sidecar;
-}
-
-/**
  * One half of the pair without the other.
  *
  * The directory store's `halfAPair`, in the vocabulary of two services rather
@@ -464,6 +392,12 @@ function halfAPair(where: string, objectKey: string, survivor: 'row' | 'object')
       `the other is a corrupted baseline rather than a missing one. ${REFUSAL}. Restore ` +
       `\`${objectKey}\` in the bucket, or delete the row to record the subject afresh.`,
   );
+}
+
+/** `chromium@131.0.0` is `chromium`, as the file-backed stores name a family. */
+function engineFamily(engine: string): string {
+  const at = engine.indexOf('@');
+  return at === -1 ? engine : engine.slice(0, at);
 }
 
 function describeRow(project: string, key: BaselineKey, identity: string): string {

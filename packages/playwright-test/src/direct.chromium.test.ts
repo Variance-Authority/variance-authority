@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium, type Browser, type Locator, type Page, type TestInfo } from '@playwright/test';
@@ -110,6 +110,19 @@ chromium_('the additive Playwright path', () => {
     });
     expect(() => assertUnchanged(unchanged)).not.toThrow();
     expect(unchanged.verdict).toBe('unchanged');
+  }, 60_000);
+
+  it('writes the baseline where `baselinePath` names it', async () => {
+    await page!.setContent('<main><section id="cart"><h1>Cart</h1><p>Empty</p></section></main>');
+    const placed = join(baselines, 'placed');
+
+    await observe(page!, page!.locator('#cart'), info('all'), {
+      baselines: placed,
+      baselinePath: '__baselines__/{id}-{engine}',
+    });
+
+    const written = (await readdir(placed, { recursive: true })).filter((name) => name.endsWith('.png'));
+    expect(written).toEqual(['__baselines__/cart-chromium.png']);
   }, 60_000);
 
   it('captures in place without calling an injected renderer', async () => {

@@ -1,8 +1,10 @@
 # What a workspace publishes, and where a name is used
 
-Seven questions read a workspace's manifests and source: `packages`,
-`entrypoint`, `symbol`, `uses`, `search`, `grep` and `gaps`. Each answer names
-the UTC time of the workspace generation it used. They describe source, not a
+Nine questions read a workspace's manifests and source: `packages`,
+`entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover`, `intersection`
+and `gaps`. Each answer
+read from a workspace generation names its UTC time; `variance ask grep` and
+`variance ask discover` read the checkout as it is, and name none. They describe source, not a
 build or a generated site, and they need no run and no config. For where a file
 sits and what runs it, read [orient](orient.md).
 
@@ -161,7 +163,12 @@ publishes is answered too: the file and line that export it, the line as the
 checkout holds it, and how many imports the source index resolved to that file,
 within its package as well as across. Two files that export one name are told
 apart, each with its own count, and an installed name it matches, which a file
-that passes it on exports without declaring, is said after it. Only a name nothing exports is refused.
+that passes it on exports without declaring, is said after it. A name nothing exports is refused.
+
+`--package` with the path of one file in a package, such as
+`@acme/lib/src/internal/math`, names the file an import of that specifier
+resolved to. When nothing in the workspace imports the specifier, the file it
+names is not known, and the name is refused with that reason.
 
 `symbol` prints what a name is and how to call it. For why it exists and what it
 connects to, read [what is written about a name](written-about-a-name.md).
@@ -247,6 +254,77 @@ comment. It needs `--from` or `--to`, and searches the files that start point
 reaches; for the whole checkout, run `rg`, which must be on `PATH` either way. Lines come grouped by how many imports away from the start point their
 file is, then by path and line, each as `path:line:text`.
 
+### `discover`
+
+Use it when the answer is where two or more facts about a file meet: *a file
+the nav reaches that makes a context with `theme` in its name*, or *the
+declaration of `selectBalance` this component can actually reach*. Each operand
+is a set of files, read whole with no cap, and the answer is the files in all
+of them:
+
+- `--from <path>[,...]`: what each path reaches along the imports; `--to`, what
+  reaches each path. Two paths are two sets, crossed, not joined.
+- `--imports <module#name>[,...]`: who imports that name from that module, by
+  the name the module publishes, so an aliased import still counts. The module
+  is the specifier as written, where a package also covers its subpaths and a
+  relative specifier only itself, or the repo-relative file it resolved to;
+  `module` alone is any import of it. A name out of a repo-relative file is
+  answered as `uses` answers it: an import through a barrel that passes the name
+  on counts, and so does the barrel, and the header says how many passed it on.
+- `--declares <regex>`: who declares a matching name, case-insensitive. An
+  export of an imported name, with `export … from` or without, is declared where
+  it comes from, not in the barrel; `export default function make()` declares
+  `make`.
+- `--path <regex>`: a pattern over repo-relative paths.
+- `--except-from`, `--except-to`, `--except-imports`, `--except-declares`,
+  `--except-path`: the same sets, taken out.
+- `--text <pattern>`: ripgrep over the files the other sets kept, never over the
+  checkout; a file with no matching line drops out.
+
+```bash
+variance ask discover --from src/TopNav.tsx --imports react#createContext --declares 'theme|user|account'
+variance ask discover --from src/Wallet.tsx --declares '^selectBalance$'
+```
+
+The answer counts each set first, then lists the files in all of them, nearest
+the `--from` or `--to` paths first, each with the line that put it in each
+set; `--path` puts it in by its name, with no line. It shows 50; `--limit`
+shows more, and the count is always of all of them. A source file whose names
+the scan did not hand over is counted in the `--imports` and `--declares`
+headers, since it is unknown rather than a file with no names; a README or a
+manifest has none to read.
+Over MCP, `docs_discover` answers `from`, `to`, `path` and `--imports` of a
+name out of a repo-relative file, and refuses `declares` and any other
+`imports`: the reading an MCP host serves holds no names.
+
+### `intersection`
+
+Use it when each fact is already a question you could ask alone, and the
+answer is the files all of them agree on: *the declaration of `selectBalance`*
+is `symbol`, *what the wallet reaches* is `discover --from`, and the one
+declaration the wallet can reach is the file both answer. Each operand is a
+whole question, typed in quotes the way it would be asked alone, and any
+question whose answer is a set of files can be one: `symbol`, `uses`,
+`search`, `grep`, `discover`.
+
+```bash
+variance ask intersection 'symbol --name selectBalance' 'discover --from src/Wallet.tsx'
+variance ask intersection "uses --name useTheme" "grep --query 'dark mode' --from src/App.tsx"
+```
+
+Each question is read whole, never capped: asked alone, each prints its first
+fifty, and the file two questions agree on can sit past the cap of either. The
+answer counts each question's files first, then lists the files in all of
+them, each with the lines that put it in each question, or `the file` when a
+question answers a file without a line. It shows 50; `--limit` shows more, and
+the count is always of all of them. `--changed-file`, `--taint-file` and
+`--just-answer` are said once, after `intersection`, outside the quotes: every
+question is answered over one reading.
+
+A question whose answer is not a set of files — `packages`, `stack`, another
+`intersection` — is refused with the questions that are, and so is a question
+about a run. Crossing `discover`'s own sets is cheaper asked as one `discover`.
+
 ### `gaps`
 
 A work queue of undocumented names other packages import, not an answer about
@@ -264,5 +342,5 @@ one name.
   evidence that anything ran.
 - Nothing here reads `dist`. A `types` target under an output directory is
   mapped back to the source it was compiled from.
-- `search` and `grep` cap each list and print how many rows they did not show. A
+- `search`, `grep`, `discover` and `intersection` cap each list and print how many rows they did not show. A
   list with no such line is the whole list.

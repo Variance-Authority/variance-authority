@@ -21,6 +21,7 @@ const UNIT = [{ name: 'unit', kind: 'unit', carry: 'actions-cache' }] as const;
 const PUSH: HostRun = { event: 'push', sha: SHA, ref: 'refs/heads/main', run: '7', attempt: '1', base: BASE };
 const PULL: HostRun = { event: 'pull_request', sha: SHA, ref: 'refs/pull/3/merge', baseRef: 'main', run: '8', attempt: '2', base: BASE };
 const MAIN = { names: ['main'] } as const;
+const PARTITION = `v1[-:]${'[0-9a-f]'.repeat(32)}`;
 
 let root: string;
 let cache: string;
@@ -231,6 +232,7 @@ describe('the output the host reads', () => {
     expect(githubOutput(plan).split('\n')).toEqual([
       'line=main',
       `base=${BASE}`,
+      'project=shop',
       'baselines-path<<VARIANCE_CARRY_END',
       '/r/.variance/baselines',
       'VARIANCE_CARRY_END',
@@ -240,11 +242,39 @@ describe('the output the host reads', () => {
       'variance-shop-baselines:main:',
       'VARIANCE_CARRY_END',
       'baselines-root=/r/.variance/baselines',
+      'baselines-pathspecs<<VARIANCE_CARRY_END',
+      ':(glob)/r/.variance/baselines/**/*-*.png',
+      ':(glob)/r/.variance/baselines/**/*-*.json',
+      `:(glob)/r/.variance/baselines/**/${PARTITION}/*`,
+      'VARIANCE_CARRY_END',
       'report=/r/.variance/run.json',
       'images=/r/.variance/images',
       `review=${join(root, '.variance/review')}`,
       '',
     ]);
+  });
+
+  it('names the project as one path segment, which a ref and an artifact name both take as it is', () => {
+    // A ref per project and a report page per project are named with it, so two
+    // projects never share one, and a project is one segment whatever it is
+    // spelled with: a slash would make cleanup miss the ref, a space or a colon
+    // would make git refuse it, and `..` or a leading dot either.
+    const projects = ['storybook-case', 'tribunal', 'web_2', '@acme/web', 'a b', 'a-b', 'a.b', 'a%2Eb', '..', 'a:b~c', 'café'];
+    const segments = projects.map(
+      (name) => /^project=(.*)$/mu.exec(githubOutput(carryPlan({ direction: 'restore', root, config: project({ project: name }), run: PULL, mainlines: MAIN })))?.[1],
+    );
+
+    expect(segments.slice(0, 3)).toEqual(['storybook-case', 'tribunal', 'web_2']);
+    for (const segment of segments) expect(segment).toMatch(/^[A-Za-z0-9_%-]+$/u);
+    expect(new Set(segments).size).toBe(projects.length);
+    expect(githubOutput(carryPlan({ direction: 'restore', root, suites: UNIT, run: PULL, mainlines: MAIN }))).not.toContain('project=');
+  });
+
+  it('refuses a project holding a lone surrogate, which would be spelled as the replacement character is', () => {
+    const plan = (name: string) => carryPlan({ direction: 'restore', root, config: project({ project: name }), run: PULL, mainlines: MAIN });
+
+    expect(() => plan('a\ud800')).toThrow(/lone surrogate/);
+    expect(plan('a\ufffd').project).toBe('a%EF%BF%BD');
   });
 
   it('names the suites given to the share, in the order they are given, and no other', () => {
@@ -292,6 +322,74 @@ describe('the output the host reads', () => {
     expect(githubOutput(committed)).toContain('\nbaselines-root=/r/baselines\n');
     expect(committed.cached).toEqual([]);
     expect(githubOutput(remote)).not.toContain('baselines-root');
+  });
+
+  it('names what a commit-back stages by the paths `baselines.path` renders, never the whole root', () => {
+    // Collocated, the root is the repository, and staging it would commit
+    // whatever else the run left in the working tree. The old layout's
+    // partitions are named too, so the pair `accept` retired goes out as a
+    // deletion beside the file it moved to: a rename in the pull request.
+    const collocated = carryPlan({
+      direction: 'save',
+      root,
+      config: project({
+        baselines: { kind: 'lfs', root: '/r', path: '{dir}/__baselines__/{file}/{name}-{engine}' },
+      } as Partial<Config>),
+      run: PULL,
+      mainlines: MAIN,
+    });
+
+    expect(githubOutput(collocated).split('\n')).toEqual(expect.arrayContaining([
+      'baselines-pathspecs<<VARIANCE_CARRY_END',
+      ':(glob)/r/**/__baselines__/*/*-*.png',
+      ':(glob)/r/**/__baselines__/*/*-*.json',
+      `:(glob)/r/**/${PARTITION}/*`,
+      ':(glob)/r/.gitattributes',
+      'VARIANCE_CARRY_END',
+    ]));
+
+    const split = carryPlan({
+      direction: 'save',
+      root,
+      config: project({
+        baselines: { kind: 'directory', root: '/r/baselines', records: '/r/records' },
+      } as Partial<Config>),
+      run: PULL,
+      mainlines: MAIN,
+    });
+    expect(split.baselinesPathspecs).toEqual([
+      ':(glob)/r/baselines/**/*-*.png',
+      ':(glob)/r/records/**/*-*.json',
+      `:(glob)/r/baselines/**/${PARTITION}/*`,
+      `:(glob)/r/records/**/${PARTITION}/*`,
+    ]);
+  });
+});
+
+describe('what a commit-back stages, as git reads it', () => {
+  it('takes both spellings of an old partition, and no directory that only starts like one', async () => {
+    const repo = await mkdtemp(join(tmpdir(), 'variance-carry-stage-'));
+    const hex = 'd9e2d62e05a69046dc75e1a987837b31';
+    const files = [`ui/v1-${hex}/story.png`, `ui/v1:${hex}/story.json`, 'api/v1-beta/schema.json', 'api/v1-0/x.png'];
+    try {
+      execFileSync('git', ['init', '--quiet', repo]);
+      for (const file of files) {
+        await mkdir(dirname(join(repo, file)), { recursive: true });
+        await writeFile(join(repo, file), '');
+      }
+      const { baselinesPathspecs } = carryPlan({
+        direction: 'save',
+        root,
+        config: project({ baselines: { kind: 'directory', root: repo, path: '{dir}/__baselines__/{file}/{name}-{engine}' } } as Partial<Config>),
+        run: PULL,
+        mainlines: MAIN,
+      });
+      const listed = execFileSync('git', ['-C', repo, 'ls-files', '--others', '--', ...baselinesPathspecs!], { encoding: 'utf8' });
+
+      expect(listed.trim().split('\n').sort()).toEqual([`ui/v1-${hex}/story.png`, `ui/v1:${hex}/story.json`]);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
   });
 });
 

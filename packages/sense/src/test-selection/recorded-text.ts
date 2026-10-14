@@ -281,6 +281,7 @@ function read(
       cwd: root,
       input: specs.map(({ commit, file }) => `${commit}:${file}\n`).join(''),
       maxBuffer: 1 << 30,
+      stdio: ['pipe', 'pipe', 'ignore'],
       ...(fetch ? {} : { env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } }),
     });
   } catch {

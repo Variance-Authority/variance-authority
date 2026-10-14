@@ -23,6 +23,7 @@ import {
   assertClosedResources,
   refuseMissingResources,
   serveClosedResources,
+  serveOpenFaces,
 } from './resources.js';
 import {
   assemble,
@@ -260,6 +261,8 @@ export async function createPlaywrightRenderer(
           if (closed) {
             activeResources.set(context, missingResources);
             await serveClosedResources(context, document, missingResources);
+          } else {
+            await serveOpenFaces(context, document);
           }
 
           await page.setContent(assemble(document, options.assemble ?? {}), {

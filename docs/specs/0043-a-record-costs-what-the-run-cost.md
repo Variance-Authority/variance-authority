@@ -35,9 +35,9 @@ is not a slow path. It is an impossible one:
   `Map<ModuleId, Map<ordinal, Set<string>>>` — one entry per region a test
   entered, holding test paths as strings. Thirty-one test files of a
   40,000-module shape cost 2.5 GB; five hundred exhaust a twelve-gigabyte heap.
-  The shipped reporters call it: `selection-fold.ts:83` and `jest-reporter.ts:97`.
+  The shipped reporters call it: `packages/sense/src/test-selection/selection-fold.ts:83` and `packages/sense/src/test-selection/jest-reporter.ts:97`.
 - **Publishing.** `layeredCoverage` no longer decodes the snapshot to that
-  model — `format-layer.ts:238-260` copies an untouched module's rows column to
+  model — `packages/sense/src/test-selection/format-layer.ts:238-260` copies an untouched module's rows column to
   column as integers, and `:335-350` remaps each carried crossing set once per
   distinct set rather than once per region. What it still does is open and
   rewrite *every* column and re-intern the *whole* pool to replace ten modules
@@ -61,7 +61,7 @@ becomes a `SetId` into a `CrossingSets` pool carried beside the modules. This is
 the one change, and it is not local: `journal.ts`, `vitest.ts`,
 `jest-reporter.ts`, `merge.ts` and `format-layer.ts` all construct that field, so
 they move together or not at all. `coverageModule()` at
-`coverage-rows.ts:18` is where the array is built today and where the
+`packages/sense/src/test-selection/coverage-rows.ts:18` is where the array is built today and where the
 interning belongs.
 
 The pool is not new work — `crossing-sets.ts` is built, tested, and already what
@@ -97,7 +97,7 @@ both halves are needed. *Across* test files the reader unions: a test file the
 overlay does not mention keeps the snapshot's answer, and a test file neither
 holds is unknown and runs. *Within* one test file the overlay supersedes — a
 later recording of a test file is the truth about that file, which is what
-layering already does at `format-layer.ts:262-266`. Nothing is subtracted in
+layering already does at `packages/sense/src/test-selection/format-layer.ts:262-266`. Nothing is subtracted in
 either direction, so an overlay lost between the run and the query costs a full
 run and can never cost a skipped test.
 
@@ -140,10 +140,10 @@ journal.
 **6. Something retires what the repository no longer holds.** Every item above
 bounds the cost of a *run*. Nothing bounds the cost of the *file*. A module
 deleted from the repository is carried verbatim with all of its crossings —
-`test-selection/merge.ts:415` carries it because nothing at the path says the rows are about a
-file that is gone, and `format-layer.ts:248` pushes every unclaimed row onward —
+`packages/sense/src/test-selection/merge.ts:415` carries it because nothing at the path says the rows are about a
+file that is gone, and `packages/sense/src/test-selection/format-layer.ts:248` pushes every unclaimed row onward —
 and a test file that no longer exists keeps its row and its `complete` flag
-(`format-layer.ts:263-265`). So the snapshot is monotonically non-shrinking over
+(`packages/sense/src/test-selection/format-layer.ts:263-265`). So the snapshot is monotonically non-shrinking over
 a repository's life, and the 600 MB ceiling is approached from this side too,
 by a repository that never grew.
 

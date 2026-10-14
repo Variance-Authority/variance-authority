@@ -1,41 +1,53 @@
 // compass: variance-authority.retention
 
-import { mkdir, readFile, rm, rmdir, utimes, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { mkdir, readFile, readdir, rm, utimes, writeFile } from 'node:fs/promises';
+import { dirname, join, posix } from 'node:path';
 import {
   digestFileName,
   identityDigest,
+  keepsSnapshot,
   occupiesPixels,
   type Digest,
   type Raster,
   type RenderIdentity,
 } from '@variance-authority/core/format';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import {
+  REFUSAL,
+  RasterStoreError,
   neverFails,
   type BaselineKey,
   type Described,
   type Found,
   type RasterStore,
+  type Relocated,
 } from '@variance-authority/raster';
-import { load, readRaster, readSidecar, type ImageReader, type Places } from './pair.js';
+import { orAbsent } from './absent.js';
+import { claim, placedForIn, placedForOf, refuseOccupied, type Claims, type PlacedFor } from './claims.js';
 import { held } from './held.js';
-import { identities, sameLine, searched } from './line.js';
-import { holder, partitionsOf, pathFor } from './placement.js';
-import type { BaselineLayout } from './placement.js';
+import { legacyHolders, partitionsOf } from './legacy.js';
+import { familyOf, identities, nearness } from './line.js';
+import { readRaster, readSidecar, retire, type ImageReader, type Places, type Read } from './pair.js';
+import { DEFAULT_BASELINE_PATH, parseBaselinePath, sanitized } from './path-template.js';
 
 /**
- * Re-exported rather than moved out of reach: `BaselineLayout` is a word an
- * operator sets in a config file and a word `lfs.ts` takes in its options, and
- * neither of those should have to learn that the placement rules moved into a
- * file of their own.
+ * Re-exported so a config parser can refuse a template at load time, before a
+ * store exists, with the same sentence the store would throw.
  */
-export type { BaselineLayout } from './placement.js';
+export { DEFAULT_BASELINE_PATH, parseBaselinePath, type BaselinePathTemplate } from './path-template.js';
 export type { ImageReader } from './pair.js';
 
 /**
- * Re-exported for {@link BaselineLayout}'s reason, and one more: the bound on
- * the render cache is only meaningful to whoever passed
- * {@link DurableStoreOptions.cacheRoot}, and that is this entrypoint's caller.
+ * Re-exported because `{engine}` is spelled with it: a reader that matches a
+ * file to the template — doctor's count of placed baselines — asks the store
+ * which family an engine is rather than slicing the string a second way.
+ */
+export { familyOf } from './line.js';
+
+/**
+ * Re-exported because the bound on the render cache is only meaningful to
+ * whoever passed {@link DurableStoreOptions.cacheRoot}, and that is this
+ * entrypoint's caller.
  */
 export {
   renderCacheIn,
@@ -45,29 +57,32 @@ export {
 } from './retention.js';
 
 /**
- * On disk, partitioned by renderer identity.
+ * Baselines on disk, one pair per subject and engine at a path a person reads.
  *
- * The layout is the rule. `<root>/<identityDigest>/<subject>[.label].png` means
- * a baseline written by one machine cannot be silently picked up by another —
- * not by convention or by a check somebody remembered to write, but because it
- * is not in the directory the other machine reads. `find` then scans the sibling
- * identities so it can say what it *did* find, which is what turns a wrong-machine
- * run from a mysterious mass failure into one sentence.
+ * The path is rendered from `baselines.path`, a template over what the subject
+ * *is* — the file that declares it, its title, its name — and the declared
+ * engine. What painted the image is in the `.json` record beside it, and a
+ * lookup compares that record with this machine's identity: a baseline another
+ * machine accepted is read, reported as not comparable, and rendered against,
+ * which turns a wrong-machine run into one sentence (ADR-0090). A renderer
+ * upgrade therefore modifies files in place rather than renaming every one.
  *
- * What this file needs that the contract does not is a **filesystem**, which is
- * the reason it is not next to the contract. Everything about what a baseline
- * *means* — the shape of a record, the refusal, the wording — is in
- * `@variance-authority/raster` and is shared with every other backend.
+ * What this file needs that the contract does not is a **filesystem**.
+ * Everything about what a baseline *means* is in `@variance-authority/raster`
+ * and shared with every other backend.
  */
 
 export interface DurableStoreOptions {
   /**
-   * Where a subject's baseline sits under the root. See {@link BaselineLayout}.
+   * Where each baseline goes under the root: a template of `{dir}`, `{file}`,
+   * `{title}`, `{name}`, `{id}`, `{project}` and `{engine}`, without an extension.
+   * {@link DEFAULT_BASELINE_PATH} when unset. See `path-template.ts`.
    */
-  readonly layout?: BaselineLayout;
+  readonly path?: string;
 
   /**
-   * Where the `.json` records go, if not beside the images.
+   * Where the `.json` records go, if not beside the images, at the same
+   * relative path.
    *
    * A baseline is an image and a record of how it was painted, and only the
    * image is the thing being reviewed. The record changes whenever the document
@@ -77,34 +92,25 @@ export interface DurableStoreOptions {
    * ignored directory, a CI cache or a database export, the tracked root holds
    * images and nothing else.
    *
-   * **Both halves are still written and still read.** This moves the record's
-   * directory; it does not make the record optional. A store that finds one half
-   * of a baseline without the other still refuses, because a record that went
-   * missing is a baseline that can no longer say which machine painted it.
+   * **Both halves are still written and still read.** A store that finds one
+   * half of a baseline without the other still refuses, because a record that
+   * went missing is a baseline that can no longer say which machine painted it.
    *
-   * Left unset the records stay beside the images, which is the placement that
-   * needs no second location to survive a checkout. Unlike {@link cacheRoot}
-   * this is the operator's to set and not a thing the CLI may infer: a lost
-   * cache entry costs a render, and a lost record costs the run its
-   * `missingFonts` and its `findingMarks` — evidence a verdict is allowed to
-   * turn on.
+   * Unlike {@link cacheRoot} this is the operator's to set and not a thing the
+   * CLI may infer: a lost cache entry costs a render, and a lost record costs
+   * the run its `missingFonts` and its `findingMarks` — evidence a verdict is
+   * allowed to turn on.
    */
   readonly recordRoot?: string;
 
   /**
    * Where the render cache goes, if not beside the baselines.
    *
-   * A durable store is also a render cache, and the cache is keyed by document
-   * digest — so it gains an entry for every edit and is worth nothing after the
-   * next one. Beside the baselines it shares their fate: a root the operator
-   * commits, and every placement in
-   * [`placement.md`](../../../docs/placement.md) except `remote` is one an
-   * operator commits. The tracked root then grows without bound with images
-   * nobody will look at, and the quota bought for baselines pays for them.
-   *
-   * Left unset the cache stays under `root`, which is what a store with no
-   * opinion about the work tree should do. Callers that know the root is
-   * tracked set it to {@link renderCacheIn}.
+   * The cache is keyed by document digest, so it gains an entry for every edit
+   * and is worth nothing after the next one. Beside the baselines it shares
+   * their fate: a root the operator commits grows without bound with images
+   * nobody will look at. Left unset the cache stays under `root`; callers that
+   * know the root is tracked set it to {@link renderCacheIn}.
    */
   readonly cacheRoot?: string;
 
@@ -118,116 +124,242 @@ export interface DurableStoreOptions {
    * read of the file would. The render cache and `describe` never call it.
    */
   readonly readImage?: ImageReader;
+
+  /**
+   * The runner's projects, by name, when it has them: a Playwright config's
+   * `projects`. A record placed for a project outside them is a renamed
+   * project's baseline, taken over rather than refused as a second claimant.
+   * Unset, every record that names another project is refused.
+   */
+  readonly projects?: readonly string[];
+}
+
+/** A pair a lookup may read, and what reading it would mean. */
+interface Candidate {
+  readonly places: Places;
+  /** Set when the pair is where the layout before `baselines.path` kept it. */
+  readonly relocated?: Relocated;
+  /** Set when the pair is another engine's file, as its name spells the engine. */
+  readonly engine?: string;
+  /** Set on the path this key renders to, whose record must name this key. */
+  readonly own?: string;
 }
 
 export function createDurableStore(root: string, options: DurableStoreOptions = {}): RasterStore {
   const cacheRoot = options.cacheRoot ?? root;
   const recordRoot = options.recordRoot ?? root;
-  const layout = options.layout ?? 'flat';
+  const template = parseBaselinePath(options.path ?? DEFAULT_BASELINE_PATH);
+  const projects = options.projects === undefined ? undefined : new Set(options.projects);
+  const occupied = (record: PlacedFor | undefined, key: BaselineKey, path: string): void =>
+    refuseOccupied(record, key, path, template, projects);
+  const at = (path: string): Places => ({ image: join(root, path), record: join(recordRoot, path) });
   const readImage = options.readImage ?? readFile;
-  const holderFor = (key: BaselineKey): string => holder(recordRoot, layout, key);
-  const placesFor = (key: BaselineKey, partition: string): Places => ({
-    image: pathFor(holder(root, layout, key), partition, key, layout),
-    record: pathFor(holder(recordRoot, layout, key), partition, key, layout),
-  });
 
-  const identityAt =
-    (key: BaselineKey) =>
-    async (partition: string): Promise<RenderIdentity | null> =>
-      (await readSidecar(placesFor(key, partition)))?.identity ?? null;
+  // Every path this store has answered for, against the key it answered for.
+  // The record beside each image is the claim no single store sees whole.
+  const claims: Claims = new Map();
+  const placed = (key: BaselineKey, identity: RenderIdentity): string => {
+    const path = template.render(key, familyOf(identity.engine));
+    claim(claims, key, path, template);
+    return path;
+  };
+
+  /**
+   * The old layout's pairs for this key, nearest identity first. The ones this
+   * engine family's path now answers for are reported as moved; the rest are
+   * another engine's, and stay where they are.
+   *
+   * A write retires fewer: only the pairs on this machine's own line. A pair at
+   * another scale or on another platform may be the approved baseline of
+   * another Playwright project, or of the other machine, and that project's
+   * first run after the upgrade still reads it. Removing it on this accept
+   * would lose it before any record names who it was placed for.
+   */
+  const legacy = async (key: BaselineKey, mine: RenderIdentity) => {
+    const pairs: { path: string; near: number }[] = [];
+    for (const { holder, leaf } of legacyHolders(key)) {
+      for (const partition of await identities(join(recordRoot, holder))) {
+        const path = posix.join(holder, partition, leaf);
+        const stored = (await readSidecar(at(path)))?.identity;
+        if (stored !== undefined) pairs.push({ path, near: nearness(stored, mine) });
+      }
+    }
+    return pairs
+      .sort((a, b) => a.near - b.near)
+      .map((pair) => ({ path: pair.path, moves: !template.hasEngine || pair.near < 3, retires: pair.near <= 1 }));
+  };
+
+  /** Other engines' files at this key's path, when the path names the engine. */
+  const otherEngines = async (key: BaselineKey, mine: RenderIdentity): Promise<readonly Candidate[]> => {
+    const open = template.engines(key);
+    if (open === undefined) return [];
+    const directory = join(recordRoot, open.directory);
+    const entries = await orAbsent(() => readdir(directory, { withFileTypes: true }), directory);
+    const spelled = sanitized(familyOf(mine.engine));
+    const found: Candidate[] = [];
+    for (const entry of [...(entries ?? [])].sort((a, b) => codeUnitOrder(a.name, b.name))) {
+      const leaf = open.rest === '';
+      if (leaf ? !entry.isFile() || !entry.name.endsWith('.json') : !entry.isDirectory()) continue;
+      const name = leaf ? entry.name.slice(0, -'.json'.length) : entry.name;
+      const engine = open.name.exec(name)?.[1];
+      if (engine === undefined || engine === spelled) continue;
+      found.push({ places: at(posix.join(open.directory, name, open.rest)), engine });
+    }
+    return found;
+  };
+
+  /**
+   * The pairs a lookup reads, in the order it reads them: this engine's path;
+   * the old layout's pairs a write would move, this machine's line first; other
+   * engines' files; the old layout's other engines.
+   */
+  async function* candidates(key: BaselineKey, mine: RenderIdentity): AsyncGenerator<Candidate> {
+    const path = placed(key, mine);
+    yield { places: at(path), own: path };
+    const old = await legacy(key, mine);
+    for (const pair of old) if (pair.moves) yield { places: at(pair.path), relocated: { from: pair.path, to: path } };
+    yield* await otherEngines(key, mine);
+    for (const pair of old) if (!pair.moves) yield { places: at(pair.path) };
+  }
+
+  /** Create a record nobody held, or refuse when another writer created it first. */
+  async function create(file: string, record: string, key: BaselineKey, path: string): Promise<void> {
+    try {
+      await writeFile(file, record, { encoding: 'utf8', flag: 'wx' });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      // Read raw: the other writer's image may not be there yet, and its
+      // record may be half written, which says nobody's name yet.
+      let theirs: unknown;
+      try {
+        theirs = JSON.parse(await readFile(file, 'utf8')) as unknown;
+      } catch (cause) {
+        throw new RasterStoreError(
+          `another writer created the baseline at ${path} while this one was accepting it for ` +
+            `subject ${JSON.stringify(key.subject)}. ${REFUSAL}.`,
+          { cause },
+        );
+      }
+      occupied(placedForIn(theirs), key, path);
+    }
+  }
+
+  async function lookup<T extends { readonly identity: RenderIdentity }>(
+    key: BaselineKey,
+    mine: RenderIdentity,
+    read: (places: Places) => Promise<Read<T> | null>,
+  ): Promise<{ stored: T; comparable: boolean; relocated?: Relocated } | null> {
+    for await (const candidate of candidates(key, mine)) {
+      const found = await read(candidate.places);
+      if (found === null) continue;
+      const { placedFor, ...rest } = found;
+      const stored = rest as unknown as T;
+      // Only this key's own path. The old layout's pairs are filed by the
+      // subject id, and another engine's file is told apart by its engine below.
+      if (candidate.own !== undefined) occupied(placedFor, key, candidate.own);
+      // `Primary-dark-chromium` fits `Primary-*` too; the record says whose it is.
+      if (candidate.engine !== undefined && sanitized(familyOf(stored.identity.engine)) !== candidate.engine) continue;
+      return {
+        stored,
+        comparable: identityDigest(stored.identity) === identityDigest(mine),
+        ...(candidate.relocated === undefined ? {} : { relocated: candidate.relocated }),
+      };
+    }
+    return null;
+  }
 
   return {
     retention: 'durable',
 
     async find(key, identity): Promise<Found | null> {
-      for await (const { partition, comparable } of searched(holderFor(key), identity, identityAt(key))) {
-        const found = await load(placesFor(key, partition), readImage);
-        if (found !== null) return { raster: found.raster, comparable, storedUnder: found.identity };
-      }
-      return null;
+      const hit = await lookup(key, identity, (places) => readRaster(places, readImage));
+      if (hit === null) return null;
+      const { stored, ...rest } = hit;
+      return { raster: stored, storedUnder: stored.identity, ...rest };
     },
 
     async describe(key, identity): Promise<Described | null> {
-      // The same search as `find`, over the same layout, reading the sidecar and
-      // only stat-ing the image. Written out rather than expressed in terms of
-      // `find`, because "in terms of `find`" is precisely the megabyte this
-      // exists to not spend.
-      for await (const { partition, comparable } of searched(holderFor(key), identity, identityAt(key))) {
-        const sidecar = await readSidecar(placesFor(key, partition));
-        if (sidecar === null) continue;
-        return {
-          documentDigest: sidecar.documentDigest,
-          comparable,
-          storedUnder: sidecar.identity,
-          pictured: occupiesPixels(sidecar),
-          missingFonts: sidecar.missingFonts,
-          ...(sidecar.accessibility === undefined ? {} : { accessibility: sidecar.accessibility }),
-          // Names only. The sidecar carries hashes; a describe that handed them
-          // on would invite a caller to settle from them, which is the document
-          // digest's job — this list can only answer membership.
-          ...(sidecar.components === undefined
-            ? {}
-            : { components: sidecar.components.map((hash) => hash.component) }),
-          ...(sidecar.findingMarks === undefined ? {} : { findingMarks: sidecar.findingMarks }),
-        };
-      }
-      return null;
+      // The same search as `find`, reading the sidecar and only stat-ing the
+      // image: "in terms of `find`" is precisely the megabyte this exists to
+      // not spend.
+      const hit = await lookup(key, identity, readSidecar);
+      if (hit === null) return null;
+      const { stored: sidecar, ...rest } = hit;
+      return {
+        documentDigest: sidecar.documentDigest,
+        ...rest,
+        storedUnder: sidecar.identity,
+        pictured: occupiesPixels(sidecar),
+        // Whether it kept one this code reads, never the tree: the packed
+        // snapshot is the largest thing a sidecar holds, and nothing that
+        // settles reads it.
+        keepsSnapshot: keepsSnapshot(sidecar.snapshot),
+        missingFonts: sidecar.missingFonts,
+        ...(sidecar.accessibility === undefined ? {} : { accessibility: sidecar.accessibility }),
+        // Names only: a describe that handed on the hashes would invite a
+        // caller to settle from them, which is the document digest's job.
+        ...(sidecar.components === undefined ? {} : { components: sidecar.components.map((hash) => hash.component) }),
+        ...(sidecar.findingMarks === undefined ? {} : { findingMarks: sidecar.findingMarks }),
+      };
     },
 
     async put(key, raster): Promise<void> {
-      const [written] = partitionsOf(identityDigest(raster.identity));
-      const places = placesFor(key, written);
+      const path = placed(key, raster.identity);
+      const places = at(path);
+      // Before anything is written: a refused accept leaves the tree as it was.
+      // A damaged pair is there, not absent: the accept repairs it, so it is
+      // overwritten rather than raced for, and whoever its record still names
+      // keeps the path.
+      const before = await readSidecar(places).catch(async () => ({ placedFor: placedForIn(await rawRecord(places)) }));
+      occupied(before?.placedFor, key, path);
       await mkdir(dirname(places.record), { recursive: true });
-      // No image for a subject that has none. The sidecar alone is the whole
-      // baseline there, and it says so by carrying no dimensions.
-      if (raster.bytes !== undefined) {
+      const record = `${JSON.stringify({ ...raster, bytes: undefined, placedFor: placedForOf(key) }, null, 2)}\n`;
+      // A path nobody held is taken by creating its record, so of two workers
+      // that both read nothing there, the second is refused by name rather than
+      // overwriting the first.
+      if (before === null) await create(`${places.record}.json`, record, key, path);
+      // No image for a subject that has none: the sidecar alone is the whole
+      // baseline, and an image left from an earlier accept would contradict it.
+      if (raster.bytes === undefined) await rm(`${places.image}.png`, { force: true });
+      else {
         await mkdir(dirname(places.image), { recursive: true });
         await writeFile(`${places.image}.png`, Buffer.from(raster.bytes, 'base64'));
       }
-      // The sidecar carries the identity in readable form. A directory named by a
-      // digest is unreviewable, and a baseline nobody can attribute to a machine
-      // is a baseline nobody can decide to discard.
-      await writeFile(
-        `${places.record}.json`,
-        `${JSON.stringify({ ...raster, bytes: undefined }, null, 2)}\n`,
-        'utf8',
-      );
-      // A put moves the baseline along its line: a copy left there would be compared later.
-      for (const other of await identities(holderFor(key))) {
-        const painter = other === written ? null : await identityAt(key)(other);
-        if (painter !== null && sameLine(painter, raster.identity)) await retire(placesFor(key, other));
-      }
+      await writeFile(`${places.record}.json`, record, 'utf8');
+      // Written first, then the old copy removed, so a write that dies between
+      // the two leaves a baseline twice rather than nowhere. The pull request
+      // shows the pair moving, which is what the upgrade did.
+      for (const pair of await legacy(key, raster.identity)) if (pair.retires) await retire(at(pair.path));
     },
 
-    /**
-     * The plan's complement, taken over paths this store alone can compute.
-     *
-     * The enumeration is in `held.ts` for {@link placement}'s reason: it decides
-     * nothing about a verdict, and every line of it is about *which path*.
-     */
+    expect(keys): void {
+      // One engine for all, because a run has one: two keys refused here
+      // collide under every engine.
+      const seen: Claims = new Map();
+      for (const key of keys) claim(seen, key, template.render(key, null), template);
+    },
+
+    /** The plan's complement, over paths this store alone can compute. See `held.ts`. */
     async unplanned(keys, identity): Promise<readonly string[]> {
+      const engine = familyOf(identity.engine);
       const digest = identityDigest(identity);
-      const planned = new Set(
-        keys.flatMap((key) =>
-          partitionsOf(digest).map((partition) => `${pathFor(holderFor(key), partition, key, layout)}.json`),
-        ),
-      );
-      return held(recordRoot, digest, planned);
+      const planned = new Set<string>();
+      for (const key of keys) {
+        planned.add(template.render(key, engine));
+        for (const { holder, leaf } of legacyHolders(key)) {
+          for (const partition of partitionsOf(digest)) planned.add(posix.join(holder, partition, leaf));
+        }
+      }
+      return held(recordRoot, { template, engine, digest, planned });
     },
 
     // A durable store is also a render cache: an unchanged document under an
-    // unchanged identity has an image already, and the cheapest render is the
-    // one that does not happen.
-    //
-    // Wrapped, so an unreadable entry, a full disk or a directory somebody
-    // chmod-ed costs this run a render instead of ending it. The baseline half
-    // above still throws for all three, which is the difference the split is
-    // about: one of these is the thing being compared against and one is a copy
-    // of something we can make again.
+    // unchanged identity has an image already. Wrapped, so an unreadable entry
+    // or a full disk costs this run a render instead of ending it; the baseline
+    // half above still throws for both, because one is the thing being
+    // compared against and one is a copy of something we can make again.
     renderCache: neverFails({
       async get(digest, identity): Promise<Raster | null> {
-        // One prefix for both halves. The cache's record is as regenerable as
-        // its image, so there is nothing here for a split root to save.
         const path = cachedAt(cacheRoot, identityDigest(identity), digest);
         const raster = await readRaster({ image: path, record: path });
         if (raster !== null) await touch(path);
@@ -240,16 +372,11 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
         if (raster.bytes !== undefined) {
           await writeFile(`${path}.png`, Buffer.from(raster.bytes, 'base64'));
         }
-        await writeFile(
-          `${path}.json`,
-          `${JSON.stringify({ ...raster, bytes: undefined })}\n`,
-          'utf8',
-        );
+        await writeFile(`${path}.json`, `${JSON.stringify({ ...raster, bytes: undefined })}\n`, 'utf8');
       },
     }),
   };
 }
-
 
 /**
  * Mark an entry as wanted, so the sweep can tell live keys from dead ones.
@@ -280,21 +407,19 @@ async function touch(path: string): Promise<void> {
 }
 
 /**
- * Remove a pair `put` just superseded, and its directories once empty: an
- * accept moves a baseline rather than leaving a second copy for the fallback.
- */
-async function retire(places: Places): Promise<void> {
-  await rm(`${places.image}.png`, { force: true });
-  await rm(`${places.record}.json`, { force: true });
-  for (const directory of new Set([dirname(places.image), dirname(places.record)])) {
-    await rmdir(directory).catch(() => undefined);
-  }
-}
-
-/**
  * A render cache entry's path. No raw-digest fallback, unlike a baseline: a cache
  * entry nobody finds costs one render, and `sweepRenderCache` ages the old ones out.
  */
 function cachedAt(cacheRoot: string, identity: Digest, documentDigest: Digest): string {
   return join(cacheRoot, digestFileName(identity), 'by-document', digestFileName(documentDigest));
+}
+
+
+/** A record as JSON, or `undefined` when it is gone or does not parse — damage says nobody's name. */
+async function rawRecord(places: Places): Promise<unknown> {
+  try {
+    return JSON.parse(await readFile(`${places.record}.json`, 'utf8')) as unknown;
+  } catch {
+    return undefined;
+  }
 }

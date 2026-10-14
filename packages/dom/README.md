@@ -148,6 +148,29 @@ dead utility classes, CSS-in-JS accretion — pruning reduced 1,010 parsed rules
 to the one that could style the subject. Without it, a baseline changes when a
 stylesheet the subject never touched does.
 
+An `@font-face` matches no element, so it is kept by what the subtree is set
+in: the render document carries every face whose family appears in a computed
+`font-family` inside the subject or in a box its frame generates, with its
+`url()`s rewritten to resolve against
+the page rather than the sheet that declared them, and `referencedAssets` adds
+those files to the asset key. A face the subject is not set in is pruned like
+any other rule. jsdom keeps a face's `font-family` and drops its `src`, so a
+face read there cannot be carried; `acquireDocument` reports
+`unreadable-font-face` for it, and the render paints the fallback.
+
+## Images a page made itself
+
+A `blob:` URL names memory in the page that minted it, and the renderer paints
+in a page of its own. So `acquireDocument` reads every `blob:` URL the render
+document would carry, in an attribute that names a file or in a `url()` of a
+style, a `<style>` in the subject, a kept rule, an inherited value or a box the
+subject sits in, and writes its bytes in as a `data:` URL: the render paints the
+picture the page showed, and the same picture is the same document on every
+load. An object URL the page has already revoked cannot be read; it is reported
+as an `unreadable-object-url` error, because its render would show a broken
+image where the page shows a whole one. Under a host that paints nothing, such
+as jsdom, the same report is a warning: no page there showed the picture.
+
 ## Use this package when
 
 Use `@variance-authority/dom` when your code already owns a live `Element` and

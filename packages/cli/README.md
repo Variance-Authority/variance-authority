@@ -154,14 +154,14 @@ variance layers  [--against <index>] [--root <path>] [--format text|markdown|jso
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
-variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
+variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]
-variance story   [--file <text>] [--name <text>] [--label <label>] [--in <package or file> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]
+variance story   [--file <path>] [--name <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev|instant>]
-variance journeys [--config <path> | --suite <name>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
+variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>]
@@ -322,12 +322,12 @@ opportunities, because missing attention is not an empty addressed surface.
 Name the case by the file that declares it and its title:
 
 ```bash
-variance distill --file test/checkout.spec.ts --test submits
+variance distill --file test/checkout.spec.ts --test 'checkout > submits'
 ```
 
 `--file` takes the test file's path, relative to the checkout or absolute, and
 names that file alone. `--test` takes the case's
-`id`, its exact title, or a part of the title, compared without case. Either
+`id` or its whole title, its `describe` blocks and its name joined with ` > `. Either
 flag may be given alone. When more than one case fits, the command prints up to
 five of their ids and stops; pass one of them to `--test`. A case Playwright
 retried prints every attempt's journal, numbered from 1.
@@ -1371,7 +1371,7 @@ modules each subject crossed while it was painted, and two subjects that render
 one module and cover different regions of it have parted:
 
 ```bash
-variance journeys --file CartCard
+variance journeys --file app/src/components/CartCard.tsx
 ```
 
 ```
@@ -1387,8 +1387,8 @@ note: recorded at 4f2a1c9d0b73
 ```
 
 `parted` is the finding; `unentered` is its weaker sibling — a region with source
-of its own that nobody in the pool covered at all. `--file` narrows to modules
-whose path contains a string, `--limit` caps how many modules are named, and
+of its own that nobody in the pool covered at all. `--file` narrows to the one
+module at that path in the checkout, `--limit` caps how many modules are named, and
 what a cap left out is counted, not dropped.
 
 It exits `0` whatever it finds. Every suite with two stories per component has
@@ -1484,7 +1484,7 @@ names the component, the file and the **band** — one of five categories (`a11y
 kind of thing changed:
 
 ```
-[unstable] story:case-surface--ticking: … Clock src/ds.jsx:118 read differently
+[unstable] story:case-surface--ticking: … Clock cases/storybook-case/src/ds.jsx:118 read differently
   (geometry, token, content)
 ```
 
@@ -2159,9 +2159,10 @@ and the filter does not distinguish the clean ones. It writes to `--body-file`
 when given one and to stdout otherwise, and it posts nothing itself. `--marker`
 prints the HTML comment the poster searches for to find and rewrite its own
 previous docket; it is printed by a separate flag because it is needed in
-exactly the case where there is no body to read it out of. Exit `0` means *this
-rendered*, never *the run was clean* — the verdict belongs to `run`, which
-already decided it.
+exactly the case where there is no body to read it out of. It names the config's
+`project`, so two configs gating one pull request keep a comment each. Exit `0`
+means *this rendered*, never *the run was clean* — the verdict belongs to `run`,
+which already decided it.
 
 `--intent <text>` declares what the change was *meant* to do, overriding the
 config's `intent`. **It is a label, and it changes no verdict.** The string is
@@ -2570,6 +2571,14 @@ instead of naming them:
   run: for suite in $SHARED; do npx variance share --suite "$suite"; done
 ```
 
+With a config, `--format github` also prints `project=<segment>`: the config's
+`project` as one path segment that a git ref and an Actions artifact name both
+take. Every UTF-8 byte but a letter, a digit, `_` or `-` is written as `%XX`,
+so `@acme/web` stays one segment and `a b` stays apart from `a-b`, and a project
+holding a lone surrogate, which has no UTF-8 bytes, is refused. The composite
+action names its report page artifact and its images ref with it, and
+`variance comment --marker` spells the project the same way.
+
 A key is `variance-<file>:<branch>:<commit>`. The branch is the one a pull
 request targets, so a pull request restores what its target saved and never
 what it saved itself. A save appends the run id, because the Actions cache
@@ -2619,17 +2628,23 @@ pipelines:
 The poster is the platform-specific half, and it needs one thing from this CLI:
 
 ```bash
-variance comment --marker
+variance comment --config variance.config.json --marker
 ```
 
-That prints the invisible marker the rendered body embeds, and nothing else.
+That prints the invisible marker the rendered body embeds, and nothing else. It
+names the config's `project`, so each config's poster finds its own comment.
 Finding a previous comment by it and updating that comment — rather than adding
 one per run — is the whole of the "one comment, updated in place" rule; on
 Bitbucket that is a `GET` of
 `/2.0/repositories/{workspace}/{repo}/pullrequests/{id}/comments`, a search for
 the marker in `content.raw`, and a `PUT` to the one that has it or a `POST` if
-none does. The composite action above does the same three steps against
-GitHub's API.
+none does. A docket rendered before the marker named its project carries
+`<!-- variance-authority: pr-docket v1 -->`: the poster of the gate that wrote
+it takes a comment carrying it over, when none carries its own marker, and keeps
+an open pull request at one comment through the upgrade. A gate that never
+commented before leaves it alone, because it is another gate's docket. The
+composite action above does the same steps against GitHub's API, and adopts the
+old marker the same way unless `adopt-unkeyed-comment` is `'false'`.
 
 The YAML is a platform example. Its `script` invokes the same `variance` binary
 used locally, while `after-script` owns the platform-specific API call that
@@ -2656,7 +2671,7 @@ image path the report records to it, with every segment percent-encoded, so the
 file `images/story%3Abutton.before.png` is asked for as
 `images/story%253Abutton.before.png`. On GitHub, a commit's `raw` address works,
 `https://github.com/<owner>/<repo>/raw/<sha>`, and the composite action's
-`image-ref` input publishes one.
+`image-ref-prefix` input publishes one.
 
 ## Integration troubleshooting
 

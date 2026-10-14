@@ -230,7 +230,7 @@ There are four verdicts:
 
 | verdict | what it means |
 | --- | --- |
-| `unchanged` | the stored baseline and this run's image were compared, and no pixels differ |
+| `unchanged` | the stored baseline and this run's image were compared, and no pixels differ beyond the default policy's tolerance: antialiasing, and a colour change of up to 1%. The reason counts any pixels it forgave |
 | `changed` | pixels differ; `regions` names what drew them, and the reason names a moved identity first |
 | `new` | no baseline exists for this subject. Not a pass and not a failure |
 | `ignored` | pixels differ and every one of them fell inside something you excluded |
@@ -283,8 +283,8 @@ digest of the document it was painted from.
 A baseline is filed under the **renderer identity** that painted it: the
 renderer and its engine build, the OS and architecture, the device scale factor,
 the fonts the renderer actually had, and digests of the stabilization and raster
-settings it used. Baselines are partitioned by it —
-that is the `v1-6c1f…` directory the `.png` lives under.
+settings it used. It is recorded in the `.json` beside the `.png`, and the
+path names only the engine.
 
 This is why the tab's own screenshot is not used. A live screenshot has nothing
 behind it that records which machine, which scale and which font stack produced

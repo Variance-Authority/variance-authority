@@ -324,15 +324,15 @@ scoped answer counts it in the first line instead.
 ## Distill one completed test
 
 ```bash
-variance distill --file test/checkout.spec.ts --test submits
+variance distill --file test/checkout.spec.ts --test 'checkout > submits'
 ```
 
 This command does not read `variance.config.json` beyond its declared suites. It
 reads one case out of the checkout's record, the declared suite's that `--suite`
 names, or the one `--execution` names, and combines the case's authored AAA
 attention, React update initiators and covered source for every attempt the
-record keeps. `--test` takes the case's id, its exact title or a part of the
-title, and `--file` the test file's path, relative to the checkout or absolute; more than one fitting case
+record keeps. `--test` takes the case's id or its whole title, its `describe` blocks and
+its name joined with ` > `, and `--file` the test file's path, relative to the checkout or absolute; more than one fitting case
 is refused with their ids. A record without Eyes journals still gives the
 covered source; the absent attention is not replaced by an empty one. The deterministic
 reading and the skill's counterfactual verification loop are described in

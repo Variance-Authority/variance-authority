@@ -1,3 +1,4 @@
+import { restamps } from '@variance-authority/core/judge';
 import type { ObservationRecord } from './format.js';
 
 /**
@@ -69,9 +70,11 @@ export function promotionOf(observation: ObservationRecord): Promotion {
 
   if (observation.verdict === 'unchanged') {
     // Unchanged under a moved identity is re-stamped under this run's: left
-    // under the old one, it names the same upgrade on every later run.
+    // under the old one, it names the same upgrade on every later run. So is
+    // one whose baseline kept no snapshot: left alone, the first change after
+    // it is joined against one render.
     const from = observation.images?.after ?? observation.images?.record;
-    if (observation.signals?.identity !== undefined && from !== undefined) {
+    if (restamps(observation.signals) && from !== undefined) {
       return { kind: 'promotable', from };
     }
     return {

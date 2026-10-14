@@ -245,6 +245,7 @@ function isStructural(delta: Delta): boolean {
     case 'node-added':
     case 'node-removed':
     case 'node-moved':
+    case 'tag-changed':
     case 'role-changed':
     case 'name-changed':
     case 'text-changed':

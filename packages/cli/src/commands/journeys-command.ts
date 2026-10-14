@@ -4,6 +4,7 @@ import {
   journeysOf,
   type JourneyPool,
 } from './journeys.js';
+import { checkoutFile } from '../checkout-file.js';
 import { EXIT_CLEAN, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
 import { landJourneys } from './land.js';
@@ -26,6 +27,7 @@ export interface JourneysRequest {
   readonly into?: string;
   /** Whose record is read and landed on, when more than one suite is declared. */
   readonly suite?: string;
+  /** `--file`: the one module to read, by its path in the checkout at `cwd`. */
   readonly file?: string;
   readonly limit?: number;
 }
@@ -41,6 +43,7 @@ export interface JourneysRequest {
  * a filter over an answer somebody else's subjects had already shaped.
  */
 export async function journeysOutput(request: JourneysRequest): Promise<string> {
+  const file = request.file === undefined ? undefined : checkoutFile(request.cwd, request.file);
   // Shards land on this checkout's own layer; with none to land, the reading
   // is of the nearest layer that holds a record.
   const landed =
@@ -60,7 +63,7 @@ export async function journeysOutput(request: JourneysRequest): Promise<string> 
     journeysOf({
       ...(await recordedJourneys(request.cwd, named, record)),
       pool,
-      ...(request.file !== undefined ? { file: request.file } : {}),
+      ...(file !== undefined ? { file } : {}),
       ...(request.limit !== undefined ? { limit: request.limit } : {}),
     }),
   );

@@ -54,7 +54,7 @@ import { useCallback, useState, type CSSProperties, type ReactElement } from 're
 import type { RegionRecord } from '@variance-authority/report';
 import type { ReviewClient } from './client.js';
 import type { Appearance } from './grouping.js';
-import { hasDifference, useDifferenceUrl } from './difference.js';
+import { hasDifference, useDifference } from './difference.js';
 import { leadOf } from './lead.js';
 import { count, number } from './text.js';
 import { SMALLEST_SCALE, share, union, type Size } from './plate.js';
@@ -92,6 +92,16 @@ const CLOSEST = 8;
 type Layer = 'diff' | 'after' | 'before';
 
 const LAYERS: readonly Layer[] = ['diff', 'after', 'before'];
+
+/**
+ * Whether a render can draw a layer at all. A mask the build did not keep is
+ * still drawn from the two captures, so the strip offers it wherever the crop
+ * can draw it — the strip and the crop asking two questions opened such a strip
+ * on the candidate.
+ */
+function shows(subject: Appearance['subject'], layer: Layer): boolean {
+  return layer === 'diff' ? hasDifference(subject) : subject.has[layer];
+}
 
 const SAY: Readonly<Record<Layer, string>> = {
   diff: 'difference',
@@ -209,11 +219,11 @@ export function Look({
   const [asked, setAsked] = useState<readonly Layer[]>([]);
 
   const found = sightings(appearances).filter(({ appearance }) =>
-    LAYERS.some((layer) => appearance.subject.has[layer]),
+    LAYERS.some((layer) => shows(appearance.subject, layer)),
   );
 
   const offered = LAYERS.filter((layer) =>
-    found.some(({ appearance }) => appearance.subject.has[layer]),
+    found.some(({ appearance }) => shows(appearance.subject, layer)),
   );
   const first = offered[0];
   if (first === undefined) return null;
@@ -375,16 +385,20 @@ function Crop({
   readonly mounted: ReadonlySet<Layer>;
 }): ReactElement {
   const [watch, seen] = useSeen();
-  // Only once the crop is mounting the mask: a strip of renders nobody switched
-  // to `diff` decodes nothing. See [`difference.ts`](./difference.js).
-  const difference = useDifferenceUrl(client, build, subject, mounted.has('diff'));
+  // Only once the crop is mounting the mask and its window is near: the strip
+  // opens on `diff`, and a crop nobody has scrolled to decodes nothing. See
+  // [`difference.ts`](./difference.js).
+  const difference = useDifference(client, build, subject, seen && mounted.has('diff'));
   const box = union(subject.size, subject.baseline);
 
   /** What this render can show at all, and where its bytes come from. */
-  const shown = (layer: Layer): boolean =>
-    layer === 'diff' ? hasDifference(subject) : subject.has[layer];
+  const shown = (layer: Layer): boolean => shows(subject, layer);
   const srcOf = (layer: Layer): string | undefined =>
-    layer === 'diff' ? difference : client.imageUrl(build, subject.subject, layer);
+    layer === 'diff'
+      ? difference?.state === 'ready'
+        ? difference.value
+        : undefined
+      : client.imageUrl(build, subject.subject, layer);
 
   if (box === undefined) {
     return (
@@ -401,6 +415,15 @@ function Crop({
     return (
       <span className="va-crop va-crop-unplaced" style={boxOf(WINDOW)}>
         <span className="va-note">No {SAY[showing]} was kept for this render.</span>
+      </span>
+    );
+  }
+
+  // The same for a mask the page set out to compute and could not.
+  if (showing === 'diff' && difference?.state === 'failed') {
+    return (
+      <span className="va-crop va-crop-unplaced" style={boxOf(WINDOW)}>
+        <span className="va-note">The difference could not be computed for this render.</span>
       </span>
     );
   }
