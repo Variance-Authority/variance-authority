@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { native } from '../addon.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { joinedJournals, joinReadings } from './readings.js';
@@ -156,5 +156,32 @@ describe('one file\'s inventories, read at the regions they share', () => {
     const one = [{ ...module, startLine: 5, endLine: 3 }];
     const two = [{ ...module, startLine: 6, endLine: 3 }];
     expect(reconciled([one, two]).blocks).toEqual([{ ...module, startLine: 5, endLine: 3, source: false }]);
+  });
+});
+
+describe('without the addon', () => {
+  // Cut at the addon: what is under test is the refusal, and the loader's own reasons are `native.test.ts`'s.
+  afterEach(() => {
+    vi.doUnmock('../addon.js');
+    vi.resetModules();
+  });
+
+  const absent = async () => {
+    vi.resetModules();
+    vi.doMock('../addon.js', () => ({ native: () => undefined, nativeRefusal: () => '@variance-authority/sense-linux-x64-gnu is not installed' }));
+    return import('./readings.js');
+  };
+
+  it('refuses to join one file read twice, naming why the addon did not load', async () => {
+    const { joinReadings: join } = await absent();
+
+    expect(() => join(new Map([['dist/cart.js', build], ['src/cart.ts', source]])))
+      .toThrow("joining one file's readings requires the Sense native addon: @variance-authority/sense-linux-x64-gnu is not installed");
+  });
+
+  it('joins a file read once without it', async () => {
+    const { joinReadings: join } = await absent();
+
+    expect([...join(new Map([['src/cart.ts', source]])).modules.keys()]).toEqual(['src/cart.ts']);
   });
 });

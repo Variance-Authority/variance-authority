@@ -95,10 +95,12 @@ a 28,000-file repository:
 | Linux | combine | system | 3.5 s | about 524 MiB |
 | Linux | combine | large blocks unmapped, copied to grow | 4.55–4.60 s | 562–568 MiB |
 | Linux | combine | large blocks unmapped, remapped to grow | 3.4–3.5 s | 492–498 MiB |
-| Linux | scan | system | about 4.65 s | 308–314 MiB |
-| Linux | scan | large blocks unmapped, copied to grow | about 4.67 s | 283–286 MiB |
+| Linux | scan | system | 378–410 ms | 303–312 MiB |
+| Linux | scan | large blocks unmapped, remapped to grow | 383–422 ms | 285–289 MiB |
 
-The Linux scan reads through a bind mount and is bound by it.
+The Linux scan rows are ten cold runs of each allocator, interleaved, over a
+copy of the repository inside the container. Their medians are within 5 ms of
+each other.
 
 glibc maps a block above its threshold and unmaps it on free, as the addon
 does, but each such free raises the threshold to that block's size, up to
@@ -118,6 +120,10 @@ combine is then as fast as with the system allocator and holds less.
 
 The landing over a record takes 4.7 s on macOS, close to its 5 s ceiling. The
 lay is about 620 ms of it.
+
+On macOS the combine leaves about 140 MiB resident in the system allocator's
+small-block zones. Blocks under 4 MiB are not mapped, and macOS keeps the pages
+of the ones freed; the landing over a record carries them into its peak.
 
 On a larger corpus, with a wider combined record, the combine peaks at about
 1.5 GiB. That is the size of the record it writes, not a held buffer, and the
