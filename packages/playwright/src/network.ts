@@ -298,6 +298,14 @@ export async function observeNetwork(
     const request = route.request();
     const url = request.url();
 
+    // Refused before it leaves. What the page guesses it will show next is not
+    // what it shows: served, a prefetch renders another page's code on this
+    // page's behalf, and when it happens depends on what scrolled into view.
+    if (isSpeculative(request.headers())) {
+      await route.abort('aborted').catch(noteRouteFailure(url));
+      return;
+    }
+
     // Continued without a body read. A script or a document affects the render
     // through the capture, which already has it; paying to hash one here would
     // buy a second copy of a covered input.
@@ -479,6 +487,17 @@ function digestOf(body: Uint8Array, ceiling: number): string {
  * on object storage — and never an override, because a `.gif` served as `png` is
  * a PNG to every decoder that matters.
  */
+/**
+ * A request the page sent on speculation: `Sec-Purpose` is the standard's name,
+ * sent by `<link rel="prefetch">` and speculation rules; `Purpose` is the name
+ * before it; `Next-Router-Prefetch` is the Next.js App Router's, which a router
+ * reproducing it sends for every link it can see.
+ */
+function isSpeculative(headers: Readonly<Record<string, string>>): boolean {
+  const purpose = headers['sec-purpose'] ?? headers['purpose'] ?? '';
+  return /(^|[\s,;])prefetch\b/.test(purpose) || headers['next-router-prefetch'] === '1';
+}
+
 function isGifResponse(headers: Readonly<Record<string, string>>, url: string): boolean {
   const type = headers['content-type'];
   if (type !== undefined && type.length > 0) return type.toLowerCase().includes('image/gif');
