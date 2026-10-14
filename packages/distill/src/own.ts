@@ -72,10 +72,22 @@ type Row = TestCoverage['modules'][number];
 const rowsByCoverage = new WeakMap<TestCoverage, ReadonlyMap<string, Row>>();
 
 /** The record's rows by file, built once however many test files are read from it. */
-function rowsOf(coverage: TestCoverage): ReadonlyMap<string, Row> {
+export function rowsOf(coverage: TestCoverage): ReadonlyMap<string, Row> {
   let rows = rowsByCoverage.get(coverage);
   if (rows === undefined) rowsByCoverage.set(coverage, (rows = new Map(coverage.modules.map((module) => [module.file, module]))));
   return rows;
+}
+
+const loaders = new WeakMap<Row, ReadonlySet<string>>();
+
+/**
+ * The test files that evaluated a module's top level, read once however many
+ * test files ask whether they are among them.
+ */
+export function loadersOf(row: Row): ReadonlySet<string> {
+  let found = loaders.get(row);
+  if (found === undefined) loaders.set(row, (found = new Set(row.blocks.find((block) => block.kind === 'module')?.loadedBy ?? [])));
+  return found;
 }
 
 /**
@@ -93,7 +105,7 @@ export function causesOf(input: CauseInput): (module: string) => LoadCause {
   const followed = (target: string): boolean => {
     const row = rows.get(target);
     if (row === undefined) return true;
-    return row.blocks.find((block) => block.kind === 'module')?.loadedBy?.includes(input.file) === true;
+    return loadersOf(row).has(input.file);
   };
   const edges = new Map<string, readonly string[]>();
   const successors = (node: string): readonly string[] => {

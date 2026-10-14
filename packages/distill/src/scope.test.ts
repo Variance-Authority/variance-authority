@@ -224,3 +224,45 @@ describe('scopeRows', () => {
       .toThrow('The record holds no test file under `packages/none`.');
   });
 });
+
+/** `list` as it is, counting into `reads` each element read from it. */
+function counted<T>(list: readonly T[], reads: { count: number }): readonly T[] {
+  return new Proxy(list, {
+    get(target, key, receiver) {
+      if (typeof key === 'string' && /^\d+$/.test(key)) reads.count += 1;
+      return Reflect.get(target, key, receiver);
+    },
+  });
+}
+
+// Forty test files that load the same modules: read file by file, a shared list is read for each of them.
+const MANY = Array.from({ length: 40 }, (_, at) => `packages/app/test/${String(at).padStart(2, '0')}.test.ts`);
+const subjectOf = (file: string) => file.replace('/test/', '/src/').replace('.test.ts', '.ts');
+
+describe('reading a scope of many test files', () => {
+  it("reads each shared module's loaders once, however many test files follow an import to it", () => {
+    const shared = record({
+      'packages/ui/src/button.ts': { by: MANY, enteredBy: MANY },
+      'packages/ui/src/chart.ts': { by: MANY, lines: 100 },
+      ...Object.fromEntries(MANY.map((file) => [subjectOf(file), { by: [file], enteredBy: [file] }])),
+    });
+    const reads = { count: 0 };
+    const coverage: TestCoverage = {
+      ...shared.coverage,
+      modules: shared.coverage.modules.map((module) => ({
+        ...module,
+        blocks: module.blocks.map((block) =>
+          block.loadedBy === undefined ? block : { ...block, loadedBy: counted(block.loadedBy, reads) }),
+      })),
+    };
+    const edges = (file: string) =>
+      MANY.includes(file) ? [subjectOf(file)] : file.startsWith('packages/app/src/') ? ['packages/ui/src/button.ts', 'packages/ui/src/chart.ts'] : [];
+
+    const scope = distillScope({ records: [{ ...shared, coverage }], imports: edges });
+
+    expect(scope.spills).toHaveLength(MANY.length);
+    expect(scope.spills[0]!.cause).toEqual({ kind: 'import', importer: subjectOf(MANY[0]!), imported: 'packages/ui/src/chart.ts' });
+    // Every loader once: the two shared modules' forty each, and each subject's own.
+    expect(reads.count).toBe(MANY.length * 3);
+  });
+});

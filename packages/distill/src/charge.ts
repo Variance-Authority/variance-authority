@@ -6,7 +6,7 @@ import {
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { posix } from 'node:path';
-import type { ImportReach } from './own.js';
+import { loadersOf, rowsOf, type ImportReach } from './own.js';
 
 /**
  * Where a used file references an import no case of the test file ran, read
@@ -63,10 +63,11 @@ type Block = ExecutionIndex['modules'][number]['blocks'][number];
  */
 export function chargesOf(input: ChargeInput): (importer: string, imported: string) => ImportCharge | undefined {
   const executed = new Map(input.execution.modules.map((module) => [module.file, module.blocks]));
-  const loaders = new Map(input.coverage.modules.map((module) => [
-    module.file,
-    module.blocks.find((block) => block.kind === 'module')?.loadedBy ?? [],
-  ]));
+  const rows = rowsOf(input.coverage);
+  const loaders = (file: string): number => {
+    const row = rows.get(file);
+    return row === undefined ? 0 : loadersOf(row).size;
+  };
   const read = new Map<string, FileReferences | undefined>();
   const charged = new Map<string, ImportCharge | undefined>();
   const called = (block: Block) => block.crossings.filter((crossing) => crossing.loaded !== true);
@@ -113,7 +114,7 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
       for (const file of files) union.add(file);
       return { ...named(block), ran: files.size };
     });
-    return { kind: 'functions', functions, ran: union.size, loading: new Set(loaders.get(importer) ?? []).size };
+    return { kind: 'functions', functions, ran: union.size, loading: loaders(importer) };
   };
 
   return (importer, imported) => {

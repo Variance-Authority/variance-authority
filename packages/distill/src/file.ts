@@ -8,7 +8,7 @@ import type {
 import type { ShadowReach } from '@variance-authority/sense/taint';
 import { chargeLine, chargesOf, reachLine } from './charge.js';
 import { misplacedLines, misplacedOf, type MisplacedMock } from './mocks.js';
-import { causesOf, importOf, SHARED, UNSEEN, type LoadCause } from './own.js';
+import { causesOf, importOf, loadersOf, SHARED, UNSEEN, type LoadCause } from './own.js';
 
 /** What names one test file, and the two readings of the record it is read from. */
 export interface FileDistillInput {
@@ -214,7 +214,7 @@ function indexed(coverage: TestCoverage, execution: ExecutionIndex): Indexed {
   for (const module of coverage.modules) {
     if (!module.instrumented || !module.blocks.some((block) => block.kind === 'function' && block.source)) continue;
     // The file's top level ran for each of these test files before their first case.
-    for (const file of new Set(module.blocks.find((block) => block.kind === 'module')?.loadedBy ?? [])) push(loads, file, module);
+    for (const file of loadersOf(module)) push(loads, file, module);
   }
   const index: Indexed = {
     cases,
