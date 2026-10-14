@@ -53,6 +53,8 @@
   },
   "devDependencies": {
     "@rsbuild/core": "~2.2.7",
-    "@rspack/core": "^2.2.6"
+    "@rspack/core": "^2.2.6",
+    "storybook": "^9.1.13",
+    "vite": "^6.0.0"
   }
 }

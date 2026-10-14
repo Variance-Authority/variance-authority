@@ -360,9 +360,11 @@ Storybook loads the addon through its preset,
 `@variance-authority/storybook-collector/preset`, which you never import
 yourself. The preset reads the builder Storybook runs. Under Vite it adds
 `testSelectionProbes()` from `@variance-authority/sense/journal`; under Rspack,
-through `rsbuildFinal`, and Webpack 5, through `webpackFinal`, it adds
-`testSelectionRule()`, a loader at `enforce: 'post'`, first among the rules, so
-it runs after every post loader of yours. Either way the probes go in after
+through `rsbuildFinal`, and Webpack 5, through `webpackFinal`, it adds a plugin
+that lists `testSelectionRule()`, a loader at `enforce: 'post'`, first among the
+rules once the build's config is final, so it runs after every post loader of
+yours, the ones your `main.js` hooks add included: Storybook runs an addon's
+hooks before yours. Either way the probes go in after
 every compiler your build runs, so an extractor such as `@compiled/react` reads
 your file as you wrote it, and each probe is placed where the source map says
 that code went. Where the build writes no map the loaders can read, as
@@ -370,10 +372,13 @@ that code went. Where the build writes no map the loaders can read, as
 build still writes no `.map` file. The preset asks Storybook which build it
 is: `test`, which `--test` sets, or `configType` of `DEVELOPMENT`, which a dev
 server sets. Any other `storybook build`, the one you publish, gets nothing
-from the addon: build it with `--test` for the run that records. If you added `testSelectionRule()` to the Storybook's builder config
-by hand, remove it: the addon cannot order a rule it did not add, so the build
-stops and says to. A `testSelectionProbes()` you added under Vite orders itself,
-and the addon adds no second one.
+from the addon: build it with `--test` for the run that records. If you added
+`testSelectionRule()` to the Storybook's builder config by hand, or
+`testSelectionProbes()` in a `viteFinal` of your own, remove it: two would
+probe each other's probes, so the build stops and says "remove your
+testSelectionRule(); the addon places it", or the same of
+`testSelectionProbes()`. One your `vite.config` lists is already in the config
+when the addon runs, and the addon adds no second one.
 
 Pass the probes' options as the addon's: `{ name:
 '@variance-authority/storybook-collector', options: { mode: 'entries' } }`.

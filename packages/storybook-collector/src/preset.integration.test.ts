@@ -1,7 +1,8 @@
 /**
  * The preset's rule in a real Rspack build, next to a post loader of the
  * project's that cannot read a probe, and in a production build that writes no
- * source map, as `storybook build --test` does.
+ * source map, as `storybook build --test` does; and the preset loaded as
+ * Storybook loads it, ahead of the hooks of the project's `main.js`.
  */
 
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
@@ -9,6 +10,8 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createRsbuild, type RsbuildConfig } from '@rsbuild/core';
 import { rspack, type Configuration } from '@rspack/core';
+import { loadAllPresets } from 'storybook/internal/common';
+import { resolveConfig, type InlineConfig } from 'vite';
 import { afterAll, describe, expect, it } from 'vitest';
 import { rsbuildFinal, webpackFinal } from './preset.js';
 
@@ -135,5 +138,83 @@ describe('rsbuildFinal in a real Rsbuild build', () => {
     expect(out.page).not.toMatch(/sourceMappingURL/);
     expect(out.page).toMatch(/__va\(\d+\)/);
     expect(out.page).toBe((await written(resolve(mapped.root, 'out'), 'index.js')).page);
+  }, 60_000);
+});
+
+/** The addon, by the path Storybook loads a preset from. */
+const ADDON = resolve(import.meta.dirname, 'preset.ts');
+/** The probes, as a `main.js` outside this package requires them. */
+const JOURNAL = resolve(import.meta.dirname, '../../sense/dist/test-selection/journal.js');
+
+/**
+ * Storybook's presets for a `.storybook` whose `main.js` lists the addon and
+ * holds `hooks`, the text of its builder hooks: Storybook runs the addon's
+ * hooks first and the project's after them, whatever `addons` lists.
+ */
+async function storybook(root: string, hooks: string) {
+  const configDir = resolve(root, '.storybook');
+  await mkdir(configDir, { recursive: true });
+  await writeFile(
+    resolve(configDir, 'main.cjs'),
+    `const { testSelectionProbes, testSelectionRule } = require(${JSON.stringify(JOURNAL)});\n` +
+      `module.exports = {\n  stories: [],\n  addons: [{ name: ${JSON.stringify(ADDON)}, options: { root: ${JSON.stringify(root)} } }],\n${hooks}\n};\n`,
+  );
+  return loadAllPresets({ configDir, corePresets: [], overridePresets: [], packageJson: {}, isCritical: true, ...TEST });
+}
+
+describe('the addon under Storybook, whose project hooks run after it', () => {
+  it('runs the probes after a post loader `main.js` adds in its `webpackFinal`', async () => {
+    const { root, refuses } = await project();
+    const presets = await storybook(
+      root,
+      `  webpackFinal: async (config) => ({ ...config, module: { ...config.module, rules: [{ test: /\\.ts$/, enforce: 'post', use: [{ loader: ${JSON.stringify(refuses)} }] }, ...config.module.rules] } }),`,
+    );
+    const { module, ...shaped } = webpackShaped(root, refuses, false, 'production');
+    const swc = module!.rules!.slice(0, 1);
+    await built(await presets.apply('webpackFinal', { ...shaped, module: { rules: swc } }));
+
+    expect(await emitted(resolve(root, 'out'))).toMatch(/__va\(\d+\)/);
+  }, 60_000);
+
+  it('refuses a `testSelectionRule()` `main.js` adds in its `webpackFinal`, which the addon places', async () => {
+    const { root, refuses } = await project();
+    const presets = await storybook(
+      root,
+      '  webpackFinal: async (config) => ({ ...config, module: { ...config.module, rules: [testSelectionRule(), ...config.module.rules] } }),',
+    );
+    const config = await presets.apply('webpackFinal', webpackShaped(root, refuses, false, 'production'));
+
+    await expect(built(config)).rejects.toThrow(/remove your testSelectionRule\(\); the addon places it/);
+  }, 60_000);
+
+  it('runs the probes after a post loader `main.js` adds in its `rsbuildFinal`', async () => {
+    const { root, refuses } = await project();
+    const presets = await storybook(
+      root,
+      '  rsbuildFinal: async (config) => ({ ...config, tools: { ...config.tools, rspack: [...[config.tools?.rspack ?? []].flat(), ' +
+        `(rspack) => { rspack.module.rules.unshift({ test: /\\.ts$/, enforce: 'post', use: [{ loader: ${JSON.stringify(refuses)} }] }); }] } }),`,
+    );
+    const { tools, ...shaped } = rsbuildShaped(root, refuses, { js: false, css: false }, 'production');
+    await rsbuilt(await presets.apply('rsbuildFinal', { ...shaped, tools: { ...tools, rspack: [] } }), root);
+
+    expect(await emitted(resolve(root, 'out'))).toMatch(/__va\(\d+\)/);
+  }, 60_000);
+
+  it('refuses a `testSelectionProbes()` `main.js` adds in its `viteFinal`, which the addon places', async () => {
+    const { root } = await project();
+    const presets = await storybook(root, '  viteFinal: async (config) => ({ ...config, plugins: [...(config.plugins ?? []), testSelectionProbes()] }),');
+    const config = await presets.apply<InlineConfig>('viteFinal', { root, configFile: false, logLevel: 'silent', plugins: [] });
+
+    await expect(resolveConfig(config, 'build')).rejects.toThrow(/remove your testSelectionProbes\(\); the addon places it/);
+  }, 60_000);
+
+  it('adds no second Vite probes plugin where the config holds one before the addon runs, as `vite.config` does', async () => {
+    const { root } = await project();
+    const presets = await storybook(root, '');
+    const { testSelectionProbes } = (await import(JOURNAL)) as typeof import('@variance-authority/sense/journal');
+    const config = await presets.apply<InlineConfig>('viteFinal', { root, configFile: false, logLevel: 'silent', plugins: [testSelectionProbes()] });
+
+    const resolved = await resolveConfig(config, 'build');
+    expect(resolved.plugins.filter((plugin) => plugin.name === 'variance-authority:test-selection-probes')).toHaveLength(1);
   }, 60_000);
 });

@@ -10,19 +10,22 @@
  * ```
  *
  * Storybook finds this file as the package's `preset` entry, and calls the hook
- * of the builder it runs: `viteFinal` adds `testSelectionProbes`,
- * `rsbuildFinal` and `webpackFinal` add `testSelectionRule`, first among the
- * rules so it runs after every post loader. Both probe after every compiler the
- * project configured, so a compiler that reads syntax, such as Compiled's
- * extractor, reads the file as written. It probes the builds the collector drives,
+ * of the builder it runs. Storybook runs an addon's hooks before the ones in
+ * `main.js`, so the hooks here add a plugin, which reads the config the build
+ * ends with: under Vite, `testSelectionProbes` and a check that the config
+ * holds no second one; under Rspack and webpack, a plugin that lists
+ * `testSelectionRule` first among the rules, once every hook has run, so it
+ * runs after every post loader. Both probe after every compiler the project
+ * configured, so a compiler that reads syntax, such as Compiled's extractor,
+ * reads the file as written. It probes the builds the collector drives,
  * `storybook build --test` and a dev server, and adds nothing to any other
  * `storybook build`, the one a team publishes. Where the build writes no map
- * a loader can read, as `storybook build --test` does, the rule's hooks hand
- * the loaders their maps and the build still writes none. A
- * `testSelectionRule()` the config already holds stops the build, because the
- * addon cannot order it. The addon's options are the probes' own, `root`,
- * `mode`, `include` and `placement`, and `mode` has to be the one the
- * collector's `tests` reads.
+ * a loader can read, as `storybook build --test` does, the plugin hands the
+ * loaders their maps and the build still writes none. A probes rule or a
+ * second `testSelectionProbes()` the config holds stops the build: the addon
+ * places its own. The addon's options are the probes' own, `root`, `mode`,
+ * `include` and `placement`, and `mode` has to be the one the collector's
+ * `tests` reads.
  */
 
 import {
@@ -66,11 +69,37 @@ interface ViteConfig {
 /** The name `testSelectionProbes` gives its plugin, which a config that added it by hand already holds. */
 const PROBES_PLUGIN = 'variance-authority:test-selection-probes';
 
+/** The name of the plugin the addon adds beside the probes, under every builder. */
+const ADDON_PLUGIN = 'variance-authority:storybook-addon';
+
+const REMOVE_PROBES = 'remove your testSelectionProbes(); the addon places it';
+
+/**
+ * Refuses a config that ends with a second `testSelectionProbes()`, as one
+ * `main.js` adds in its own `viteFinal`, which Storybook runs after the
+ * addon's: each would probe the other's probes.
+ */
+const oneProbes = {
+  name: ADDON_PLUGIN,
+  configResolved(config: { readonly plugins: readonly { readonly name: string }[] }): void {
+    const probes = config.plugins.filter((plugin) => plugin.name === PROBES_PLUGIN).length;
+    if (probes <= 1) return;
+    throw new Error(
+      `@variance-authority/storybook-collector: the Vite config holds ${probes} \`testSelectionProbes()\`, and the addon ` +
+        `adds one of them: ${REMOVE_PROBES}`,
+    );
+  },
+};
+
+/**
+ * The probes, unless the config already holds them as `vite.config` added
+ * them: Storybook merges that file in before any `viteFinal` runs.
+ */
 export async function viteFinal<Config extends ViteConfig>(config: Config, options: PresetOptions): Promise<Config> {
   if (!recorded(options)) return config;
   const plugins = config.plugins ?? [];
-  if (plugins.flat(Infinity).some((plugin) => (plugin as { name?: unknown } | null)?.name === PROBES_PLUGIN)) return config;
-  return { ...config, plugins: [...plugins, testSelectionProbes(probesOptions(options))] };
+  const held = plugins.flat(Infinity).some((plugin) => (plugin as { name?: unknown } | null)?.name === PROBES_PLUGIN);
+  return { ...config, plugins: [...plugins, ...(held ? [] : [testSelectionProbes(probesOptions(options))]), oneProbes] };
 }
 
 type Rule = ReturnType<typeof testSelectionRule>;
@@ -84,20 +113,20 @@ function runs(listed: unknown, loader: string): boolean {
 }
 
 /**
- * `rules` with the probes rule where it runs last of its phase. Loaders of one
- * phase run right to left, so a post rule goes first, after every other post
- * loader; a pre rule goes last, ahead of every other pre loader. A probes rule
- * the config already holds stops the build: the addon cannot know where it
- * runs, and behind a post loader of the project's it reads probes.
+ * Places the probes rule in `rules` where it runs last of its phase. Loaders
+ * of one phase run right to left, so a post rule goes first, after every other
+ * post loader; a pre rule goes last, ahead of every other pre loader. A probes
+ * rule already there stops the build: two would probe each other's probes.
  */
-function withRule(rules: readonly unknown[], rule: Rule): unknown[] {
+function place(rules: unknown[], rule: Rule): void {
   if (rules.some((listed) => runs(listed, rule.use[0].loader))) {
     throw new Error(
-      '@variance-authority/storybook-collector: the config already holds a `testSelectionRule()`, which the addon ' +
-        'cannot order after your post loaders: remove your testSelectionRule(); the addon places it',
+      '@variance-authority/storybook-collector: the config holds a `testSelectionRule()`, and the addon adds its own: ' +
+        'remove your testSelectionRule(); the addon places it',
     );
   }
-  return rule.enforce === 'post' ? [rule, ...rules] : [...rules, rule];
+  if (rule.enforce === 'post') rules.unshift(rule);
+  else rules.push(rule);
 }
 
 /**
@@ -109,25 +138,32 @@ function handsLoadersMaps(devtool: unknown): boolean {
   return typeof devtool === 'string' && devtool.includes('source-map') && (devtool.includes('module') || !devtool.includes('cheap'));
 }
 
+/** The subset of the Rspack and webpack compiler the plugin uses, so nothing here needs either. */
 interface Compiler {
-  readonly options: { readonly devtool?: unknown };
+  readonly options: { readonly devtool?: unknown; readonly module: { rules: unknown[] } };
+  readonly hooks: { readonly afterPlugins: { tap(name: string, run: () => void): void } };
   readonly webpack: { readonly SourceMapDevToolPlugin: new (options: { test: RegExp }) => { apply(compiler: Compiler): void } };
 }
 
 /**
- * Hands each loader the map of the loaders before it where the compiler's
- * `devtool` does not, and writes no map: a `SourceMapDevToolPlugin` whose
- * `test` no file matches. Rspack and webpack both turn loader maps on for it,
- * and it writes a map only for a file its `test` matches. Read from the
- * compiler, so it is the `devtool` the build ends with.
+ * The plugin that places `rule` once the compiler holds the config every hook
+ * wrote, `main.js`'s included: Rspack and webpack both read `module.rules`
+ * when the build starts, after `afterPlugins`. After the transforms, it hands
+ * each loader the map of the loaders before it where `devtool` does not, and
+ * writes no map: a `SourceMapDevToolPlugin` whose `test` no file matches.
+ * Rspack and webpack both turn loader maps on for it, and it writes a map
+ * only for a file its `test` matches.
  */
-const loaderMaps = {
-  name: 'variance-authority:loader-maps',
-  apply(compiler: Compiler): void {
-    if (handsLoadersMaps(compiler.options.devtool)) return;
-    new compiler.webpack.SourceMapDevToolPlugin({ test: /(?!)/ }).apply(compiler);
-  },
-};
+function probesPlugin(rule: Rule) {
+  return {
+    name: ADDON_PLUGIN,
+    apply(compiler: Compiler): void {
+      compiler.hooks.afterPlugins.tap(ADDON_PLUGIN, () => place(compiler.options.module.rules, rule));
+      if (rule.enforce === 'pre' || handsLoadersMaps(compiler.options.devtool)) return;
+      new compiler.webpack.SourceMapDevToolPlugin({ test: /(?!)/ }).apply(compiler);
+    },
+  };
+}
 
 interface RsbuildConfig {
   readonly tools?: { readonly rspack?: unknown };
@@ -135,33 +171,24 @@ interface RsbuildConfig {
 
 /**
  * Rsbuild's `tools.rspack` is an object, a function or a list of either,
- * applied in order. The probes come in as a function at the end, so the rule
- * is placed among every rule Rsbuild and the config wrote. After the
- * transforms, the probes need each loader's map, which {@link loaderMaps}
- * hands them where `output.sourceMap` does not.
+ * applied in order; the plugin comes in as a function at the end.
  */
 export async function rsbuildFinal<Config extends RsbuildConfig>(config: Config, options: PresetOptions): Promise<Config> {
   if (!recorded(options)) return config;
   const theirs = config.tools?.rspack;
   const listed = Array.isArray(theirs) ? theirs : theirs === undefined ? [] : [theirs];
-  const rule = testSelectionRule(probesOptions(options));
-  const probes = (rspack: { module?: { rules?: unknown[] }; plugins?: unknown[] }): void => {
-    rspack.module = { ...rspack.module, rules: withRule(rspack.module?.rules ?? [], rule) };
-    if (rule.enforce === 'post') rspack.plugins = [...(rspack.plugins ?? []), loaderMaps];
+  const plugin = probesPlugin(testSelectionRule(probesOptions(options)));
+  const probes = (rspack: { plugins?: unknown[] }): void => {
+    rspack.plugins = [...(rspack.plugins ?? []), plugin];
   };
   return { ...config, tools: { ...config.tools, rspack: [...listed, probes] } };
 }
 
 interface WebpackConfig {
-  readonly module?: { readonly rules?: readonly unknown[] };
   readonly plugins?: readonly unknown[];
 }
 
-/** After the transforms, {@link loaderMaps} hands the loaders maps where `devtool` does not. */
 export async function webpackFinal<Config extends WebpackConfig>(config: Config, options: PresetOptions): Promise<Config> {
   if (!recorded(options)) return config;
-  const rule = testSelectionRule(probesOptions(options));
-  const rules = withRule(config.module?.rules ?? [], rule);
-  const plugins = rule.enforce === 'post' ? { plugins: [...(config.plugins ?? []), loaderMaps] } : {};
-  return { ...config, ...plugins, module: { ...config.module, rules } };
+  return { ...config, plugins: [...(config.plugins ?? []), probesPlugin(testSelectionRule(probesOptions(options)))] };
 }

@@ -22,11 +22,14 @@ Under Rspack and Webpack, where the build writes no source map the loaders can
 read, as `storybook build --test` does, the addon hands the loaders their maps
 and the build still writes no `.map` file. `devtool` stays as you set it.
 
-If you added `testSelectionProbes()` to the Storybook's builder config yourself,
-remove it and add the addon instead. A `testSelectionRule()` you added yourself
-now stops the build with "remove your testSelectionRule(); the addon places
-it": the addon cannot order a rule it did not add, and behind a post loader of
-yours it would read probes.
+Storybook runs an addon's builder hooks before the ones in your `main.js`, so
+the addon places the rule from a plugin, once the config is final: a post
+loader your own `webpackFinal` or `rsbuildFinal` adds still runs ahead of the
+probes. If you added `testSelectionProbes()` or `testSelectionRule()` to the
+Storybook's builder config yourself, remove it and add the addon instead: a
+second one stops the build with "remove your testSelectionRule(); the addon
+places it", or the same of `testSelectionProbes()`. One your `vite.config`
+lists is kept, and the addon adds no second one.
 
 When `tests` is on and the preview has no probes, the run's stderr now says to
 add the addon and build with `storybook build --test`, where it named

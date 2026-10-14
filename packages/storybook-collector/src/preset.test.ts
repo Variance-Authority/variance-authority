@@ -15,35 +15,35 @@ const PUBLISHED = { configType: 'PRODUCTION' } as const;
 
 type Rule = { enforce?: string; use: { loader: string; options: Record<string, unknown> }[] };
 
-/** The config Rspack reads once Rsbuild has applied every `tools.rspack` entry, in order, to `rules`. */
-function rspackOf(entries: unknown, rules: unknown[] = []): { module: { rules: Rule[] }; plugins?: Plugin[] } {
-  const config = { module: { rules } } as { module: { rules: unknown[] } };
-  for (const entry of entries as unknown[]) {
-    if (typeof entry === 'function') entry(config);
-    else config.module.rules.push(...((entry as { module?: { rules?: unknown[] } }).module?.rules ?? []));
-  }
-  return config as { module: { rules: Rule[] }; plugins?: Plugin[] };
-}
-
-function rulesOf(entries: unknown, rules: unknown[] = []): Rule[] {
-  return rspackOf(entries, rules).module.rules;
-}
-
 interface Plugin {
+  readonly name?: string;
   apply(compiler: unknown): void;
 }
 
-/** The `SourceMapDevToolPlugin` options each plugin applied to a compiler whose `devtool` is `devtool`. */
-function sourceMapPlugins(plugins: readonly Plugin[] | undefined, devtool: unknown): { test?: RegExp }[] {
-  const made: { test?: RegExp }[] = [];
+/**
+ * What a compiler holds once `plugins` are applied and `afterPlugins` has run:
+ * its rules, and the `SourceMapDevToolPlugin` options each plugin applied.
+ */
+function compiled(plugins: readonly unknown[] | undefined, devtool: unknown, rules: unknown[] = []): { rules: Rule[]; maps: { test?: RegExp }[] } {
+  const maps: { test?: RegExp }[] = [];
+  const after: (() => void)[] = [];
   const SourceMapDevToolPlugin = class {
     constructor(options: { test?: RegExp }) {
-      made.push(options);
+      maps.push(options);
     }
     apply(): void {}
   };
-  for (const plugin of plugins ?? []) plugin.apply({ options: { devtool }, webpack: { SourceMapDevToolPlugin } });
-  return made;
+  const compiler = { options: { devtool, module: { rules } }, hooks: { afterPlugins: { tap: (_: string, run: () => void) => after.push(run) } }, webpack: { SourceMapDevToolPlugin } };
+  for (const plugin of (plugins ?? []) as Plugin[]) plugin.apply(compiler);
+  for (const run of after) run();
+  return { rules: rules as Rule[], maps };
+}
+
+/** The plugins Rspack holds once Rsbuild has applied every `tools.rspack` entry, in order. */
+function rspackPlugins(entries: unknown): unknown[] {
+  const config: { plugins?: unknown[] } = {};
+  for (const entry of entries as unknown[]) if (typeof entry === 'function') entry(config);
+  return config.plugins ?? [];
 }
 
 /** A pattern no asset name matches, so the plugin writes no map. */
@@ -63,12 +63,12 @@ const SWC = { test: /\.tsx$/, use: [{ loader: 'builtin:swc-loader' }] };
 const THEIR_POST = { test: /\.tsx$/, enforce: 'post', use: [{ loader: 'their-post-loader' }] };
 
 describe('rsbuildFinal', () => {
-  it('lists the probes first of every rule, so they run after every post loader', async () => {
+  it('adds a plugin that lists the probes first of every rule the build ends with, so they run after every post loader', async () => {
     const theirs = { module: { rules: [THEIR_POST] } };
     const config = (await rsbuildFinal({ tools: { rspack: theirs } }, TEST)) as { tools: { rspack: unknown[] } };
 
     expect(config.tools.rspack[0]).toBe(theirs);
-    const rules = rulesOf(config.tools.rspack, [SWC]);
+    const { rules } = compiled(rspackPlugins(config.tools.rspack), 'source-map', [SWC, THEIR_POST]);
     expect(rules).toHaveLength(3);
     expect(rules[0]?.enforce).toBe('post');
     expect(rules[0]?.use[0]?.loader).toMatch(PROBES);
@@ -77,7 +77,7 @@ describe('rsbuildFinal', () => {
 
   it('lists the probes last under `before-transforms`, so they run ahead of every pre loader', async () => {
     const config = (await rsbuildFinal({}, { ...TEST, placement: 'before-transforms' })) as { tools: { rspack: unknown[] } };
-    const rules = rulesOf(config.tools.rspack, [SWC]);
+    const { rules } = compiled(rspackPlugins(config.tools.rspack), false, [SWC]);
     expect(rules[0]).toBe(SWC);
     expect(rules[1]?.enforce).toBe('pre');
   });
@@ -87,77 +87,74 @@ describe('rsbuildFinal', () => {
     const listed = (await rsbuildFinal({ tools: { rspack: [theirs] } }, TEST)) as { tools: { rspack: unknown[] } };
     expect(listed.tools.rspack[0]).toBe(theirs);
     expect(listed.tools.rspack).toHaveLength(2);
-
-    const bare = (await rsbuildFinal({}, TEST)) as { tools: { rspack: unknown[] } };
-    expect(rulesOf(bare.tools.rspack)).toHaveLength(1);
   });
 
-  it.each(HAND_BUILT)('refuses a probes rule the config already holds, as $name, which the addon cannot order', async ({ rule }) => {
-    const theirs = { module: { rules: [rule()] } };
-    const config = (await rsbuildFinal({ tools: { rspack: theirs } }, TEST)) as { tools: { rspack: unknown[] } };
-    expect(() => rulesOf(config.tools.rspack)).toThrow(/remove your testSelectionRule\(\); the addon places it/);
+  it.each(HAND_BUILT)('refuses a probes rule the build ends with, as $name, since the addon adds its own', async ({ rule }) => {
+    const config = (await rsbuildFinal({}, TEST)) as { tools: { rspack: unknown[] } };
+    expect(() => compiled(rspackPlugins(config.tools.rspack), 'source-map', [rule()])).toThrow(/remove your testSelectionRule\(\); the addon places it/);
   });
 
   it('hands the probes the recipe the addon was given', async () => {
     const config = (await rsbuildFinal({}, { ...TEST, mode: 'entries' })) as { tools: { rspack: unknown[] } };
-    expect(rulesOf(config.tools.rspack)[0]?.use[0]?.options['mode']).toBe('entries');
+    expect(compiled(rspackPlugins(config.tools.rspack), 'source-map').rules[0]?.use[0]?.options['mode']).toBe('entries');
   });
 
   it('hands the loaders maps where the build writes none, as `storybook build --test` does, and writes no map', async () => {
     const config = await rsbuildFinal({ mode: 'production', output: { sourceMap: { js: false, css: false } } }, TEST);
     expect(config.output?.sourceMap).toEqual({ js: false, css: false });
-    const { plugins } = rspackOf((config as { tools: { rspack: unknown[] } }).tools.rspack);
+    const plugins = rspackPlugins((config as { tools: { rspack: unknown[] } }).tools.rspack);
 
-    const [made, ...more] = sourceMapPlugins(plugins, false);
+    const [made, ...more] = compiled(plugins, false).maps;
     expect(more).toEqual([]);
     expect(matchesNothing(made?.test)).toBe(true);
-    expect(sourceMapPlugins(plugins, 'cheap-source-map')).toHaveLength(1);
+    expect(compiled(plugins, 'cheap-source-map').maps).toHaveLength(1);
   });
 
   it('adds nothing where the loaders already read maps, and needs none under `before-transforms`', async () => {
     const config = (await rsbuildFinal({}, TEST)) as { tools: { rspack: unknown[] } };
-    const { plugins } = rspackOf(config.tools.rspack);
-    expect(sourceMapPlugins(plugins, 'source-map')).toEqual([]);
-    expect(sourceMapPlugins(plugins, 'cheap-module-source-map')).toEqual([]);
+    const plugins = rspackPlugins(config.tools.rspack);
+    expect(compiled(plugins, 'source-map').maps).toEqual([]);
+    expect(compiled(plugins, 'cheap-module-source-map').maps).toEqual([]);
 
     const before = (await rsbuildFinal({}, { ...TEST, placement: 'before-transforms' })) as { tools: { rspack: unknown[] } };
-    expect(sourceMapPlugins(rspackOf(before.tools.rspack).plugins, false)).toEqual([]);
+    expect(compiled(rspackPlugins(before.tools.rspack), false).maps).toEqual([]);
   });
 });
 
 describe('webpackFinal', () => {
-  it('lists the probes first of the rules webpack reads, so they run after every post loader', async () => {
-    const config = (await webpackFinal({ devtool: 'source-map', module: { rules: [SWC, THEIR_POST] } }, TEST)) as { module: { rules: Rule[] } };
+  it('adds a plugin that lists the probes first of the rules webpack reads, so they run after every post loader', async () => {
+    const config = await webpackFinal({ devtool: 'source-map', module: { rules: [SWC, THEIR_POST] } }, TEST);
+    const { rules } = compiled(config.plugins, 'source-map', [...config.module.rules]);
 
-    expect(config.module.rules[0]?.use[0]?.loader).toMatch(PROBES);
-    expect(config.module.rules.slice(1)).toEqual([SWC, THEIR_POST]);
+    expect(config.module.rules).toEqual([SWC, THEIR_POST]);
+    expect(rules[0]?.use[0]?.loader).toMatch(PROBES);
+    expect(rules.slice(1)).toEqual([SWC, THEIR_POST]);
   });
 
-  it.each(HAND_BUILT)('refuses a probes rule the config already holds, as $name, which the addon cannot order', async ({ rule }) => {
-    await expect(webpackFinal({ devtool: 'source-map', module: { rules: [rule()] } }, TEST)).rejects.toThrow(
-      /remove your testSelectionRule\(\); the addon places it/,
-    );
+  it.each(HAND_BUILT)('refuses a probes rule the build ends with, as $name, since the addon adds its own', async ({ rule }) => {
+    const config = await webpackFinal({ devtool: 'source-map' }, TEST);
+    expect(() => compiled(config.plugins, 'source-map', [rule()])).toThrow(/remove your testSelectionRule\(\); the addon places it/);
   });
 
   it('hands the loaders maps where the build writes none, and leaves `devtool` as it is', async () => {
     const config = (await webpackFinal({ devtool: false }, TEST)) as { devtool: unknown; plugins?: Plugin[] };
     expect(config.devtool).toBe(false);
 
-    const [made, ...more] = sourceMapPlugins(config.plugins, false);
+    const [made, ...more] = compiled(config.plugins, false).maps;
     expect(more).toEqual([]);
     expect(matchesNothing(made?.test)).toBe(true);
-    expect(sourceMapPlugins(config.plugins, 'cheap-source-map')).toHaveLength(1);
-    expect(sourceMapPlugins(config.plugins, 'cheap-module-source-map')).toEqual([]);
+    expect(compiled(config.plugins, 'cheap-source-map').maps).toHaveLength(1);
+    expect(compiled(config.plugins, 'cheap-module-source-map').maps).toEqual([]);
   });
 
-  it('keeps the plugins the config lists, and adds none under `before-transforms`', async () => {
+  it('keeps the plugins the config lists, and hands no maps under `before-transforms`', async () => {
     const theirs = { apply: () => undefined };
     const config = (await webpackFinal({ devtool: false, plugins: [theirs] }, TEST)) as { plugins: Plugin[] };
     expect(config.plugins[0]).toBe(theirs);
     expect(config.plugins).toHaveLength(2);
 
-    const before = { devtool: false, plugins: [theirs] };
-    expect((await webpackFinal(before, { ...TEST, placement: 'before-transforms' })).plugins).toBe(before.plugins);
+    const before = await webpackFinal({ devtool: false }, { ...TEST, placement: 'before-transforms' });
+    expect(compiled(before.plugins, false).maps).toEqual([]);
   });
 });
 
@@ -166,12 +163,17 @@ describe('viteFinal', () => {
     const theirs = { name: 'theirs' };
     const config = (await viteFinal({ plugins: [theirs] }, TEST)) as { plugins: { name: string }[] };
 
-    expect(config.plugins.map((plugin) => plugin.name)).toEqual(['theirs', 'variance-authority:test-selection-probes']);
+    expect(config.plugins.map((plugin) => plugin.name)).toEqual([
+      'theirs',
+      'variance-authority:test-selection-probes',
+      'variance-authority:storybook-addon',
+    ]);
   });
 
-  it('adds no second probes plugin where the config already holds one, as a hand-added one', async () => {
-    const config = { plugins: [[{ name: 'variance-authority:test-selection-probes' }]] };
-    expect(await viteFinal(config, TEST)).toBe(config);
+  it('adds no second probes plugin where the config already holds one, as `vite.config` adds it', async () => {
+    const held = [{ name: 'variance-authority:test-selection-probes' }];
+    const config = (await viteFinal({ plugins: [held] }, TEST)) as { plugins: unknown[] };
+    expect(config.plugins).toEqual([held, expect.objectContaining({ name: 'variance-authority:storybook-addon' })]);
   });
 });
 
@@ -180,7 +182,7 @@ describe('which builds the addon probes', () => {
     const vite = { plugins: [] };
     expect(await viteFinal(vite, TEST)).not.toBe(vite);
     expect(await viteFinal(vite, { configType: 'DEVELOPMENT' })).not.toBe(vite);
-    expect(((await webpackFinal({}, { configType: 'DEVELOPMENT' })) as { module: { rules: unknown[] } }).module.rules).toHaveLength(1);
+    expect(compiled((await webpackFinal({}, { configType: 'DEVELOPMENT' })).plugins, 'source-map').rules).toHaveLength(1);
   });
 
   it('adds nothing to a `storybook build` a team publishes', async () => {

@@ -5756,6 +5756,8 @@ __metadata:
     "@variance-authority/react": "workspace:^"
     "@variance-authority/sense": "workspace:^"
     "@variance-authority/storybook": "workspace:^"
+    storybook: "npm:^9.1.13"
+    vite: "npm:^6.0.0"
   languageName: unknown
   linkType: soft
 
