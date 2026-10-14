@@ -86,6 +86,12 @@ export {
   type InstrumentingPlugin,
   type TestSelectionProbeOptions,
 } from './probes.js';
+export {
+  testSelectionRule,
+  type ProbesLoaderOptions,
+  type TestSelectionRule,
+  type TestSelectionRuleOptions,
+} from './probes-rule.js';
 
 /** What a module reports itself as, for a driver that writes its own journal. */
 export type { ModuleId };

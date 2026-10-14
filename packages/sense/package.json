@@ -77,6 +77,10 @@
       "types": "./dist/test-selection/rstest.d.ts",
       "default": "./dist/test-selection/rstest.js"
     },
+    "./probes-loader": {
+      "types": "./dist/test-selection/probes-loader.d.ts",
+      "default": "./dist/test-selection/probes-loader.js"
+    },
     "./rstest-after-loader": {
       "types": "./dist/test-selection/rstest-after-loader.d.ts",
       "default": "./dist/test-selection/rstest-after-loader.js"
@@ -171,6 +175,7 @@
     "@opentelemetry/instrumentation-http": "^0.222.0",
     "@opentelemetry/instrumentation-undici": "^0.32.0",
     "@opentelemetry/sdk-trace-node": "^2.11.0",
+    "@rspack/core": "^2.2.6",
     "@rstest/core": "^0.12.0",
     "@sentry/node": "^11.0.0",
     "@swc/core": "^1.16.2",
