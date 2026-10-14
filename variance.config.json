@@ -18,6 +18,21 @@
         "packages/route-collector/src/page-agent-entry.ts",
         "packages/storybook-collector/src/page-agent-entry.ts"
       ]
+    },
+    "site": {
+      "kind": "e2e",
+      "relations": false,
+      "before": [
+        "site/app/globals.css",
+        "site/next.config.ts",
+        "site/package.json",
+        "site/postcss.config.mjs",
+        "site/public",
+        "site/variance",
+        "site/vite.config.ts",
+        "site/wrangler.jsonc",
+        "site/yarn.lock"
+      ]
     }
   },
   "share": {
