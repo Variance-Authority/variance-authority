@@ -80,6 +80,11 @@ function tribunalFor(env: TribunalEnv): Tribunal {
   return made;
 }
 
+/**
+ * The module a Worker deployment names as its `main`, or re-exports from its
+ * own: `export { default } from '@variance-authority/tribunal/worker-entry'`.
+ * One `fetch`, over the tribunal built from that request's environment.
+ */
 export default {
   async fetch(request: Request, env: TribunalEnv): Promise<Response> {
     try {

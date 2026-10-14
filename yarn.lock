@@ -4746,16 +4746,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/case-git-lfs@workspace:cases/git-lfs-case":
-  version: 0.0.0-use.local
-  resolution: "@variance-authority/case-git-lfs@workspace:cases/git-lfs-case"
-  dependencies:
-    "@variance-authority/cli": "workspace:^"
-    playwright: "npm:^1.49.0"
-    vitest: "npm:^2.1.8"
-  languageName: unknown
-  linkType: soft
-
 "@variance-authority/case-incumbent@workspace:cases/incumbent-case":
   version: 0.0.0-use.local
   resolution: "@variance-authority/case-incumbent@workspace:cases/incumbent-case"
@@ -4842,6 +4832,7 @@ __metadata:
     "@variance-authority/react": "workspace:^"
     "@variance-authority/storybook": "workspace:^"
     "@variance-authority/storybook-collector": "workspace:^"
+    "@variance-authority/tribunal": "workspace:^"
     esbuild: "npm:^0.25.0"
     playwright: "npm:^1.49.0"
     react: "npm:^19"

@@ -45,8 +45,13 @@ nightly, and the shards on demand only — sharding fourteen subjects across two
 installs saves nothing, and the shards find their pull-request comment by the
 same hidden HTML marker the gate uses, because the marker names the config's
 `project` and the two run one config, so on the same event the two would
-overwrite each other. The gate's two jobs run two configs, the case's Storybook
-and the review surface's, and keep a comment each.
+overwrite each other. The gate's first two jobs run two configs, the case's
+Storybook and the review surface's, and keep a comment each. Two more run the
+case's Storybook under the other two ways of keeping a baseline, each with its
+own config, label and comment: `lfs` commits the baselines to the pull
+request's branch through git-LFS, and `tribunal-service` deploys this commit's
+review service to workers.dev and pushes the build to it. That one needs the
+`CLOUDFLARE_API_TOKEN` secret and fails without it.
 
 `check.yml` runs one job per harness — the repository's rules, the timed
 measurements, and the vitest suite — and a `check` job that turns their results
@@ -97,7 +102,8 @@ nothing else.
 
 Accepting a change writes a new baseline, so where the baselines live decides
 who accepts and how. `variance.yml` chooses with one value at the top of the
-file, `VARIANCE_REVIEW`, and this repository runs `cache`.
+file, `VARIANCE_REVIEW`. This repository runs `cache` for both subjects, and
+the other two each in a job of its own over the case.
 [`docs/placement.md`](../../docs/placement.md#who-accepts-a-change) compares the
 three arrangements. This is what each one needs in your copy:
 

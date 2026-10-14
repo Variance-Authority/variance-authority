@@ -98,11 +98,12 @@ signature is the store's (`isLfsPointer`), not the codec's: the store knows whic
 backend can hand back a pointer, and doctor asks the same function the store
 refuses with.
 
-**git-LFS is exercised as git-LFS.** `cases/git-lfs-case` commits a baseline
-through a real clean filter, pushes it to a bare repository and clones it with
-git-lfs and on a machine without it, and `integration.yml` commits one back
-through the composite action and has the action refuse a clone without the
-objects with exit 2.
+**git-LFS is exercised as git-LFS.** The `lfs` job of `variance.yml` keeps the
+case's baselines in git-LFS on this repository's own pull requests: its label
+commits them back to the contributor's branch through the composite action and
+the real clean filter, and every run asserts that `doctor --baselines` exits 2
+on the checkout before git-lfs is installed, then fetches the objects and
+checks each against the digest its pointer names.
 
 **The render cache lands under the baseline root by default, and is therefore
 committed.** That is the correct behaviour rather than an oversight: it is what
