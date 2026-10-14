@@ -101,6 +101,15 @@ export interface SubjectSurface {
   readonly uninstrumented: string;
 }
 
+/**
+ * Open one run's recorder: `join` before each subject is read, `note` after,
+ * `close` once at the end.
+ *
+ * Nothing is written until `close`. A run in which no page reported what it
+ * executed and no head was named writes nothing and says
+ * `surface.uninstrumented` on stderr. A recording that fails is said on stderr
+ * too and never fails the run, whose baselines are the work that matters.
+ */
 export function createSubjectRecorder(
   surface: SubjectSurface,
   options: SubjectRecording = {},

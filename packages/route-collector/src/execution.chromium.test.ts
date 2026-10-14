@@ -27,6 +27,12 @@ const BROWSER_AVAILABLE = ((): boolean => {
   }
 })();
 
+if (!BROWSER_AVAILABLE) {
+  console.warn(
+    '\npackages/route-collector (execution): skipped, no browser — npx playwright install chromium\n',
+  );
+}
+
 // Awaits between its two decisions, so two pages overlap inside it rather than
 // merely following each other through it.
 const SOURCE = [

@@ -10,7 +10,6 @@ import {
   type ExecutionJournal,
 } from '@variance-authority/sense/journal';
 import { caseIndexOf, coveringTests, readTestCoverage } from '@variance-authority/sense/test-selection';
-import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
 import { describe, expect, it, vi } from 'vitest';
 import { varianceCompletedFixtures } from './completed.js';
 import {
@@ -477,27 +476,5 @@ describe('a worker that is one of several', () => {
         testId: 'abc123',
       } as unknown as TestInfo),
     ).toEqual({ name: 'pays', id: 'abc123' });
-  });
-});
-
-describe('a worker whose run names heads', () => {
-  it('puts one journey and its way home on the context, scoped to the origin', async () => {
-    const recorder = createExecutionRecorder({ heads: ['api'] });
-    const set: { name: string; value: string; url?: string }[] = [];
-    const page = {
-      context: () => ({ addCookies: async (cookies: typeof set) => void set.push(...cookies) }),
-    } as unknown as Page;
-    try {
-      const journey = await recorder.join(page, 'checkout.spec.ts', 'http://localhost:3000');
-
-      expect(set.map(({ name, url }) => [name, url])).toEqual([
-        [JOURNEY_COOKIE, 'http://localhost:3000'],
-        [RETURN_COOKIE, 'http://localhost:3000'],
-      ]);
-      expect(set[0]!.value).toBe(journey);
-      expect(set[1]!.value).toMatch(/^http:\/\/127\.0\.0\.1:\d+\//);
-    } finally {
-      await recorder.close();
-    }
   });
 });

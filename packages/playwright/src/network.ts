@@ -15,6 +15,7 @@ import {
   imageSize,
 } from './blank.js';
 import { freezeGif } from './gif.js';
+import { isSpeculative } from './speculative.js';
 
 /**
  * The wire as an observation, not just a transport.
@@ -487,17 +488,6 @@ function digestOf(body: Uint8Array, ceiling: number): string {
  * on object storage — and never an override, because a `.gif` served as `png` is
  * a PNG to every decoder that matters.
  */
-/**
- * A request the page sent on speculation: `Sec-Purpose` is the standard's name,
- * sent by `<link rel="prefetch">` and speculation rules; `Purpose` is the name
- * before it; `Next-Router-Prefetch` is the Next.js App Router's, which a router
- * reproducing it sends for every link it can see.
- */
-function isSpeculative(headers: Readonly<Record<string, string>>): boolean {
-  const purpose = headers['sec-purpose'] ?? headers['purpose'] ?? '';
-  return /(^|[\s,;])prefetch\b/.test(purpose) || headers['next-router-prefetch'] === '1';
-}
-
 function isGifResponse(headers: Readonly<Record<string, string>>, url: string): boolean {
   const type = headers['content-type'];
   if (type !== undefined && type.length > 0) return type.toLowerCase().includes('image/gif');
