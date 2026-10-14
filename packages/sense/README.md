@@ -1683,9 +1683,9 @@ Record each shard through the ordinary seams with `coverageFile` pointing at
 that job's artifact, and combine the artifacts in a job of their own. Each
 shard's record carries its cases, so the artifact is the one file, and the
 combined record carries the cases of every shard. `combineRecords` refuses, by
-name, shards that were not one run: different commits or probe recipes, a test
-file two shards both recorded, a shard that kept cases beside one that kept
-none, or a part it cannot read.
+name, shards that were not one run: different commits or probe recipes, shards
+that started from different records, a test file two shards both recorded, a
+shard that kept cases beside one that kept none, or a part it cannot read.
 
 `landedCoverage` lays the combined coverage over the record already at `file`,
 bytes in and bytes out, in the native addon: no snapshot is decoded, so the

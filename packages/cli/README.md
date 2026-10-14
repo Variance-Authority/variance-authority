@@ -1631,11 +1631,15 @@ recorded again with this version. A case whose lines stand on a file two
 shards cut into different regions is refused, because its lines name regions
 by their order; record every shard with one build. Two shards that hold
 different Eyes journals for one attempt of one case, or a journal of a case
-the combined index does not record, are refused by name. So are shards that
-started from different records — before layers at different commits, or one
-file standing on different text before each: the shards of one run start from
-one record. A shard that found no record to start from starts from nothing,
-and the files it ran are the ones that record cannot answer for.
+the combined index does not record, are refused by name. Shards that started
+from different records fail the build: each record names the record its run
+was laid over, or none, and shards that name two, that stand on before layers
+at different commits, or that stand on one file at different text, each split
+the suite against another plan, so a test may have run in no shard. The
+message names the shards and their records; run the whole build again, so
+that every shard restores the same cached record. A shard that names no
+record at all, as one an earlier version wrote, is recorded again with this
+version.
 
 Where it lands is this checkout's own cache, the file every run on this
 machine layers over — the record of the suite `--suite` names, when the root
