@@ -16,6 +16,7 @@ import { formState } from './form-state.js';
 import { splitPseudoElement } from './selector-parts.js';
 import { facesUsedBy, type IndexedFace } from './font-faces.js';
 import { objectUrls, type ObjectUrls } from './object-urls.js';
+import { inLayers } from './layers.js';
 
 /**
  * Acquisition — phase one: a live DOM becomes something you can send somewhere.
@@ -331,14 +332,17 @@ function applicableCss(
   }
 
   const rules = [...byOrder.values()].sort((a, b) => a.order - b.order);
-  const text = rules.map(
-    (rule) =>
-      `${rule.selector} {${rule.declarations
+  const text = rules.map((rule) => {
+    const layer = index.layerOf.get(rule.order);
+    return {
+      text: `${rule.selector} {${rule.declarations
         .map((d) => `${d.property}:${d.value}${d.important ? ' !important' : ''}`)
         .join(';')}}`,
-  );
+      ...(layer !== undefined ? { layer } : {}),
+    };
+  });
 
-  return { css: text.length > 0 ? [text.join('\n')] : [], bindings };
+  return { css: text.length > 0 ? [inLayers(text, index.layers)] : [], bindings };
 }
 
 /**

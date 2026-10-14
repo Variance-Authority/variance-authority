@@ -62,6 +62,16 @@ export function assemble(document: RenderDocument, options: AssembleOptions = {}
  * reaching the subject only by inheritance — inheritance loses to every
  * declaration on the element itself, so this cannot override the subject no
  * matter what its specificity looks like.
+ *
+ * The root itself is not the subject, and the document carries the rules that
+ * styled it, so the floor must lose to those too. It holds computed values:
+ * Tailwind's `html { line-height: 1.5 }` computes to `24px`, and a floor that
+ * won on the root overrode the number with it, so every line below the root
+ * that set only a font size was laid out 24px tall. Specificity cannot place it
+ * under a rule in a cascade layer — an unlayered declaration beats every
+ * layered one, and Tailwind's preflight is layered — so the floor sits in an
+ * anonymous layer of its own, written first, which makes it the lowest layer
+ * there is.
  */
 function sheet(document: RenderDocument, options: AssembleOptions): string {
   const inherited = Object.entries(document.inherited)
@@ -77,7 +87,7 @@ function sheet(document: RenderDocument, options: AssembleOptions): string {
     ...(document.frame.containerWidth !== undefined
       ? [`body{width:${document.frame.containerWidth}px}`]
       : []),
-    ...(inherited !== '' ? [`:root{${inherited}}`] : []),
+    ...(inherited !== '' ? [`@layer{:root{${inherited}}}`] : []),
     ...document.css,
     ...(options.extraCss !== undefined ? [options.extraCss] : []),
   ].join('\n');

@@ -29,21 +29,25 @@ function documentOf(overrides: Partial<RenderDocument> = {}): RenderDocument {
 }
 
 describe('assembling a page from a document', () => {
-  it('puts the inherited floor where inheritance can only lose to the subject', () => {
+  it('puts the inherited floor where it loses to the subject and to every rule on the root', () => {
     const page = assemble(
       documentOf({
         inherited: { 'font-size': '13px', '--brand': '#f00' },
-        css: ['[data-va-path="0"]{font-size:20px}'],
+        css: ['html{line-height:1.5}', '[data-va-path="0"]{font-size:20px}'],
       }),
     );
 
-    const root = page.indexOf(':root{');
+    const root = page.indexOf('@layer{:root{');
     const rules = page.indexOf('[data-va-path="0"]{font-size:20px}');
     expect(root).toBeGreaterThan(-1);
     // Order is the content of this assertion. The floor reaches the subject only
     // by inheritance, and inheritance loses to any declaration on the element —
     // so the subject's own 20px wins whatever the floor says.
     expect(root).toBeLessThan(rules);
+    // And in a layer of its own, ahead of the document's rules, so it is the
+    // lowest layer: the floor holds computed values, and `html{line-height:1.5}`
+    // must keep its number rather than lose to the floor's `24px`, layered or not.
+    expect(root).toBeLessThan(page.indexOf('html{line-height:1.5}'));
     expect(page).toContain('--brand:#f00');
   });
 
