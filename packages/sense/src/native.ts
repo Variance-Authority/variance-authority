@@ -31,6 +31,7 @@ import type {
   NativeJourneyStitchResult,
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
+import type { NativeDistill } from './native-distill.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
 import type { NativeRecords } from './native-record.js';
 import { witnessesOf } from './witness.js';
@@ -121,7 +122,7 @@ export interface NativeScanBatch extends NativeReadBatch {
   readonly targets: string[];
 }
 
-export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords {
+export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill {
   /**
    * `instrument()`'s walk and splice, or `null` for a source that does not
    * parse. With a `module`, the header reporting under it is in the text.

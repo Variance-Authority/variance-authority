@@ -755,6 +755,9 @@ test. This happens in two ways:
 - [**A result a cache returned.**](#a-result-a-cache-returned) Memoization
   changes which code runs, so the record sees nothing in a case the cache
   answered, and a change to the function selects only the case that ran it.
+- [**A file no code names.**](#a-file-no-code-names) A page that shows a
+  document read at build time runs the renderer, not the document, so the
+  record lists nothing a change to the document could select.
 
 [The first run](#the-first-run) is the opposite case. Nothing is recorded, so
 nothing is skipped.
@@ -836,6 +839,74 @@ would change the code you are testing. A case that got a cached result depends
 on the case that ran before it: run it alone and it runs the function. That is
 order dependence, and [test order and shared state](flakiness.md#test-order-and-shared-state)
 is where you find and fix it.
+
+### A file no code names
+
+A page renders a Markdown file the build read. The code that ran is the
+renderer, not the file: no region of the file runs. So the record lists the
+renderer for the pages that ran it, and the file for none of them. A change to
+one document selects no page through the record; in a suite with
+`"relations": false` it selects nothing, and the `notes` of `variance select`
+name the document as a changed file the record did not measure.
+
+[`@variance-authority/route-collector`](../packages/route-collector/README.md)
+records both halves of a page when its `tests` option names a suite declared
+under `suites` in `variance.config.json`:
+
+```js
+routeCollector({ sitemap, tests: { suite: 'site' } });
+```
+
+The code half comes from probes: one Vite plugin in the client and server
+builds, and one wrapper around the server's request handler. The code a page
+ran is recorded only when it runs for the visit being photographed, so a
+prerendered page, or a page a cache returned, records no renderer, and a change
+to the renderer selects none of those pages. Photograph a build with the probes
+in, prerendering off and every page cache off, and keep your usual build for
+production; the run takes its baselines from the build it photographs. The
+[route collector's reference](../packages/route-collector/README.md#photographing-only-the-pages-an-edit-reached)
+lists that build step by step.
+
+The file half comes from the element that shows a file, which can name it.
+Install [`@variance-authority/reads`](../packages/reads/README.md) as a
+dependency, and spread the props it returns on every element that shows a
+file's text, with the file's path from the repository root:
+
+```tsx
+import { reads } from '@variance-authority/reads';
+
+// The page for one document.
+<article {...reads(page.sourcePath)}>{page.body}</article>
+
+// An index entry that shows a document's first lines.
+<li {...reads(entry.sourcePath)}>{entry.excerpt}</li>
+```
+
+The first renders `data-variance-reads="docs/tests.md"` on the page for
+`docs/tests.md`. `reads()` takes several paths when one element shows several
+files. The attribute is in the HTML whether the page was prerendered or not.
+
+A [`/// <depends>`](#where-sourcedirs-starts-the-answer) directive charges a
+file to every test that loads the module it sits in, so in a renderer every
+document shares it would select every page for any one document. The attribute
+selects the pages that showed the file.
+
+Each page is recorded with the code it ran and every file an element on it
+named, with the digest of each file's text. A later `variance run --since`
+compares those digests, and a page whose named file changed is photographed. On
+a site of 142 pages, an uncommitted edit to one paragraph of `docs/tests.md`
+and `variance run --since HEAD --suite site` print:
+
+```
+`--since HEAD` ruled out 139 subjects: 0 by what the diff declares and reaches, 139 by what the last run recorded as covered.
+```
+
+The second count is the record's: 139 pages ran no changed code and showed no
+changed file. The three pages left are the page for `docs/tests.md` and the two
+index pages that show its first lines. The attribute names a whole file, so a
+change to the last paragraph of a document also selects an index page that
+shows only the beginning. An edit to the shared index component on the same
+site selects the four pages that render it.
 
 ### The first run
 

@@ -61,6 +61,8 @@ export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from
 export { unmeasuredOf, type Unmeasured } from './route.js';
 export { importReferences, type FileReferences } from './references.js';
 export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
+export { rankDistillCauses, readDistillRecords, type DistillRecords, type NativeDistillCause } from './distill-native.js';
+export { type NativeDistillFile, type NativeDistillRegion, type NativeDistillScope } from './distill-native.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
 export { formatCoveringChange, type CoveringCaseNote, type CoveringChangeHeading } from './covering-change-text.js';
 export {
@@ -374,6 +376,9 @@ export async function readTestCoverage(file: string): Promise<TestCoverage> {
 
 /** {@link readTestCoverage} for bytes already in hand, so a caller reading one record reads it once. */
 export { decodeTestCoverage };
+
+/** A run's coverage as the bytes of a record laid over nothing: the counterpart to {@link decodeTestCoverage}. */
+export { encodeTestCoverage };
 
 /**
  * Write one snapshot where readers will find it, whole or not at all.

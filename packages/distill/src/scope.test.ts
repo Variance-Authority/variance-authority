@@ -1,6 +1,7 @@
 import type { ExecutionIndex, TestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import { distillScope, formatScopeDistillation, scopeRows, type ScopeRecord } from './index.js';
+import { graphOf, recordOf } from './record.fixture.js';
 
 type Block = TestCoverage['modules'][number]['blocks'][number];
 
@@ -44,7 +45,7 @@ function record(
       }],
     })),
   };
-  return { ...(options.suite === undefined ? {} : { suite: options.suite }), coverage, execution };
+  return { ...(options.suite === undefined ? {} : { suite: options.suite }), record: recordOf(coverage, execution) };
 }
 
 const A = 'packages/app/test/a.test.ts';
@@ -71,12 +72,12 @@ const EDGES: Readonly<Record<string, readonly string[]>> = {
   'packages/lib/src/c.ts': ['packages/ui/src/index.ts'],
   'packages/ui/src/index.ts': ['packages/ui/src/button.ts', 'packages/ui/src/chart.ts'],
 };
-const imports = (file: string) => EDGES[file] ?? [];
-const republishes = (file: string) => file === 'packages/ui/src/index.ts';
+const BARRELS = ['packages/ui/src/index.ts'];
+const relations = graphOf(EDGES, BARRELS);
 
 describe('distillScope', () => {
   it('ranks an import by the lines it loads for nothing in every test file it reaches', () => {
-    const result = distillScope({ records: [record(MODULES)], imports, republishes });
+    const result = distillScope({ records: [record(MODULES)], relations });
 
     expect(result.files).toBe(3);
     expect(result.read).toBe(3);
@@ -98,14 +99,14 @@ describe('distillScope', () => {
   });
 
   it('reads only the test files under the directory it is given', () => {
-    const result = distillScope({ within: 'packages/app/', records: [record(MODULES)], imports, republishes });
+    const result = distillScope({ within: 'packages/app/', records: [record(MODULES)], relations });
 
     expect(result.files).toBe(2);
     expect(result.spills.map(({ files, lines }) => [files, lines])).toEqual([[[A, B], 200], [[A], 40]]);
   });
 
   it('refuses a directory that holds no recorded test file', () => {
-    expect(() => distillScope({ within: 'packages/none', records: [record(MODULES)], imports, republishes }))
+    expect(() => distillScope({ within: 'packages/none', records: [record(MODULES)], relations }))
       .toThrow('The record holds no test file under `packages/none`.');
   });
 
@@ -120,23 +121,28 @@ describe('distillScope', () => {
         record({ ...ui([A, B]), 'packages/app/src/a.ts': MODULES['packages/app/src/a.ts'], 'packages/app/src/b.ts': MODULES['packages/app/src/b.ts'] }, { suite: 'unit' }),
         record({ ...ui([C]), 'packages/lib/src/c.ts': MODULES['packages/lib/src/c.ts'] }, { suite: 'e2e' }),
       ],
-      imports,
-      republishes,
+      relations,
     });
 
     expect(result.suites).toEqual(['unit', 'e2e']);
     expect(result.spills[0]).toMatchObject({ files: [A, B, C], lines: 300 });
   });
 
+  it('answers the same whatever order the record lists its modules in', () => {
+    const reversed = Object.fromEntries(Object.entries(MODULES).reverse());
+
+    expect(distillScope({ records: [record(reversed)], relations })).toEqual(distillScope({ records: [record(MODULES)], relations }));
+  });
+
   it('withholds a test file whose reading is withheld, and says why', () => {
-    const result = distillScope({ records: [record(MODULES, { incomplete: [B] })], imports, republishes });
+    const result = distillScope({ records: [record(MODULES, { incomplete: [B] })], relations });
 
     expect(result.read).toBe(2);
     expect(result.withheld).toEqual([{ file: B, reason: expect.stringContaining('incomplete') }]);
     expect(result.spills[0]).toMatchObject({ files: [A, C], lines: 200 });
   });
 
-  it('names each module as its own spill when no imports are given', () => {
+  it('names each module as its own spill when no file graph is given', () => {
     const result = distillScope({ records: [record(MODULES)] });
 
     expect(result.spills).toEqual([
@@ -146,7 +152,7 @@ describe('distillScope', () => {
   });
 
   it('heads the text with the scope and puts the heaviest import first', () => {
-    const text = formatScopeDistillation(distillScope({ within: 'packages/app', records: [record(MODULES)], imports, republishes }));
+    const text = formatScopeDistillation(distillScope({ within: 'packages/app', records: [record(MODULES)], relations }));
 
     expect(text.split('\n').slice(0, 5)).toEqual([
       'packages/app: 2 test file(s), each read.',
@@ -162,8 +168,7 @@ describe('distillScope', () => {
     const text = formatScopeDistillation(distillScope({
       records: [record({ ...MODULES, ...lazy }, { incomplete: [B] })],
       unrecorded: ['e2e'],
-      imports,
-      republishes,
+      relations,
     }));
 
     expect(text.split('\n').slice(0, 10)).toEqual([
@@ -184,9 +189,7 @@ describe('distillScope', () => {
     const lazy = { 'packages/app/src/lazy.ts': { by: [A], lines: 7 } };
     const result = distillScope({
       records: [record({ ...MODULES, ...lazy })],
-      imports,
-      lazy: (file) => (file === 'packages/app/src/a.ts' ? ['packages/app/src/lazy.ts'] : []),
-      republishes,
+      relations: graphOf(EDGES, BARRELS, { 'packages/app/src/a.ts': ['packages/app/src/lazy.ts'] }),
     });
 
     expect(result.spills.find((spill) => spill.modules.includes('packages/app/src/lazy.ts'))).toEqual({
@@ -197,7 +200,7 @@ describe('distillScope', () => {
     });
   });
 
-  it('heads each spill with its module when no imports are given', () => {
+  it('heads each spill with its module when no file graph is given', () => {
     const text = formatScopeDistillation(distillScope({ records: [record(MODULES)] }));
 
     expect(text.split('\n')[3]).toBe('  packages/ui/src/chart.ts: 1 module(s) in 3 test file(s), 300 line(s)');

@@ -72,6 +72,12 @@ commit it was made at, which is the whole of its position; nothing walks lineage
 or scores a distance, and a recording that cannot say where it stands has
 nothing to diff against, so its holder runs everything.
 
+A file a **subject** showed and no code names — a document read at build time,
+a string bundled as text — has no region to cross. The element that shows it
+names it in `data-variance-reads`, and the driver records each named file as a
+precondition of that **subject** alone, at file grain: the attribute is
+production markup with no runtime, read only inside the photographed roots.
+
 ## Implementation coordinates
 
 - `packages/sense/src/test-selection/index.ts` — the logical model of the record
@@ -94,6 +100,8 @@ nothing to diff against, so its holder runs everything.
   runner-independent point query
 - `packages/sense/src/test-selection/format.ts` — interned paths and a
   compressed-sparse-row region-to-test relation
+- `packages/reads/src/index.ts` — `reads`, the props an element spreads to
+  name the files it showed
 - `packages/sense/src/test-selection/case-lines.ts` — per case, the test line
   that first reached each region it crossed, stored as runs over the regions
 

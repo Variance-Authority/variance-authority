@@ -4,6 +4,7 @@ import { normalize as normalizeCapture } from '@variance-authority/core/rules';
 import { acquireFromAgent, unresizable, unwidened } from '@variance-authority/playwright';
 import { suspenseRefusal } from '@variance-authority/react';
 import type { Collected, CollectorConfig, PlannedSubject } from './contract.js';
+import type { RouteRecorder } from './execution.js';
 import type { RouteCollectorOptions } from './options.js';
 import type { AcquireRequest, Acquired } from './page-agent.js';
 import type { RouteWorld } from './world.js';
@@ -48,6 +49,7 @@ export async function readRoute(
   world: RouteWorld,
   reading: RouteReading,
   planned: PlannedSubject,
+  recorder?: RouteRecorder,
 ): Promise<Collected> {
   const { config, options, routes, roots, portable, source } = reading;
   const { page, engine, region, network } = world;
@@ -93,7 +95,15 @@ export async function readRoute(
   const fixed = unresizable(wanted, config.viewport);
   if (fixed !== undefined) return { ok: false, because: fixed };
 
+  // Every exit after this point closes the subject's window. A page refused
+  // half-way still ran code, in the browser and on the server, and whatever the
+  // browser holds would be drained into the next page otherwise.
+  const noted = async (complete: boolean): Promise<void> => recorder?.note(page, id, complete, roots);
+
   try {
+    // Before the navigation: the request that serves this page is the one that
+    // has to carry its journey.
+    const journeyed = (await recorder?.join(page, id, url)) ?? false;
     const current = page.viewportSize();
     const resized = current?.width !== wanted.width || current?.height !== wanted.height;
 
@@ -105,7 +115,7 @@ export async function readRoute(
     // resizing a wider one is therefore not the page a visitor at that width
     // gets, and the difference is invisible in the result — which is the
     // direction this project never accepts.
-    if (page.url() !== url || resized) {
+    if (page.url() !== url || resized || journeyed) {
       // Cleared before the navigation, not after: a route run visits one page
       // per subject, so what this page fetches *is* this subject's asset set.
       // Reusing one page across subjects would make it the union, which
@@ -128,6 +138,7 @@ export async function readRoute(
       });
     }
   } catch (error) {
+    await noted(false);
     return {
       ok: false,
       because:
@@ -201,6 +212,7 @@ export async function readRoute(
   // and take the run with it, and defaulting it to "settled" would silently
   // restore the behaviour this exists to end.
   if (acquired.suspense === undefined) {
+    await noted(false);
     return {
       ok: false,
       because:
@@ -215,7 +227,10 @@ export async function readRoute(
     subjectId: planned.subject.id,
     declaredLoading,
   });
-  if (unsettled !== undefined) return { ok: false, because: unsettled };
+  if (unsettled !== undefined) {
+    await noted(false);
+    return { ok: false, because: unsettled };
+  }
 
   // No frames are spent here, and that is deliberate: a route that settles on
   // its document digest has nobody to hand a location to. They ride the snapshot
@@ -227,6 +242,7 @@ export async function readRoute(
   // machine.
   const closure = portable ? network?.closure() : undefined;
   if (closure !== undefined && !closure.ok) {
+    await noted(false);
     return {
       ok: false,
       because:
@@ -234,6 +250,8 @@ export async function readRoute(
         closure.unresolved.join('; '),
     };
   }
+
+  await noted(true);
 
   return {
     ok: true,

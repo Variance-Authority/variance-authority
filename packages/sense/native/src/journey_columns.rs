@@ -87,6 +87,11 @@ enum Plain {
 }
 
 impl Decoded {
+    /// Whether no column was decoded: the bytes held none of those asked for.
+    pub fn is_empty(&self) -> bool {
+        self.columns.is_empty()
+    }
+
     pub fn has(&self, name: &str) -> bool {
         self.columns.contains_key(name)
     }
@@ -110,6 +115,14 @@ impl Decoded {
 
     pub fn bytes(&self, name: &str) -> Result<Vec<u8>, String> {
         self.held(name).map(<[u8]>::to_vec)
+    }
+
+    /// A column of bytes or of words, widened to words.
+    pub fn values(&self, name: &str) -> Result<Vec<u32>, String> {
+        match self.columns.get(name) {
+            Some(Plain::Bytes(1, bytes)) => Ok(bytes.iter().map(|byte| u32::from(*byte)).collect()),
+            _ => self.words(name),
+        }
     }
 
     pub fn words(&self, name: &str) -> Result<Vec<u32>, String> {
@@ -194,14 +207,31 @@ pub(crate) fn place(bytes: &[u8], version: u8) -> Result<Vec<Placed>, String> {
 /// coverage record that carries one, and `bytes` themselves otherwise, which
 /// the journey reader then opens or refuses on its own terms.
 pub(crate) fn recorded_cases(bytes: Vec<u8>) -> Vec<u8> {
-    let index = LAYOUT.coverage.part("index");
-    let cases = framed(&bytes).ok().and_then(|(_, placed)| {
-        placed.into_iter().find(|column| column.name == index && column.rows.is_none())
-    });
-    match cases {
-        Some(column) => bytes[column.stored].to_vec(),
+    match cases_section(&bytes) {
+        Some(stored) => bytes[stored].to_vec(),
         None => bytes,
     }
+}
+
+/// [`recorded_cases`] for a caller that holds the bytes elsewhere: the part of
+/// `bytes` that is the case index, borrowed.
+pub(crate) fn recorded_cases_in(bytes: &[u8]) -> &[u8] {
+    match cases_section(bytes) {
+        Some(stored) => &bytes[stored],
+        None => bytes,
+    }
+}
+
+fn cases_section(bytes: &[u8]) -> Option<std::ops::Range<usize>> {
+    let index = LAYOUT.coverage.part("index");
+    framed(bytes).ok().and_then(|(_, placed)| {
+        placed.into_iter().find(|column| column.name == index && column.rows.is_none()).map(|column| column.stored)
+    })
+}
+
+/// The version a container's header names, or nothing when `bytes` are not one.
+pub(crate) fn version_of(bytes: &[u8]) -> Option<u8> {
+    framed(bytes).ok().map(|(version, _)| version)
 }
 
 pub fn decode(bytes: &[u8], version: u8) -> Result<Decoded, String> {
@@ -212,6 +242,15 @@ pub fn decode(bytes: &[u8], version: u8) -> Result<Decoded, String> {
 /// that version: the caller decides which it reads.
 pub fn decode_any(bytes: &[u8]) -> Result<(u8, Decoded), String> {
     let (version, placed) = framed(bytes)?;
+    Ok((version, decode::decode_placed(bytes, placed)?))
+}
+
+/// The columns named in `wanted` of a container in whatever version its header
+/// names, decoded, and that version: a reader that asks a few columns of a large
+/// record decompresses those, and judges the version itself.
+pub(crate) fn decode_wanted(bytes: &[u8], wanted: &[&str]) -> Result<(u8, Decoded), String> {
+    let (version, placed) = framed(bytes)?;
+    let placed = placed.into_iter().filter(|column| wanted.contains(&column.name.as_str())).collect();
     Ok((version, decode::decode_placed(bytes, placed)?))
 }
 

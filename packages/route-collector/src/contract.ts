@@ -171,5 +171,9 @@ export interface Collector {
    */
   openWorker?(): Promise<Collector>;
 
-  close(): Promise<void>;
+  /**
+   * `costs` is what the run timed for each page, first collection to decision,
+   * by subject id; the execution record carries it as each page's duration.
+   */
+  close(costs?: ReadonlyMap<string, number>): Promise<void>;
 }

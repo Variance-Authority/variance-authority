@@ -5,6 +5,9 @@
       "path": "./packages/wire"
     },
     {
+      "path": "./packages/reads"
+    },
+    {
       "path": "./packages/core"
     },
     {

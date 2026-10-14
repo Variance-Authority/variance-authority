@@ -96,7 +96,8 @@ durations). What changes is the record a run writes, below.
   paths.
 - `layerTestCoverage` is removed from the same entry point. Use
   `layeredCoverage(file, coverage, root)`, which reads the record at `file`
-  and returns the laid bytes.
+  and returns the laid bytes; for a record laid over nothing,
+  `encodeTestCoverage(coverage)`, the counterpart to `decodeTestCoverage`.
 - `mergeCoverage` is removed from `@variance-authority/sense/test-selection`,
   `/vitest`, `/jest` and `/rstest`, with no alias. Combine shards with
   `combineRecords` and lay the result with `landedCoverage(previous,

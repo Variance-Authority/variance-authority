@@ -201,6 +201,15 @@ function jsonStart(bytes: Uint8Array): number {
 }
 
 /**
+ * Whether `bytes`, or the case index a record of them carries, are in the row
+ * spelling this file writes, read off the header alone.
+ */
+export function isRowSpelledExecutionIndex(bytes: Uint8Array): boolean {
+  const version = framedHeader(recordedCases(bytes))?.version;
+  return version === EXECUTION_FORMAT || version === UNTIMED_ROWS || version === UNFLAGGED_ROWS;
+}
+
+/**
  * The cases a column-encoded index names, in either spelling, with how each
  * settled and what its runner reported it took — without decoding a region.
  */

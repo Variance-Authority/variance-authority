@@ -71,6 +71,10 @@ const PACKAGES: {
         role: "pages an application already serves, opened and collected. Install it beside the CLI, which runs it",
       },
       {
+        name: "reads",
+        role: "the files an element showed, named on the element, so an edit to one Markdown file photographs the pages that show it. A dependency of the application, with no dependencies of its own",
+      },
+      {
         name: "sense",
         role: "which source regions each test entered, and which tests a change reaches. Install this one to run fewer Vitest or Jest tests after a change",
       },

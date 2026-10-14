@@ -50,8 +50,12 @@ export const NEXT_STEP = ['@variance-authority/core', '@variance-authority/cli']
  * alongside a surface without being reached *through* one, and a README that
  * shows both halves is showing two sides of a boundary rather than two boxes an
  * adopter has to know to run a test.
+ *
+ * `reads` is the same boundary for the files a page showed: the application's
+ * own template spreads it on the element that shows a document, in the build it
+ * ships.
  */
-export const PRODUCT_SIDE = ['@variance-authority/event'];
+export const PRODUCT_SIDE = ['@variance-authority/event', '@variance-authority/reads'];
 
 export interface Workspace {
   readonly name: string;

@@ -58,7 +58,8 @@ export async function selectJourneyFile(
   };
 }
 
-function flatten(relations: Relations): NativeJourneyGraph {
+/** The file graph as the addon's walks read it. */
+export function flatten(relations: Relations): NativeJourneyGraph {
   return {
     names: relations.names,
     kinds: relations.kinds,

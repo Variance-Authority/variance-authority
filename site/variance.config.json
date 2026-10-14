@@ -7,5 +7,6 @@
   "subjects": { "kind": "collector", "collector": "variance/routes.mjs" },
   "baselines": { "kind": "directory", "root": ".variance/baselines", "carry": "actions-cache" },
   "report": { "path": ".variance/run.json" },
-  "images": ".variance/images"
+  "images": ".variance/images",
+  "source": { "dirs": ["site/app"] }
 }

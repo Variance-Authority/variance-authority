@@ -59,7 +59,7 @@ async function fixture() {
 describe('`journeys combine`', () => {
   it('combines coverage and cases without project configuration, a checkout or a comparison', async () => {
     const { root, shards, into } = await fixture();
-    const before = (await Promise.all(shards.map((execution) => distillRows({ root, execution })))).flatMap((read) => read.rows);
+    const before = (await Promise.all(shards.map((execution) => distillRows({ root, execution })))).flatMap((read) => [...read.rows]);
     let out = '';
     let err = '';
     const code = await main(['journeys', 'combine', ...shards, '--into', into], {
@@ -72,7 +72,7 @@ describe('`journeys combine`', () => {
     expect(recordedJourneys).not.toHaveBeenCalled();
     expect((await readTestCoverage(into)).modules[0]!.blocks[0]!.loadedBy).toEqual(['a.test.ts', 'b.test.ts']);
     expect((await readExecutionIndex(into)).tests.map((test) => test.id)).toEqual(['a.test.ts > greets', 'b.test.ts > greets']);
-    expect((await distillRows({ root, execution: into })).rows).toEqual(before);
+    expect([...(await distillRows({ root, execution: into })).rows]).toEqual(before);
   });
 
   it('runs past a live process still making what `variance index` left to it, since it reads none of it', async () => {

@@ -1,3 +1,4 @@
+import type { RouteExecutionOptions } from './execution.js';
 import type { SourceScan } from './source.js';
 
 /**
@@ -222,6 +223,28 @@ export interface RouteCollectorOptions {
    * are actually waiting: a subtree with no boundary returns on the first read.
    */
   readonly suspenseTimeoutMs?: number;
+
+  /**
+   * Record what each page executed and showed, into the shared test-selection
+   * index, so a later `--since` run photographs only the pages an edit reached.
+   *
+   * Off unless asked for. What it records comes from three places, and each
+   * asks something of the application rather than of this package:
+   *
+   * - the browser's code, when the client was built with
+   *   `testSelectionProbes()` from `@variance-authority/sense/journal`;
+   * - the server's code, from each head named in `heads`: a service started
+   *   with `VARIANCE_AUTHORITY_JOURNEYS=1` that runs `collectJourneys()` from
+   *   `@variance-authority/sense/journey`. Every page is read under a journey of
+   *   its own, carried to the server as a cookie;
+   * - the files a page showed, from the `data-variance-reads` attribute on its
+   *   root and inside it — repository paths, space-separated — which
+   *   `@variance-authority/reads` spreads.
+   *
+   * A page is its own owner in that index: its crossings and its files belong
+   * to it and to nothing else.
+   */
+  readonly tests?: boolean | RouteExecutionOptions;
 
   /**
    * Subjects whose *loading* state is the subject, as id globs.
