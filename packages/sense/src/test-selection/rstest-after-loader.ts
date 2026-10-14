@@ -20,15 +20,11 @@
  */
 
 import { readFileSync } from 'node:fs';
-import type { ComposedMap } from './captured-modules.js';
-import { captureAfter } from './captured-modules.js';
 import { cleanId } from './instrumented-modules.js';
+import { probeHanded, type HandedMap } from './loader-probes.js';
 import type { SelectionLoaderOptions } from './rstest-loader.js';
 import { runOf } from './selection-run.js';
 import { namesItsMap } from './source-lines.js';
-
-/** A map as a loader receives one: an object, its JSON, or none. */
-type HandedMap = (ComposedMap & Record<string, unknown>) | string | null | undefined;
 
 /** The subset of Rspack's loader surface this uses, so nothing here needs Rspack. */
 export interface AfterLoaderContext {
@@ -47,26 +43,19 @@ function probeAfter(this: AfterLoaderContext, code: string, handed?: HandedMap):
     this.callback(null, code, handed);
     return;
   }
-  const map = (typeof handed === 'string' ? JSON.parse(handed) : (handed ?? undefined)) as
-    | (ComposedMap & Record<string, unknown>)
-    | undefined;
-  let captured;
+  let probed;
   try {
-    captured = captureAfter(run.root, file, code, run.include, run.mode, map && (() => map), {
-      unprobed: run.unprobed,
-      carry: true,
-      remedy: REMEDY,
-    });
+    probed = probeHanded(file, code, handed, { root: run.root, include: run.include, unprobed: run.unprobed, mode: run.mode, remedy: REMEDY });
   } catch (error) {
     this.callback(error as Error);
     return;
   }
-  if (captured === undefined) {
+  if (probed === undefined) {
     this.callback(null, code, handed);
     return;
   }
-  run.modules.set(captured.module.id, captured.module);
-  this.callback(null, captured.code, map && (captured.carried === undefined ? map : { ...map, mappings: captured.carried }));
+  run.modules.set(probed.captured.module.id, probed.captured.module);
+  this.callback(null, probed.captured.code, probed.map);
 }
 
 /**
