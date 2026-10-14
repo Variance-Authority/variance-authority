@@ -550,6 +550,13 @@ jobs:
           # This project's label, not the case's.
           to-accept: 'check the report, then add the **${{ matrix.label }}** label to this pull request.'
 
+      # A server that exits mid-read leaves only `ERR_CONNECTION_REFUSED` in
+      # the read's log; why it exited is in its own.
+      - name: print the site server's log
+        if: failure() && matrix.project == 'site' && steps.variance.outcome == 'failure'
+        shell: bash
+        run: cat "$RUNNER_TEMP/site.log"
+
       - if: always()
         uses: actions/upload-artifact@v4
         with:
