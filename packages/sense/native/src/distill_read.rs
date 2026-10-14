@@ -11,6 +11,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::distill_regions::{read_row_cases, DistillRegion, KeptIndex, ReadCases};
 use crate::journey_columns;
 use crate::journey_read::Journey;
 use crate::journey_stitch::{decode_set, strings};
@@ -24,8 +25,7 @@ const FUNCTION: u32 = 1;
 /// `NO_LINE` in `written-lines.ts`: a region that kept no lines.
 const NO_LINE: u32 = 0;
 /// `tests.stopped` for a case that finished.
-const FINISHED: u8 = 1;
-
+pub(crate) const FINISHED: u8 = 1;
 const COLUMNS: [&str; 14] = [
     "strings.blob",
     "strings.off",
@@ -108,7 +108,10 @@ pub(crate) struct Record {
     loads: HashMap<u32, Vec<u32>>,
     cases: HashMap<u32, Cases>,
     /// Per module file, `(test file, cases of it that entered the module)`, by test file.
-    entered: HashMap<u32, Vec<(u32, u32)>>,
+    entered: Entered,
+    /// Each case's test file, by its place in the case index.
+    file_of: Vec<u32>,
+    index: KeptIndex,
 }
 
 impl Record {
@@ -204,8 +207,8 @@ impl Record {
             rows.push(row);
         }
 
-        let (cases, entered) = read_cases(bytes, paths)?;
-        Ok(Record { tests, incomplete, rows, loaders, last, loads, cases, entered })
+        let (cases, entered, file_of, index) = read_cases(bytes, paths)?;
+        Ok(Record { tests, incomplete, rows, loaders, last, loads, cases, entered, file_of, index })
     }
 
     /// Whether the coverage rows name `file` as a test file.
@@ -251,16 +254,26 @@ impl Record {
         let Some(found) = self.entered.get(&module) else { return 0 };
         found.binary_search_by_key(&test, |(file, _)| *file).map_or(0, |at| found[at].1)
     }
+
+    /// The regions the case index keeps for `importer`, read against the cases of `file`.
+    pub fn regions(&self, importer: &str, file: u32) -> Result<Vec<DistillRegion>, String> {
+        self.index.regions(importer, file, &self.file_of)
+    }
 }
 
-type Entered = HashMap<u32, Vec<(u32, u32)>>;
+pub(crate) type Entered = HashMap<u32, Vec<(u32, u32)>>;
 
 /// The case index's cases by test file, and per module how many cases of each
 /// test file crossed a region below its top level. A crossing made while the
 /// module loaded is not a call: the set spelling keeps it as the region's load
 /// flag, never in the called set.
-fn read_cases(bytes: &[u8], paths: &mut Paths) -> Result<(HashMap<u32, Cases>, Entered), String> {
-    let journey = Journey::of("the record's case index", bytes.to_vec())?;
+fn read_cases(bytes: &[u8], paths: &mut Paths) -> Result<ReadCases, String> {
+    let index = match read_row_cases(journey_columns::recorded_cases(bytes.to_vec()), paths)? {
+        Ok(read) => return Ok(read),
+        Err(index) => index,
+    };
+    let kept = KeptIndex::new(index.clone());
+    let journey = Journey::of("the record's case index", index)?;
     let mut file_of = Vec::with_capacity(journey.tests());
     let mut cases: HashMap<u32, Cases> = HashMap::new();
     for test in 0..journey.tests() {
@@ -283,17 +296,22 @@ fn read_cases(bytes: &[u8], paths: &mut Paths) -> Result<(HashMap<u32, Cases>, E
         }
         crossed.sort_unstable();
         crossed.dedup();
-        let mut counts: Vec<(u32, u32)> = crossed.iter().map(|test| (file_of[*test as usize], 1)).collect();
-        counts.sort_unstable_by_key(|(file, _)| *file);
-        counts.dedup_by(|next, held| {
-            let same = next.0 == held.0;
-            if same {
-                held.1 += 1;
-            }
-            same
-        });
+        let counts = crossed.iter().map(|test| (file_of[*test as usize], 1)).collect();
         // A later row for the same file is the one a lookup by file answers.
-        entered.insert(paths.intern(journey.module_file(module)?), counts);
+        entered.insert(paths.intern(journey.module_file(module)?), tally(counts));
     }
-    Ok((cases, entered))
+    Ok((cases, entered, file_of, kept))
+}
+
+/// `(test file, 1)` per case, as `(test file, cases)` by test file.
+pub(crate) fn tally(mut counts: Vec<(u32, u32)>) -> Vec<(u32, u32)> {
+    counts.sort_unstable_by_key(|(file, _)| *file);
+    counts.dedup_by(|next, held| {
+        let same = next.0 == held.0;
+        if same {
+            held.1 += 1;
+        }
+        same
+    });
+    counts
 }

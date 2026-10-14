@@ -1,8 +1,8 @@
 // compass: variance-authority/runtime/attention
 import {
   innermostAt,
-  type ExecutionIndex,
   type FileReferences,
+  type NativeDistillRegion,
 } from '@variance-authority/sense/test-selection';
 import { posix } from 'node:path';
 import type { ImportReach } from './own.js';
@@ -48,12 +48,11 @@ export interface ChargeInput {
   readonly references: (file: string) => FileReferences | undefined;
   /** How many test files load a file: its coverage row's loaders. */
   readonly loading: (file: string) => number;
-  readonly execution: ExecutionIndex;
-  /** The test file's cases, by their place in the case index. */
-  readonly mine: ReadonlySet<number>;
+  /** The regions the record keeps for a file, read against the test file's cases. */
+  readonly regions: (file: string) => readonly NativeDistillRegion[];
 }
 
-type Block = ExecutionIndex['modules'][number]['blocks'][number];
+type Block = NativeDistillRegion;
 
 /**
  * The charge of each import `importer` → `imported`, read once per import
@@ -62,12 +61,8 @@ type Block = ExecutionIndex['modules'][number]['blocks'][number];
  * reader resolved.
  */
 export function chargesOf(input: ChargeInput): (importer: string, imported: string) => ImportCharge | undefined {
-  const executed = new Map(input.execution.modules.map((module) => [module.file, module.blocks]));
   const read = new Map<string, FileReferences | undefined>();
   const charged = new Map<string, ImportCharge | undefined>();
-  const called = (block: Block) => block.crossings.filter((crossing) => crossing.loaded !== true);
-  const testFiles = (block: Block): ReadonlySet<string> =>
-    new Set(called(block).map(({ test }) => input.execution.tests[test]!.file));
 
   const referencesOf = (file: string) => {
     if (!read.has(file)) read.set(file, input.references(file));
@@ -86,7 +81,7 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
     }
     const load = references.find((reference) => reference.load);
 
-    const blocks = executed.get(importer) ?? [];
+    const blocks = input.regions(importer);
     const regions = new Map<Block, (typeof references)[number]>();
     let unmeasured: number | undefined;
     for (const reference of references) {
@@ -95,19 +90,17 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
       for (const block of at) if (!regions.has(block)) regions.set(block, reference);
     }
     const named = (block: Block) => ({ name: block.name || block.path, line: block.startLine });
-    const mine = (crossing: Block['crossings'][number]) => input.mine.has(crossing.test);
-    const ran = [...regions.keys()].filter((block) => called(block).some(mine));
+    const ran = [...regions.keys()].filter((block) => block.ran);
     if (load !== undefined) return { kind: 'load', line: load.line, name: load.name };
-    const atLoad = [...regions].find(([block]) => block.crossings.some((crossing) => crossing.loaded === true && mine(crossing)));
+    const atLoad = [...regions].find(([block]) => block.atLoad);
     if (atLoad !== undefined) return { kind: 'load', line: atLoad[1].line, name: atLoad[1].name };
     if (found.passed.includes(imported)) return { kind: 'handed' };
     if (ran.length > 0) return { kind: 'ran', functions: ran.map(named) };
     if (unmeasured !== undefined) return { kind: 'unmeasured', line: unmeasured };
-    const union = new Set<string>();
+    const union = new Set<number>();
     const functions = [...regions.keys()].map((block) => {
-      const files = testFiles(block);
-      for (const file of files) union.add(file);
-      return { ...named(block), ran: files.size };
+      for (const file of block.called) union.add(file);
+      return { ...named(block), ran: block.called.length };
     });
     return { kind: 'functions', functions, ran: union.size, loading: input.loading(importer) };
   };

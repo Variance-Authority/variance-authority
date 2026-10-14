@@ -307,10 +307,7 @@ function sortTests(tests: CoveringTest[]): readonly CoveringTest[] {
 }
 
 /** The smallest recorded regions over a 1-based line, each with source of its own; none for a line no region holds. */
-export function innermostAt(
-  blocks: readonly ExecutionBlock[],
-  line: number,
-): readonly ExecutionBlock[] {
+export function innermostAt<Block extends Lined>(blocks: readonly Block[], line: number): readonly Block[] {
   if (!Number.isInteger(line) || line < 1) return [];
   const matching = blocks.filter((block) =>
     block.source && block.startLine <= line && line <= block.endLine,
@@ -324,7 +321,9 @@ export function innermostAt(
   );
 }
 
-function contains(outer: ExecutionBlock, inner: ExecutionBlock): boolean {
+type Lined = Pick<ExecutionBlock, 'source' | 'startLine' | 'endLine'>;
+
+function contains(outer: Lined, inner: Lined): boolean {
   return outer.startLine <= inner.startLine && outer.endLine >= inner.endLine;
 }
 

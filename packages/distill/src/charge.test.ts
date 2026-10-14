@@ -59,8 +59,8 @@ function read(
   const imports = { [FILE]: [UTILS], [UTILS]: [PDF], ...edges };
   return distillFile({
     file: FILE,
-    record: recordOf(coverage, execution),
-    execution,
+    // A case that ran a region while its module loaded is said only in the row spelling.
+    record: recordOf(coverage, execution, setup.length === 0 ? 'sets' : 'rows'),
     relations: graphOf(imports),
     references: (file) => (file === UTILS ? references : file === FILE ? own : file === PDF ? pdf : undefined),
   });

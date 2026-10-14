@@ -181,7 +181,7 @@ fn place_any(bytes: &[u8]) -> Result<Vec<Placed>, String> {
 }
 
 /// The version a container's header names, or nothing when `bytes` are not one.
-fn version_of(bytes: &[u8]) -> Option<u8> {
+pub(crate) fn version_of(bytes: &[u8]) -> Option<u8> {
     if bytes.len() < 4 {
         return None;
     }

@@ -18,6 +18,7 @@ use rayon::prelude::*;
 
 use crate::distill_own::{causes_of, Cause, DistillGraph, FileGraph, Scratch};
 use crate::distill_read::{Paths, Record};
+use crate::distill_regions::DistillRegion;
 use crate::order::code_unit;
 
 /// A reading's withheld code: none, no cases, an incomplete coverage row, a case that did not settle.
@@ -75,6 +76,8 @@ pub struct DistillScope {
 pub struct DistillFile {
     /// Whether the record's coverage rows hold the file at all.
     pub held: bool,
+    /// The record that holds it, by its place among the records.
+    pub record: u32,
     pub names: Vec<String>,
     pub cases: u32,
     pub loaded: u32,
@@ -193,11 +196,12 @@ impl DistillRecords {
     pub fn file(&mut self, file: String, graph: Option<DistillGraph>) -> napi::Result<DistillFile> {
         let graph = graph.map(|graph| FileGraph::new(&graph, &mut self.paths)).transpose().map_err(napi::Error::from_reason)?;
         let id = self.paths.id(&file);
-        let found = id.and_then(|id| self.records.iter().find(|record| record.holds(id)).map(|record| (id, record)));
+        let found = id.and_then(|id| self.records.iter().position(|record| record.holds(id)).map(|at| (id, at)));
         let mut names = Names::default();
-        let Some((id, record)) = found else {
+        let Some((id, at)) = found else {
             return Ok(DistillFile::empty());
         };
+        let record = &self.records[at];
         let mut scratch = Scratch::new(self.paths.len());
         let reading = read(record, &self.paths, id, graph.as_ref(), &mut scratch);
         let column = |pick: &dyn Fn(&Module) -> u32| Uint32Array::new(reading.modules.iter().map(pick).collect());
@@ -222,6 +226,7 @@ impl DistillRecords {
         }
         Ok(DistillFile {
             held: true,
+            record: at as u32,
             cases: reading.cases,
             loaded: reading.loaded,
             lines: reading.lines as f64,
@@ -241,10 +246,23 @@ impl DistillRecords {
     }
 }
 
+#[napi]
+impl DistillRecords {
+    /// The regions the record holding `file` keeps for `importer`, read against
+    /// `file`'s cases; none when no record holds it or the index keeps no module for `importer`.
+    #[napi(catch_unwind)]
+    pub fn regions(&self, file: String, importer: String) -> napi::Result<Vec<DistillRegion>> {
+        let Some(id) = self.paths.id(&file) else { return Ok(Vec::new()) };
+        let Some(record) = self.records.iter().find(|record| record.holds(id)) else { return Ok(Vec::new()) };
+        record.regions(&importer, id).map_err(napi::Error::from_reason)
+    }
+}
+
 impl DistillFile {
     fn empty() -> DistillFile {
         DistillFile {
             held: false,
+            record: 0,
             names: Vec::new(),
             cases: 0,
             loaded: 0,

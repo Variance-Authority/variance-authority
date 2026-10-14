@@ -32,6 +32,7 @@ import { mayMock, shadowReach } from '@variance-authority/sense/taint';
 import { messageOf } from '../config-values.js';
 import { checkoutFile } from '../checkout-file.js';
 import { OperatorError } from '../exit.js';
+import { jsonPieces } from '../json-pieces.js';
 import { executionIndexOf, recordedExecutionFile } from './execution-input.js';
 import { relationsFor } from './source-graph.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
@@ -72,9 +73,9 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
   // One read: the index and the journals are then one run's, whatever lands between.
   const bytes = await recordAt(record);
   try {
-    const execution = executionIndexOf(bytes);
     if (options.test === undefined && file !== undefined) {
-      const input = { file, execution, record: coverageOf(bytes, record) };
+      // The addon reads the record's cases and the regions a charge asks; the case index is not decoded whole.
+      const input = { file, record: coverageOf(bytes, record) };
       const flat = distillFile(input);
       // The graph is read only when there is a load to give a cause, or a mock to hold against it: the scan costs more than the record.
       if (!flat.modules?.some(({ entered }) => entered === 0) && !(await mocksIn(options.root, flat.file))) return flat;
@@ -86,6 +87,7 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
         shadows: (file) => shadowReach(graph, file),
       });
     }
+    const execution = executionIndexOf(bytes);
     const section = recordedEyesOf(bytes);
     return distill({
       ...(options.test === undefined ? {} : { test: options.test }),
@@ -207,8 +209,17 @@ function journalsOf(journals: NonNullable<ReturnType<typeof recordedEyesOf>>['jo
   }));
 }
 
+/** A distillation's text, in the pieces {@link writePieces} writes as they come. */
+export function* distillPieces(
+  result: Distillation | FileDistillation | ScopeDistillation,
+  format: 'text' | 'json',
+): Generator<string, void, undefined> {
+  if (format === 'json') yield* jsonPieces(result);
+  else if ('test' in result) yield formatDistillation(result);
+  else yield 'spills' in result ? formatScopeDistillation(result) : formatFileDistillation(result);
+  yield '\n';
+}
+
 export function formatDistill(result: Distillation | FileDistillation | ScopeDistillation, format: 'text' | 'json'): string {
-  if (format === 'json') return `${JSON.stringify(result, null, 2)}\n`;
-  if ('test' in result) return `${formatDistillation(result)}\n`;
-  return `${'spills' in result ? formatScopeDistillation(result) : formatFileDistillation(result)}\n`;
+  return [...distillPieces(result, format)].join('');
 }

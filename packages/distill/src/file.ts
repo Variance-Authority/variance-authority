@@ -3,7 +3,6 @@ import { EDGE_KINDS, NODE_KINDS, idOf, type EdgeKind, type Relations } from '@va
 import {
   readDistillRecords,
   type DistillRecords,
-  type ExecutionIndex,
   type ExecutionTest,
   type FileReferences,
   type NativeDistillFile,
@@ -23,8 +22,6 @@ export interface FileDistillInput {
   readonly file: string;
   /** The record as it is written: its coverage rows, which say which test files loaded which modules, and its case index. */
   readonly record: Uint8Array;
-  /** The record's case index, decoded: the file's cases, and the regions a charge reads. */
-  readonly execution: ExecutionIndex;
   /**
    * The file graph, by the names the record uses. Given, each module no case
    * entered carries the import that made the file load it: imports, re-exports
@@ -128,18 +125,18 @@ function recordOf(bytes: Uint8Array): DistillRecords {
  */
 export function distillFile(input: FileDistillInput): FileDistillation {
   const file = input.file;
-  const found = recordOf(input.record).file(file, input.relations);
+  const record = recordOf(input.record);
+  const found = record.file(file, input.relations);
   // A refusal names no other path: two paths are two files, so none the record holds is the one asked.
   if (!found.held) {
     throw new Error(
       `The record holds no test file \`${file}\`. It names each test file by its path from the repository root, with \`/\`.`,
     );
   }
-  const cases = input.execution.tests.flatMap((test, at) => (test.file === file ? [{ test, at }] : []));
   const mocks = input.shadows === undefined ? [] : misplacedOf(input.shadows(file));
   const base = {
     file,
-    cases: cases.map(({ test }) => test),
+    cases: record.cases(file),
     loaded: found.loaded,
     lines: found.lines,
     ...(mocks.length === 0 ? {} : { mocks }),
@@ -157,8 +154,7 @@ export function distillFile(input: FileDistillInput): FileDistillation {
   const charge = references === undefined || input.relations === undefined ? undefined : chargesOf({
     references,
     loading: (importer) => loading.get(importer) ?? 0,
-    execution: input.execution,
-    mine: new Set(cases.map(({ at }) => at)),
+    regions: once((importer) => record.regions(file, importer)),
   });
   const subjects = input.relations === undefined ? new Set<string>() : new Set(loadsOf(input.relations, file));
   const charged = (cause: LoadCause): LoadCause => {

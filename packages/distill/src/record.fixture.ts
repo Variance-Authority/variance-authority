@@ -6,16 +6,22 @@
 import { relationsOf, type Relation, type Relations } from '@variance-authority/core/relate';
 import {
   encodeAsSetExecutionIndex,
-  encodeTestCoverage,
+  encodeExecutionIndex,
+  layerTestCoverage,
   withCaseSections,
   type ExecutionIndex,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { distillFile, type FileDistillation, type FileDistillInput } from './file.js';
 
-/** The record a run writes: its coverage rows, and its case index in the set spelling. */
-export function recordOf(coverage: TestCoverage, execution: ExecutionIndex): Uint8Array {
-  return withCaseSections(encodeTestCoverage(coverage), { index: encodeAsSetExecutionIndex(execution) });
+/**
+ * The record a run writes: its coverage rows, layered over nothing, and its case
+ * index in the set spelling, or in the row spelling a build before it wrote.
+ * Only the row spelling says which case ran a region while its module loaded.
+ */
+export function recordOf(coverage: TestCoverage, execution: ExecutionIndex, spelling: 'sets' | 'rows' = 'sets'): Uint8Array {
+  const index = spelling === 'sets' ? encodeAsSetExecutionIndex(execution) : encodeExecutionIndex(execution);
+  return withCaseSections(layerTestCoverage(undefined, coverage), { index });
 }
 
 const file = (name: string) => ({ kind: 'file', name }) as const;
@@ -41,6 +47,8 @@ export function graphOf(
 }
 
 /** `distillFile` over the record its coverage rows and case index write. */
-export function distillOf({ coverage, ...input }: Omit<FileDistillInput, 'record'> & { readonly coverage: TestCoverage }): FileDistillation {
-  return distillFile({ ...input, record: recordOf(coverage, input.execution) });
+export function distillOf(
+  { coverage, execution, ...input }: Omit<FileDistillInput, 'record'> & { readonly coverage: TestCoverage; readonly execution: ExecutionIndex },
+): FileDistillation {
+  return distillFile({ ...input, record: recordOf(coverage, execution) });
 }

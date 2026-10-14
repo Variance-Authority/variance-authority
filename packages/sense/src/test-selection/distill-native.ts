@@ -13,16 +13,13 @@
 
 import { EDGE_KINDS, type EdgeKind, type Relations } from '@variance-authority/core/relate';
 import { native, nativeRefusal } from '../addon.js';
-import type { NativeDistillFile, NativeDistillGraph, NativeDistillRecords, NativeDistillScope } from '../native-distill.js';
-import { caseSectionsOf, recordedCases, withCaseSections } from './case-record.js';
-import { decodeExecutionIndex } from './execution-format.js';
-import { encodeAsSetExecutionIndex, SET_EXECUTION_FORMAT } from './execution-set-format.js';
-import { framedHeader } from './format-layout.js';
+import type { NativeDistillFile, NativeDistillGraph, NativeDistillRecords, NativeDistillRegion, NativeDistillScope } from '../native-distill.js';
+import { decodeExecutionTests } from './execution-format.js';
 import { openTestCoverage } from './format-view.js';
 import { flatten } from './journey-native.js';
-import type { ExecutionBlock, ExecutionIndex } from './reverse.js';
+import type { ExecutionTest } from './reverse.js';
 
-export type { NativeDistillFile, NativeDistillScope } from '../native-distill.js';
+export type { NativeDistillFile, NativeDistillRegion, NativeDistillScope } from '../native-distill.js';
 
 /** Records read for distillation; each question is answered without reading them again. */
 export interface DistillRecords {
@@ -35,6 +32,13 @@ export interface DistillRecords {
   scope(within: string | undefined, relations?: Relations): NativeDistillScope;
   /** One test file, as the first record that holds it reads it; given `relations`, each unentered module's cause. */
   file(file: string, relations?: Relations): NativeDistillFile;
+  /** The cases of `file`, as the case index of the record that holds it names them, in its order. */
+  cases(file: string): readonly ExecutionTest[];
+  /**
+   * The regions the record that holds `file` keeps for `importer`, in its
+   * order, read against `file`'s cases; none when it keeps no module for it.
+   */
+  regions(file: string, importer: string): readonly NativeDistillRegion[];
 }
 
 /** The edges a runtime evaluates a module through on load, and the one a literal `import()` leaves. */
@@ -55,39 +59,8 @@ function graphOf(relations: Relations | undefined): NativeDistillGraph | undefin
 }
 
 /**
- * The record with its case index in the set spelling, which is the one the
- * addon reads. An index written in the row spelling is spelled again, once per
- * read, without the depth of its crossings, which a distillation does not ask:
- * a case entered a module or did not. A record that carries no index is handed
- * on to be refused.
- */
-function setSpelled(record: Uint8Array): Uint8Array {
-  const index = recordedCases(record);
-  if (index === record || framedHeader(index)?.version === SET_EXECUTION_FORMAT) return record;
-  const { tests, modules } = decodeExecutionIndex(index);
-  const flat: ExecutionIndex = {
-    tests,
-    modules: modules.map((module) => ({
-      ...module,
-      blocks: module.blocks.map((block) => ({ ...block, crossings: shallow(block.crossings) })),
-    })),
-  };
-  return withCaseSections(record, { ...caseSectionsOf(record), index: encodeAsSetExecutionIndex(flat) });
-}
-
-/** Each case's crossings of a region as one at depth 0: a load if any of them was one, a call otherwise. */
-function shallow(crossings: ExecutionBlock['crossings']): ExecutionBlock['crossings'] {
-  const called = new Set<number>();
-  const loaded = new Set<number>();
-  for (const { test, loaded: load } of crossings) (load === true ? loaded : called).add(test);
-  return [
-    ...[...called].map((test) => ({ test, distance: 0 })),
-    ...[...loaded].filter((test) => !called.has(test)).map((test) => ({ test, distance: 0, loaded: true })),
-  ];
-}
-
-/**
- * Coverage records that carry their case index, read for distillation.
+ * Coverage records that carry their case index, in either spelling, read for
+ * distillation.
  *
  * A record with no coverage rows throws `RecordWithoutCoverage`, as reading
  * its coverage would; one without the addon is refused with why it did not load.
@@ -98,9 +71,21 @@ export function readDistillRecords(records: readonly Uint8Array[]): DistillRecor
   if (read === undefined) {
     throw new Error(`distill reads its records with the native addon, which is unavailable: ${nativeRefusal() || 'it has no distillation'}`);
   }
-  const handle: NativeDistillRecords = read(records.map(setSpelled).map((bytes) => Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)));
+  const handle: NativeDistillRecords = read(records.map((bytes) => Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)));
+  // A record's cases are decoded once, without a region, however many files ask.
+  const tests = new Map<number, readonly ExecutionTest[]>();
+  const testsOf = (record: number) => {
+    let found = tests.get(record);
+    if (found === undefined) tests.set(record, (found = decodeExecutionTests(records[record]!)));
+    return found;
+  };
   return {
     scope: (within, relations) => handle.scope(within, graphOf(relations)),
     file: (file, relations) => handle.file(file, graphOf(relations)),
+    cases: (file) => {
+      const found = handle.file(file, undefined);
+      return found.held ? testsOf(found.record).filter((test) => test.file === file) : [];
+    },
+    regions: (file, importer) => handle.regions(file, importer),
   };
 }

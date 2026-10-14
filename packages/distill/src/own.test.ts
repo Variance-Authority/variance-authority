@@ -58,7 +58,6 @@ function read(
   return distillFile({
     file: FILE,
     record: recordOf(coverage, execution),
-    execution,
     ...(edges === undefined && lazy === undefined ? {} : { relations: graphOf(edges ?? {}, republishing, lazy) }),
   });
 }

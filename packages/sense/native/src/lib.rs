@@ -35,6 +35,7 @@ mod dependency_namespace;
 mod distill_gather;
 mod distill_own;
 mod distill_read;
+mod distill_regions;
 use variance_sense_instrument::digest;
 mod emitted;
 mod external_dependencies;

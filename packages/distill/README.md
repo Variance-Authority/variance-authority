@@ -297,8 +297,8 @@ range. On an `EnteredModule`, `entered` and `unentered` split those regions, and
 
 `FileDistillInput` carries the test file's repository-relative path as `file`, the
 record's bytes as `record` — its coverage rows and its case index, as the run
-wrote them — that case index decoded as `execution`, and optionally the file
-graph as `relations`. `ScopeDistillInput` carries one `record` per suite. The
+wrote them — and optionally the file graph as `relations`. The cases and the
+regions a charge reads come from the record itself. `ScopeDistillInput` carries one `record` per suite. The
 records are read once, by the native addon, however many test files a scope
 asks about.
 `FileDistillation` counts what the file `loaded` and their `lines`, and lists `LoadedModule` entries — `file`, `lines`, and
