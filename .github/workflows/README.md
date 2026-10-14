@@ -47,7 +47,10 @@ same hidden HTML marker the gate uses, because the marker names the config's
 `project` and the two run one config, so on the same event the two would
 overwrite each other. The gate runs three configs, each its own check with its
 own comment and its own accept label: the case's Storybook, and a matrix over
-this project's own surfaces, the review surface's Storybook and the site.
+this project's own surfaces, the review surface's Storybook and the site. The
+site's check photographs on a pull request only when the change reaches what
+the site is built from or photographed with, which `tools/site-reach.mjs`
+reads out of the checkout; otherwise it ends green and its summary says why.
 
 `check.yml` runs one job per harness — the repository's rules, the timed
 measurements, and the vitest suite — and a `check` job that turns their results

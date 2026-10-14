@@ -52,6 +52,12 @@ node packages/cli/dist/bin.js run --config site/variance.config.json
 A change it finds is accepted on the pull request with the `variance: accept
 site` label.
 
+A pull request that changes nothing the site is built from or photographed
+with does not run it: nothing here, nothing a page here reaches, nothing the
+run loads and nothing of the job itself. The check still reports, green, and
+its summary names why. `tools/site-reach.mjs` makes that call, and `main`
+always runs.
+
 ## What the edge serves
 
 Every `page.tsx` and `route.ts` declares `export const revalidate`. That
