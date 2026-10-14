@@ -40,8 +40,9 @@ describe('scanSource', () => {
 
   it('refuses a dirs list that matches no source file, naming the directories it walked', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-source-'));
-    made.push(root);
-    const elsewhere = join(tmpdir(), 'variance-source-absent');
+    const outside = await mkdtemp(join(tmpdir(), 'variance-source-'));
+    made.push(root, outside);
+    const elsewhere = join(outside, 'absent');
 
     expect(() => scanSource(root, { dirs: ['missing', elsewhere] })).toThrow(
       expect.objectContaining({
