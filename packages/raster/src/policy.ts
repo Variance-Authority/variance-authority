@@ -65,6 +65,39 @@ export interface RasterComparison {
   readonly total: number;
   /** Mask under the policy the comparison was asked to isolate on. */
   readonly mask: ChangeMask;
+  /**
+   * How the rows of the two images were paired, when they were.
+   *
+   * Present when the images are the same width and the edit between their rows
+   * was small enough to find: then every after row was compared with the before
+   * row that shows the same content, `width` and `height` are the after image's,
+   * and the mask is in its coordinates. Absent when they were compared position
+   * by position on the union box. Empty lists are an alignment that found nothing
+   * moved, not a missing one.
+   */
+  readonly alignment?: RowAlignment;
+}
+
+/** Rows `from` up to, and not including, `to`. */
+export interface RowSpan {
+  readonly from: number;
+  readonly to: number;
+}
+
+/**
+ * Which content of the before image arrived, left or moved in the after image.
+ *
+ * Removed rows have no after pixel to mark, so the mask cannot show them; they
+ * are here, with the after row they left from, or a change that only took
+ * something away would read as no change at all.
+ */
+export interface RowAlignment {
+  /** After rows no before row shows, marked in full in the mask. */
+  readonly inserted: readonly RowSpan[];
+  /** Before rows no after row shows, and the after row they were removed at. */
+  readonly removed: readonly (RowSpan & { readonly at: number })[];
+  /** After rows paired with a before row at another height, and how far they moved. */
+  readonly shifted: readonly (RowSpan & { readonly by: number })[];
 }
 
 export interface CompareOptions {

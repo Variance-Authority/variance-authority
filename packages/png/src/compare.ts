@@ -8,7 +8,7 @@ import {
   type DiffPolicy,
   type RasterComparison,
 } from '@variance-authority/raster';
-import { differencePixels, type DecodedImage } from './mask.js';
+import { alignRows, differencePixels, type DecodedImage } from './mask.js';
 
 /**
  * Comparison — phase three: two images become a mask.
@@ -117,22 +117,29 @@ export function comparePixels(
   right: DecodedImage,
   options: CompareOptions = {},
 ): RasterComparison {
-  const width = Math.max(left.width, right.width);
-  const height = Math.max(left.height, right.height);
   const dimensionsChanged = left.width !== right.width || left.height !== right.height;
 
   const policies = options.policies ?? [DEFAULT_POLICY, STRICT_POLICY];
   const isolateWith = options.isolateWith ?? DEFAULT_POLICY;
+  // Once for every policy: the pairing is a fact about the two images, and the
+  // policies differ only in what they call a different pixel.
+  const rows = alignRows(left, right) ?? null;
 
   const changed: Record<string, number> = {};
   let mask: ChangeMask | undefined;
+  // The canvas the comparison ran on: the after image's when the rows were
+  // aligned, the union box when they were not.
+  let width = Math.max(left.width, right.width);
+  let height = Math.max(left.height, right.height);
+  let alignment: RasterComparison['alignment'];
 
   for (const policy of policies) {
     // `diffMask` makes pixelmatch write *only* the differing pixels and leave
     // everything else transparent — so the alpha channel is already the mask,
     // and deriving one from a rendered red-on-grey diff image is unnecessary.
-    const out = differencePixels(left, right, policy, { diffMask: true });
+    const out = differencePixels(left, right, policy, { diffMask: true, alignment: rows });
 
+    ({ width, height, alignment } = out);
     changed[policy.id] = out.changed;
     if (policy.id === isolateWith.id) mask = maskOf(out.data, width, height, out.changed);
   }
@@ -154,6 +161,7 @@ export function comparePixels(
     changed,
     total: width * height,
     mask,
+    ...(alignment === undefined ? {} : { alignment }),
   };
 }
 
