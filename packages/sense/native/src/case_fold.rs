@@ -1,6 +1,8 @@
 //! The one fold of case indexes: any number of shards' cases, regions and sets
-//! as the index one run of every shard would have written. `journeys --stitch`
-//! and `combine` both fold through it.
+//! as the index one run of every shard would have written. `journeys stitch`
+//! and `combine` both fold through it. The parts of one case that
+//! `journeys stitch` joins each hold the lines of the regions they crossed, and
+//! the fold joins them over those regions.
 //!
 //! The output is a function of the shards' contents, not of their order: cases
 //! are numbered by their keys, a file's cuts are reconciled in the order of
@@ -9,11 +11,12 @@
 //! claims — which call site a precondition is named at — independent of it.
 
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use rustc_hash::FxHashMap;
 
 use crate::case_id::{self, CaseIds};
+use crate::case_lines;
 use crate::case_preconditions;
 use crate::case_shard::{self, Inventory, Shard};
 use crate::journey_format::{self, CaseExtras, EncodedModule, Gaps, SetPool};
@@ -134,7 +137,13 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
     }
     let rows: HashMap<&str, usize> = modules.iter().enumerate().map(|(at, module)| (module.file.as_str(), at)).collect();
     let mut extras = CaseExtras { durations: vec![None; tests.len()], lines: vec![Vec::new(); tests.len()], always_timed };
-    for shard in &mut shards {
+    // The parts of one case each hold the lines of the regions they crossed, so
+    // a case two shards hold at different lines is joined over its crossings
+    // once the sets are read: `joining` names each holding by shard and case.
+    let mut holder: Vec<Option<(usize, u32)>> = vec![None; tests.len()];
+    let mut joining: FxHashMap<(usize, u32), usize> = FxHashMap::default();
+    let mut parts: Vec<(u32, Vec<u8>, Vec<(u32, u32)>)> = Vec::new();
+    for (at, shard) in shards.iter_mut().enumerate() {
         for module in &mut shard.modules {
             module.inventory = placed[&module.file][module.inventory];
         }
@@ -161,8 +170,18 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
                     shard.name, tests[global].id
                 )
             })?;
-            // One build cuts a file one way: a case two shards hold has the same lines in both.
-            extras.lines[global] = lines;
+            let held = &mut extras.lines[global];
+            if held.is_empty() || *held == lines {
+                *held = lines;
+                holder[global] = Some((at, local as u32));
+                continue;
+            }
+            if let Some(first) = holder[global].take() {
+                joining.insert(first, parts.len());
+                parts.push((global as u32, held.clone(), Vec::new()));
+            }
+            joining.insert((at, local as u32), parts.len());
+            parts.push((global as u32, lines, Vec::new()));
         }
         shard.modules.sort_by(|left, right| order::code_unit(&left.file, &right.file));
     }
@@ -170,10 +189,10 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
     let mut loaded_by_module = Vec::with_capacity(modules.len());
     let mut sets = SetPool::new(tests.len());
     let mut crossings = 0_u64;
-    for (module, lands) in modules.iter().zip(&landings) {
+    for (row, (module, lands)) in modules.iter().zip(&landings).enumerate() {
         let mut called_by_block = vec![Vec::new(); module.blocks.len()];
         let mut loaded = vec![false; module.blocks.len()];
-        for shard in &shards {
+        for (from, shard) in shards.iter().enumerate() {
             let Ok(at) = shard.modules.binary_search_by(|candidate| order::code_unit(&candidate.file, &module.file)) else {
                 continue;
             };
@@ -181,7 +200,11 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
             let landed = lands.get(held.inventory);
             for own in 0..held.called.len() {
                 let block = landed.map_or(own, |landed| landed[own] as usize);
-                append_members(shard, held.called[own], &mut called_by_block[block])?;
+                append_members(shard, held.called[own], &mut called_by_block[block], |local| {
+                    if let Some(part) = joining.get(&(from, local)) {
+                        parts[*part].2.push((row as u32, block as u32));
+                    }
+                })?;
                 loaded[block] |= held.loaded[own];
             }
         }
@@ -195,6 +218,7 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
         called_by_module.push(called_ids);
         loaded_by_module.push(loaded);
     }
+    join_lines(&tests, parts, &mut extras.lines)?;
     let encoded: Vec<EncodedModule<'_>> = modules
         .iter()
         .enumerate()
@@ -250,10 +274,34 @@ fn union_gaps(shards: &[Shard]) -> Option<Gaps> {
     })
 }
 
-fn append_members(shard: &Shard, set: u32, out: &mut Vec<u32>) -> Result<(), String> {
+fn append_members(shard: &Shard, set: u32, out: &mut Vec<u32>, mut each: impl FnMut(u32)) -> Result<(), String> {
     let held = case_shard::set_slice(&shard.set_bytes, &shard.set_offsets, set)?;
     for local in case_shard::decode_set(held, shard.tests.len())? {
         out.push(shard.local_to_global[local as usize]);
+        each(local);
+    }
+    Ok(())
+}
+
+/// The lines of each case two shards hold at different lines, joined over the
+/// regions each holding crossed (`case_lines`). A holding whose sets say it
+/// crossed a region its lines hold no value for is refused: its record does
+/// not agree with itself.
+fn join_lines(tests: &[Test], parts: Vec<(u32, Vec<u8>, Vec<(u32, u32)>)>, lines: &mut [Vec<u8>]) -> Result<(), String> {
+    let mut joined: BTreeMap<u32, BTreeMap<(u32, u32), u64>> = BTreeMap::new();
+    for (global, bytes, crossed) in parts {
+        let id = &tests[global as usize].id;
+        let held = case_lines::decode(&bytes).map_err(|error| format!("case {id:?}: {error}"))?
+            .expect("a joined holding recorded its lines");
+        let values = joined.entry(global).or_default();
+        for (row, block) in crossed {
+            let value = case_lines::value_at(&held, row, block)
+                .ok_or_else(|| format!("case {id:?} crossed a region its lines hold no value for, so its record does not agree with itself"))?;
+            values.entry((row, block)).and_modify(|kept| *kept = case_lines::earlier(*kept, value)).or_insert(value);
+        }
+    }
+    for (global, values) in joined {
+        lines[global as usize] = case_lines::encode(&values);
     }
     Ok(())
 }

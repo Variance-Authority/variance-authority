@@ -1,4 +1,5 @@
 use super::*;
+use crate::case_lines;
 use crate::journey_columns;
 use crate::journey_journal::{FINISHED, STOPPED};
 use crate::record_layout::LAYOUT;
@@ -104,10 +105,29 @@ fn joins_a_case_two_shards_ran_at_its_longest_duration_and_how_it_settled() {
 
 #[test]
 fn joins_a_case_two_shards_hold_at_the_lines_they_recorded() {
-    // One build cuts a file one way, so two shards that hold a case hold its lines alike.
     let one = |lines: Vec<u8>| shard(&[case("a.test.ts", "adds", "1", FINISHED)], &CaseExtras { durations: Vec::new(), lines: vec![lines], ..CaseExtras::default() }, &[]);
     assert_eq!(read(&folded(&[&one(vec![1, 7]), &one(vec![1, 7])]).unwrap().bytes).lines, [vec![1, 7]]);
     assert_eq!(read(&folded(&[&one(Vec::new()), &one(vec![1, 7])]).unwrap().bytes).lines, [vec![1, 7]]);
+}
+
+#[test]
+fn unions_the_lines_of_the_parts_of_one_case_over_the_regions_each_crossed() {
+    // Two parts of one case, as `journeys stitch` joins them: one crossed the
+    // first region of `src/a.ts` at line 1, the other the second at line 7, and
+    // both the third, the first part from a hook at line 2 and the second at
+    // its own line 9.
+    let lines = |values: &[((u32, u32), u64)]| case_lines::encode(&values.iter().copied().collect());
+    let part = |called: Vec<Vec<u32>>, values: &[((u32, u32), u64)]| {
+        shard(&[case("a.test.ts", "adds", "1", FINISHED)], &CaseExtras { durations: Vec::new(), lines: vec![lines(values)], ..CaseExtras::default() }, &[("src/a.ts", called)])
+    };
+    let first = part(vec![vec![0], vec![], vec![0]], &[((0, 0), 2), ((0, 2), 5)]);
+    let second = part(vec![vec![], vec![0], vec![0]], &[((0, 1), 14), ((0, 2), 18)]);
+    for order in [[&first, &second], [&second, &first]] {
+        let joined = read(&folded(&[order[0], order[1]]).unwrap().bytes);
+        let held = case_lines::decode(&joined.lines[0]).unwrap().unwrap();
+        let at: Vec<Option<u64>> = (0..3).map(|block| case_lines::value_at(&held, 0, block)).collect();
+        assert_eq!(at, [Some(2), Some(14), Some(18)]);
+    }
 }
 
 #[test]

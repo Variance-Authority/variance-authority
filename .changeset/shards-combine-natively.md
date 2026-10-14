@@ -36,6 +36,12 @@ Every writer lays a run over a record through the addon: the runner's
 teardown, the milestone repin and the shard landing. Recording coverage over
 an existing record now needs the native addon.
 
+`variance journeys stitch` joins the parts of one case over the regions each
+part crossed: each region keeps the line of the part that crossed it, the
+case's own crossing before a hook's, then the earlier line. The last part's
+lines used to replace the others'. A part whose lines hold no line for a
+region it crossed is refused.
+
 On macOS and Linux the addon returns freed blocks of 4 MiB or more to the
 system, so a native call that decodes large buffers one after another holds
 the largest of them, not their sum.

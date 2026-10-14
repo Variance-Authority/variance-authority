@@ -182,7 +182,7 @@ pub struct CaseExtras {
     pub lines: Vec<Vec<u8>>,
     /// Whether `tests.duration` is written even where no case was timed. A
     /// record's case index always carries it, so `combine` sets it; a journey
-    /// artifact carries it only where a case was timed, so `journeys --stitch`
+    /// artifact carries it only where a case was timed, so `journeys stitch`
     /// does not.
     pub always_timed: bool,
 }

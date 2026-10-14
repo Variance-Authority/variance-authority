@@ -341,14 +341,18 @@ pub(crate) fn remap_lines(bytes: &[u8], rows: &[Result<u32, &str>]) -> Result<Ve
     Ok(head)
 }
 
-struct Varints<'a> {
+pub(crate) struct Varints<'a> {
     bytes: &'a [u8],
     at: usize,
 }
 
-impl Varints<'_> {
+impl<'a> Varints<'a> {
+    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+        Varints { bytes, at: 0 }
+    }
+
     /// The next number, at most five bytes long as `case-lines.ts` reads them.
-    fn take(&mut self) -> Result<u64, String> {
+    pub(crate) fn take(&mut self) -> Result<u64, String> {
         let mut value = 0_u64;
         for shift in (0..=28).step_by(7) {
             let byte = *self.bytes.get(self.at).ok_or_else(|| "case lines end early".to_owned())?;
@@ -361,12 +365,12 @@ impl Varints<'_> {
         Err("case lines hold a number too long".to_owned())
     }
 
-    fn end(&self) -> Result<(), String> {
+    pub(crate) fn end(&self) -> Result<(), String> {
         if self.at == self.bytes.len() { Ok(()) } else { Err("case lines run past their values".to_owned()) }
     }
 }
 
-fn put(out: &mut Vec<u8>, mut value: u64) {
+pub(crate) fn put(out: &mut Vec<u8>, mut value: u64) {
     while value >= 0x80 {
         out.push((value as u8 & 0x7f) | 0x80);
         value >>= 7;

@@ -23,6 +23,7 @@ mod append_index;
 mod batch;
 mod case_fold;
 mod case_id;
+mod case_lines;
 mod case_owner;
 mod case_preconditions;
 mod case_shard;
