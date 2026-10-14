@@ -62,17 +62,22 @@ describe('content that moved down the page', () => {
     expect(difference.changed).toBe(3 * WIDTH);
   });
 
-  it('pairs the rows a gap grew by with the gap, and a rewritten line with the line', () => {
+  it('marks the rows a gap grew by as inserted, and pairs a rewritten line with the line', () => {
     // The gap under the first line grew by a row, and the line under it changed
-    // in one pixel.
+    // in one pixel. The row the gap grew by is new, as a row the gap lost would
+    // be removed, so a subject whose padding grew has a region to show.
     const before = column([1, 12, 6, 3]);
     const after = column([1, 12, 12, 6, 3]);
     after.data.set([0, 0, 0, 255], (3 * WIDTH + 2) * 4);
 
     const comparison = comparePixels(before, after);
 
-    expect(comparison.alignment).toEqual({ inserted: [], removed: [], shifted: [{ from: 3, to: 5, by: 1 }] });
-    expect(comparison.changed.strict).toBe(1);
+    expect(comparison.alignment).toEqual({
+      inserted: [{ from: 2, to: 3 }],
+      removed: [],
+      shifted: [{ from: 3, to: 5, by: 1 }],
+    });
+    expect(comparison.changed.strict).toBe(WIDTH + 1);
   });
 
   it('carries removed rows on the comparison, since no after pixel shows them', () => {

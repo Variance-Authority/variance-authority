@@ -315,12 +315,11 @@ function edits(left: Float64Array, right: Float64Array, limit: number): Edit[] |
 /**
  * The script, as rows.
  *
- * A kept run pairs row for row. A run that only grew has extra rows that are
- * copies of a row it already had, so they are paired with that row, the way the
- * union box pads a taller capture with white, and the page reports that it
- * changed size rather than marking a gap that got one pixel taller as new
- * content. When a kept run is longer on the before side, what is left of it
- * opens the band that follows.
+ * A kept run pairs row for row. The rows a run grew by are inserted, as the
+ * rows it lost are removed: a button whose padding grew six rows is six new
+ * rows where it grew, and paired with copies of its own row it would leave no
+ * pixel, no region and nothing for a reviewer to look at. When a kept run is
+ * longer on the before side, what is left of it opens the band that follows.
  *
  * A stretch of removed and added runs between two kept ones is a band that was
  * rewritten, and its rows are paired by position within the band, so a sentence
@@ -361,14 +360,14 @@ function pairing(
   };
 
   // The band being gathered: before rows and after rows, each contiguous, and
-  // the grown run it opened with, if it did.
+  // the rows a run it opened with grew by, if it did.
   let band:
-    | { beforeFrom: number; beforeTo: number; afterFrom: number; afterTo: number; grown: number; row: number }
+    | { beforeFrom: number; beforeTo: number; afterFrom: number; afterTo: number; grown: number }
     | undefined;
   const settle = (): void => {
     if (band === undefined) return;
     const { beforeFrom, beforeTo, afterTo } = band;
-    for (let y = band.afterFrom; y < band.afterFrom + band.grown; y += 1) source[y] = band.row;
+    if (band.grown > 0) insert(band.afterFrom, band.afterFrom + band.grown);
     const afterFrom = band.afterFrom + band.grown;
     const rows = Math.min(beforeTo - beforeFrom, afterTo - afterFrom);
     let bottom = false;
@@ -412,12 +411,11 @@ function pairing(
           afterFrom: right.start[j]! + kept,
           afterTo: afterAt,
           grown: now - kept,
-          row: beforeAt - 1,
         };
       }
       continue;
     }
-    band ??= { beforeFrom: beforeAt, beforeTo: beforeAt, afterFrom: afterAt, afterTo: afterAt, grown: 0, row: -1 };
+    band ??= { beforeFrom: beforeAt, beforeTo: beforeAt, afterFrom: afterAt, afterTo: afterAt, grown: 0 };
     if (edit[0] === '-') {
       band.beforeTo = left.start[edit[1]]! + left.length[edit[1]]!;
       beforeAt = band.beforeTo;

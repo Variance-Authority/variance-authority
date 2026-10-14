@@ -16,7 +16,8 @@ pairing makes a page read as unchanged. A section added to a long page marks tha
 section, and the content it pushed down matches. A pairing is kept only when it
 leaves fewer pixels differing than position does, a row it leaves unpaired
 charged in full, so a line that changed in place is not shifted against its
-neighbours. Images of different widths, or an
+neighbours. The rows a gap grew by are inserted, as the rows it lost are
+removed, so a button whose padding grew has a region where it grew. Images of different widths, or an
 edit longer than 2,000 runs of rows, are compared position by position on the
 union box, as before.
 

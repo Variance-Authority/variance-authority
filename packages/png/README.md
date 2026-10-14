@@ -190,10 +190,9 @@ where a mark beside a line of text changed in place, a matching row at another
 height would otherwise shift the lines around it. The count charges what each
 side leaves: the pixels that differ between paired rows, and a row the pairing
 leaves unpaired, inserted or removed, in full. A tie goes to whichever moved
-nothing. A run of
-identical rows that only grew, such as a white gap one row taller, pairs its
-extra rows with the run's own last row rather than marking them inserted; its
-crop is cut where the rows under it start to move. Rows rewritten between two
+nothing. The rows a
+run of identical rows grew by, such as a white gap one row taller, are
+inserted, as the rows it lost are removed, so the place it grew is a region. Rows rewritten between two
 kept runs are paired from the band's top or its bottom, whichever leaves fewer
 pixels differing, so a block drawn into the middle of a gap marks the block and
 not the gap under it. Where two paired runs meet, the before rows on either

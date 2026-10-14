@@ -114,19 +114,23 @@ describe('the picture of a removal', () => {
 });
 
 describe('the picture of a gap that grew', () => {
-  // A white gap between two grey rows got three rows taller: no pixel of the
-  // after image is new, so no region marks it, and the rows under it moved.
-  it('is cut where the rows start to move', () => {
+  // A white gap between two grey rows got three rows taller: the three rows are
+  // inserted, and the rows under them moved.
+  it('is cut where the gap grew', () => {
     const before = image(40, 200, { 10: GREY, 150: GREY });
     const after = image(40, 203, { 10: GREY, 153: GREY });
-    const { change } = changeImages(before, after, regionsOf(before, after));
+    const regions = regionsOf(before, after);
+    const { change } = changeImages(before, after, regions);
+
+    expect(regions.length).toBeGreaterThan(0);
 
     const sheet = PNG.sync.read(change!);
     const rows = column(sheet, 0);
 
-    // One window of context around the seam, not the page: each panel is far
-    // shorter than 200 rows, and the after panel holds the grey row that moved.
-    expect(sheet.height).toBeLessThan(200);
+    // One window of context around the rows the gap grew by, not the page: the
+    // three panels together are about one page tall, and the after panel holds
+    // the grey row that moved.
+    expect(sheet.height).toBeLessThan(3 * 100);
     expect(rows).toContain(GREY.join(','));
   });
 });
