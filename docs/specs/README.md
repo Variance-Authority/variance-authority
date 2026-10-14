@@ -103,6 +103,7 @@ hiding it.
 | [The runner is handed its selection](0098-the-runner-is-handed-its-selection.md) | The seams inside every runner's configuration, the safe skip list, 0091's stages, and partial runs carried forward by `commit-runs.ts`. | **The hand-off.** A selection reaches a runner only as arguments substituted into its command line, which stops at about seven thousand paths on macOS and sixty on Windows, and the selector encodes each runner's path form itself. |
 | [A mock is a declared subtraction](0099-a-mock-is-a-declared-subtraction.md) | A test read as the narrower tests inside it, and the mock shadows selection already holds against the record. | **The mock in the answer.** A test that mocks its pieces lists none and its residue is all its own, so the answer cannot tell a mock that stands in for a tested module from one that is the only statement about it. |
 | [A case ends where it decides](0100-a-case-ends-where-it-decides.md) | The probe log, written in the order each case first reached its regions; the per-case record and its frames; the addon's blocks with name, path and offset; `covering`; test-composition and its per-region case count. | **The leaf and the test line.** A case's record is a set, so nothing reads which branch the case ends on, which cases end on the same one, or which test line reached it, and `covering` lists the cases that decide on a line with the ones that pass through it. |
+| [The deployer decides who the tribunal recognizes](0101-the-deployer-decides-who-the-tribunal-recognizes.md) | Three bearer tokens and Cloudflare Access, each deployment hard-coding its own policy; the Access verifier in the console alone. | **A declaration and a secretless machine.** Nothing lets a deployment say which credentials answer *may this machine write a build* and *which person is deciding*, so every consumer mints an ingest token and a person carries it into CI. No GitHub Actions OIDC token is verified, the client cannot ask for one, a decision's name is whatever the approval body says, and the review token still lets a caller with no name decide. |
 
 ## Discharged
 
@@ -159,8 +160,9 @@ These hold for anything built here and do not need restating.
   ([ADR-0060](../context/adr/0060-a-release-is-one-version-and-a-pressed-button.md)).
   Obtaining this software does not mean cloning it, and nothing a spec proposes
   may assume it does.
-- **No telemetry, no analytics, no phone-home.** The only outbound network call
-  in the system is to a renderer endpoint the operator supplies.
+- **No telemetry, no analytics, no phone-home.** The system calls out only to
+  what its operator declared: a renderer endpoint, and the published signing
+  keys of an issuer the deployment trusts.
 - **The cheap path requires no infrastructure.** Any capability that needs a
   backend MUST degrade to a working single-run tool without one, and MUST report
   the absence rather than defaulting to a silent negative.
