@@ -1038,9 +1038,11 @@ With the default `include`, the rule excludes `node_modules`, and Rspack never
 hands it a package's file. The regions are the file's on
 disk, placed where the map your loaders handed on says each one went. Leave
 `devtool` writing source maps: a module that arrives with no map stops the
-build and names the file. Each probed module opens with the page collector on
-its first line, so no line moves: an `import` in a module, a `require` in a
-CommonJS script, which an `import` would turn into a module. A module with no file on disk, such as a
+build and names the file. Each probed module takes the page collector without
+moving a line, and its `"use client"` or `"use strict"` stays first: a module
+ends with an `import`, which is hoisted, and a CommonJS script, which an
+`import` would turn into a module, takes a `require` after its directives. A
+module with no file on disk, such as a
 builder's virtual entry, is not probed.
 
 `include` is a function, and Rspack hands loader options to its core as data,

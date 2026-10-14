@@ -80,15 +80,18 @@ describe('a page Rspack built, a syntax-reading compiler among its loaders', () 
 });
 
 describe('a CommonJS module Rspack bundles', () => {
-  /** `lib` and the entry requiring it, with extension `extension`, built for Node through the rule alone. */
-  async function bundled(extension: '.js' | '.cjs'): Promise<{ root: string; page: string }> {
+  /** `lib`, opening with `prologue`, and the entry requiring it, with extension `extension`, built for Node through the rule alone. */
+  async function bundled(extension: '.js' | '.cjs', prologue = ''): Promise<{ root: string; page: string }> {
     const root = await realpath(await mkdtemp(resolve(tmpdir(), 'variance-authority-cjs-')));
     temporary.push(root);
     await mkdir(resolve(root, 'src'));
-    await writeFile(resolve(root, `src/lib${extension}`), 'function tone(on) {\n  if (on) return "red";\n  return "blue";\n}\nmodule.exports = { tone };\n');
+    await writeFile(
+      resolve(root, `src/lib${extension}`),
+      `${prologue}function tone(on) {\n  if (on) return "red";\n  return "blue";\n}\nmodule.exports = { tone, strict: (function () { return this === undefined; })() };\n`,
+    );
     // The built rule: it names the loader by path, and Rspack loads that path as it is.
     const { testSelectionRule } = (await import(pathToFileURL(resolve(repository, 'packages/sense/dist/test-selection/probes-rule.js')).href)) as typeof import('./probes-rule.js');
-    await writeFile(resolve(root, `src/main${extension}`), `const { tone } = require("./lib${extension}");\nglobalThis.pressed = tone(true);\n`);
+    await writeFile(resolve(root, `src/main${extension}`), `const { tone, strict } = require("./lib${extension}");\nglobalThis.pressed = tone(true);\nglobalThis.strict = strict;\n`);
     const compiler = rspack({
       mode: 'development',
       devtool: 'source-map',
@@ -116,4 +119,12 @@ describe('a CommonJS module Rspack bundles', () => {
       expect(journal.modules.map((module) => module.id.split('@')[0]).sort()).toEqual([`src/lib${extension}`, `src/main${extension}`]);
     }, 60_000);
   }
+
+  it('keeps a script that opens with "use strict" strict', async () => {
+    const { page } = await bundled('.cjs', '"use strict";\n');
+    const context = createContext({});
+    runInContext(page, context);
+    expect(runInContext('globalThis.pressed', context)).toBe('red');
+    expect(runInContext('globalThis.strict', context)).toBe(true);
+  }, 60_000);
 });

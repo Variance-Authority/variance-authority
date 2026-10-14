@@ -2,7 +2,7 @@
  * The segments of a source map's `mappings`, decoded into the fields a line
  * lookup needs. `sourceLines` in `source-lines.ts` is the only reader; the
  * digits are `cut-map.ts`'s as well, and {@link shifted} moves a map past text
- * prepended to its first line.
+ * inserted on one of its lines.
  */
 
 export interface Segment {
@@ -122,12 +122,28 @@ export function vlqOf(value: number): string {
 }
 
 /**
- * `mappings` with every column of its first line moved `by` to the right, for
- * text of that length prepended to the line: the first segment's column is the
- * only absolute one.
+ * `mappings` with every column of generated line `line` (from 0) at or past
+ * `column` moved `by` to the right, for text of that length inserted there.
+ * A line's columns are each relative to the one before it, so only the first
+ * segment at or past the point changes.
  */
-export function shifted(mappings: string, by: number): string {
-  if (!DIGITS.has(mappings[0] ?? '')) return mappings;
-  const { value, next } = vlq(mappings, 0);
-  return vlqOf(value + by) + mappings.slice(next);
+export function shifted(mappings: string, by: number, line = 0, column = 0): string {
+  let index = 0;
+  for (let at = 0; at < line; at++) {
+    index = mappings.indexOf(';', index);
+    if (index === -1) return mappings;
+    index += 1;
+  }
+  let reached = 0;
+  while (DIGITS.has(mappings[index] ?? '')) {
+    const { value, next } = vlq(mappings, index);
+    reached += value;
+    if (reached >= column) return mappings.slice(0, index) + vlqOf(value + by) + mappings.slice(next);
+    // The segment's other fields, to the comma before the next one.
+    index = next;
+    while (index < mappings.length && mappings[index] !== ',' && mappings[index] !== ';') index += 1;
+    if (mappings[index] !== ',') return mappings;
+    index += 1;
+  }
+  return mappings;
 }

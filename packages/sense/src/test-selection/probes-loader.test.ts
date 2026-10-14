@@ -50,18 +50,37 @@ describe('the probes loader', () => {
     expect(load('/anywhere/probes-collector.js', '', undefined, { collector: 'lines' }).error?.message).toMatch(/recipe "lines"/);
   });
 
-  it('opens a module it probes with the collector, on the first line, and moves the map with it', async () => {
+  it('ends a module it probes with an import of the collector, so a directive prologue stays first and no column moves', async () => {
     const root = await checkout();
-    const transformed = `${SOURCE}\n`;
-    const { error, code, map } = load(resolve(root, 'cart.js'), transformed, IDENTITY, { root });
+    const client = `"use client";\n${SOURCE}`;
+    await writeFile(resolve(root, 'client.js'), client, 'utf8');
+    const { error, code, map } = load(resolve(root, 'client.js'), client, { ...IDENTITY, mappings: 'AAAA;AACA;AACA;AACA' }, { root });
 
     expect(error).toBeNull();
-    const opening = code!.slice(0, code!.indexOf(';') + 1);
-    expect(opening).toMatch(/^import "!!.*probes-loader\.js\?collector=presence!.*probes-collector\.js";$/);
-    expect(code!.split('\n')).toHaveLength(transformed.split('\n').length);
-    // The file's first column is where the map says, past the opening and the probes.
-    const mappings = (map as { mappings: string }).mappings;
-    expect(decode(mappings)[0]![0]!.column).toBe(code!.indexOf('export function total'));
+    expect(code!.startsWith('"use client";')).toBe(true);
+    expect(code!.slice(code!.lastIndexOf('\n'))).toMatch(/^\n;import "!!.*probes-loader\.js\?collector=presence!.*probes-collector\.js";$/);
+    // The second line opens with the header, where the map says.
+    const lines = code!.split('\n');
+    const columns = decode((map as { mappings: string }).mappings)[1]!.map((segment) => segment.column);
+    expect(lines[1]!.indexOf('var __vaK')).toBe(0);
+    expect(columns).toEqual([0]);
+  });
+
+  it('opens a script with a require of the collector after its prologue, so it stays strict, and moves the map with it', async () => {
+    const root = await checkout();
+    const script = '"use strict"; function total(items) {\n  return items.length > 0 ? items.length : 0;\n}\nmodule.exports = { total };\n';
+    await writeFile(resolve(root, 'total.js'), script, 'utf8');
+    // Line 1: the directive at 0, the function at 14.
+    const { error, code, map } = load(resolve(root, 'total.js'), script, { ...IDENTITY, sources: ['total.js'], mappings: 'AAAA,cAAc;AACd;AACA;AACA' }, { root });
+
+    expect(error).toBeNull();
+    const first = code!.split('\n')[0]!;
+    expect(first.startsWith('"use strict";')).toBe(true);
+    expect(first.indexOf('require("!!')).toBeLessThan(first.indexOf('var __vaK'));
+    expect(code).not.toMatch(/\bimport\b/);
+    // The header, which the map maps to the function, is where the map says, past the require.
+    const columns = decode((map as { mappings: string }).mappings)[0]!.map((segment) => segment.column);
+    expect(columns).toEqual([0, first.indexOf('var __vaK')]);
   });
 
   it('refuses a module the loaders before it rewrote and handed on no map, naming `devtool`', async () => {

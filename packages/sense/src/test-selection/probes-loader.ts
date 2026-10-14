@@ -5,9 +5,10 @@
  * Asked for the collector, it answers with the collector's source. Asked for
  * any other module, it places the probes in what the loaders before it wrote,
  * through the map they handed on ([`loader-probes.ts`](./loader-probes.ts)),
- * and opens the module with the collector — an `import`, or a `require` in a
- * script such as CommonJS — on its first line so no line moves, the map's first
- * line moved with it. A module it does not probe
+ * and takes the collector without moving a line: a module ends with an
+ * `import`, which is hoisted, and a script such as CommonJS takes a `require`
+ * past its directive prologue, the map's columns moved with it. Either way a
+ * `"use client"` or `"use strict"` stays first. A module it does not probe
  * passes untouched. With `placement: 'before-transforms'` it runs ahead of
  * the loaders and places the probes in the text it is handed, as read.
  */
@@ -49,7 +50,7 @@ function probesLoader(this: ProbesLoaderContext, code: string, handed?: HandedMa
   this.callback(null, written.code, written.map);
 }
 
-/** `code` probed, opened with the collector, and the map moved with it; as handed where it is not a module to probe. */
+/** `code` probed, taking the collector, and the map moved with it; as handed where it is not a module to probe. */
 function probed(context: ProbesLoaderContext, options: ProbesLoaderOptions, code: string, handed: HandedMap): { code: string; map?: HandedMap } {
   const file = cleanId(context.resourcePath);
   const root = repositoryRoot(options.root ?? context.rootContext ?? process.cwd());
@@ -63,9 +64,14 @@ function probed(context: ProbesLoaderContext, options: ProbesLoaderOptions, code
   const collector = JSON.stringify(`!!${PROBES_LOADER}?collector=${options.mode ?? 'presence'}!${COLLECTOR_FILE}`);
   // An `import` would make a script a module, and its `module.exports` unread;
   // an `.mjs` file is a module whatever it holds, and has no `require`.
-  const opening = placed.captured.script && !/\.m[jt]s$/.test(file) ? `require(${collector});` : `import ${collector};`;
-  const map = placed.map && { ...placed.map, mappings: shifted(placed.map.mappings, opening.length) };
-  return { code: `${opening}${placed.captured.code}`, map };
+  const script = /\.m[jt]s$/.test(file) ? undefined : placed.captured.script;
+  if (script === undefined) return { code: `${placed.captured.code}\n;import ${collector};`, map: placed.map };
+  const text = placed.captured.code;
+  const required = `require(${collector});`;
+  const line = text.slice(0, script.at).split('\n').length - 1;
+  const column = script.at - (text.lastIndexOf('\n', script.at - 1) + 1);
+  const map = placed.map && { ...placed.map, mappings: shifted(placed.map.mappings, required.length, line, column) };
+  return { code: `${text.slice(0, script.at)}${required}${text.slice(script.at)}`, map };
 }
 
 /** What {@link placeModule} placed ahead of the loaders, with the map it was handed. */

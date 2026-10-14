@@ -184,6 +184,12 @@ export interface Instrumented {
    * `module.exports` stops being read.
    */
   readonly module: boolean;
+  /**
+   * Where the header starts in `code`, in UTF-16 code units: after the
+   * directive prologue, so a statement that must run ahead of the module's own
+   * code goes here and leaves `"use strict"` in force.
+   */
+  readonly headerAt: number;
 }
 
 /**
@@ -206,8 +212,8 @@ export function instrument(
   const spliced = splice(source, file, mode, id);
   if (spliced === undefined) return undefined;
 
-  const { code, sourceDigest, blocks, module } = spliced;
-  return { code, sourceDigest, instrumentation: instrumentationId(mode), blocks, module };
+  const { code, sourceDigest, blocks, module, headerAt } = spliced;
+  return { code, sourceDigest, instrumentation: instrumentationId(mode), blocks, module, headerAt };
 }
 
 /**

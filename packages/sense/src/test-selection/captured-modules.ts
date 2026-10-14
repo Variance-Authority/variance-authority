@@ -36,10 +36,12 @@ export interface Captured {
   readonly changed?: true;
   /**
    * `code` was read and neither imports nor exports, as CommonJS does: what
-   * opens it must not be an `import`, which would make it a module. Absent
-   * where it is a module, and where it was marked rather than read.
+   * it takes ahead of its own code must not be an `import`, which would make it
+   * a module. `at` is where that goes, past the directive prologue, in UTF-16
+   * code units. Absent where it is a module, and where it was marked rather
+   * than read.
    */
-  readonly script?: true;
+  readonly script?: { readonly at: number };
 }
 
 /**
@@ -152,7 +154,7 @@ export function placeModule(
       : { file, id, sourceDigest, instrumented: true, blocks: recordedBlocks(done.blocks, frame, code, mode ?? 'presence') },
     code: done?.code ?? markLoaded(code, id),
     ...changed,
-    ...(done?.module === false ? { script: true as const } : {}),
+    ...(done?.module === false ? { script: { at: done.headerAt } } : {}),
   };
 }
 
@@ -301,7 +303,7 @@ export function captureAfter(
   return {
     module: { ...unread, instrumented: true, blocks: recordedBlocks(done.blocks, frame, disk, mode ?? 'presence') },
     code: done.code,
-    ...(done.module ? {} : { script: true as const }),
+    ...(done.module ? {} : { script: { at: done.headerAt } }),
     mappings: done.mappings,
     ...(done.carried === undefined ? {} : { carried: done.carried }),
   };

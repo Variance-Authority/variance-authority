@@ -7,9 +7,9 @@
  * placement is the one every Rspack seam shares
  * ([`loader-probes.ts`](./loader-probes.ts)). With `placement:
  * 'before-transforms'` it runs at `enforce: 'pre'` on the file as read. Each
- * probed module opens with the page collector, served by the same loader — an
- * `import`, or a `require` in a CommonJS script — as `testSelectionProbes`
- * opens each with its virtual module under Vite.
+ * probed module takes the page collector, served by the same loader — an
+ * `import` at its end, or a `require` after a CommonJS script's directives — as
+ * `testSelectionProbes` ends each with its virtual module under Vite.
  */
 
 import { fileURLToPath } from 'node:url';
