@@ -597,9 +597,13 @@ jobs:
           set -uo pipefail
           committed=$(git ls-files -- 'cases/storybook-case/baselines/*.png') || exit 1
           if [ -n "$committed" ]; then expected=2; else expected=0; fi
-          node packages/cli/dist/bin.js doctor \
-            --config cases/storybook-case/variance.lfs.config.json --baselines
-          code=$?
+          # `shell: bash` runs with -e, so the exit is read in the condition.
+          if node packages/cli/dist/bin.js doctor \
+            --config cases/storybook-case/variance.lfs.config.json --baselines; then
+            code=0
+          else
+            code=$?
+          fi
           if [ "$code" != "$expected" ]; then
             echo "::error::doctor --baselines exited $code on a checkout without git-lfs; $expected was expected"
             exit 1
