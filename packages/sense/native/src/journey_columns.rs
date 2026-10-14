@@ -78,6 +78,11 @@ pub struct Decoded {
 }
 
 impl Decoded {
+    /// Whether no column was decoded: the bytes held none of those asked for.
+    pub fn is_empty(&self) -> bool {
+        self.columns.is_empty()
+    }
+
     pub fn has(&self, name: &str) -> bool {
         self.columns.contains_key(name)
     }
@@ -91,6 +96,14 @@ impl Decoded {
             return Err(format!("journey artifact column {name} has the wrong width"));
         }
         Ok(bytes.clone())
+    }
+
+    /// A column of bytes or of words, widened to words.
+    pub fn values(&self, name: &str) -> Result<Vec<u32>, String> {
+        match self.columns.get(name) {
+            Some((1, bytes)) => Ok(bytes.iter().map(|byte| u32::from(*byte)).collect()),
+            _ => self.words(name),
+        }
     }
 
     pub fn words(&self, name: &str) -> Result<Vec<u32>, String> {
@@ -159,34 +172,66 @@ pub(crate) fn place(bytes: &[u8], version: u8) -> Result<Vec<Placed>, String> {
 /// coverage record that carries one, and `bytes` themselves otherwise, which
 /// the journey reader then opens or refuses on its own terms.
 pub(crate) fn recorded_cases(bytes: Vec<u8>) -> Vec<u8> {
-    let cases = place_any(&bytes).ok().and_then(|placed| {
-        placed.into_iter().find(|column| column.name == "cases" && column.rows.is_none())
-    });
-    match cases {
-        Some(column) => bytes[column.stored].to_vec(),
+    match cases_section(&bytes) {
+        Some(stored) => bytes[stored].to_vec(),
         None => bytes,
     }
 }
 
+/// [`recorded_cases`] for a caller that holds the bytes elsewhere: the part of
+/// `bytes` that is the case index, borrowed.
+pub(crate) fn recorded_cases_in(bytes: &[u8]) -> &[u8] {
+    match cases_section(bytes) {
+        Some(stored) => &bytes[stored],
+        None => bytes,
+    }
+}
+
+fn cases_section(bytes: &[u8]) -> Option<std::ops::Range<usize>> {
+    place_any(bytes).ok().and_then(|placed| {
+        placed.into_iter().find(|column| column.name == "cases" && column.rows.is_none()).map(|column| column.stored)
+    })
+}
+
 fn place_any(bytes: &[u8]) -> Result<Vec<Placed>, String> {
+    place(bytes, version_of(bytes).ok_or_else(String::new)?)
+}
+
+/// The version a container's header names, or nothing when `bytes` are not one.
+pub(crate) fn version_of(bytes: &[u8]) -> Option<u8> {
     if bytes.len() < 4 {
-        return Err(String::new());
+        return None;
     }
     let header_length = u32::from_le_bytes(bytes[..4].try_into().unwrap_or_default()) as usize;
     if header_length == 0 || 4 + header_length > bytes.len() {
-        return Err(String::new());
+        return None;
     }
     let header_end = bytes[4..4 + header_length]
         .iter()
         .position(|byte| *byte == 0)
         .map_or(4 + header_length, |at| 4 + at);
-    let header: Header = serde_json::from_slice(&bytes[4..header_end]).map_err(|_| String::new())?;
-    place(bytes, header.version)
+    serde_json::from_slice::<Header>(&bytes[4..header_end]).ok().map(|header| header.version)
 }
 
 pub fn decode(bytes: &[u8], version: u8) -> Result<Decoded, String> {
+    decode_placed(bytes, place(bytes, version)?, |_| true)
+}
+
+/// The columns named in `wanted` of a container in whatever version its header
+/// names, decoded, and that version: a reader that asks a few columns of a large
+/// record decompresses those, and judges the version itself.
+pub(crate) fn decode_wanted(bytes: &[u8], wanted: &[&str]) -> Result<(u8, Decoded), String> {
+    let version = version_of(bytes).ok_or_else(|| "not a variance-authority journey artifact".to_owned())?;
+    let decoded = decode_placed(bytes, place(bytes, version)?, |name| wanted.contains(&name))?;
+    Ok((version, decoded))
+}
+
+fn decode_placed(bytes: &[u8], placed: Vec<Placed>, wanted: impl Fn(&str) -> bool) -> Result<Decoded, String> {
     let mut columns = HashMap::new();
-    for column in place(bytes, version)? {
+    for column in placed {
+        if !wanted(&column.name) {
+            continue;
+        }
         let stored = &bytes[column.stored];
         let plain = match column.rows {
             None => stored.to_vec(),

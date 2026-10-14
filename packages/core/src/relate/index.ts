@@ -50,8 +50,6 @@ export {
   type Whole,
 } from './carried.js';
 
-export { dominatorsOf } from './dominate.js';
-
 export { type EdgeUse, type Uses } from './narrow.js';
 
 export {

@@ -337,6 +337,7 @@ loudest first: `a11y`, `geometry`, `token`, `content`, `texture`.
 | `holdings` | Application values behind the nodes are evidence you want recorded. | `false`. Changes the structure digest — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 | `stabilize` | The application has its own determinism strategy, or a route should be read hovered, focused, animated or at the real time. | The standard collection recipe, which also takes the pointer off the page, releases focus, asks for reduced motion and fixes `Date`; `[]` records an untouched page. A list replaces the recipe: start from the exported `DEFAULT_STABILIZE` and filter out what you want read, as in `DEFAULT_STABILIZE.filter((id) => id !== 'freeze-clock')`. |
 | `now` | Your pages print a date and you want one other than the default. | `2024-06-15T12:00:00.000Z`. An ISO 8601 instant with its zone; anything else is refused when the collector is created. |
+| `tests` | The next run should photograph only the pages an edit reached. | `false`. Requires a build with `testSelectionProbes()`; see [photographing only the pages an edit reached](#photographing-only-the-pages-an-edit-reached). |
 
 ## Readiness and loading
 
@@ -367,6 +368,97 @@ export default routeCollector({
 A route listed in `loading` skips the Suspense wait entirely. The check runs both
 ways: a route declared this way that turns out to settle is refused too, because
 what gets recorded would otherwise depend on how fast the machine is.
+
+## Photographing only the pages an edit reached
+
+A page depends on two things a URL does not show: the code that rendered it, on
+the server as well as in the browser, and the content it displayed. With
+`tests`, a run records both for every page, so a later run against a diff
+photographs the pages that ran a changed line or showed a changed file, and
+skips the rest.
+
+What a page ran comes from probes in your build. Install
+`@variance-authority/sense` as a devDependency and add `testSelectionProbes()`
+to the client build. For code that renders on the server, add it to the server
+build too, with `journeys: true` and the name the server reports under, and
+serve each request inside `collectJourneys()` from
+`@variance-authority/sense/journey`:
+
+```ts
+// worker.ts — the server the recorded run photographs
+import { collectJourneys } from '@variance-authority/sense/journey';
+import handler from './handler';
+
+const journeys = collectJourneys();
+
+export default {
+  fetch: (request: Request) => journeys.enter(request.headers.get('cookie') ?? undefined, () => handler(request)),
+};
+```
+
+Start that server with `VARIANCE_AUTHORITY_JOURNEYS=1` and
+`VARIANCE_AUTHORITY_HEAD=site`, and name the same head in the collector. Each
+page is read under a journey of its own, carried to the server as a cookie on
+the document and on every request the page makes after it, so what the server
+rendered for one page is never charged to another. Unset, `collectJourneys()`
+installs nothing and `enter` returns what its body returns, so the wrapper
+ships to production unchanged. The example closes the journey when the
+handler's response arrives. A server that streams its render is still rendering
+while the body is read, so keep the journey open until the body has been written
+out.
+
+Serve the recorded build with prerendering and every page cache off. A page a
+cache answered ran none of the code that made it, so the record would show it
+running nothing, and a change to that code would skip it.
+
+What a page showed and no code names — a document read at build time, a string
+imported with `?raw` — the element that shows it says, with
+[`@variance-authority/reads`](https://variance-authority.dev/reference/packages/reads):
+
+```tsx
+<article {...reads(document.path)}>{document.body}</article>
+```
+
+Then declare the suite in the root `variance.config.json`, and name it in the
+collector:
+
+```json
+{
+  "suites": {
+    "site": { "kind": "e2e", "relations": false, "before": ["app/globals.css", "vite.config.ts"] }
+  }
+}
+```
+
+```js
+// variance/routes.mjs
+export default routeCollector({
+  sitemap: 'http://localhost:8787/sitemap.xml',
+  tests: { suite: 'site', heads: ['site'] },
+});
+```
+
+Record one run against the probed build, and from then on narrow each run by
+its diff:
+
+```bash
+npx variance run --config variance.config.json --since origin/main --suite site
+```
+
+A changed line selects the pages that ran it. A changed file a page named
+selects that page. A change to a file in `before` runs every page: list there
+what every page rests on without any page running it, such as a global
+stylesheet, the build config and the lockfile. `"relations": false` keeps a
+changed file the record never measured from widening the run, so a file left
+out of `before` is named in the run's warnings and selects nothing.
+
+`tests` accepts `true` or an options object. `suite` names the suite this run
+records; it is required once the root config declares any. `heads` names every
+server that reports, and a named head that reported nothing marks the whole run
+incomplete, so a server that was not watched cannot pass for one that ran
+nothing. `root`, `cacheRoot`, `coverageFile`, `mode`, `preconditions` and `commit` mean
+what they mean on the `tests` option of
+[`@variance-authority/storybook-collector`](https://variance-authority.dev/reference/packages/storybook-collector).
 
 ## Sitemap helpers
 

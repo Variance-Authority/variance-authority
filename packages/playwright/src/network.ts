@@ -15,6 +15,7 @@ import {
   imageSize,
 } from './blank.js';
 import { freezeGif } from './gif.js';
+import { isSpeculative } from './speculative.js';
 
 /**
  * The wire as an observation, not just a transport.
@@ -297,6 +298,14 @@ export async function observeNetwork(
   async function handle(route: Route): Promise<void> {
     const request = route.request();
     const url = request.url();
+
+    // Refused before it leaves. What the page guesses it will show next is not
+    // what it shows: served, a prefetch renders another page's code on this
+    // page's behalf, and when it happens depends on what scrolled into view.
+    if (isSpeculative(request.headers())) {
+      await route.abort('aborted').catch(noteRouteFailure(url));
+      return;
+    }
 
     // Continued without a body read. A script or a document affects the render
     // through the capture, which already has it; paying to hash one here would

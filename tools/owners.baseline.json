@@ -196,17 +196,7 @@
   },
   {
     "idiom": "code-unit-order",
-    "at": "packages/distill/src/file.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
     "at": "packages/distill/src/index.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/distill/src/scope.ts",
     "count": 1
   },
   {

@@ -19,6 +19,7 @@ import png from "../../../packages/png/README.md?raw";
 import presentation from "../../../packages/presentation/README.md?raw";
 import raster from "../../../packages/raster/README.md?raw";
 import react from "../../../packages/react/README.md?raw";
+import reads from "../../../packages/reads/README.md?raw";
 import remote from "../../../packages/remote/README.md?raw";
 import report from "../../../packages/report/README.md?raw";
 import routeCollector from "../../../packages/route-collector/README.md?raw";
@@ -63,6 +64,7 @@ const packages = [
   ["presentation", presentation],
   ["raster", raster],
   ["react", react],
+  ["reads", reads],
   ["remote", remote],
   ["report", report],
   ["route-collector", routeCollector],

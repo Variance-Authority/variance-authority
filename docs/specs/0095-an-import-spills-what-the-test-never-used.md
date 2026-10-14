@@ -175,9 +175,10 @@ top of this one, per case rather than per file, and is not part of this spec.
    the test file does not write, a diamond whose shared weight is counted to
    neither import, a dynamic import read as unseen, and an automock that still
    loads.~~
-   **Discharged.** `dominatorsOf` in `@variance-authority/core/relate`, read by
-   `distillFile` when it is handed the file graph's static imports, and by
-   `variance distill --file` alone. The walk keeps only files the recording
+   **Discharged.** The dominator walk in the sense addon
+   (`packages/sense/native/src/distill_own.rs`), read by `distillFile` and
+   `distillScope` when they are handed the file graph, and by
+   `variance distill` with or without `--file`. The walk keeps only files the recording
    says F evaluated, so a factory mock cuts its edge with no mock reader. An
    import names its importer and imported file, not the specifier as written:
    the specifier and its line come with item 5. Shared weight names the nearest
