@@ -8,6 +8,7 @@ import {
   type DiffPolicy,
   type RasterComparison,
 } from '@variance-authority/raster';
+import { changeImages } from './change.js';
 import { alignRows, differencePixels, type DecodedImage } from './mask.js';
 
 /**
@@ -188,9 +189,5 @@ export function diffImage(
   after: Buffer,
   policy: DiffPolicy = DEFAULT_POLICY,
 ): Buffer {
-  const difference = differencePixels(PNG.sync.read(before), PNG.sync.read(after), policy);
-
-  const out = new PNG({ width: difference.width, height: difference.height });
-  out.data.set(difference.data);
-  return PNG.sync.write(out);
+  return changeImages(before, after, [], policy).diff;
 }

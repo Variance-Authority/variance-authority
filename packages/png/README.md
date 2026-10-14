@@ -213,6 +213,7 @@ the bytes arrive cannot change a verdict.
 | `comparePixels` | `(left: DecodedImage, right: DecodedImage, options?: CompareOptions) => RasterComparison` |
 | `compareRasters` | `(before: Raster, after: Raster, options?: CompareOptions & { decoder?: PngDecoder }) => Promise<RasterComparison>` |
 | `diffImage` | `(before: Buffer, after: Buffer, policy?: DiffPolicy) => Buffer` |
+| `changeImages` | `(before: Buffer, after: Buffer, regions: readonly DiffRegion[], policy?: DiffPolicy) => { diff: Buffer; change?: Buffer }` |
 | `pngSize` | `(bytes: Uint8Array) => { width, height } \| null` |
 | `decode` | `(base64: string) => Buffer` |
 
@@ -241,6 +242,16 @@ default decoder is `pngjs`, so this package still requires nothing native.
 `diffImage` returns an encoded PNG — the after image dimmed with changed pixels
 in red — for the person who does want to look. It is derived from the same bytes
 and is not the comparison result.
+
+`changeImages` returns that same diff and, beside it, `change`: the change at
+its own size, for a page too tall to read whole once it is scaled to a column.
+Pass it the regions the comparison isolated (`isolateRegions` from
+`@variance-authority/core/attribute`). Each of the three heaviest, merged where
+they meet, is cut with 32 rows above and below and at least 320 pixels wide, and
+shown as its before, its after and its difference, top to bottom. A panel stops
+at 400 rows. The before panel is read through the row alignment, so beside an
+insertion it shows the before rows either side of the new content, and at a
+removal it shows the rows that went. With no regions, `change` is absent.
 
 `pngSize` reads the width and height out of the IHDR without decoding, and
 returns `null` for bytes that are not a PNG or are too short for a header.
