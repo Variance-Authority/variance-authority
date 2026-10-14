@@ -62,6 +62,19 @@ describe('content that moved down the page', () => {
     expect(difference.changed).toBe(3 * WIDTH);
   });
 
+  it('pairs the rows a gap grew by with the gap, and a rewritten line with the line', () => {
+    // The gap under the first line grew by a row, and the line under it changed
+    // in one pixel.
+    const before = column([1, 12, 6, 3]);
+    const after = column([1, 12, 12, 6, 3]);
+    after.data.set([0, 0, 0, 255], (3 * WIDTH + 2) * 4);
+
+    const comparison = comparePixels(before, after);
+
+    expect(comparison.alignment).toEqual({ inserted: [], removed: [], shifted: [{ from: 3, to: 5, by: 1 }] });
+    expect(comparison.changed.strict).toBe(1);
+  });
+
   it('carries removed rows on the comparison, since no after pixel shows them', () => {
     const comparison = comparePixels(column([1, 2, 3, 4, 5]), column([1, 4, 5]));
 
@@ -100,6 +113,20 @@ describe('content that moved down the page', () => {
 
     expect(comparison.alignment).toBeUndefined();
     expect(comparison.changed.default).toBe(1 + (LINE - 3));
+  });
+
+  it('compares position by position rather than remove a row to save a pixel', () => {
+    // The second line went and the third took its place, changed in one pixel.
+    // Pairing the third with its old row saves that pixel, but only by removing
+    // the second line and marking the changed row as new.
+    const before = column([1, 12, 6, 3]);
+    const after = column([1, 6, 6, 3]);
+    after.data.set([0, 0, 0, 255], (2 * WIDTH + 2) * 4);
+
+    const comparison = comparePixels(before, after);
+
+    expect(comparison.alignment).toBeUndefined();
+    expect(comparison.changed.strict).toBe(WIDTH + 1);
   });
 
   it('names a row added at the bottom, which position explains as well', () => {

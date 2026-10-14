@@ -187,17 +187,20 @@ row that moved, came or went is a change in itself, so no pairing makes a page
 read as unchanged. The shortest edit counts runs of rows, not pixels, so a
 pairing is kept only when it leaves fewer pixels differing than position does:
 where a mark beside a line of text changed in place, a matching row at another
-height would otherwise shift the lines around it. A tie goes to whichever moved
-nothing. Rows rewritten between two kept runs are paired from the band's top or
-its bottom, whichever leaves fewer pixels differing, so a block drawn into the
-middle of a gap marks the block and not the gap under it. Where two paired runs meet, the before rows on either side
-were not neighbours, and the anti-aliasing test, which reads neighbours, may
-count a pixel on that seam differently. A run of identical rows
-that only grew, such as a white gap one row taller, pairs its extra rows with
-the run's own last row rather than marking them inserted; its crop is cut where
-the rows under it start to move. Only whole rows are
-matched: content that moves in one column beside a column that stays put is
-compared where it sits.
+height would otherwise shift the lines around it. The count charges what each
+side leaves: the pixels that differ between paired rows, an inserted row in
+full, and the pixels of a removed row that are not white, as position charges
+the rows past the shorter image. A tie goes to whichever moved nothing. A run of
+identical rows that only grew, such as a white gap one row taller, pairs its
+extra rows with the run's own last row rather than marking them inserted; its
+crop is cut where the rows under it start to move. Rows rewritten between two
+kept runs are paired from the band's top or its bottom, whichever leaves fewer
+pixels differing, so a block drawn into the middle of a gap marks the block and
+not the gap under it. Where two paired runs meet, the before rows on either
+side were not neighbours, and the anti-aliasing test, which reads neighbours,
+may count a pixel on that seam differently. Only whole rows are matched:
+content that moves in one column beside a column that stays put is compared
+where it sits.
 
 When the widths differ there is no row of one image in the other. Both are then
 copied onto the union box, top-left aligned, and compared position by position,

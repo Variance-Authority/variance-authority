@@ -103,11 +103,13 @@ export function alignRows(
  * substitution, and pairing on it shifts everything around it: a mark that went
  * from beside two lines of text becomes two whole lines compared against their
  * neighbours. So the pairing is weighed by what it leaves for the comparison:
- * every pixel that differs exactly between the rows it pairs, and every pixel of
- * a row it pairs with nothing; position counts the same on the union box, white
- * where an image has no row. A tie goes to whichever moved nothing: the pairing
- * when it shifted no row and only says where rows came or went, else position.
- * Rows in the shared head are equal under both and are not read.
+ * every pixel that differs exactly between the rows it pairs, every pixel of an
+ * after row it pairs with nothing, since that row is marked in full, and every
+ * pixel of a before row it removes that is not white. Position counts the same
+ * on the union box, white where an image has no row, so a row either side leaves
+ * unpaired costs the same on both. A tie goes to whichever moved nothing: the
+ * pairing when it shifted no row and only says where rows came or went, else
+ * position. Rows in the shared head are equal under both and are not read.
  */
 function explainsMore(
   rows: AlignedRows,
@@ -122,6 +124,9 @@ function explainsMore(
   for (let y = head; y < afterHeight; y += 1) {
     const from = rows.source[y]!;
     paired += from < 0 ? width : differing(was, from, now, y, width);
+  }
+  for (const span of rows.removed) {
+    for (let y = span.from; y < span.to; y += 1) paired += width - matching(was, y, WHITE, width);
   }
 
   let positional = 0;
@@ -310,23 +315,22 @@ function edits(left: Float64Array, right: Float64Array, limit: number): Edit[] |
 /**
  * The script, as rows.
  *
- * A kept run pairs row for row. A stretch of removed and added runs between two
- * kept ones is a band that was rewritten, and its rows are paired by position
- * within the band, so a sentence whose text changed is compared glyph against
- * glyph rather than reported as new. When a kept run is longer on one side, what
- * is left of it opens the band: a white gap that a block was drawn into is the
- * gap's rows compared with the block's. Position within a band is counted from
- * its top or from its bottom, whichever leaves fewer pixels differing (`cost`
- * counts them for one pair of rows): a block drawn into the middle of a gap
- * leaves the gap's lower rows in the band, and from the top they would sit
- * against the block.
+ * A kept run pairs row for row. A run that only grew has extra rows that are
+ * copies of a row it already had, so they are paired with that row, the way the
+ * union box pads a taller capture with white, and the page reports that it
+ * changed size rather than marking a gap that got one pixel taller as new
+ * content. When a kept run is longer on the before side, what is left of it
+ * opens the band that follows.
  *
- * What the band cannot pair is either removed, when it is before rows, or
- * inserted and marked in full, when it is after rows. The exception is a run
- * that only grew: its extra rows are copies of a row it already had, so they are
- * paired with that row, the way the union box pads a taller capture with white,
- * and the page reports that it changed size rather than marking a gap that got
- * one pixel taller as new content.
+ * A stretch of removed and added runs between two kept ones is a band that was
+ * rewritten, and its rows are paired by position within the band, so a sentence
+ * whose text changed is compared glyph against glyph rather than reported as
+ * new. Position within a band is counted from its top or from its bottom,
+ * whichever leaves fewer pixels differing (`cost` counts them for one pair of
+ * rows): a block drawn into the middle of a gap leaves the gap's lower rows in
+ * the band, and from the top they would sit against the block. What the band
+ * cannot pair is either removed, when it is before rows, or inserted and marked
+ * in full, when it is after rows.
  */
 function pairing(
   left: Runs,
@@ -363,33 +367,28 @@ function pairing(
     | undefined;
   const settle = (): void => {
     if (band === undefined) return;
-    const rows = Math.min(band.beforeTo - band.beforeFrom, band.afterTo - band.afterFrom);
-    const spare = band.beforeTo - band.beforeFrom + band.afterTo - band.afterFrom - 2 * rows;
-    // A grown run's copies are paired from the top, so only a band without
-    // them is read from its bottom.
-    if (band.grown === 0 && spare > 0 && rows > 0) {
-      let top = 0;
-      let bottom = 0;
+    const { beforeFrom, beforeTo, afterTo } = band;
+    for (let y = band.afterFrom; y < band.afterFrom + band.grown; y += 1) source[y] = band.row;
+    const afterFrom = band.afterFrom + band.grown;
+    const rows = Math.min(beforeTo - beforeFrom, afterTo - afterFrom);
+    let bottom = false;
+    if (rows > 0 && beforeTo - beforeFrom !== afterTo - afterFrom) {
+      let fromTop = 0;
+      let fromBottom = 0;
       for (let row = 0; row < rows; row += 1) {
-        top += cost(band.beforeFrom + row, band.afterFrom + row);
-        bottom += cost(band.beforeTo - rows + row, band.afterTo - rows + row);
+        fromTop += cost(beforeFrom + row, afterFrom + row);
+        fromBottom += cost(beforeTo - rows + row, afterTo - rows + row);
       }
-      if (bottom < top) {
-        pair(band.beforeTo - rows, band.afterTo - rows, rows);
-        if (band.afterFrom < band.afterTo - rows) insert(band.afterFrom, band.afterTo - rows);
-        if (band.beforeFrom < band.beforeTo - rows) {
-          removed.push({ from: band.beforeFrom, to: band.beforeTo - rows, at: band.afterFrom });
-        }
-        band = undefined;
-        return;
-      }
+      bottom = fromBottom < fromTop;
     }
-    pair(band.beforeFrom, band.afterFrom, rows);
-    for (let y = band.afterFrom + rows; y < band.afterFrom + band.grown; y += 1) source[y] = band.row;
-    const unpaired = band.afterFrom + Math.max(rows, band.grown);
-    if (unpaired < band.afterTo) insert(unpaired, band.afterTo);
-    if (band.beforeFrom + rows < band.beforeTo) {
-      removed.push({ from: band.beforeFrom + rows, to: band.beforeTo, at: band.afterTo });
+    if (bottom) {
+      pair(beforeTo - rows, afterTo - rows, rows);
+      if (afterFrom < afterTo - rows) insert(afterFrom, afterTo - rows);
+      if (beforeFrom < beforeTo - rows) removed.push({ from: beforeFrom, to: beforeTo - rows, at: afterFrom });
+    } else {
+      pair(beforeFrom, afterFrom, rows);
+      if (afterFrom + rows < afterTo) insert(afterFrom + rows, afterTo);
+      if (beforeFrom + rows < beforeTo) removed.push({ from: beforeFrom + rows, to: beforeTo, at: afterTo });
     }
     band = undefined;
   };
