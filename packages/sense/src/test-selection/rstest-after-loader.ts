@@ -21,7 +21,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { cleanId } from './instrumented-modules.js';
+import { cleanId, isMissing } from './instrumented-modules.js';
 import { probeHanded, type HandedMap } from './loader-probes.js';
 import type { SelectionLoaderOptions } from './rstest-loader.js';
 import { runOf } from './selection-run.js';
@@ -45,15 +45,14 @@ function probeAfter(this: AfterLoaderContext, code: string, handed?: HandedMap):
     this.callback(null, code, handed);
     return;
   }
-  // Read once: the placement is handed the text rather than reading the file again.
-  const text = disk(file);
-  if (text !== undefined && namesItsMap(text)) {
-    this.callback(null, code, handed);
-    return;
-  }
   let probed;
   try {
-    probed = probeHanded(file, code, handed, { root: run.root, include: run.include, unprobed: run.unprobed, mode: run.mode, disk: text, remedy: REMEDY });
+    // Read once: the placement is handed the text rather than reading the file again.
+    const text = disk(file);
+    // A file that names its own map was probed by the first loader.
+    probed = text !== undefined && namesItsMap(text)
+      ? undefined
+      : probeHanded(file, code, handed, { root: run.root, include: run.include, unprobed: run.unprobed, mode: run.mode, disk: text, remedy: REMEDY });
   } catch (error) {
     this.callback(error as Error);
     return;
@@ -72,12 +71,18 @@ function probeAfter(this: AfterLoaderContext, code: string, handed?: HandedMap):
  */
 const REMEDY = 'Leave Rspack\'s `devtool` writing source maps, as Rstest sets it, and have every loader ahead of the probes hand its map on';
 
-/** The file on disk, or nothing when it cannot be read: a module no file holds. */
+/**
+ * The file on disk, or nothing where no file holds the module, as for a
+ * setup file Rstest serves from a `data:` URL as a virtual module under
+ * `.rstest-virtual`. A file that is there and cannot be read is no such
+ * module, and fails here, with its reason.
+ */
 function disk(file: string): string | undefined {
   try {
     return readFileSync(file, 'utf8');
-  } catch {
-    return undefined;
+  } catch (error) {
+    if (isMissing(error)) return undefined;
+    throw new Error(`\`${file}\`: the probes cannot read the file to place its regions: ${(error as Error).message}`, { cause: error });
   }
 }
 

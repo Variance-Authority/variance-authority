@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import MagicString from 'magic-string';
@@ -22,11 +22,11 @@ afterEach(async () => {
 });
 
 /** A run the seam opened, with `src/price.js` on disk. */
-async function seam(): Promise<Seam & { source: string }> {
+async function seam(include: (file: string) => boolean = (file) => file.includes('/src/')): Promise<Seam & { source: string }> {
   const root = await mkdtemp(resolve(tmpdir(), 'variance-rstest-refusals-'));
   temporary.push(root);
   const coverageFile = resolve(root, 'coverage.bin');
-  const config = withTestSelection({ root }, { coverageFile, include: (file) => file.includes('/src/') });
+  const config = withTestSelection({ root }, { coverageFile, include });
   await mkdir(resolve(root, 'src'));
   const source = resolve(root, 'src/price.js');
   await writeFile(source, PRICE);
@@ -53,6 +53,17 @@ function loaded(
 }
 
 describe('an Rstest module the probes cannot be placed in', () => {
+  it('fails loudly, naming the file and why, where the file is on disk and cannot be read', async () => {
+    const { coverageFile, source } = await seam();
+    await chmod(source, 0o000);
+    try {
+      const { error } = loaded(probeAfter, source, coverageFile, PRICE);
+      expect(error?.message).toMatch(/src\/price\.js.*EACCES/s);
+    } finally {
+      await chmod(source, 0o644);
+    }
+  });
+
   it('refuses a module SWC rewrote with no map, naming the file and the `devtool` that writes the map', async () => {
     const { coverageFile, source } = await seam();
     // What SWC writes with `devtool: false`: changed lines, and no map.
@@ -109,6 +120,17 @@ function rewritten(text: string): MagicString {
 }
 
 describe('an Rstest module the probes go into', () => {
+  it('passes untouched a setup file Rstest serves from a `data:` URL, which no file on disk holds', async () => {
+    // Rstest serves a `data:` setup file as a virtual module under `.rstest-virtual`.
+    const { root, coverageFile } = await seam(() => true);
+    const virtual = resolve(root, '.rstest-virtual/setup.mjs');
+    const map = { version: 3, sources: [virtual], names: [], mappings: 'AAAA' };
+    const { error, code, map: handed } = loaded(probeAfter, virtual, coverageFile, PRICE, undefined, map);
+    expect(error).toBeNull();
+    expect(code).toBe(PRICE);
+    expect(handed).toBe(map);
+  });
+
   it('reads a map handed on as its JSON text, as one handed on as an object', async () => {
     const { coverageFile, source } = await seam();
     const written = rewritten(PRICE);
