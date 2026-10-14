@@ -19,6 +19,7 @@ use rayon::prelude::*;
 use crate::distill_own::{causes_of, Cause, DistillGraph, FileGraph, Scratch};
 use crate::distill_read::{Paths, Record};
 use crate::distill_cases::DistillRegion;
+use crate::distill_rank::{ranked, Ranked, IMPORT, SHARED, UNSEEN};
 use crate::order::code_unit;
 
 /// A reading's withheld code: none, no cases, an incomplete coverage row, a case that did not settle.
@@ -27,10 +28,6 @@ const NO_CASES: u8 = 1;
 const INCOMPLETE: u8 = 2;
 const UNSETTLED: u8 = 3;
 
-/// A cause's kind in the columns; `0` is a module read with no graph.
-const IMPORT: u8 = 1;
-const SHARED: u8 = 2;
-const UNSEEN: u8 = 3;
 
 /// Records read once for any number of distillations.
 #[napi]
@@ -165,8 +162,16 @@ impl DistillRecords {
             files.sort_by(|a, b| code_unit(paths.name(*a), paths.name(*b)));
             work.extend(files.into_iter().map(|file| (at as u32, file)));
         }
-        for record in &mut self.records {
-            record.enter_all(&self.paths).map_err(napi::Error::from_reason)?;
+        // Reading every module's entries once costs a pass over the index; asking them one load at a time costs a
+        // pass over that module's regions. A scope that asks fewer loads than the index holds modules asks them.
+        let mut asked = vec![0usize; self.records.len()];
+        for (record, file) in &work {
+            asked[*record as usize] += self.records[*record as usize].loads(*file).len();
+        }
+        for (record, asked) in self.records.iter_mut().zip(asked) {
+            if asked >= record.indexed_modules().map_err(napi::Error::from_reason)? {
+                record.enter_all(&self.paths).map_err(napi::Error::from_reason)?;
+            }
         }
         let paths = &self.paths;
         let size = paths.len();
@@ -403,7 +408,7 @@ impl DistillRecords {
             unentered_lines: Float64Array::new(rows.iter().map(|reading| reading.unentered_lines as f64).collect()),
         };
 
-        let mut spills: Vec<(Key, Spill, String)> = gathered
+        let mut spills: Vec<(Key, Spill)> = gathered
             .spills
             .drain()
             .map(|(key, mut spill)| {
@@ -414,36 +419,26 @@ impl DistillRecords {
                 spill.files.sort_unstable();
                 spill.files.dedup();
                 spill.files.sort_by(by_name);
-                let head = match key.0 {
-                    0 => paths.name(spill.modules[0]).to_owned(),
-                    IMPORT => format!(
-                        "{} {} {}",
-                        paths.name(key.1),
-                        if spill.lazy { "lazily imports" } else { "imports" },
-                        paths.name(key.2)
-                    ),
-                    SHARED => "No one import brings these in alone".to_owned(),
-                    _ => "No import the graph reads reaches these from the test file".to_owned(),
-                };
-                (key, spill, head)
+                (key, spill)
             })
             .collect();
-        let rank = |kind: u8| match kind {
-            SHARED => 1,
-            UNSEEN => 2,
-            _ => 0,
+        let rank_of = |(key, spill): &(Key, Spill)| Ranked {
+            kind: key.0,
+            importer: match key.0 {
+                0 => paths.name(spill.modules[0]),
+                IMPORT => paths.name(key.1),
+                _ => "",
+            },
+            imported: if key.0 == IMPORT { paths.name(key.2) } else { "" },
+            lazy: spill.lazy,
+            lines: spill.lines,
+            files: spill.files.len(),
         };
-        spills.sort_by(|(a, left, a_head), (b, right, b_head)| {
-            rank(a.0)
-                .cmp(&rank(b.0))
-                .then_with(|| right.lines.cmp(&left.lines))
-                .then_with(|| right.files.len().cmp(&left.files.len()))
-                .then_with(|| code_unit(a_head, b_head))
-        });
+        spills.sort_by(|a, b| ranked(&rank_of(a), &rank_of(b)));
 
         let (mut kind, mut importer, mut imported, mut lazy, mut lines) = (vec![], vec![], vec![], vec![], vec![]);
         let (mut module_offset, mut modules, mut file_offset, mut files) = (vec![0], vec![], vec![0], vec![]);
-        for ((k, a, b), spill, _) in &spills {
+        for ((k, a, b), spill) in &spills {
             kind.push(*k);
             importer.push(if *k == IMPORT { names.id(paths, *a) } else { 0 });
             imported.push(if *k == IMPORT { names.id(paths, *b) } else { 0 });

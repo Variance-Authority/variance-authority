@@ -99,7 +99,9 @@ Not as a new question. A choke point is a line in answers that already exist:
    barrel that re-exports two unrelated files, a mocked choke point, and a test
    importing Y directly. The pass is not built. Its engine is
    `graph_dominators.rs` in the sense addon, which `distill` already runs over
-   one test file's imports; several test entries hang from a virtual root.
+   one test file's imports; several test entries hang from a virtual root. It
+   has no binding to JavaScript: `distill` calls it from Rust, in
+   `distill_own.rs`. The pass needs one, or runs in the addon beside it.
 2. The reality pass: set inclusion over executed files, restricted to files
    with an import path to Y. One fixture where a setup file every case runs is
    not a choke point, one where a dynamic import whose specifier is not a quoted

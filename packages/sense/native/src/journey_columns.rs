@@ -78,6 +78,11 @@ pub struct Decoded {
 }
 
 impl Decoded {
+    /// Whether no column was decoded: the bytes held none of those asked for.
+    pub fn is_empty(&self) -> bool {
+        self.columns.is_empty()
+    }
+
     pub fn has(&self, name: &str) -> bool {
         self.columns.contains_key(name)
     }

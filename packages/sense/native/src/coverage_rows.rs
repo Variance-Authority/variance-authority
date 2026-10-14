@@ -23,6 +23,10 @@ pub(crate) const MODULE: u32 = 0;
 pub(crate) const FUNCTION: u32 = 1;
 /// `NO_LINE` in `written-lines.ts`: a region that kept no lines.
 pub(crate) const NO_LINE: u32 = 0;
+/// What a record that holds cases and none of the coverage columns is refused
+/// with: `WITHOUT_COVERAGE` in `distill-native.ts` reads it as
+/// `RecordWithoutCoverage`, as `openTestCoverage` throws for the same record.
+pub(crate) const WITHOUT_COVERAGE: &str = "the record holds no coverage rows";
 const COLUMNS: [&str; 14] = [
     "strings.blob",
     "strings.off",
@@ -63,6 +67,10 @@ impl CoverageRows {
         if !VERSIONS.contains(&version) {
             return Err(format!("unsupported test coverage version: {version}"));
         }
+        // None of the coverage is absent coverage; some of it is a broken record.
+        if decoded.is_empty() {
+            return Err(WITHOUT_COVERAGE.to_owned());
+        }
         let rows = CoverageRows::of(&decoded)?;
         let blocks = rows.kind.len();
         if rows.complete.len() != rows.test_path.len() {
@@ -73,6 +81,10 @@ impl CoverageRows {
         }
         if [rows.start.len(), rows.end.len(), rows.source.len(), rows.loaded_set.len()].iter().any(|length| *length != blocks) {
             return Err("coverage block columns disagree".to_owned());
+        }
+        // `presence` in `format-validation.ts`: a module has regions exactly when the build says it instrumented one.
+        if (0..rows.modules()).any(|module| (rows.instrumented[module] == 1) != (rows.bounds[module + 1] > rows.bounds[module])) {
+            return Err("a coverage module's regions disagree with whether it was instrumented".to_owned());
         }
         Ok(rows)
     }

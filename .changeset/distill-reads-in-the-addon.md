@@ -15,7 +15,9 @@ loaded, per module how many of its cases entered it — and answers the scope,
 one test file, and the import behind each module no case entered, in columns.
 On a synthetic suite of that shape a whole-suite reading takes a few seconds
 in place of most of a minute, and every output is the same, byte for byte.
-`--file` still opens the whole record, and takes about a second there.
+`--file` still opens the whole record, a fifth of a second there, and reads the
+file graph, about a second more, only when a module no case entered needs its
+import named.
 
 Breaking: `distillFile` and `distillScope` take the record's bytes as `record`
 and the file graph as `relations`, in place of the decoded `coverage` and
@@ -26,10 +28,18 @@ and makes each row as it is reached. They require the addon, and throw naming
 why where it did not install.
 
 A record whose case index is in the row spelling, which no current writer
-emits, is refused with "record the suite again". `readDistillRecords` is
-exported from `@variance-authority/sense/test-selection`; its records answer
-`cases` and `regions` for one test file, and `NativeDistillRegion` is the region
-they answer.
+emits, is converted to the set spelling as it is read, and needs nothing from
+you. The set spelling keeps a run at load as a flag that names no case, so over
+such a record an import referenced in a function the importer calls while it
+loads is charged as if no case ran it, as it already was over a set-spelled
+record. A record whose module says it was instrumented and has no regions, or
+the other way round, is refused, as reading its coverage already refused it.
+
+`readDistillRecords` and `rankDistillCauses` are exported from
+`@variance-authority/sense/test-selection`. The records answer `cases` and
+`regions` for one test file, and `NativeDistillRegion` is the region they
+answer; `rankDistillCauses` orders a test file's load causes as a scope's
+reading orders them, so one test file's reading and a scope's rank them alike.
 
 `variance distill --format jsonl` makes each row as it writes it, and `json`
 writes its answer as it serializes it, a piece at a time. A reader that closes

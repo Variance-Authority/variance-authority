@@ -1,10 +1,12 @@
 // compass: variance-authority/runtime/attention
 import { EDGE_KINDS, NODE_KINDS, idOf, type EdgeKind, type Relations } from '@variance-authority/core/relate';
 import {
+  rankDistillCauses,
   readDistillRecords,
   type DistillRecords,
   type ExecutionTest,
   type FileReferences,
+  type NativeDistillCause,
   type NativeDistillFile,
 } from '@variance-authority/sense/test-selection';
 import type { ShadowReach } from '@variance-authority/sense/taint';
@@ -226,10 +228,6 @@ function loadsOf(relations: Relations, file: string): readonly string[] {
 /** How many cases a refusal names. */
 const AVAILABLE_SHOWN = 5;
 
-function compare(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
 /** Render a file distillation for a person or agent. */
 export function formatFileDistillation(result: FileDistillation): string {
   // The mocks are read from the graph, not the record, so they stand however the loads read.
@@ -275,22 +273,27 @@ export function formatFileDistillation(result: FileDistillation): string {
   ].join('\n');
 }
 
-/** The modules grouped by what brought them in: imports heaviest first, then the shared, then the unseen. */
+/** The modules grouped by what brought them in, in the order a scope reads its spills: imports heaviest first, then the shared, then the unseen. */
 function byCause(modules: readonly LoadedModule[]): readonly (readonly [string, readonly LoadedModule[]])[] {
-  const groups = new Map<string, LoadedModule[]>();
+  const groups = new Map<string, { readonly head: string; readonly cause: NativeDistillCause; readonly modules: LoadedModule[] }>();
   for (const module of modules) {
     const cause = module.cause;
-    const head = cause?.kind === 'import'
-      ? importOf(cause)
-      : cause?.kind === 'shared' ? SHARED : UNSEEN;
-    const group = groups.get(head);
-    if (group === undefined) groups.set(head, [module]);
-    else group.push(module);
+    const [head, kind] = cause?.kind === 'import'
+      ? [importOf(cause), IMPORT]
+      : cause?.kind === 'shared' ? [SHARED, SHARED_KIND] : [UNSEEN, UNSEEN_KIND];
+    let group = groups.get(head);
+    if (group === undefined) {
+      const named = cause?.kind === 'import'
+        ? { importer: cause.importer, imported: cause.imported, lazy: cause.lazy === true }
+        : { importer: '', imported: '', lazy: false };
+      groups.set(head, (group = { head, cause: { kind, ...named, lines: 0 }, modules: [] }));
+    }
+    group.modules.push(module);
   }
+  const held = [...groups.values()];
   const weight = (group: readonly LoadedModule[]): number => group.reduce((sum, module) => sum + (module.lines ?? 0), 0);
-  const rank = (head: string): number => (head === SHARED ? 1 : head === UNSEEN ? 2 : 0);
-  return [...groups].sort(([left, a], [right, b]) =>
-    rank(left) - rank(right) || weight(b) - weight(a) || compare(left, right));
+  return rankDistillCauses(held.map(({ cause, modules }) => ({ ...cause, lines: weight(modules) })))
+    .map((at) => [held[at]!.head, held[at]!.modules] as const);
 }
 
 /** How many imports, modules under one group, and modules in a flat list the text names; the JSON names every one. */

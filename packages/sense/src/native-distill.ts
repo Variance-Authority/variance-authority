@@ -95,7 +95,18 @@ export interface NativeDistillRecords {
   regions(file: string, importer: string): NativeDistillRegion[];
 }
 
+/** One group of a file's unentered modules under its cause; `kind` as a scope's, and both names empty for the shared and the unseen. */
+export interface NativeDistillCause {
+  readonly kind: number;
+  readonly importer: string;
+  readonly imported: string;
+  readonly lazy: boolean;
+  readonly lines: number;
+}
+
 export interface NativeDistill {
   /** Coverage records that carry their case index, read once. */
   readDistillRecords?(records: Buffer[]): NativeDistillRecords;
+  /** The places of `causes` in the order a scope's spills are read in: `distill_rank.rs`. */
+  rankDistillCauses?(causes: NativeDistillCause[]): number[];
 }

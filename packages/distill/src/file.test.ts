@@ -36,7 +36,8 @@ const COVERAGE: TestCoverage = {
     loaded('src/fancy-error.tsx', 60, ['FancyError']),
     // Loaded by another file only.
     loaded('src/unrelated.ts', 80, ['work'], ['test/other.test.ts']),
-    { ...loaded('src/opaque.js', 20, ['run']), instrumented: false },
+    // An uninstrumented module keeps no regions: the record cannot say who loaded it.
+    { file: 'src/opaque.js', sourceDigest: 'src/opaque.js', instrumented: false, blocks: [] },
     loaded(FILE, 30, ['helper']),
   ],
 };

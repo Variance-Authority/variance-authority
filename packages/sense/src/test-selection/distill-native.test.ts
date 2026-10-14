@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { withCaseSections } from './case-record.js';
+import { recordOfCases, withCaseSections } from './case-record.js';
 import { encodeExecutionIndex } from './execution-format.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
-import { encodeTestCoverage, type TestCoverage } from './format.js';
+import { decodeTestCoverage, encodeTestCoverage, type CoverageModule, type TestCoverage } from './format.js';
+import { RecordWithoutCoverage } from './format-validation.js';
 import { readDistillRecords } from './distill-native.js';
 import type { ExecutionIndex } from './reverse.js';
 
@@ -43,9 +44,14 @@ describe('readDistillRecords', () => {
     expect([sets.cases, sets.unsettled]).toEqual([3, 1]);
   });
 
-  it('refuses a case index in the row spelling, which no writer emits any more', () => {
-    expect(() => readDistillRecords([withCaseSections(encodeTestCoverage(COVERAGE), { index: encodeExecutionIndex(index(0)) })]))
-      .toThrow('record the suite again');
+  it('distills a row-spelled record the same as its set-spelled conversion, reading no depth', () => {
+    const recorded = (spelled: Uint8Array) => readDistillRecords([withCaseSections(encodeTestCoverage(COVERAGE), { index: spelled })]);
+    const [rows, sets] = [recorded(encodeExecutionIndex(index(1))), recorded(encodeAsSetExecutionIndex(index(0)))];
+
+    expect(rows.file(FILE)).toEqual(sets.file(FILE));
+    expect(rows.scope(undefined)).toEqual(sets.scope(undefined));
+    expect(rows.regions(FILE, 'src/used.ts')).toEqual(sets.regions(FILE, 'src/used.ts'));
+    expect(rows.cases(FILE)).toEqual(sets.cases(FILE));
   });
 
   it('reads an importer\'s regions against the file\'s cases', () => {
@@ -58,5 +64,79 @@ describe('readDistillRecords', () => {
     expect(sets.regions(FILE, 'src/absent.ts')).toEqual([]);
     expect(sets.cases(FILE).map(({ name }) => name)).toEqual(['one', 'two', 'three']);
     expect(sets.cases('test/absent.test.ts')).toEqual([]);
+  });
+
+  it('refuses a record that holds cases and no coverage rows as reading its coverage would', () => {
+    expect(() => readDistillRecords([recordOfCases({ index: encodeAsSetExecutionIndex(index(0)) })])).toThrow(RecordWithoutCoverage);
+  });
+
+  it('reads a module the case index lists twice by its last row, whichever question reaches it first', () => {
+    const twice: ExecutionIndex = { ...index(0), modules: [...index(0).modules, { ...index(0).modules[0]!, blocks: [{ ...index(0).modules[0]!.blocks[0]!, crossings: [] }] }] };
+    const recorded = () => readDistillRecords([withCaseSections(encodeTestCoverage(COVERAGE), { index: encodeAsSetExecutionIndex(twice) })]);
+    const alone = recorded().file(FILE);
+    const afterScope = recorded();
+    afterScope.scope(undefined);
+    const entered = (found: typeof alone) => Array.from(found.module, (module, at) => [found.names[module], found.entered[at]]);
+
+    expect(entered(alone)).toEqual(entered(afterScope.file(FILE)));
+    expect(entered(alone)).toContainEqual(['src/used.ts', 0]);
+  });
+});
+
+/** One record of every shape a coverage row reader has to agree on: what each test file loaded, its lines, and whether its row is complete. */
+describe('the coverage rows the addon and openTestCoverage read', () => {
+  const [A, B] = ['test/a.test.ts', 'test/b.test.ts'];
+  const module = (file: string, loadedBy: readonly string[], shape: { instrumented?: boolean; source?: boolean; functions?: boolean; endLine?: number } = {}): CoverageModule => ({
+    file, sourceDigest: file, instrumented: shape.instrumented ?? true,
+    blocks: shape.instrumented === false ? [] : [
+      { ordinal: 0, kind: 'module', digest: `${file}#root`, name: '', path: '', source: true, testFiles: [...loadedBy], loadedBy: [...loadedBy], ...(shape.endLine === undefined ? {} : { startLine: 1, endLine: shape.endLine }) },
+      ...(shape.functions === false ? [] : [{ ordinal: 1, kind: 'function' as const, owner: 0, digest: `${file}#run`, name: 'run', path: 'run', source: shape.source ?? true, testFiles: [], startLine: 2, endLine: 2 }]),
+    ],
+  });
+  const coverage: TestCoverage = {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    tests: [{ file: A, complete: true, preconditions: [] }, { file: B, complete: false, preconditions: [] }],
+    modules: [
+      module('src/both.ts', [A, B], { endLine: 12 }),
+      module('src/generated.ts', [A], { source: false, endLine: 30 }),
+      module('src/raw.ts', [A], { instrumented: false, endLine: 40 }),
+      module('src/top.ts', [A, B], { functions: false, endLine: 50 }),
+      module('src/unlined.ts', [B]),
+      module('src/b-only.ts', [B, B], { endLine: 7 }),
+      module(A, [A], { endLine: 60 }),
+    ],
+  };
+  const cases: ExecutionIndex = {
+    tests: [A, B].map((file) => ({ id: `${file} > one`, file, name: 'one', stopped: false })),
+    modules: [],
+  };
+  const bytes = withCaseSections(encodeTestCoverage(coverage), { index: encodeAsSetExecutionIndex(cases) });
+
+  /** The reading `distill` made before the addon: an instrumented module with a source function, by the test files that ran its top level. */
+  const oracle = (file: string) => {
+    const decoded = decodeTestCoverage(bytes);
+    const loaded = decoded.modules.filter((found) =>
+      found.file !== file && found.instrumented &&
+      found.blocks.some((block) => block.kind === 'function' && block.source) &&
+      found.blocks.find((block) => block.kind === 'module')?.loadedBy?.includes(file));
+    return {
+      loaded: loaded.length,
+      lines: loaded.reduce((sum, found) => sum + (found.blocks.find((block) => block.kind === 'module')?.endLine ?? 0), 0),
+      complete: decoded.tests.find((test) => test.file === file)!.complete,
+    };
+  };
+
+  it.each([A, B])('agree on %s', (file) => {
+    const found = readDistillRecords([bytes]).file(file);
+
+    expect({ loaded: found.loaded, lines: found.lines, complete: found.withheld !== 2 }).toEqual(oracle(file));
+  });
+
+  it('refuse a module whose regions disagree with whether it was instrumented', () => {
+    const broken = encodeTestCoverage({ ...coverage, modules: [{ ...module('src/both.ts', [A], { endLine: 12 }), instrumented: false }] });
+
+    expect(() => decodeTestCoverage(broken)).toThrow();
+    expect(() => readDistillRecords([withCaseSections(broken, { index: encodeAsSetExecutionIndex(cases) })])).toThrow();
   });
 });

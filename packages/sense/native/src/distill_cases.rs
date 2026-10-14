@@ -8,8 +8,8 @@
 //! importers' regions, all off the same reading. A crossing made while its
 //! module loaded is not a call: the set spelling keeps it as the region's load
 //! flag, which names no case, so nothing here can say which test file's case
-//! ran a region at load. The row spelling, which did, is no longer written, and
-//! a record that carries it is refused.
+//! ran a region at load. A record whose index is in the row spelling is
+//! converted to the set spelling before it reaches here (`distill-native.ts`).
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -66,7 +66,7 @@ impl CaseIndex {
     pub fn read(record: &[u8], paths: &mut Paths) -> Result<CaseIndex, String> {
         let index = journey_columns::recorded_cases_in(record);
         if journey_columns::version_of(index).is_some_and(|version| ROWS.contains(&version)) {
-            return Err("the record's case index is in the row spelling, which distill does not read: record the suite again".to_owned());
+            return Err("the record's case index is in the row spelling, which the addon does not read: convert it to the set spelling first".to_owned());
         }
         let journey = Journey::of("the record's case index", index.to_vec())?;
         let mut file_of = Vec::with_capacity(journey.tests());
@@ -85,6 +85,10 @@ impl CaseIndex {
 
     pub fn cases(&self, file: u32) -> Cases {
         self.cases.get(&file).copied().unwrap_or_default()
+    }
+
+    pub fn modules(&self) -> Result<usize, String> {
+        Ok(self.journey()?.modules())
     }
 
     fn journey(&self) -> Result<std::sync::MutexGuard<'_, Journey>, String> {

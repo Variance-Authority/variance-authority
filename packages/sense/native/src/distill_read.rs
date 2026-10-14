@@ -171,6 +171,11 @@ impl Record {
         self.index.cases(file)
     }
 
+    /// How many modules the case index holds.
+    pub fn indexed_modules(&self) -> Result<usize, String> {
+        self.index.modules()
+    }
+
     /// Every module's entries read up front, for a scope that asks them all from many threads.
     pub fn enter_all(&mut self, paths: &Paths) -> Result<(), String> {
         self.index.enter_all(paths)
