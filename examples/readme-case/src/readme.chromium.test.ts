@@ -89,7 +89,10 @@ describe.skipIf(!BROWSER_AVAILABLE)('the root README example', () => {
     expect(['darwin', 'linux', 'win32']).toContain(raster);
     expect(changedPixels).toBeGreaterThan(0);
   });
+});
 
+// Reads committed files only, so it runs with or without a browser.
+describe('the root README example\'s count', () => {
   it('records the number of pixels the comparison counts between the committed PNGs', async () => {
     const [before, after, provenance] = await Promise.all([
       readFile(join(ARTIFACT_ROOT, 'before.png')),
