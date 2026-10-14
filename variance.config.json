@@ -28,6 +28,7 @@
         "site/package.json",
         "site/postcss.config.mjs",
         "site/public",
+        "site/tsconfig.json",
         "site/variance",
         "site/vite.config.ts",
         "site/wrangler.jsonc",
