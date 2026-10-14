@@ -124,8 +124,15 @@ source map. A map that would place a probe on the wrong code is never used.**
 
 - A build-time compiler compiles the same output under a recorded run as it
   ships, outside the four cases and outside `placement: 'before-transforms'`.
-- The placement pays a second parse and a map read: about 0.4 ms a module under
-  a Vite dev server and 0.07 ms under Jest, rounded, on one machine.
+- The placement pays a second parse and a map read. On an M4 Max, under
+  Vitest over 1,006 modules of MUI with each file read once, the probes'
+  transforms take 338 ms in all, about 0.34 ms a module over the transforms
+  alone, and 111 ms more than probes placed before the transforms, about
+  0.11 ms a module; of the 238 ms the hook after the transforms takes, the
+  composed map is 34 ms and the second parse and placement 110 ms. Under Jest
+  with `@swc/jest` over 226 modules, measured before the file was read once,
+  the probes add about 0.33 ms a module over the transformer alone and 0.07 ms
+  over probes placed before it.
 - A test can be selected for a region it did not run. It is never left
   unselected for one it ran: a region with no origin of its own is fired at
   the entry of the function around the code in front of it, past any function

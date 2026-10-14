@@ -299,9 +299,12 @@ release is transformed again.
 **Cost.** Under `instrument`, one parse and one walk, O(module length). Under
 `place`, two of each, the authored text and the transformed one, plus one read
 of the composed map, O(module length + mappings); a seam also reads the file
-from disk and asks the bundler for the composed map. Rounded, on an M4 Max: a
-Vite dev transform pays about 0.4 ms a module over the transforms alone, and a
-Jest transform about 0.07 ms, once per content version through Jest's cache.
+from disk and asks the bundler for the composed map. Rounded, on an M4 Max, the
+probes' own time over the transforms alone: under Vitest, with each file read
+once, about 0.34 ms a module, 0.11 ms of it more than `instrument` placed
+before the transforms; under Jest with `@swc/jest`, measured before the file was
+read once, about 0.33 ms a module, 0.07 ms of it more than `instrument`, paid
+once per content version through Jest's cache.
 Under `placement: 'before-transforms'` every seam pays `instrument`'s cost
 alone.
 Instrumenting is done per module per process that bundles, and the runtime records a hit in O(1): one
