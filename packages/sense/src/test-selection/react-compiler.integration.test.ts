@@ -117,7 +117,7 @@ describe('React Compiler ahead of the probes', () => {
     const sentinel = Symbol.for('react.memo_cache_sentinel');
     const runtime: Record<string, unknown> = {
       react: { useState: (value: unknown) => [value, () => undefined] },
-      'react/compiler-runtime': { c: (size: number) => new Array(size).fill(sentinel) },
+      'react/compiler-runtime': { c: (size: number) => Array.from({ length: size }, () => sentinel) },
     };
     const page = createContext({ h: () => null, exports: {}, require: (name: string) => runtime[name] });
     runInContext(code!, page);

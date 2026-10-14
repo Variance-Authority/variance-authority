@@ -1,9 +1,10 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { transformSync } from 'esbuild';
+import MagicString from 'magic-string';
 import { afterEach, describe, expect, it } from 'vitest';
-import instrumentModule, { PROBES_LOADER, SELECTION_LOADER } from './rstest-loader.js';
+import instrumentModule from './rstest-loader.js';
+import { PROBES_LOADER, SELECTION_LOADER } from './rstest-loaders.js';
 import probeAfter from './rstest-after-loader.js';
 import { withTestSelection, type RstestFileResult } from './rstest.js';
 
@@ -102,11 +103,17 @@ describe('an Rstest module the probes cannot be placed in', () => {
   });
 });
 
+/** `text` with a directive written ahead of it, as a loader writes it. */
+function rewritten(text: string): MagicString {
+  return new MagicString(text).prepend("'use strict';\n");
+}
+
 describe('an Rstest module the probes go into', () => {
   it('reads a map handed on as its JSON text, as one handed on as an object', async () => {
-    const { root, coverageFile, source } = await seam();
-    const written = transformSync(PRICE, { format: 'cjs', sourcemap: 'external', sourcefile: source });
-    const { error, code, map: handed } = loaded(probeAfter, source, coverageFile, written.code, undefined, written.map as never);
+    const { coverageFile, source } = await seam();
+    const written = rewritten(PRICE);
+    const map = written.generateMap({ source, hires: true }).toString();
+    const { error, code, map: handed } = loaded(probeAfter, source, coverageFile, written.toString(), undefined, map as never);
     expect(error).toBeNull();
     expect(code).toMatch(/if \(amount > 10\) \{\s*__va\(\d+\);/);
     expect(handed).toMatchObject({ sources: [source] });

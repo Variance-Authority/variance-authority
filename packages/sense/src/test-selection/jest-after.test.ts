@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { transformSync } from 'esbuild';
+import MagicString from 'magic-string';
 import { afterEach, describe, expect, it } from 'vitest';
 import { deriveModules } from './captured-modules.js';
 import { probedAfter } from './jest-after.js';
@@ -24,13 +24,21 @@ async function project(files: Readonly<Record<string, string>>): Promise<string>
   return root;
 }
 
+/** `text` with its parameter's type annotation taken out, and the map back to `path`. */
+function stripped(text: string, path: string): { code: string; map: string } {
+  const at = text.indexOf(': number');
+  const written = new MagicString(text).remove(at, at + ': number'.length);
+  return { code: written.toString(), map: written.generateMap({ source: path, hires: true }).toString() };
+}
+
 describe('the probes on what a Jest transformer wrote', () => {
   it('places them through the map the transformer left only inline, and hands that map on carried onto the probed text', async () => {
     const root = await project({ 'src/price.ts': PRICE });
     const path = resolve(root, 'src/price.ts');
-    const written = transformSync(PRICE, { loader: 'ts', format: 'cjs', sourcemap: 'inline', sourcefile: path });
+    const written = stripped(PRICE, path);
+    const inline = `${written.code}//# sourceMappingURL=data:application/json;base64,${Buffer.from(written.map).toString('base64')}\n`;
 
-    const done = probedAfter(root, path, PRICE, { code: written.code, map: null }, 'presence', undefined);
+    const done = probedAfter(root, path, PRICE, { code: inline, map: null }, 'presence', undefined);
 
     expect(done?.code).toMatch(/if \(amount > 10\) \{\s*__va\(\d+\);/);
     expect(done?.code).not.toContain('sourceMappingURL');
@@ -52,8 +60,7 @@ describe('the probes on what a Jest transformer wrote', () => {
   it('hands back what the transformer wrote, unprobed, for a module the default `include` leaves out', async () => {
     const root = await project({ 'dist/price.ts': PRICE });
     const path = resolve(root, 'dist/price.ts');
-    const written = transformSync(PRICE, { loader: 'ts', format: 'cjs', sourcemap: 'external', sourcefile: path });
-    const given = { code: written.code, map: written.map };
+    const given = stripped(PRICE, path);
 
     expect(probedAfter(root, path, PRICE, given, 'presence', undefined)).toBe(given);
   });
@@ -66,9 +73,10 @@ describe('the probes on what a Jest transformer wrote', () => {
       'src/price.ts': 'export function price(amount: number) {\n  return amount > 10 ? 1 : 2;\n}\n',
     });
     const path = resolve(root, 'lib/price.js');
-    const written = transformSync(built, { loader: 'js', format: 'cjs', sourcemap: 'external', sourcefile: path });
+    const written = new MagicString(built).prepend("'use strict';\n");
+    const map = written.generateMap({ source: path, hires: true }).toString();
 
-    const done = probedAfter(root, path, built, { code: written.code, map: written.map }, 'presence', undefined);
+    const done = probedAfter(root, path, built, { code: written.toString(), map }, 'presence', undefined);
 
     const id = /\.r\("(lib\/price\.js@[0-9a-f]{32})"/.exec(done!.code)![1]!;
     expect((await deriveModules(root, [id], undefined)).get(id)?.file).toBe('src/price.ts');
