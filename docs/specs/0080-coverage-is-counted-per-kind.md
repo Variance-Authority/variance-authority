@@ -15,7 +15,7 @@ to a job summary, and nothing keeps a trend.
 `packages/sense/src/test-selection/suites.ts` (which records exist, and of what
 kind), `caseMotion` in `packages/sense/src/test-selection/case-motion.ts` (the
 difference, region by region), `addressKey` in
-`packages/sense/src/test-selection/merge-carry.ts` (the join),
+`packages/sense/src/test-selection/carried-rows.ts` (the join),
 `packages/cli/src/commands/covering-suites.ts` (a question asked of every
 declared suite and grouped by kind), `packages/cli/src/commands/covering-motion.ts`
 (where the base record comes from).

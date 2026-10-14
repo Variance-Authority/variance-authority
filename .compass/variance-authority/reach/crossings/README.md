@@ -78,8 +78,8 @@ nothing to diff against, so its holder runs everything.
   and the entry points over it
 - `packages/sense/src/test-selection/journal.ts` — `recordExecution`, the join
   between an inventory and the ordinals a driven realm reported
-- `packages/sense/src/test-selection/merge.ts` — how two runs become one
-  record, and where evidence is retired
+- `packages/sense/native/src/record_coverage_layer.rs` — how one run is laid
+  over the record, and where evidence is retired
 - `packages/sense/native/src/record_combine.rs` — `combineRecords`, the one fold
   of N shards' records into the record an unsharded run would have written;
   `packages/sense/record-layout.json` is the format's constants, read by both

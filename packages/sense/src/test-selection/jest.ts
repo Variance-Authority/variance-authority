@@ -476,4 +476,3 @@ function instrumented(
   };
 }
 
-export { mergeCoverage } from './merge.js';

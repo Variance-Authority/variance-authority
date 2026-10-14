@@ -51,6 +51,17 @@ the largest of them, not their sum.
 - `layerTestCoverage` is removed from the same entry point. Use
   `layeredCoverage(file, coverage, root)`, which reads the record at `file`
   and returns the laid bytes.
+- `mergeCoverage` is removed from `@variance-authority/sense/test-selection`,
+  `/vitest`, `/jest` and `/rstest`, with no alias. It was a second lay in
+  JavaScript, and a fold through it ran out of heap. Combine shards with
+  `combineRecords` and lay the result with `landedCoverage(previous, combined)`,
+  bytes in and bytes out, or run `variance journeys <shard.bin>...`.
+- A run is no longer laid over a record it cannot read, or one written under
+  other probes: the runner's teardown, `variance land` and
+  `landedCoverage` fail with the reason, where they used to replace the
+  record or drop it silently. Such a record was written by another build;
+  delete it and run again. Every record 0.15.0 reads is still read: format
+  10, 9 (no cases) and 8 (no durations).
 - A run whose shards started from different records fails the build: two
   commits, two before layers, one file on two texts before them, two records
   their runs split the suite by, or one shard that found no record beside

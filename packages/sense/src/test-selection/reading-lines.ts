@@ -64,7 +64,7 @@ function glossOf(reading: FileReading): keyof typeof GLOSS {
 const GLOSS = {
   none: ' — the runtime text is equal',
   // The landing that laid the record demoted every carried test that ran an
-  // edited region of the earlier text (`mergeCoverage`), so those tests are
+  // edited region of the earlier text (`layRecord`), so those tests are
   // selected as incomplete rather than skipped as having run this one.
   kept: ' — a test recorded over an earlier text of an edited region is not skipped',
   bodies: ' — the changed regions are charged, not the whole module',

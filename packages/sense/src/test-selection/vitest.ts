@@ -475,8 +475,6 @@ function array<T>(value: T | readonly T[] | undefined): T[] {
   return value === undefined ? [] : Array.isArray(value) ? [...value] : [value as T];
 }
 
-export { mergeCoverage } from './merge.js';
-
 /**
  * Which files this configuration runs as tests: its `test.include` globs, under
  * `test.dir` or the root, as Vitest's own search reads them.

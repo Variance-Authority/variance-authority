@@ -18,7 +18,6 @@ import type {
   SourcePoint,
   SourceRegion,
 } from './at-source.js';
-import { mergeCoverage } from './merge.js';
 import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
 import {
   narrowByExecutionFromView,
@@ -96,7 +95,7 @@ export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
 export { selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
 export { eitherFace, indexFaces, type Face, type Faces, type ReachThrough } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
-export { journeyDivergences, mergeCoverage };
+export { journeyDivergences };
 export {
   CACHE_CONFIG,
   cacheLayers,
@@ -164,8 +163,8 @@ export {
   type Pruned,
   type UnremovedEntry,
 } from './prune.js';
-// The write path's counterpart to `mergeCoverage`: the same fold, over the
-// columns of the file it is about to write over, not over a decoded model.
+// A run laid over the record at a path: the columns of the file it is about to
+// write over, carried, with this run's rows on top.
 export { layeredCoverage } from './format-layer.js';
 // A snapshot read where it lies, for a caller asking several questions of one
 // file and not wanting the seventy megabytes the answers do not touch. The
@@ -364,8 +363,7 @@ export interface DeviationOptions {
  * binary artifact, and a consumer who cannot decode it cannot see the evidence
  * its own runs produced, only the two summaries this module chose to compute.
  *
- * It is the counterpart to {@link writeTestCoverage}; `mergeCoverage` takes and
- * returns this same shape between the two.
+ * It is the counterpart to {@link writeTestCoverage}.
  */
 export async function readTestCoverage(file: string): Promise<TestCoverage> {
   return decodeTestCoverage(await readFile(file));
@@ -386,11 +384,11 @@ export { decodeTestCoverage };
  * truncated record, and that is the one outcome a writer of this file must make
  * impossible.
  *
- * It does not merge. A caller landing a run over what was already recorded
- * reads the existing file, folds with {@link mergeCoverage}, and writes the
- * result; a caller installing a baseline fetched from elsewhere writes it as it
- * came. Which of those is wanted is the caller's knowledge, and a writer that
- * merged on its own would make the second one impossible.
+ * It does not lay. A caller landing a run over what was already recorded lays
+ * it with {@link layeredCoverage} and writes the bytes; a caller installing a
+ * baseline fetched from elsewhere writes it as it came. Which of those is wanted
+ * is the caller's knowledge, and a writer that laid on its own would make the
+ * second one impossible.
  *
  * `cases` are the case sections the record carries; none when not given.
  */

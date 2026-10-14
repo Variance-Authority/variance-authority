@@ -1,16 +1,16 @@
 // A landing over a record lays the combined run over it as a runner's own
 // teardown lays a run over the record it found, given no text from disk and no
 // edit readings, because a landing reads no checkout. Every case that rule
-// tells apart is landed here and compared, as a file, with the model's merge
-// of the same two records.
+// tells apart is landed here and compared, as a file, with the runner's lay of
+// the same two records.
 
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { instrumentationId } from '../instrument/index.js';
-import { decodeTestCoverage, encodeTestCoverage } from './format.js';
-import { mergeCoverage } from './merge.js';
+import { encodeTestCoverage } from './format.js';
+import { layCoverage } from './format-layer.js';
 import { openTestCoverage } from './format-view.js';
 import { landedCoverage } from './fold-landing.js';
 import type { CoverageBlock, CoverageModule, CoverageTest, TestCoverage } from './index.js';
@@ -201,7 +201,7 @@ describe.each(['presence', 'entries'] as const)('landedCoverage under the %s rec
 
       const landed = Buffer.from(landedCoverage(held.bytes, fold.bytes));
 
-      expect(landed.equals(encodeTestCoverage(mergeCoverage(decodeTestCoverage(held.bytes), decodeTestCoverage(fold.bytes))))).toBe(true);
+      expect(landed.equals(layCoverage(held.bytes, under(current)))).toBe(true);
     });
   }
 

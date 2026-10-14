@@ -5,15 +5,9 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { instrumentationId } from '../instrument/index.js';
 import { decodeTestCoverage } from './format.js';
-import {
-  oneRowPerFile,
-  reportedComplete,
-  runnerSkipped,
-  taskComplete,
-  type ReportedModule,
-  type RunnerTask,
-} from './finished-files.js';
-import { mergeCoverage, withTestSelection } from './vitest.js';
+import { oneRowPerFile, reportedComplete, runnerSkipped, taskComplete, type ReportedModule, type RunnerTask } from './finished-files.js';
+import { laidCoverage } from './__fixtures__/laid.js';
+import { withTestSelection } from './vitest.js';
 import type { CoverageBlock, TestCoverage } from './index.js';
 
 describe('what a finished test file is worth', () => {
@@ -365,7 +359,7 @@ describe('coverage generations', () => {
     const previous = coverage(true, 'test:old', module('source:old', ['case.test.ts']));
     const current = coverage(true, 'test:new');
 
-    const merged = mergeCoverage(previous, current);
+    const merged = laidCoverage(previous, current);
 
     expect(merged.tests).toEqual(current.tests);
     expect(merged.modules[0]?.blocks.flatMap((block) => block.testFiles)).toEqual([]);
@@ -375,7 +369,7 @@ describe('coverage generations', () => {
     const previous = coverage(true, 'test:same', module('source:old', ['case.test.ts']));
     const current = coverage(false, 'test:same');
 
-    const merged = mergeCoverage(previous, current);
+    const merged = laidCoverage(previous, current);
 
     expect(merged.tests).toEqual(current.tests);
     expect(merged.modules[0]?.blocks.flatMap((block) => block.testFiles)).toContain('case.test.ts');
@@ -385,7 +379,7 @@ describe('coverage generations', () => {
     const previous = coverage(true, 'test:old', module('source:old', ['case.test.ts']));
     const current = coverage(false, 'test:new');
 
-    const merged = mergeCoverage(previous, current);
+    const merged = laidCoverage(previous, current);
 
     expect(merged.tests).toEqual(current.tests);
     expect(merged.tests[0]?.complete).toBe(false);
@@ -410,7 +404,7 @@ describe('coverage generations', () => {
       module('source:new', [], { entry: 'entry:new', outcome: 'outcome:same' }),
     );
 
-    const merged = mergeCoverage(previous, current);
+    const merged = laidCoverage(previous, current);
     const blocks = merged.modules[0]!.blocks;
 
     expect(blocks.find((block) => block.path === 'entry')?.testFiles).toEqual(['case.test.ts']);
@@ -435,7 +429,7 @@ describe('coverage generations', () => {
     const previous = coverage(true, 'test:old', module('source:old', ['case.test.ts']));
     const current = coverage(false, 'test:old', module('source:new', [], {}, 'chose'));
 
-    const merged = mergeCoverage(previous, current);
+    const merged = laidCoverage(previous, current);
     const blocks = merged.modules[0]!.blocks;
 
     expect(blocks.find((block) => block.name === 'chose')?.testFiles)

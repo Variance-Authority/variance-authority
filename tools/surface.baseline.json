@@ -3026,7 +3026,6 @@
         "layeredFiles": "function",
         "machineOwners": "function",
         "mainlineReadRoot": "function",
-        "mergeCoverage": "function",
         "mib": "function",
         "nameIndex": "function",
         "narrowByExecution": "function",
@@ -3202,7 +3201,6 @@
       },
       "./vitest": {
         "TestSelectionOptions": "interface",
-        "mergeCoverage": "function",
         "withTestSelection": "function"
       },
       "./rstest": {
@@ -3210,7 +3208,6 @@
         "RstestFileResult": "interface",
         "RstestTestSelectionOptions": "interface",
         "SELECTION_LOADER": "const",
-        "mergeCoverage": "function",
         "withTestSelection": "function"
       },
       "./rstest-loader": {
@@ -3233,7 +3230,6 @@
         "SelectionReporterConfig": "interface",
         "SelectionTransformerConfig": "interface",
         "TRACE_ENVIRONMENT": "const",
-        "mergeCoverage": "function",
         "withJourneyCoverage": "function",
         "withTestSelection": "function"
       },

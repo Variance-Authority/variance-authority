@@ -403,6 +403,17 @@ fn ascending(coverage: &Coverage, test: usize) -> bool {
 
 /// Per region of a module row, the previous region its crossings come from:
 /// its own, else the nearest region around it that has one.
+///
+/// A region born in a re-cut has no identity to carry crossings by, and an
+/// empty crossing list is not an absence: it says *no test entered these
+/// lines*, which nobody measured. Selection would then skip every test over a
+/// diff inside it, because no valve opens for a row that exists. Arrival nests,
+/// so every test on the enclosing region was somewhere inside it, perhaps here;
+/// handing those tests down answers only diffs that land in the new region,
+/// where demoting every holder of the module would run them on every diff in
+/// the file. Both crossing lists ride together, and the walk stops at the module
+/// root, which no cut ever bears anew; `heldAround` in `region-around.ts` walks
+/// the case index's regions by the same owners.
 fn around(coverage: &Coverage, blocks: std::ops::Range<usize>, own: &[Option<usize>]) -> Vec<Option<usize>> {
     let ordinals: FxHashMap<u32, usize> = blocks.clone().enumerate().map(|(at, block)| (coverage.block_ordinal[block], at)).collect();
     let owner = |at: usize| {

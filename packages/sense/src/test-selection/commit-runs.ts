@@ -67,8 +67,8 @@ export interface CommitRuns {
   /**
    * Where these runs started: the commit of the snapshot the first of them was
    * laid over, and a review's start. Absent when there was no snapshot, when it
-   * named no commit, or when it was recorded by other probes and so was
-   * replaced rather than laid over. When a landing renamed its snapshot here
+   * named no commit, or when it was recorded by other probes: a run is never
+   * laid over that record, it is refused. When a landing renamed its snapshot here
    * and died before its record, the record it left names the commit that
    * landing was laid over, and a run after it carries that commit rather than
    * the one the snapshot stands at.

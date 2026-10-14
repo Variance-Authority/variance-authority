@@ -1,7 +1,7 @@
-// A region that did not exist when a test was recorded: what the merge says
+// A region that did not exist when a test was recorded: what the lay says
 // about it, through the object model and through the columns.
 //
-// Kept beside `merge.test.ts` rather than in it because that file is at the
+// Kept beside `lay.test.ts` rather than in it because that file is at the
 // length limit, and because this is one question asked four ways — the carry
 // path and the re-recorded path, each of them twice.
 
@@ -12,7 +12,7 @@ import { layCoverage } from './format-layer.js';
 import { openTestCoverage } from './format-view.js';
 import type { CoverageBlock, TestCoverage } from './index.js';
 import { coverageBlock } from './coverage-rows.js';
-import { mergeCoverage } from './merge.js';
+import { laidCoverage } from './__fixtures__/laid.js';
 import { narrowByExecutionFromView } from './select.js';
 
 const BASELINE = '1111111111111111111111111111111111111111';
@@ -134,20 +134,20 @@ describe('a region born between two runs', () => {
      * `src/price.ts` — so the module is carried, and carried across text that
      * moved.
      */
-    const merged = (): TestCoverage =>
-      mergeCoverage(
+    const laid = (): TestCoverage =>
+      laidCoverage(
         recorded(BEFORE, BASELINE, [CART, CHECKOUT]),
         ranOnly(OTHER, LOCAL),
         new Map([[PRICE, AFTER]]),
       );
 
     it.each(INSIDE)('answers line %i with the tests that reach it', (line) => {
-      expect(asked(merged(), edit(line)).entered).toEqual([CART, CHECKOUT]);
+      expect(asked(laid(), edit(line)).entered).toEqual([CART, CHECKOUT]);
     });
 
     it('demotes both crossers, neither of which ran the text the module has now', () => {
       // The landing keeps that text, so no later diff shows them the extraction.
-      expect(merged().tests.map((test) => [test.file, test.complete])).toEqual([
+      expect(laid().tests.map((test) => [test.file, test.complete])).toEqual([
         [CART, false],
         [CHECKOUT, false],
         [OTHER, true],
@@ -157,13 +157,13 @@ describe('a region born between two runs', () => {
     it('still answers the untouched function with its own crossings', () => {
       // The control: nothing here widened the module into one answer for
       // every line of it.
-      const answer = asked(merged(), edit(6));
+      const answer = asked(laid(), edit(6));
       expect(answer.entered).toEqual([CART, CHECKOUT]);
       expect(answer.skip).toEqual([OTHER]);
     });
 
     it('hands the new region the crossings of the region around it', () => {
-      const priced = merged().modules.find((module) => module.file === PRICE)!;
+      const priced = laid().modules.find((module) => module.file === PRICE)!;
       const inside = priced.blocks.filter((block) => block.name === 'discount');
       expect(inside.length).toBeGreaterThan(0);
       for (const block of inside) expect(block.testFiles).toEqual([CART, CHECKOUT]);
@@ -178,19 +178,19 @@ describe('a region born between two runs', () => {
      * the regions it still has an address for. The new region has no address
      * there.
      */
-    const merged = (): TestCoverage =>
-      mergeCoverage(
+    const laid = (): TestCoverage =>
+      laidCoverage(
         recorded(BEFORE, BASELINE, [CART, CHECKOUT]),
         recorded(AFTER, LOCAL, [CHECKOUT]),
         new Map(),
       );
 
     it.each(INSIDE)('answers line %i with the carried crosser too', (line) => {
-      expect(asked(merged(), edit(line)).entered).toEqual([CART, CHECKOUT]);
+      expect(asked(laid(), edit(line)).entered).toEqual([CART, CHECKOUT]);
     });
 
     it('records what the run itself saw beside what was carried', () => {
-      const priced = merged().modules.find((module) => module.file === PRICE)!;
+      const priced = laid().modules.find((module) => module.file === PRICE)!;
       const root = priced.blocks.find((block) => block.kind === 'module')!;
       expect(root.testFiles).toEqual([CART, CHECKOUT]);
     });

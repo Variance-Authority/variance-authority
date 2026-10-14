@@ -1,12 +1,9 @@
 // Where an index stands after two runs are folded together, what N shards of one
-// run fold into, and what a reader does with a file it cannot decode at all.
+// run fold into.
 
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { INSTRUMENTATION_ID } from '../instrument/index.js';
-import { existingCoverage, mergeCoverage } from './merge.js';
+import { laidCoverage } from './__fixtures__/laid.js';
 import type { TestCoverage } from './index.js';
 
 const BASELINE = '1111111111111111111111111111111111111111';
@@ -71,23 +68,23 @@ function carrying(test: string): TestCoverage {
   };
 }
 
-describe('mergeCoverage', () => {
+describe('a laid record', () => {
   it('stands where the run that just happened stands', () => {
     // A local layer over a baseline is the ordinary shape, so the two sides
     // naming different commits is not a conflict. The question a later reader
     // asks is what has changed since this index was last written, and that is
     // answered by the newer of the two and never by the one underneath it.
-    const merged = mergeCoverage(at(BASELINE, 'test/alpha.test.ts'), at(LOCAL, 'test/beta.test.ts'));
+    const laid = laidCoverage(at(BASELINE, 'test/alpha.test.ts'), at(LOCAL, 'test/beta.test.ts'));
 
-    expect(merged.commit).toBe(LOCAL);
-    expect(merged.tests.map((test) => test.file)).toEqual([
+    expect(laid.commit).toBe(LOCAL);
+    expect(laid.tests.map((test) => test.file)).toEqual([
       'test/alpha.test.ts',
       'test/beta.test.ts',
     ]);
   });
 
   it('leaves an index unpositioned when the run that wrote it was', () => {
-    expect(mergeCoverage(at(BASELINE, 'test/alpha.test.ts'), at(undefined, 'test/beta.test.ts')))
+    expect(laidCoverage(at(BASELINE, 'test/alpha.test.ts'), at(undefined, 'test/beta.test.ts')))
       .not.toHaveProperty('commit');
   });
 
@@ -97,13 +94,13 @@ describe('mergeCoverage', () => {
     // alpha ever reached the place that just changed, so it is kept. The rows now
     // hold the edited text, and a reader frames them by it, so no later diff
     // shows alpha the edit: alpha is demoted, and runs until it is recorded again.
-    const merged = mergeCoverage(
+    const laid = laidCoverage(
       at(BASELINE, 'test/alpha.test.ts'),
       rewritten(at(LOCAL, 'test/beta.test.ts'), 'block:decide-edited'),
     );
 
-    expect(merged.tests.filter((test) => !test.complete).map((test) => test.file)).toEqual(['test/alpha.test.ts']);
-    expect(merged.modules[0]?.blocks[0]?.testFiles).toEqual([
+    expect(laid.tests.filter((test) => !test.complete).map((test) => test.file)).toEqual(['test/alpha.test.ts']);
+    expect(laid.modules[0]?.blocks[0]?.testFiles).toEqual([
       'test/alpha.test.ts',
       'test/beta.test.ts',
     ]);
@@ -117,7 +114,7 @@ describe('mergeCoverage', () => {
     // builds digest one unedited region apart. A run that loaded the other
     // build edited nothing alpha ran over, and alpha stays whole.
     const otherBuild = at(LOCAL, 'test/beta.test.ts');
-    const merged = mergeCoverage(at(BASELINE, 'test/alpha.test.ts'), {
+    const laid = laidCoverage(at(BASELINE, 'test/alpha.test.ts'), {
       ...otherBuild,
       modules: otherBuild.modules.map((module) => ({
         ...module,
@@ -125,18 +122,18 @@ describe('mergeCoverage', () => {
       })),
     });
 
-    expect(merged.tests.every((test) => test.complete)).toBe(true);
-    expect(merged.modules[0]?.blocks[0]?.testFiles).toEqual([
+    expect(laid.tests.every((test) => test.complete)).toBe(true);
+    expect(laid.modules[0]?.blocks[0]?.testFiles).toEqual([
       'test/alpha.test.ts',
       'test/beta.test.ts',
     ]);
   });
 
   it('keeps a carried test whole when its regions are the ones it saw', () => {
-    const merged = mergeCoverage(at(BASELINE, 'test/alpha.test.ts'), at(LOCAL, 'test/beta.test.ts'));
+    const laid = laidCoverage(at(BASELINE, 'test/alpha.test.ts'), at(LOCAL, 'test/beta.test.ts'));
 
-    expect(merged.tests.every((test) => test.complete)).toBe(true);
-    expect(merged.modules[0]?.blocks[0]?.testFiles).toEqual([
+    expect(laid.tests.every((test) => test.complete)).toBe(true);
+    expect(laid.modules[0]?.blocks[0]?.testFiles).toEqual([
       'test/alpha.test.ts',
       'test/beta.test.ts',
     ]);
@@ -152,24 +149,28 @@ describe('mergeCoverage', () => {
         blocks: module.blocks.map((block) => ({ ...block, loadedBy: block.testFiles })),
       })),
     });
-    const merged = mergeCoverage(early(at(BASELINE, 'test/alpha.test.ts')), early(at(LOCAL, 'test/beta.test.ts')));
-    expect(merged.modules[0]?.blocks[0]?.loadedBy).toEqual(['test/alpha.test.ts', 'test/beta.test.ts']);
+    const laid = laidCoverage(early(at(BASELINE, 'test/alpha.test.ts')), early(at(LOCAL, 'test/beta.test.ts')));
+    expect(laid.modules[0]?.blocks[0]?.loadedBy).toEqual(['test/alpha.test.ts', 'test/beta.test.ts']);
 
-    const rerun = mergeCoverage(merged, at(LOCAL, 'test/alpha.test.ts'));
+    const rerun = laidCoverage(laid, at(LOCAL, 'test/alpha.test.ts'));
     expect(rerun.modules[0]?.blocks[0]?.loadedBy).toEqual(['test/beta.test.ts']);
 
-    const nobody = mergeCoverage(rerun, at(LOCAL, 'test/beta.test.ts'));
+    const nobody = laidCoverage(rerun, at(LOCAL, 'test/beta.test.ts'));
     expect(nobody.modules[0]?.blocks[0]).not.toHaveProperty('loadedBy');
   });
 
   it('demotes a carried test whose region is gone', () => {
     const current = at(LOCAL, 'test/beta.test.ts');
-    const merged = mergeCoverage(at(BASELINE, 'test/alpha.test.ts'), {
+    const laid = laidCoverage(at(BASELINE, 'test/alpha.test.ts'), {
       ...current,
-      modules: [{ ...current.modules[0]!, blocks: [] }],
+      modules: [{
+        ...current.modules[0]!,
+        sourceDigest: 'source:decide-rewritten',
+        blocks: [{ ...current.modules[0]!.blocks[0]!, digest: 'block:decide-rewritten' }],
+      }],
     });
 
-    expect(merged.tests.find((test) => test.file === 'test/alpha.test.ts')?.complete).toBe(false);
+    expect(laid.tests.find((test) => test.file === 'test/alpha.test.ts')?.complete).toBe(false);
   });
 
   it("re-cuts a carried module's rows over the text it has now", () => {
@@ -181,14 +182,14 @@ describe('mergeCoverage', () => {
     // now at the lines the next diff will name. The landing keeps the text the
     // rows are cut from, so no later diff shows alpha the module's edited top
     // level, and alpha is demoted.
-    const merged = mergeCoverage(
+    const laid = laidCoverage(
       carrying('test/alpha.test.ts'),
       { ...at(LOCAL, 'test/beta.test.ts'), modules: [] },
       new Map([['src/decide.ts', `const scale = 2;\n\n${DECIDE}`]]),
     );
-    const decide = merged.modules[0]?.blocks.find((block) => block.name === 'decide');
+    const decide = laid.modules[0]?.blocks.find((block) => block.name === 'decide');
 
-    expect(merged.tests.filter((test) => !test.complete).map((test) => test.file)).toEqual(['test/alpha.test.ts']);
+    expect(laid.tests.filter((test) => !test.complete).map((test) => test.file)).toEqual(['test/alpha.test.ts']);
     expect(decide?.startLine).toBe(3);
     expect(decide?.testFiles).toEqual(['test/alpha.test.ts']);
     expect(decide?.loadedBy).toEqual(['test/alpha.test.ts']);
@@ -199,15 +200,15 @@ describe('mergeCoverage', () => {
     // Arrival nests: alpha entered the module to reach `decide`, so its crossing
     // on the module is still there. But the module's text moved under it, and
     // the landing keeps that text, so no later diff holds the deletion.
-    const merged = mergeCoverage(
+    const laid = laidCoverage(
       carrying('test/alpha.test.ts'),
       { ...at(LOCAL, 'test/beta.test.ts'), modules: [] },
       new Map([['src/decide.ts', 'const scale = 2;\n']]),
     );
 
-    expect(merged.tests.find((test) => test.file === 'test/alpha.test.ts')?.complete).toBe(false);
-    expect(merged.modules[0]?.blocks.some((block) => block.name === 'decide')).toBe(false);
-    expect(merged.modules[0]?.blocks[0]?.testFiles).toEqual(['test/alpha.test.ts']);
+    expect(laid.tests.find((test) => test.file === 'test/alpha.test.ts')?.complete).toBe(false);
+    expect(laid.modules[0]?.blocks.some((block) => block.name === 'decide')).toBe(false);
+    expect(laid.modules[0]?.blocks[0]?.testFiles).toEqual(['test/alpha.test.ts']);
   });
 
   it('demotes a carried test whose snapshot names a recipe this build cannot cut', () => {
@@ -215,35 +216,35 @@ describe('mergeCoverage', () => {
     // table to carry the crossings into: the module is carried as it was, and
     // alpha is demoted the way it is for text nobody can read.
     const foreign = { ...carrying('test/alpha.test.ts'), instrumentation: 'sense:instrument/other' };
-    const merged = mergeCoverage(
+    const laid = laidCoverage(
       foreign,
       { ...at(LOCAL, 'test/beta.test.ts'), modules: [], instrumentation: foreign.instrumentation },
       new Map([['src/decide.ts', `const scale = 2;\n\n${DECIDE}`]]),
     );
 
-    expect(merged.tests.find((test) => test.file === 'test/alpha.test.ts')?.complete).toBe(false);
+    expect(laid.tests.find((test) => test.file === 'test/alpha.test.ts')?.complete).toBe(false);
   });
 
   it('demotes a carried test whose module has text that cannot be read as source', () => {
     // Nothing to cut regions out of, and the rows that are there are ranges in
     // text nobody has. Alpha runs at the next selection whatever the diff says.
-    const merged = mergeCoverage(
+    const laid = laidCoverage(
       carrying('test/alpha.test.ts'),
       { ...at(LOCAL, 'test/beta.test.ts'), modules: [] },
       new Map([['src/decide.ts', 'export function decide( {']]),
     );
 
-    expect(merged.tests.find((test) => test.file === 'test/alpha.test.ts')?.complete).toBe(false);
+    expect(laid.tests.find((test) => test.file === 'test/alpha.test.ts')?.complete).toBe(false);
   });
 
   it('leaves a carried test whole when the run did not load its modules', () => {
     // A module the run never loaded, whose text has not moved, is carried as
     // it was: the texts handed in name only the modules whose text moved.
     const current = at(LOCAL, 'test/beta.test.ts');
-    const merged = mergeCoverage(at(BASELINE, 'test/alpha.test.ts'), { ...current, modules: [] }, new Map());
+    const laid = laidCoverage(at(BASELINE, 'test/alpha.test.ts'), { ...current, modules: [] }, new Map());
 
-    expect(merged.tests.every((test) => test.complete)).toBe(true);
-    expect(merged.modules[0]?.blocks[0]?.testFiles).toEqual(['test/alpha.test.ts']);
+    expect(laid.tests.every((test) => test.complete)).toBe(true);
+    expect(laid.modules[0]?.blocks[0]?.testFiles).toEqual(['test/alpha.test.ts']);
   });
 
   it('carries the row of a build this run did not re-record', () => {
@@ -269,15 +270,15 @@ describe('mergeCoverage', () => {
       ],
     };
 
-    const merged = mergeCoverage(previous, at(LOCAL, chromium));
+    const laid = laidCoverage(previous, at(LOCAL, chromium));
 
-    expect(merged.modules.map((module) => module.sourceDigest)).toEqual([
+    expect(laid.modules.map((module) => module.sourceDigest)).toEqual([
       'source:decide',
       'source:decide-webkit',
     ]);
-    expect(merged.modules.map((module) => module.blocks.flatMap((block) => block.testFiles)))
+    expect(laid.modules.map((module) => module.blocks.flatMap((block) => block.testFiles)))
       .toEqual([[chromium], [webkit]]);
-    expect(merged.tests.find((test) => test.file === webkit)?.complete).toBe(true);
+    expect(laid.tests.find((test) => test.file === webkit)?.complete).toBe(true);
   });
 });
 
@@ -292,22 +293,3 @@ function rewritten(coverage: TestCoverage, digest: string): TestCoverage {
     })),
   };
 }
-
-describe('existingCoverage', () => {
-  it('treats a file it cannot decode as one that is not there', async () => {
-    // The read half of a read-modify-write. Refusing here would stop every
-    // later run from recording anything until somebody deleted the file by
-    // hand; replacing it costs this machine evidence the next full run
-    // restores, and which meanwhile widens selection rather than narrowing it.
-    const root = await mkdtemp(resolve(tmpdir(), 'variance-merge-'));
-    try {
-      const file = resolve(root, 'coverage.bin');
-      await writeFile(file, 'half a copy of something else', 'utf8');
-
-      expect(await existingCoverage(file)).toBeUndefined();
-      expect(await existingCoverage(resolve(root, 'absent.bin'))).toBeUndefined();
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-});

@@ -44,30 +44,6 @@ export function editKey(file: string, from: string, to: string): string {
 }
 
 /**
- * Whether a test that entered a region of `kind` in `file` ran something the
- * edit from `from` to `to` changed. Asked only of a region whose digest moved
- * over a source that moved too.
- *
- * Unread is reached: a text that could not be had or would not parse says
- * nothing about what the edit left alone.
- */
-export function editReaches(
-  readings: EditReadings | undefined,
-  file: string,
-  from: string,
-  to: string,
-  kind: string,
-): boolean {
-  const reading = readings?.get(editKey(file, from, to));
-  if (reading === undefined || reading === 'load') return true;
-  if (reading === 'none') return false;
-  // The selector charges a body edit to the regions its lines are in, never the
-  // module's own: the verdict proved what the module does as it loads did not
-  // move.
-  return kind !== 'module';
-}
-
-/**
  * The reading of every module `current` re-recorded over a text other than the
  * one `previous` holds its rows in, and of every carried module whose text
  * `onDisk` holds (`carriedSources`), which the landing cuts again in it.

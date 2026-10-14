@@ -330,6 +330,9 @@ describe('the milestone under a checkout', () => {
     const next = await publishedNext(ci);
     await git(worktree, 'fetch', '--quiet', 'origin');
     await git(worktree, 'checkout', '--quiet', '--detach', next);
+    // A run is never laid over a record of other probes, so this one starts the
+    // checkout's record afresh, as the record of a build under other probes.
+    await rm(own);
     await landRun(own, { ...ranAlone(next, 'test/total.test.ts'), instrumentation: 'other probes' }, worktree);
     await refetch(worktree, next);
 

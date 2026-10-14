@@ -1651,42 +1651,29 @@ coverage and cases together, and the same bytes in any order. It runs in the
 native addon and reads nothing but the shards:
 
 ```ts
-import { randomUUID } from 'node:crypto';
-import { rename, rm } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import {
-  caseSectionsAt,
   combineRecords,
-  landCases,
-  mergeCoverage,
-  readTestCoverage,
+  landedCoverage,
   seedTestCoverage,
   testCoverageFile,
   withIndexLock,
-  writeTestCoverage,
+  writeCoverageBytes,
 } from '@variance-authority/sense/test-selection';
 
 const combined = 'artifacts/coverage.bin';
 const { commit, tests } = combineRecords(['shard-1/coverage.bin', 'shard-2/coverage.bin'], combined);
-const suite = await readTestCoverage(combined);
 
 const file = testCoverageFile(process.cwd());
 await seedTestCoverage(file, process.cwd());
-const staged = `${file}.${process.pid}-${randomUUID()}.tmp`;
 const landed = await withIndexLock(file, async () => {
-  let previous;
+  let previous: Uint8Array | undefined;
   try {
-    previous = await readTestCoverage(file);
+    previous = await readFile(file);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
-  const shards = [{ path: combined, coverage: suite }];
-  const { sections } = landCases(file, previous === undefined ? {} : caseSectionsAt(file), process.cwd(), shards);
-  try {
-    await writeTestCoverage(staged, mergeCoverage(previous, suite), sections);
-    await rename(staged, file);
-  } finally {
-    await rm(staged, { force: true });
-  }
+  await writeCoverageBytes(file, landedCoverage(previous, await readFile(combined)));
 });
 if (!landed.held) throw new Error(`another process is writing ${file}`);
 console.log(`${tests} test files at ${commit ?? 'no commit'}`);
@@ -1698,10 +1685,17 @@ shard's record carries its cases, so the artifact is the one file, and the
 combined record carries the cases of every shard. `combineRecords` refuses, by
 name, shards that were not one run: different commits or probe recipes, a test
 file two shards both recorded, a shard that kept cases beside one that kept
-none, or a part it cannot read. `landCases` lays the combined record's cases
-over the ones `file` holds, and returns them for the record you write. If a shard ran a test
-file to the end and kept no cases, it returns none, because nothing then
-records which of that file's cases ran a line.
+none, or a part it cannot read.
+
+`landedCoverage` lays the combined coverage over the record already at `file`,
+bytes in and bytes out, in the native addon: no snapshot is decoded, so the
+landing costs the columns it carries rather than a model of them. A record at
+`file` that this build cannot read, or one written under other probes, was
+written by another build, and the lay refuses it with the reason rather than
+replace it. `writeCoverageBytes` stages the bytes beside `file` and renames them
+over it, so a reader sees the previous record or this one. `withIndexLock` on
+`file` is the lock every seam takes to write the record, so no run writes it
+while you land.
 
 In a worktree, `seedTestCoverage` first copies the primary checkout's snapshot
 and case index into the worktree's own record, so the fold lands over the
@@ -1715,22 +1709,10 @@ copy lists no run of the worktree's, so `variance review` still requires a run
 or `--since`. In the primary checkout, or for a file you named yourself, it does
 nothing.
 
-The order is what keeps the snapshot and its cases describing the same runs.
-Only a missing snapshot starts the fold from nothing; one that cannot be read
-stops the landing, because a fold written over it would replace evidence you
-never saw. The merged snapshot is written to a staged file first, so a full disk
-leaves both files as they were. The cases land next, so a busy index stops the
-landing before the snapshot is replaced. The rename comes last, and `finally`
-removes the staged file if anything before it threw. If the process dies
-first, the staged file stays. The cache's pruning reads the pid in its name and
-removes it, but only in the directories that hold a checkout's record:
-`test-selection/<key>`, its `suites/<suite>` and its `.work/<key>`. Beside a
-`file` anywhere else, it stays until you remove it.
-
-`withIndexLock` on `file` is the lock every seam takes to write the snapshot,
-so no run writes the record while you land. The cases are written in the same
-write as the coverage, under that lock, so the two always answer for the same
-runs.
+The recipe lays coverage. To land the cases too, in the same write, run
+`variance journeys <shard.bin>...` from the `cli` package: it combines the
+shards the same way, lays the coverage and the cases over the checkout's record
+under that lock, and writes the runs record beside it.
 
 Folding refuses by name, on one rule: the result must not hold anything
 one run could not. Shards recorded under different probe recipes or at
@@ -1742,12 +1724,12 @@ Where the shards disagree about whether a module was readable, the instrumented
 rows answer: a shard that could not instrument a module takes nothing from a
 shard that did.
 
-A fold is a fan-in and `mergeCoverage` is a layer; they are not interchangeable.
-A layer positions the result where the newer side stands and retires what that
-side re-recorded whole, which is what landing a run over a baseline means and
-would make a fold depend on the order its shards were named in. A test the newer
-side did not run is kept as it was, unless a region it covered was rewritten
-underneath it: then it is kept incomplete and runs at the next selection.
+A fold is a fan-in and a lay is a layer; they are not interchangeable. A layer
+positions the result where the newer side stands and retires what that side
+re-recorded whole, which is what landing a run over a base means and would make
+a fold depend on the order its shards were named in. A test the newer side did
+not run is kept as it was, unless a region it covered was rewritten underneath
+it: then it is kept incomplete and runs at the next selection.
 
 ## Instrument one module
 

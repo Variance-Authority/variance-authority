@@ -18,7 +18,7 @@ import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
 import type { TestCoverage } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { withoutRetired } from './merge-carry.js';
+import { withoutRetired } from './carried-rows.js';
 
 /**
  * `record` without the test files `collected` does not name, and which those

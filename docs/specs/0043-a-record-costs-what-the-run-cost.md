@@ -59,7 +59,7 @@ the interning.
 `packages/sense/src/test-selection/index.ts:96` is `readonly string[]` and
 becomes a `SetId` into a `CrossingSets` pool carried beside the modules. This is
 the one change, and it is not local: `journal.ts`, `vitest.ts`,
-`jest-reporter.ts`, `merge.ts` and `format-layer.ts` all construct that field, so
+`jest-reporter.ts` and `format-layer.ts` all construct that field, so
 they move together or not at all. `coverageModule()` at
 `packages/sense/src/test-selection/coverage-rows.ts:18` is where the array is built today and where the
 interning belongs.
@@ -140,8 +140,8 @@ journal.
 **6. Something retires what the repository no longer holds.** Every item above
 bounds the cost of a *run*. Nothing bounds the cost of the *file*. A module
 deleted from the repository is carried verbatim with all of its crossings —
-`packages/sense/src/test-selection/merge.ts:264` carries it because nothing at the path says the rows are about a
-file that is gone, and `packages/sense/native/src/record_coverage_layer.rs:188` pushes every unclaimed row onward —
+the lay carries it because nothing at the path says the rows are about a
+file that is gone: `packages/sense/native/src/record_coverage_layer.rs` pushes every unclaimed row onward —
 and a test file that no longer exists keeps its row and its `complete` flag
 (`packages/sense/native/src/record_coverage_layer.rs:355-362`). So the snapshot is monotonically non-shrinking over
 a repository's life, and the 600 MB ceiling is approached from this side too,

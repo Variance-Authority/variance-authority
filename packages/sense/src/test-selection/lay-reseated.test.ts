@@ -1,8 +1,8 @@
-// The other half of what `merge-renumber.test.ts` holds: a module this run did
+// The other half of what `lay-renumber.test.ts` holds: a module this run did
 // re-record, whose regions took different seats between the two recordings.
 //
 // The carry re-cuts a module nobody loaded and asks `sameNumbering` before it
-// places a crossing. The merge's re-recorded walk places the previous rows
+// places a crossing. The lay's re-recorded walk places the previous rows
 // against the rows that came in, by the same addresses, and half of an address
 // is a seat — so the same slide is available there, and nothing in the carry's
 // answer reaches it.
@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import { INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
 import { coverageBlock } from './coverage-rows.js';
-import { mergeCoverage } from './merge.js';
+import { laidCoverage } from './__fixtures__/laid.js';
 import type { CoverageModule, TestCoverage } from './index.js';
 
 const BASELINE = '1111111111111111111111111111111111111111';
@@ -106,7 +106,7 @@ const held = (coverage: TestCoverage, path: string): readonly string[] | undefin
 const complete = (coverage: TestCoverage, file: string): boolean | undefined =>
   coverage.tests.find((file_) => file_.file === file)?.complete;
 
-describe('mergeCoverage over a re-recorded module that changed seats', () => {
+describe('a lay over a re-recorded module that changed seats', () => {
   it('does not seat a recorded branch on one written before it', () => {
     // `two` re-ran and did not finish, so it is not retired and its previous
     // crossings are carried; `one` did not run at all, so its are carried too.
@@ -116,31 +116,31 @@ describe('mergeCoverage over a re-recorded module that changed seats', () => {
     // for it. A diff on the line `one` is the only test known to have run is
     // then answered with `two`, and `one` is whole and in the caller's skip
     // list.
-    const merged = mergeCoverage(recorded, partial(ONE_ADDED));
+    const laid = laidCoverage(recorded, partial(ONE_ADDED));
 
-    expect(complete(merged, ONE)).toBe(false);
-    expect(held(merged, 'if#1/then')).toEqual([]);
-    expect(held(merged, 'if#0/then')).toEqual([]);
+    expect(complete(laid, ONE)).toBe(false);
+    expect(held(laid, 'if#1/then')).toEqual([]);
+    expect(held(laid, 'if#0/then')).toEqual([]);
   });
 
   it('carries every crossing when the seats did not move', () => {
     // The control, and the shape almost every re-record has: the same regions
     // in the same seats at later lines. Nothing is numbered differently, so
     // `one` keeps its branch and stays whole.
-    const merged = mergeCoverage(recorded, partial(MOVED));
+    const laid = laidCoverage(recorded, partial(MOVED));
 
-    expect(complete(merged, ONE)).toBe(true);
-    expect(held(merged, 'if#0/then')).toEqual([ONE]);
-    expect(held(merged, 'if#1/then')).toEqual([TWO]);
+    expect(complete(laid, ONE)).toBe(true);
+    expect(held(laid, 'if#0/then')).toEqual([ONE]);
+    expect(held(laid, 'if#1/then')).toEqual([TWO]);
   });
 
   it('carries a re-record of the text it recorded without counting a seat', () => {
     // The cheapest and commonest case: the run loaded the module and nothing
     // about it had moved. Two rows built from one text are one numbering, so
     // the digests settle it and the seats are never read.
-    const merged = mergeCoverage(recorded, partial(SOURCE));
+    const laid = laidCoverage(recorded, partial(SOURCE));
 
-    expect(complete(merged, ONE)).toBe(true);
-    expect(held(merged, 'if#0/then')).toEqual([ONE]);
+    expect(complete(laid, ONE)).toBe(true);
+    expect(held(laid, 'if#0/then')).toEqual([ONE]);
   });
 });

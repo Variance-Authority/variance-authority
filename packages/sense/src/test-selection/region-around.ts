@@ -4,8 +4,8 @@
  * A run's two records — the snapshot's rows and the case index — each place
  * held evidence on the regions cut now by identity, and a region the held cut
  * never had has no identity to be placed by. Both answer it with the nearest
- * region around it that something was carried onto; {@link crossingsAround}
- * says why. Both name that region by the owner the cut recorded: a row by its
+ * region around it that something was carried onto; `around` in
+ * `record_coverage_layer.rs` says why. Both name that region by the owner the cut recorded: a row by its
  * owner's ordinal, a case index region by its owner's position among the
  * module's regions.
  */
