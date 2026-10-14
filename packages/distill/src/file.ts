@@ -1,4 +1,5 @@
 // compass: variance-authority/runtime/attention
+import { calledCases } from '@variance-authority/sense/test-selection';
 import type {
   ExecutionIndex,
   ExecutionTest,
@@ -137,10 +138,8 @@ export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>
   }
 
   const mine = new Set(cases.map(({ at }) => at));
-  const entered = new Map(candidates.map((module) => {
-    const executed = index.executed.get(module.file);
-    return [module.file, executed === undefined ? 0 : enteredBy(executed, mine).size];
-  }));
+  const counts = entriesByFile(input.execution).get(file);
+  const entered = new Map(candidates.map((module) => [module.file, counts?.get(module.file) ?? 0]));
   const imports = input.imports;
   const cause = imports === undefined ? undefined : causesOf({
     file,
@@ -197,7 +196,6 @@ interface Indexed {
   readonly incomplete: ReadonlySet<string>;
   /** The instrumented modules each test file evaluated that declare a function below their top level. */
   readonly loads: ReadonlyMap<string, readonly CoverageModule[]>;
-  readonly executed: ReadonlyMap<string, ExecutionIndex['modules'][number]>;
 }
 
 const indexes = new WeakMap<TestCoverage, WeakMap<ExecutionIndex, Indexed>>();
@@ -220,7 +218,6 @@ function indexed(coverage: TestCoverage, execution: ExecutionIndex): Indexed {
     cases,
     incomplete: new Set(coverage.tests.filter((test) => !test.complete).map((test) => test.file)),
     loads,
-    executed: new Map(execution.modules.map((module) => [module.file, module])),
   };
   byExecution.set(execution, index);
   return index;
@@ -237,19 +234,31 @@ function push<T>(map: Map<string, T[]>, key: string, value: T): void {
   else list.push(value);
 }
 
-/**
- * The cases among `mine` that called into the module: crossed a region below
- * its root, other than while it evaluated.
- */
-function enteredBy(module: ExecutionIndex['modules'][number], mine: ReadonlySet<number>): ReadonlySet<number> {
-  const entered = new Set<number>();
-  for (const block of module.blocks) {
-    if (block.kind === 'module') continue;
-    for (const crossing of block.crossings) {
-      if (crossing.loaded !== true && mine.has(crossing.test)) entered.add(crossing.test);
+const entries = new WeakMap<ExecutionIndex, ReadonlyMap<string, ReadonlyMap<string, number>>>();
+
+/** Read each crossing once; retain file/module counts, never a second case relation. */
+function entriesByFile(execution: ExecutionIndex): ReadonlyMap<string, ReadonlyMap<string, number>> {
+  const found = entries.get(execution);
+  if (found !== undefined) return found;
+  const counts = new Map<string, Map<string, number>>();
+  // A case may enter several regions of one module: only its first entry counts.
+  const seen = new Uint32Array(execution.tests.length);
+  let epoch = 0;
+  for (const module of new Map(execution.modules.map((module) => [module.file, module])).values()) {
+    epoch++;
+    for (const at of calledCases(module)) {
+      if (seen[at] === epoch) continue;
+      seen[at] = epoch;
+      const test = execution.tests[at];
+      if (test === undefined) continue;
+      const file = test.file;
+      let modules = counts.get(file);
+      if (modules === undefined) counts.set(file, (modules = new Map()));
+      modules.set(module.file, (modules.get(module.file) ?? 0) + 1);
     }
   }
-  return entered;
+  entries.set(execution, counts);
+  return counts;
 }
 
 /** How many cases a refusal names. */

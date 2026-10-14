@@ -195,11 +195,15 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
   // The view does not do this. A query asks for a handful of strings and must
   // not accumulate them; a decode asks for all of them by definition, so the
   // table is bounded by the dictionary and is discarded with the model.
+  // Reading the whole model also reads the stored dictionary once: row-order
+  // names otherwise revisit compressed string runs in a different order.
+  const dictionary = view.dictionary();
+  const decoder = new TextDecoder();
   const held = new Map<number, string>();
   const string = (id: number): string => {
     const found = held.get(id);
     if (found !== undefined) return found;
-    const value = view.string(id);
+    const value = decoder.decode(dictionary.blob.subarray(dictionary.offsets[id]!, dictionary.offsets[id + 1]!));
     held.set(id, value);
     return value;
   };
@@ -244,6 +248,14 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
   const blockSource = view.blockSource.all();
   const blockSet = view.blockSet.all();
   const crossings = view.crossings;
+  const lists = new Map<number, readonly string[]>();
+  const members = (id: number): readonly string[] => {
+    const found = lists.get(id);
+    if (found !== undefined) return found;
+    const value = [...crossings.members(id)].map((test) => string(testPath[test]!));
+    lists.set(id, value);
+    return value;
+  };
   const blockLoadedSet = view.blockLoadedSet.all();
   const modules: CoverageModule[] = [];
   for (let module = 0; module < modulePath.length; module += 1) {
@@ -251,14 +263,8 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
     for (let block = moduleBlocks[module]!; block < moduleBlocks[module + 1]!; block += 1) {
       // Ascending test id, which is the order the tests were sorted into, which
       // is the order the crossings were in before they became a set.
-      const testFiles: string[] = [];
-      for (const test of crossings.members(blockSet[block]!)) {
-        testFiles.push(string(testPath[test]!));
-      }
-      const loadedBy: string[] = [];
-      for (const test of crossings.members(blockLoadedSet[block]!)) {
-        loadedBy.push(string(testPath[test]!));
-      }
+      const testFiles = members(blockSet[block]!);
+      const loadedBy = members(blockLoadedSet[block]!);
       blocks.push({
         ordinal: blockOrdinal[block]!,
         kind: BLOCK_KINDS[blockKind[block]!]!,

@@ -492,3 +492,5 @@ export async function deviationOfTests(
 ): Promise<VariationDeviation> {
   return askCoverageFile(file, (coverage) => deviationFromView(coverage, options));
 }
+
+export { calledCases } from './execution-set-format.js';

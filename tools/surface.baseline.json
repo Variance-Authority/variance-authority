@@ -2959,6 +2959,7 @@
         "bytesUnder": "function",
         "cacheLayers": "function",
         "cacheRootFor": "function",
+        "calledCases": "function",
         "caseIndexOf": "function",
         "caseMotion": "function",
         "caseSectionsAt": "function",

@@ -23,6 +23,7 @@ import {
 import {
   declaredSuites,
   decodeTestCoverage,
+  decodeExecutionIndex,
   importReferences,
   isEncodedExecutionIndex,
   RecordWithoutCoverage,
@@ -73,7 +74,9 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
   // One read: the index and the journals are then one run's, whatever lands between.
   const bytes = await recordAt(record);
   try {
-    const execution = executionIndexOf(bytes);
+    const execution = isEncodedExecutionIndex(bytes)
+      ? decodeExecutionIndex(bytes, { crossings: 'transient' })
+      : executionIndexOf(bytes);
     if (options.test === undefined && file !== undefined) {
       const input = { file, execution, coverage: coverageOf(bytes, record) };
       const flat = distillFile(input);
@@ -147,7 +150,9 @@ async function scopeOf(options: Omit<DistillOptions, 'test' | 'file'>): Promise<
     const bytes = await recordAt(record);
     records.push({
       ...(suite === undefined ? {} : { suite }),
-      execution: asOperator(() => executionIndexOf(bytes)),
+      execution: asOperator(() => isEncodedExecutionIndex(bytes)
+        ? decodeExecutionIndex(bytes, { crossings: 'transient' })
+        : executionIndexOf(bytes)),
       coverage: asOperator(() => coverageOf(bytes, record)),
     });
   }

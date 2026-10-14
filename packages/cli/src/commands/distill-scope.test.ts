@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import {
   encodeExecutionIndex,
+  encodeAsSetExecutionIndex,
   testCoverageFile,
   withCaseSections,
   writeTestCoverage,
@@ -44,7 +45,7 @@ const SOURCES: Readonly<Record<string, string>> = {
 };
 
 /** A record holding `files`, each with one finished case that entered the cart and not the chart. */
-async function recorded(at: string, files: readonly string[]): Promise<void> {
+async function recorded(at: string, files: readonly string[], encode = encodeExecutionIndex): Promise<void> {
   const row = (file: string, endLine: number) => ({
     file, sourceDigest: file, instrumented: true, blocks: [
       { ordinal: 0, kind: 'module' as const, digest: `${file}#0`, name: '', path: '', source: true, testFiles: files, loadedBy: files, startLine: 1, endLine },
@@ -59,7 +60,7 @@ async function recorded(at: string, files: readonly string[]): Promise<void> {
   });
   const block = { kind: 'function', name: 'main', path: 'main', startLine: 2, endLine: 2, source: true };
   writeFileSync(at, withCaseSections(readFileSync(at), {
-    index: encodeExecutionIndex({
+    index: encode({
       tests: files.map((file) => ({ id: `${file} > one`, file, name: 'one', stopped: false })),
       modules: [
         { file: 'src/cart.ts', blocks: [{ ...block, crossings: files.map((_, test) => ({ test, distance: 0 })) }] },
@@ -244,4 +245,15 @@ describe('distill over a scope of test files', () => {
     expect(answer.code).toBe(EXIT_OPERATOR);
     expect(answer.err).toContain('--format must be text, json or jsonl, not `yaml`');
   });
+});
+
+it('reads identical JSONL rows from compact case sets and crossing rows', async () => {
+  const root = await checkout('undeclared');
+  const record = testCoverageFile(root);
+  const argv = ['distill', '--execution', record, '--format', 'jsonl'];
+  const rows = await run(argv);
+  await recorded(record, [...UNIT, ...E2E], encodeAsSetExecutionIndex);
+  const sets = await run(argv);
+  expect(sets).toEqual(rows);
+  expect(sets.code).toBe(EXIT_CLEAN);
 });

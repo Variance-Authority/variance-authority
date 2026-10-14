@@ -215,8 +215,13 @@ export function decodeExecutionTests(bytes: Uint8Array): readonly ExecutionTest[
  * the optional `loaded` included. Throws on a file this did not write, on a
  * layout version it does not know, and on a bound that does not agree with the
  * column it indexes. A record that carries a case index is read as that index.
+ * For set-spelled indexes, `crossings: 'transient'` expands each region on
+ * access without retaining the expanded arrays. Row-spelled indexes decode whole.
  */
-export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
+export function decodeExecutionIndex(
+  bytes: Uint8Array,
+  options: { readonly crossings?: 'transient' } = {},
+): ExecutionIndex {
   bytes = recordedCases(bytes);
   const file = resident(bytes);
   if (bytes.length < 4) throw invalid();
@@ -229,7 +234,7 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   ) as Header;
   // The set spelling owns every other version, and refuses one it did not write.
   if (header.version !== EXECUTION_FORMAT && header.version !== UNTIMED_ROWS && header.version !== UNFLAGGED_ROWS) {
-    return decodeSetExecutionIndex(bytes);
+    return decodeSetExecutionIndex(bytes, options);
   }
   const base = 4 + headerLength;
   if (!validSections(header.sections, bytes.length - base)) throw invalid();

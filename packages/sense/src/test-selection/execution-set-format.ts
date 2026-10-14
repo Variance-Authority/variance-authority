@@ -236,8 +236,15 @@ export function openSetColumns(bytes: Uint8Array): SetColumns | undefined {
   return setColumns(opened);
 }
 
-/** Read the compact journey spelling into the runner-independent object model. */
-export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
+/**
+ * Read the compact journey spelling into the runner-independent object model.
+ * With `crossings: 'transient'`, each region expands on access and retains no
+ * crossing array: a reader visiting each region once keeps the stored sets.
+ */
+export function decodeSetExecutionIndex(
+  bytes: Uint8Array,
+  options: { readonly crossings?: 'transient' } = {},
+): ExecutionIndex {
   const opened = sectionsOf(bytes);
   const version = opened.header.version;
   if (version !== SET_EXECUTION_FORMAT && version !== LOADED_SETS_FORMAT) {
@@ -246,15 +253,48 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   const { tests, modules, sets } = openedSets(setColumns(opened));
   return {
     tests,
-    modules: modules.map((module): ExecutionModule => ({
-      file: module.file,
-      blocks: module.blocks.map((block, at): ExecutionBlock => ({
-        ...block,
-        ...(module.loaded[at] === 1 ? { loaded: true as const } : {}),
-        crossings: Array.from(members(sets, module.called[at]!, tests.length), (test) => ({ test, distance: 0 })),
-      })),
-    })),
+    modules: modules.map((module): ExecutionModule => {
+      const decoded: ExecutionModule = {
+        file: module.file,
+        blocks: module.blocks.map((block, at): ExecutionBlock => {
+          const called = module.called[at]!;
+          const crossings = () => Array.from(members(sets, called, tests.length), (test) => ({ test, distance: 0 }));
+          const region = { ...block, ...(module.loaded[at] === 1 ? { loaded: true as const } : {}) };
+          return options.crossings === 'transient'
+            ? { ...region, get crossings() { return crossings(); } }
+            : { ...region, crossings: crossings() };
+        }),
+      };
+      if (options.crossings === 'transient') compactModules.set(decoded, { called: module.called, sets, tests: tests.length });
+      return decoded;
+    }),
   };
+}
+
+const compactModules = new WeakMap<ExecutionModule, { readonly called: Uint32Array; readonly sets: CrossingSetsView; readonly tests: number }>();
+
+/**
+ * Cases that called below a module's root, excluding evaluation crossings.
+ * A transient set index reads each distinct called set once; object indexes
+ * read their crossings. A case can occur in several distinct region sets.
+ */
+export function* calledCases(module: ExecutionModule): Iterable<number> {
+  const compact = compactModules.get(module);
+  if (compact === undefined) {
+    for (const block of module.blocks) {
+      if (block.kind === 'module') continue;
+      for (const crossing of block.crossings) if (crossing.loaded !== true) yield crossing.test;
+    }
+    return;
+  }
+  const seen = new Set<number>();
+  for (const [at, block] of module.blocks.entries()) {
+    if (block.kind === 'module') continue;
+    const set = compact.called[at]!;
+    if (seen.has(set)) continue;
+    seen.add(set);
+    yield* members(compact.sets, set, compact.tests);
+  }
 }
 
 /**
