@@ -15,6 +15,7 @@
  * when it matters.
  */
 
+import type { Plan } from './contract.js';
 import { operatorError } from './operator.js';
 
 /**
@@ -62,7 +63,6 @@ export function subjectIdFor(url: string): string {
   return trimmed === '' ? ROOT : trimmed.replace(/^\/+/, '');
 }
 
-
 /**
  * A plan whose root route is named `index`, the name a server and a static
  * build give the page at `/`.
@@ -77,7 +77,7 @@ export function subjectIdFor(url: string): string {
  *
  * Named before the widths split the plan, so each width's name carries it.
  */
-export function rootNamed<S extends { readonly subject: { readonly id: string }; readonly name?: string }, P extends { readonly subjects: readonly S[] }>(plan: P): P {
+export function rootNamed<P extends Plan>(plan: P): P {
   return {
     ...plan,
     subjects: plan.subjects.map((planned) =>

@@ -82,6 +82,16 @@ describe('the default path', () => {
     expect(found?.comparable).toBe(true);
     expect(found?.relocated).toBeUndefined();
   });
+
+  it('refuses a subject whose name has no letter or digit, rather than inventing one', async () => {
+    // A collector that knows what such a subject is called says so in its key;
+    // a name made up here would be made up for every collector, and two of them
+    // could not be told apart by anything a reviewer reads.
+    const store = createDurableStore(root);
+
+    await expect(store.put({ subject: '/' }, rasterOf(MAC))).rejects.toThrow(/"\/" has no letter or digit in its \{name\}/);
+    await expect(readdir(root)).resolves.toEqual([]);
+  });
 });
 
 describe('a template the operator writes', () => {
@@ -108,16 +118,6 @@ describe('a template the operator writes', () => {
     const store = createDurableStore(root, { path: '{dir}/{file}/{name}' });
 
     await expect(store.put({ subject: 'route:/checkout' }, rasterOf(MAC))).rejects.toThrow(/route:\/checkout.*\{dir\} or \{file\}/);
-  });
-
-  it('refuses a subject whose name has no letter or digit, rather than inventing one', async () => {
-    // A collector that knows what such a subject is called says so in its key;
-    // a name made up here would be made up for every collector, and two of them
-    // could not be told apart by anything a reviewer reads.
-    const store = createDurableStore(root);
-
-    await expect(store.put({ subject: '/' }, rasterOf(MAC))).rejects.toThrow(/"\/" has no letter or digit in its \{name\}/);
-    await expect(readdir(root)).resolves.toEqual([]);
   });
 
   // The declaring file comes off a collector's index, not off the operator's
