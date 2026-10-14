@@ -42,7 +42,7 @@ export type ParsedJourneys =
     }
   | {
       readonly command: 'journeys';
-      readonly operation: 'merge';
+      readonly operation: 'combine';
       readonly config: string;
       readonly shards: readonly string[];
       readonly into: string;
@@ -56,13 +56,13 @@ export function parseJourneysArgs(flags: Flags, config: string): ParsedJourneys 
   const operation = flags.positionals[0];
 
 
-  if (operation === 'merge') {
+  if (operation === 'combine') {
     const otherFlags = [...flags.present].filter((flag) => flag !== '--into');
     if (otherFlags.length > 0 || into === undefined || flags.positionals.length < 2) {
-      throw new OperatorError('`variance journeys merge` takes one or more shard records and `--into <record>`');
+      throw new OperatorError('`variance journeys combine` takes one or more shard records and `--into <record>`, a path nothing is at yet');
     }
     return {
-      command: 'journeys', operation: 'merge', config,
+      command: 'journeys', operation: 'combine', config,
       shards: flags.positionals.slice(1).map((path) => resolve(path)),
       into: resolve(into),
     };

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { BlockKind } from '../instrument/index.js';
 import { BLOCK_KINDS, DURATION, FORMAT, NAMES, NO_DURATION, NO_OWNER } from './format-layout.js';
-import { LAYOUT } from './record-layout.js';
+import { LAYOUT, type RecordLayout } from './record-layout.js';
 
 describe('the record layout both sides read', () => {
   it('numbers every block kind the instrumenter names, and nothing else', () => {
@@ -17,5 +17,28 @@ describe('the record layout both sides read', () => {
     expect(FORMAT).toBe(LAYOUT.coverage.format);
     expect([...NAMES, DURATION].sort()).toEqual([...LAYOUT.coverage.sections].sort());
     expect([NO_OWNER, NO_DURATION]).toEqual([0xffff_ffff, 0xffff_ffff]);
+  });
+
+  it('holds the fields RecordLayout declares, and only those', () => {
+    // Each list names every key of its object, or this file does not compile;
+    // the JSON is held to the lists, so a key on one side only fails here. The
+    // addon reads the same file and stops on a field it needs and cannot find.
+    type Keys<T> = { readonly [K in keyof T]-?: true };
+    const top: Keys<RecordLayout> = { alignment: true, packAbove: true, run: true, blobRun: true, codecs: true, levels: true, coverage: true, sets: true, cases: true };
+    const nested: { readonly [K in 'codecs' | 'levels' | 'coverage' | 'sets' | 'cases']: Keys<RecordLayout[K]> } = {
+      codecs: { raw: true, zstd: true },
+      levels: { numbers: true, text: true },
+      coverage: {
+        model: true, format: true, uncased: true, untimed: true, noOwner: true, noDuration: true,
+        sections: true, duration: true, parts: true, blockKinds: true,
+      },
+      sets: { list: true, bits: true, runs: true, narrow: true },
+      cases: { format: true, loadedSets: true, duration: true, lines: true, linesOffsets: true },
+    };
+    const keys = (value: object) => Object.keys(value).sort();
+    expect(keys(LAYOUT)).toEqual(keys(top));
+    for (const [section, fields] of Object.entries(nested)) {
+      expect([section, keys(LAYOUT[section as keyof typeof nested])]).toEqual([section, keys(fields)]);
+    }
   });
 });

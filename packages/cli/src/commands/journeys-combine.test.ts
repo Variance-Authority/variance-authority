@@ -11,7 +11,7 @@ import { recordedJourneys } from './resources.js';
 
 vi.mock('./resources.js', async (original) => ({
   ...await original<typeof import('./resources.js')>(),
-  recordedJourneys: vi.fn(() => { throw new Error('merge must not compute a journey comparison'); }),
+  recordedJourneys: vi.fn(() => { throw new Error('combine must not compute a journey comparison'); }),
 }));
 
 const temporary: string[] = [];
@@ -21,7 +21,7 @@ afterEach(async () => {
 });
 
 async function fixture() {
-  const root = await realpath(await mkdtemp(join(tmpdir(), 'va-merge-command-')));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'va-combine-command-')));
   temporary.push(root);
   await mkdir(join(root, 'src'));
   const source = 'export function greet() { return "hello"; }\n';
@@ -48,13 +48,13 @@ async function fixture() {
   return { root, shards, into: join(root, 'combined.bin') };
 }
 
-describe('`journeys merge`', () => {
+describe('`journeys combine`', () => {
   it('combines coverage and cases without project configuration, a checkout or a comparison', async () => {
     const { root, shards, into } = await fixture();
     const before = (await Promise.all(shards.map((execution) => distillRows({ root, execution })))).flatMap((read) => read.rows);
     let out = '';
     let err = '';
-    const code = await main(['journeys', 'merge', ...shards, '--into', into], {
+    const code = await main(['journeys', 'combine', ...shards, '--into', into], {
       out: (text) => { out += text; }, err: (text) => { err += text; },
     });
 
@@ -70,9 +70,9 @@ describe('`journeys merge`', () => {
   it('writes the same bytes whatever order the shards are named in', async () => {
     const { shards, into } = await fixture();
     const quiet = { out: () => {}, err: () => {} };
-    expect(await main(['journeys', 'merge', ...shards, '--into', into], quiet)).toBe(0);
+    expect(await main(['journeys', 'combine', ...shards, '--into', into], quiet)).toBe(0);
     const swapped = `${into}.swapped`;
-    expect(await main(['journeys', 'merge', ...[...shards].reverse(), '--into', swapped], quiet)).toBe(0);
+    expect(await main(['journeys', 'combine', ...[...shards].reverse(), '--into', swapped], quiet)).toBe(0);
     expect(Buffer.compare(await readFile(into), await readFile(swapped))).toBe(0);
   });
 
@@ -81,28 +81,49 @@ describe('`journeys merge`', () => {
     const other = join(root, 'other.bin');
     await writeTestCoverage(other, { version: 3, instrumentation: 'fixture', commit: 'elsewhere', tests: [{ file: 'c.test.ts', complete: true, preconditions: [] }], modules: [] });
     let err = '';
-    const code = await main(['journeys', 'merge', shards[0]!, other, '--into', into], { out: () => {}, err: (text) => { err += text; } });
+    const code = await main(['journeys', 'combine', shards[0]!, other, '--into', into], { out: () => {}, err: (text) => { err += text; } });
     expect(code).not.toBe(0);
     expect(err).toContain('disagree about the commit');
     await expect(readFile(into)).rejects.toThrow();
   });
 
+  async function refused(named: string[], into: string) {
+    const before = await readFile(into);
+    let err = '';
+    const code = await main(['journeys', 'combine', ...named, '--into', into], { out: () => {}, err: (text) => { err += text; } });
+    expect(code).not.toBe(0);
+    expect(err).toContain(`${into} is already there`);
+    expect(err).toContain('variance journeys <shards> --into');
+    expect(Buffer.compare(await readFile(into), before)).toBe(0);
+  }
+
+  it('refuses an --into that is already there, names the command that lands over it, and leaves it as it was', async () => {
+    const { shards, into } = await fixture();
+    await writeFile(into, 'kept');
+    await refused(shards, into);
+  });
+
+  it('refuses an --into that is one of the shards, so no shard is written over', async () => {
+    const { shards } = await fixture();
+    await refused(shards, shards[0]!);
+  });
+
   it('reads no checkout, so it takes no `--root`', () => {
-    expect(() => parseArgs(['journeys', 'merge', 'one.bin', '--into', 'all.bin', '--root', 'checkout'])).toThrow('`--root` is not');
+    expect(() => parseArgs(['journeys', 'combine', 'one.bin', '--into', 'all.bin', '--root', 'checkout'])).toThrow('`--root` is not');
   });
 
   it('resolves shard and output paths at the working directory', () => {
-    expect(parseArgs(['journeys', 'merge', 'one.bin', '--into', 'all.bin'])).toEqual({
-      command: 'journeys', operation: 'merge', config: expect.any(String), shards: [resolve('one.bin')], into: resolve('all.bin'),
+    expect(parseArgs(['journeys', 'combine', 'one.bin', '--into', 'all.bin'])).toEqual({
+      command: 'journeys', operation: 'combine', config: expect.any(String), shards: [resolve('one.bin')], into: resolve('all.bin'),
     });
   });
 
   it.each([
-    ['merge'], ['merge', 'one.bin'], ['merge', '--into', 'all.bin'],
-    ['merge', 'one.bin', '--into', 'all.bin', '--suite', 'unit'],
-    ['merge', 'one.bin', '--into', 'all.bin', '--all'],
-    ['merge', 'one.bin', '--into', 'all.bin', '--config', 'web.json'],
+    ['combine'], ['combine', 'one.bin'], ['combine', '--into', 'all.bin'],
+    ['combine', 'one.bin', '--into', 'all.bin', '--suite', 'unit'],
+    ['combine', 'one.bin', '--into', 'all.bin', '--all'],
+    ['combine', 'one.bin', '--into', 'all.bin', '--config', 'web.json'],
   ])('refuses incomplete or reading-specific arguments: %j', (...args) => {
-    expect(() => parseArgs(['journeys', ...args])).toThrow('`variance journeys merge`');
+    expect(() => parseArgs(['journeys', ...args])).toThrow('`variance journeys combine`');
   });
 });

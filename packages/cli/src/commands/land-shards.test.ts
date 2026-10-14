@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -84,6 +84,21 @@ describe('landJourneys — N shard records into the one this repository reads', 
     expect(record.tests.map((test) => test.file)).toEqual(['story:a', 'story:b']);
     expect(record.modules[0]?.blocks[0]?.testFiles).toEqual(['story:a', 'story:b']);
     expect(await left()).toEqual(['coverage.bin', 'coverage.runs.json']);
+  });
+
+  it('lands where --into says instead, and the reading is pointed there', async () => {
+    const shards = await written(shardOf('story:a'));
+    const elsewhere = join(home, 'elsewhere');
+    await mkdir(elsewhere);
+    const folded = join(elsewhere, 'folded.bin');
+
+    const landed = await landJourneys(home, shards, folded);
+
+    expect(landed.at).toBe(folded);
+    expect((await readTestCoverage(folded)).tests.map((test) => test.file)).toEqual(['story:a']);
+    // Staged beside the target and renamed over it: nothing is left beside either.
+    expect((await readdir(elsewhere)).sort()).toEqual(['folded.bin', 'folded.runs.json']);
+    expect(await left()).toEqual(['elsewhere']);
   });
 
   it('layers the combine over what was already there, so a baseline lands under local evidence', async () => {

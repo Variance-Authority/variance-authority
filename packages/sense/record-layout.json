@@ -18,7 +18,6 @@
     "untimed": 8,
     "noOwner": 4294967295,
     "noDuration": 4294967295,
-    "noLine": 0,
     "sections": [
       "strings.blob",
       "strings.off",

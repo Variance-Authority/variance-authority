@@ -32,6 +32,8 @@ pub(crate) struct Folded {
     /// Per shard, the id each of its cases is called by in the fold, where it
     /// is called by another than its own.
     pub renamed: Vec<HashMap<String, String>>,
+    /// The id of every case in the fold.
+    pub ids: Vec<String>,
 }
 
 type Key = (String, String, String, Option<String>);
@@ -129,7 +131,7 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
         landings.push(lands);
     }
     let rows: HashMap<&str, usize> = modules.iter().enumerate().map(|(at, module)| (module.file.as_str(), at)).collect();
-    let mut extras = CaseExtras { durations: vec![None; tests.len()], lines: vec![Vec::new(); tests.len()] };
+    let mut extras = CaseExtras { durations: vec![None; tests.len()], lines: vec![Vec::new(); tests.len()], always_timed: true };
     for shard in &mut shards {
         for module in &mut shard.modules {
             module.inventory = placed[&module.file][module.inventory];
@@ -203,6 +205,7 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
     let gaps = union_gaps(&shards);
     let bytes = journey_format::encode(&tests, &extras, &encoded, &sets, gaps.as_ref())?;
     Ok(Folded {
+        ids: tests.iter().map(|test| test.id.clone()).collect(),
         bytes,
         tests: tests.len() as u32,
         modules: modules.len() as u32,

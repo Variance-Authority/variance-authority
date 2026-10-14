@@ -59,7 +59,7 @@ pub(crate) struct Record {
 
 /// `bytes` read as a record, refused with the reason when it is not one this build reads.
 pub(crate) fn read(bytes: &[u8]) -> Result<Record, String> {
-    let (version, decoded) = journey_columns::decode_any(bytes)?;
+    let (version, mut decoded) = journey_columns::decode_any(bytes)?;
     let layout = &LAYOUT.coverage;
     if !layout.readable(version) {
         return Err(format!(
@@ -71,21 +71,28 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Record, String> {
     if let Some(unknown) = names.iter().find(|name| !layout.sections.contains(name) && !layout.parts.iter().any(|(_, part)| part == **name)) {
         return Err(format!("the record holds a section this build does not know: {unknown}"));
     }
-    let part = |part: &str| -> Result<Option<Vec<u8>>, String> {
+    let mut part = |part: &str| -> Result<Option<Vec<u8>>, String> {
         let name = layout.part(part);
         if version == layout.uncased || !decoded.has(name) {
             return Ok(None);
         }
-        decoded.bytes(name).map(Some)
+        decoded.take_bytes(name).map(Some)
     };
     let parts = Parts { index: part("index")?, before: part("before")?, last: part("last")?, eyes: part("eyes")? };
-    let coverage = if layout.sections.iter().any(|name| decoded.has(name)) { Some(coverage(&decoded, version)?) } else { None };
+    let coverage = if layout.sections.iter().any(|name| decoded.has(name)) { Some(coverage(decoded, version)?) } else { None };
     Ok(Record { coverage, parts })
 }
 
-fn coverage(decoded: &Decoded, version: u8) -> Result<Coverage, String> {
-    let words = |name: &str| decoded.words(name);
-    let bytes = |name: &str| decoded.bytes(name);
+/// The test files a record's coverage holds, read off its header alone: the
+/// first `bytes` of a record `length` bytes long. A fold sizes its sets by it
+/// before it decodes a record.
+pub(crate) fn tests_in(bytes: &[u8], length: usize) -> Result<usize, String> {
+    let (_, placed) = journey_columns::framed_within(bytes, length)?;
+    Ok(placed.iter().find(|column| column.name == "tests.path").map_or(0, |column| column.rows.unwrap_or(column.stored.len() / 4)))
+}
+
+fn coverage(mut decoded: Decoded, version: u8) -> Result<Coverage, String> {
+    let decoded = &mut decoded;
     let timed = version != LAYOUT.coverage.untimed;
     let one = |name: &str, values: Vec<u32>, empty: bool| -> Result<Option<u32>, String> {
         match values.as_slice() {
@@ -95,33 +102,33 @@ fn coverage(decoded: &Decoded, version: u8) -> Result<Coverage, String> {
         }
     };
     let coverage = Coverage {
-        blob: bytes("strings.blob")?,
-        offsets: words("strings.off")?,
-        instrumentation: one("snapshot.instrumentation", words("snapshot.instrumentation")?, false)?.unwrap_or_default(),
-        commit: one("snapshot.commit", words("snapshot.commit")?, true)?,
-        test_path: words("tests.path")?,
-        test_complete: bytes("tests.complete")?,
-        test_preconditions: words("tests.preconditions")?,
-        test_duration: if timed { Some(words(&LAYOUT.coverage.duration)?) } else { None },
-        precondition_name: words("preconditions.name")?,
-        precondition_digest: words("preconditions.digest")?,
-        module_path: words("modules.path")?,
-        module_source: words("modules.source")?,
-        module_instrumented: bytes("modules.instrumented")?,
-        module_blocks: words("modules.blocks")?,
-        block_ordinal: words("blocks.ordinal")?,
-        block_kind: bytes("blocks.kind")?,
-        block_owner: words("blocks.owner")?,
-        block_digest: words("blocks.digest")?,
-        block_name: words("blocks.name")?,
-        block_path: words("blocks.path")?,
-        block_start: words("blocks.start")?,
-        block_end: words("blocks.end")?,
-        block_source: bytes("blocks.source")?,
-        block_set: words("blocks.set")?,
-        block_loaded_set: words("blocks.loadedSet")?,
-        set_bytes: bytes("sets.blob")?,
-        set_offsets: words("sets.off")?,
+        blob: decoded.take_bytes("strings.blob")?,
+        offsets: decoded.take_words("strings.off")?,
+        instrumentation: one("snapshot.instrumentation", decoded.take_words("snapshot.instrumentation")?, false)?.unwrap_or_default(),
+        commit: one("snapshot.commit", decoded.take_words("snapshot.commit")?, true)?,
+        test_path: decoded.take_words("tests.path")?,
+        test_complete: decoded.take_bytes("tests.complete")?,
+        test_preconditions: decoded.take_words("tests.preconditions")?,
+        test_duration: if timed { Some(decoded.take_words(&LAYOUT.coverage.duration)?) } else { None },
+        precondition_name: decoded.take_words("preconditions.name")?,
+        precondition_digest: decoded.take_words("preconditions.digest")?,
+        module_path: decoded.take_words("modules.path")?,
+        module_source: decoded.take_words("modules.source")?,
+        module_instrumented: decoded.take_bytes("modules.instrumented")?,
+        module_blocks: decoded.take_words("modules.blocks")?,
+        block_ordinal: decoded.take_words("blocks.ordinal")?,
+        block_kind: decoded.take_bytes("blocks.kind")?,
+        block_owner: decoded.take_words("blocks.owner")?,
+        block_digest: decoded.take_words("blocks.digest")?,
+        block_name: decoded.take_words("blocks.name")?,
+        block_path: decoded.take_words("blocks.path")?,
+        block_start: decoded.take_words("blocks.start")?,
+        block_end: decoded.take_words("blocks.end")?,
+        block_source: decoded.take_bytes("blocks.source")?,
+        block_set: decoded.take_words("blocks.set")?,
+        block_loaded_set: decoded.take_words("blocks.loadedSet")?,
+        set_bytes: decoded.take_bytes("sets.blob")?,
+        set_offsets: decoded.take_words("sets.off")?,
     };
     coverage.checked()?;
     Ok(coverage)

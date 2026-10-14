@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import {
   combineRecords,
   finalizeJestJourneys,
@@ -11,7 +12,7 @@ import { messageOf } from './resources.js';
 
 type JourneyArtifactCommand = Extract<
   Parsed,
-  { command: 'journeys'; operation: 'finalize' | 'stitch' | 'merge' }
+  { command: 'journeys'; operation: 'finalize' | 'stitch' | 'combine' }
 >;
 
 /** Finalize journals, stitch journey artifacts, or combine shard records. */
@@ -19,7 +20,17 @@ export async function runJourneyArtifactCommand(
   parsed: JourneyArtifactCommand,
   streams: { out(text: string): void },
 ): Promise<ExitCode> {
-  if (parsed.operation === 'merge') {
+  if (parsed.operation === 'combine') {
+    // A combine writes a record of its own shards and nothing else. Over a
+    // record that is there it would discard that record, and over a shard the
+    // shard: landing over a record is the reading's job.
+    if (existsSync(parsed.into)) {
+      throw new OperatorError(
+        `${parsed.into} is already there, and \`journeys combine\` writes a new record. ` +
+          'To land the shards over it, run `variance journeys <shards> --into <record>`; ' +
+          'to combine, name a path nothing is at yet.',
+      );
+    }
     let result: CombinedRecord;
     try {
       result = combineRecords(parsed.shards, parsed.into);
@@ -50,7 +61,7 @@ export async function runJourneyArtifactCommand(
   return EXIT_CLEAN;
 }
 
-/** What `journeys merge` wrote, in one line. */
+/** What `journeys combine` wrote, in one line. */
 function combinedLine(result: CombinedRecord, into: string): string {
   const cases = result.cases == null ? '' : `, ${result.cases} cases`;
   const commit = result.commit == null ? '' : `, recorded at ${result.commit.slice(0, 12)}`;

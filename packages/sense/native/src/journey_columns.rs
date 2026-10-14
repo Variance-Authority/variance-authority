@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
 
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::record_layout::LAYOUT;
@@ -73,7 +74,13 @@ pub fn encode(columns: Vec<Column>, version: u8) -> Result<Vec<u8>, String> {
 }
 
 pub struct Decoded {
-    columns: HashMap<String, (u8, Vec<u8>)>,
+    columns: HashMap<String, Plain>,
+}
+
+/// A column decoded: words where it is four bytes wide, its bytes otherwise.
+enum Plain {
+    Bytes(u8, Vec<u8>),
+    Words(Vec<u32>),
 }
 
 impl Decoded {
@@ -86,16 +93,16 @@ impl Decoded {
         self.columns.keys().collect()
     }
 
+    fn column(&self, name: &str) -> Result<&Plain, String> {
+        self.columns.get(name).ok_or_else(|| format!("journey artifact has no {name} column"))
+    }
+
     /// A width-1 column's bytes, borrowed.
     pub fn held(&self, name: &str) -> Result<&[u8], String> {
-        let (width, bytes) = self
-            .columns
-            .get(name)
-            .ok_or_else(|| format!("journey artifact has no {name} column"))?;
-        if *width != 1 {
-            return Err(format!("journey artifact column {name} has the wrong width"));
+        match self.column(name)? {
+            Plain::Bytes(1, bytes) => Ok(bytes),
+            _ => Err(format!("journey artifact column {name} has the wrong width")),
         }
-        Ok(bytes)
     }
 
     pub fn bytes(&self, name: &str) -> Result<Vec<u8>, String> {
@@ -103,17 +110,26 @@ impl Decoded {
     }
 
     pub fn words(&self, name: &str) -> Result<Vec<u32>, String> {
-        let (width, bytes) = self
-            .columns
-            .get(name)
-            .ok_or_else(|| format!("journey artifact has no {name} column"))?;
-        if *width != 4 || bytes.len() % 4 != 0 {
-            return Err(format!("journey artifact column {name} has the wrong width"));
+        match self.column(name)? {
+            Plain::Words(words) => Ok(words.clone()),
+            Plain::Bytes(..) => Err(format!("journey artifact column {name} has the wrong width")),
         }
-        Ok(bytes
-            .chunks_exact(4)
-            .map(|word| u32::from_le_bytes(word.try_into().unwrap_or_default()))
-            .collect())
+    }
+
+    /// A width-1 column's bytes, moved out, so a reader does not hold it twice.
+    pub fn take_bytes(&mut self, name: &str) -> Result<Vec<u8>, String> {
+        match self.columns.remove(name) {
+            Some(Plain::Bytes(1, bytes)) => Ok(bytes),
+            _ => Err(format!("journey artifact has no {name} column of bytes")),
+        }
+    }
+
+    /// A width-4 column's words, moved out.
+    pub fn take_words(&mut self, name: &str) -> Result<Vec<u32>, String> {
+        match self.columns.remove(name) {
+            Some(Plain::Words(words)) => Ok(words),
+            _ => Err(format!("journey artifact has no {name} column of words")),
+        }
     }
 }
 
@@ -129,19 +145,18 @@ pub(crate) struct Placed {
 /// Every column the header names, placed in `bytes` and not decoded, and the
 /// version the header states, whatever it is.
 pub(crate) fn framed(bytes: &[u8]) -> Result<(u8, Vec<Placed>), String> {
+    framed_within(bytes, bytes.len())
+}
+
+/// [`framed`] for a file of `length` bytes of which `bytes` holds a prefix at
+/// least as long as its header: the sections are placed against the whole file.
+pub(crate) fn framed_within(bytes: &[u8], length: usize) -> Result<(u8, Vec<Placed>), String> {
     let refused = || "not a variance-authority journey artifact".to_owned();
-    if bytes.len() < 4 {
-        return Err(refused());
-    }
-    let header_length = u32::from_le_bytes(bytes[..4].try_into().unwrap_or_default()) as usize;
-    if header_length == 0 || header_length > bytes.len() - 4 {
-        return Err(refused());
-    }
-    let header_end = bytes[4..4 + header_length]
-        .iter()
-        .position(|byte| *byte == 0)
-        .map_or(4 + header_length, |at| 4 + at);
-    let header: Header = serde_json::from_slice(&bytes[4..header_end]).map_err(|_| refused())?;
+    let header_length = u32::from_le_bytes(bytes.get(..4).ok_or_else(refused)?.try_into().unwrap_or_default()) as usize;
+    let fits = header_length != 0 && header_length <= length.saturating_sub(4);
+    let held = bytes.get(4..4 + header_length).filter(|_| fits).ok_or_else(refused)?;
+    let header_end = held.iter().position(|byte| *byte == 0).unwrap_or(header_length);
+    let header: Header = serde_json::from_slice(&held[..header_end]).map_err(|_| refused())?;
     let base = 4 + header_length;
     let placed = header
         .sections
@@ -150,7 +165,7 @@ pub(crate) fn framed(bytes: &[u8]) -> Result<(u8, Vec<Placed>), String> {
             let end = section
                 .offset
                 .checked_add(section.length)
-                .filter(|end| *end <= bytes.len() - base)
+                .filter(|end| *end <= length - base)
                 .ok_or_else(refused)?;
             Ok(Placed {
                 name: section.name,
@@ -198,16 +213,26 @@ pub fn decode_any(bytes: &[u8]) -> Result<(u8, Decoded), String> {
 }
 
 fn decode_placed(bytes: &[u8], placed: Vec<Placed>) -> Result<Decoded, String> {
-    let mut columns = HashMap::new();
-    for column in placed {
-        let stored = &bytes[column.stored];
-        let plain = match column.rows {
-            None => stored.to_vec(),
-            Some(rows) if column.width == 4 => unpack_words(stored, rows)?,
-            Some(rows) if column.name.ends_with(".blob") => unpack_blob(stored, rows)?,
-            Some(rows) => unpack_bytes(stored, rows)?,
-        };
-        if columns.insert(column.name, (column.width, plain)).is_some() {
+    // Columns decode apart, so a record's are decoded at once.
+    let plain: Vec<(String, Plain)> = placed
+        .into_par_iter()
+        .map(|column| {
+            let stored = &bytes[column.stored];
+            let plain = match column.rows {
+                None if column.width == 4 && stored.len() % 4 == 0 => Plain::Words(
+                    stored.chunks_exact(4).map(|word| u32::from_le_bytes(word.try_into().unwrap_or_default())).collect(),
+                ),
+                None => Plain::Bytes(column.width, stored.to_vec()),
+                Some(rows) if column.width == 4 => Plain::Words(unpack_words(stored, rows)?),
+                Some(rows) if column.name.ends_with(".blob") => Plain::Bytes(column.width, unpack_blob(stored, rows)?),
+                Some(rows) => Plain::Bytes(column.width, unpack_bytes(stored, rows)?),
+            };
+            Ok((column.name, plain))
+        })
+        .collect::<Result<_, String>>()?;
+    let mut columns = HashMap::with_capacity(plain.len());
+    for (name, plain) in plain {
+        if columns.insert(name, plain).is_some() {
             return Err("journey artifact repeats a column".to_owned());
         }
     }
@@ -318,16 +343,13 @@ pub(crate) fn word_run_limit() -> usize {
 // against what the runs decode to, and what they decode to is bounded by
 // `decompress`'s limit, so a hostile header costs what its bytes cost.
 
-fn unpack_words(stored: &[u8], rows: usize) -> Result<Vec<u8>, String> {
+fn unpack_words(stored: &[u8], rows: usize) -> Result<Vec<u32>, String> {
     let run = LAYOUT.run;
     let runs = runs(stored, rows.div_ceil(run))?;
     let mut out = Vec::new();
     let mut remaining = rows;
     for held in runs {
-        let values = unvarints(&decompress(held, word_run_limit())?, remaining.min(run))?;
-        for value in values {
-            out.extend_from_slice(&value.to_le_bytes());
-        }
+        out.extend(unvarints(&decompress(held, word_run_limit())?, remaining.min(run))?);
         remaining = remaining.saturating_sub(run);
     }
     Ok(out)

@@ -161,7 +161,7 @@ variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev|instant>]
-variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file> | merge <record.bin>... --into <record>
+variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file> | combine <record.bin>... --into <new-record>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>]
@@ -1588,11 +1588,11 @@ app/src/components/CartCard.tsx  3 observers
   …
 ```
 
-For a CI job that only combines records, `journeys merge` writes the one
+For a CI job that only combines records, `journeys combine` writes the one
 record an unsharded run would have written, and nothing else:
 
 ```bash
-variance journeys merge shard-1/coverage.bin shard-2/coverage.bin \
+variance journeys combine shard-1/coverage.bin shard-2/coverage.bin \
   --into artifacts/coverage.bin
 ```
 
@@ -1601,13 +1601,19 @@ journeys: combined 2 records into artifacts/coverage.bin (342 tests, 1204 module
 ```
 
 It reads the shards and nothing else: no configuration, no checkout, no
-source index. `--into` is replaced, not layered over, and the output is the
-same bytes whatever order the shards are named in. To lay the shards over a
-record that is already there, name it to `journeys` instead:
+source index. The output is the same bytes whatever order the shards are named
+in. `--into` names a new file: a path that is already there, a shard among
+them, is refused, because combining over a record would discard it. To lay the
+shards over a record that is already there, name it to `journeys` instead:
 `variance journeys <shard.bin>... --into <record>`. Paths resolve from the
 working directory. Landing the combined record, in this checkout or another,
 is `journeys`'s; the rules below apply to both commands, because `journeys`
 combines its shards the same way and lands the result as one.
+
+Each test file keeps the duration its shard measured. Where two shards both
+timed one file, the combined record keeps the longer, the bound a scheduler
+plans against. A shard that recorded no test files changes nothing, whatever
+commit or recipe it names.
 
 The fold refuses shards that were not one run, naming both files: recorded under
 different probe recipes, or at different commits — and a shard recorded outside
@@ -1623,7 +1629,11 @@ cases cannot both be the suite's, so you combine only one of them. A case index
 this build cannot read, the row spelling of older versions among them, is
 recorded again with this version. A case whose lines stand on a file two
 shards cut into different regions is refused, because its lines name regions
-by their order; record every shard with one build.
+by their order; record every shard with one build. Two shards that hold
+different Eyes journals for one attempt of one case, or a journal of a case
+the combined index does not record, are refused by name. So is a shard that
+holds a before layer beside one that holds none: the shards of one run all
+start from one index.
 
 Where it lands is this checkout's own cache, the file every run on this
 machine layers over — the record of the suite `--suite` names, when the root

@@ -73,18 +73,22 @@ To combine records written by `withTestSelection` into the one record an
 unsharded run would have written, name every shard and an output file:
 
 ```bash
-variance journeys merge shard-1/coverage.bin shard-2/coverage.bin \
+variance journeys combine shard-1/coverage.bin shard-2/coverage.bin \
   --into artifacts/coverage.bin
 ```
 
-The merge reads the shards and nothing else: no configuration, no checkout, no
-source index. Paths resolve from the working directory. The output is replaced,
-not layered over, and is the same bytes whatever order the shards are named in.
-It keeps the case sections for `distill` and refuses, by shard, overlapping test
-files or case files, different commits, different probe recipes, a shard that
-kept cases beside one that kept none, a case index this build cannot read
-(record it again with this version), and lines on a file two shards cut into
-different regions (record every shard with one build). Land the result with
+The combine reads the shards and nothing else: no configuration, no checkout, no
+source index. Paths resolve from the working directory. `--into` names a new
+file; a path that is already there, a shard among them, is refused. The output
+is the same bytes whatever order the shards are named in. It keeps the case
+sections for `distill`, keeps each test file's longest measured duration, and
+treats a shard with no test files as absent. It refuses, by shard, overlapping
+test files or case files, different commits, different probe recipes, a shard
+that kept cases beside one that kept none, a before layer beside none, different
+Eyes journals for one case attempt or a journal of a case the index does not
+record, a case index this build cannot read (record it again with this
+version), and lines on a file two shards cut into different regions (record
+every shard with one build). Land the result with
 `variance journeys <record>`; to lay the shards over a record that is already
 there, run `variance journeys <shard.bin>... --into <record>`.
 `journeys stitch` reads journey-only artifacts instead, which lack the per-file

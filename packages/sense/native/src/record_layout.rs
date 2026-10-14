@@ -36,13 +36,12 @@ pub struct Levels {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Coverage {
-    pub model: u32,
     pub format: u8,
     pub uncased: u8,
     pub untimed: u8,
-    pub no_owner: u32,
     pub no_duration: u32,
-    pub no_line: u32,
+    /// The owner a block with no owner carries.
+    pub no_owner: u32,
     /// Every coverage section, in the order a record holds them.
     pub sections: Vec<String>,
     /// The section the untimed layout lacks.
@@ -53,9 +52,14 @@ pub struct Coverage {
 }
 
 impl Coverage {
-    /// The section a case part is stored under: `index`, `before`, `last` or `eyes`.
+    /// The section a case part is stored under: `index`, `before`, `last` or
+    /// `eyes`. Every caller names a part the layout defines, so one it does not
+    /// is a build that cannot read its own records, and stops here.
     pub fn part(&self, part: &str) -> &str {
-        self.parts.iter().find(|(name, _)| name == part).map_or("", |(_, section)| section.as_str())
+        match self.parts.iter().find(|(name, _)| name == part) {
+            Some((_, section)) => section,
+            None => panic!("record-layout.json names no case part {part}"),
+        }
     }
 
     /// The layouts a reader opens.

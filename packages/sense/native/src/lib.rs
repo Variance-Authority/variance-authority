@@ -27,6 +27,10 @@ mod case_owner;
 mod case_preconditions;
 mod case_shard;
 mod compact;
+mod large_alloc;
+
+#[global_allocator]
+static ALLOCATOR: large_alloc::Mapped = large_alloc::Mapped;
 mod conditions;
 mod declarations;
 mod declared_role;

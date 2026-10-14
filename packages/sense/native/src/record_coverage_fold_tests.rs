@@ -8,7 +8,9 @@ fn names_only_the_strings_the_fold_writes_in_code_unit_order() {
     let bytes = fixture::write(&spec(vec![test("z.test.ts"), test("\u{ff61}.test.ts"), test("\u{1f600}.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]));
     let record = record_coverage::read(&bytes).unwrap();
     let coverage = record.coverage.unwrap();
-    let folded = fold(&[Shard { name: "one", coverage: &coverage }]).unwrap();
+    let mut fold = Fold::new(coverage.tests());
+    fold.add("one", &coverage).unwrap();
+    let folded = fold.finish(Some("c0ffee")).unwrap();
     let blob = folded.columns.iter().find_map(|column| match column {
         Column::Blob("strings.blob", blob, offsets) => Some((blob.clone(), offsets.clone())),
         _ => None,
@@ -22,7 +24,7 @@ fn names_only_the_strings_the_fold_writes_in_code_unit_order() {
     let tests: Vec<&str> = folded.files[0].iter().map(String::as_str).collect();
     assert_eq!(tests, ["z.test.ts", "\u{1f600}.test.ts", "\u{ff61}.test.ts"]);
     let names: Vec<&str> = folded.columns.iter().map(|column| match column {
-        Column::Bytes(name, _) | Column::Words(name, _) | Column::Blob(name, _, _) | Column::Plain(name, _) => *name,
+        Column::Bytes(name, _) | Column::Words(name, _) | Column::Blob(name, _, _) | Column::Plain(name, _) => &**name,
     }).collect();
     let layout: Vec<&str> = LAYOUT.coverage.sections.iter().map(String::as_str).collect();
     assert_eq!(names, layout);

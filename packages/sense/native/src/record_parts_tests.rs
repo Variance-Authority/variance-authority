@@ -62,18 +62,42 @@ fn eyes(json: &str) -> Vec<u8> {
     json.as_bytes().to_vec()
 }
 
+fn cases(names: &[&str]) -> HashSet<String> {
+    names.iter().map(|name| (*name).to_owned()).collect()
+}
+
 #[test]
-fn folds_eyes_keeping_the_journal_that_sorts_first() {
-    let one = eyes(r#"{"version":1,"watched":["b"],"journals":[{"case":"a","attempt":1,"journal":{"z":2}}]}"#);
+fn folds_eyes_into_every_case_watched_and_each_attempt_once() {
+    let one = eyes(r#"{"version":1,"watched":["b"],"journals":[{"case":"a","attempt":1,"journal":{"z":1}}]}"#);
     let two = eyes(r#"{"version":1,"watched":[],"journals":[{"case":"a","attempt":1,"journal":{"z":1}},{"case":"a","attempt":2,"journal":{}}]}"#);
     let renamed = HashMap::from([("b".to_owned(), "b 2".to_owned())]);
-    let forward = fold_eyes(&[("one", &one, &renamed), ("two", &two, &none())]).unwrap();
-    let backward = fold_eyes(&[("two", &two, &none()), ("one", &one, &renamed)]).unwrap();
+    let known = cases(&["a", "b 2"]);
+    let forward = fold_eyes(&[("one", &one, &renamed), ("two", &two, &none())], &known).unwrap();
+    let backward = fold_eyes(&[("two", &two, &none()), ("one", &one, &renamed)], &known).unwrap();
     assert_eq!(forward, backward);
     assert_eq!(
         String::from_utf8(forward).unwrap(),
         "{\"version\":1,\"watched\":[\"a\",\"b 2\"],\"journals\":[{\"case\":\"a\",\"attempt\":1,\"journal\":{\"z\":1}},{\"case\":\"a\",\"attempt\":2,\"journal\":{}}]}\n"
     );
+}
+
+#[test]
+fn refuses_two_journals_of_one_attempt_naming_both_shards_in_path_order() {
+    let one = eyes(r#"{"version":1,"watched":[],"journals":[{"case":"a","attempt":1,"journal":{"z":2}}]}"#);
+    let two = eyes(r#"{"version":1,"watched":[],"journals":[{"case":"a","attempt":1,"journal":{"z":1}}]}"#);
+    let empty = none();
+    for shards in [[("b.bin", &one), ("a.bin", &two)], [("a.bin", &two), ("b.bin", &one)]] {
+        let named: Vec<(&str, &[u8], &HashMap<String, String>)> = shards.iter().map(|(name, bytes)| (*name, bytes.as_slice(), &empty)).collect();
+        let message = fold_eyes(&named, &cases(&["a"])).err().unwrap();
+        assert!(message.contains("a.bin and b.bin hold different Eyes journals for `a` attempt 1"), "{message}");
+    }
+}
+
+#[test]
+fn refuses_a_journal_of_a_case_the_index_does_not_record() {
+    let one = eyes(r#"{"version":1,"watched":[],"journals":[{"case":"gone","attempt":1,"journal":{}}]}"#);
+    let message = fold_eyes(&[("one", &one, &none())], &cases(&["a"])).err().unwrap();
+    assert!(message.contains("one: its eyes section holds a journal of `gone`, a case the combined index does not record"), "{message}");
 }
 
 #[test]
@@ -85,6 +109,6 @@ fn refuses_an_eyes_section_this_build_does_not_read() {
         r#"{"version":1,"watched":[],"journals":[{"case":"a","attempt":1,"journal":3}]}"#,
         "[",
     ] {
-        assert!(fold_eyes(&[("one", section.as_bytes(), &none())]).is_err(), "{section}");
+        assert!(fold_eyes(&[("one", section.as_bytes(), &none())], &cases(&["a"])).is_err(), "{section}");
     }
 }

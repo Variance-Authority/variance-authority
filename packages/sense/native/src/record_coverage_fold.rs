@@ -2,13 +2,18 @@
 //! run would have written, or a refusal naming the two shards that disagree.
 //!
 //! The rule is that the fold says nothing one run could not. The probe recipe
-//! and the commit are singular in a run, so every shard must name the same
-//! ones; absent is a value there. A test file belongs to one shard. A module
-//! the shards built from different text is refused, since the regions of one do
-//! not name the regions of the other. Where shards disagree about whether a
-//! module was readable, the rows that measured it answer and the others say
-//! nothing; rows that agree are one union, region by region, by ordinal. A
-//! region two shards describe differently is refused.
+//! is singular in a run, so every shard must name the same one. A test file
+//! belongs to one shard. A module the shards built from different text is
+//! refused, since the regions of one do not name the regions of the other.
+//! Where shards disagree about whether a module was readable, the rows that
+//! measured it answer and the others say nothing; rows that agree are one
+//! union, region by region, by ordinal. A region two shards describe
+//! differently is refused.
+//!
+//! Shards are added one at a time and each is dropped once added, so the fold
+//! holds the output and one shard, never every shard: a region's tests are an
+//! interned set, and a shard's union with what is held is computed once per
+//! distinct pair of sets, not once per region.
 //!
 //! The output is a function of the shards' contents only: tests and modules
 //! are written in code-unit order of their paths, ids are ranks in that order,
@@ -21,14 +26,9 @@ use crate::case_shard;
 use crate::journey_columns::Column;
 use crate::journey_format::SetPool;
 use crate::order;
+use crate::record_combine::Agreed;
 use crate::record_coverage::Coverage;
 use crate::record_layout::LAYOUT;
-
-/// One shard's coverage and the name a refusal calls it by.
-pub(crate) struct Shard<'a> {
-    pub name: &'a str,
-    pub coverage: &'a Coverage,
-}
 
 pub(crate) struct Folded {
     /// The coverage sections, in the order a record holds them.
@@ -36,39 +36,337 @@ pub(crate) struct Folded {
     pub tests: u32,
     pub modules: u32,
     pub crossings: u64,
-    pub commit: Option<String>,
-    /// Per shard, the test files it recorded.
+    /// Per shard added, the test files it recorded, in code-unit order.
     pub files: Vec<Vec<String>>,
 }
 
-/// Strings named by the output, interned in any order and numbered by rank once all are known.
+/// Strings the output may name, owned, numbered as they are first named and
+/// ranked once the output is known.
 #[derive(Default)]
-struct Dictionary<'a> {
-    ids: FxHashMap<&'a str, u32>,
-    values: Vec<&'a str>,
+struct Dictionary {
+    ids: FxHashMap<Box<str>, u32>,
 }
 
-impl<'a> Dictionary<'a> {
-    fn id(&mut self, value: &'a str) -> u32 {
+impl Dictionary {
+    fn id(&mut self, value: &str) -> u32 {
         if let Some(id) = self.ids.get(value) {
             return *id;
         }
-        let id = self.values.len() as u32;
-        self.ids.insert(value, id);
-        self.values.push(value);
+        let id = self.ids.len() as u32;
+        self.ids.insert(value.into(), id);
         id
     }
 
-    /// The strings sorted, and the rank each interned id takes among them.
-    fn ranked(self) -> (Vec<&'a str>, Vec<u32>) {
-        let mut sorted: Vec<u32> = (0..self.values.len() as u32).collect();
-        sorted.sort_unstable_by(|left, right| order::code_unit(self.values[*left as usize], self.values[*right as usize]));
-        let mut rank = vec![0; sorted.len()];
-        for (at, id) in sorted.iter().enumerate() {
+    /// The strings `used` names, sorted, and the rank each such id takes among them.
+    fn ranked(self, used: &[bool]) -> (Vec<Box<str>>, Vec<u32>) {
+        let mut kept: Vec<(Box<str>, u32)> = self.ids.into_iter().filter(|(_, id)| used[*id as usize]).collect();
+        kept.sort_unstable_by(|left, right| order::code_unit(&left.0, &right.0));
+        let mut rank = vec![u32::MAX; used.len()];
+        for (at, (_, id)) in kept.iter().enumerate() {
             rank[*id as usize] = at as u32;
         }
-        (sorted.iter().map(|id| self.values[*id as usize]).collect(), rank)
+        (kept.into_iter().map(|(value, _)| value).collect(), rank)
     }
+}
+
+/// One shard's dictionary as the fold's ids, each string looked up once.
+struct Local<'a> {
+    strings: Vec<&'a str>,
+    ids: Vec<u32>,
+}
+
+impl Local<'_> {
+    fn id(&mut self, dictionary: &mut Dictionary, id: u32) -> u32 {
+        let held = &mut self.ids[id as usize];
+        if *held == u32::MAX {
+            *held = dictionary.id(self.strings[id as usize]);
+        }
+        *held
+    }
+}
+
+struct Test {
+    path: u32,
+    complete: u8,
+    duration: u32,
+    preconditions: (u32, u32),
+}
+
+struct Module {
+    path: u32,
+    source: u32,
+    instrumented: bool,
+    /// The shard that first named the module, which a refusal names.
+    origin: u32,
+    /// In ordinal order.
+    blocks: Vec<Block>,
+}
+
+struct Block {
+    ordinal: u32,
+    kind: u8,
+    source: u8,
+    owner: u32,
+    digest: u32,
+    name: u32,
+    path: u32,
+    start: u32,
+    end: u32,
+    called: u32,
+    loaded: u32,
+    origin: u32,
+}
+
+pub(crate) struct Fold {
+    names: Vec<String>,
+    instrumentation: Agreed,
+    dictionary: Dictionary,
+    tests: Vec<Test>,
+    /// Which shard recorded each test path.
+    owner: FxHashMap<u32, u32>,
+    precondition_name: Vec<u32>,
+    precondition_digest: Vec<u32>,
+    modules: Vec<Module>,
+    module_at: FxHashMap<u32, u32>,
+    /// Sets over every shard's tests, a test numbered by its shard's offset
+    /// and its own id: what a region's tests are until they are ranked.
+    sets: SetPool,
+    empty: u32,
+    universe: usize,
+    files: Vec<Vec<String>>,
+}
+
+impl Fold {
+    /// A fold of shards that together record `universe` test files.
+    pub fn new(universe: usize) -> Self {
+        let mut sets = SetPool::new(universe);
+        let empty = sets.intern(&[]);
+        Fold {
+            names: Vec::new(),
+            instrumentation: Agreed::new("instrumentation"),
+            dictionary: Dictionary::default(),
+            tests: Vec::new(),
+            owner: FxHashMap::default(),
+            precondition_name: Vec::new(),
+            precondition_digest: Vec::new(),
+            modules: Vec::new(),
+            module_at: FxHashMap::default(),
+            sets,
+            empty,
+            universe,
+            files: Vec::new(),
+        }
+    }
+
+    /// Fold in one shard's coverage, called `name` by a refusal.
+    pub fn add(&mut self, name: &str, coverage: &Coverage) -> Result<(), String> {
+        let Fold { names, instrumentation, dictionary, tests, owner, modules, module_at, sets, .. } = self;
+        let at = names.len() as u32;
+        names.push(name.to_owned());
+        let strings = coverage.strings()?;
+        instrumentation.hear(name, Some(strings[coverage.instrumentation as usize]))?;
+        let mut local = Local { ids: vec![u32::MAX; strings.len()], strings };
+
+        let offset = tests.len() as u32;
+        if tests.len() + coverage.tests() > self.universe {
+            return Err(format!("{name} holds more test files than its header states"));
+        }
+        let mut files = Vec::with_capacity(coverage.tests());
+        for test in 0..coverage.tests() {
+            let path = local.id(dictionary, coverage.test_path[test]);
+            if let Some(held) = owner.insert(path, at) {
+                return Err(format!(
+                    "`{}` was recorded by {} and again by {name}. A test file belongs to one shard, and two observations of it cannot both be the suite's.",
+                    local.strings[coverage.test_path[test] as usize],
+                    names[held as usize]
+                ));
+            }
+            files.push(local.strings[coverage.test_path[test] as usize].to_owned());
+            let from = self.precondition_name.len() as u32;
+            for input in coverage.preconditions(test) {
+                self.precondition_name.push(local.id(dictionary, coverage.precondition_name[input]));
+                self.precondition_digest.push(local.id(dictionary, coverage.precondition_digest[input]));
+            }
+            tests.push(Test {
+                path,
+                complete: coverage.test_complete[test],
+                duration: coverage.test_duration.as_ref().map_or(LAYOUT.coverage.no_duration, |duration| duration[test]),
+                preconditions: (from, self.precondition_name.len() as u32),
+            });
+        }
+        files.sort_unstable_by(|left, right| order::code_unit(left, right));
+        self.files.push(files);
+
+        // A pair of sets, the one held and the shard's, is unioned once.
+        let mut unions: FxHashMap<(u32, u32), u32> = FxHashMap::default();
+        let mut union = |held: u32, set: u32| -> Result<u32, String> {
+            if let Some(id) = unions.get(&(held, set)) {
+                return Ok(*id);
+            }
+            let mut members = case_shard::decode_set(case_shard::set_slice(sets.bytes(), sets.offsets(), held)?, self.universe)?;
+            let stored = case_shard::set_slice(&coverage.set_bytes, &coverage.set_offsets, set)?;
+            members.extend(case_shard::decode_set(stored, coverage.tests())?.into_iter().map(|test| test + offset));
+            members.sort_unstable();
+            members.dedup();
+            let id = sets.intern(&members);
+            unions.insert((held, set), id);
+            Ok(id)
+        };
+        for row in 0..coverage.modules() {
+            let path = local.id(dictionary, coverage.module_path[row]);
+            let source = local.id(dictionary, coverage.module_source[row]);
+            let instrumented = coverage.module_instrumented[row] == 1;
+            let module = *module_at.entry(path).or_insert_with(|| {
+                modules.push(Module { path, source, instrumented, origin: at, blocks: Vec::new() });
+                modules.len() as u32 - 1
+            });
+            let held = &mut modules[module as usize];
+            let file = local.strings[coverage.module_path[row] as usize];
+            if held.source != source {
+                return Err(format!(
+                    "`{file}` is different source in {} and {name}: the two shards built it from different text, so the regions of one do not name the regions of the other.",
+                    names[held.origin as usize]
+                ));
+            }
+            if instrumented && !held.instrumented {
+                held.instrumented = true;
+                held.blocks.clear();
+            } else if held.instrumented && !instrumented {
+                continue;
+            }
+            for block in coverage.blocks(row) {
+                let read = Block {
+                    ordinal: coverage.block_ordinal[block],
+                    kind: coverage.block_kind[block],
+                    source: coverage.block_source[block],
+                    owner: coverage.block_owner[block],
+                    digest: local.id(dictionary, coverage.block_digest[block]),
+                    name: local.id(dictionary, coverage.block_name[block]),
+                    path: local.id(dictionary, coverage.block_path[block]),
+                    start: coverage.block_start[block],
+                    end: coverage.block_end[block],
+                    called: coverage.block_set[block],
+                    loaded: coverage.block_loaded_set[block],
+                    origin: at,
+                };
+                match held.blocks.binary_search_by_key(&read.ordinal, |block| block.ordinal) {
+                    Ok(found) => {
+                        let kept = &mut held.blocks[found];
+                        if !same_region(kept, &read) {
+                            return Err(format!(
+                                "`{file}` region {} is described differently by {} and {name}, so they are not shards of one build.",
+                                read.ordinal, names[kept.origin as usize]
+                            ));
+                        }
+                        kept.called = union(kept.called, read.called)?;
+                        kept.loaded = union(kept.loaded, read.loaded)?;
+                    }
+                    Err(slot) => {
+                        let called = union(self.empty, read.called)?;
+                        let loaded = union(self.empty, read.loaded)?;
+                        held.blocks.insert(slot, Block { called, loaded, ..read });
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// The coverage of every shard added, naming `commit`: the one the shards agree on.
+    pub fn finish(self, commit: Option<&str>) -> Result<Folded, String> {
+        let Fold { names, instrumentation, mut dictionary, tests, precondition_name, precondition_digest, mut modules, sets, universe, files, .. } = self;
+        if names.is_empty() {
+            return Err("folding needs at least one coverage record".to_owned());
+        }
+        let instrumentation = dictionary.id(instrumentation.value().unwrap_or_default());
+        let commit = commit.map(|value| dictionary.id(value));
+        let mut used = vec![false; dictionary.ids.len()];
+        let mut use_ = |id: u32| used[id as usize] = true;
+        use_(instrumentation);
+        commit.into_iter().for_each(&mut use_);
+        for test in &tests {
+            use_(test.path);
+        }
+        precondition_name.iter().chain(&precondition_digest).copied().for_each(&mut use_);
+        for module in &modules {
+            use_(module.path);
+            use_(module.source);
+            for block in &module.blocks {
+                use_(block.digest);
+                use_(block.name);
+                use_(block.path);
+            }
+        }
+        let (strings, rank) = dictionary.ranked(&used);
+        let ranked = |id: u32| rank[id as usize];
+
+        // Tests, by path. Ids are ranks, so they do not depend on which shard held a test.
+        let mut order: Vec<u32> = (0..tests.len() as u32).collect();
+        order.sort_unstable_by_key(|test| ranked(tests[*test as usize].path));
+        let mut final_id = vec![0_u32; tests.len()];
+        let mut out = Columns::default();
+        for (at, test) in order.iter().enumerate() {
+            final_id[*test as usize] = at as u32;
+            let test = &tests[*test as usize];
+            out.test_path.push(ranked(test.path));
+            out.test_complete.push(test.complete);
+            out.test_duration.push(test.duration);
+            out.test_preconditions.push(out.precondition_name.len() as u32);
+            for input in test.preconditions.0 as usize..test.preconditions.1 as usize {
+                out.precondition_name.push(ranked(precondition_name[input]));
+                out.precondition_digest.push(ranked(precondition_digest[input]));
+            }
+        }
+        out.test_preconditions.push(out.precondition_name.len() as u32);
+
+        // Modules, by path; each region's tests as the final ids, interned in output order.
+        modules.sort_unstable_by_key(|module| ranked(module.path));
+        let mut pool = SetPool::new(tests.len());
+        let mut placed: Vec<Option<(u32, u32)>> = vec![None; sets.offsets().len() - 1];
+        let mut set = |held: u32| -> Result<(u32, u32), String> {
+            if let Some(placed) = placed[held as usize] {
+                return Ok(placed);
+            }
+            let members = case_shard::decode_set(case_shard::set_slice(sets.bytes(), sets.offsets(), held)?, universe)?;
+            let mut members: Vec<u32> = members.into_iter().map(|test| final_id[test as usize]).collect();
+            members.sort_unstable();
+            let interned = (pool.intern(&members), members.len() as u32);
+            placed[held as usize] = Some(interned);
+            Ok(interned)
+        };
+        let mut crossings = 0_u64;
+        for module in &modules {
+            out.module_path.push(ranked(module.path));
+            out.module_source.push(ranked(module.source));
+            out.module_instrumented.push(u8::from(module.instrumented));
+            out.module_blocks.push(out.block_ordinal.len() as u32);
+            for block in &module.blocks {
+                out.block_ordinal.push(block.ordinal);
+                out.block_kind.push(block.kind);
+                out.block_owner.push(block.owner);
+                out.block_digest.push(ranked(block.digest));
+                out.block_name.push(ranked(block.name));
+                out.block_path.push(ranked(block.path));
+                out.block_start.push(block.start);
+                out.block_end.push(block.end);
+                out.block_source.push(block.source);
+                let (called, entered) = set(block.called)?;
+                crossings += u64::from(entered);
+                out.block_set.push(called);
+                out.block_loaded_set.push(set(block.loaded)?.0);
+            }
+        }
+        out.module_blocks.push(out.block_ordinal.len() as u32);
+        let modules = out.module_path.len() as u32;
+        let columns = encoded(out, &strings, ranked(instrumentation), commit.map(ranked), &pool)?;
+        Ok(Folded { columns, tests: tests.len() as u32, modules, crossings, files })
+    }
+}
+
+/// Whether two block rows describe one region: everything but who entered it.
+fn same_region(left: &Block, right: &Block) -> bool {
+    (left.kind, left.owner, left.start, left.end, left.source, left.digest, left.name, left.path)
+        == (right.kind, right.owner, right.start, right.end, right.source, right.digest, right.name, right.path)
 }
 
 #[derive(Default)]
@@ -96,213 +394,56 @@ struct Columns {
     block_loaded_set: Vec<u32>,
 }
 
-pub(crate) fn fold(shards: &[Shard<'_>]) -> Result<Folded, String> {
-    let first = shards.first().ok_or("folding needs at least one coverage record")?;
-    let strings: Vec<Vec<&str>> = shards.iter().map(|shard| shard.coverage.strings()).collect::<Result<_, _>>()?;
-    let string = |shard: usize, id: u32| strings[shard][id as usize];
-    let instrumentation = |shard: usize| string(shard, shards[shard].coverage.instrumentation);
-    let commit = |shard: usize| shards[shard].coverage.commit.map(|id| string(shard, id));
-    for at in 1..shards.len() {
-        agree(first.name, shards[at].name, "instrumentation", instrumentation(0), instrumentation(at))?;
-        agree(first.name, shards[at].name, "commit", commit(0).unwrap_or("(none)"), commit(at).unwrap_or("(none)"))?;
-    }
-    let mut dictionary = Dictionary::default();
-    let mut out = Columns::default();
-    let instrumentation_id = dictionary.id(instrumentation(0));
-    let commit_id = commit(0).map(|value| dictionary.id(value));
-
-    // Tests, by path. Ids are ranks, so they do not depend on which shard held a test.
-    let mut tests: Vec<(&str, usize, usize)> = Vec::new();
-    for (at, shard) in shards.iter().enumerate() {
-        tests.extend(shard.coverage.test_path.iter().enumerate().map(|(local, path)| (string(at, *path), at, local)));
-    }
-    tests.sort_by(|left, right| order::code_unit(left.0, right.0).then(left.1.cmp(&right.1)));
-    if let Some(pair) = tests.windows(2).find(|pair| pair[0].0 == pair[1].0) {
-        return Err(format!(
-            "`{}` was recorded by {} and again by {}. A test file belongs to one shard, and two observations of it cannot both be the suite's.",
-            pair[0].0, shards[pair[0].1].name, shards[pair[1].1].name
-        ));
-    }
-    let mut global: Vec<Vec<u32>> = shards.iter().map(|shard| vec![0; shard.coverage.tests()]).collect();
-    let mut files: Vec<Vec<String>> = vec![Vec::new(); shards.len()];
-    for (rank, (path, at, local)) in tests.iter().enumerate() {
-        let held = shards[*at].coverage;
-        global[*at][*local] = rank as u32;
-        files[*at].push((*path).to_owned());
-        out.test_path.push(dictionary.id(path));
-        out.test_complete.push(held.test_complete[*local]);
-        out.test_duration.push(held.test_duration.as_ref().map_or(LAYOUT.coverage.no_duration, |duration| duration[*local]));
-        out.test_preconditions.push(out.precondition_name.len() as u32);
-        for input in held.preconditions(*local) {
-            out.precondition_name.push(dictionary.id(string(*at, held.precondition_name[input])));
-            out.precondition_digest.push(dictionary.id(string(*at, held.precondition_digest[input])));
-        }
-    }
-    out.test_preconditions.push(out.precondition_name.len() as u32);
-
-    // Modules, by path, each folded from the rows that measured it.
-    let mut rows: Vec<(&str, usize, usize)> = Vec::new();
-    for (at, shard) in shards.iter().enumerate() {
-        rows.extend(shard.coverage.module_path.iter().enumerate().map(|(local, path)| (string(at, *path), at, local)));
-    }
-    rows.sort_by(|left, right| order::code_unit(left.0, right.0).then(left.1.cmp(&right.1)).then(left.2.cmp(&right.2)));
-    let mut sets = SetPool::new(tests.len());
-    let mut crossings = 0_u64;
-    let (mut called, mut loaded) = (Vec::new(), Vec::new());
-    let mut from = 0;
-    while from < rows.len() {
-        let file = rows[from].0;
-        let to = from + rows[from..].iter().take_while(|row| row.0 == file).count();
-        let group = &rows[from..to];
-        from = to;
-        let source = |(_, at, local): &(&str, usize, usize)| string(*at, shards[*at].coverage.module_source[*local]);
-        if let Some(other) = group.iter().find(|row| source(row) != source(&group[0])) {
-            return Err(format!(
-                "`{file}` is different source in {} and {}: the two shards built it from different text, so the regions of one do not name the regions of the other.",
-                shards[group[0].1].name, shards[other.1].name
-            ));
-        }
-        let instrumented = group.iter().any(|(_, at, local)| shards[*at].coverage.module_instrumented[*local] == 1);
-        let mut blocks: Vec<(u32, usize, usize)> = Vec::new();
-        for (_, at, local) in group {
-            let held = shards[*at].coverage;
-            if (held.module_instrumented[*local] == 1) == instrumented {
-                blocks.extend(held.blocks(*local).map(|block| (held.block_ordinal[block], *at, block)));
-            }
-        }
-        blocks.sort_by(|left, right| left.0.cmp(&right.0).then(left.1.cmp(&right.1)).then(left.2.cmp(&right.2)));
-        out.module_path.push(dictionary.id(file));
-        out.module_source.push(dictionary.id(source(&group[0])));
-        out.module_instrumented.push(u8::from(instrumented));
-        out.module_blocks.push(out.block_ordinal.len() as u32);
-        let mut at = 0;
-        while at < blocks.len() {
-            let ordinal = blocks[at].0;
-            let end = at + blocks[at..].iter().take_while(|block| block.0 == ordinal).count();
-            let (_, shard, row) = blocks[at];
-            called.clear();
-            loaded.clear();
-            for (_, other, other_row) in &blocks[at..end] {
-                let same = region(shards, &strings, (shard, row), (*other, *other_row));
-                if !same {
-                    return Err(format!(
-                        "`{file}` region {ordinal} is described differently by {} and {}, so they are not shards of one build.",
-                        shards[shard].name, shards[*other].name
-                    ));
-                }
-                let held = shards[*other].coverage;
-                members(held, held.block_set[*other_row], &global[*other], &mut called)?;
-                members(held, held.block_loaded_set[*other_row], &global[*other], &mut loaded)?;
-            }
-            at = end;
-            let held = shards[shard].coverage;
-            out.block_ordinal.push(ordinal);
-            out.block_kind.push(held.block_kind[row]);
-            out.block_owner.push(held.block_owner[row]);
-            out.block_digest.push(dictionary.id(string(shard, held.block_digest[row])));
-            out.block_name.push(dictionary.id(string(shard, held.block_name[row])));
-            out.block_path.push(dictionary.id(string(shard, held.block_path[row])));
-            out.block_start.push(held.block_start[row]);
-            out.block_end.push(held.block_end[row]);
-            out.block_source.push(held.block_source[row]);
-            for members in [&mut called, &mut loaded] {
-                members.sort_unstable();
-                members.dedup();
-            }
-            crossings += called.len() as u64;
-            out.block_set.push(sets.intern(&called));
-            out.block_loaded_set.push(sets.intern(&loaded));
-        }
-    }
-    out.module_blocks.push(out.block_ordinal.len() as u32);
-
-    let modules = out.module_path.len() as u32;
-    let commit = commit(0).map(str::to_owned);
-    let columns = encoded(out, dictionary, instrumentation_id, commit_id, &sets);
-    Ok(Folded { columns, tests: tests.len() as u32, modules, crossings, commit, files })
-}
-
-fn agree(first: &str, other: &str, what: &str, expected: &str, held: &str) -> Result<(), String> {
-    if expected == held {
-        return Ok(());
-    }
-    Err(format!(
-        "{first} and {other} disagree about the {what} (`{expected}` against `{held}`), so they are not shards of one run and cannot be folded into one."
-    ))
-}
-
-/// Whether two block rows describe one region: everything but who entered it.
-fn region(shards: &[Shard<'_>], strings: &[Vec<&str>], (one, at): (usize, usize), (other, row): (usize, usize)) -> bool {
-    let (left, right) = (shards[one].coverage, shards[other].coverage);
-    let text = |coverage: &Coverage, shard: usize, column: fn(&Coverage) -> &Vec<u32>, row: usize| strings[shard][column(coverage)[row] as usize];
-    left.block_kind[at] == right.block_kind[row]
-        && left.block_owner[at] == right.block_owner[row]
-        && left.block_start[at] == right.block_start[row]
-        && left.block_end[at] == right.block_end[row]
-        && left.block_source[at] == right.block_source[row]
-        && text(left, one, |coverage| &coverage.block_digest, at) == text(right, other, |coverage| &coverage.block_digest, row)
-        && text(left, one, |coverage| &coverage.block_name, at) == text(right, other, |coverage| &coverage.block_name, row)
-        && text(left, one, |coverage| &coverage.block_path, at) == text(right, other, |coverage| &coverage.block_path, row)
-}
-
-/// The members of `set` in `coverage`'s pool, appended as the fold's test ids.
-fn members(coverage: &Coverage, set: u32, global: &[u32], out: &mut Vec<u32>) -> Result<(), String> {
-    let stored = case_shard::set_slice(&coverage.set_bytes, &coverage.set_offsets, set)?;
-    for local in case_shard::decode_set(stored, coverage.tests())? {
-        out.push(global[local as usize]);
-    }
-    Ok(())
-}
-
-fn encoded(out: Columns, dictionary: Dictionary<'_>, instrumentation: u32, commit: Option<u32>, sets: &SetPool) -> Vec<Column> {
-    let (strings, rank) = dictionary.ranked();
-    let ranked = |ids: Vec<u32>| -> Vec<u32> { ids.into_iter().map(|id| rank[id as usize]).collect() };
+fn encoded(out: Columns, strings: &[Box<str>], instrumentation: u32, commit: Option<u32>, sets: &SetPool) -> Result<Vec<Column>, String> {
     let mut blob = Vec::new();
     let mut offsets = Vec::with_capacity(strings.len() + 1);
     offsets.push(0);
-    for value in &strings {
+    for value in strings {
         blob.extend_from_slice(value.as_bytes());
         offsets.push(blob.len() as u32);
     }
-    let mut columns: FxHashMap<&str, Column> = FxHashMap::default();
-    let name = |name: &str| -> &'static str {
-        LAYOUT.coverage.sections.iter().find(|section| section.as_str() == name).map_or("", String::as_str)
+    let name = |name: &str| -> Result<&'static str, String> {
+        LAYOUT.coverage.sections.iter().find(|section| section.as_str() == name).map(String::as_str).ok_or_else(|| {
+            format!("record-layout.json names no coverage section {name}, and the fold writes one")
+        })
     };
-    let mut put = |column: Column| {
-        let named = match &column {
-            Column::Bytes(name, _) | Column::Words(name, _) | Column::Blob(name, _, _) | Column::Plain(name, _) => *name,
-        };
-        columns.insert(named, column);
-    };
-    put(Column::Blob(name("strings.blob"), blob, offsets.clone()));
-    put(Column::Words(name("strings.off"), offsets));
-    put(Column::Words(name("snapshot.instrumentation"), vec![rank[instrumentation as usize]]));
-    put(Column::Words(name("snapshot.commit"), commit.map(|id| rank[id as usize]).into_iter().collect()));
-    put(Column::Words(name("tests.path"), ranked(out.test_path)));
-    put(Column::Bytes(name("tests.complete"), out.test_complete));
-    put(Column::Words(name("tests.preconditions"), out.test_preconditions));
-    put(Column::Words(name(&LAYOUT.coverage.duration), out.test_duration));
-    put(Column::Words(name("preconditions.name"), ranked(out.precondition_name)));
-    put(Column::Words(name("preconditions.digest"), ranked(out.precondition_digest)));
-    put(Column::Words(name("modules.path"), ranked(out.module_path)));
-    put(Column::Words(name("modules.source"), ranked(out.module_source)));
-    put(Column::Bytes(name("modules.instrumented"), out.module_instrumented));
-    put(Column::Words(name("modules.blocks"), out.module_blocks));
-    put(Column::Words(name("blocks.ordinal"), out.block_ordinal));
-    put(Column::Bytes(name("blocks.kind"), out.block_kind));
-    put(Column::Words(name("blocks.owner"), out.block_owner));
-    put(Column::Words(name("blocks.digest"), ranked(out.block_digest)));
-    put(Column::Words(name("blocks.name"), ranked(out.block_name)));
-    put(Column::Words(name("blocks.path"), ranked(out.block_path)));
-    put(Column::Words(name("blocks.start"), out.block_start));
-    put(Column::Words(name("blocks.end"), out.block_end));
-    put(Column::Bytes(name("blocks.source"), out.block_source));
-    put(Column::Words(name("blocks.set"), out.block_set));
-    put(Column::Words(name("blocks.loadedSet"), out.block_loaded_set));
-    put(Column::Blob(name("sets.blob"), sets.bytes().to_vec(), sets.offsets().to_vec()));
-    put(Column::Words(name("sets.off"), sets.offsets().to_vec()));
-    // The layout names every section once, and each is put above once.
-    LAYOUT.coverage.sections.iter().filter_map(|section| columns.remove(section.as_str())).collect()
+    let columns = [
+        Column::Blob(name("strings.blob")?, blob, offsets.clone()),
+        Column::Words(name("strings.off")?, offsets),
+        Column::Words(name("snapshot.instrumentation")?, vec![instrumentation]),
+        Column::Words(name("snapshot.commit")?, commit.into_iter().collect()),
+        Column::Words(name("tests.path")?, out.test_path),
+        Column::Bytes(name("tests.complete")?, out.test_complete),
+        Column::Words(name("tests.preconditions")?, out.test_preconditions),
+        Column::Words(name(&LAYOUT.coverage.duration)?, out.test_duration),
+        Column::Words(name("preconditions.name")?, out.precondition_name),
+        Column::Words(name("preconditions.digest")?, out.precondition_digest),
+        Column::Words(name("modules.path")?, out.module_path),
+        Column::Words(name("modules.source")?, out.module_source),
+        Column::Bytes(name("modules.instrumented")?, out.module_instrumented),
+        Column::Words(name("modules.blocks")?, out.module_blocks),
+        Column::Words(name("blocks.ordinal")?, out.block_ordinal),
+        Column::Bytes(name("blocks.kind")?, out.block_kind),
+        Column::Words(name("blocks.owner")?, out.block_owner),
+        Column::Words(name("blocks.digest")?, out.block_digest),
+        Column::Words(name("blocks.name")?, out.block_name),
+        Column::Words(name("blocks.path")?, out.block_path),
+        Column::Words(name("blocks.start")?, out.block_start),
+        Column::Words(name("blocks.end")?, out.block_end),
+        Column::Bytes(name("blocks.source")?, out.block_source),
+        Column::Words(name("blocks.set")?, out.block_set),
+        Column::Words(name("blocks.loadedSet")?, out.block_loaded_set),
+        Column::Blob(name("sets.blob")?, sets.bytes().to_vec(), sets.offsets().to_vec()),
+        Column::Words(name("sets.off")?, sets.offsets().to_vec()),
+    ];
+    let mut columns: FxHashMap<&str, Column> = columns
+        .into_iter()
+        .map(|column| match &column {
+            Column::Bytes(name, _) | Column::Words(name, _) | Column::Blob(name, _, _) | Column::Plain(name, _) => (*name, column),
+        })
+        .collect();
+    // Every section the layout names, in its order; one the fold does not write fails here.
+    LAYOUT.coverage.sections.iter().map(|section| columns.remove(section.as_str()).ok_or_else(|| format!("the fold writes no coverage section {section}"))).collect()
 }
 
 #[cfg(test)]

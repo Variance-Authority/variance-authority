@@ -12,6 +12,8 @@
  *   node scripts/snapshot-scale.mjs fold [dir] [modules] [tests] [blocks]
  *   node scripts/snapshot-scale.mjs record [-] [modules] [tests] [blocks]
  *   node scripts/snapshot-scale.mjs build [file] [modules] [tests] [blocks]
+ *   node scripts/snapshot-scale.mjs shards [dir] [modules] [tests] [blocks]
+ *   node scripts/snapshot-scale.mjs combine [dir]
  *   node scripts/snapshot-scale.mjs layer [file]
  *   node scripts/snapshot-scale.mjs select [file]
  *
@@ -42,6 +44,7 @@ import { coverageModule } from '../dist/test-selection/coverage-rows.js';
 import { foldCrossings } from '../dist/test-selection/crossing-fold.js';
 import journalFormat from '../dist/test-selection/journal-format.cjs';
 import { encodeTestCoverage } from '../dist/test-selection/format.js';
+import { combineRecords } from '../dist/test-selection/index.js';
 import { buildSnapshot } from './snapshot-scale-build.mjs';
 import {
   BARRELS,
@@ -56,6 +59,7 @@ import {
   UTILS,
   barrelGraph,
   count,
+  gate,
   mb,
   names,
   pad,
@@ -68,6 +72,28 @@ import {
 } from './snapshot-scale-fixture.mjs';
 
 if (MODE === 'build') buildSnapshot();
+
+// The sixteen shard records a sharded CI run of this suite leaves, which
+// `variance journeys combine` folds back into the snapshot's crossings.
+if (MODE === 'shards') buildSnapshot(16);
+
+// Those shards combined into one record, through the addon. The gate: the
+// process exits non-zero when its peak resident size is above the ceiling.
+if (MODE === 'combine') {
+  const shards = readdirSync(FILE)
+    .filter((name) => /^shard-\d+\.bin$/.test(name))
+    .sort()
+    .map((name) => `${FILE}/${name}`);
+  const into = `${FILE}/combined.bin`;
+  rmSync(into, { force: true });
+  const started = Date.now();
+  const combined = combineRecords(shards, into);
+  console.log(
+    `combine: ${shards.length} shards into ${count(combined.tests)} tests, ${count(combined.modules)} modules, ` +
+      `${count(combined.crossings)} crossings in ${secs(Date.now() - started)}, ${mb(statSync(into).size)} on disk`,
+  );
+  gate();
+}
 
 
 if (MODE === 'layer') {

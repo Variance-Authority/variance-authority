@@ -138,6 +138,19 @@ describe('landJourneys and the run its shards were', () => {
     const named = (await readExecutionIndex(record)).tests.filter((test) => last.cases.includes(test.id));
     expect(named.map((test) => [test.id, test.preconditions])).toEqual([[alone.id, alone.preconditions], [discounts.id, discounts.preconditions]]);
   });
+
+  it('counts the shards whose cases it laid, and not an empty one named beside them', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    const cased = await casedShard('shard-1.bin', first, said('test/total.test.ts', 'discounts', 'member'));
+    // A shard job that ran no test writes a record that observed nothing.
+    const empty = join(home, 'shard-2.bin');
+    await writeTestCoverage(empty, { version: 3, instrumentation: 'fixture', commit: first, tests: [], modules: [] });
+
+    const landed = await landJourneys(dir, [cased, empty], record);
+
+    expect(landed).toMatchObject({ shards: 2, cases: { laid: record, shards: 1 } });
+  });
 });
 
 describe('landJourneys and a shard whose run instrumented nothing', () => {

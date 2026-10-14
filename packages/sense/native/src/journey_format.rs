@@ -180,6 +180,10 @@ pub struct CaseExtras {
     /// Each case's lines as stored, empty for a case that recorded none; no
     /// rows where no case recorded any.
     pub lines: Vec<Vec<u8>>,
+    /// Whether `tests.duration` is written even where no case was timed. A
+    /// record's case index always carries it, as `execution-set-format.ts`
+    /// writes it; a journey artifact carries it only where a case was timed.
+    pub always_timed: bool,
 }
 
 pub fn encode(
@@ -189,7 +193,7 @@ pub fn encode(
     sets: &SetPool,
     gaps: Option<&Gaps>,
 ) -> Result<Vec<u8>, String> {
-    let timed = extras.durations.iter().any(Option::is_some);
+    let timed = extras.always_timed || extras.durations.iter().any(Option::is_some);
     let lined = extras.lines.iter().any(|lines| !lines.is_empty());
     if (timed && extras.durations.len() != tests.len()) || (lined && extras.lines.len() != tests.len()) {
         return Err("case columns disagree with the cases".to_owned());
@@ -279,6 +283,10 @@ pub fn encode(
     }
     module_blocks.push(block_kind.len() as u32);
 
+    // The order `execution-set-format.ts` writes, so an index this writes is
+    // the bytes that writer gives for the same run: the cases and what each
+    // carries, the modules and their regions, then the sets. Columns only this
+    // writer spells follow.
     let mut columns = vec![
         Column::Blob("strings.blob", string_blob, string_off.clone()),
         Column::Words("strings.off", string_off),
@@ -286,37 +294,15 @@ pub fn encode(
         Column::Words("tests.file", tests.iter().map(|test| id(&test.file)).collect()),
         Column::Words("tests.name", tests.iter().map(|test| id(&test.name)).collect()),
         Column::Bytes("tests.stopped", tests.iter().map(|test| test.settled).collect()),
-        Column::Words("modules.file", module_file),
-        Column::Words("modules.blocks", module_blocks),
-        Column::Words("blocks.kind", block_kind),
-        Column::Words("blocks.name", block_name),
-        Column::Words("blocks.path", block_path),
-        Column::Words("blocks.start", block_start),
-        Column::Words("blocks.end", block_end),
-        Column::Bytes("blocks.source", block_source),
-        Column::Words("blocks.calledSet", block_called),
-        Column::Bytes("blocks.loaded", block_loaded),
-        Column::Blob("sets.blob", sets.bytes().to_vec(), sets.offsets().to_vec()),
-        Column::Words("sets.off", sets.offsets().to_vec()),
     ];
-    if let Some(owners) = block_owner {
-        columns.push(Column::Words(OWNER, owners));
-    }
-    if let Some(runners) = runners.filter(|runners| !runners.is_empty()) {
-        columns.push(Column::Words(case_id::COLUMN, runners.into_iter().map(id).collect()));
-    }
-    if named {
-        let words = tests.iter().map(|test| test.project.as_deref().map_or(case_id::UNNAMED, id)).collect();
-        columns.push(Column::Words(case_id::PROJECT_COLUMN, words));
-    }
-    if said.iter().any(Option::is_some) {
-        let words = said.iter().map(|text| text.as_deref().map_or(case_preconditions::UNHEARD, id)).collect();
-        columns.push(Column::Words(case_preconditions::COLUMN, words));
-    }
     let cases = &LAYOUT.cases;
     if timed {
         let words = extras.durations.iter().map(|duration| duration.unwrap_or(LAYOUT.coverage.no_duration)).collect();
         columns.push(Column::Words(cases.duration.as_str(), words));
+    }
+    if said.iter().any(Option::is_some) {
+        let words = said.iter().map(|text| text.as_deref().map_or(case_preconditions::UNHEARD, id)).collect();
+        columns.push(Column::Words(case_preconditions::COLUMN, words));
     }
     if lined {
         let mut blob = Vec::new();
@@ -327,6 +313,30 @@ pub fn encode(
         }
         columns.push(Column::Blob(cases.lines.as_str(), blob, offsets.clone()));
         columns.push(Column::Words(cases.lines_offsets.as_str(), offsets));
+    }
+    columns.extend([
+        Column::Words("modules.file", module_file),
+        Column::Words("modules.blocks", module_blocks),
+        Column::Words("blocks.kind", block_kind),
+        Column::Words("blocks.name", block_name),
+        Column::Words("blocks.path", block_path),
+        Column::Words("blocks.start", block_start),
+        Column::Words("blocks.end", block_end),
+        Column::Bytes("blocks.source", block_source),
+        Column::Words("blocks.calledSet", block_called),
+        Column::Bytes("blocks.loaded", block_loaded),
+    ]);
+    if let Some(owners) = block_owner {
+        columns.push(Column::Words(OWNER, owners));
+    }
+    columns.push(Column::Blob("sets.blob", sets.bytes().to_vec(), sets.offsets().to_vec()));
+    columns.push(Column::Words("sets.off", sets.offsets().to_vec()));
+    if let Some(runners) = runners.filter(|runners| !runners.is_empty()) {
+        columns.push(Column::Words(case_id::COLUMN, runners.into_iter().map(id).collect()));
+    }
+    if named {
+        let words = tests.iter().map(|test| test.project.as_deref().map_or(case_id::UNNAMED, id)).collect();
+        columns.push(Column::Words(case_id::PROJECT_COLUMN, words));
     }
     if let Some(gaps) = gaps {
         let ids = |names: &[String]| names.iter().map(|name| id(name)).collect::<Vec<u32>>();

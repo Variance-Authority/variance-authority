@@ -142,11 +142,11 @@ function alive(pid: number): boolean {
 const READS_THE_INDEX_ALONE: ReadonlySet<Parsed['command']> = new Set(['select']);
 
 /**
- * The commands that read nothing `variance index` writes: `journeys merge`
+ * The commands that read nothing `variance index` writes: `journeys combine`
  * combines the records it is named and opens nothing else. They do not wait.
  */
 function readsNoIndex(parsed: Parsed): boolean {
-  return parsed.command === 'journeys' && parsed.operation === 'merge';
+  return parsed.command === 'journeys' && parsed.operation === 'combine';
 }
 
 /**

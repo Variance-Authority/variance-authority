@@ -7,6 +7,8 @@ export interface NativeCombinedShard {
   readonly files: readonly string[];
   /** Whether the shard holds coverage. */
   readonly measured: boolean;
+  /** Whether the shard's cases are in the combined index: it kept a case index and observed something. */
+  readonly cased: boolean;
 }
 
 /** What `combineRecords` wrote: one record, as one unsharded run of the shards would have written it. */

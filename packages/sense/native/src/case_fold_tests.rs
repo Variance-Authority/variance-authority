@@ -53,12 +53,12 @@ fn read(bytes: &[u8]) -> Shard {
 fn two() -> (Vec<u8>, Vec<u8>) {
     let first = shard(
         &[case("a.test.ts", "adds", "1", FINISHED), case("a.test.ts", "drops", "2", STOPPED)],
-        &CaseExtras { durations: vec![Some(5), None], lines: vec![vec![1, 7], Vec::new()] },
+        &CaseExtras { durations: vec![Some(5), None], lines: vec![vec![1, 7], Vec::new()], ..CaseExtras::default() },
         &[("src/a.ts", vec![vec![0, 1], vec![1]]), ("src/shared.ts", vec![vec![0]])],
     );
     let second = shard(
         &[case("b.test.ts", "bends", "1", FINISHED)],
-        &CaseExtras { durations: vec![Some(9)], lines: Vec::new() },
+        &CaseExtras { durations: vec![Some(9)], lines: Vec::new(), ..CaseExtras::default() },
         &[("src/b.ts", vec![vec![0]]), ("src/shared.ts", vec![vec![0]])],
     );
     (first, second)
@@ -96,7 +96,7 @@ fn carries_each_cases_duration_and_lines_on_the_rows_of_the_fold() {
 
 #[test]
 fn joins_a_case_two_shards_ran_at_its_longest_duration_and_how_it_settled() {
-    let one = |duration, settled| shard(&[case("a.test.ts", "adds", "1", settled)], &CaseExtras { durations: vec![Some(duration)], lines: Vec::new() }, &[]);
+    let one = |duration, settled| shard(&[case("a.test.ts", "adds", "1", settled)], &CaseExtras { durations: vec![Some(duration)], lines: Vec::new(), ..CaseExtras::default() }, &[]);
     let joined = read(&folded(&[&one(3, STOPPED), &one(8, FINISHED)]).unwrap().bytes);
     assert_eq!(joined.durations, [Some(8)]);
     assert_eq!(joined.tests[0].settled, FINISHED);
@@ -104,7 +104,7 @@ fn joins_a_case_two_shards_ran_at_its_longest_duration_and_how_it_settled() {
 
 #[test]
 fn refuses_one_case_with_two_lines() {
-    let one = |lines: Vec<u8>| shard(&[case("a.test.ts", "adds", "1", FINISHED)], &CaseExtras { durations: Vec::new(), lines: vec![lines] }, &[]);
+    let one = |lines: Vec<u8>| shard(&[case("a.test.ts", "adds", "1", FINISHED)], &CaseExtras { durations: Vec::new(), lines: vec![lines], ..CaseExtras::default() }, &[]);
     let refused = folded(&[&one(vec![1, 7]), &one(vec![1, 8])]).err().unwrap();
     assert!(refused.contains("different lines"), "{refused}");
     assert!(folded(&[&one(vec![1, 7]), &one(Vec::new())]).is_ok());

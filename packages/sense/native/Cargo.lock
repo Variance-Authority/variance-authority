@@ -1201,6 +1201,7 @@ dependencies = [
  "dashmap",
  "fast-glob",
  "json-strip-comments",
+ "libc",
  "napi",
  "napi-build",
  "napi-derive",

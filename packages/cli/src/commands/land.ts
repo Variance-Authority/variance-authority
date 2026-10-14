@@ -180,9 +180,11 @@ async function landCombined(
       texts,
       previous?.commit,
     );
-    // The landing laid one record, which is every shard's.
+    // The landing laid at most one record, the combine's, and that record's
+    // cases are those of every shard the combine folded a case index from.
+    const cased = combined.shards.filter((shard) => shard.cased).length;
     const cases = 'laid' in landing
-      ? { ...landing, shards: landing.shards === 0 ? 0 : shards.length }
+      ? { ...landing, shards: landing.shards === 0 ? 0 : cased }
       : { ...landing, shard: shards.join(', ') };
     const sections = selection.followRows(laid, landed, texts, selection.editsBetween(root, undefined, [previous?.commit, landed?.commit]));
     // Shards that measured nothing and kept no case this build reads, over no

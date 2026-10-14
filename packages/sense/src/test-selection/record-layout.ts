@@ -22,7 +22,6 @@ export interface RecordLayout {
     readonly untimed: number;
     readonly noOwner: number;
     readonly noDuration: number;
-    readonly noLine: number;
     /** Every coverage section, in the order a record holds them. */
     readonly sections: readonly string[];
     /** The section the untimed layout lacks. */

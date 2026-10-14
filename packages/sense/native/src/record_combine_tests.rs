@@ -229,7 +229,7 @@ fn index(file: &str, runner: &str, regions: u32, lines: Vec<u8>) -> Vec<u8> {
     let called: Vec<u32> = (0..regions).map(|at| if at == 0 { sets.intern(&[0]) } else { sets.intern(&[]) }).collect();
     let loaded = vec![false; regions as usize];
     let modules = [EncodedModule { module: &regions_of, called: &called, loaded: &loaded }];
-    let extras = CaseExtras { durations: Vec::new(), lines: if lines.is_empty() { Vec::new() } else { vec![lines] } };
+    let extras = CaseExtras { durations: Vec::new(), lines: if lines.is_empty() { Vec::new() } else { vec![lines] }, ..CaseExtras::default() };
     journey_format::encode(&tests, &extras, &modules, &sets, None).unwrap()
 }
 
@@ -325,4 +325,23 @@ fn a_record_that_is_not_there_is_refused_by_name() {
     let path = missing.to_string_lossy().into_owned();
     let error = combine(&[path.clone()]).err().expect("the combine is refused");
     assert_eq!(error, format!("there is no record at {path}"));
+}
+
+#[test]
+fn an_empty_shard_changes_nothing_whatever_it_says_of_its_run() {
+    // A shard whose runner was handed no test files: no tests, no cases, another
+    // commit and recipe, which it did not run under.
+    let mut empty = spec(Vec::new(), Vec::new());
+    empty.commit = Some("beef");
+    empty.instrumentation = "v8";
+    let empty = fixture::write(&empty);
+    let cased_one = fixture::write(&cased("a.test.ts", "1"));
+    let alone = combined(&[&cased_one]).unwrap();
+    for shards in [[empty.as_slice(), cased_one.as_slice()], [cased_one.as_slice(), empty.as_slice()]] {
+        let folded = combined(&shards).unwrap();
+        assert_eq!(folded.bytes, alone.bytes);
+        assert_eq!(folded.result.commit.as_deref(), Some("c0ffee"));
+    }
+    let (first, second) = two();
+    assert_eq!(combined(&[&first, &empty, &second]).unwrap().bytes, combined(&[&first, &second]).unwrap().bytes);
 }

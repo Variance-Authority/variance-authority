@@ -7,16 +7,17 @@
 //! shard holds and this build cannot read is refused: the fold says what the
 //! shards said, or nothing.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
 use crate::order;
+use crate::record_combine::Agreed;
 
 /// The last-run layer, its fields in the order `LastCaseRun` spells them.
 #[derive(Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Last {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     commit: Option<String>,
@@ -80,18 +81,11 @@ pub(crate) fn fold_last(shards: &[(&str, &[u8], &HashMap<String, String>)]) -> R
         .iter()
         .map(|(name, bytes, renames)| read_last(bytes).map(|last| (*name, last, *renames)).map_err(|error| format!("{name}: {error}")))
         .collect::<Result<_, _>>()?;
-    let (first, held, _) = read.first().ok_or("folding last-run layers needs at least one")?;
-    for (name, last, _) in &read[1..] {
-        for (what, left, right) in [("commit", &held.commit, &last.commit), ("before layer's commit", &held.before, &last.before)] {
-            if left != right {
-                let spelled = |value: &Option<String>| value.clone().unwrap_or_else(|| "(none)".to_owned());
-                return Err(format!(
-                    "{first} and {name} disagree about the {what} (`{}` against `{}`), so they are not shards of one run and cannot be folded into one.",
-                    spelled(left),
-                    spelled(right)
-                ));
-            }
-        }
+    let (_, held, _) = read.first().ok_or("folding last-run layers needs at least one")?;
+    let (mut commit, mut before) = (Agreed::new("commit"), Agreed::new("before layer's commit"));
+    for (name, last, _) in &read {
+        commit.hear(name, last.commit.as_deref())?;
+        before.hear(name, last.before.as_deref())?;
     }
     let every_began = read.iter().all(|(_, last, _)| last.began == Some(true));
     let mut texts: BTreeMap<String, (String, &str)> = BTreeMap::new();
@@ -130,6 +124,7 @@ pub(crate) fn fold_last(shards: &[(&str, &[u8], &HashMap<String, String>)]) -> R
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Eyes<'a> {
     version: u32,
     watched: Vec<String>,
@@ -138,6 +133,7 @@ struct Eyes<'a> {
 }
 
 #[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct Journal<'a> {
     case: String,
     attempt: u64,
@@ -153,11 +149,13 @@ struct EyesOut<'a> {
 }
 
 /// The shards' Eyes as the one run they were: every case watched by any, and
-/// for each case and attempt the journal that sorts first as JSON, so the
-/// fold does not depend on the order the shards came in.
-pub(crate) fn fold_eyes(shards: &[(&str, &[u8], &HashMap<String, String>)]) -> Result<Vec<u8>, String> {
+/// each case's journal for each attempt. An attempt of a case ran in one shard,
+/// so two shards that hold different journals for it are refused, naming
+/// both, and a journal of a case the folded index does not hold, `cases`, is
+/// refused as `layEyes` refuses it.
+pub(crate) fn fold_eyes(shards: &[(&str, &[u8], &HashMap<String, String>)], cases: &HashSet<String>) -> Result<Vec<u8>, String> {
     let mut watched: BTreeSet<String> = BTreeSet::new();
-    let mut journals: HashMap<(String, u64), Journal<'_>> = HashMap::new();
+    let mut journals: HashMap<(String, u64), (&str, Journal<'_>)> = HashMap::new();
     for (name, bytes, renames) in shards {
         let refused = |why: &str| format!("{name}: its eyes section {why}");
         let eyes: Eyes<'_> = serde_json::from_slice(bytes).map_err(|_| refused("is not one this build reads"))?;
@@ -170,15 +168,27 @@ pub(crate) fn fold_eyes(shards: &[(&str, &[u8], &HashMap<String, String>)]) -> R
                 return Err(refused("holds a row that names no case and attempt"));
             }
             let case = renamed(renames, &row.case).to_owned();
+            if !cases.contains(&case) {
+                return Err(refused(&format!("holds a journal of `{case}`, a case the combined index does not record")));
+            }
             watched.insert(case.clone());
             let key = (case.clone(), row.attempt);
-            let earlier = journals.get(&key).is_some_and(|held| order::code_unit(held.journal.get(), row.journal.get()).is_le());
-            if !earlier {
-                journals.insert(key, Journal { case, attempt: row.attempt, journal: row.journal });
+            match journals.get(&key) {
+                Some((held, journal)) if journal.journal.get() != row.journal.get() => {
+                    let (first, second) = if order::code_unit(held, name).is_le() { (*held, *name) } else { (*name, *held) };
+                    return Err(format!(
+                        "{first} and {second} hold different Eyes journals for `{case}` attempt {}, so they are not shards of one run and cannot be folded into one.",
+                        row.attempt
+                    ));
+                }
+                Some(_) => {}
+                None => {
+                    journals.insert(key, (name, Journal { case, attempt: row.attempt, journal: row.journal }));
+                }
             }
         }
     }
-    let mut journals: Vec<Journal<'_>> = journals.into_values().collect();
+    let mut journals: Vec<Journal<'_>> = journals.into_values().map(|(_, journal)| journal).collect();
     journals.sort_by(|left, right| order::code_unit(&left.case, &right.case).then(left.attempt.cmp(&right.attempt)));
     let section = EyesOut { version: 1, watched: sorted(watched), journals };
     let mut bytes = serde_json::to_vec(&section).map_err(|error| error.to_string())?;
