@@ -176,7 +176,7 @@ export function siteReach(root, changed, runner) {
     }
   }
 
-  const which = changed.length === 1 ? 'its 1 changed file is' : `none of its ${changed.length} changed files is`;
+  const which = changed.length === 1 ? 'its 1 changed file is not' : `none of its ${changed.length} changed files is`;
   return {
     observe: false,
     because: `${which} built into the site, loaded by the run that photographs it, or part of its job.`,
