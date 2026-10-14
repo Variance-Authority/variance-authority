@@ -79,12 +79,13 @@ optional, and everything else works without it. The collector walks those
 directories once and builds an index from component name to the file and line
 the component is *declared* on, so a changed region in the report can show a
 source location instead of a bare name. Point it at the directories your
-components live in, relative to the config. If it is wrong, you do not get a
-wrong answer — a path that matches no files is refused by name rather than
-producing a report where every component resolves to nothing. One limit worth
-knowing: a route served by `vite dev`, `next dev` or another development server
-reports the exact line each element was written on, while a production build has
-nothing to read and falls back to the component's declaration line.
+components live in, absolute or relative to the directory you run `variance`
+from. If it is wrong, you do not get a wrong answer — a path that matches no
+files is refused by name rather than producing a report where every component
+resolves to nothing. One limit worth knowing: a route served by `vite dev`,
+`next dev` or another development server reports the exact line each element was
+written on, while a production build has nothing to read and falls back to the
+component's declaration line.
 
 ## Declare the same route in the run config
 
@@ -178,7 +179,9 @@ in it as it is:
 
 Discovered ids come from the URL path with leading and trailing slashes trimmed,
 and a sitemap listing two URLs whose paths collide is refused rather than
-resolved.
+resolved. Each page is visited on the server the sitemap came from, whatever
+host its entry names, so a local build whose sitemap lists your production URLs
+is still the build that gets photographed.
 
 For static output, `directory: './build'` serves the build and creates one
 subject per `.html` file. Prefer a real server when you have one: a file server

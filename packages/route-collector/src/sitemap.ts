@@ -60,30 +60,50 @@ export function subjectIdFor(url: string): string {
 }
 
 /**
- * Routes from a sitemap's own `<loc>` entries.
+ * Routes from a sitemap's own `<loc>` entries, on the server `sitemap` was read
+ * from.
  *
- * Two URLs whose paths collide — `https://a/x` and `https://b/x` — would be one
- * subject with two addresses, and whichever came last would silently own it. That
- * is refused by name: a sitemap listing one path twice is a sitemap the operator
- * has to look at, and guessing is how a run watches one page while reporting
- * another.
+ * Each entry keeps its path and query and takes the sitemap's origin. A site
+ * generates its sitemap for where it is published, so the copy a local or
+ * preview server answers still names production, and visiting those URLs would
+ * photograph production and report it as the build under test. The protocol
+ * puts every entry on the sitemap's own host, so the host an entry names is the
+ * one part of it that says nothing about which page it is.
+ *
+ * Two URLs whose paths collide — `/search?q=a` and `/search?q=b`, or one path
+ * on two hosts — would be one subject with two addresses, and whichever came
+ * last would silently own it. That is refused by name: a sitemap listing one
+ * path twice is a sitemap the operator has to look at, and guessing is how a run
+ * watches one page while reporting another.
  */
-export function routesFrom(xml: string): Readonly<Record<string, string>> {
+export function routesFrom(xml: string, sitemap: string): Readonly<Record<string, string>> {
   const routes: Record<string, string> = {};
+  const listedAs: Record<string, string> = {};
+  const origin = new URL(sitemap).origin;
 
-  for (const url of locationsIn(xml)) {
+  for (const location of locationsIn(xml)) {
+    let listed: URL;
+    try {
+      listed = new URL(location, sitemap);
+    } catch (error) {
+      throw operatorError(`the sitemap at ${sitemap} lists ${location}, which is not a URL`, { cause: error });
+    }
+    const url = `${origin}${listed.pathname}${listed.search}`;
     const id = subjectIdFor(url);
-    const existing = routes[id];
+    // Judged on what the sitemap listed, not on the visit: two hosts that list
+    // one path are two pages, and the visit would make them one.
+    const existing = listedAs[id];
 
-    if (existing !== undefined && existing !== url) {
+    if (existing !== undefined && existing !== listed.href) {
       throw operatorError(
-        `this sitemap lists two URLs whose paths are both \`${id}\` (${existing} and ${url}). ` +
+        `this sitemap lists two URLs whose paths are both \`${id}\` (${existing} and ${listed.href}). ` +
           'One subject cannot have two addresses, and picking either would watch one page while ' +
           'reporting the other — list the routes explicitly instead',
       );
     }
 
     routes[id] = url;
+    listedAs[id] = listed.href;
   }
 
   return routes;
@@ -114,7 +134,7 @@ export async function discover(sitemap: string): Promise<Readonly<Record<string,
     );
   }
 
-  const routes = routesFrom(xml);
+  const routes = routesFrom(xml, sitemap);
   if (Object.keys(routes).length === 0) {
     throw operatorError(
       `the sitemap at ${sitemap} lists no <loc> entries, so this run has no subjects. ` +
