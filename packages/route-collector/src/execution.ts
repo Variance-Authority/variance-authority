@@ -3,6 +3,7 @@ import {
   preconditionOf,
   type SubjectRecording,
 } from '@variance-authority/sense/journal';
+import { READS_ATTRIBUTE } from '@variance-authority/reads';
 import type { CoveragePrecondition } from '@variance-authority/sense/test-selection';
 import type { RouteWorld } from './world.js';
 
@@ -20,11 +21,6 @@ type Page = RouteWorld['page'];
 /** Where a page run's execution evidence is joined, read and kept. */
 export type RouteExecutionOptions = SubjectRecording;
 
-/**
- * The attribute an element carries to say which files it showed: repository
- * paths, space-separated. Read on the subject's root and everything inside it.
- */
-export const READS_ATTRIBUTE = 'data-variance-reads';
 
 export interface RouteRecorder {
   /**

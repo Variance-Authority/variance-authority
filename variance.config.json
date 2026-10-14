@@ -134,6 +134,9 @@
     "packages/react": [
       "src/index.ts"
     ],
+    "packages/reads": [
+      "src/index.ts"
+    ],
     "packages/remote": [
       "src/index.ts",
       "src/renderer.ts",

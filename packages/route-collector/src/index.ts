@@ -19,7 +19,7 @@ export type {
 } from './contract.js';
 import type { Collected, Collector, CollectorContext, Plan, PlannedSubject } from './contract.js';
 export type { RouteCollectorOptions } from './options.js';
-export { READS_ATTRIBUTE, type RouteExecutionOptions } from './execution.js';
+export type { RouteExecutionOptions } from './execution.js';
 import type { RouteCollectorOptions } from './options.js';
 import { declaredOnce, discover, plannedRoute, rootNamed, routesFromFiles } from './sitemap.js';
 import { pagesIn, serveStatic, type StaticServer } from './serve.js';
