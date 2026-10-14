@@ -39,13 +39,19 @@ describe('a driver of journeys', () => {
           await tail;
           return parts.currency('de');
         });
+        // The head says it is serving before the driver waits: a report still
+        // on its way is not one the driver can wait for.
+        for (const deadline = Date.now() + 5_000; unsettledScopes(driver.reports).size === 0; ) {
+          if (Date.now() > deadline) throw new Error('the head never said it was serving');
+          await new Promise((settle) => setTimeout(settle, 10));
+        }
         // Released while the driver is already waiting, which is the order a
         // streamed body arrives in.
         setTimeout(respond, 20);
-        await serving;
         await driver.settled();
 
         expect(unsettledScopes(driver.reports).size).toBe(0);
+        await serving;
         const mine = driver.reports.filter((report) => report.journey === journey && report.settled === 1);
         expect(mine[0]?.modules.length).toBeGreaterThan(0);
       } finally {
