@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RasterStoreError } from '@variance-authority/raster';
+import { isOperatorError } from '../exit.js';
 import type { Collector, Plan } from './run.js';
 import { configOf, documentFor, runWith, storeAnswering } from './run-fixture.js';
 
@@ -99,4 +100,30 @@ describe('running subjects concurrently', () => {
       runWith(configOf({ concurrency: 4 }), watched(planOf(6)), store),
     ).rejects.toThrow(/the baseline store failed while observing/);
   });
+
+  it.each([1, 4])(
+    'ends the run at a collector that throws, and asks for nothing after it, at concurrency %i',
+    async (concurrency) => {
+      // A returned failure is about one subject; a thrown one is about the run.
+      // A route collector whose server stopped answering throws, and the run
+      // carries its operator marker out rather than asking for every subject
+      // left and recording each one as `failed`.
+      const asked: string[] = [];
+      const collector: Collector = {
+        ...watched(planOf(6)),
+        async collect(subject) {
+          asked.push(subject.subject.id);
+          throw Object.assign(new Error('nothing is listening at http://localhost:8787'), {
+            varianceOperatorError: true,
+          });
+        },
+      };
+
+      const run = runWith(configOf({ concurrency }), collector, storeAnswering(null));
+
+      await expect(run).rejects.toThrow('nothing is listening at http://localhost:8787');
+      await expect(run).rejects.toSatisfy(isOperatorError);
+      expect(asked).toHaveLength(1);
+    },
+  );
 });
