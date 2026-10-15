@@ -136,8 +136,13 @@ export interface ChangedPackage {
   readonly path: string;
   /** Its changed functions, a branch counted under the function holding it. */
   readonly functions: number;
-  /** Those functions by their worst region's reach. */
+  /**
+   * Those functions by their own region's reach, the mark the table of what ran gives each; code outside any function
+   * by its worst region's.
+   */
   readonly reaches: Partial<Record<Reach, number>>;
+  /** How many of those functions hold changed code no case ran: the ones no case entered, and the ones a case entered that left a branch in them unrun. */
+  readonly uncovered: number;
   /** Whether a test file in its own directory entered them. */
   readonly own: boolean;
   /** The other packages whose test files entered them, by name, in code-unit order. */
