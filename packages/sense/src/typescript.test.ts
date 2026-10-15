@@ -8,7 +8,8 @@ import { readPublishedSources, updateSourceIndex } from './published.js';
 import { realPath } from './resolve.js';
 import { scanRelations } from './scan.js';
 import { importReferences } from './test-selection/references.js';
-import { declaredTsconfig, parseTypescript, tsconfigUse, TypescriptError } from './typescript.js';
+import { declaredTsconfig, parseTypescript, TypescriptError } from './typescript.js';
+import { tsconfigUse } from './typescript-use.js';
 
 /**
  * The `typescript` key of the root config: which `tsconfig` governs resolution,
