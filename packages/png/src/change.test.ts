@@ -12,7 +12,7 @@ import { comparePngs } from './compare.js';
  * these hold it to what a reviewer relies on: it is cut where the change is, at
  * one image pixel per pixel; before and after sit side by side with the rows
  * that show the same content level with each other, so content that only moved
- * reads as unchanged; and what changed is outlined on both sides, over the
+ * reads as unchanged; and what changed is marked on both sides, over the
  * pages' own pixels rather than in a separate panel of red.
  */
 
@@ -264,10 +264,14 @@ describe('content that only moved', () => {
     const sheet = sheetOf(changeImages(before, after, regionsOf(before, after)).change);
     const gutter = (y: number) => Array.from({ length: sheet.layout.gutter }, (_, x) => sheet.gutter(x, y));
     const below = rowsOf(sheet, 1);
+    // A line across the gutter, not a chevron's two points or the bar's centre.
+    const across = (y: number) => gutter(y).slice(2, -2).every((pixel) => pixel === colour(CHANGE_COLOURS.moved));
 
     // The block's window, 32 rows of context either side of its 8, then the gap's.
     expect(sheet.windows.map(({ top, bottom }) => bottom - top)).toEqual([72, expect.any(Number)]);
     expect(below.some((y) => gutter(y).includes(colour(CHANGE_COLOURS.moved)))).toBe(true);
+    // Both edges of the rows the gap grew by: two lines, `stroke` rows thick each.
+    expect(below.filter(across)).toHaveLength(2 * sheet.layout.stroke);
     const outlined = below.some((y) =>
       Array.from({ length: sheet.panel }, (_, x) => sheet.after(x, y)).includes(colour(CHANGE_COLOURS.after)),
     );

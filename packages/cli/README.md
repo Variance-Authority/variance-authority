@@ -2786,8 +2786,8 @@ pixel. Each row sits level with the row it became, with striped filler opposite
 rows only one side has. Every window is the same width, framed, under the
 subject's name and a label per column: `Before` the baseline, `After` this run.
 What changed is washed in red on the before and green on the after, and a blue
-arrow between them runs beside rows that only moved; a blank gap whose height
-changed is marked there too, with a line across it. A subject with no region to crop shows
+arrow between them runs beside rows that only moved; a blank gap or
+plain box whose height changed is marked there too, with a line across it. A subject with no region to crop shows
 its whole before and after instead. Give it
 the address you published the report's directory under. The comment joins each
 image path the report records to it, with every segment percent-encoded, so the

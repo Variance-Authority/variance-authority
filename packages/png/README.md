@@ -280,14 +280,15 @@ removal the after panel does. What changed is washed in red on the before and
 green on the after, with an edge of the same colour just outside it, widened
 to the space either side of the words it starts and ends in. Rows that only
 moved are not marked on the panels; a blue arrow in the gutter runs beside
-them, its head the way they went. A blank gap that grew or shrank by more than a row
-is spacing that changed: it gets a window while the changes leave one free,
-and a blue line across the gutter rather than an outline, at both edges of a
+them, its head the way they went. A run of identical rows — a blank gap, or
+the plain inside of a box — that grew or shrank by more than a row is spacing
+that changed: it gets a window while the changes leave one free,
+and a blue line across the gutter rather than a mark, at both edges of a
 gap that grew and at the one place a gap that shrank closed. A gap one row
 taller or shorter is rounding from content that moved, and gets neither. With
 no regions, `change` is absent.
 
-Each column is labelled, `Before` in red and `After` in green. `labels` adds
+Each column is labelled `Before` or `After`, beside a red or a green dot. `labels` adds
 what the sheet is of and where each side came from: `{ subject: 'story:button',
 before: 'baseline', after: 'this run' }` sets the subject over both columns and
 each source beside its label. The text is Inter, drawn from glyphs shipped in
