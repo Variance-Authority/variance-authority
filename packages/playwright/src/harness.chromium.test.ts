@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { captureOnce, fetchModules } from '@variance-authority/playwright';
 import { AGENT_GLOBAL } from './agent.js';
 import { createHarness, type Harness, type HarnessOptions } from './harness.js';
+import { CHROMIUM_RASTER_ARGS } from './renderer.js';
 
 /**
  * The harness's own tests, with no corpus in sight.
@@ -156,6 +157,23 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness', () => {
 const regionOf = () => ({
   timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   language: navigator.language,
+});
+
+describe.skipIf(!BROWSER_AVAILABLE)('createHarness — text settings', () => {
+  it('lays text out under the flags the renderer paints it with', async () => {
+    // Hinting moves glyph advances wherever fontconfig is live, so a page laid
+    // out with it and painted without it wraps differently: on Linux the site's
+    // pages painted up to 866 pixels taller than the layout they were read from.
+    const launch = vi.spyOn(chromium, 'launch');
+    const harness = await createHarness(OPTIONS);
+
+    try {
+      expect(launch.mock.calls[0]?.[0]?.args).toEqual(expect.arrayContaining([...CHROMIUM_RASTER_ARGS]));
+    } finally {
+      launch.mockRestore();
+      await harness.close();
+    }
+  }, 60_000);
 });
 
 describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a declared timezone and locale', () => {
