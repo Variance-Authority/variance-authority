@@ -123,15 +123,24 @@ describe('the steps of acquiring', () => {
   });
 });
 
-/** A page that emits the requests a test sends it, and whose agent never answers. */
-function pageStuckOn(): { readonly page: Page; request(url: string, type: string): void } {
+/**
+ * A page that emits the requests a test sends it, and whose agent fails. With
+ * `asking`, the agent was waiting for the next arrival of that kind when it
+ * failed.
+ */
+function pageStuckOn(asking?: 'any' | 'script'): { readonly page: Page; request(url: string, type: string): void } {
   const handlers = new Map<string, Array<(request: unknown) => void>>();
+  let arrival: ((of: string) => Promise<boolean>) | undefined;
   const page = {
     on: (event: string, handler: (request: unknown) => void) => {
       handlers.set(event, [...(handlers.get(event) ?? []), handler]);
     },
-    exposeFunction: async () => {},
+    exposeFunction: async (_name: string, fn: (of: string) => Promise<boolean>) => {
+      arrival = fn;
+    },
     evaluate: async () => {
+      if (asking !== undefined) void arrival?.(asking);
+      await Promise.resolve();
       throw new Error('Target page, context or browser has been closed');
     },
   } as unknown as Page;
@@ -148,7 +157,7 @@ describe('an agent that never answered', () => {
    * Playwright's word for a closed page. The run's last word is the request.
    */
   it('names the requests that were still arriving', async () => {
-    const stuck = pageStuckOn();
+    const stuck = pageStuckOn('any');
     await watchArrivals(stuck.page);
     stuck.request('https://app.test/poll?since=1', 'fetch');
     stuck.request('https://app.test/intro.mp4', 'media');
@@ -161,8 +170,30 @@ describe('an agent that never answered', () => {
     await expect(failed).rejects.toHaveProperty('cause.message', 'Target page, context or browser has been closed');
   });
 
-  it('passes on the failure of a page with nothing arriving', async () => {
+  it('names only the scripts when the agent was waiting for a script', async () => {
+    const stuck = pageStuckOn('script');
+    await watchArrivals(stuck.page);
+    stuck.request('https://app.test/poll?since=1', 'fetch');
+    stuck.request('https://app.test/client.js', 'script');
+
+    await expect(acquireFromAgent(stuck.page, undefined, { subjectId: 'route/x' })).rejects.toThrow(
+      /1 request .*still arriving: https:\/\/app\.test\/client\.js$/,
+    );
+  });
+
+  /** An open long poll is not why an agent that never asked the wire failed. */
+  it('passes on the failure of an agent that was not waiting on the wire', async () => {
     const stuck = pageStuckOn();
+    await watchArrivals(stuck.page);
+    stuck.request('https://app.test/poll?since=1', 'fetch');
+
+    await expect(acquireFromAgent(stuck.page, undefined, { subjectId: 'route/x' })).rejects.toThrow(
+      /^Target page, context or browser has been closed$/,
+    );
+  });
+
+  it('passes on the failure of a page with nothing arriving', async () => {
+    const stuck = pageStuckOn('any');
     await watchArrivals(stuck.page);
 
     await expect(acquireFromAgent(stuck.page, undefined, { subjectId: 'route/x' })).rejects.toThrow(
