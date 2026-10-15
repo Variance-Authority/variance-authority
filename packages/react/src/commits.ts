@@ -66,6 +66,16 @@ import {
  */
 const PERFORMED_WORK = 0b1;
 
+/**
+ * `PassiveMask` in React 18 and 19: `Passive | ChildDeletion | Visibility`.
+ * React reads it off the finished `HostRoot` to decide whether a commit leaves
+ * passive effects to flush, and calls `onPostCommitFiberRoot` once it has. A
+ * commit the mask misses still gets its post-commit call in a development
+ * build, which also flushes for the profiler, so reading less than React does
+ * waits for less, never for a call that is not coming.
+ */
+const PASSIVE_MASK = 0b10_1000_0001_0000;
+
 /** Runaway guard on the per-commit walk. See `suspense.ts` for the same bound. */
 const MAX_FIBERS = 500_000;
 
@@ -137,6 +147,14 @@ export type TapRefusal =
    */
   | 'no-hook';
 
+/**
+ * What `tapCommits` hands back: React's commits on this page as React reports
+ * them to the DevTools hook, and whether one still has effects to run.
+ *
+ * `awaitHydration` takes one as `tap`, to know whether React loaded at all and
+ * when the effects hydration scheduled have run; a collector installs it from
+ * its page agent, before the page's first script.
+ */
 export interface CommitTap {
   /** False when nothing was instrumented. Never confuse with "no commits". */
   readonly attached: boolean;
@@ -159,6 +177,15 @@ export interface CommitTap {
   dropped(): number;
   /** Milliseconds since the last commit, or since attaching if there were none. */
   quietFor(): number;
+  /**
+   * Whether a commit left passive effects React has not run yet.
+   *
+   * Between a commit and its effects every field on the root reads idle — no
+   * lanes, no callback — while a `useEffect` that will change the page is still
+   * queued. React announces the flush with `onPostCommitFiberRoot`, and this is
+   * true from a commit that has effects until that call for its root.
+   */
+  effectsPending(): boolean;
   /** Restore whatever was there before. Safe to call twice. */
   stop(): void;
 }
@@ -252,11 +279,17 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
   let lost = 0;
   let last = started;
   let stopped = false;
+  // Roots whose last commit left passive effects React has not flushed.
+  const flushing = new Set<object>();
 
   const record = (...args: unknown[]): void => {
     if (stopped) return;
     const fiberRoot = args[1] as FiberRootUpdate | undefined;
     last = now();
+    if (fiberRoot?.current !== undefined) {
+      const flags = flagsOf(fiberRoot.current);
+      if (((flags.own | flags.subtree) & PASSIVE_MASK) !== 0) flushing.add(fiberRoot);
+    }
 
     const named = fiberRoot?.current ? componentsThatRendered(fiberRoot.current, nameLimit) : null;
     const updaterEvidence = memoizedUpdatersOf(fiberRoot, updaterLimit);
@@ -286,6 +319,7 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
 
   const hook: DevToolsHook = existing ?? installHook(scope);
   const previous = hook.onCommitFiberRoot;
+  const previousPost = hook.onPostCommitFiberRoot;
 
   hook.onCommitFiberRoot = (...args: unknown[]): void => {
     // Theirs first, and outside our own try: a harness that throws is a bug we
@@ -299,6 +333,11 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
     }
   };
 
+  hook.onPostCommitFiberRoot = (...args: unknown[]): void => {
+    previousPost?.apply(hook, args);
+    if (!stopped) flushing.delete(args[1] as object);
+  };
+
   return {
     attached: true,
     get reactVersion(): string | undefined {
@@ -307,10 +346,13 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
     commits: () => recorded.slice(),
     dropped: () => lost,
     quietFor: () => now() - last,
+    effectsPending: () => flushing.size > 0,
     stop: () => {
       if (stopped) return;
       stopped = true;
+      flushing.clear();
       hook.onCommitFiberRoot = previous;
+      hook.onPostCommitFiberRoot = previousPost;
     },
   };
 }
@@ -442,6 +484,7 @@ function refused(reason: TapRefusal): CommitTap {
     commits: () => [],
     dropped: () => 0,
     quietFor: () => 0,
+    effectsPending: () => false,
     stop: () => {},
   };
 }

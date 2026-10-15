@@ -62,6 +62,13 @@ its components are missing too. A subject no React root was found for is
 collected, and carries `react-root-absent`, so that a region with no component
 on it reads as unobserved and never as unattributed.
 
+A wait needs a reason. A subject already committed, or one React never loaded
+on, is read at once; only a root still hydrating, or React loaded without a
+root, is waited for. A wait is compared: the markup when it began against the
+markup once React has gone quiet, and a difference is reported as
+`hydration-changed-markup`, naming the components that committed after
+hydrating.
+
 It does not decide *why* a page never finished, and it does not fix it. It
 names the boundary, the component that wrote it, and the components still
 committing, and the fix is made where the markup is.
@@ -75,10 +82,17 @@ committing, and the fix is made where the markup is.
   use of it is one `if` and cannot decay into a log line.
 - `packages/react/src/hydration.ts` — `awaitHydration` finds every React root
   on, above (up to the `Document`), under and behind the subject's own fiber,
-  and waits until React's record on each says it has committed. A fiber count
+  and waits until React's record on each says it has committed: while a root
+  has lanes React can render or a commit has passive effects still to run, and,
+  stuck on a promise, while `outstanding` says a request is still arriving —
+  `packages/playwright/src/arrivals.ts` answers that from the page's own
+  requests. No clock ends the wait. A fiber count
   is not that record: a shell suspended mid-hydration leaves fibers on the
-  nodes rendered before it. `packages/route-collector/src/read.ts` turns the
-  settlement into the warning.
+  nodes rendered before it. Given a commit tap it skips the wait on a page
+  React never loaded on, and compares the markup across a wait it did make.
+  `packages/route-collector/src/read.ts` turns the settlement into the
+  warnings, and `packages/route-collector/src/page-agent-entry.ts` taps once
+  per document.
 - `packages/react/src/suspense.ts` — `boundariesUnder`, which reads a boundary's
   state off the committed fiber and distinguishes resolved, pending and
   dehydrated by traversal, with nothing installed.

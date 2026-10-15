@@ -51,3 +51,30 @@ export function rootCommitted(root: object): boolean {
   const rendered = current.alternate !== null && current.alternate !== undefined;
   return rendered && fiberRoot.pendingLanes === 0;
 }
+
+/**
+ * Whether React has a render of this `FiberRoot` it can do now: a lane pending
+ * that is not suspended, or a suspended one a settled promise has pinged.
+ *
+ * INTERNAL CONTRACT: `pendingLanes`, `suspendedLanes` and `pingedLanes` are
+ * bitsets on the `FiberRoot` in React 18 and 19. A lane is pending from the
+ * update that schedules it to the commit that finishes it; a render that
+ * suspends marks its lanes suspended, and the promise it waits on pings them
+ * when it settles. A lane suspended and not pinged is work React cannot do
+ * until something outside it answers.
+ *
+ * A renamed field reads as zero, so as no work: the subject is read rather
+ * than waited on forever, and `rootCommitted` still refuses one React has not
+ * committed.
+ */
+export function rootHasWork(root: object): boolean {
+  const lanes = root as {
+    readonly pendingLanes?: unknown;
+    readonly suspendedLanes?: unknown;
+    readonly pingedLanes?: unknown;
+  };
+  const pending = typeof lanes.pendingLanes === 'number' ? lanes.pendingLanes : 0;
+  const suspended = typeof lanes.suspendedLanes === 'number' ? lanes.suspendedLanes : 0;
+  const pinged = typeof lanes.pingedLanes === 'number' ? lanes.pingedLanes : 0;
+  return (pending & ~(suspended & ~pinged)) !== 0;
+}

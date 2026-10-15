@@ -280,7 +280,13 @@ reaches past the component that rendered the node.
   fiber, and the render they belong to may be thrown away. Such a node reports
   `{ status: 'no-fiber', reason: 'uncommitted' }`, and `wiringOf`,
   `holdingOf` and `componentFiberOf` return nothing for it; the same node
-  resolves once the root commits. `awaitHydration` waits for that commit. The
+  resolves once the root commits. `awaitHydration` waits for that commit for
+  as long as React has work it can do; stuck on a promise, it waits only while
+  its `outstanding` option says something is still arriving to settle it, and
+  otherwise returns `hydrating` at once. No clock decides either. Given
+`tap`, a `tapCommits` tap installed before React loaded, it returns at once on a page
+React never loaded on, and, after a wait, reports the markup hydration changed
+and the components that changed it. The
   check is per root: a Suspense boundary still hydrating under a committed root
   is `awaitSuspense`'s to report, and a subject read while one is open is a
   subject still arriving.

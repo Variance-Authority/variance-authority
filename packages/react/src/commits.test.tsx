@@ -191,6 +191,57 @@ describe('what a commit says', () => {
   });
 });
 
+describe('effects a commit left', () => {
+  /**
+   * The window a commit leaves: React has committed and told the hook, and the
+   * effects of that commit have not run. An effect that sets state is the next
+   * commit, so a reader that took the commit for the end of the work read the
+   * page one change early. Rendered outside `act`, which runs effects before it
+   * returns and would close the window this reads.
+   */
+  it('counts a commit as unfinished until React has run its passive effects', async () => {
+    const env = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+    env.IS_REACT_ACT_ENVIRONMENT = false;
+    const atCommit: boolean[] = [];
+    let ran = false;
+    function Effect() {
+      useEffect(() => {
+        ran = true;
+      }, []);
+      return h('span', null, 'effect');
+    }
+
+    const tap = tapCommits({ onCommit: () => atCommit.push(tap.effectsPending()) });
+    try {
+      root.render(h(Effect, null));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(atCommit).toEqual([true]);
+      expect(ran).toBe(true);
+      expect(tap.effectsPending()).toBe(false);
+    } finally {
+      tap.stop();
+      env.IS_REACT_ACT_ENVIRONMENT = true;
+    }
+  });
+
+  it('counts a commit with no passive effects as finished when it commits', async () => {
+    const env = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+    env.IS_REACT_ACT_ENVIRONMENT = false;
+    const atCommit: boolean[] = [];
+    const tap = tapCommits({ onCommit: () => atCommit.push(tap.effectsPending()) });
+    try {
+      root.render(h('span', null, 'still'));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(atCommit).toEqual([false]);
+    } finally {
+      tap.stop();
+      env.IS_REACT_ACT_ENVIRONMENT = true;
+    }
+  });
+});
+
 describe('waiting for quiet', () => {
   it('settles on a page that has finished', async () => {
     function Still() {
