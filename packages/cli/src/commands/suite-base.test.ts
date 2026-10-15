@@ -295,7 +295,7 @@ describe('every reader of a worktree that has run nothing starts from the same r
     const own = testCoverageFile(worktree, { suite: 'unit' });
 
     // What `yarn test`'s seam does before it lands the run it made.
-    const seeded = await seedTestCoverage(own, worktree);
+    const seeded = await seedTestCoverage(own, worktree, 'fixture');
 
     expect(seeded).toMatchObject({ from: 'mainline', record: { mainline: 'main', commit: ci.first } });
     expect(await readFile(own)).toEqual(ci.record);

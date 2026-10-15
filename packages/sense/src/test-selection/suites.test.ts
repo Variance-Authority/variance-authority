@@ -176,7 +176,7 @@ describe('a worktree and its suites', () => {
     await writeTestCoverage(testCoverageFile(primary, { suite: 'unit', cacheRoot }), snapshot);
     const file = testCoverageFile(path, { suite: 'unit', cacheRoot });
 
-    await seedTestCoverage(file, path, cacheRoot);
+    await seedTestCoverage(file, path, snapshot.instrumentation, cacheRoot);
 
     expect((await readTestCoverage(file)).tests).toEqual(snapshot.tests);
   });
@@ -186,7 +186,7 @@ describe('a worktree and its suites', () => {
     await writeTestCoverage(testCoverageFile(primary, { suite: 'unit', cacheRoot }), snapshot);
     const stories = testCoverageFile(path, { suite: 'stories', cacheRoot });
 
-    await seedTestCoverage(stories, path, cacheRoot);
+    await seedTestCoverage(stories, path, snapshot.instrumentation, cacheRoot);
 
     await expect(stat(stories)).rejects.toThrow();
   });

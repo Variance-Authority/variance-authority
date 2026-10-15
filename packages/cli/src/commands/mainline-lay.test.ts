@@ -84,7 +84,7 @@ describe('a worktree at the commit its mainline published', () => {
   it('has no run listed before it runs, and its first run starts its change there rather than where CI\'s run did', async () => {
     const { head, worktree } = await worktreeAtPublished();
     const own = testCoverageFile(worktree, { suite: 'unit' });
-    await seedTestCoverage(own, worktree);
+    await seedTestCoverage(own, worktree, 'fixture');
     process.chdir(worktree);
     await updateSourceIndex(worktree);
 
@@ -124,7 +124,7 @@ describe('a fetched record this build does not read', () => {
 
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'primary', file: primary });
     const own = testCoverageFile(worktree, { suite: 'unit' });
-    expect(await seedTestCoverage(own, worktree)).not.toMatchObject({ from: 'mainline' });
+    expect(await seedTestCoverage(own, worktree, 'fixture')).not.toMatchObject({ from: 'mainline' });
     await rm(own, { force: true });
     await writeFile(join(worktree, 'src/total.ts'), 'export const changed = true;\n');
     const { err } = await selectedIn(worktree);
@@ -161,7 +161,7 @@ describe('a mainline record whose run instrumented nothing', () => {
     await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'mainline', mainline: { commit: head } });
     const own = testCoverageFile(worktree, { suite: 'unit' });
-    expect(await seedTestCoverage(own, worktree)).toMatchObject({ from: 'mainline' });
+    expect(await seedTestCoverage(own, worktree, 'fixture')).toMatchObject({ from: 'mainline' });
     expect(withoutCoverage(own)).toBe(true);
     expect(caseSectionsAt(own).index).toBeDefined();
 

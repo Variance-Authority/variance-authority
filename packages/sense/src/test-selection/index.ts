@@ -120,6 +120,7 @@ export { repinOwnLayer, type Repin, type RepinRefusal } from './milestone-repin.
 export { readOwnLayer, type OwnLayer, type OwnState } from './own-layer.js';
 export {
   noteSeeded,
+  type PassedOver,
   readableTestCoverage,
   recordFileFor,
   seedTestCoverage,

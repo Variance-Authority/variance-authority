@@ -117,7 +117,7 @@ async function landCombined(
   // would: the mainline's record as last fetched here, else the primary
   // checkout's. Without the copy the fold would land over nothing and stand for
   // the whole suite. A no-op for `--into` and after the first landing.
-  selection.noteSeeded(await selection.seedTestCoverage(at, root));
+  selection.noteSeeded(await selection.seedTestCoverage(at, root, fold?.coverage.instrumentation));
 
   // The snapshot is read, merged and written, its cases laid into it, under
   // the lock every runner seam takes on it. The runs record beside the snapshot
