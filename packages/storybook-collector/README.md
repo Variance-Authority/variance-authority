@@ -378,7 +378,15 @@ from the addon: build it with `--test` for the run that records. If you added
 probe each other's probes, so the build stops and says "remove your
 testSelectionRule(); the addon places it", or the same of
 `testSelectionProbes()`. One your `vite.config` lists is already in the config
-when the addon runs, and the addon adds no second one.
+when the addon runs, and the addon keeps it rather than add a second; if you
+also gave the addon a `mode`, `include` or `placement` that differs from it, the
+build stops and names the option, since the addon's would be dropped. Under
+Rsbuild the addon adds its plugin as a function at the end of `tools.rspack`:
+an `rsbuildFinal` of yours that assigns `tools.rspack` outright, rather than
+adding to the list, drops it, and the build runs without probes. The Vite
+config `@storybook/addon-vitest` loads your presets for, inside Vitest, gets
+nothing from the addon either: that run is a Vitest run, and the Vitest seam
+records it where you configured one.
 
 Pass the probes' options as the addon's: `{ name:
 '@variance-authority/storybook-collector', options: { mode: 'entries' } }`.

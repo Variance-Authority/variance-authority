@@ -5,7 +5,7 @@
  * Storybook loads it, ahead of the hooks of the project's `main.js`.
  */
 
-import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createRsbuild, type RsbuildConfig } from '@rsbuild/core';
@@ -151,13 +151,13 @@ const JOURNAL = resolve(import.meta.dirname, '../../sense/dist/test-selection/jo
  * holds `hooks`, the text of its builder hooks: Storybook runs the addon's
  * hooks first and the project's after them, whatever `addons` lists.
  */
-async function storybook(root: string, hooks: string) {
+async function storybook(root: string, hooks: string, addon = ADDON) {
   const configDir = resolve(root, '.storybook');
   await mkdir(configDir, { recursive: true });
   await writeFile(
     resolve(configDir, 'main.cjs'),
     `const { testSelectionProbes, testSelectionRule } = require(${JSON.stringify(JOURNAL)});\n` +
-      `module.exports = {\n  stories: [],\n  addons: [{ name: ${JSON.stringify(ADDON)}, options: { root: ${JSON.stringify(root)} } }],\n${hooks}\n};\n`,
+      `module.exports = {\n  stories: [],\n  addons: [{ name: ${JSON.stringify(addon)}, options: { root: ${JSON.stringify(root)} } }],\n${hooks}\n};\n`,
   );
   return loadAllPresets({ configDir, corePresets: [], overridePresets: [], packageJson: {}, isCritical: true, ...TEST });
 }
@@ -217,4 +217,18 @@ describe('the addon under Storybook, whose project hooks run after it', () => {
     const resolved = await resolveConfig(config, 'build');
     expect(resolved.plugins.filter((plugin) => plugin.name === 'variance-authority:test-selection-probes')).toHaveLength(1);
   }, 60_000);
+
+  it.each(['@variance-authority/storybook-collector', '@variance-authority/storybook-collector/preset'])(
+    'loads the preset by the name `addons` lists, %s, as a project that installed the package does',
+    async (name) => {
+      const { root, refuses } = await project();
+      // The project's own `node_modules`, where Storybook resolves an addon's name from `.storybook`.
+      await symlink(resolve(import.meta.dirname, '../../../node_modules'), resolve(root, 'node_modules'), 'dir');
+      const presets = await storybook(root, '', name);
+      await built(await presets.apply('webpackFinal', webpackShaped(root, refuses, false, 'production')));
+
+      expect(await emitted(resolve(root, 'out'))).toMatch(/__va\(\d+\)/);
+    },
+    60_000,
+  );
 });

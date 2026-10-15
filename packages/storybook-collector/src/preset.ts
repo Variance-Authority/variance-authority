@@ -43,13 +43,24 @@ export interface PresetOptions extends TestSelectionRuleOptions {
 }
 
 /**
+ * Whether `@storybook/addon-vitest` loaded the presets, inside Vitest: its
+ * `storybookTest()` sets `__STORYBOOK_URL__` before it loads them as a dev
+ * server's, and Vitest sets `VITEST` before it loads any config. That run is
+ * the Vitest seam's to record. A dev server a Vitest global setup spawns
+ * inherits both, and is left unprobed with it.
+ */
+function underAddonVitest(): boolean {
+  return process.env['VITEST'] === 'true' && process.env['__STORYBOOK_URL__'] !== undefined;
+}
+
+/**
  * Whether this is a build the collector drives: a dev server, or
  * `storybook build --test`. The collector's `tests` is read in a later
  * process, against a Storybook already built, so the build cannot ask it;
  * Storybook's own `--test` is how a build says it is for testing.
  */
 function recorded(options: PresetOptions): boolean {
-  return options.configType === 'DEVELOPMENT' || options.test === true;
+  return (options.configType === 'DEVELOPMENT' || options.test === true) && !underAddonVitest();
 }
 
 /** The probes' options alone, out of the options Storybook merges the addon's into. */
@@ -77,19 +88,45 @@ const REMOVE_PROBES = 'remove your testSelectionProbes(); the addon places it';
 /**
  * Refuses a config that ends with a second `testSelectionProbes()`, as one
  * `main.js` adds in its own `viteFinal`, which Storybook runs after the
- * addon's: each would probe the other's probes.
+ * addon's: each would probe the other's probes. `added` says whether the
+ * addon added one of them, or kept the one `vite.config` held.
  */
-const oneProbes = {
-  name: ADDON_PLUGIN,
-  configResolved(config: { readonly plugins: readonly { readonly name: string }[] }): void {
-    const probes = config.plugins.filter((plugin) => plugin.name === PROBES_PLUGIN).length;
-    if (probes <= 1) return;
-    throw new Error(
-      `@variance-authority/storybook-collector: the Vite config holds ${probes} \`testSelectionProbes()\`, and the addon ` +
-        `adds one of them: ${REMOVE_PROBES}`,
-    );
-  },
-};
+function oneProbes(added: boolean) {
+  return {
+    name: ADDON_PLUGIN,
+    configResolved(config: { readonly plugins: readonly { readonly name: string }[] }): void {
+      const probes = config.plugins.filter((plugin) => plugin.name === PROBES_PLUGIN).length;
+      if (probes <= 1) return;
+      const remedy = added
+        ? `the addon adds one of them: ${REMOVE_PROBES}`
+        : 'and the addon added none, since `vite.config` held one: keep one, in `vite.config` or in `main.js`';
+      throw new Error(`@variance-authority/storybook-collector: the Vite config holds ${probes} \`testSelectionProbes()\`, ${remedy}`);
+    },
+  };
+}
+
+/** What each recipe option is where neither side names it. */
+const DEFAULTS = { mode: 'presence', placement: 'after-transforms', include: undefined } as const;
+
+/**
+ * Refuses the probes `vite.config` holds where the addon was given a recipe
+ * they do not run: the addon keeps them, so its own `mode`, `include` or
+ * `placement` would be dropped without a word. An addon given none of them
+ * keeps them as they are.
+ */
+function sameRecipe(held: TestSelectionRuleOptions, given: TestSelectionRuleOptions): void {
+  const differs = (['mode', 'include', 'placement'] as const).filter(
+    (key) => given[key] !== undefined && (given[key] ?? DEFAULTS[key]) !== (held[key] ?? DEFAULTS[key]),
+  );
+  if (differs.length === 0) return;
+  const said = differs.map((key) =>
+    key === 'include' ? '`include` is a function other than theirs' : `\`${key}\` is \`${given[key]}\` where theirs is \`${held[key] ?? DEFAULTS[key]}\``,
+  );
+  throw new Error(
+    `@variance-authority/storybook-collector: \`vite.config\` holds \`testSelectionProbes()\`, which the addon keeps, ` +
+      `and the addon's ${said.join(', its ')}: give both the same, or remove the addon's options and set them in \`vite.config\``,
+  );
+}
 
 /**
  * The probes, unless the config already holds them as `vite.config` added
@@ -98,18 +135,32 @@ const oneProbes = {
 export async function viteFinal<Config extends ViteConfig>(config: Config, options: PresetOptions): Promise<Config> {
   if (!recorded(options)) return config;
   const plugins = config.plugins ?? [];
-  const held = plugins.flat(Infinity).some((plugin) => (plugin as { name?: unknown } | null)?.name === PROBES_PLUGIN);
-  return { ...config, plugins: [...plugins, ...(held ? [] : [testSelectionProbes(probesOptions(options))]), oneProbes] };
+  const held = plugins.flat(Infinity).find((plugin) => (plugin as { name?: unknown } | null)?.name === PROBES_PLUGIN) as
+    | { readonly api?: { readonly options?: TestSelectionRuleOptions } }
+    | undefined;
+  if (held !== undefined) sameRecipe(held.api?.options ?? {}, options);
+  const added = held === undefined;
+  return { ...config, plugins: [...plugins, ...(added ? [testSelectionProbes(probesOptions(options))] : []), oneProbes(added)] };
 }
 
 type Rule = ReturnType<typeof testSelectionRule>;
 
-/** Whether a rule runs `loader`, in any shape a rule names one: `loader`, or `use` as a string, an entry or a list. */
-function runs(listed: unknown, loader: string): boolean {
-  const rule = listed as { loader?: unknown; use?: unknown } | null;
-  if (rule?.loader === loader) return true;
-  const use = rule?.use;
-  return (Array.isArray(use) ? use : [use]).some((entry) => entry === loader || (entry as { loader?: unknown } | null)?.loader === loader);
+/** The names a config can give the probes loader: the path the rule holds, and the package's specifier. */
+const PROBES_LOADERS = new Set(['@variance-authority/sense/probes-loader', testSelectionRule().use[0].loader]);
+
+/**
+ * Whether a rule runs the probes loader, in any shape a rule names one:
+ * `loader`, or `use` as a string, an entry or a list, here or in a rule it
+ * nests in `oneOf` or `rules`.
+ */
+function runsProbes(listed: unknown): boolean {
+  const rule = listed as { loader?: unknown; use?: unknown; oneOf?: unknown; rules?: unknown } | null;
+  if (rule === null || typeof rule !== 'object') return false;
+  const names = (entry: unknown): boolean =>
+    PROBES_LOADERS.has(entry as string) || PROBES_LOADERS.has((entry as { loader?: unknown } | null)?.loader as string);
+  if (names(rule)) return true;
+  if ((Array.isArray(rule.use) ? rule.use : [rule.use]).some(names)) return true;
+  return [rule.oneOf, rule.rules].some((nested) => Array.isArray(nested) && nested.some(runsProbes));
 }
 
 /**
@@ -119,7 +170,7 @@ function runs(listed: unknown, loader: string): boolean {
  * rule already there stops the build: two would probe each other's probes.
  */
 function place(rules: unknown[], rule: Rule): void {
-  if (rules.some((listed) => runs(listed, rule.use[0].loader))) {
+  if (rules.some(runsProbes)) {
     throw new Error(
       '@variance-authority/storybook-collector: the config holds a `testSelectionRule()`, and the addon adds its own: ' +
         'remove your testSelectionRule(); the addon places it',

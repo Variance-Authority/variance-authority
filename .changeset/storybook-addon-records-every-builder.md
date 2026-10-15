@@ -28,8 +28,15 @@ loader your own `webpackFinal` or `rsbuildFinal` adds still runs ahead of the
 probes. If you added `testSelectionProbes()` or `testSelectionRule()` to the
 Storybook's builder config yourself, remove it and add the addon instead: a
 second one stops the build with "remove your testSelectionRule(); the addon
-places it", or the same of `testSelectionProbes()`. One your `vite.config`
-lists is kept, and the addon adds no second one.
+places it", or the same of `testSelectionProbes()`, wherever the rule sits,
+in `oneOf` or nested `rules` too, and whether it names the loader by its path
+or as `@variance-authority/sense/probes-loader`. One your `vite.config` lists is
+kept, and the addon adds no second one; if the addon was also given a `mode`,
+`include` or `placement` that differs from it, the build stops and names the
+option. The Vite config `@storybook/addon-vitest` loads your presets for,
+inside Vitest, gets nothing from the addon. Under Rsbuild, an `rsbuildFinal` of
+yours that assigns `tools.rspack` outright, rather than adding to it, drops the
+addon's plugin, and the build runs unprobed.
 
 When `tests` is on and the preview has no probes, the run's stderr now says to
 add the addon and build with `storybook build --test`, where it named
