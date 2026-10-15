@@ -73,17 +73,25 @@ describe('a step that wrote a module and returned no map', () => {
     expect(unmappedSteps({}, '/src/c.ts', notes)).toEqual([]);
   });
 
-  it('is not noted where the plugin returned `map: null`, changed nothing, or is the probes themselves', () => {
-    const declared = plugin('declares-nothing-moved', (code) => ({ code: `${code}\n`, map: null }));
+  it('is not noted where the plugin returned `map: null` and moved no line, changed nothing, or is the probes themselves', () => {
+    const appended = plugin('appends', (code) => ({ code: `${code}\n// appended\n`, map: null }));
+    const inLine = plugin('rewrites-in-line', (code) => ({ code: code.replace('const', 'let'), map: null }));
     const unchanged = plugin('unchanged', (code) => code);
     const self = plugin(SELF, (code) => `/* probes */${code}`);
-    const notes = watchUnmapped([declared, unchanged, self], SELF, 'module');
+    const notes = watchUnmapped([appended, inLine, unchanged, self], SELF, 'module');
 
-    call(declared.transform, {}, 'export const d = 1;\n', '/src/d.ts');
-    call(unchanged.transform, {}, 'export const d = 1;\n', '/src/d.ts');
-    call(self.transform, {}, 'export const d = 1;\n', '/src/d.ts');
+    for (const each of [appended, inLine, unchanged, self]) call(each.transform, {}, 'export const d = 1;\n', '/src/d.ts');
 
     expect(unmappedSteps({}, '/src/d.ts', notes)).toEqual([]);
+  });
+
+  it('is noted as `map: null` where the plugin returned it and moved the file\'s lines', () => {
+    const banner = plugin('banner', (code) => ({ code: `/* banner */\n${code}`, map: null }));
+    const notes = watchUnmapped([banner], SELF, 'module');
+
+    call(banner.transform, {}, 'export const e = 1;\n', '/src/e.ts');
+
+    expect(unmappedSteps({}, '/src/e.ts', notes)).toEqual([{ plugin: 'banner', nulled: true }]);
   });
 });
 

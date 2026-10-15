@@ -87,6 +87,18 @@ the end of its last statement, so the region after an early `return` fires at
 the component's entry, and its cache, `c()`, maps to the import, so the module
 region fires on every render: extra selections, never a miss.
 
+Two of the rules read a compiler's output by inference, and a compiler not yet
+measured can break selection there, with a miss and no error. Rule 2 matches
+an added `else` or `default` to an authored one by the regions its siblings
+fire: a compiler that reorders cases, or splits one `if` into two, can hand it
+the siblings of another, and the probe for the absent outcome fires the wrong
+authored region. Rule 1 tells a function the compiler wrote from one the
+author wrote by whether the map leads its start back to an authored function:
+a compiler that maps its own closure's `function` keyword to an authored
+function's start makes the closure pass for the author's, and code the closure
+skips on some calls is charged to it. Each new compiler the project supports
+is checked against both before it is named.
+
 Alternatives not taken:
 
 | Alternative | Why not |
@@ -174,9 +186,11 @@ crossing uses a transport before its coverage joins its test file.
   that rewrote a file and returned no map as identity, and a build composes it
   to a map with no mapping, so each plugin's `transform` and `load` is watched
   and such a plugin is refused by name; `map: null` is the plugin saying
-  nothing moved, and is believed. A composed map whose text for the file is not
-  the file on disk is refused, which catches a `map: null` that lied ahead of
-  a step that wrote a map; one with no such step after it is not caught.
+  nothing moved, and is believed where the line count is unchanged or the text
+  was only appended to; one that moved lines is refused by name. A composed map
+  whose text for the file is not the file on disk is refused, which catches a
+  `map: null` that moved columns within a line ahead of a step that wrote a
+  map; one with no such step after it is not caught.
 - vitest hoists `vi.mock` calls in its own transform. The module probe must be
   inserted at the **first executable statement after the hoisted block**, never
   at offset 0 — a probe above a hoisted mock changes evaluation order.

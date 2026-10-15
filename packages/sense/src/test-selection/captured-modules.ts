@@ -257,9 +257,12 @@ export function captureAfter(
   }
   if (rewrote.length > 0) {
     const plugins = rewrote.map((step) => `\`${step.plugin}\``).join(', ');
+    const what = rewrote.every((step) => step.nulled)
+      ? 'returned `map: null`, which says it moved nothing, and moved the file\'s lines'
+      : 'rewrote the file and returned no source map, which Vite reads as moving nothing';
     throw new Error(
-      `\`${named}\`: ${rewrote.length === 1 ? 'the plugin' : 'the plugins'} ${plugins} ahead of the probes rewrote the file ` +
-        'and returned no source map, which Vite reads as moving nothing, so the map back to the file names code that is not there. ' +
+      `\`${named}\`: ${rewrote.length === 1 ? 'the plugin' : 'the plugins'} ${plugins} ahead of the probes ${what}, ` +
+        'so the map back to the file names code that is not there. ' +
         `Have ${rewrote.length === 1 ? 'it' : 'each'} return the map of what it wrote, or leave the file out of \`include\`.`,
     );
   }

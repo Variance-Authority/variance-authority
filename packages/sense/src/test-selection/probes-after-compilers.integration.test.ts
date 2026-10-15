@@ -191,6 +191,22 @@ describe('a compiler that reads the syntax it compiles', () => {
     })).rejects.toThrow(/`src\/tone\.ts`: the plugin `banner` ahead of the probes rewrote the file and returned no source map/);
   });
 
+  it('stops the build, naming the plugin, where a transform returned `map: null` and moved the file\'s lines', async () => {
+    const root = await workspace();
+    // `map: null` says nothing moved, and every line moves down one.
+    const banner: Plugin = {
+      name: 'banner',
+      transform: (code, id) => (id.endsWith('tone.ts') ? { code: `/* banner */\n${code}`, map: null } : null),
+    };
+    await expect(build({
+      root,
+      configFile: false,
+      logLevel: 'silent',
+      plugins: [testSelectionProbes({ root }), extractor(), banner],
+      build: { write: false, rollupOptions: { input: resolve(root, 'src/main.js') } },
+    })).rejects.toThrow(/`src\/tone\.ts`: the plugin `banner` ahead of the probes returned `map: null`, which says it moved nothing, and moved the file's lines/);
+  });
+
   it('refuses a dev-server module a plugin rewrote without a map, naming the plugin, where Vite would read it as moving nothing', async () => {
     const root = await workspace();
     // Every line moves down one, and Vite composes the missing map as identity.

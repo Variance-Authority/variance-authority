@@ -57,7 +57,9 @@ syntax compiles the same output under the suite as it ships.
 A plugin ahead of the probes that rewrites a file and returns no source map
 stops the run, with an error naming the plugin and the file. Vite reads a
 missing map as one that moves nothing, so probes placed through it would count
-code that did not run. Return the map, or `map: null` when no position moved.
+code that did not run. Return the map, or `map: null` when no position moved:
+a `map: null` with text that changed the file's line count, other than by
+appending to it, stops the run the same way.
 
 Two kinds of file still reach the seam before your plugins read them. A test
 file has its lines marked for its cases first, so a compiler that reads a test

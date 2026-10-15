@@ -54,10 +54,10 @@ These stop a run that went through before, each with an error naming the file:
   for a file with more regions than the module's own, that holds no mappings. Have the transform write its map against the file it
   was handed.
 - Under Vite or Vitest, a plugin ahead of the probes whose `transform` or
-  `load` rewrote a file and returned no source map, named. Return its map, or
-  `map: null` when no position moved. A `map: null` returned for text that
-  moved is caught where a later step writes a map, as the map's text for the
-  file then is not the file.
+  `load` rewrote a file and returned no source map, named, and one whose
+  `transform` returned `map: null` and changed the file's line count, other
+  than by appending to it. Return its map, or `map: null` when no position
+  moved.
 - Text your transforms wrote that the instrumenter cannot parse, from a file
   it can.
 - Under Vitest, a test file the run cuts whose `load` hook rewrote it, named

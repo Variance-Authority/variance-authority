@@ -12,8 +12,10 @@
  * server shares one context across every plugin of a pass, so it is noted
  * there; Rollup hands each plugin its own, so a build notes it by module, in
  * the notes of the probes that watched the plugin, and the probes take the
- * note when they read it. Two builds in one process each read their own. `map: null` is the plugin saying
- * it moved nothing, as Rollup reads it, and is believed. A `load` hook is
+ * note when they read it. Two builds in one process each read their own.
+ * `map: null` is the plugin saying it moved nothing, as Rollup reads it, and is
+ * believed where no line moved: the line count is the file's, or the text was
+ * only appended to. One that moved lines is noted. A `load` hook is
  * watched too, by module, and its text kept: whether it rewrote the file is
  * known only against the file on disk, which the probes read.
  */
@@ -25,10 +27,15 @@ interface ResolvedPlugin {
   load?: unknown;
 }
 
-/** A step that wrote a module and returned no map: the plugin, and with `loaded`, the text its `load` hook answered. */
+/**
+ * A step that wrote a module and returned no map: the plugin, with `loaded`
+ * the text its `load` hook answered, and with `nulled` a `transform` that
+ * answered `map: null` and moved lines.
+ */
 export interface UnmappedStep {
   readonly plugin: string;
   readonly loaded?: string;
+  readonly nulled?: boolean;
 }
 
 type Handler = (this: object, code: string, id: string, ...rest: unknown[]) => unknown;
@@ -92,11 +99,29 @@ function wrapped(name: string, handler: Handler, keyed: Keyed, stores: ReadonlyS
     const result = handler.call(this, code, id, ...rest);
     return settled(result, (value) => {
       const { written, map } = answer(value);
-      if (typeof written !== 'string' || written === code || map !== undefined) return;
-      if (keyed === 'module') noteModule(stores, id, { plugin: name });
-      else push(onContextOf(this), { plugin: name });
+      if (typeof written !== 'string' || written === code) return;
+      if (map === null && !movesLines(code, written)) return;
+      if (map !== undefined && map !== null) return;
+      const step = map === null ? { plugin: name, nulled: true } : { plugin: name };
+      if (keyed === 'module') noteModule(stores, id, step);
+      else push(onContextOf(this), step);
     });
   };
+}
+
+/**
+ * Whether `written` moved a line of `code`: its line count differs, and it is
+ * not `code` with text after it. A rewrite within the lines, or an append, moves
+ * none, so `map: null` there is believed.
+ */
+function movesLines(code: string, written: string): boolean {
+  return lineCount(written) !== lineCount(code) && !written.startsWith(code);
+}
+
+function lineCount(text: string): number {
+  let count = 1;
+  for (let at = text.indexOf('\n'); at !== -1; at = text.indexOf('\n', at + 1)) count++;
+  return count;
 }
 
 /** A `load` hook's answer with no map, kept with its text for the probes to hold against the file. */
