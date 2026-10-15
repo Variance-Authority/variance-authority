@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import { OperatorError } from '../exit.js';
 import { formatReport } from './report.js';
-import { reportHtml } from './report-html.js';
+import { reportHtml as pieces } from './report-html.js';
 import type { CliRunReport } from './run.js';
+
+/** The page as the reader gets it, its pieces joined. */
+const reportHtml = (report: CliRunReport): string => [...pieces(report)].join('');
 
 /**
  * The page is a third rendering of one docket, and these tests are about the
