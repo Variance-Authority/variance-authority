@@ -4,24 +4,43 @@
 //! or uses one. Its declarations are a fact of the parse: a property or method
 //! signature, a class method, property or accessor, or a constructor parameter
 //! property, each on the interface, type alias or class that holds it. The
-//! files are chosen by the caller — ripgrep owns finding the text — and read
-//! from the working tree; a file that does not read or does not parse declares
-//! nothing.
+//! scan records every one with the file's parse (`read.rs`), and a question
+//! reads them off the chain the index wrote.
 
 // compass: variance-authority.reach.relations
 
+use std::collections::HashSet;
+
 use napi_derive::napi;
-use oxc_allocator::Allocator;
 use oxc_ast::ast::*;
 use oxc_ast_visit::{walk, Visit};
-use oxc_parser::Parser;
 use oxc_span::GetSpan;
-use rayon::prelude::*;
+use serde::Serialize;
 
+use crate::compact::Layer;
 use crate::help_usage::kind_of;
-use crate::module_shape::Lines;
 use crate::orient_map_read::beside;
+use crate::package_graph::{fold, join_parses, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
+use crate::read::Lines;
+
+/// One member declaration of a parse: its name, its line, and the container
+/// it is `on`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct MemberDeclaration {
+    pub(crate) name: String,
+    pub(crate) line: u32,
+    /// The interface, type alias or class the member is on, or how it is
+    /// written when it has no name.
+    pub(crate) on: String,
+}
+
+/// Every member `program` declares, in source order.
+pub(crate) fn member_declarations_in(program: &Program<'_>, lines: &Lines) -> Vec<MemberDeclaration> {
+    let mut walker = Walker { lines, containers: Vec::new(), alias: None, declared: Vec::new() };
+    walker.visit_program(program);
+    walker.declared
+}
 
 /// One declaration of a member, `on` the container that declares it.
 #[napi(object)]
@@ -32,70 +51,77 @@ pub struct MemberSite {
     pub by: String,
     /// `story`, `test` or `source`, by the file's name.
     pub kind: String,
-    /// The interface, type alias or class the member is on, or how it is
-    /// written when it has no name.
     pub on: String,
 }
 
-/// Every declaration of a member named `name` in `files`, repo-relative and
-/// read from the working tree at `root`, ordered by file in code units, then
-/// by line.
-#[napi]
-pub fn member_declarations_of(root: String, files: Vec<String>, name: String) -> Vec<MemberSite> {
-    let mut files: Vec<&str> = files.iter().map(String::as_str).filter(|file| crate::read::dialect(file).is_some()).collect();
-    files.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
-    files.dedup();
-    let found: Vec<(&str, Vec<(u32, String)>)> = files
-        .par_iter()
-        .filter_map(|&file| {
-            let text = std::fs::read_to_string(std::path::Path::new(&root).join(file)).ok()?;
-            let declared = declared(file, &text, &name);
-            (!declared.is_empty()).then_some((file, declared))
-        })
-        .collect();
-    let paths = beside(&root, found.iter().map(|&(file, _)| file));
-    let owners = owners(&root, &paths);
-    let by = |file: &str| match owners.files.get(file) {
-        Some(&(owner, _)) if owner != NO_OWNER => owners.packages[owner as usize].name.clone(),
-        _ => String::new(),
-    };
-    found
+/// Every declaration of a member named `name` on the chain, ordered by file
+/// in code units, then by line. A file whose parse the chain does not hold
+/// declares nothing.
+pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> Vec<MemberSite> {
+    // The digests whose parse declares the name somewhere on the chain; the
+    // file's newest parse is joined below and asked again.
+    let mut declaring: HashSet<&str> = HashSet::new();
+    for layer in layers {
+        let (stored, parses) = (&layer.stored, &layer.parses);
+        for row in 0..parses.key.len() {
+            if parses.member_declarations.range(row).any(|at| stored.text(parses.member_declaration_name.at(at)) == name) {
+                declaring.insert(stored.text(parses.key.at(row)));
+            }
+        }
+    }
+    if declaring.is_empty() { return Vec::new(); }
+    let mut crossings: Vec<Crossing> = fold(layers)
         .into_iter()
-        .flat_map(|(file, declared)| {
-            let by = by(file);
-            declared.into_iter().map(move |(line, on)| MemberSite { at: file.to_owned(), line, by: by.clone(), kind: kind_of(file).to_owned(), on })
+        .filter(|&(_, (layer, row))| {
+            let (stored, records) = (&layers[layer].stored, &layers[layer].records);
+            stored.optional(records.digest.at(row)).is_some_and(|digest| declaring.contains(digest))
         })
-        .collect()
-}
-
-/// The declarations of member `name` in one file, by line and container; none when it does not parse.
-fn declared(file: &str, text: &str, name: &str) -> Vec<(u32, String)> {
-    let allocator = Allocator::default();
-    let source_type = crate::read::dialect(file).unwrap_or_default();
-    let parsed = Parser::new(&allocator, text, source_type).parse();
-    if parsed.panicked { return Vec::new(); }
-    let lines = Lines::new(text);
-    let mut walker = Walker { name, lines: &lines, containers: Vec::new(), alias: None, declared: Vec::new() };
-    walker.visit_program(&parsed.program);
-    walker.declared
+        .map(|(file, at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
+        .collect();
+    crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
+    join_parses(layers, &mut crossings);
+    let paths = beside(root, crossings.iter().map(|crossing| crossing.file));
+    let owners = owners(root, &paths);
+    let mut found = Vec::new();
+    for crossing in &crossings {
+        let Some((layer, row)) = crossing.parse else { continue };
+        let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
+        let by = match owners.files.get(crossing.file) {
+            Some(&(owner, _)) if owner != NO_OWNER => owners.packages[owner as usize].name.as_str(),
+            _ => "",
+        };
+        let mut sites: Vec<MemberSite> = parses
+            .member_declarations
+            .range(row)
+            .filter(|&at| stored.text(parses.member_declaration_name.at(at)) == name)
+            .map(|at| MemberSite {
+                at: crossing.file.to_owned(),
+                line: parses.member_declaration_line.at(at),
+                by: by.to_owned(),
+                kind: kind_of(crossing.file).to_owned(),
+                on: stored.text(parses.member_declaration_on.at(at)).to_owned(),
+            })
+            .collect();
+        sites.sort_by_key(|site| site.line);
+        found.extend(sites);
+    }
+    found
 }
 
 struct Walker<'n> {
-    name: &'n str,
     lines: &'n Lines,
     /// The containers the walk is inside, innermost last.
     containers: Vec<String>,
     /// The type alias whose own body is the type literal visited next.
     alias: Option<String>,
-    declared: Vec<(u32, String)>,
+    declared: Vec<MemberDeclaration>,
 }
 
 impl Walker<'_> {
     fn declare(&mut self, key: Option<std::borrow::Cow<'_, str>>, at: u32) {
-        if key.is_some_and(|key| key == self.name) {
-            let on = self.containers.last().cloned().unwrap_or_default();
-            self.declared.push((self.lines.at(at), on));
-        }
+        let Some(key) = key else { return };
+        let on = self.containers.last().cloned().unwrap_or_default();
+        self.declared.push(MemberDeclaration { name: key.into_owned(), line: self.lines.at(at), on });
     }
 
     fn within(&mut self, container: String, walk: impl FnOnce(&mut Self)) {

@@ -8,7 +8,7 @@ import { checkout, run } from './ask-packages-fixture.js';
 /**
  * `variance ask uses` over a member of an interface, a type literal or a
  * class, and `variance ask grep --to`, which it routes to. A member is never
- * imported, so `uses` names its declarations, parsed, and the text search
+ * imported, so `uses` names its declarations, which the scan records, and the text search
  * over the files that import a declaring file, which finds its callers. An
  * object literal's key declares nothing, and a file that does not import the
  * declaration is not searched.
@@ -67,21 +67,7 @@ describe('variance ask uses over a member', () => {
     expect(out).not.toContain('elsewhere.ts');
   });
 
-  it('says the members were not read when ripgrep is not on PATH', async () => {
-    checkout(SCANNER);
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-
-    const path = process.env['PATH'];
-    process.env['PATH'] = '';
-    try {
-      const { out, err } = await run(['ask', 'uses', '--name', 'resolveThings']);
-      expect(`${out}${err}`).toContain('Members by this name were not read: `rg` is not on PATH');
-    } finally {
-      process.env['PATH'] = path;
-    }
-  });
-
-  it('answers a name that is also exported by its imports alone, reading no members', async () => {
+  it('answers a name that is exported and a member with its imports, then its declarations', async () => {
     checkout({
       ...SCANNER,
       'packages/lib/src/wrap.ts': 'export function resolveThings(): string[] {\n  return [];\n}\n',
@@ -91,9 +77,11 @@ describe('variance ask uses over a member', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'resolveThings']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toMatch(/^packages\/lib\/src\/wrapped\.ts:1 — @acme\/lib$/m);
-    expect(out).not.toContain('member');
-    expect(out).not.toContain('packages/lib/src/native.ts');
-    expect(out).not.toContain(ROUTE);
+    const imported = out.search(/^packages\/lib\/src\/wrapped\.ts:1 — @acme\/lib$/m);
+    const member = out.indexOf('`resolveThings` is a member too, declared in 1 place:');
+    expect(imported).toBeGreaterThanOrEqual(0);
+    expect(member).toBeGreaterThan(imported);
+    expect(out.slice(member)).toMatch(/^packages\/lib\/src\/native\.ts:2 — Scanner$/m);
+    expect(out.slice(member)).toContain(ROUTE);
   });
 });

@@ -86,6 +86,15 @@ pub struct HeldMember {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct HeldMemberDeclaration {
+    name: String,
+    #[serde(default)]
+    line: u32,
+    #[serde(default)]
+    on: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct HeldParse {
     requests: Vec<HeldRequest>,
     exports: Option<Vec<HeldExport>>,
@@ -98,6 +107,8 @@ pub struct HeldParse {
     mocks: HeldMocks,
     #[serde(default)]
     members: Vec<HeldMember>,
+    #[serde(default, rename = "memberDeclarations")]
+    member_declarations: Vec<HeldMemberDeclaration>,
     unknown: Option<String>,
     #[serde(default)]
     size: Option<crate::source_size::Size>,
@@ -131,6 +142,10 @@ impl ParseRow for HeldParse {
         values.extend(self.mocks.minus.iter().map(String::as_str));
         values.extend(self.mocks.plus.iter().map(String::as_str));
         values.extend(self.members.iter().map(|member| member.name.as_str()));
+        for declared in &self.member_declarations {
+            values.insert(&declared.name);
+            values.insert(&declared.on);
+        }
         values.extend(self.declares.iter().flatten().map(String::as_str));
         values.extend(self.unknown.as_deref());
     }
@@ -167,6 +182,9 @@ impl ParseRow for HeldParse {
         into.mock(self.mocks.minus.iter().map(|value| id(value)), self.mocks.plus.iter().map(|value| id(value)));
         for member in &self.members {
             into.member(member.request, id(&member.name), member.line);
+        }
+        for declared in &self.member_declarations {
+            into.member_declaration(id(&declared.name), declared.line, id(&declared.on));
         }
     }
 

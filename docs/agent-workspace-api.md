@@ -69,9 +69,9 @@ This is a resolved module graph, not a function-call graph. It records file
 imports, re-exports, literal dynamic imports, type imports, asset edges, and the
 files a module names in `/// <depends path="…" />`. It can answer what a file
 rests on, what rests on that file, and where an exported name is imported. A
-member of an interface, a type literal or a class is never imported: for a
-name no export has, `uses` names where it is declared, and `grep --to` the
-declaring file finds its callers as text in the files that import it. The graph
+member of an interface, a type literal or a class is never imported: `uses`
+names where a member by that name is declared, after any imports, and `grep
+--to` the declaring file finds its callers as text in the files that import it. The graph
 does not record that one function called another at runtime; open the named
 file or use a language server for that question.
 

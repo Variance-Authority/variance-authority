@@ -3,10 +3,9 @@
  *
  * A method or property of an interface, a type literal or a class is reached
  * through a value, never imported, so the module graph lists nobody who
- * declares or calls one. Its declarations are a fact of the parse: ripgrep
- * picks the files whose text could declare the name, and the sense addon
- * parses those and keeps the members by that name, on the container that
- * holds each.
+ * declares or calls one. Its declarations are a fact of the parse: the scan
+ * records every member each file declares, on the container that holds it,
+ * and this reads the ones by one name off the source index.
  *
  * Its callers are text read near a declaration: `docs_grep` with `to` set to
  * a declaring file runs ripgrep over the files that import it, at any depth,
@@ -19,7 +18,6 @@
 import type { Use } from '@variance-authority/package/help';
 import { memberDeclarationsOf } from '@variance-authority/sense';
 import { ownerOf } from './by-path.js';
-import { filesMatching } from './ripgrep.js';
 
 /** What a text match for the callers lets in and what it misses, said once under the route. */
 export const BY_NAME =
@@ -35,33 +33,20 @@ export interface Members {
   readonly unread?: string;
 }
 
-/** A name a member can be declared under without quotes; any other is no member this answers for. */
-const IDENTIFIER = /^[\p{ID_Start}$_][\p{ID_Continue}$‌‍]*$/u;
-
 /**
- * A line that could declare member `name`: the name, quoted or not, not read
- * off a value, then what follows a member's key — `?`, `!`, `:`, `(`, `<`, `=`
- * or `;`. Only a prefilter: the parse decides.
- */
-function declaring(name: string): string {
-  const escaped = name.replace(/\$/g, '\\$');
-  return `(?:^|[^.\\w$])['"]?${escaped}['"]?\\s*[?!]?\\s*[:(<=;]`;
-}
-
-/**
- * The declarations of member `name` in the checkout at `root`, in the package
- * `wanted` names when it names one; none, and why, when no checkout is named
- * or ripgrep or the addon could not read them.
+ * The declarations of member `name` the source index of the checkout at
+ * `root` records, in the package `wanted` names when it names one; none, and
+ * why, when no checkout is named or the index does not read.
  */
 export function membersOf(root: string | undefined, name: string, wanted: string | undefined): Members {
-  if (!IDENTIFIER.test(name)) return { declared: [] };
-  if (root === undefined) return { declared: [], unread: 'this host named no checkout to read' };
+  if (root === undefined) return { declared: [], unread: 'this host named no checkout to read the source index of' };
   let found: ReturnType<typeof memberDeclarationsOf>;
   try {
-    found = memberDeclarationsOf(root, filesMatching(root, declaring(name)), name);
+    found = memberDeclarationsOf(root, name);
   } catch (error) {
-    return { declared: [], unread: error instanceof Error ? error.message : String(error) };
+    return { declared: [], unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
   }
+  if (found === undefined) return { declared: [], unread: 'no source index is published; run `variance index`' };
   const owner = wanted === undefined ? undefined : ownerOf(wanted);
   const declared = found
     .filter((site) => owner === undefined || site.by === owner)

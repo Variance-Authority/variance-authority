@@ -95,7 +95,7 @@ export interface NativeHelp {
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
-  memberDeclarationsOf?(root: string, files: string[], name: string): MemberSite[];
+  memberDeclarationsOf?(root: string, index: string, name: string): MemberSite[] | null;
 }
 
 function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<NativeHelp[Name]> {
@@ -154,12 +154,13 @@ export function importersOf(
 }
 
 /**
- * Every declaration of a member named `name` in `files`: a property or method
- * signature, a class method, property or accessor, or a constructor parameter
- * property, each on its interface, type alias or class. The files are
- * repo-relative and read from the working tree at `root`; one that does not
- * read or parse declares nothing. Ordered by file in code units, then by line.
+ * Every declaration of a member named `name` the index at `index` records: a
+ * property or method signature, a class method, property or accessor, or a
+ * constructor parameter property, each on its interface, type alias or class.
+ * The scan records them with each file's parse. Ordered by file in code
+ * units, then by line; `undefined` when no index was published. Throws when
+ * the index does not read.
  */
-export function memberDeclarationsOf(root: string, files: readonly string[], name: string): readonly MemberSite[] {
-  return entry('memberDeclarationsOf')(root, [...files], name);
+export function memberDeclarationsOf(root: string, name: string, index: string = sourceIndexPath(root)): readonly MemberSite[] | undefined {
+  return entry('memberDeclarationsOf')(root, index, name) ?? undefined;
 }

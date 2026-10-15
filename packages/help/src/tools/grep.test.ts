@@ -105,7 +105,7 @@ describe.skipIf(!RIPGREP_ON_PATH)('grep over a closure', () => {
     const path = process.env.PATH;
     process.env.PATH = '';
     try {
-      expect(() => ask({ query: 'needle', from: 'src/entry.ts' })).toThrow('`rg` is not on PATH, and this question runs ripgrep');
+      expect(() => ask({ query: 'needle', from: 'src/entry.ts' })).toThrow('`grep` and `discover` run ripgrep on the files, and `rg` is not on PATH');
     } finally {
       if (path === undefined) delete process.env.PATH;
       else process.env.PATH = path;

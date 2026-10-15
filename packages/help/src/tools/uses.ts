@@ -65,11 +65,12 @@ import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, impo
  *
  * A method or property of an interface, a type literal or a class is reached
  * through a value, so no import names it, and this question, which answers by
- * imports, lists its declarations instead, each on its container. Its callers
- * are `docs_grep`'s: a text search over the files that import a declaring
- * file, which this answer names, with what a text match lets in and misses.
- * Members are looked for only when no export has the name, so an import
- * answer costs no search of the checkout.
+ * imports, lists its declarations as well, each on its container: after the
+ * imports when an export has the name too, alone when none does. The scan
+ * records every member declaration with the file's parse, so reading them is a
+ * lookup in the source index. Its callers are `docs_grep`'s: a text search over
+ * the files that import a declaring file, which this answer names, with what a
+ * text match lets in and misses.
  */
 
 /**
@@ -171,8 +172,8 @@ export const uses: Tool<Help> = {
     '`import()` or `import * as`, marked with the line that loads the module, and imports that ' +
     'name the file by path, marked as such. Imports within the exporting package are read from the ' +
     'source index, through each `export … from` that passes the name on, marked `(as x)` where one renames it, so a ' +
-    'name exported and not published is answered too. A name no export has is looked for as a member of an ' +
-    'interface, a type literal or a class, answered with its declarations and the docs_grep that finds its callers. Stories ' +
+    'name exported and not published is answered too. A member of an interface, a type literal or a class by that ' +
+    'name is listed with its declarations, after the imports, and the docs_grep that finds its callers. Stories ' +
     'and tests are listed apart. `from`, the file you are in, sorts sites by shared path.',
   inputSchema: {
     type: 'object',
@@ -196,12 +197,20 @@ export const uses: Tool<Help> = {
   run(help, input, invocation) {
     const from = typeof input['from'] === 'string' && input['from'] !== '' ? input['from'] : undefined;
     const answer = usesOf(help, input, invocation?.root);
-    const { name, members } = answer;
-    if (members.declared.length === 0) return imported(answer, from);
-    return [
-      `\`${name}\` is no exported name; it is a member, declared in ${places(members.declared.length)}:`,
-      ...memberLines(members, from, name),
-    ].join('\n');
+    const { name, members, exported, found, byPath } = answer;
+    const declared = members.declared.length;
+    if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
+      return [`\`${name}\` is no exported name; it is a member, declared in ${places(declared)}:`, ...memberLines(members, from, name)].join('\n');
+    }
+    const imports = imported(answer, from);
+    // An index the imports already said did not read is not said twice.
+    if (declared === 0 && members.unread !== undefined && answer.unread === undefined) {
+      return `${imports}\n\nMembers by this name were not read: ${members.unread}.`;
+    }
+    if (declared === 0) return imports;
+    // The imports already said the order, so the members do not say it again.
+    const lines = memberLines(members, from, name).slice(1);
+    return [imports, '', `\`${name}\` is a member too, declared in ${places(declared)}:`, ...lines].join('\n');
   },
 
   // Every file importing the name, at each line that does, or every file
@@ -285,13 +294,12 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
     .filter((site) => found.length === 0 || (site.held.to !== undefined && declared.has(site.held.to)))
     .map((site) => ({ ...site.taken, how: how(site) }));
   const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
-  // Members are read only for a name nothing exports: reading them costs a
-  // search of the checkout, which the import answer does not pay.
-  let members: Members = { declared: [] };
+  // The scan records every member declaration, so reading the ones by this
+  // name is a lookup in the source index, made whether or not an export has it.
+  const members: Members = membersOf(root, name, wanted);
   if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
-    members = membersOf(root, name, wanted);
-    if (members.declared.length > 0) return { name, found, exported, sites: [], unread: undefined, within: undefined, members };
-    const unreadMembers = members.unread === undefined ? '' : ` Members by this name were not read: ${members.unread.replace(/\.$/, '')}.`;
+    if (members.declared.length > 0) return { name, found, exported, byPath, sites: [], unread: undefined, within: undefined, members };
+    const unreadMembers = members.unread === undefined ? '' : ` Members by this name were not read: ${members.unread}.`;
     throw new Error(`${unfound(help, name, wanted)}${unreadMembers}`);
   }
   // A published name is read from its entry file as well as its declaration:
@@ -307,5 +315,5 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
   if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
 
   const sites = sitesOf(found, byPath, within ?? [], read);
-  return { name, found, exported, sites, unread, within, members };
+  return { name, found, exported, byPath, sites, unread, within, members };
 }

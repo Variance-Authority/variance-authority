@@ -1,7 +1,7 @@
 //! The parse half of a source-index segment, as columns: the part of
 //! `encodeSourceIndex` from `parses.key` to `declares.name`, with the harvest,
-//! mock and member columns `source-index-harvest.ts`, `-mocks.ts` and
-//! `-members.ts` add.
+//! mock, member and member-declaration columns `source-index-harvest.ts`,
+//! `-mocks.ts`, `-members.ts` and `-member-declarations.ts` add.
 //!
 //! Two kinds of row are written into it. The graph walk's own reads
 //! (`index.rs`), whose absences are empty lists, and the parses JavaScript
@@ -78,6 +78,10 @@ pub struct ParseColumns {
     member_request: Vec<u32>,
     member_name: Vec<u32>,
     member_line: Vec<u32>,
+    member_declarations: Vec<u32>,
+    member_declaration_name: Vec<u32>,
+    member_declaration_line: Vec<u32>,
+    member_declaration_on: Vec<u32>,
     declare_name: Vec<u32>,
 }
 
@@ -122,6 +126,7 @@ impl ParseColumns {
         self.mocks_minus.push(self.mock_minus.len() as u32);
         self.mocks_plus.push(self.mock_plus.len() as u32);
         self.members.push(self.member_name.len() as u32);
+        self.member_declarations.push(self.member_declaration_name.len() as u32);
     }
 
     pub fn request(&mut self, value: u32, kind: u32, line: u32, bindings: impl IntoIterator<Item = (u32, u32, bool, u32)>) {
@@ -173,6 +178,12 @@ impl ParseColumns {
         self.member_request.push(request);
         self.member_name.push(name);
         self.member_line.push(line);
+    }
+
+    pub fn member_declaration(&mut self, name: u32, line: u32, on: u32) {
+        self.member_declaration_name.push(name);
+        self.member_declaration_line.push(line);
+        self.member_declaration_on.push(on);
     }
 
     /// The columns in `encodeSourceIndex`'s order, the deleted keys between
@@ -233,6 +244,10 @@ impl ParseColumns {
             u32s("members.request", self.member_request),
             u32s("members.name", self.member_name),
             u32s("members.line", self.member_line),
+            u32s("parses.member-declarations", self.member_declarations),
+            u32s("member-declarations.name", self.member_declaration_name),
+            u32s("member-declarations.line", self.member_declaration_line),
+            u32s("member-declarations.on", self.member_declaration_on),
             u32s("declares.name", self.declare_name),
         ]
     }

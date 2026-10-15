@@ -14,6 +14,7 @@ import type { DeclaredRole, Export } from './read.js';
 import { native, nativeRefusal } from './addon.js';
 import type { NativeScanner } from './native.js';
 import { openHarvest } from './source-index-harvest.js';
+import { openMemberDeclarations } from './source-index-member-declarations.js';
 import { openMembers } from './source-index-members.js';
 import { openMocks } from './source-index-mocks.js';
 import { openSize } from './source-index-size.js';
@@ -33,7 +34,7 @@ import { packageOf } from './specifier.js';
  */
 const FORMAT = 'variance-authority-source-index';
 /** The format version this reader reads and the addon writes (`VERSION` in `native/src/segment.rs`). */
-export const SOURCE_INDEX_VERSION = 19;
+export const SOURCE_INDEX_VERSION = 20;
 const VERSION = SOURCE_INDEX_VERSION;
 const WHAT = 'source index';
 /** Rows per document: a few megabytes of JSON, far under any string limit. */
@@ -151,6 +152,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const harvest = openHarvest(opened, text, parseKey.length, exportExported.length);
   const mocksOf = openMocks(opened, text, parseKey.length);
   const membersOf = openMembers(opened, text, parseKey.length);
+  const declaredMembersOf = openMemberDeclarations(opened, text, parseKey.length);
   const sizeOf = openSize(opened, parseKey.length);
   validateOffset(parseRequests, requestValue.length, parseKey.length);
   validateOffset(parseExports, exportExported.length, parseKey.length);
@@ -209,6 +211,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
       ...(flag(parseDeclarePresent[row]) ? { declares } : {}),
       ...(mocks === undefined ? {} : { mocks }),
       ...membersOf(row, requests.length),
+      ...declaredMembersOf(row),
       ...(unknown === undefined ? {} : { unknown }),
       ...sizeOf(row),
     });

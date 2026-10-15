@@ -1,4 +1,4 @@
-import { type SpawnSyncReturns, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 
 /**
  * ripgrep, over a list of files the caller already chose.
@@ -6,8 +6,7 @@ import { type SpawnSyncReturns, spawnSync } from 'node:child_process';
  * The questions that search text — `grep` over a closure, `discover` over
  * the files its other sets kept — own the choice of files and nothing else; the
  * pattern language, encodings and binary detection are ripgrep's. This is the
- * one place that hands a file list to `rg` and reads its JSON back, and the one
- * place that asks it which files of the checkout hold a pattern at all.
+ * one place that hands a file list to `rg` and reads its JSON back.
  */
 
 /** Longer lines are cut: one match in a minified bundle is a megabyte of line. */
@@ -46,23 +45,21 @@ function batches(files: readonly string[]): readonly (readonly string[])[] {
   return out;
 }
 
-/** One `rg` run in `root`, refused loudly when ripgrep is missing or cannot start. */
-function spawn(root: string, args: readonly string[]): SpawnSyncReturns<string> {
-  const ran = spawnSync('rg', args, { cwd: root, encoding: 'utf8', maxBuffer: 1024 * 1024 * 1024 });
+/** One `rg --json` over one batch, read back as hits and complaints. */
+function rg(root: string, pattern: string, files: readonly string[]): Searched {
+  const ran = spawnSync('rg', ['--json', `--regexp=${pattern}`, '--', ...files], {
+    cwd: root,
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024 * 1024,
+  });
   if (ran.error !== undefined) {
     const missing = (ran.error as NodeJS.ErrnoException).code === 'ENOENT';
     throw new Error(
       missing
-        ? '`rg` is not on PATH, and this question runs ripgrep. Install ripgrep and ask again.'
+        ? '`grep` and `discover` run ripgrep on the files, and `rg` is not on PATH. Install ripgrep and ask again.'
         : `ripgrep could not be run: ${ran.error.message}`,
     );
   }
-  return ran;
-}
-
-/** One `rg --json` over one batch, read back as hits and complaints. */
-function rg(root: string, pattern: string, files: readonly string[]): Searched {
-  const ran = spawn(root, ['--json', `--regexp=${pattern}`, '--', ...files]);
   // 0 is a match, 1 is none, 2 is an error — which ripgrep also gives when it
   // matched in some files and could not read others, so 2 is not a refusal
   // unless nothing came back with it.
@@ -96,15 +93,4 @@ export function ripgrep(root: string, pattern: string, files: readonly string[])
     errors.push(...searched.errors);
   }
   return { hits, errors };
-}
-
-/**
- * The TypeScript and JavaScript files of the checkout at `root` that hold
- * `pattern`, repo-relative and in ripgrep's order, honouring the ignore files
- * as ripgrep does. A prefilter: the caller parses what it keeps.
- */
-export function filesMatching(root: string, pattern: string): readonly string[] {
-  const ran = spawn(root, ['--files-with-matches', '--type=ts', '--type=js', `--regexp=${pattern}`, '--', '.']);
-  if (ran.status === 2 && ran.stdout === '') throw new Error(`ripgrep refused the pattern: ${ran.stderr.trim()}`);
-  return ran.stdout.split('\n').filter((line) => line !== '').map((line) => line.replace(/^\.\//, ''));
 }
