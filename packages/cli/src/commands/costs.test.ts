@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Config } from '../config.js';
 import type { Env } from '../share-lines.js';
 import { costsEntryOf } from './costs-entry.js';
-import { costsOf, mainlineCosts, publishedCostsLine } from './costs.js';
+import { costsOf, costsToPlace, mainlineCosts, publishedCostsLine } from './costs.js';
 import { COSTS_TOOLS } from '@variance-authority/mcp/tools';
 import { costsSubject } from './ask-costs.js';
 import { shardOwnedBecause, type CliRunReport } from './run-report.js';
@@ -140,6 +140,19 @@ describe('subject costs', () => {
   it('are not found where the lineage has none', async () => {
     const { dir } = await repository();
     expect(await mainlineCosts(configOf({ root: join(home, 'share') }), { env: LOCAL, cwd: dir })).toBeNull();
+  });
+
+  it('place a run at every width, one world as well as several, and nothing places one where the lineage has none', async () => {
+    const { dir, head } = await repository();
+    const root = join(home, 'share');
+    expect(await costsToPlace({ ...configOf({ root }), workers: 1 }, { env: LOCAL, cwd: dir })).toEqual({});
+
+    await publishRun(configOf({ root }), await reportAt(head), { env: PUSH, cwd: dir });
+    const placed = await Promise.all(
+      [1, 8].map(async (workers) => costsToPlace({ ...configOf({ root }), workers }, { env: LOCAL, cwd: dir })),
+    );
+    expect(placed[0]?.costs?.commit).toBe(head);
+    expect(placed[1]).toEqual(placed[0]);
   });
 
   it('are refused from a report with no commit, from one shard, and from a run that timed nothing', async () => {

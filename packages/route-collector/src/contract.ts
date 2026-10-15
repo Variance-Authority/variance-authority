@@ -4,6 +4,7 @@ import type {
   PageRegion,
   RenderDocument,
   SemanticSnapshot,
+  Step,
   SubjectRef,
   Viewport,
 } from '@variance-authority/core/format';
@@ -124,6 +125,9 @@ export type Collected =
        * carries it into the subject's record.
        */
       readonly diagnostics?: readonly Diagnostic[];
+
+      /** How long each step of this reading took, in the order they ran. */
+      readonly steps?: readonly Step[];
     }
   | { readonly ok: false; readonly because: string };
 

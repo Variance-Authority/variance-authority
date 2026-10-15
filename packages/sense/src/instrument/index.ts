@@ -178,6 +178,18 @@ export interface Instrumented {
   readonly code: string;
   /** Every region, in ordinal order. `blocks[0]` is always the module itself. */
   readonly blocks: readonly Block[];
+  /**
+   * Whether `code` imports or exports. `false` is a script, as CommonJS is: a
+   * caller that opens it with an `import` turns it into a module, and its
+   * `module.exports` stops being read.
+   */
+  readonly module: boolean;
+  /**
+   * Where the header starts in `code`, in UTF-16 code units: after the
+   * directive prologue, so a statement that must run ahead of the module's own
+   * code goes here and leaves `"use strict"` in force.
+   */
+  readonly headerAt: number;
 }
 
 /**
@@ -200,8 +212,8 @@ export function instrument(
   const spliced = splice(source, file, mode, id);
   if (spliced === undefined) return undefined;
 
-  const { code, sourceDigest, blocks } = spliced;
-  return { code, sourceDigest, instrumentation: instrumentationId(mode), blocks };
+  const { code, sourceDigest, blocks, module, headerAt } = spliced;
+  return { code, sourceDigest, instrumentation: instrumentationId(mode), blocks, module, headerAt };
 }
 
 /**

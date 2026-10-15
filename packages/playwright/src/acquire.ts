@@ -1,3 +1,4 @@
+import { stepClock, timeOn, type StepClock } from '@variance-authority/core/format';
 import type { Page } from 'playwright';
 import { AGENT_GLOBAL } from './agent.js';
 import type { NetworkObservation } from './network.js';
@@ -49,6 +50,13 @@ export async function acquireFromAgent<Request extends object>(
   page: Page,
   network: NetworkObservation | undefined,
   request: Request,
+  /**
+   * Takes this function's own steps, in the order they ran: `read`, the page's
+   * whole answer from request to string, the page's own steps inside it;
+   * `network`, the wait for the wire to stop after it; and when the wire moved,
+   * that first answer as `stale` and the second as `read`.
+   */
+  steps?: StepClock,
 ): Promise<string> {
   const observed = (): Readonly<Record<string, string>> =>
     network === undefined ? {} : { ...network.assets };
@@ -69,14 +77,24 @@ export async function acquireFromAgent<Request extends object>(
   };
 
   const sent = observed();
-  const first = await acquire(sent);
+  // Taken aside until the wire says whether the first answer is kept.
+  const aside = stepClock(() => performance.now());
+  const first = await aside.time('read', async () => acquire(sent));
 
-  if (network === undefined) return first;
+  if (network === undefined) {
+    steps?.add(aside.taken);
+    return first;
+  }
 
-  await network.settle();
+  await aside.time('network', async () => network.settle());
   const settled = observed();
 
-  return sameAssets(sent, settled) ? first : acquire(settled);
+  if (sameAssets(sent, settled)) {
+    steps?.add(aside.taken);
+    return first;
+  }
+  steps?.add(aside.taken.map((step, k) => (k === 0 ? { ...step, step: 'stale' } : step)));
+  return timeOn(steps, 'read', async () => acquire(settled));
 }
 
 /** Whether two asset maps would produce the same key. */
