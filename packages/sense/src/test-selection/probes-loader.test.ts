@@ -66,6 +66,17 @@ describe('the probes loader', () => {
     expect(columns).toEqual([0]);
   });
 
+  it('ends an `.mjs` file with an import of the collector even where its text reads as a script, since it has no `require`', async () => {
+    const root = await checkout();
+    const script = 'function total(items) {\n  return items.length > 0 ? items.length : 0;\n}\nglobalThis.total = total;\n';
+    await writeFile(resolve(root, 'total.mjs'), script, 'utf8');
+    const { error, code } = load(resolve(root, 'total.mjs'), script, { ...IDENTITY, sources: ['total.mjs'], mappings: 'AAAA;AACA;AACA;AACA' }, { root });
+
+    expect(error).toBeNull();
+    expect(code).not.toContain('require(');
+    expect(code!.slice(code!.lastIndexOf('\n'))).toMatch(/^\n;import "!!.*probes-loader\.js\?collector=presence!.*probes-collector\.js";$/);
+  });
+
   it('opens a script with a require of the collector after its prologue, so it stays strict, and moves the map with it', async () => {
     const root = await checkout();
     const script = '"use strict"; function total(items) {\n  return items.length > 0 ? items.length : 0;\n}\nmodule.exports = { total };\n';
